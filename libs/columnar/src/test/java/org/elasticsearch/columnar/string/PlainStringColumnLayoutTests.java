@@ -20,7 +20,6 @@ import org.elasticsearch.columnar.substrate.ChunkCodec;
 
 import java.io.IOException;
 import java.util.Locale;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -126,7 +125,7 @@ public class PlainStringColumnLayoutTests extends ColumnarStringTestCase {
             final long[] bytesRead = new long[2];
             final int[] chunks = new int[1];
             for (int arm = 0; arm < 2; arm++) {
-                final AtomicLong read = new AtomicLong();
+                final Counter read = new Counter();
                 final int index = arm;
                 withColumnAndSkipIndex(
                     docSlots,
@@ -151,9 +150,9 @@ public class PlainStringColumnLayoutTests extends ColumnarStringTestCase {
     }
 
     private static final class DataBytesCountingDirectory extends FilterDirectory {
-        private final AtomicLong bytesRead;
+        private final Counter bytesRead;
 
-        DataBytesCountingDirectory(Directory in, AtomicLong bytesRead) {
+        DataBytesCountingDirectory(Directory in, Counter bytesRead) {
             super(in);
             this.bytesRead = bytesRead;
         }
@@ -166,22 +165,22 @@ public class PlainStringColumnLayoutTests extends ColumnarStringTestCase {
     }
 
     private static final class CountingInput extends FilterIndexInput {
-        private final AtomicLong bytesRead;
+        private final Counter bytesRead;
 
-        CountingInput(IndexInput in, AtomicLong bytesRead) {
+        CountingInput(IndexInput in, Counter bytesRead) {
             super(in.toString(), in);
             this.bytesRead = bytesRead;
         }
 
         @Override
         public byte readByte() throws IOException {
-            bytesRead.incrementAndGet();
+            bytesRead.increment();
             return super.readByte();
         }
 
         @Override
         public void readBytes(byte[] b, int offset, int len) throws IOException {
-            bytesRead.addAndGet(len);
+            bytesRead.add(len);
             super.readBytes(b, offset, len);
         }
 

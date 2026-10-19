@@ -22,8 +22,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.NavigableSet;
 import java.util.TreeSet;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
 import static org.hamcrest.Matchers.greaterThan;
@@ -241,7 +239,7 @@ public class PlainStringColumnSkipperTests extends ColumnarStringTestCase {
         for (Query query : queries) {
             final long[] decoded = new long[2];
             for (int arm = 0; arm < 2; arm++) {
-                final AtomicLong seeks = new AtomicLong();
+                final Counter seeks = new Counter();
                 final int index = arm;
                 withColumnAndSkipIndex(
                     docSlots,
@@ -266,13 +264,13 @@ public class PlainStringColumnSkipperTests extends ColumnarStringTestCase {
         final BytesRef[][] docSlots = column(Shape.DESCENDING, 2 * INTERVAL, pool);
         final StringColumnOptions.Sizes sizes = sizes(128, 4096);
         for (boolean eligible : new boolean[] { false, true }) {
-            final AtomicInteger held = new AtomicInteger();
+            final Counter held = new Counter();
             withColumn(docSlots, () -> new HoldingProbe(cursor(docSlots), held), plain(eligible, sizes), (metadata, reader) -> {
                 assertEquals(eligible, ((StringColumnMetadata.Plain) metadata).skipper() != null);
                 StringMatchOracle.checkRandomQueries(reader, docSlots, pool, 10);
             });
             if (eligible) {
-                assertThat(held.get(), greaterThan(0));
+                assertThat(held.get(), greaterThan(0L));
             } else {
                 assertEquals(0, held.get());
             }
@@ -290,7 +288,7 @@ public class PlainStringColumnSkipperTests extends ColumnarStringTestCase {
         final long[] decoded = new long[2];
         final List<List<Integer>> matches = new ArrayList<>();
         for (int arm = 0; arm < 2; arm++) {
-            final AtomicLong seeks = new AtomicLong();
+            final Counter seeks = new Counter();
             final int index = arm;
             withColumnAndSkipIndex(
                 docSlots,
@@ -507,9 +505,9 @@ public class PlainStringColumnSkipperTests extends ColumnarStringTestCase {
 
     private static final class HoldingProbe extends StringColumnValues {
         private final StringColumnValues delegate;
-        private final AtomicInteger held;
+        private final Counter held;
 
-        HoldingProbe(StringColumnValues delegate, AtomicInteger held) {
+        HoldingProbe(StringColumnValues delegate, Counter held) {
             this.delegate = delegate;
             this.held = held;
         }
@@ -531,7 +529,7 @@ public class PlainStringColumnSkipperTests extends ColumnarStringTestCase {
 
         @Override
         public BytesRef value() throws IOException {
-            held.incrementAndGet();
+            held.increment();
             return delegate.value();
         }
 

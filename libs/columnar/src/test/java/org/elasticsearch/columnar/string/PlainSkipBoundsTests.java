@@ -25,7 +25,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.lessThan;
 
@@ -308,7 +307,7 @@ public class PlainSkipBoundsTests extends ESTestCase {
         for (int doc = 0; doc < docSlots.length; doc++) {
             docSlots[doc] = new BytesRef[] { new BytesRef(String.format(Locale.ROOT, "value-%08d", doc)) };
         }
-        final AtomicLong bytesRead = new AtomicLong();
+        final Counter bytesRead = new Counter();
         try (Directory delegate = newDirectory(); Directory dir = new ReadCountingDirectory(delegate, bytesRead)) {
             try (PlainSkipFixture fixture = PlainSkipFixture.build(dir, docSlots, 4)) {
                 assertEquals(blocks, fixture.skipper.entryCount());
@@ -509,9 +508,9 @@ public class PlainSkipBoundsTests extends ESTestCase {
     }
 
     private static final class ReadCountingDirectory extends FilterDirectory {
-        private final AtomicLong bytesRead;
+        private final Counter bytesRead;
 
-        ReadCountingDirectory(Directory in, AtomicLong bytesRead) {
+        ReadCountingDirectory(Directory in, Counter bytesRead) {
             super(in);
             this.bytesRead = bytesRead;
         }
@@ -523,22 +522,22 @@ public class PlainSkipBoundsTests extends ESTestCase {
     }
 
     private static final class CountingInput extends FilterIndexInput {
-        private final AtomicLong bytesRead;
+        private final Counter bytesRead;
 
-        CountingInput(IndexInput in, AtomicLong bytesRead) {
+        CountingInput(IndexInput in, Counter bytesRead) {
             super(in.toString(), in);
             this.bytesRead = bytesRead;
         }
 
         @Override
         public byte readByte() throws IOException {
-            bytesRead.incrementAndGet();
+            bytesRead.increment();
             return super.readByte();
         }
 
         @Override
         public void readBytes(byte[] b, int offset, int len) throws IOException {
-            bytesRead.addAndGet(len);
+            bytesRead.add(len);
             super.readBytes(b, offset, len);
         }
 
@@ -563,31 +562,31 @@ public class PlainSkipBoundsTests extends ESTestCase {
 
                 @Override
                 public byte readByte(long pos) throws IOException {
-                    bytesRead.incrementAndGet();
+                    bytesRead.increment();
                     return delegate.readByte(pos);
                 }
 
                 @Override
                 public void readBytes(long pos, byte[] bytes, int off, int len) throws IOException {
-                    bytesRead.addAndGet(len);
+                    bytesRead.add(len);
                     delegate.readBytes(pos, bytes, off, len);
                 }
 
                 @Override
                 public short readShort(long pos) throws IOException {
-                    bytesRead.addAndGet(Short.BYTES);
+                    bytesRead.add(Short.BYTES);
                     return delegate.readShort(pos);
                 }
 
                 @Override
                 public int readInt(long pos) throws IOException {
-                    bytesRead.addAndGet(Integer.BYTES);
+                    bytesRead.add(Integer.BYTES);
                     return delegate.readInt(pos);
                 }
 
                 @Override
                 public long readLong(long pos) throws IOException {
-                    bytesRead.addAndGet(Long.BYTES);
+                    bytesRead.add(Long.BYTES);
                     return delegate.readLong(pos);
                 }
 

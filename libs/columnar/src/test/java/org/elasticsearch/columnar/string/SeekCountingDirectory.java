@@ -16,14 +16,13 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 
 import java.io.IOException;
-import java.util.concurrent.atomic.AtomicLong;
 
 // NOTE: each read of the data file is one seek, so seeks count chunk or block reads, not decoded values.
 final class SeekCountingDirectory extends FilterDirectory {
 
-    private final AtomicLong seeks;
+    private final Counter seeks;
 
-    SeekCountingDirectory(Directory in, AtomicLong seeks) {
+    SeekCountingDirectory(Directory in, Counter seeks) {
         super(in);
         this.seeks = seeks;
     }
@@ -35,16 +34,16 @@ final class SeekCountingDirectory extends FilterDirectory {
     }
 
     private static final class SeekCountingInput extends FilterIndexInput {
-        private final AtomicLong seeks;
+        private final Counter seeks;
 
-        SeekCountingInput(IndexInput in, AtomicLong seeks) {
+        SeekCountingInput(IndexInput in, Counter seeks) {
             super(in.toString(), in);
             this.seeks = seeks;
         }
 
         @Override
         public void seek(long pos) throws IOException {
-            seeks.incrementAndGet();
+            seeks.increment();
             super.seek(pos);
         }
 

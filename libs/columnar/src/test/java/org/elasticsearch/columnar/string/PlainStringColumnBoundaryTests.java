@@ -21,7 +21,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.TreeSet;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
@@ -157,7 +156,7 @@ public class PlainStringColumnBoundaryTests extends ColumnarStringTestCase {
         for (int doc = 0; doc < docSlots.length; doc++) {
             docSlots[doc] = new BytesRef[] { new BytesRef(doc % 2 == 0 ? "a" : "e") };
         }
-        final AtomicLong seeks = new AtomicLong();
+        final Counter seeks = new Counter();
         withColumnAndSkipIndex(
             docSlots,
             plainWithBounds(),

@@ -34,7 +34,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.columnar.ColumnarTestUtils.columnarBinaryFieldType;
 import static org.elasticsearch.columnar.ColumnarTestUtils.columnarCodec;
@@ -85,7 +84,7 @@ public class PlainStringColumnLifecycleTests extends ESTestCase {
                 new BytesRef("band-" + band + "-" + String.format(java.util.Locale.ROOT, "%08d", between(0, 99_999_999))) };
         }
         docSlots[10] = new BytesRef[] { outlier };
-        final AtomicLong seeks = new AtomicLong();
+        final Counter seeks = new Counter();
         try (Directory dir = new SeekCountingDirectory(newDirectory(), seeks)) {
             writeSegments(dir, docSlots, 2, List.of(plain(true)));
             long before = 0;

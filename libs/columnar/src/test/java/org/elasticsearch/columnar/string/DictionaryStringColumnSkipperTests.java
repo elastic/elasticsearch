@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.NavigableSet;
 import java.util.TreeSet;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -259,7 +258,7 @@ public class DictionaryStringColumnSkipperTests extends ColumnarStringTestCase {
         CheckedFunction<StringColumnReader, DocIdSetIterator, IOException> query,
         Predicate<BytesRef> matching
     ) throws IOException {
-        final AtomicLong seeks = new AtomicLong();
+        final Counter seeks = new Counter();
         final long[] decoded = new long[1];
         withColumnAndSkipIndex(docSlots, options(), directory -> new SeekCountingDirectory(directory, seeks), (metadata, reader, skip) -> {
             final long before = seeks.get();

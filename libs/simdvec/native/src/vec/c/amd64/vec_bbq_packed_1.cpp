@@ -96,7 +96,11 @@ EXPORT int64_t vec_dotd2q4_packed(const int8_t* a, const int8_t* query, int32_t 
     return (int64_t)dotd2q4_packed_inner(a, query, packed_len);
 }
 
-template <typename TData, const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t), int batches = 2>
+template <
+    typename TData,
+    const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t),
+    int batches = 2,
+    int32_t(*out_mapper)(const int32_t*, const int32_t) = compact_output>
 static inline void dotd2q4_packed_bulk_impl(
     const TData* docs,
     const int8_t* query,
@@ -200,7 +204,7 @@ static inline void dotd2q4_packed_bulk_impl(
         }
 
         apply_indexed<batches>([&](auto I) {
-            results[c + I] = (f32_t)res[I];
+            results[out_mapper(offsets, c + I)] = (f32_t)res[I];
         });
         if (has_next) {
             std::copy_n(next_doc_ptrs, batches, current_doc_ptrs);
@@ -209,7 +213,7 @@ static inline void dotd2q4_packed_bulk_impl(
 
     for (; c < count; c++) {
         const int8_t* doc = mapper(docs, c, offsets, pitch);
-        results[c] = (f32_t)dotd2q4_packed_inner(doc, query, packed_len);
+        results[out_mapper(offsets, c)] = (f32_t)dotd2q4_packed_inner(doc, query, packed_len);
     }
 }
 
@@ -223,16 +227,17 @@ EXPORT void vec_dotd2q4_packed_bulk(
     dotd2q4_packed_bulk_impl<int8_t, sequential_mapper>(docs, query, packed_len, packed_len, NULL, count, results);
 }
 
-EXPORT void vec_dotd2q4_packed_bulk_offsets(
+EXPORT void vec_dotd2q4_packed_bulk_masked(
     const int8_t* docs,
     const int8_t* query,
     int32_t packed_len,
     int32_t pitch,
-    const int32_t* offsets,
+    const int32_t mask,
     int32_t count,
     f32_t* results
 ) {
-    dotd2q4_packed_bulk_impl<int8_t, offsets_mapper>(docs, query, packed_len, pitch, offsets, count, results);
+    dotd2q4_packed_bulk_impl<int8_t, masked_mapper, 2, masked_output>(
+        docs, query, packed_len, pitch, &mask, __builtin_popcount((uint32_t)mask), results);
 }
 
 EXPORT void vec_dotd2q4_packed_bulk_sparse(

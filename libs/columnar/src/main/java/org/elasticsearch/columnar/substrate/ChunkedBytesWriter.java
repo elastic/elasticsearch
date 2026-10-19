@@ -71,6 +71,11 @@ public final class ChunkedBytesWriter {
         return uncompressedLength;
     }
 
+    /** The index of the chunk the next appended byte goes to. */
+    public int chunkBeingFilled() {
+        return numChunks;
+    }
+
     /**
      * Closes the pending chunk if the {@code values} the caller is about to append would take it past the
      * value bound, and counts them towards the chunk they land in. The byte bound needs no such warning: it

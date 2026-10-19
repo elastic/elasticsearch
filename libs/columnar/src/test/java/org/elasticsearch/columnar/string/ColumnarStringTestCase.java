@@ -13,6 +13,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOSupplier;
@@ -27,6 +28,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.UnaryOperator;
 
 import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
 
@@ -193,7 +195,8 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
                 StringColumnOptions.DEFAULT_SUMMARY,
                 chunkCodec,
                 sizes,
-                StringColumnOptions.DEFAULT_SINGLE_VALUED
+                StringColumnOptions.DEFAULT_SINGLE_VALUED,
+                StringColumnOptions.DEFAULT_ENABLE_SKIP_INDEX
             ),
             check
         );
@@ -224,12 +227,49 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         final StringColumnOptions options,
         final ColumnCheck check
     ) throws IOException {
+        withColumnAndSkipIndex(
+            docSlots,
+            cursors,
+            options,
+            UnaryOperator.identity(),
+            (metadata, reader, skipIndex) -> check.check(metadata, reader)
+        );
+    }
+
+    /** What a test does with the column it asked for and the file its skip index was written to. */
+    protected interface SkipIndexCheck {
+        void check(StringColumnMetadata metadata, StringColumnReader reader, IndexInput skipIndex) throws IOException;
+    }
+
+    /** As above, for a test that reads the skip index itself. */
+    protected void withColumnAndSkipIndex(final BytesRef[][] docSlots, final StringColumnOptions options, final SkipIndexCheck check)
+        throws IOException {
+        withColumnAndSkipIndex(docSlots, options, UnaryOperator.identity(), check);
+    }
+
+    /** As above, reading the column back through {@code readThrough}, for a test that watches what the reader asks of the files. */
+    protected void withColumnAndSkipIndex(
+        final BytesRef[][] docSlots,
+        final StringColumnOptions options,
+        final UnaryOperator<Directory> readThrough,
+        final SkipIndexCheck check
+    ) throws IOException {
+        withColumnAndSkipIndex(docSlots, () -> cursor(docSlots), options, readThrough, check);
+    }
+
+    private void withColumnAndSkipIndex(
+        final BytesRef[][] docSlots,
+        final IOSupplier<StringColumnValues> cursors,
+        final StringColumnOptions options,
+        final UnaryOperator<Directory> readThrough,
+        final SkipIndexCheck check
+    ) throws IOException {
         final byte[] segmentId = new byte[16];
         random().nextBytes(segmentId);
         try (Directory dir = newDirectory()) {
             final StringColumnMetadata metadata = writeColumn(dir, segmentId, docSlots, cursors, options);
-            try (ColumnTestFiles.Inputs inputs = ColumnTestFiles.open(dir, COLUMN_FILES, segmentId)) {
-                check.check(metadata, StringColumnReader.open(metadata, inputs.inputs()));
+            try (ColumnTestFiles.Inputs inputs = ColumnTestFiles.open(readThrough.apply(dir), COLUMN_FILES, segmentId)) {
+                check.check(metadata, StringColumnReader.open(metadata, inputs.inputs(), inputs.skipIndex()), inputs.skipIndex());
             }
         }
     }
@@ -398,7 +438,8 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
                 null,
                 dir,
                 IOContext.DEFAULT,
-                out.outputs()
+                out.outputs(),
+                out.skipIndex()
             );
         }
         try (IndexOutput meta = dir.createOutput(META_FILE, IOContext.DEFAULT)) {

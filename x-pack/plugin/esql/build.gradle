@@ -103,6 +103,8 @@ dependencies {
   internalClusterTestImplementation project(':test:fixtures:geoip-fixture')
   internalClusterTestImplementation project(':modules:reindex')
   internalClusterTestImplementation project(":modules:mapper-extras")
+  // the real project-encryption-key plugin, so an IT can hold a worker mid-apply and observe a genuine key-cache miss
+  internalClusterTestImplementation project(':x-pack:plugin:encryption')
   internalClusterTestImplementation project(":plugins:mapper-size")
   internalClusterTestImplementation project(xpackModule('inference:qa:test-service-plugin'))
   internalClusterTestImplementation(testArtifact(project(xpackModule('inference'))))

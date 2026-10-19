@@ -7,17 +7,31 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
+import org.elasticsearch.xpack.encryption.spi.EncryptionKeyNotYetAvailableException;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
+import org.elasticsearch.xpack.encryption.spi.EncryptionServiceState;
+import org.elasticsearch.xpack.encryption.spi.EncryptionServiceUnavailableException;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -159,5 +173,133 @@ public class DataSourceCredentialsTests extends ESTestCase {
 
         assertEquals(snapshot, input);
         assertSame(blob, input.get("secret_access_key"));
+    }
+
+    /** Decrypt stub that reports the key as not yet available on every call, counting the calls. */
+    private static EncryptionService keyNotYetAvailable(AtomicInteger attempts) {
+        return new EncryptionService() {
+            @Override
+            public EncryptedData encrypt(byte[] bytes) {
+                return new EncryptedData("test-key", bytes.clone());
+            }
+
+            @Override
+            public byte[] decrypt(EncryptedData encryptedData) {
+                attempts.incrementAndGet();
+                throw new EncryptionKeyNotYetAvailableException("project encryption key [{}] is not yet available", encryptedData.keyId());
+            }
+        };
+    }
+
+    /** Identity decrypt that counts calls. */
+    private static EncryptionService counting(AtomicInteger attempts) {
+        return new EncryptionService() {
+            @Override
+            public EncryptedData encrypt(byte[] bytes) {
+                return new EncryptedData("test-key", bytes.clone());
+            }
+
+            @Override
+            public byte[] decrypt(EncryptedData encryptedData) {
+                attempts.incrementAndGet();
+                return encryptedData.payload();
+            }
+        };
+    }
+
+    private static ExternalSourceExec externalSource(Map<String, Object> config) {
+        return new ExternalSourceExec(Source.EMPTY, "teststore:///data/*.parquet", "parquet", List.of(), config, Map.of(), null, null);
+    }
+
+    public void testKeyNotYetAvailableBecomesCredentialsNotReady() throws IOException {
+        DataSourceCredentials credentials = new DataSourceCredentials(keyNotYetAvailable(new AtomicInteger()));
+        EncryptedData secret = encryptedSecret("s3cr3t");
+
+        ExternalUnavailableException e = expectThrows(
+            ExternalUnavailableException.class,
+            () -> credentials.decryptInPlace(Map.of("secret", secret))
+        );
+
+        assertThat(e.condition(), equalTo(ExternalException.Condition.CREDENTIALS_NOT_READY));
+        assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+        assertThat(e.getCause(), instanceOf(EncryptionKeyNotYetAvailableException.class));
+        assertThat(e.getMessage(), containsString("cannot decrypt the external data source credentials yet"));
+        assertThat(e.getMessage(), containsString("key [test-key]"));
+        assertTrue(ExternalException.hasCondition(e, ExternalException.Condition.CREDENTIALS_NOT_READY));
+    }
+
+    public void testCredentialsNotReadySurvivesTheWire() throws IOException {
+        DataSourceCredentials credentials = new DataSourceCredentials(keyNotYetAvailable(new AtomicInteger()));
+        EncryptedData secret = encryptedSecret("s3cr3t");
+        Exception local = expectThrows(ExternalUnavailableException.class, () -> credentials.decryptInPlace(Map.of("secret", secret)));
+
+        Exception remote;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeException(local);
+            try (StreamInput in = out.bytes().streamInput()) {
+                remote = in.readException();
+            }
+        }
+
+        // The type is not in the exception registry, so it crosses a node boundary as a wrapper. The condition rides in the
+        // metadata and the status is kept, which is all the coordinator needs to route the splits elsewhere.
+        assertThat(remote, instanceOf(NotSerializableExceptionWrapper.class));
+        assertThat(ExternalException.conditionOf(remote), equalTo(ExternalException.Condition.CREDENTIALS_NOT_READY));
+        assertThat(ExceptionsHelper.status(remote), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+    }
+
+    public void testPermanentUnavailabilityIsNotTranslated() throws IOException {
+        EncryptionService disabled = new EncryptionService() {
+            @Override
+            public EncryptedData encrypt(byte[] bytes) {
+                return new EncryptedData("test-key", bytes.clone());
+            }
+
+            @Override
+            public byte[] decrypt(EncryptedData encryptedData) {
+                throw new EncryptionServiceUnavailableException(EncryptionServiceState.DISABLED);
+            }
+        };
+        DataSourceCredentials credentials = new DataSourceCredentials(disabled);
+        EncryptedData secret = encryptedSecret("s3cr3t");
+
+        // another node cannot help with a permanent condition, so it keeps its own type
+        expectThrows(EncryptionServiceUnavailableException.class, () -> credentials.decryptInPlace(Map.of("secret", secret)));
+    }
+
+    public void testPreflightDecryptsEverySecretUnderTheDataSourceMap() throws IOException {
+        AtomicInteger attempts = new AtomicInteger();
+        DataSourceCredentials credentials = new DataSourceCredentials(counting(attempts));
+        Map<String, Object> config = Map.of(
+            "format",
+            "parquet",
+            ExternalSourceResolver.DATASOURCE_CONFIG_KEY,
+            Map.of("secret_token", encryptedSecret("t"), "secret_key", encryptedSecret("k"), "region", "us-east-1")
+        );
+
+        credentials.preflight(externalSource(config));
+
+        assertThat("both secrets under _datasource are decrypted, the plain setting is not", attempts.get(), equalTo(2));
+    }
+
+    public void testPreflightFailsFastWhenTheKeyIsNotThere() throws IOException {
+        DataSourceCredentials credentials = new DataSourceCredentials(keyNotYetAvailable(new AtomicInteger()));
+        Map<String, Object> config = Map.of(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, Map.of("secret_token", encryptedSecret("t")));
+
+        ExternalUnavailableException e = expectThrows(
+            ExternalUnavailableException.class,
+            () -> credentials.preflight(externalSource(config))
+        );
+
+        assertThat(e.condition(), equalTo(ExternalException.Condition.CREDENTIALS_NOT_READY));
+    }
+
+    public void testPreflightWithoutSecretsDoesNotDecrypt() {
+        AtomicInteger attempts = new AtomicInteger();
+        DataSourceCredentials credentials = new DataSourceCredentials(counting(attempts));
+
+        credentials.preflight(externalSource(Map.of("format", "parquet")));
+
+        assertThat(attempts.get(), equalTo(0));
     }
 }

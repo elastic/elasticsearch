@@ -245,9 +245,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/158128
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   issue: https://github.com/elastic/elasticsearch/issues/158224
-- class: org.elasticsearch.indices.recovery.IndexRecoveryIT
-  method: testPeerRecoveryTrimsLocalTranslog
-  issue: https://github.com/elastic/elasticsearch/issues/158303
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
   method: testFetchTooManyBigFields
   issue: https://github.com/elastic/elasticsearch/issues/158349
@@ -511,3 +508,12 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
   method: testUnpromotableRegisterCommitForRecoveryTracksAllBlobsPessimisticallyAndWaitsUntilShardStarts
   issue: https://github.com/elastic/elasticsearch/issues/162175
+- class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRelocationSourceThrottleIT
+  method: testSourceNodeShutdown
+  issue: https://github.com/elastic/elasticsearch/issues/162540
+- class: org.elasticsearch.compute.aggregation.blockhash.LongBytesRefBlockHashTests
+  method: testLookup
+  issue: https://github.com/elastic/elasticsearch/issues/162546
+- class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS1MissingIndicesIT
+  method: testSearchesAgainstNonMatchingIndices
+  issue: https://github.com/elastic/elasticsearch/issues/162565

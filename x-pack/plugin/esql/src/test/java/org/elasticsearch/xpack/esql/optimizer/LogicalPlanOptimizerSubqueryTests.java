@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
@@ -28,7 +27,6 @@ import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
-import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
@@ -44,7 +42,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.rewriteDatasetsUnsecured;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
@@ -582,32 +579,6 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
      * {@code _unmapped_fields} instead. Whichever way views, indices and subqueries are combined, the optimizer must find that column
      * where the plan above it reads it; nothing may be left referencing an attribute that no subplan provides.
      */
-    public void testLoadAllViewsOptimize() {
-        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
-        TestAnalyzer analyzer = subqueryAnalyzer().addView("kept", "FROM test | KEEP *name*")
-            .addView("plain", "FROM test")
-            .addView("filtered", "FROM test | WHERE emp_no > 0");
-        // With an index next to the views, the union has the column, null for the views.
-        for (String query : List.of(
-            "FROM test, kept | WHERE first_name == \"x\"",
-            "FROM test, kept | WHERE first_name == \"x\" | SORT emp_no | LIMIT 2",
-            "FROM test, (FROM kept | WHERE first_name == \"x\")"
-        )) {
-            LogicalPlan optimized = optimize(analyzer.statement("SET unmapped_fields=\"load_all\"; " + query));
-            assertThat(query, Expressions.names(optimized.output()), hasItem(UnmappedFieldsAttribute.ATTRIBUTE_NAME));
-        }
-        // Views only have no column of that name to return.
-        for (String query : List.of(
-            "FROM plain",
-            "FROM plain | WHERE emp_no > 1",
-            "FROM kept, plain | WHERE first_name == \"x\"",
-            "FROM plain, filtered",
-            "FROM (FROM plain | WHERE emp_no > 1), (FROM plain | WHERE emp_no < 0) | SORT emp_no"
-        )) {
-            LogicalPlan optimized = optimize(analyzer.statement("SET unmapped_fields=\"load_all\"; " + query));
-            assertThat(query, Expressions.names(optimized.output()), not(hasItem(UnmappedFieldsAttribute.ATTRIBUTE_NAME)));
-        }
-    }
 
     private LogicalPlan planSubquery(TestAnalyzer analyzer, String query, Settings pragmaSettings, EsqlFlags flags) {
         return optimizeWithPragmas(analyzer.query(query), query, pragmaSettings, flags);

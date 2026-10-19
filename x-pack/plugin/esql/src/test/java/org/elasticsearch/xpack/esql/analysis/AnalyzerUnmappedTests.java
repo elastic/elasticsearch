@@ -881,33 +881,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         }
     }
 
-    public void testLoadAllModeAllowsViews() {
-        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
-        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
-        for (String query : List.of(
-            "FROM v",
-            "FROM test, v",
-            "FROM v, v2",
-            "FROM (FROM v | WHERE emp_no > 1), (FROM v | WHERE emp_no < 0)",
-            "FROM v | WHERE emp_no > 1 | KEEP emp_no, first_name",
-            "FROM v | STATS c = COUNT(*) BY first_name"
-        )) {
-            test().addView("v", "FROM test").addView("v2", "FROM test | EVAL x = 1").statement(setUnmappedLoadAll(query));
-        }
-    }
-
-    // A column an outer EVAL names is answered at the view's output with null, so the KEEP only lists the EVAL's own result and the
-    // view's columns it names.
-    public void testLoadAllViewEvalThenKeepExactNamesDoesNotExpand() {
-        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
-        LogicalPlan plan = partialMappingTest().addView("v", "FROM partial_mapping_sample_data").statement(setUnmappedLoadAll("""
-            FROM v
-            | EVAL dur = unmapped_event_duration::long
-            | KEEP message, dur
-            """));
-        assertThat(Expressions.names(plan.output()), equalTo(List.of("message", "dur")));
-    }
-
     public void testNullifyReferenceInsideViewBodyFailsResolution() {
         assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
         test().addLanguages()

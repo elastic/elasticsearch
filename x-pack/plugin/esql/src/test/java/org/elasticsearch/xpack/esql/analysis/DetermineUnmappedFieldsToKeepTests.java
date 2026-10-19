@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -552,9 +553,16 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertThat(Expressions.names(plan.output()), not(hasItem(UnmappedFieldsAttribute.ATTRIBUTE_NAME)));
     }
 
+    public void testStatsSubqueryAndViewHaveNoUnmappedFieldsColumn() {
+        LogicalPlan plan = test().addView("v", "FROM test")
+            .statement(setUnmappedLoadAll("FROM (FROM test | STATS c = COUNT(*)), (FROM v)"));
+        assertThat(relationsWithUnmappedFields(plan), empty());
+        assertThat(Expressions.names(plan.output()), not(hasItem(UnmappedFieldsAttribute.ATTRIBUTE_NAME)));
+    }
+
     public void testViewBesideIndexOnlyAnnotatesTheIndex() {
         LogicalPlan plan = test().addView("v", "FROM test").statement(setUnmappedLoadAll("FROM test, v"));
-        assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), hasSize(1));
+        assertOnlyIndexBranchesAnnotated(plan);
         assertThat(plan.collect(EsRelation.class), hasSize(2));
         UnmappedFieldsPattern pattern = unmappedFieldsPattern(EsqlTestUtils.singleValue(relationsWithUnmappedFields(plan)));
         assertKept(pattern, "unmapped_extra");
@@ -565,8 +573,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         LogicalPlan plan = test().addView("inner", "FROM test")
             .addView("outer", "FROM inner")
             .statement(setUnmappedLoadAll("FROM test, outer"));
-        assertThat(relationsWithUnmappedFields(plan), hasSize(1));
-        assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), hasSize(1));
+        assertOnlyIndexBranchesAnnotated(plan);
     }
 
     public void testBodyOfViewDoesNotRestrictTheIndexBranch() {
@@ -610,7 +617,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         // Only the view's output counts as a column of the query; what its body had along the way does not.
         LogicalPlan plan = test().addView("v", "FROM test | EVAL _unmapped_fields = 1 | KEEP emp_no")
             .statement(setUnmappedLoadAll("FROM test, v"));
-        assertThat(relationsWithUnmappedFields(plan), hasSize(1));
+        assertOnlyIndexBranchesAnnotated(plan);
     }
 
     public void testColumnOfViewNamedLikeUnmappedFieldsIsTheQuerys() {
@@ -1076,6 +1083,23 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
             .stream()
             .filter(relation -> CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class).isEmpty() == false)
             .toList();
+    }
+
+    /**
+     * The output has an {@link UnmappedFieldsAttribute}, the relations in view branches are not annotated, and the ones in the other
+     * branches are.
+     */
+    private static void assertOnlyIndexBranchesAnnotated(LogicalPlan plan) {
+        assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), hasSize(1));
+        BranchPlan branches = EsqlTestUtils.singleValue(plan.collect(BranchPlan.class));
+        for (int i = 0; i < branches.children().size(); i++) {
+            List<EsRelation> annotated = relationsWithUnmappedFields(branches.children().get(i));
+            if (branches.isViewBranch(i)) {
+                assertThat("view branch [" + i + "]", annotated, empty());
+            } else {
+                assertThat("index branch [" + i + "]", annotated, hasSize(1));
+            }
+        }
     }
 
     private static UnmappedFieldsPattern patternOf(LogicalPlan plan) {

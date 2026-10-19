@@ -14,6 +14,8 @@ import java.util.Objects;
 /**
  * Marks selected vectors within a block of at most 32 contiguous vectors: bit {@code i} of the mask selects the {@code i}-th vector.
  * Masked bulk scoring writes the score of each selected vector at its position in the block.
+ * This is a static/utility class on purpose: it is used in hot paths and we want the bit operations to be fully inlined,
+ * regardless of EA and C2 decisions.
  */
 public final class BulkMask {
 

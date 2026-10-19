@@ -74,7 +74,10 @@ static inline const T* sparse_mapper(const T* const* data, const int32_t i, cons
 }
 
 // Position of the k-th (0-based) set bit of mask; k must be below popcount(mask).
-// Defined per architecture, next to the instructions it uses.
+// The k-th bit needs to be extracted from the middle of the mask, independently from other bits being set around it;
+// our kernels do unrolling and prefetching, so the need to be able to access (and select) any vector at random
+// inside the dataset.
+// Defined per architecture (as different processors may or may not have native instructions for this operation).
 static inline int32_t mask_select(const uint32_t mask, const int32_t k);
 
 // Masked layout: a block of up to 32 vectors, each `pitch` elements apart, of which only those

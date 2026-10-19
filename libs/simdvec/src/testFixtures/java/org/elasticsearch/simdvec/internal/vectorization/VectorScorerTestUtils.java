@@ -25,20 +25,21 @@ import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Random;
 
 public class VectorScorerTestUtils {
 
     /** A mask over the first {@code count} vectors of a block with {@code filtered} of them, chosen at random, not selected. */
     public static int generateFilteredMask(Random random, int count, int filtered) {
+        int[] positions = new int[count];
+        Arrays.setAll(positions, i -> i);
         int mask = BulkMask.all(count);
         for (int i = 0; i < filtered; i++) {
-            int remaining = Integer.bitCount(mask);
-            int drop = mask;
-            for (int skip = random.nextInt(0, remaining); skip > 0; skip--) {
-                drop = BulkMask.deselectFirst(drop);
-            }
-            mask &= ~(1 << BulkMask.first(drop));
+            int pick = random.nextInt(i, count);
+            int dropped = positions[pick];
+            positions[pick] = positions[i];
+            mask &= ~(1 << dropped);
         }
         return mask;
     }

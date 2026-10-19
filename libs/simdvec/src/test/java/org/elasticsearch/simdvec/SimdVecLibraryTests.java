@@ -37,15 +37,14 @@ public abstract class SimdVecLibraryTests extends ESTestCase {
     protected static SimdVecLibrary vectorSimilarityFunctions;
     protected static Arena arena;
 
-    protected static final int[] DIMS1 = { 1, 2, 4, 6, 8, 12, 13, 16, 25, 31, 32, 33, 64, 100, 128, 207, 256, 300, 512, 702, 768 };
-    protected static final int[] DIMS2 = { 1000, 1023, 1024, 1025, 2047, 2048, 2049, 4095, 4096, 4097 };
-
     protected final SimdVecLibrary.SimilarityFunction function;
     protected final int size;
 
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() {
-        return () -> IntStream.concat(Arrays.stream(DIMS1), Arrays.stream(DIMS2))
+        var dims1 = Arrays.stream(new int[] { 1, 2, 4, 6, 8, 12, 13, 16, 25, 31, 32, 33, 64, 100, 128, 207, 256, 300, 512, 702, 768 });
+        var dims2 = Arrays.stream(new int[] { 1000, 1023, 1024, 1025, 2047, 2048, 2049, 4095, 4096, 4097 });
+        return () -> IntStream.concat(dims1, dims2)
             .boxed()
             .flatMap(i -> Stream.of(SimdVecLibrary.SimilarityFunction.values()).map(f -> new Object[] { f, i }))
             .iterator();

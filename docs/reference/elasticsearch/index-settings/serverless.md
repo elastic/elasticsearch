@@ -37,10 +37,10 @@ This page lists the {{es}} index settings available in {{serverless-full}} proje
 
 ### Field and mapping related settings
 
-* [`index.mapping.binary_doc_values.max_value_length`](./mapping-limit.md#binary-doc-values-max-value-length)
 * [`index.mapping.coerce`](../mapping-reference/coerce.md#coerce-setting)
 * [`index.mapping.ignore_above`](../mapping-reference/index-mapping-ignore-above.md)
 * [`index.mapping.ignore_malformed`](../mapping-reference/ignore-malformed.md#ignore-malformed-setting)
+* [`index.mapping.non_indexed_field.max_value_length`](./mapping-limit.md#non-indexed-field-max-value-length)
 * [`index.mapping.source.mode`](../mapping-reference/mapping-source-field.md)
 * [`index.mapping.synthetic_source_keep`](../mapping-reference/mapping-source-field.md)
 * [`index.mapping.total_fields.limit`](./mapping-limit.md#total-fields-limit)

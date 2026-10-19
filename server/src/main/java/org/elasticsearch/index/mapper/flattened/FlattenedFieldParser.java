@@ -221,8 +221,9 @@ class FlattenedFieldParser {
             return;
         }
 
-        // check the keyed value doesn't exceed the IndexWriter.MAX_TERM_LENGTH limit enforced by Lucene at index time, or the binary
-        // doc values limit for fields without terms; we can throw a more user friendly exception here with the key and value lengths
+        // check the keyed value doesn't exceed the IndexWriter.MAX_TERM_LENGTH limit enforced by Lucene at index time, or the non-indexed
+        // field limit for fields without terms in columnar index modes; we can throw a more user friendly exception here with the key
+        // and value lengths
         if (bytesKeyedValue.length > maxKeyedValueLength) {
             throw overLimitSizeKeyedValueException(rootFieldFullPath, key, value.length(), maxKeyedValueLength);
         }

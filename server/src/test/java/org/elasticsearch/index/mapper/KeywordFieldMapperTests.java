@@ -981,12 +981,12 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     /**
-     * Binary doc values have a separate, configurable ceiling that keeps values from degrading storage and scanning.
+     * Non-indexed fields have a separate, configurable ceiling that keeps values from degrading storage and scanning.
      */
-    public void testKeywordFieldLongerThanBinaryDocValueLimitNotIndexedInColumnarModeIsRejected() throws Exception {
+    public void testKeywordFieldLongerThanNonIndexedFieldLimitInColumnarModeIsRejected() throws Exception {
         Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(IndexSettings.MAX_BINARY_DOC_VALUE_LENGTH_SETTING.getKey(), "64kb")
+            .put(IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.getKey(), "64kb")
             .build();
         DocumentMapper mapper = createMapperService(settings, fieldMapping(b -> b.field("type", "keyword").field("index", false)))
             .documentMapper();
@@ -1000,15 +1000,19 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     /**
-     * A stored-only keyword writes neither terms nor sorted-set doc values, so Lucene's term limit does not apply in any index mode.
+     * A stored-only keyword writes neither terms nor sorted-set doc values, but the non-indexed field limit applies only in columnar
+     * index modes, which do not allow {@code store}. So it keeps Lucene's term limit.
      */
-    public void testStoredOnlyKeywordLongerThan32766IsAccepted() throws Exception {
+    public void testStoredOnlyKeywordLongerThan32766IsRejected() throws Exception {
         DocumentMapper mapper = createDocumentMapper(
             fieldMapping(b -> b.field("type", "keyword").field("index", false).field("doc_values", false).field("store", true))
         );
         String longValue = "x".repeat(IndexWriter.MAX_TERM_LENGTH + 100);
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", longValue)));
-        assertThat(doc.rootDoc().getField("field").binaryValue().utf8ToString(), equalTo(longValue));
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.field("field", longValue)))
+        );
+        assertThat(e.getCause().getMessage(), containsString("longer than the max length " + IndexWriter.MAX_TERM_LENGTH));
     }
 
     /**

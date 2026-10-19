@@ -1234,15 +1234,45 @@ public final class IndexSettings {
     );
 
     /**
-     * Largest value, in bytes, that a keyword or flattened field may write to binary doc values. Lucene imposes no limit there,
-     * so this bounds storage and scan cost. Fields that also feed the inverted index or sorted-set doc values keep Lucene's
-     * {@link IndexWriter#MAX_TERM_LENGTH} instead.
+     * Largest value, in bytes, of a non-indexed keyword or flattened field in a columnar index mode. Lucene imposes no limit on
+     * such values, so this bounds storage and scan cost. Fields that feed the inverted index or sorted-set doc values, and all
+     * fields outside columnar index modes, keep Lucene's {@link IndexWriter#MAX_TERM_LENGTH} instead.
      */
-    public static final Setting<ByteSizeValue> MAX_BINARY_DOC_VALUE_LENGTH_SETTING = Setting.byteSizeSetting(
-        "index.mapping.binary_doc_values.max_value_length",
-        ByteSizeValue.of(1, ByteSizeUnit.MB),
-        ByteSizeValue.ofBytes(IndexWriter.MAX_TERM_LENGTH),
-        ByteSizeValue.ofBytes(Integer.MAX_VALUE),
+    public static final Setting<ByteSizeValue> NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING = new Setting<>(
+        "index.mapping.non_indexed_field.max_value_length",
+        ByteSizeValue.of(1, ByteSizeUnit.MB).getStringRep(),
+        s -> Setting.parseByteSize(
+            s,
+            ByteSizeValue.ofBytes(IndexWriter.MAX_TERM_LENGTH),
+            ByteSizeValue.ofBytes(Integer.MAX_VALUE),
+            "index.mapping.non_indexed_field.max_value_length"
+        ),
+        new Setting.Validator<>() {
+            @Override
+            public void validate(ByteSizeValue value) {}
+
+            @Override
+            public void validate(ByteSizeValue value, Map<Setting<?>, Object> settings, boolean isPresent) {
+                var indexMode = (IndexMode) settings.get(MODE);
+                if (isPresent && indexMode.isStrictColumnar() == false) {
+                    throw new IllegalArgumentException(
+                        String.format(
+                            Locale.ROOT,
+                            "The setting [%s] is only permitted when [%s] is a columnar index mode. Current mode: [%s].",
+                            NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.getKey(),
+                            MODE.getKey(),
+                            indexMode.getName()
+                        )
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final List<Setting<?>> settings = List.of(MODE);
+                return settings.iterator();
+            }
+        },
         Property.IndexScope,
         Property.Final,
         Property.ServerlessPublic
@@ -1514,7 +1544,7 @@ public final class IndexSettings {
     private final boolean recoverySourceEnabled;
     private final boolean recoverySourceSyntheticEnabled;
     private final int ignoreAbove;
-    private final int maxBinaryDocValueLength;
+    private final int nonIndexedFieldMaxValueLength;
     private final boolean useDocValuesSkipper;
     private final boolean useDocValuesSkipperForHostname;
     private final boolean useTimeSeriesSyntheticId;
@@ -1749,7 +1779,7 @@ public final class IndexSettings {
         recoverySourceSyntheticEnabled = DiscoveryNode.isStateless(nodeSettings) == false
             && scopedSettings.get(RECOVERY_USE_SYNTHETIC_SOURCE_SETTING);
         ignoreAbove = scopedSettings.get(IGNORE_ABOVE_SETTING);
-        maxBinaryDocValueLength = Math.toIntExact(scopedSettings.get(MAX_BINARY_DOC_VALUE_LENGTH_SETTING).getBytes());
+        nonIndexedFieldMaxValueLength = Math.toIntExact(scopedSettings.get(NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING).getBytes());
         useDocValuesSkipper = scopedSettings.get(USE_DOC_VALUES_SKIPPER);
         useDocValuesSkipperForHostname = USE_DOC_VALUES_SKIPPER.exists(settings)
             ? scopedSettings.get(USE_DOC_VALUES_SKIPPER)
@@ -2577,16 +2607,17 @@ public final class IndexSettings {
         return ignoreAbove;
     }
 
-    public int getMaxBinaryDocValueLength() {
-        return maxBinaryDocValueLength;
+    public int getNonIndexedFieldMaxValueLength() {
+        return nonIndexedFieldMaxValueLength;
     }
 
     /**
      * Byte limit for one keyword or flattened value. Lucene enforces {@link IndexWriter#MAX_TERM_LENGTH} only in the inverted
-     * index and in sorted-set doc values; other values get {@link #MAX_BINARY_DOC_VALUE_LENGTH_SETTING}.
+     * index and in sorted-set doc values. Other values get {@link #NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING} in columnar index
+     * modes, and {@link IndexWriter#MAX_TERM_LENGTH} in all other index modes.
      */
-    public int maxValueLength(boolean enforcesTermLength) {
-        return enforcesTermLength ? IndexWriter.MAX_TERM_LENGTH : maxBinaryDocValueLength;
+    public int maxValueLength(boolean useLuceneMaxTermLength) {
+        return useLuceneMaxTermLength || mode.isStrictColumnar() == false ? IndexWriter.MAX_TERM_LENGTH : nonIndexedFieldMaxValueLength;
     }
 
     public boolean useDocValuesSkipper() {

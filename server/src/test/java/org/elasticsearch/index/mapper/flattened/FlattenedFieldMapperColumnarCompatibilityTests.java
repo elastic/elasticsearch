@@ -421,10 +421,10 @@ public class FlattenedFieldMapperColumnarCompatibilityTests extends AbstractColu
         );
     }
 
-    public void testKeyedValueLongerThanBinaryDocValueLimitIsRejectedOnBatchPath() throws IOException {
+    public void testKeyedValueLongerThanNonIndexedFieldLimitIsRejectedOnBatchPath() throws IOException {
         Settings settings = Settings.builder()
             .put(columnarSettings())
-            .put(IndexSettings.MAX_BINARY_DOC_VALUE_LENGTH_SETTING.getKey(), "64kb")
+            .put(IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.getKey(), "64kb")
             .build();
         // The keyed encoding "k\0" + value adds 2 bytes to the value.
         String valueAtLimit = "v".repeat(64 * 1024 - 2);

@@ -1012,9 +1012,12 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         );
     }
 
-    public void testNoIndexValueLongerThanBinaryDocValueLimitThrows() throws IOException {
+    public void testNoIndexValueLongerThanNonIndexedFieldLimitThrows() throws IOException {
         final MapperService mapperService = createMapperService(
-            Settings.builder().put(columnarSettings()).put(IndexSettings.MAX_BINARY_DOC_VALUE_LENGTH_SETTING.getKey(), "64kb").build(),
+            Settings.builder()
+                .put(columnarSettings())
+                .put(IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.getKey(), "64kb")
+                .build(),
             mapping(b -> b.startObject(FIELD).field("type", "keyword").field("index", false).endObject())
         );
         final String longValue = "a".repeat(64 * 1024 + 1);

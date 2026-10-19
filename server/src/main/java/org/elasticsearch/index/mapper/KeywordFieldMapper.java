@@ -1575,9 +1575,9 @@ public final class KeywordFieldMapper extends FieldMapper {
         );
         this.indexOptions = builder.indexOptions.getValue();
         this.fieldType = freezeAndDeduplicateFieldType(fieldType);
-        boolean enforcesTermLength = this.fieldType.indexOptions() != IndexOptions.NONE
+        boolean useLuceneMaxTermLength = this.fieldType.indexOptions() != IndexOptions.NONE
             || this.fieldType.docValuesType() == DocValuesType.SORTED_SET;
-        this.maxValueLength = builder.indexSettings.maxValueLength(enforcesTermLength);
+        this.maxValueLength = builder.indexSettings.maxValueLength(useLuceneMaxTermLength);
         this.normalizerName = builder.normalizer.getValue();
         this.normalizerSkipStoreOriginalValue = builder.normalizerSkipStoreOriginalValue.getValue();
         this.splitQueriesOnWhitespace = builder.splitQueriesOnWhitespace.getValue();
@@ -2323,7 +2323,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         // back the changes, marks the (possibly partially indexed) document as deleted. This results in deletes, even in an append-only
         // workload, which in turn leads to slower merges, as these will potentially have to fall back to MergeStrategy.DOC instead of
         // MergeStrategy.BULK. To avoid this, we do a preflight check here before indexing the document into Lucene. Other values have no
-        // Lucene limit, so they are checked against the binary doc values limit from the index settings instead.
+        // Lucene limit, so in columnar index modes they are checked against the non-indexed field limit from the index settings instead.
         if (binaryValue.length > maxValueLength) {
             throw largeTermException(binaryValue);
         }

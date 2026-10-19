@@ -1700,8 +1700,8 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         this.writeDimensionRouting = builder.dimensions.getValue().isEmpty() == false
             && builder.indexSettings.getIndexRouting() instanceof IndexRouting.ExtractFromSource efs
             && efs.extractDimensionsWhileMapping();
-        boolean enforcesTermLength = mappedFieldType.indexType().hasTerms() || builder.usesBinaryDocValues == false;
-        this.maxKeyedValueLength = builder.indexSettings.maxValueLength(enforcesTermLength);
+        boolean useLuceneMaxTermLength = mappedFieldType.indexType().hasTerms() || builder.usesBinaryDocValues == false;
+        this.maxKeyedValueLength = builder.indexSettings.maxValueLength(useLuceneMaxTermLength);
         this.fieldParser = new FlattenedFieldParser(
             mappedFieldType.name(),
             mappedFieldType.name() + KEYED_FIELD_SUFFIX,

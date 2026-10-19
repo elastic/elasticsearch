@@ -903,24 +903,26 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     }
 
     /**
-     * Logsdb uses binary doc values for flattened fields, so a non-indexed flattened field gets the binary doc values limit
-     * outside columnar modes too. Logsdb defaults {@code ignore_above} to 8191, which would drop the value before the limit is
-     * checked, so it is raised here.
+     * Logsdb uses binary doc values for flattened fields, but the non-indexed field limit applies only in columnar index modes, so
+     * a non-indexed flattened field keeps Lucene's term limit. Logsdb defaults {@code ignore_above} to 8191, which would drop the
+     * value before the limit is checked, so it is raised here.
      */
-    public void testKeyedValueLongerThan32766NotIndexedInLogsdbModeIsAccepted() throws IOException {
+    public void testKeyedValueLongerThan32766NotIndexedInLogsdbModeIsRejected() throws IOException {
         DocumentMapper mapper = createLogsModeDocumentMapper(
             fieldMapping(b -> b.field("type", "flattened").field("index", false).field("ignore_above", Integer.MAX_VALUE))
         );
         String value = "x".repeat(IndexWriter.MAX_TERM_LENGTH + 100);
-        ParsedDocument doc = mapper.parse(source(b -> b.field("@timestamp", "2026-01-01T00:00:00Z").field("field", Map.of("key", value))));
-        assertNotNull("the keyed doc values were written", doc.rootDoc().getField("field" + FlattenedFieldMapper.KEYED_FIELD_SUFFIX));
-        assertNull("the value was not ignored", doc.rootDoc().getField("field" + FlattenedFieldMapper.KEYED_IGNORED_VALUES_FIELD_SUFFIX));
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.field("@timestamp", "2026-01-01T00:00:00Z").field("field", Map.of("key", value))))
+        );
+        assertThat(e.getCause().getMessage(), containsString("allowed max length of " + IndexWriter.MAX_TERM_LENGTH + " bytes"));
     }
 
-    public void testKeyedValueLongerThanBinaryDocValueLimitIsRejected() throws IOException {
+    public void testKeyedValueLongerThanNonIndexedFieldLimitIsRejected() throws IOException {
         Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(IndexSettings.MAX_BINARY_DOC_VALUE_LENGTH_SETTING.getKey(), "64kb")
+            .put(IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.getKey(), "64kb")
             .build();
         DocumentMapper mapper = createMapperService(settings, fieldMapping(b -> b.field("type", "flattened").field("index", false)))
             .documentMapper();

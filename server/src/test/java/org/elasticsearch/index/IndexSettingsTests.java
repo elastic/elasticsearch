@@ -850,32 +850,63 @@ public class IndexSettingsTests extends ESTestCase {
         assertThat(error.getMessage(), equalTo("final index setting [index.soft_deletes.enabled], not updateable"));
     }
 
-    public void testUpdateMaxBinaryDocValueLengthFails() {
+    public void testUpdateNonIndexedFieldMaxValueLengthFails() {
         IndexScopedSettings settings = new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
         IllegalArgumentException error = expectThrows(
             IllegalArgumentException.class,
             () -> settings.updateSettings(
-                Settings.builder().put(IndexSettings.MAX_BINARY_DOC_VALUE_LENGTH_SETTING.getKey(), "20mb").build(),
+                Settings.builder().put(IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.getKey(), "20mb").build(),
                 Settings.builder(),
                 Settings.builder(),
                 "index"
             )
         );
-        assertThat(error.getMessage(), equalTo("final index setting [index.mapping.binary_doc_values.max_value_length], not updateable"));
+        assertThat(error.getMessage(), equalTo("final index setting [index.mapping.non_indexed_field.max_value_length], not updateable"));
     }
 
-    public void testMaxBinaryDocValueLengthSetting() {
+    public void testNonIndexedFieldMaxValueLengthSetting() {
         assertThat(
-            newIndexSettings(newIndexMeta("index", Settings.EMPTY), Settings.EMPTY).getMaxBinaryDocValueLength(),
+            newIndexSettings(newIndexMeta("index", Settings.EMPTY), Settings.EMPTY).getNonIndexedFieldMaxValueLength(),
             equalTo(1024 * 1024)
         );
-        Settings custom = Settings.builder().put(IndexSettings.MAX_BINARY_DOC_VALUE_LENGTH_SETTING.getKey(), "2mb").build();
-        assertThat(newIndexSettings(newIndexMeta("index", custom), Settings.EMPTY).getMaxBinaryDocValueLength(), equalTo(2 * 1024 * 1024));
+        Settings custom = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.getKey(), "2mb")
+            .build();
+        assertThat(
+            newIndexSettings(newIndexMeta("index", custom), Settings.EMPTY).getNonIndexedFieldMaxValueLength(),
+            equalTo(2 * 1024 * 1024)
+        );
 
         Settings belowTermLimit = Settings.builder()
-            .put(IndexSettings.MAX_BINARY_DOC_VALUE_LENGTH_SETTING.getKey(), IndexWriter.MAX_TERM_LENGTH - 1 + "b")
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.getKey(), IndexWriter.MAX_TERM_LENGTH - 1 + "b")
             .build();
-        expectThrows(IllegalArgumentException.class, () -> IndexSettings.MAX_BINARY_DOC_VALUE_LENGTH_SETTING.get(belowTermLimit));
+        expectThrows(IllegalArgumentException.class, () -> IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.get(belowTermLimit));
+    }
+
+    public void testNonIndexedFieldMaxValueLengthRequiresColumnarMode() {
+        IndexMode nonColumnarMode = randomFrom(IndexMode.STANDARD, IndexMode.LOGSDB);
+        Settings explicit = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), nonColumnarMode.getName())
+            .put(IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.getKey(), "2mb")
+            .build();
+        IllegalArgumentException error = expectThrows(
+            IllegalArgumentException.class,
+            () -> IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.get(explicit)
+        );
+        assertThat(
+            error.getMessage(),
+            equalTo(
+                "The setting [index.mapping.non_indexed_field.max_value_length] is only permitted when [index.mode] is a columnar "
+                    + "index mode. Current mode: ["
+                    + nonColumnarMode.getName()
+                    + "]."
+            )
+        );
+
+        Settings defaulted = Settings.builder().put(IndexSettings.MODE.getKey(), nonColumnarMode.getName()).build();
+        assertThat(IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.get(defaulted), equalTo(ByteSizeValue.ofMb(1)));
     }
 
     public void testSoftDeletesDefaultSetting() {

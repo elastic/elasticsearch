@@ -23,7 +23,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
@@ -81,7 +80,6 @@ import static org.elasticsearch.xpack.security.authc.support.SecondaryAuthentica
 import static org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator.SECONDARY_X_CLIENT_AUTH_HEADER_NAME;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;

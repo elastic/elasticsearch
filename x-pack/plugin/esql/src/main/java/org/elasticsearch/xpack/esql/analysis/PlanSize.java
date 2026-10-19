@@ -41,6 +41,10 @@ public class PlanSize {
         }
     }
 
+    public int size() {
+        return size;
+    }
+
     /**
      * Counts the nodes of {@code plan}, a shared child being counted once per parent. Iterative, so deep plans cannot overflow the stack.
      */

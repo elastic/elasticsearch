@@ -500,7 +500,7 @@ public class EsqlSession {
         // requires no cluster state — it simply substitutes named subquery bodies for their names.
         // Performing it before replaceViews ensures that LET names never reach field-caps and that
         // view bodies never see the caller's LET scope (parseView is invoked inside replaceViews).
-        parsedPlan = LetResolver.resolve(parsedPlan, statement.letBindings());
+        parsedPlan = LetResolver.resolve(parsedPlan, statement.letBindings(), maxCommandCount);
 
         LOGGER.debug("ESQL resolved settings:\n{}", resolved);
         planSnapshot = planSnapshot.withSettings(resolved);
@@ -534,7 +534,7 @@ public class EsqlSession {
             QuerySettings.WILDCARDS_MATCH_DATASETS.get(resolved),
             (query, viewName) -> planningCpu.meteredCpu(() -> {
                 var viewStmt = parser.parseView(query, request.params(), inferenceService.inferenceSettings(), viewName, maxCommandCount);
-                return LetResolver.resolve(viewStmt.plan(), viewStmt.letBindings());
+                return LetResolver.resolve(viewStmt.plan(), viewStmt.letBindings(), maxCommandCount);
             }),
             boundaryPreservation,
             maxCommandCount,

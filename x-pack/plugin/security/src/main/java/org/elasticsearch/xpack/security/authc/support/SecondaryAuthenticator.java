@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.util.concurrent.ThreadContextTransient;
 import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.TransportRequest;
@@ -27,7 +26,7 @@ import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 
-import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -42,22 +41,8 @@ public class SecondaryAuthenticator {
      */
     public static final String SECONDARY_AUTH_HEADER_NAME = "es-secondary-authorization";
 
-    /**
-     * Header name for secondary client authentication credentials.
-     * Used by authenticators that require additional [@code X-Client-Authentication} header along with the Authorization header.
-     */
-    public static final String SECONDARY_X_CLIENT_AUTH_HEADER_NAME = "es-secondary-x-client-authentication";
-
-    private static final String X_CLIENT_AUTHENTICATION = "X-Client-Authentication";
-
-    private static final ThreadContextTransient<String> AUDIT_REQUEST_ID = ThreadContextTransient.transientValue(
-        "_security_secondary_authc_audit_request_id",
-        String.class
-    );
-    private static final ThreadContextTransient<Exception> FAILURE = ThreadContextTransient.transientValue(
-        "_security_secondary_authc_failure",
-        Exception.class
-    );
+    private static final String AUDIT_REQUEST_ID_KEY = "_security_secondary_authc_audit_request_id";
+    private static final String FAILURE_KEY = "_security_secondary_authc_failure";
 
     private static final Logger logger = LogManager.getLogger(SecondaryAuthenticator.class);
     private final SecurityContext securityContext;
@@ -104,7 +89,7 @@ public class SecondaryAuthenticator {
      */
     public void authenticateAndAttachResultToContext(HttpPreRequest request, ActionListener<Void> listener) {
         authenticateHttpRequest(request, listener.delegateResponse((l, e) -> {
-            FAILURE.set(securityContext.getThreadContext(), e);
+            securityContext.getThreadContext().putTransient(FAILURE_KEY, e);
             l.onResponse(null);
         }).safeMap(ignored -> null));
     }
@@ -115,7 +100,7 @@ public class SecondaryAuthenticator {
      */
     public void completeAuthentication(RestRequest request) throws Exception {
         final ThreadContext threadContext = securityContext.getThreadContext();
-        final Exception failure = FAILURE.get(threadContext);
+        final Exception failure = threadContext.getTransient(FAILURE_KEY);
         if (failure != null) {
             throw failure;
         }
@@ -124,7 +109,7 @@ public class SecondaryAuthenticator {
             return;
         }
         logger.trace("found secondary authentication {} in REST request [{}]", secondaryAuthentication, request.uri());
-        final String auditRequestId = AUDIT_REQUEST_ID.require(threadContext);
+        final String auditRequestId = Objects.requireNonNull(threadContext.getTransient(AUDIT_REQUEST_ID_KEY));
         secondaryAuthentication.execute(ignore -> {
             threadContext.putHeader(AuditUtil.AUDIT_REQUEST_ID, auditRequestId);
             auditTrailService.get().authenticationSuccess(request);
@@ -151,7 +136,7 @@ public class SecondaryAuthenticator {
         })), listener.delegateFailureAndWrap((l, secondaryAuthentication) -> {
             if (secondaryAuthentication != null) {
                 secondaryAuthentication.writeToContext(threadContext);
-                AUDIT_REQUEST_ID.set(threadContext, auditRequestId.get());
+                threadContext.putTransient(AUDIT_REQUEST_ID_KEY, auditRequestId.get());
             }
             l.onResponse(secondaryAuthentication);
         }));

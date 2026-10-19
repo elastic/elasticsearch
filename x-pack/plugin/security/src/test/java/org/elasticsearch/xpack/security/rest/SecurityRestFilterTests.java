@@ -56,6 +56,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
@@ -94,35 +95,25 @@ public class SecurityRestFilterTests extends ESTestCase {
         channel = mock(RestChannel.class);
         restHandler = mock(RestHandler.class);
         threadContext = new ThreadContext(Settings.EMPTY);
-        clusterService = mock(ClusterService.class);
-        when(clusterService.getClusterSettings()).thenReturn(
-            new ClusterSettings(
-                Settings.builder().put(XPackSettings.AUDIT_ENABLED.getKey(), true).build(),
-                Set.of(XPackSettings.AUDIT_ENABLED)
-            )
-        );
         secondaryAuditTrail = mock(AuditTrail.class);
         primaryAuditTrail = mock(AuditTrail.class);
         secondaryAuthenticator = new SecondaryAuthenticator(
             Settings.EMPTY,
             threadContext,
             authcService,
-            new AuditTrailService(secondaryAuditTrail, TestUtils.newTestLicenseState(), clusterService)
+            new AuditTrailService(secondaryAuditTrail, TestUtils.newTestLicenseState())
         );
-        secondaryAuthenticator = new SecondaryAuthenticator(Settings.EMPTY, threadContext, authcService, new AuditTrailService(null, null));
         filter = getFilter(NOOP_OPERATOR_PRIVILEGES_SERVICE);
     }
 
     private SecurityRestFilter getFilter(OperatorPrivileges.OperatorPrivilegesService privilegesService) {
         return new SecurityRestFilter(
             true,
-            true,
             threadContext,
             secondaryAuthenticator,
-            new AuditTrailService(primaryAuditTrail, TestUtils.newTestLicenseState(), clusterService),
+            new AuditTrailService(primaryAuditTrail, TestUtils.newTestLicenseState()),
             privilegesService
         );
-        return new SecurityRestFilter(true, threadContext, secondaryAuthenticator, new AuditTrailService(null, null), privilegesService);
     }
 
     public void testProcess() throws Exception {

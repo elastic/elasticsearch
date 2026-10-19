@@ -46,16 +46,19 @@ import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class AuditIT extends ESRestTestCase {
 
     private static final String API_USER = "api_user";
     private static final String SECONDARY_USER = "secondary_user";
     private static final String SECONDARY_PASSWORD = "secondary-password";
+    private static final String STREAMED_BODY_NOT_RECEIVED = "Request body had not been received at the time of the audit event";
     private static final DateTimeFormatter TSTAMP_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss,SSSZ");
 
     @ClassRule
@@ -136,8 +139,7 @@ public class AuditIT extends ESRestTestCase {
 
     public void testAuditSecondaryAuthenticationSuccess() throws Exception {
         final Request request = new Request("POST", "/testindex/_bulk");
-        final String body = "{\"index\":{}}\n{}\n";
-        request.setEntity(new StringEntity(body, ContentType.create("application/x-ndjson", StandardCharsets.UTF_8)));
+        request.setEntity(new StringEntity("{\"index\":{}}\n{}\n", ContentType.create("application/x-ndjson", StandardCharsets.UTF_8)));
         final String opaqueId = withSecondaryAuth(request, SECONDARY_PASSWORD);
         final Instant start = auditTimestampNow();
         assertThat(executeRequest(request).getStatusLine().getStatusCode(), equalTo(200));
@@ -146,8 +148,8 @@ public class AuditIT extends ESRestTestCase {
             final Map<String, Object> primary = findRestEvent(AuditLevel.AUTHENTICATION_SUCCESS, API_USER, request, start);
             final Map<String, Object> secondary = findRestEvent(AuditLevel.AUTHENTICATION_SUCCESS, SECONDARY_USER, request, start);
             assertCorrelated(primary, secondary, opaqueId);
-            assertThat(primary, hasEntry(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME, body));
-            assertThat(secondary, hasEntry(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME, body));
+            assertThat(primary, hasEntry(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME, STREAMED_BODY_NOT_RECEIVED));
+            assertThat(secondary, hasEntry(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME, STREAMED_BODY_NOT_RECEIVED));
         }, 5, TimeUnit.SECONDS);
     }
 
@@ -246,215 +248,10 @@ public class AuditIT extends ESRestTestCase {
         }
     }
 
-    public void testFilteringOfCloneApiKeyRequestBody() throws Exception {
-        final Request createRequest = new Request("POST", "/_security/api_key");
-        createRequest.setJsonEntity("{\"name\":\"source-key\"}");
-        final Response createResponse = client().performRequest(createRequest);
-        final Map<String, Object> createResponseMap = responseAsMap(createResponse);
-        final String encodedCredential = (String) createResponseMap.get("encoded");
-        assertThat(encodedCredential, notNullValue());
-
-        final Request cloneRequest = new Request("POST", "/_security/api_key/clone");
-        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            builder.startObject().field("api_key", encodedCredential).field("name", "cloned-key").endObject();
-            cloneRequest.setJsonEntity(Strings.toString(builder));
-        }
-        executeAndVerifyAudit(cloneRequest, AuditLevel.AUTHENTICATION_SUCCESS, event -> {
-            String body = asInstanceOf(String.class, event.get("request.body"));
-            assertThat(body, equalTo("{\"name\":\"cloned-key\"}"));
-            final String eventJson = toJson(event);
-            assertThat(eventJson, not(containsString(encodedCredential)));
-        });
-    }
-
-    public void testFilteringOfUserManagedServiceAccountTokenRequestBody() throws Exception {
-        final String namespace = "audit" + randomAlphaOfLengthBetween(3, 8).toLowerCase(Locale.ROOT);
-        final String serviceName = "svc" + randomAlphaOfLengthBetween(3, 8).toLowerCase(Locale.ROOT);
-        final Request putAccountRequest = new Request("PUT", "/_security/service/" + namespace + "/" + serviceName);
-        putAccountRequest.setJsonEntity("{\"roles\":[\"superuser\"],\"enabled\":true}");
-        client().performRequest(putAccountRequest);
-        try {
-            final Request createTokenRequest = new Request(
-                "POST",
-                "/_security/service/" + namespace + "/" + serviceName + "/credential/token/exchange-token"
-            );
-            final Map<String, Object> token = asMap(responseAsMap(client().performRequest(createTokenRequest)).get("token"));
-            final String serviceAccountToken = (String) token.get("value");
-            assertThat(serviceAccountToken, notNullValue());
-
-            final Request exchangeRequest = new Request("POST", "/_security/oauth2/token");
-            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                builder.startObject()
-                    .field("grant_type", "_user_managed_service_account")
-                    .field("service_account_token", serviceAccountToken)
-                    .endObject();
-                exchangeRequest.setJsonEntity(Strings.toString(builder));
-            }
-            executeAndVerifyAudit(exchangeRequest, AuditLevel.AUTHENTICATION_SUCCESS, event -> {
-                String body = asInstanceOf(String.class, event.get(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME));
-                assertThat(body, equalTo("{\"grant_type\":\"_user_managed_service_account\"}"));
-                assertThat(toJson(event), not(containsString(serviceAccountToken)));
-            });
-        } finally {
-            final Request deleteRequest = new Request("DELETE", "/_security/service/" + namespace + "/" + serviceName);
-            deleteRequest.addParameter("force", "true");
-            deleteRequest.addParameter("ignore", "404");
-            client().performRequest(deleteRequest);
-        }
-    }
-
-    /**
-     * A grant API key request that carries a user-managed service account token produces two audit events. The REST
-     * event logs the request body, from which the token must have been removed, and the security config change event
-     * records that a token was presented without ever including its value.
-     */
-    public void testAuditGrantApiKeyWithUserManagedServiceAccountToken() throws Exception {
-        final String namespace = "audit" + randomAlphaOfLengthBetween(3, 8).toLowerCase(Locale.ROOT);
-        final String serviceName = "svc" + randomAlphaOfLengthBetween(3, 8).toLowerCase(Locale.ROOT);
-        final Request putAccountRequest = new Request("PUT", "/_security/service/" + namespace + "/" + serviceName);
-        putAccountRequest.setJsonEntity("{\"roles\":[\"superuser\"],\"enabled\":true}");
-        client().performRequest(putAccountRequest);
-        try {
-            final Request createTokenRequest = new Request(
-                "POST",
-                "/_security/service/" + namespace + "/" + serviceName + "/credential/token/grant-token"
-            );
-            final Map<String, Object> token = asMap(responseAsMap(client().performRequest(createTokenRequest)).get("token"));
-            final String serviceAccountToken = (String) token.get("value");
-            assertThat(serviceAccountToken, notNullValue());
-
-            final String apiKeyName = "granted-" + randomAlphaOfLengthBetween(3, 8).toLowerCase(Locale.ROOT);
-            final Request grantRequest = new Request("POST", "/_security/api_key/grant");
-            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                builder.startObject()
-                    .field("grant_type", "_user_managed_service_account")
-                    .field("service_account_token", serviceAccountToken)
-                    .startObject("api_key")
-                    .field("name", apiKeyName)
-                    .endObject()
-                    .endObject();
-                grantRequest.setJsonEntity(Strings.toString(builder));
-            }
-
-            final Instant start = auditTimestampNow();
-            executeAndVerifyAudit(grantRequest, AuditLevel.AUTHENTICATION_SUCCESS, event -> {
-                final String body = asInstanceOf(String.class, event.get(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME));
-                assertThat(
-                    XContentHelper.convertToMap(XContentType.JSON.xContent(), body, false),
-                    equalTo(Map.of("grant_type", "_user_managed_service_account", "api_key", Map.of("name", apiKeyName)))
-                );
-                assertThat(toJson(event), not(containsString(serviceAccountToken)));
-            });
-
-            // The same request is also recorded as a security config change. Other tests create API keys too, so the
-            // event is picked out by the key's unique name rather than by time alone.
-            assertBusy(() -> {
-                try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
-                    final List<String> lines = Streams.readAllLines(auditLog);
-                    final List<Map<String, Object>> events = findSecurityConfigChangeEvents(lines, "create_apikey", start).stream()
-                        .filter(
-                            e -> apiKeyName.equals(
-                                asMap(asMap(e.get(LoggingAuditTrail.CREATE_CONFIG_FIELD_NAME)).get("apikey")).get("name")
-                            )
-                        )
-                        .toList();
-                    if (events.isEmpty()) {
-                        fail("Could not find a [create_apikey] security_config_change event for [" + apiKeyName + "]");
-                    }
-                    assertThat(events, hasSize(1));
-                    final Map<String, Object> event = events.get(0);
-                    final Map<String, Object> grant = asMap(asMap(event.get(LoggingAuditTrail.CREATE_CONFIG_FIELD_NAME)).get("grant"));
-                    assertThat(grant, hasEntry("type", "_user_managed_service_account"));
-                    assertThat(grant, hasEntry("has_service_account_token", true));
-                    assertThat(grant, not(hasKey("has_access_token")));
-                    assertThat(grant, not(hasKey("user")));
-                    assertThat(grant, not(hasKey("run_as")));
-                    assertThat(toJson(event), not(containsString(serviceAccountToken)));
-                }
-            }, 5, TimeUnit.SECONDS);
-        } finally {
-            final Request deleteRequest = new Request("DELETE", "/_security/service/" + namespace + "/" + serviceName);
-            deleteRequest.addParameter("force", "true");
-            deleteRequest.addParameter("ignore", "404");
-            client().performRequest(deleteRequest);
-        }
-    }
-
-    public void testAuditPutUserManagedServiceAccount() throws Exception {
-        final String namespace = "audit" + randomAlphaOfLengthBetween(3, 8).toLowerCase(Locale.ROOT);
-        final String serviceName = "svc" + randomAlphaOfLengthBetween(3, 8).toLowerCase(Locale.ROOT);
-        final Request request = new Request("PUT", "/_security/service/" + namespace + "/" + serviceName);
-        request.setJsonEntity("{\"roles\":[\"superuser\"],\"enabled\":true}");
-        try {
-            executeAndVerifySecurityConfigChange(request, "put_user_managed_service_account", event -> {
-                assertThat(event, hasEntry(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change"));
-                assertThat(event, hasKey(LoggingAuditTrail.REQUEST_ID_FIELD_NAME));
-                assertThat(event, hasKey(LoggingAuditTrail.NODE_ID_FIELD_NAME));
-                Map<String, Object> putConfig = asMap(event.get(LoggingAuditTrail.PUT_CONFIG_FIELD_NAME));
-                Map<String, Object> account = asMap(putConfig.get("user_managed_service_account"));
-                assertThat(account, hasEntry("namespace", namespace));
-                assertThat(account, hasEntry("service", serviceName));
-                assertThat(account, hasEntry("enabled", true));
-                assertThat(account.get("roles"), equalTo(List.of("superuser")));
-            });
-        } finally {
-            final Request deleteRequest = new Request("DELETE", "/_security/service/" + namespace + "/" + serviceName);
-            deleteRequest.addParameter("ignore", "404");
-            client().performRequest(deleteRequest);
-        }
-    }
-
-    public void testAuditDeleteUserManagedServiceAccount() throws Exception {
-        final String namespace = "audit" + randomAlphaOfLengthBetween(3, 8).toLowerCase(Locale.ROOT);
-        final String serviceName = "svc" + randomAlphaOfLengthBetween(3, 8).toLowerCase(Locale.ROOT);
-        final boolean force = randomBoolean();
-        final Request putRequest = new Request("PUT", "/_security/service/" + namespace + "/" + serviceName);
-        putRequest.setJsonEntity("{\"roles\":[\"superuser\"]}");
-        client().performRequest(putRequest);
-        final Request deleteRequest = new Request("DELETE", "/_security/service/" + namespace + "/" + serviceName);
-        deleteRequest.addParameter("force", Boolean.toString(force));
-        executeAndVerifySecurityConfigChange(deleteRequest, "delete_user_managed_service_account", event -> {
-            assertThat(event, hasEntry(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change"));
-            assertThat(event, hasKey(LoggingAuditTrail.REQUEST_ID_FIELD_NAME));
-            assertThat(event, hasKey(LoggingAuditTrail.NODE_ID_FIELD_NAME));
-            Map<String, Object> deleteConfig = asMap(event.get(LoggingAuditTrail.DELETE_CONFIG_FIELD_NAME));
-            Map<String, Object> account = asMap(deleteConfig.get("user_managed_service_account"));
-            assertThat(account, hasEntry("namespace", namespace));
-            assertThat(account, hasEntry("service", serviceName));
-            assertThat(account, hasEntry("force", force));
-        });
-    }
-
-    private void executeAndVerifySecurityConfigChange(
-        Request request,
-        String eventAction,
-        CheckedConsumer<Map<String, Object>, Exception> assertions
-    ) throws Exception {
+    private void executeAndVerifyAudit(Request request, AuditLevel eventType, CheckedConsumer<Map<String, Object>, Exception> assertions)
+        throws Exception {
         Instant start = auditTimestampNow();
         executeRequest(request);
-        assertBusy(() -> {
-            try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
-                final List<String> lines = Streams.readAllLines(auditLog);
-                final List<Map<String, Object>> events = findSecurityConfigChangeEvents(lines, eventAction, start);
-                if (events.isEmpty()) {
-                    fail("Could not find any [" + eventAction + "] security_config_change events in [" + String.join("\n", lines) + "]");
-                }
-                assertThat(events, hasSize(1));
-                final Map<String, Object> event = events.get(0);
-                assertThat(event, hasEntry("type", "audit"));
-                assertThat(event, hasEntry(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, eventAction));
-                assertions.accept(event);
-            }
-        }, 5, TimeUnit.SECONDS);
-    }
-
-    private Response executeAndVerifyAudit(
-        Request request,
-        AuditLevel eventType,
-        CheckedConsumer<Map<String, Object>, Exception> assertions
-    ) throws Exception {
-        Instant start = auditTimestampNow();
-        Response response = executeRequest(request);
         assertBusy(() -> {
             try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
                 final List<String> lines = Streams.readAllLines(auditLog);

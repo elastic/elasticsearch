@@ -39,7 +39,6 @@ import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -2960,7 +2959,6 @@ public class BatchBulkIT extends ESIntegTestCase {
      * seen once, so the column is written over the shapes its layout is chosen from rather than one of them.
      */
     public void testColumnarCodecBatchMatchesRowPath() throws IOException {
-        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
         final String batched = "test-columnar-codec-batched";
         final String sequential = "test-columnar-codec-sequential";
 
@@ -3118,15 +3116,10 @@ public class BatchBulkIT extends ESIntegTestCase {
                         .put("index.number_of_shards", 1)
                         .put("index.number_of_replicas", 0)
                         .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-                        .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), true)
                 )
                 .setMapping(mapping)
         );
         ensureGreen(index);
-        // The cluster kill switch overrules the request setting, and an index that came back without the codec
-        // would read back the same on both paths while saying nothing about the format this test is here for.
-        final Settings created = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, index).get().getIndexToSettings().get(index);
-        assumeTrue("columnar codec is disabled for [" + index + "]", IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.get(created));
     }
 
     /**

@@ -683,7 +683,7 @@ public class BulkOperationTests extends ESTestCase {
     }
 
     /**
-     * {@link NodeClient#executeAndReturnTask} throws rather than notifying the listener when it cannot start a shard request at all, so the
+     * {@link NodeClient#executeLocally} throws rather than notifying the listener when it cannot start a shard request at all, so the
      * ref acquired for that request is never released. On the redirect round the throw escapes into a
      * {@link org.elasticsearch.action.support.RefCountingRunnable} delegate, which logs and swallows it once assertions are disabled,
      * leaving the bulk operation to hang and its task registered forever.
@@ -706,7 +706,7 @@ public class BulkOperationTests extends ESTestCase {
         NodeClient client = new NoOpNodeClient(threadPool) {
             @Override
             @SuppressWarnings("unchecked")
-            public <Request extends ActionRequest, Response extends ActionResponse> Task executeAndReturnTask(
+            public <Request extends ActionRequest, Response extends ActionResponse> Task executeLocally(
                 ActionType<Response> action,
                 Request request,
                 ActionListener<Response> listener
@@ -729,7 +729,7 @@ public class BulkOperationTests extends ESTestCase {
                 ActionListener<Response> listener
             ) {
                 try {
-                    executeAndReturnTask(action, request, listener);
+                    executeLocally(action, request, listener);
                 } catch (TaskCancelledException | IllegalArgumentException | IllegalStateException e) {
                     listener.onFailure(e);
                 }

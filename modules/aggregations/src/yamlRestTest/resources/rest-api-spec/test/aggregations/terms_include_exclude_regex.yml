@@ -7,14 +7,12 @@ setup:
           capabilities: [ aggregation_include_exclude_regex_charged ]
       reason: "include/exclude regex is compiled on the shard through the charged compiler since 9.6"
 
-  # One copy of one shard, so the node that builds the automaton is the one whose breaker is read in the last test.
   - do:
       indices.create:
         index: test_terms
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
           mappings:
             properties:
               str:
@@ -164,6 +162,30 @@ teardown:
   # breaker's limit lowered, a pattern whose predicted size is above it is refused before anything is built, the
   # breaker's trip count moves, and nothing stays reserved once the request has failed. The pattern is sized so that the
   # test node could build it even uncharged, so a regression in the charging fails the status assertion below.
+
+  # One copy of one shard, so the node that builds the automaton is the one whose breaker is read below.
+  - do:
+      indices.create:
+        index: test_terms_one_copy
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              str:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test_terms_one_copy
+        refresh: true
+        body:
+          - { index: { _id: "1" } }
+          - { str: apple }
+          - { index: { _id: "2" } }
+          - { str: banana }
+
   - do:
       cluster.put_settings:
         body:
@@ -172,14 +194,14 @@ teardown:
 
   - do:
       search_shards:
-        index: test_terms
+        index: test_terms_one_copy
   - set: { shards.0.0.node: node_id }
 
   - do:
       catch: /circuit_breaking_exception/
       search:
         rest_total_hits_as_int: true
-        index: test_terms
+        index: test_terms_one_copy
         body:
           size: 0
           aggs:
@@ -202,7 +224,7 @@ teardown:
   - do:
       search:
         rest_total_hits_as_int: true
-        index: test_terms
+        index: test_terms_one_copy
         body:
           size: 0
           aggs:
@@ -215,7 +237,7 @@ teardown:
   - do:
       search:
         rest_total_hits_as_int: true
-        index: test_terms
+        index: test_terms_one_copy
         body:
           size: 0
           aggs:
@@ -223,7 +245,7 @@ teardown:
               terms:
                 field: str
                 include: ".{0,10000}"
-  - length: { aggregations.terms_agg.buckets: 5 }
+  - length: { aggregations.terms_agg.buckets: 2 }
 
   - do:
       nodes.stats:

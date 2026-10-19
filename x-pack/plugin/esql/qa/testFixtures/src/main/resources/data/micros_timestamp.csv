@@ -1,0 +1,8 @@
+id:integer,ts:date_micros,note:keyword,qty:integer,ratio:double
+1,-14831769600000000,fifteen hundred,10,1.5
+2,-14831769599999500,half a microsecond before fifteen hundred,20,2.5
+3,-1,one microsecond before the epoch,30,3.5
+4,0,the epoch,40,4.5
+5,1704067200123456,inside the nanosecond domain,50,5.5
+6,32503680000000000,year three thousand,60,6.5
+7,null,no timestamp,70,7.5

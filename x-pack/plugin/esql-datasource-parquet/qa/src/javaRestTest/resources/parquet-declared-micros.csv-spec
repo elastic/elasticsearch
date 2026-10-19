@@ -1,0 +1,84 @@
+// A Parquet column annotated TIMESTAMP(MICROS) -- the unit Arrow and Spark write by default -- renders date_nanos,
+// because that is the ESQL type whose resolution matches. Declaring the conventional dashboard type over it asks for
+// a narrowing the declared type covers for the whole int64 microsecond range: microseconds floored to milliseconds.
+//
+// Going through date_nanos on the way does not: a microsecond value outside 1677-09-21 .. 2262-04-11 has no
+// nanosecond representation, so the intermediate step overflowed and the cell answered null with a warning. The pair
+// is decoded in one step now, microseconds straight to milliseconds, which is the same arithmetic one layer earlier
+// -- floorDiv(raw * 1_000, 1_000_000) and floorDiv(raw, 1_000) agree for every long, below the epoch included.
+//
+// Without a declaration the column is read at the type the file renders, date_nanos, and the rows outside that
+// domain have no value there. That is unchanged here and is the contrast this fix rests on: the declared type is
+// what widens the readable range, because it is the only thing that says milliseconds are wanted.
+//
+// {{micros_timestamp}} carries ts (INT64 + TIMESTAMP(MICROS)) over seven rows: 1500-01-01 and the year 3000, both
+// outside the nanosecond domain; half a microsecond before 1500-01-01 and one microsecond before the epoch, the two
+// rows that discriminate flooring from truncation; the epoch; a 2024 instant with sub-millisecond digits, inside the
+// domain; and a null. note/qty/ratio exist to shape the deferred-extraction case below.
+
+// The whole microsecond domain, read as the declared type.
+declaredDateOverMicrosTimestampReadsOutsideTheNanosecondDomain
+required_capability: dataset_in_from_command
+required_capability: parquet_declared_date_reads_micros_in_one_step
+dataset: micros_declared: "{{micros_timestamp}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "integer"}, "ts": {"type": "date"}}}}
+
+FROM micros_declared
+| SORT id
+| KEEP id, ts
+;
+
+id:integer | ts:date
+1          | 1500-01-01T00:00:00.000Z
+2          | 1500-01-01T00:00:00.000Z
+3          | 1969-12-31T23:59:59.999Z
+4          | 1970-01-01T00:00:00.000Z
+5          | 2024-01-01T00:00:00.123Z
+6          | 3000-01-01T00:00:00.000Z
+7          | null
+;
+
+// The same read as the exact millisecond each row floors to, so one number per row says which arithmetic ran.
+// Rows 2 and 3 are the discriminating ones: truncation toward zero would answer -14831769599999 and 0 where
+// flooring answers -14831769600000 and -1.
+declaredDateOverMicrosTimestampFloorsTowardsNegativeInfinity
+required_capability: dataset_in_from_command
+required_capability: parquet_declared_date_reads_micros_in_one_step
+dataset: micros_declared_millis: "{{micros_timestamp}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "integer"}, "ts": {"type": "date"}}}}
+
+FROM micros_declared_millis
+| SORT id
+| EVAL millis = TO_LONG(ts)
+| KEEP id, millis
+;
+
+id:integer | millis:long
+1          | -14831769600000
+2          | -14831769600000
+3          | -1
+4          | 0
+5          | 1704067200123
+6          | 32503680000000
+7          | null
+;
+
+// The deferred read path -- the columns a per-driver TopN did not need, loaded afterwards for the surviving rows --
+// decodes the pair in its own loop rather than through the eager readers, and it is the path that answered a
+// different value from them while only one of the two was fused. Sorting on id and keeping four more columns makes
+// the query eligible for that deferral (the rule needs at least three deferrable columns and a bounded limit); the
+// assertion is that the answer is the one above either way.
+declaredDateOverMicrosTimestampAgreesOnTheDeferredPath
+required_capability: dataset_in_from_command
+required_capability: parquet_declared_date_reads_micros_in_one_step
+dataset: micros_declared_deferred: "{{micros_timestamp}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "integer"}, "ts": {"type": "date"}, "note": {"type": "keyword"}, "qty": {"type": "integer"}, "ratio": {"type": "double"}}}}
+
+FROM micros_declared_deferred
+| SORT id
+| LIMIT 3
+| KEEP id, ts, note, qty, ratio
+;
+
+id:integer | ts:date                  | note:keyword                             | qty:integer | ratio:double
+1          | 1500-01-01T00:00:00.000Z | fifteen hundred                          | 10          | 1.5
+2          | 1500-01-01T00:00:00.000Z | half a microsecond before fifteen hundred | 20         | 2.5
+3          | 1969-12-31T23:59:59.999Z | one microsecond before the epoch         | 30          | 3.5
+;

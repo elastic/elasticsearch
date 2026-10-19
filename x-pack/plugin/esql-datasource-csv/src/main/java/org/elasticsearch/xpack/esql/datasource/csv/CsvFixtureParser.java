@@ -378,7 +378,9 @@ public final class CsvFixtureParser {
             case "boolean", "bool" -> tryParseBoolean(value);
             case "date", "datetime", "dt" -> tryParseDatetime(value);
             // date_nanos values are plain epoch-nanosecond longs in the fixture CSVs; parse the same way.
-            case "date_nanos" -> tryParseDatetime(value);
+            // date_micros is the microsecond timestamp unit, whose cells are plain epoch microseconds; it has no
+            // ESQL type of its own, so the header name says the unit (see ParquetFixtureGenerator's matching arm).
+            case "date_nanos", "date_micros" -> tryParseDatetime(value);
             // A parquet TIME column's value is a count of its own unit since midnight, so the fixture cell is a
             // plain number -- there is no date to parse. The unit lives in the type name because the annotation the
             // generator writes differs per unit, and the physical width with it (MILLIS is an INT32).

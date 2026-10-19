@@ -4524,6 +4524,16 @@ public class EsqlCapabilities {
          */
         RUNTIME_SCORE_FIX,
 
+        /**
+         * A column declared {@code date} over a Parquet column the file renders {@code date_nanos} is decoded straight
+         * to milliseconds instead of being decoded as {@code date_nanos} and then cast. The read this widens is
+         * {@code TIMESTAMP(MICROS)}: older nodes scaled each value to nanoseconds first, so a value outside the
+         * nanosecond domain (1677-09-21 .. 2262-04-11) answered {@code null} with a warning although the declared
+         * type covers it. The other units are unchanged -- their values cannot leave that domain.
+         * Gates the csv-spec cases asserting the wider domain, which such nodes still fail.
+         */
+        PARQUET_DECLARED_DATE_READS_MICROS_IN_ONE_STEP,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

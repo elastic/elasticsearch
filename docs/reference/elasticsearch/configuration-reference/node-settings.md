@@ -97,8 +97,6 @@ The contents of the `path.data` directory must persist across restarts, because 
 When using the `.zip` or `.tar.gz` distributions, the `path.data` setting should be configured to locate the data directory outside the {{es}} home directory, so that the home directory can be deleted without deleting your data! The RPM and Debian distributions do this for you already.
 ::::
 
-::::{important}
-When remote storage is in use, it is crucial to tune it carefully from a performance perspective, so that it behaves no differently from local storage as well. Review [Local vs. remote storage](docs-content://deploy-manage/production-guidance/optimize-performance/indexing-speed.md#_local_vs_remote_storage) for more guidance.
 ::::
 
 ::::{warning}

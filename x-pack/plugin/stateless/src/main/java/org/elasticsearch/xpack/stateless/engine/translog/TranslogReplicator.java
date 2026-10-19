@@ -47,6 +47,7 @@ import org.elasticsearch.index.translog.OperationListener;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
@@ -62,6 +63,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -450,10 +452,13 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         private final CompoundTranslog translog;
         private final BlobTranslogFileImpl translogFile;
         private final RefCounted bytesToClose;
-        private int uploadTryNumber = 0;
+        private AtomicInteger uploadTryNumber = new AtomicInteger(0);
         private static final long UNSET = -1L;
         private long firstAttemptStartMillis;
         private volatile boolean isUploaded = false;
+        private volatile boolean hedged = false;
+        private volatile boolean completed = false;
+        private volatile Scheduler.ScheduledCancellable hedgeTimer;
 
         private UploadTranslogTask(CompoundTranslog translog, ActionListener<UploadTranslogTask> listener) {
             super(
@@ -475,10 +480,37 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             };
         }
 
+        // A translog-upload might be slow or might even hang (e.g., ongoing TCP retransmissions), so on the first try of
+        // a `UploadTranslogTask`, we schedule a hedge upload that be fired after 2 seconds.
+        // If the hedge upload completes first, then through `RetryableAction` `isDone` is set, and we'll stop calling `tryAction`.
+        // If the non-hedge upload completes first (e.g., in less than 2 seconds), then `onFinished` is called, `hedgeTimer` is cancelled
+        // and hence the hedge upload is never fired.
+        private void hedge(ActionListener<UploadTranslogTask> listener) {
+            if (completed || bytesToClose.tryIncRef() == false) {
+                return;
+            }
+            hedged = true;
+            objectStoreService.uploadTranslogFile(
+                translog.metadata().name(),
+                translog.bytes().data(),
+                ActionListener.releaseAfter(
+                    ActionListener.wrap(
+                        unused -> listener.onResponse(this),
+                        e -> logger.info(() -> format("failed hedged upload of translog file [%s]", translog.metadata().name()), e)
+                    ),
+                    bytesToClose::decRef
+                )
+            );
+        }
+
         @Override
         public void tryAction(ActionListener<UploadTranslogTask> listener) {
-            if (++uploadTryNumber == 1) {
+            if (uploadTryNumber.incrementAndGet() == 1) {
                 firstAttemptStartMillis = threadPool.relativeTimeInMillis();
+
+                // only the first time, we schedule another upload attempt that will only be attempted if after 2 seconds we have not yet
+                // uplaoded the translog
+                hedgeTimer = threadPool.schedule(() -> hedge(listener), TimeValue.timeValueSeconds(2), EsExecutors.DIRECT_EXECUTOR_SERVICE);
             }
             // Retain the bytes to ensure that a cancel call does not corrupt them before upload
             if (bytesToClose.tryIncRef()) {
@@ -488,9 +520,6 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                     translog.bytes().data(),
                     ActionListener.releaseAfter(ActionListener.wrap(unused -> {
                         logger.debug(() -> format("uploaded translog file [%s]", translog.metadata().name()));
-                        assert uploadTryNumber >= 1 && firstAttemptStartMillis != UNSET; // just have an assert in case of a bug
-                        translogUploadAttemptsHistogram.record(uploadTryNumber);
-                        translogUploadTotalDurationHistogram.record(threadPool.relativeTimeInMillis() - firstAttemptStartMillis);
                         listener.onResponse(this);
 
                     }, e -> {
@@ -499,7 +528,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                             uploadTryNumber,
                             translog.metadata().name()
                         );
-                        if (uploadTryNumber == 5) {
+                        if (uploadTryNumber.get() == 5) {
                             logger.warn(messageSupplier, e);
                         } else {
                             logger.info(messageSupplier, e);
@@ -526,6 +555,10 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
         @Override
         public void onFinished() {
+            completed = true;
+            if (hedgeTimer != null) {
+                hedgeTimer.cancel();
+            }
             bytesToClose.decRef();
             super.onFinished();
         }
@@ -545,6 +578,10 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         UploadTranslogTask uploadTranslogTask = new UploadTranslogTask(translog, new ActionListener<>() {
             @Override
             public void onResponse(UploadTranslogTask task) {
+                assert task.uploadTryNumber.get() >= 1 && task.firstAttemptStartMillis != UploadTranslogTask.UNSET; // just have an assert in case
+                                                                                                              // of a bug
+                translogUploadAttemptsHistogram.record(task.uploadTryNumber.get() + (task.hedged ? 1 : 0));
+                translogUploadTotalDurationHistogram.record(threadPool.relativeTimeInMillis() - task.firstAttemptStartMillis);
                 nodeState.markUploadFinished(task);
             }
 

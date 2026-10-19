@@ -617,7 +617,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         // Only the view's output counts as a column of the query; what its body had along the way does not.
         LogicalPlan plan = test().addView("v", "FROM test | EVAL _unmapped_fields = 1 | KEEP emp_no")
             .statement(setUnmappedLoadAll("FROM test, v"));
-        assertOnlyIndexBranchesAnnotated(plan);
+        assertThat(relationsWithUnmappedFields(plan), hasSize(1));
     }
 
     public void testColumnOfViewNamedLikeUnmappedFieldsIsTheQuerys() {

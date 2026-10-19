@@ -20,7 +20,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.search.CanMatchNodeRequest;
 import org.elasticsearch.action.search.CanMatchNodeResponse;
@@ -1091,37 +1090,26 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
     }
 
-    private static <T extends RefCounted> void runAsync(
+    static <T extends RefCounted> void runAsync(
         IndexShard shard,
         Executor executor,
         CheckedSupplier<T, Exception> executable,
         ActionListener<T> listener
     ) {
-        final AbstractRunnable delegate = ActionRunnable.supplyAndDecRef(listener, executable);
         executor.execute(new ShardQueueTimeAwareRunnable(shard.shardSearchStats()) {
             @Override
-            protected void doRun() {
-                delegate.run();
+            protected void doRun() throws Exception {
+                ActionListener.respondAndRelease(listener, executable.get());
             }
 
             @Override
             public void onFailure(Exception e) {
-                delegate.onFailure(e);
-            }
-
-            @Override
-            public void onRejection(Exception e) {
-                delegate.onRejection(e);
-            }
-
-            @Override
-            public boolean isForceExecution() {
-                return delegate.isForceExecution();
+                listener.onFailure(e);
             }
 
             @Override
             public String toString() {
-                return delegate.toString();
+                return executable.toString();
             }
         });
     }

@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.decision.ElasticInferenceServiceDecisionModel;
+import org.elasticsearch.xpack.inference.services.elastic.decision.ElasticInferenceServiceDecisionResponseHandler;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionModel;
 import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceDecisionRequest;
@@ -236,7 +237,7 @@ record ModelStrategyFactory(ServiceComponents serviceComponents) {
 
     private static final String DECISION_REQUEST_DESCRIPTION = Strings.format("%s decision", ELASTIC_INFERENCE_SERVICE_IDENTIFIER);
 
-    private static final ResponseHandler DECISION_HANDLER = new ElasticInferenceServiceResponseHandler(
+    private static final ResponseHandler DECISION_HANDLER = new ElasticInferenceServiceDecisionResponseHandler(
         DECISION_REQUEST_DESCRIPTION,
         (request, response) -> ElasticInferenceServiceDecisionResponseEntity.fromResponse(response)
     );

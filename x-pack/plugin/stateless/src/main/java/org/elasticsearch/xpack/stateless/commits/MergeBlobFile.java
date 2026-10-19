@@ -67,6 +67,10 @@ public record MergeBlobFile(String blobName, long primaryTerm) implements BlobFi
         return discriminatorFromBlobName(blobName);
     }
 
+    public String toString() {
+        return "MergeBlobFile[term=" + primaryTerm() + ", name=" + blobName() + ']';
+    }
+
     /// @return `true` if the given blob name starts with the prefix of merge blobs. It does not check that the rest of the name is
     ///         well-formed.
     public static boolean startsWithBlobPrefix(String name) {

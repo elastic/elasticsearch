@@ -261,9 +261,10 @@ public class TransportStatelessPrimaryRelocationHandoffAction extends TransportA
                 return null;
             }
             StatelessCommitService.SourceBlobsInfo sourceBlobsInfo = null;
+            assert latestBccBlob.blobFile() instanceof BccBlobFile : latestBccBlob.blobFile();
             if (latestBccBlob != null) {
                 sourceBlobsInfo = new StatelessCommitService.SourceBlobsInfo(
-                    latestBccBlob.blobFile(),
+                    (BccBlobFile) latestBccBlob.blobFile(),
                     latestBccBlob.length(),
                     otherBlobFiles
                 );

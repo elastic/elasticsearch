@@ -278,6 +278,15 @@ public class AllocationDisabledBytecodeTests extends ScriptTestCase {
         assertThat(on, containsString("lats(Ljava/lang/Object;Lorg/elasticsearch/painless/PainlessScript$Script;)Ljava/lang/Object;"));
     }
 
+    public void testParamsWrappedOnlyWhenTracking() {
+        // The params local is wrapped so a read of _source charges the document parse, with a limit or with metrics alone.
+        // A script that never names params gets no wrapper.
+        assertThat(bytecode("return params.x;", -1L), not(containsString("$trackParams")));
+        assertThat(bytecode("return params.x;", 1024 * 1024L), containsString("$trackParams"));
+        assertThat(bytecode("return params.x;", -1L, true), containsString("$trackParams"));
+        assertThat(bytecode("return 1;", 1024 * 1024L), not(containsString("$trackParams")));
+    }
+
     public void testDefBracketLoadPassesScriptExceptForStringKeys() {
         // A def bracket read may hit a @script_aware list get(int), so it passes the script even with tracking off, as a def call
         // to get(int) does. The charge stays on the bootstrap side. A String index can only be a map key and never passes it.

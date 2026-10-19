@@ -11,12 +11,15 @@ package org.elasticsearch.painless;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
+import org.elasticsearch.painless.spi.PainlessTestScript;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.field.BinaryDocValuesField;
 import org.elasticsearch.script.field.DoubleDocValuesField;
@@ -27,6 +30,8 @@ import org.elasticsearch.script.field.KeywordDocValuesField;
 import org.elasticsearch.script.field.LongDocValuesField;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -206,6 +211,85 @@ public class AllocationEsFieldTests extends AllocationTestCase {
         );
         assertEquals(point, allocatedBytes("double d = params.field.arcDistance(0, 0); return null;", params));
         assertEquals(point, allocatedBytes("double d = params.field.geohashDistance('u0'); return null;", params));
+    }
+
+    /** A parsed document as the server hands it to {@code params._source}: ordered maps, lists, Strings and boxed numbers. */
+    private static Map<String, Object> parsedSource() {
+        String json = "{\"name\":\"kimchy\",\"age\":42,\"score\":1.5,\"ok\":true,\"tags\":[\"a\",\"b\"],\"nested\":{\"x\":null}}";
+        return XContentHelper.convertToMap(new BytesArray(json), true).v2();
+    }
+
+    public void testParsedSourceEstimatorSizesEveryNode() {
+        // An empty map is the shell plus the default 16-slot table. Each entry adds the linked entry, its key String and its
+        // value: a small int is a 16-byte box, a double a 24-byte box, null and booleans are shared and cost nothing.
+        long emptyMap = 88L + AllocSizes.arrayBytes(16, AllocSizes.REFERENCE_SIZE);
+        long key = 32L + 2L;
+        assertEquals(emptyMap, AllocationEstimators.parsedSourceBytes(Map.of()));
+        assertEquals(emptyMap + 56L + key + 16L, AllocationEstimators.parsedSourceBytes(Map.of("a", 1)));
+        assertEquals(emptyMap + 56L + key + 24L, AllocationEstimators.parsedSourceBytes(Map.of("a", 1.5)));
+        assertEquals(emptyMap + 56L + key, AllocationEstimators.parsedSourceBytes(Map.of("a", true)));
+        Map<String, Object> withNull = new HashMap<>();
+        withNull.put("a", null);
+        assertEquals(emptyMap + 56L + key, AllocationEstimators.parsedSourceBytes(withNull));
+        // A list is its shell plus an array sized to its elements, then the elements. A nested map is a whole map again.
+        long list = 40L + AllocSizes.arrayBytes(2, AllocSizes.REFERENCE_SIZE) + 2L * key;
+        assertEquals(emptyMap + 56L + key + list, AllocationEstimators.parsedSourceBytes(Map.of("a", List.of("x", "y"))));
+        assertEquals(2L * (emptyMap + 56L + key), AllocationEstimators.parsedSourceBytes(Map.of("a", Map.of("b", true))));
+        // Thirteen entries push the table to 32 slots.
+        Map<String, Object> thirteen = new HashMap<>();
+        for (int i = 0; i < 13; i++) {
+            thirteen.put(String.valueOf((char) ('a' + i)), true);
+        }
+        long table32 = 88L + AllocSizes.arrayBytes(32, AllocSizes.REFERENCE_SIZE);
+        assertEquals(table32 + 13L * (56L + key), AllocationEstimators.parsedSourceBytes(thirteen));
+    }
+
+    public void testSourceReadChargesTheParsedDocumentOncePerExecution() {
+        Map<String, Object> source = parsedSource();
+        long parsed = AllocationEstimators.parsedSourceBytes(source);
+        Map<String, Object> params = Map.of("_source", source, "other", "x");
+        // Every spelling of the read, including through def, charges the whole parsed document.
+        assertEquals(parsed, allocatedBytes("return params._source.name;", params));
+        assertEquals(parsed, allocatedBytes("return params['_source'].name;", params));
+        assertEquals(parsed, allocatedBytes("return params.get('_source').name;", params));
+        assertEquals(parsed, allocatedBytes("def p = params; return p._source.name;", params));
+        // Reading it again in the same execution gets the same parsed map back and is not charged again.
+        assertEquals(
+            parsed,
+            allocatedBytes("def n = params._source.name; def a = params._source.age; return params['_source'].tags;", params)
+        );
+        // Other keys and a missing _source charge nothing, and nothing is charged with tracking off.
+        assertEquals(0L, allocatedBytes("return params.other;", params));
+        assertEquals(0L, allocatedBytes("return params._source;", Map.of("other", "x")));
+        PainlessTestScript off = compile("return params._source.name;", MAX_ALLOCATION_BYTES_DISABLED, params);
+        off.execute();
+        assertEquals(0L, ((PainlessScript) off).getAllocBytes());
+    }
+
+    public void testSourceReadTripsLimit() {
+        Map<String, Object> source = parsedSource();
+        Map<String, Object> params = Map.of("_source", source);
+        assertTripsLimit("return params._source.name;", (AllocationEstimators.parsedSourceBytes(source) - 1) + "b", params);
+    }
+
+    public void testChargedParamsChargesEachNewParsedDocumentOnce() {
+        // The wrapper tells documents apart by the parsed map object, which the server keeps per document.
+        PainlessScript script = (PainlessScript) compile("return null;", "1mb");
+        Map<String, Object> first = parsedSource();
+        Map<String, Object> second = parsedSource();
+        long parsed = AllocationEstimators.parsedSourceBytes(first);
+        Map<String, Object> backing = new HashMap<>(Map.of("_source", first));
+        ChargedParams params = new ChargedParams(script, backing);
+        assertSame(first, params.get("_source"));
+        assertSame(first, params.get("_source"));
+        assertEquals(parsed, script.getAllocBytes());
+        backing.put("_source", second);
+        assertSame(second, params.get("_source"));
+        assertEquals(2L * parsed, script.getAllocBytes());
+        backing.put("_source", null);
+        assertNull(params.get("_source"));
+        assertEquals(2L * parsed, script.getAllocBytes());
+        assertEquals(backing.toString(), params.toString());
     }
 
     public void testContextWhitelistsWithConstantAnnotationsParse() {

@@ -10,8 +10,10 @@
 package org.elasticsearch.painless.heappressure;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.Before;
 import org.junit.ClassRule;
 
@@ -29,6 +31,10 @@ import static org.hamcrest.Matchers.equalTo;
  * <p>The allocation check fires before each {@code new} instruction, so the failure path
  * never exceeds the limit in actual heap usage — it stops at the chunk that would push
  * the running total over the threshold.
+ *
+ * <p>The same cluster gives the {@code field} context a 16 KB limit, so a script field that
+ * reads {@code params['_source']} shows the other kind of charge: the whole parsed document,
+ * paid once per execution, no matter how little of it the script reads.
  */
 public class PainlessScoreAllocationIT extends HeapPressurePainlessTestCase {
 
@@ -46,6 +52,8 @@ public class PainlessScoreAllocationIT extends HeapPressurePainlessTestCase {
         .module("lang-painless")
         .setting("xpack.security.enabled", "false")
         .setting("script.painless.max_allocation_bytes.context.score.limit", "200mb")
+        // A small limit for the field context, so a script field that reads _source can trip on a modest document.
+        .setting("script.painless.max_allocation_bytes.context.field.limit", "16kb")
         .build();
 
     @Override
@@ -73,6 +81,32 @@ public class PainlessScoreAllocationIT extends HeapPressurePainlessTestCase {
     public void testScoreScriptOverLimitFails() throws IOException {
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(scoreSearch(FAILURE_ITERS)));
         assertAllocationLimitExceeded(e);
+    }
+
+    public void testScriptFieldReadingSourceUnderLimitSucceeds() throws IOException {
+        Response response = client().performRequest(sourceScriptFieldSearch());
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        assertThat(ObjectPath.createFromResponse(response).evaluate("hits.hits.0.fields.value.0"), equalTo(1));
+    }
+
+    public void testScriptFieldReadingSourceOverLimitFails() throws IOException {
+        // Reading _source parses the whole document, so a ten thousand character field costs more than the 16 KB limit even
+        // though the script only reads the small value next to it.
+        Request doc = new Request("POST", "/" + INDEX + "/_doc");
+        doc.setJsonEntity("{\"value\": 1, \"message\": \"" + "x".repeat(10_000) + "\"}");
+        client().performRequest(doc);
+        client().performRequest(new Request("POST", "/" + INDEX + "/_refresh"));
+        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(sourceScriptFieldSearch()));
+        assertAllocationLimitExceeded(e);
+    }
+
+    /** A script field in the {@code field} context that reads {@code value} out of the parsed {@code _source}. */
+    private Request sourceScriptFieldSearch() {
+        Request search = new Request("POST", "/" + INDEX + "/_search");
+        search.setJsonEntity(
+            "{\"query\":{\"match_all\":{}},\"script_fields\":{\"value\":{\"script\":{\"source\":\"params['_source'].value\"}}}}"
+        );
+        return search;
     }
 
     private Request scoreSearch(int iters) {

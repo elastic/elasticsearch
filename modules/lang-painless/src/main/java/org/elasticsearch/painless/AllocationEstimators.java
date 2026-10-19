@@ -321,6 +321,63 @@ public final class AllocationEstimators {
         return AllocSizes.addSat(64, AllocSizes.mulSat(size, LINKED_HASH_MAP_ENTRY_BYTES));
     }
 
+    // ---- A parsed _source document. The server builds it from LinkedHashMap, ArrayList, String and boxed numbers, so the walk
+    // ---- sizes each node the way the matching constructors are charged elsewhere in this class.
+
+    /** A {@code LinkedHashMap} without its table: the header, the {@code HashMap} fields and the two list ends. */
+    private static final long LINKED_HASH_MAP_SHELL_BYTES = 88;
+
+    /**
+     * Heap held by a parsed {@code _source} document: every map with its table and entries, every list with its array, every
+     * String and every boxed number. Keys count as Strings, though the parser shares a repeated name across documents. A
+     * {@code null} or boolean costs nothing, since the parser returns the shared boxes. {@link ChargedParams} charges this once
+     * per execution.
+     */
+    public static long parsedSourceBytes(Map<?, ?> source) {
+        return parsedNodeBytes(source);
+    }
+
+    private static long parsedNodeBytes(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            long bytes = AllocSizes.addSat(
+                LINKED_HASH_MAP_SHELL_BYTES,
+                AllocSizes.arrayBytes(hashTableCapacity(map.size()), AllocSizes.REFERENCE_SIZE)
+            );
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                bytes = AllocSizes.addSat(bytes, LINKED_HASH_MAP_ENTRY_BYTES);
+                bytes = AllocSizes.addSat(bytes, parsedNodeBytes(entry.getKey()));
+                bytes = AllocSizes.addSat(bytes, parsedNodeBytes(entry.getValue()));
+            }
+            return bytes;
+        }
+        if (value instanceof List<?> list) {
+            long bytes = AllocSizes.addSat(ARRAY_LIST_SHELL_BYTES, AllocSizes.arrayBytes(list.size(), AllocSizes.REFERENCE_SIZE));
+            for (Object element : list) {
+                bytes = AllocSizes.addSat(bytes, parsedNodeBytes(element));
+            }
+            return bytes;
+        }
+        if (value instanceof String string) {
+            return newStringBytes(string.length());
+        }
+        if (value instanceof Number) {
+            return AllocSizes.boxSize(value.getClass());
+        }
+        if (value instanceof byte[] bytes) {
+            return AllocSizes.arrayBytes(bytes.length, 1);
+        }
+        return 0L;
+    }
+
+    /** The table a {@code HashMap} ends with after {@code size} puts from the default capacity, doubling at three quarters full. */
+    private static long hashTableCapacity(long size) {
+        long capacity = 16;
+        while (capacity * 3 / 4 < size) {
+            capacity *= 2;
+        }
+        return capacity;
+    }
+
     /**
      * Cost of copying a {@link Collection} into a new hash-based set ({@code new HashSet(c)}, {@code new LinkedHashSet(c)}): the
      * set shell plus the backing map's per-element entry.

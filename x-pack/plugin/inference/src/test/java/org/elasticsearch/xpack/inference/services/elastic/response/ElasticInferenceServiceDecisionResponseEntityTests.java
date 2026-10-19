@@ -98,21 +98,6 @@ public class ElasticInferenceServiceDecisionResponseEntityTests extends ESTestCa
         assertThat(results.answers(), is(Map.of()));
     }
 
-    public void testFromResponse_Refusal_Throws() {
-        String responseJson = """
-            {
-                "answers": [
-                    {"type": "predicate", "name": "is_complaint", "probability": 0.92},
-                    {"type": "refusal", "name": "team"},
-                    {"type": "refusal", "name": "anger"}
-                ]
-            }
-            """;
-
-        var exception = expectThrows(IllegalArgumentException.class, () -> parse(responseJson));
-        assertThat(exception.getMessage(), is("The model refused to answer the questions [team, anger]"));
-    }
-
     public void testFromResponse_UnknownAnswerType_Throws() {
         String responseJson = """
             {"answers": [{"type": "ranking", "name": "order"}]}

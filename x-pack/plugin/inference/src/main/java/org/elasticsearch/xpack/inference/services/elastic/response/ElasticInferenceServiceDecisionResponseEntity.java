@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.core.inference.results.DecisionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -51,22 +50,19 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  *       "score": 0.3,
  *       "confidence": 0.55,
  *       "probabilities": [{"value": 0, "label": "calm", "probability": 0.7}, {"value": 1, "label": "furious", "probability": 0.3}]
- *     },
- *     {"type": "refusal", "name": "other_question"}
+ *     }
  *   ],
  *   "usage": {"total_tokens": 42}
  * }</pre>
  * The {@code usage} is used by the Elastic Inference Service for metering and is not part of the {@link DecisionResults}.
  * The answers are keyed by question name in the {@link DecisionResults}. Choice probabilities are keyed by the choice {@code value},
- * score probabilities by the level {@code label}, ordered by the zero-based integer level position in {@code value}. As {@link DecisionResults} has no way to represent a refusal, a response containing
- * a refusal fails.
+ * score probabilities by the level {@code label}, ordered by the zero-based integer level position in {@code value}.
  */
 public class ElasticInferenceServiceDecisionResponseEntity {
 
     private static final String PREDICATE_TYPE = "predicate";
     private static final String CHOICE_TYPE = "choice";
     private static final String SCORE_TYPE = "score";
-    private static final String REFUSAL_TYPE = "refusal";
 
     record DecisionResponse(List<AnswerEntry> answers) {
 
@@ -230,17 +226,8 @@ public class ElasticInferenceServiceDecisionResponseEntity {
             var decisionResponse = DecisionResponse.PARSER.apply(jsonParser, null);
 
             var answers = new LinkedHashMap<String, DecisionResults.Answer>();
-            var refusedQuestions = new ArrayList<String>();
             for (var answer : decisionResponse.answers()) {
-                if (REFUSAL_TYPE.equals(answer.type())) {
-                    refusedQuestions.add(answer.name());
-                } else {
-                    answers.put(answer.name(), answer.toAnswer());
-                }
-            }
-
-            if (refusedQuestions.isEmpty() == false) {
-                throw new IllegalArgumentException(Strings.format("The model refused to answer the questions %s", refusedQuestions));
+                answers.put(answer.name(), answer.toAnswer());
             }
 
             return new DecisionResults(answers);

@@ -367,10 +367,18 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
             assertFalse("deleted [" + id + "] is gone", merged.containsKey(id));
         }
 
-        // The sort keys the surviving documents have, in the order the merged segment holds them, against the order the keys dictate.
+        // The merge rewrites every value it keeps, so each surviving document has to come back holding what was indexed for it.
+        for (var doc : merged.entrySet()) {
+            final List<String> indexed = docs.get(Integer.parseInt(doc.getKey()));
+            assertEquals("values of [" + doc.getKey() + "], " + description, indexed == null ? List.of() : indexed, doc.getValue());
+        }
+
+        // The sort keys the surviving documents were indexed with, in the order the merged segment holds them, against the order the
+        // keys dictate.
         final List<String> actualKeys = new ArrayList<>();
-        for (List<String> values : merged.values()) {
-            actualKeys.add(sortKey(values, max));
+        for (String id : merged.keySet()) {
+            final List<String> indexed = docs.get(Integer.parseInt(id));
+            actualKeys.add(indexed == null ? null : sortKey(indexed, max));
         }
         final List<String> expectedKeys = new ArrayList<>(actualKeys);
         final Comparator<String> byKey = descending ? Comparator.<String>reverseOrder() : Comparator.<String>naturalOrder();

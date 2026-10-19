@@ -377,8 +377,8 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
      * A top-N search that does not track total hits and is sorted like the index stops reading each segment once it holds the top N.
      * That needs the query phase to build a sort comparing equal to the segments' index sort and a collector that is allowed to stop.
      * The search runs through the search API with profiling on, whose {@code next_doc_count} is how many documents the query iterated;
-     * the same search tracking every hit, which cannot stop early, has to iterate them all, and the top N is checked against a sort
-     * computed here.
+     * the same search asking for every document, which cannot stop early, has to iterate them all, and both are checked against a sort
+     * computed here. They run over the segments as flushed and again once merged into one, and have to return the same either way.
      */
     public void testTopNTerminatesEarlyWhenSortedLikeTheIndex() throws IOException {
         final String dataStreamName = "test-logsdb-sort-early-termination";
@@ -428,11 +428,29 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
         final Comparator<String> byKey = descending ? Comparator.<String>reverseOrder() : Comparator.<String>naturalOrder();
         keys.sort(Comparator.nullsLast(byKey));
 
-        final int segments;
-        final IndexService indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(getBackingIndex(dataStreamName));
-        try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
-            segments = searcher.getLeafContexts().size();
-        }
+        // The same searches over the segments as flushed and over the one segment merged from them: each segment of either is sorted
+        // by the index sort, so both stop early and both return the same documents in the same order.
+        final Index backingIndex = getBackingIndex(dataStreamName);
+        final List<List<String>> beforeMerge = assertSortedSearches(dataStreamName, backingIndex, order, size, keys);
+        indicesAdmin().forceMerge(new ForceMergeRequest(backingIndex.getName()).maxNumSegments(1).flush(true)).actionGet();
+        indicesAdmin().prepareRefresh(dataStreamName).get();
+        assertThat(segmentCount(backingIndex), equalTo(1));
+        final List<List<String>> afterMerge = assertSortedSearches(dataStreamName, backingIndex, order, size, keys);
+        assertEquals("order=" + order + " size=" + size + ": the same results before and after merging", beforeMerge, afterMerge);
+    }
+
+    /**
+     * Runs the top-{@code size} search of {@link #testTopNTerminatesEarlyWhenSortedLikeTheIndex} and the search for every document,
+     * checking how many documents each reads and that each returns the first of {@code keys}, and returns the sort keys of both.
+     */
+    private List<List<String>> assertSortedSearches(
+        String dataStreamName,
+        Index backingIndex,
+        SortOrder order,
+        int size,
+        List<String> keys
+    ) {
+        final int segments = segmentCount(backingIndex);
         final String description = "order=" + order + " size=" + size + " docs=" + keys.size() + " segments=" + segments;
 
         final var untracked = client().prepareSearch(dataStreamName)
@@ -441,15 +459,13 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
             .addSort(SortBuilders.fieldSort("service").order(order))
             .setProfile(true)
             .get();
+        final List<String> topKeys;
         try {
             // Each segment reads at most the top N and the one document past it that it stops on.
             final long iterated = documentsIterated(untracked);
             assertThat(description, iterated, lessThanOrEqualTo((long) segments * (size + 1)));
             assertThat(description, iterated, lessThan((long) keys.size()));
-            final List<String> topKeys = new ArrayList<>();
-            for (var hit : untracked.getHits().getHits()) {
-                topKeys.add((String) hit.getSortValues()[0]);
-            }
+            topKeys = sortKeys(untracked);
             assertEquals(description, keys.subList(0, size), topKeys);
         } finally {
             untracked.decRef();
@@ -463,15 +479,35 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
             .addSort(SortBuilders.fieldSort("service").order(order))
             .setProfile(true)
             .get();
+        final List<String> allKeys;
         try {
             assertThat(
                 "a search for every document reads them all, " + description,
                 documentsIterated(everything),
                 greaterThanOrEqualTo((long) keys.size())
             );
+            allKeys = sortKeys(everything);
+            assertEquals(description, keys, allKeys);
         } finally {
             everything.decRef();
         }
+        return List.of(topKeys, allKeys);
+    }
+
+    private int segmentCount(Index backingIndex) {
+        final IndexService indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(backingIndex);
+        try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
+            return searcher.getLeafContexts().size();
+        }
+    }
+
+    /** The {@code service} sort value of each hit, in the order the search returned them. */
+    private static List<String> sortKeys(SearchResponse response) {
+        final List<String> sortKeys = new ArrayList<>();
+        for (var hit : response.getHits().getHits()) {
+            sortKeys.add((String) hit.getSortValues()[0]);
+        }
+        return sortKeys;
     }
 
     /** How many documents the profiled query iterated on the search's one shard, from the {@code next_doc_count} of its breakdown. */

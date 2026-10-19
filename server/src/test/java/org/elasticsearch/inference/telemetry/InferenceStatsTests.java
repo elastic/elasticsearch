@@ -10,6 +10,8 @@
 package org.elasticsearch.inference.telemetry;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.inference.InferenceRequestMetadata;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -526,7 +528,7 @@ public class InferenceStatsTests extends ESTestCase {
     public void testWithRequestMetadata_DoesNotEmitRequestMetadata() {
         var longCounter = mock(LongCounter.class);
         var stats = new InferenceStats(longCounter, mock(), mock(), Map.of());
-        var threadContext = new org.elasticsearch.common.util.concurrent.ThreadContext(org.elasticsearch.common.settings.Settings.EMPTY);
+        var threadContext = new ThreadContext(Settings.EMPTY);
         threadContext.putHeader("X-elastic-product-use-case", SECURITY_AI_ASSISTANT_USE_CASE);
         threadContext.putHeader("X-elastic-product-origin", TEST_PRODUCT_ORIGIN);
         threadContext.putHeader("X-elastic-product-solution", "security");

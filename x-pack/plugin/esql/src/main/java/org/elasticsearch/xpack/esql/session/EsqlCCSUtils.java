@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.view.IndexViewOrigins;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -344,7 +345,13 @@ public class EsqlCCSUtils {
             return;
         }
         try {
+            // A pattern can occur twice: once for the query and once inside a view body (see IndexPattern#insideView). Both name the
+            // same indices, which must not be registered for their cluster twice: each registration appends to the index expression.
+            Set<String> registered = new HashSet<>();
             for (IndexPattern indexPattern : indexPatterns) {
+                if (registered.add(indexPattern.indexPattern()) == false) {
+                    continue;
+                }
                 var groupedIndices = indicesGrouper.groupIndices(
                     IndicesOptions.DEFAULT,
                     Strings.splitStringByCommaToArray(indexPattern.indexPattern()),

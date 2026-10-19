@@ -2894,6 +2894,14 @@ public class OrcFormatReaderTests extends ESTestCase {
                 if (from == DataType.TEXT) {
                     continue; // no ORC leaf type maps to TEXT; the pair is unreachable from a file
                 }
+                if (from == DataType.DATE_NANOS) {
+                    // No ORC leaf type maps to DATE_NANOS either -- convertOrcTypeToEsql has no arm producing it,
+                    // and the name appears nowhere in this module's main sources -- so a column can never arrive
+                    // here as that source type. The pair exists for Parquet, whose TIMESTAMP(MICROS|NANOS) columns
+                    // do render it. A native arm here would be unreachable code; if ORC ever renders DATE_NANOS,
+                    // this skip is what has to be removed before the pair can be trusted in this reader.
+                    continue;
+                }
                 TypeDescription schema = TypeDescription.createStruct();
                 BatchPopulator populator;
                 switch (from) {

@@ -82,6 +82,20 @@ record ColumnInfo(
         return new ColumnInfo(descriptor, parquetType, fileEsqlType, maxDefLevel, maxRepLevel, logicalType, dateFormatter, fileEsqlType);
     }
 
+    /**
+     * A view of this column that decodes straight to {@code target}, keeping this column's own type as
+     * {@link #fileEsqlType} -- the mirror of {@link #fileTyped()}, and the shape the eager readers build from the
+     * planner's attribute. Only for a pair {@code DeclaredTypeCoercions.fusedInDecode} accepts: there the decode
+     * arms produce the target natively and no {@code castBlock} follows, so handing them a file-typed view instead
+     * would decode at the wrong type. Returns {@code this} when the target is already this column's type.
+     */
+    ColumnInfo targetTyped(DataType target) {
+        if (target == esqlType) {
+            return this;
+        }
+        return new ColumnInfo(descriptor, parquetType, target, maxDefLevel, maxRepLevel, logicalType, dateFormatter, esqlType);
+    }
+
     /** Sentinel marker for the synthetic {@code _rowPosition} column slot. */
     private static final ColumnInfo ROW_POSITION = new ColumnInfo(null, null, DataType.LONG, 0, 0, null);
 

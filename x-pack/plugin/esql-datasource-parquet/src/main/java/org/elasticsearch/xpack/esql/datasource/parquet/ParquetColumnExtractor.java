@@ -268,6 +268,21 @@ final class ParquetColumnExtractor implements ColumnExtractor {
             infos[c] = ParquetFormatReader.resolveColumnInfo(schema, columnNames[c]);
             if (infos[c] != null) {
                 resolved++;
+                // A pair the decode arms fuse has to be decoded straight to the target here, exactly as the eager
+                // readers do, rather than decoded at the file's type and coerced below. The two are not
+                // interchangeable for every fused pair: date_nanos -> date confines the value to the nanosecond
+                // domain if it materialises nanoseconds first, so decoding at the file's type and coercing after
+                // nulls instants the one-step scale carries. Retyping the view also makes the coercion below skip
+                // itself, since it is guarded on the target differing from the column's own type.
+                DataType target = targetTypes == null ? null : targetTypes[c];
+                if (target != null
+                    && DeclaredTypeCoercions.fusedInDecode(
+                        infos[c].esqlType(),
+                        target,
+                        reader.declaredDateFormatterFor(columnNames[c]) != null
+                    )) {
+                    infos[c] = infos[c].targetTyped(target);
+                }
             }
         }
         if (resolved == 0) {

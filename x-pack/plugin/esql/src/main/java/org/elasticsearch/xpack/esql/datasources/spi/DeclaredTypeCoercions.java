@@ -279,6 +279,16 @@ public final class DeclaredTypeCoercions {
         if (from == DataType.LONG && to == DataType.DATETIME) {
             return hasDeclaredFormat == false;
         }
+        // A column the file renders date_nanos, read as `date`. Fused because the two-step route is lossy where the
+        // one-step route is not: decoding to nanoseconds first confines the value to the nanosecond domain
+        // (1677..2262), while `date` is milliseconds and reaches far past it. Scaling straight to millis gives the
+        // same instant for every value the two-step route could carry -- floorDiv(raw * 1_000, 1_000_000) is
+        // floorDiv(raw, 1_000) -- and additionally carries the ones it could not. Every reader that consults this
+        // predicate must therefore decode the pair natively; ParquetColumnExtractor retypes its column view for
+        // exactly that reason, and testEveryFusedInDecodePairAgreesAcrossReadRoutes fails if a route does not.
+        if (from == DataType.DATE_NANOS && to == DataType.DATETIME) {
+            return hasDeclaredFormat == false;
+        }
         boolean fromString = from == DataType.KEYWORD || from == DataType.TEXT;
         if (fromString && (to == DataType.KEYWORD || to == DataType.TEXT)) {
             return true;

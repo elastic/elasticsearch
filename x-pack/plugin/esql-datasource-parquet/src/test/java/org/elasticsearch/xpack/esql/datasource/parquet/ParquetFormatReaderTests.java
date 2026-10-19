@@ -6477,53 +6477,6 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
-    /**
-     * The null side of {@link #assertDeclaredDatetimeReads}: every position null, on all three routes. A value the
-     * file holds and {@code date} represents, but which the decode cannot carry, has to be refused the same way
-     * whichever route produces the column -- the eager vectorized reader, the row-at-a-time reader, or the deferred
-     * extractor. Asserting it on all three is the point: a fix applied to the eager readers alone makes them
-     * disagree with the deferred one, which is a wrong answer that depends on the plan's shape rather than on the
-     * data, and this is what fails when that happens.
-     */
-    private void assertDeclaredDatetimeNulls(byte[] parquetData, String column, int positionCount) throws Exception {
-        StorageObject storageObject = createStorageObject(parquetData);
-        List<Attribute> asDatetime = List.of(new ReferenceAttribute(Source.EMPTY, column, DataType.DATETIME));
-        for (String decoder : List.of("pageReader", "rowAtATime")) {
-            ParquetFormatReader base = new ParquetFormatReader(blockFactory);
-            ParquetFormatReader r = (ParquetFormatReader) (decoder.equals("rowAtATime") ? base.withBaselinePath() : base)
-                .withDeclaredTypeColumns(Set.of(column));
-            try (
-                CloseableIterator<Page> it = r.readRange(
-                    storageObject,
-                    new RangeReadContext(List.of(column), 10, 0, parquetData.length, asDatetime, ErrorPolicy.STRICT)
-                )
-            ) {
-                LongBlock l = (LongBlock) it.next().getBlock(0);
-                assertEquals(decoder, positionCount, l.getPositionCount());
-                for (int i = 0; i < positionCount; i++) {
-                    assertTrue(decoder + " position " + i + " must be null", l.isNull(i));
-                }
-            }
-        }
-        ParquetFormatReader deferred = (ParquetFormatReader) new ParquetFormatReader(blockFactory).withDeclaredTypeColumns(Set.of(column));
-        long[] positions = new long[positionCount];
-        for (int i = 0; i < positionCount; i++) {
-            positions[i] = i;
-        }
-        try (ColumnExtractor extractor = new ParquetColumnExtractor(storageObject, deferred, footerOf(storageObject), ErrorPolicy.STRICT)) {
-            Block[] blocks = extractor.extract(new String[] { column }, new DataType[] { DataType.DATETIME }, positions, blockFactory);
-            try {
-                LongBlock l = (LongBlock) blocks[0];
-                assertEquals("deferred", positionCount, l.getPositionCount());
-                for (int i = 0; i < positionCount; i++) {
-                    assertTrue("deferred position " + i + " must be null", l.isNull(i));
-                }
-            } finally {
-                Releasables.close(blocks);
-            }
-        }
-    }
-
     /** The file's footer, for the extractor routes that take one directly. */
     private ParquetMetadata footerOf(StorageObject storageObject) throws IOException {
         try (
@@ -7827,6 +7780,63 @@ public class ParquetFormatReaderTests extends ESTestCase {
                     Map.of(DataType.LONG, 41L)
                 )
             );
+            // Every physical shape that renders DATE_NANOS, read as `date`. The TIME units are here because TIME is a
+            // temporal type: their value is a time of day, which `date` renders as an instant on 1970-01-01, so the
+            // scale is the unit's and the expected millis are a time of day too. The out-of-range TIMESTAMP(MICROS)
+            // shape is the one this pair exists for -- the two-step route nulls it, so it also pins that the decode
+            // is genuinely one step.
+            case DATE_NANOS -> List.of(
+                new FusedShape(
+                    "INT64 TIMESTAMP(MICROS)",
+                    Types.buildMessage()
+                        .required(PrimitiveType.PrimitiveTypeName.INT64)
+                        .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+                        .named("x")
+                        .named("test_schema"),
+                    (g, col) -> g.add(col, isoMillis * 1_000L),
+                    Map.of(DataType.DATETIME, isoMillis)
+                ),
+                new FusedShape(
+                    "INT64 TIMESTAMP(MICROS) below the nanosecond floor",
+                    Types.buildMessage()
+                        .required(PrimitiveType.PrimitiveTypeName.INT64)
+                        .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+                        .named("x")
+                        .named("test_schema"),
+                    (g, col) -> g.add(col, -14_831_769_600_000_000L), // 1500-01-01T00:00:00Z
+                    Map.of(DataType.DATETIME, -14_831_769_600_000L)
+                ),
+                new FusedShape(
+                    "INT64 TIMESTAMP(NANOS)",
+                    Types.buildMessage()
+                        .required(PrimitiveType.PrimitiveTypeName.INT64)
+                        .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS))
+                        .named("x")
+                        .named("test_schema"),
+                    (g, col) -> g.add(col, isoMillis * 1_000_000L),
+                    Map.of(DataType.DATETIME, isoMillis)
+                ),
+                new FusedShape(
+                    "INT64 TIME(MICROS)",
+                    Types.buildMessage()
+                        .required(PrimitiveType.PrimitiveTypeName.INT64)
+                        .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+                        .named("x")
+                        .named("test_schema"),
+                    (g, col) -> g.add(col, 45_296_000_000L),
+                    Map.of(DataType.DATETIME, 45_296_000L)
+                ),
+                new FusedShape(
+                    "INT64 TIME(NANOS)",
+                    Types.buildMessage()
+                        .required(PrimitiveType.PrimitiveTypeName.INT64)
+                        .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.NANOS))
+                        .named("x")
+                        .named("test_schema"),
+                    (g, col) -> g.add(col, 45_296_000_000_000L),
+                    Map.of(DataType.DATETIME, 45_296_000L)
+                )
+            );
             case LONG -> List.of(
                 new FusedShape(
                     "INT64",
@@ -7965,7 +7975,15 @@ public class ParquetFormatReaderTests extends ESTestCase {
                         shape.writer().accept(g, "x");
                         return List.of(g);
                     });
-                    StorageObject storageObject = createStorageObject(parquetData);
+                    // A distinct location per shape: every storage object in this class would otherwise be
+                    // memory://test.parquet at version v1, and footerOf goes through a class-level FooterByteCache,
+                    // so a later shape would be decoded against an earlier shape's footer -- which is invisible
+                    // while every route reads at the file's type and reports as a route disagreement once one of
+                    // them decodes natively.
+                    StorageObject storageObject = createStorageObject(
+                        parquetData,
+                        "memory://" + shape.label().replace(' ', '_') + ".parquet"
+                    );
                     List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", to));
                     List<Object> perRoute = new ArrayList<>();
                     for (String decoder : List.of("pageReader", "rowAtATime")) {
@@ -8045,7 +8063,11 @@ public class ParquetFormatReaderTests extends ESTestCase {
                         return List.of(g);
                     });
                     List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", to));
-                    StorageObject storageObject = createStorageObject(parquetData);
+                    // Per-shape location, for the footer-cache reason given on the agreement guard below.
+                    StorageObject storageObject = createStorageObject(
+                        parquetData,
+                        "memory://" + shape.label().replace(' ', '_') + ".parquet"
+                    );
                     for (String decoder : List.of("pageReader", "rowAtATime")) {
                         ParquetFormatReader engine = decoder.equals("rowAtATime")
                             ? new ParquetFormatReader(blockFactory).withBaselinePath()
@@ -11362,12 +11384,12 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
     /**
      * A microsecond timestamp outside the nanosecond domain, read as a declared {@code date}. {@code date} is
-     * milliseconds and represents 1500-01-01 exactly, but the decode materialises nanoseconds before narrowing, so
-     * the value is refused -- and refused on every route, which is what this pins. Closing that gap means decoding
-     * straight to milliseconds, and doing it only in the eager readers splits them from the deferred extractor,
-     * which is why this asserts all three rather than one.
+     * milliseconds and represents both of these exactly; the decode no longer materialises nanoseconds on the way,
+     * so they read rather than null. Asserted on every route, because the eager readers and the deferred extractor
+     * reach the fused pair by different means -- the readers consult {@code fusedInDecode} themselves, the extractor
+     * retypes its column view -- and fixing one without the other makes the answer depend on the plan's shape.
      */
-    public void testOutOfNanosRangeMicrosTimestampDeclaredDatetimeNullsOnEveryRoute() throws Exception {
+    public void testOutOfNanosRangeMicrosTimestampDeclaredDatetimeReadsOnEveryRoute() throws Exception {
         MessageType schema = Types.buildMessage()
             .required(PrimitiveType.PrimitiveTypeName.INT64)
             .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
@@ -11380,7 +11402,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             afterCeiling.add("ts", 32_503_680_000_000_000L); // 3000-01-01T00:00:00Z
             return List.of(beforeFloor, afterCeiling);
         });
-        assertDeclaredDatetimeNulls(parquetData, "ts", 2);
+        assertDeclaredDatetimeReads(parquetData, "ts", -14_831_769_600_000L, 32_503_680_000_000L);
     }
 
     /**

@@ -3942,8 +3942,39 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
+            // A convert inside a view must see that view's unmapped_fields. The caller's mode decides the same convert
+            // outside the view. Keyed by node identity because transformUp hands us the original node.
+            Map<LogicalPlan, UnmappedResolution> resolutionByPlan = new IdentityHashMap<>();
+            assignResolution(plan, context.unmappedResolution(), context, resolutionByPlan);
             UnionTypeResolutionState state = new UnionTypeResolutionState();
-            return plan.transformUp(LogicalPlan.class, p -> p.childrenResolved() == false ? p : doRule(p, state, context));
+            return plan.transformUp(LogicalPlan.class, p -> {
+                if (p.childrenResolved() == false) {
+                    return p;
+                }
+                return doRule(p, state, context, resolutionByPlan.getOrDefault(p, context.unmappedResolution()));
+            });
+        }
+
+        private static void assignResolution(
+            LogicalPlan plan,
+            UnmappedResolution resolution,
+            AnalyzerContext context,
+            Map<LogicalPlan, UnmappedResolution> resolutionByPlan
+        ) {
+            resolutionByPlan.put(plan, resolution);
+            List<LogicalPlan> children = plan.children();
+            for (int i = 0; i < children.size(); i++) {
+                UnmappedResolution childResolution = resolution;
+                if (plan instanceof BranchPlan branchPlan && branchPlan.isViewBranch(i)) {
+                    childResolution = resolutionForView(context, branchPlan.branchIdentity(i).settingsViewName());
+                }
+                assignResolution(children.get(i), childResolution, context, resolutionByPlan);
+            }
+        }
+
+        private static UnmappedResolution resolutionForView(AnalyzerContext context, String viewName) {
+            var settings = viewName == null ? null : context.viewSettings().get(viewName);
+            return settings == null ? UnmappedResolution.DEFAULT : settings.unmappedFields();
         }
 
         private static class UnionTypeResolutionState {
@@ -3951,7 +3982,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             private boolean isAfterAggregate = false;
         }
 
-        private static LogicalPlan doRule(LogicalPlan plan, UnionTypeResolutionState state, AnalyzerContext context) {
+        private static LogicalPlan doRule(
+            LogicalPlan plan,
+            UnionTypeResolutionState state,
+            AnalyzerContext context,
+            UnmappedResolution resolution
+        ) {
             // Collect field attributes from previous runs
             if (plan instanceof EsRelation rel) {
                 state.unionFieldAttributes.clear();
@@ -3973,7 +4009,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // Replace the entire convert function with a new FieldAttribute (containing type conversion knowledge)
             plan = plan.transformExpressionsOnly(e -> {
                 if (e instanceof ConvertFunction convert) {
-                    return resolveConvertFunction(convert, state.unionFieldAttributes, context);
+                    return resolveConvertFunction(convert, state.unionFieldAttributes, context, resolution);
                 }
                 return e;
             });
@@ -3987,7 +4023,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 plan = addGeneratedFieldsToEsRelations(
                     plan,
                     state.unionFieldAttributes.stream().map(attr -> (FieldAttribute) attr.inner()).toList(),
-                    context.unmappedResolution().loadsAllUnmappedFields()
+                    resolution.loadsAllUnmappedFields()
                 );
             }
 
@@ -4051,7 +4087,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private static Expression resolveConvertFunction(
             ConvertFunction convert,
             List<Attribute.IdIgnoringWrapper> unionFieldAttributes,
-            AnalyzerContext context
+            AnalyzerContext context,
+            UnmappedResolution resolution
         ) {
             Expression convertExpression = (Expression) convert;
             if (convert.field() instanceof FieldAttribute fa && fa.field() instanceof TypeConflictedField tcf) {
@@ -4087,7 +4124,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
                 // If all mapped types were resolved, create a new FieldAttribute with the resolved UnionTypeEsField
                 if (typeResolutions.size() == tcf.getTypesToIndices().size()) {
-                    boolean loadUnmappedFields = context.unmappedResolution().loadsUnmappedFields();
+                    boolean loadUnmappedFields = resolution.loadsUnmappedFields();
                     if (skipMultiTypeForPotentiallyUnmappedKeyword(loadUnmappedFields, tcf, supportedTypes)) {
                         return convertExpression;
                     }
@@ -4146,7 +4183,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     return createIfDoesNotAlreadyExist(fa, rewrapped, unionFieldAttributes);
                 } else if (convert.field() instanceof AbstractConvertFunction subConvert) {
                     return convertExpression.replaceChildren(
-                        singletonList(resolveConvertFunction(subConvert, unionFieldAttributes, context))
+                        singletonList(resolveConvertFunction(subConvert, unionFieldAttributes, context, resolution))
                     );
                 }
             return convertExpression;
@@ -4364,10 +4401,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // We start by dropping synthetic attributes if the plan is resolved
             LogicalPlan cleanPlan = plan.resolved() ? planWithoutSyntheticAttributes(plan) : plan;
 
-            if (context.unmappedResolution().loadsUnmappedFields() && cleanPlan.resolved()) {
-                // A single-type PUNK that survives to here has neither an implicit nor an explicit KEYWORD conversion (those turn it into a
-                // UnionTypeEsField earlier), so it falls back to null where unmapped. Warn once about all such fields whose value the user
-                // can actually observe (it reaches the final output or is consumed by some, non-conversion expression).
+            if (cleanPlan.resolved()) {
+                // A single-type PUNK that survives to here has neither an implicit nor an explicit KEYWORD conversion (those turn it
+                // into a UnionTypeEsField earlier), so it falls back to null where unmapped. Warn once about all such fields whose
+                // value the user can actually observe. A view that loads warns about its own fields even when the caller does not.
                 warnObservedNonLoadablePunks(cleanPlan, context);
             }
 
@@ -4438,22 +4475,63 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             // A single warning listing all affected fields: one warning per field can exceed the clients' maximum header size.
             Set<String> nonLoadable = new LinkedHashSet<>();
-            plan.forEachExpressionDown(FieldAttribute.class, fa -> {
-                if (observedFields.contains(fa) && fa.field() instanceof PotentiallyUnmappedSingleTypeEsField) {
-                    nonLoadable.add(fa.name());
-                }
-            });
+            collectNonLoadablePunks(plan, context.unmappedResolution().loadsUnmappedFields(), context, observedFields, nonLoadable);
 
-            Set<String> observedNames = observedFields.stream().map(NamedExpression::name).collect(Collectors.toSet());
-            for (String name : context.subqueryNonLoadableNullFills()) {
-                if (observedNames.contains(name)) {
-                    nonLoadable.add(name);
+            if (context.unmappedResolution().loadsUnmappedFields()) {
+                Set<String> observedNames = observedFields.stream().map(NamedExpression::name).collect(Collectors.toSet());
+                for (String name : context.subqueryNonLoadableNullFills()) {
+                    if (observedNames.contains(name)) {
+                        nonLoadable.add(name);
+                    }
                 }
             }
 
             if (nonLoadable.isEmpty() == false) {
                 context.deferredHeaderWarnings().add(nonLoadablePunksWarning(List.copyOf(nonLoadable)));
             }
+        }
+
+        /** PUNKs in a loading scope, not those of a nested view that uses a different mode. */
+        private static void collectNonLoadablePunks(
+            LogicalPlan plan,
+            boolean loads,
+            AnalyzerContext context,
+            AttributeSet observedFields,
+            Set<String> nonLoadable
+        ) {
+            if (plan instanceof BranchPlan branchPlan) {
+                List<LogicalPlan> children = branchPlan.children();
+                for (int i = 0; i < children.size(); i++) {
+                    boolean childLoads = loads;
+                    if (branchPlan.isViewBranch(i)) {
+                        childLoads = resolutionForView(context, branchPlan.branchIdentity(i).settingsViewName()).loadsUnmappedFields();
+                    }
+                    collectNonLoadablePunks(children.get(i), childLoads, context, observedFields, nonLoadable);
+                }
+                if (loads) {
+                    addObservedPunks(branchPlan, observedFields, nonLoadable);
+                }
+                return;
+            }
+            if (loads) {
+                addObservedPunks(plan, observedFields, nonLoadable);
+            }
+            for (LogicalPlan child : plan.children()) {
+                collectNonLoadablePunks(child, loads, context, observedFields, nonLoadable);
+            }
+        }
+
+        private static void addObservedPunks(LogicalPlan plan, AttributeSet observedFields, Set<String> nonLoadable) {
+            plan.forEachExpression(FieldAttribute.class, fa -> {
+                if (observedFields.contains(fa) && fa.field() instanceof PotentiallyUnmappedSingleTypeEsField) {
+                    nonLoadable.add(fa.name());
+                }
+            });
+        }
+
+        private static UnmappedResolution resolutionForView(AnalyzerContext context, String viewName) {
+            var settings = viewName == null ? null : context.viewSettings().get(viewName);
+            return settings == null ? UnmappedResolution.DEFAULT : settings.unmappedFields();
         }
 
         private static LogicalPlan planWithoutSyntheticAttributes(LogicalPlan plan) {
@@ -5200,7 +5278,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             Expression resolved = ResolveUnionTypes.resolveConvertFunction(
                                 (ConvertFunction) pushedDownConvert,
                                 branchUnionFieldAttributes,
-                                context
+                                context,
+                                context.unmappedResolution()
                             );
                             if (resolved instanceof FieldAttribute resolvedField && resolvedField.synthetic()) {
                                 newChildOutput.add(resolvedField);

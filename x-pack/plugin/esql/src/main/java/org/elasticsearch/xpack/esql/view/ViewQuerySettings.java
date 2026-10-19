@@ -13,8 +13,11 @@ import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+
+import static java.util.stream.Collectors.joining;
 
 /**
  * The query settings a view definition sets for its own body with {@code SET} statements.
@@ -62,15 +65,20 @@ public record ViewQuerySettings(UnmappedResolution unmappedFields, boolean wildc
         if (settings == null || settings.isEmpty()) {
             return;
         }
+        List<QuerySetting> rejected = new ArrayList<>();
         for (QuerySetting setting : settings) {
             if (ALLOWED.contains(setting.name()) == false) {
-                throw new ParsingException(
-                    setting.source(),
-                    "SET [{}] is not allowed in views; only {} are",
-                    setting.name(),
-                    ALLOWED.stream().sorted().toList()
-                );
+                rejected.add(setting);
             }
+        }
+        if (rejected.isEmpty() == false) {
+            String names = rejected.stream().map(QuerySetting::name).distinct().sorted().collect(joining(", "));
+            throw new ParsingException(
+                rejected.get(0).source(),
+                "SET [{}] is not allowed in views; only {} are",
+                names,
+                ALLOWED.stream().sorted().toList()
+            );
         }
         // Same type and value checks as a query SET. Snapshot is forced on so LOAD_ALL passes that gate and fails
         // below with the view-specific message on every build, snapshot or not.
@@ -99,9 +107,5 @@ public record ViewQuerySettings(UnmappedResolution unmappedFields, boolean wildc
      */
     public boolean requiresViewIdentity() {
         return ViewBoundaryPreservation.settingsRequireViewIdentity(unmappedFields, wildcardsMatchDatasets);
-    }
-
-    public boolean isDefaults() {
-        return this.equals(DEFAULTS);
     }
 }

@@ -655,8 +655,13 @@ public class Verifier {
 
     /**
      * Applies the loading-mode restrictions to one scope, then to each nested view under that view's own mode.
-     * A view branch is not inspected as part of the enclosing scope. {@code promqlReported} keeps the old behavior of
-     * reporting one PROMQL failure per scope, not one per rewritten time-series pipeline.
+     * A view branch is not inspected as part of the enclosing scope.
+     * <p>
+     * Neither loading mode yet supports PROMQL. This is checked separately from
+     * {@link #checkLoadAllModeSupportedCommands}, which the PROMQL command escapes: it is rewritten into a {@code TS}
+     * before verification runs, so only its {@link TimeSeriesAggregate.Origin} still tells the two apart. The command
+     * is gone by then and can translate to several time-series pipelines (one per vector-match operand), so
+     * {@code promqlReported} records one PROMQL failure per scope, not one per pipeline.
      *
      * @return whether this scope has already reported a PROMQL failure
      */
@@ -696,13 +701,6 @@ public class Verifier {
         return promqlReported;
     }
 
-    /**
-     * Neither loading mode yet supports PROMQL. This is checked separately from
-     * {@link #checkLoadAllModeSupportedCommands}, which the PROMQL command escapes: it is rewritten into a {@code TS} before
-     * verification runs, so only its {@link TimeSeriesAggregate.Origin} still tells the two apart. The command is gone
-     * by then and can translate to several time-series pipelines (one per vector-match operand), so report only the
-     * first PROMQL-origin aggregate rather than one failure per pipeline.
-     */
     /**
      * Temporary MVP guardrail for {@code unmapped_fields="LOAD_ALL"} until the interaction of all commands with
      * {@code _unmapped_fields} is designed and implemented.

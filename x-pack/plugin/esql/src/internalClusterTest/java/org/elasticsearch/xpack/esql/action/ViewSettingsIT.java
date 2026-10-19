@@ -7,18 +7,24 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.View;
+import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -468,6 +474,68 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * {@code foo} is {@code double} in {@code mt_a}, {@code long} in {@code mt_b}, and present only in {@code _source} in
+     * {@code mt_c}. The view loads it, so {@code TO_DEGREES(foo)} is a type conflict even when the caller set nothing.
+     */
+    public void testLoadSetInsideViewReportsMixedTypeConflictWhenCallerUsesDefault() {
+        String dynamicOff = "{\"dynamic\": false, \"properties\": {\"id\": {\"type\": \"integer\"}}}";
+        assertAcked(indicesAdmin().prepareCreate("mt_a").setMapping("""
+            {"dynamic": false, "properties": {"id": {"type": "integer"}, "foo": {"type": "double"}}}
+            """));
+        assertAcked(indicesAdmin().prepareCreate("mt_b").setMapping("""
+            {"dynamic": false, "properties": {"id": {"type": "integer"}, "foo": {"type": "long"}}}
+            """));
+        assertAcked(indicesAdmin().prepareCreate("mt_c").setMapping(dynamicOff));
+        prepareIndex("mt_a").setSource("id", 1, "foo", 1.5).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        prepareIndex("mt_b").setSource("id", 2, "foo", 2).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        prepareIndex("mt_c").setSource("id", 3, "foo", "3").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        assertAcked(createView("mt_view", """
+            SET unmapped_fields="load";
+            FROM mt_a, mt_b, mt_c | EVAL x = TO_DEGREES(foo) | KEEP id, x
+            """));
+        for (String query : List.of(
+            "FROM mt_view",
+            "SET unmapped_fields=\"nullify\"; FROM mt_view",
+            "SET unmapped_fields=\"load\"; FROM mt_view"
+        )) {
+            expectThrows(
+                VerificationException.class,
+                containsString("Cannot use field [foo] due to ambiguities"),
+                () -> run(query).close()
+            );
+        }
+    }
+
+    /**
+     * {@code t} is {@code text} in {@code tp_a} and only in {@code _source} in {@code tp_b}. Loading it nulls the unmapped
+     * value and warns. The warning follows the view's SET, not the caller's.
+     */
+    public void testLoadSetInsideViewWarnsAboutPartiallyUnmappedText() throws Exception {
+        assertAcked(indicesAdmin().prepareCreate("tp_a").setMapping("""
+            {"dynamic": false, "properties": {"id": {"type": "integer"}, "t": {"type": "text"}}}
+            """));
+        assertAcked(indicesAdmin().prepareCreate("tp_b").setMapping("""
+            {"dynamic": false, "properties": {"id": {"type": "integer"}}}
+            """));
+        prepareIndex("tp_a").setSource("id", 1, "t", "a1").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        prepareIndex("tp_b").setSource("id", 2, "t", "b2").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        assertAcked(createView("tp_view", """
+            SET unmapped_fields="load";
+            FROM tp_a, tp_b | KEEP id, t
+            """));
+        try (var resp = run("FROM tp_view | SORT id")) {
+            assertThat(getValuesList(resp), equalTo(List.of(Arrays.asList(1, "a1"), Arrays.asList(2, null))));
+        }
+        for (String query : List.of(
+            "FROM tp_view | SORT id",
+            "SET unmapped_fields=\"nullify\"; FROM tp_view | SORT id",
+            "SET unmapped_fields=\"load\"; FROM tp_view | SORT id"
+        )) {
+            assertThat(warningHeaders(query), hasItem(containsString("Field [t] is unmapped in some indices")));
+        }
+    }
+
     public void testLoadSetInsideViewLoadsPartiallyUnmappedField() {
         setupPunkIndices();
         assertAcked(createView("punk_load", """
@@ -552,6 +620,27 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
         try (var resp = run("FROM a* | KEEP id | SORT id")) {
             assertThat(getValuesList(resp), equalTo(List.of(List.of(1))));
         }
+    }
+
+    private List<String> warningHeaders(String query) throws InterruptedException {
+        List<String> warnings = new CopyOnWriteArrayList<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        client().execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query), ActionListener.running(() -> {
+            try {
+                internalCluster().getInstance(TransportService.class)
+                    .getThreadPool()
+                    .getThreadContext()
+                    .getResponseHeaders()
+                    .getOrDefault("Warning", List.of())
+                    .stream()
+                    .map(w -> HeaderWarning.decodeAndUnescape(HeaderWarning.extractWarningValueFromWarningHeader(w, false)))
+                    .forEach(warnings::add);
+            } finally {
+                latch.countDown();
+            }
+        }));
+        assertTrue("query did not complete", latch.await(30, TimeUnit.SECONDS));
+        return warnings;
     }
 
     private AcknowledgedResponse createView(String viewName, String query) {

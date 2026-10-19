@@ -718,6 +718,18 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(rejected.getMessage(), containsString("SET [time_zone] is not allowed in views"));
         assertThat(rejected.getMessage(), containsString("unmapped_fields"));
 
+        ParsingException both = expectThrows(
+            ParsingException.class,
+            () -> TEST_PARSER.parseView(
+                "SET time_zone=\"UTC\"; SET project_routing=\"_alias:us\"; FROM idx",
+                queryParams,
+                EMPTY_INFERENCE_SETTINGS,
+                "v"
+            )
+        );
+        assertThat(both.getMessage(), containsString("SET [project_routing, time_zone] is not allowed in views"));
+        assertThat(both.getMessage(), containsString("unmapped_fields"));
+
         ParsingException loadAll = expectThrows(
             ParsingException.class,
             () -> TEST_PARSER.parseView("SET unmapped_fields=\"LOAD_ALL\"; FROM idx", queryParams, EMPTY_INFERENCE_SETTINGS, "v")

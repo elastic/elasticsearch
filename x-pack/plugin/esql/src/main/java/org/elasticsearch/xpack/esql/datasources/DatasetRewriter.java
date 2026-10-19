@@ -587,13 +587,25 @@ public final class DatasetRewriter {
                 "dataset [" + name + "] references unknown data source [" + dataset.dataSource().getName() + "]"
             );
         }
+        Literal path = Literal.keyword(source, dataset.resource());
+        return new UnresolvedExternalRelation(source, path, datasetConfig(parent, dataset), metadataFields, name, dataset.mapping());
+    }
+
+    /**
+     * The query-time config a dataset is read under: its own settings, its data source's settings under
+     * {@link ExternalSourceResolver#DATASOURCE_CONFIG_KEY}, the dataset context, and the
+     * {@link DefinitionVersion} of the two definitions. The single builder for both the coordinator, which
+     * puts it on the relation here, and the executing node, which rebuilds it from its own cluster state
+     * ({@link DatasetConfigResolver}) instead of trusting the copy that arrived with the plan. One builder,
+     * so the two cannot diverge.
+     */
+    public static Map<String, Object> datasetConfig(DataSource parent, Dataset dataset) {
         Map<String, Object> merged = mergeSettings(parent, dataset);
         // Everything cached about this dataset's files is derived from these two definitions, so it is
         // addressed by a version of them. An edit to either takes the derived entries out of reach
         // without anything having to notice the edit and invalidate them.
         merged.put(DefinitionVersion.CONFIG_KEY, DefinitionVersion.of(dataset, parent));
-        Literal path = Literal.keyword(source, dataset.resource());
-        return new UnresolvedExternalRelation(source, path, merged, metadataFields, name, dataset.mapping());
+        return merged;
     }
 
     /**

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
@@ -134,9 +135,18 @@ public class EsqlRemoteEnrichIndexSecurityIT extends AbstractMultiClustersTestCa
             ((MockTransportService) ts).clearAllRules();
         }
         Client remote = rootClient(REMOTE_CLUSTER);
-        remote.execute(DeleteEnrichPolicyAction.INSTANCE, new DeleteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, POLICY_NAME))
-            .actionGet();
-        assertAcked(remote.admin().indices().prepareDelete("hosts", "events", "secrets", ".enrich-unknown-1700000000000"));
+        try {
+            remote.execute(DeleteEnrichPolicyAction.INSTANCE, new DeleteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, POLICY_NAME))
+                .actionGet();
+        } catch (ResourceNotFoundException e) {
+            // setupRemoteIndices failed before creating the policy; don't hide that failure
+        }
+        assertAcked(
+            remote.admin()
+                .indices()
+                .prepareDelete("hosts", "events", "secrets", ".enrich-unknown-1700000000000")
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+        );
         // The test cluster wipe skips system indices, so drop the security index created by the system index test.
         Client security = new OriginSettingClient(cluster(REMOTE_CLUSTER).client(), SECURITY_ORIGIN);
         assertAcked(security.admin().indices().prepareDelete(SECURITY_MAIN_ALIAS).setIndicesOptions(IndicesOptions.lenientExpandOpen()));

@@ -12,7 +12,6 @@ package org.elasticsearch.simdvec;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.util.CollectionUtils;
-import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.lang.foreign.MemorySegment;
@@ -56,11 +55,6 @@ public class SimdVecLibraryBBQTests extends SimdVecLibraryTests {
     @BeforeClass
     public static void beforeClass() {
         SimdVecLibraryTests.setup();
-    }
-
-    @AfterClass
-    public static void afterClass() {
-        SimdVecLibraryTests.cleanup();
     }
 
     public void testInt4BinaryVectors() {
@@ -127,7 +121,7 @@ public class SimdVecLibraryBBQTests extends SimdVecLibraryTests {
 
     private record TestOffsets(int[] offsets, MemorySegment offsetsSegment) {}
 
-    static TestOffsets createTestOffsets(final int numVecs) {
+    TestOffsets createTestOffsets(final int numVecs) {
         var offsets = new int[numVecs];
         var offsetsSegment = arena.allocate((long) numVecs * Integer.BYTES);
 
@@ -138,7 +132,7 @@ public class SimdVecLibraryBBQTests extends SimdVecLibraryTests {
         return new TestOffsets(offsets, offsetsSegment);
     }
 
-    static TestData createTestData(final int numVecs, final int dims, final SimdVecLibrary.BBQType type, final long extraData) {
+    TestData createTestData(final int numVecs, final int dims, final SimdVecLibrary.BBQType type, final long extraData) {
         final byte maxIndexValue = (byte) ((1 << type.dataBits()) - 1);
         final byte maxQueryValue = (byte) ((1 << type.queryBits()) - 1);
 
@@ -177,7 +171,7 @@ public class SimdVecLibraryBBQTests extends SimdVecLibraryTests {
         );
     }
 
-    static TestData createTestData(final int numVecs, final int dims, final SimdVecLibrary.BBQType type) {
+    TestData createTestData(final int numVecs, final int dims, final SimdVecLibrary.BBQType type) {
         return createTestData(numVecs, dims, type, 0);
     }
 

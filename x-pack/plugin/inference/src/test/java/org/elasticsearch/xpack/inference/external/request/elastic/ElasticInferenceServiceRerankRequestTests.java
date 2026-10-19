@@ -77,10 +77,8 @@ public class ElasticInferenceServiceRerankRequestTests extends ESTestCase {
 
         var request = createRequest(url, modelId, query, documents, null, returnDocuments);
         var httpRequest = RequestTests.getHttpRequestSync(request);
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var httpPost = httpRequest.httpRequest();
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap, aMapWithSize(4));
         assertThat(requestMap.get("query"), is(InferenceStringTests.inferenceStringToMap(query)));
         assertThat(requestMap.get("model"), is(modelId));

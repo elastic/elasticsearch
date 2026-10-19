@@ -26,7 +26,6 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
-import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;

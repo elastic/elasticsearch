@@ -510,14 +510,14 @@ public class IndexingShardRelocationAvoidListIT extends AbstractStatelessPluginI
                 telemetryProvider
             ) {
                 @Override
-                public Set<BlobFile> getTrackedUploadedBlobFilesUpTo(ShardId shardId, long maxUploadedGeneration) {
+                public Set<BlobFile> getTrackedUploadedBlobFilesUpTo(ShardId shardId, long bccMaxUploadedGeneration) {
                     CountDownLatch entered = getTrackedBlobFilesEnteredLatch.get();
                     CountDownLatch blocker = getTrackedBlobFilesBlockerLatch.get();
                     if (entered != null && blocker != null) {
                         entered.countDown();
                         safeAwait(blocker);
                     }
-                    return super.getTrackedUploadedBlobFilesUpTo(shardId, maxUploadedGeneration);
+                    return super.getTrackedUploadedBlobFilesUpTo(shardId, bccMaxUploadedGeneration);
                 }
             };
         }

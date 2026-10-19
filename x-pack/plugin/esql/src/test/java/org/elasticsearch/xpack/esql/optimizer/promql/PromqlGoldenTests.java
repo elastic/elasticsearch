@@ -22,6 +22,8 @@ public class PromqlGoldenTests extends GoldenTestCase {
     private static final String DIMENSION_VALUES = "dimension_values";
     private static final String ESQL_SUM_LONG_OVERFLOW_FIX = "esql_sum_long_overflow_fix";
     private static final String PACK_DIMS_AGG = "pack_dims_agg";
+    // Plans exposing _timeseries read it typed from here on; older versions read the keyword and cast it at the output.
+    private static final String TIMESERIES_TYPE = "promql_functional_timeseries";
 
     @ParametersFactory(argumentFormatting = "%1$s")
     public static Iterable<Object[]> parameters() {
@@ -33,9 +35,12 @@ public class PromqlGoldenTests extends GoldenTestCase {
     }
 
     public void testSimpleInstantSelector() {
+        // the exposed _timeseries is typed only where the type is enabled
+        assumeTrue("requires typed _timeseries", EsqlCapabilities.Cap.PROMQL_ENABLE_TIMESERIES_TYPE.isEnabled());
         assumeTrue("requires PromQL support", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
         builder("PROMQL index=k8s step=1h network.bytes_in").expectationChangesAt(DIMENSION_VALUES)
             .expectationChangesAt(PACK_DIMS_AGG)
+            .expectationChangesAt(TIMESERIES_TYPE)
             .run();
     }
 
@@ -45,9 +50,12 @@ public class PromqlGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiplicationMetricScalar() {
+        // the exposed _timeseries is typed only where the type is enabled
+        assumeTrue("requires typed _timeseries", EsqlCapabilities.Cap.PROMQL_ENABLE_TIMESERIES_TYPE.isEnabled());
         assumeTrue("requires PromQL support", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
         builder("PROMQL index=k8s step=1h network_in_bits=(network.total_bytes_in * 8)").expectationChangesAt(DIMENSION_VALUES)
             .expectationChangesAt(PACK_DIMS_AGG)
+            .expectationChangesAt(TIMESERIES_TYPE)
             .run();
     }
 
@@ -67,14 +75,20 @@ public class PromqlGoldenTests extends GoldenTestCase {
     }
 
     public void testPromqlSourceWithGrok() {
+        // the exposed _timeseries is typed only where the type is enabled
+        assumeTrue("requires typed _timeseries", EsqlCapabilities.Cap.PROMQL_ENABLE_TIMESERIES_TYPE.isEnabled());
         assumeTrue("requires PromQL support", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
         assumeTrue("requires URI_PARTS command", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
         builder("""
             PROMQL index=k8s-downsampled step=1h oYJdEiiJ=(network.bytes_in{cluster!="qa",pod!="two"})
+            | EVAL _timeseries = TO_STRING(_timeseries)
             | GROK _timeseries "%{WORD:zEyDkwmbYa} %{WORD:step} %{WORD:step}"
             | URI_PARTS parts = _timeseries
             | DROP _timeseries, oYJdEiiJ, step, zEyDkwmbYa
-            | LIMIT 1""").expectationChangesAt(DIMENSION_VALUES).expectationChangesAt(PACK_DIMS_AGG).run();
+            | LIMIT 1""").expectationChangesAt(DIMENSION_VALUES)
+            .expectationChangesAt(PACK_DIMS_AGG)
+            .expectationChangesAt(TIMESERIES_TYPE)
+            .run();
     }
 
     public void testImplicitLastOverTimeOfLong() {
@@ -107,18 +121,24 @@ public class PromqlGoldenTests extends GoldenTestCase {
     }
 
     public void testTopk() {
+        // the exposed _timeseries is typed only where the type is enabled
+        assumeTrue("requires typed _timeseries", EsqlCapabilities.Cap.PROMQL_ENABLE_TIMESERIES_TYPE.isEnabled());
         assumeTrue("requires PromQL support", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
         assumeTrue("requires PromQL topk support", EsqlCapabilities.Cap.PROMQL_TOPK.isEnabled());
         builder("PROMQL index=k8s step=1h result=(topk(3, network.bytes_in))").expectationChangesAt(DIMENSION_VALUES)
             .expectationChangesAt(PACK_DIMS_AGG)
+            .expectationChangesAt(TIMESERIES_TYPE)
             .run();
     }
 
     public void testTopkByGrouping() {
+        // the exposed _timeseries is typed only where the type is enabled
+        assumeTrue("requires typed _timeseries", EsqlCapabilities.Cap.PROMQL_ENABLE_TIMESERIES_TYPE.isEnabled());
         assumeTrue("requires PromQL support", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
         assumeTrue("requires PromQL topk support", EsqlCapabilities.Cap.PROMQL_TOPK.isEnabled());
         builder("PROMQL index=k8s step=1h result=(topk(2, network.bytes_in) by (pod))").expectationChangesAt(DIMENSION_VALUES)
             .expectationChangesAt(PACK_DIMS_AGG)
+            .expectationChangesAt(TIMESERIES_TYPE)
             .run();
     }
 
@@ -133,18 +153,24 @@ public class PromqlGoldenTests extends GoldenTestCase {
     }
 
     public void testLimitk() {
+        // the exposed _timeseries is typed only where the type is enabled
+        assumeTrue("requires typed _timeseries", EsqlCapabilities.Cap.PROMQL_ENABLE_TIMESERIES_TYPE.isEnabled());
         assumeTrue("requires PromQL support", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
         assumeTrue("requires PromQL limitk support", EsqlCapabilities.Cap.PROMQL_LIMITK.isEnabled());
         builder("PROMQL index=k8s step=1h result=(limitk(3, network.bytes_in))").expectationChangesAt(DIMENSION_VALUES)
             .expectationChangesAt(PACK_DIMS_AGG)
+            .expectationChangesAt(TIMESERIES_TYPE)
             .run();
     }
 
     public void testLimitkByGrouping() {
+        // the exposed _timeseries is typed only where the type is enabled
+        assumeTrue("requires typed _timeseries", EsqlCapabilities.Cap.PROMQL_ENABLE_TIMESERIES_TYPE.isEnabled());
         assumeTrue("requires PromQL support", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
         assumeTrue("requires PromQL limitk support", EsqlCapabilities.Cap.PROMQL_LIMITK.isEnabled());
         builder("PROMQL index=k8s step=1h result=(limitk(2, network.bytes_in) by (pod))").expectationChangesAt(DIMENSION_VALUES)
             .expectationChangesAt(PACK_DIMS_AGG)
+            .expectationChangesAt(TIMESERIES_TYPE)
             .run();
     }
 
@@ -159,18 +185,24 @@ public class PromqlGoldenTests extends GoldenTestCase {
     }
 
     public void testLimitRatio() {
+        // the exposed _timeseries is typed only where the type is enabled
+        assumeTrue("requires typed _timeseries", EsqlCapabilities.Cap.PROMQL_ENABLE_TIMESERIES_TYPE.isEnabled());
         assumeTrue("requires PromQL support", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
         assumeTrue("requires PromQL limit_ratio support", EsqlCapabilities.Cap.PROMQL_LIMIT_RATIO.isEnabled());
         builder("PROMQL index=k8s step=1h result=(limit_ratio(0.5, network.bytes_in))").expectationChangesAt(DIMENSION_VALUES)
             .expectationChangesAt(PACK_DIMS_AGG)
+            .expectationChangesAt(TIMESERIES_TYPE)
             .run();
     }
 
     public void testLimitRatioByGrouping() {
+        // the exposed _timeseries is typed only where the type is enabled
+        assumeTrue("requires typed _timeseries", EsqlCapabilities.Cap.PROMQL_ENABLE_TIMESERIES_TYPE.isEnabled());
         assumeTrue("requires PromQL support", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
         assumeTrue("requires PromQL limit_ratio support", EsqlCapabilities.Cap.PROMQL_LIMIT_RATIO.isEnabled());
         builder("PROMQL index=k8s step=1h result=(limit_ratio(0.5, network.bytes_in) by (pod))").expectationChangesAt(DIMENSION_VALUES)
             .expectationChangesAt(PACK_DIMS_AGG)
+            .expectationChangesAt(TIMESERIES_TYPE)
             .run();
     }
 

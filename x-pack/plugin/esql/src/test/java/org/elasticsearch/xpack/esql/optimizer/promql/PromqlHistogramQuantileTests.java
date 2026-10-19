@@ -49,6 +49,19 @@ public class PromqlHistogramQuantileTests extends AbstractPromqlPlanOptimizerTes
         super(versionMode);
     }
 
+    /**
+     * Grafana/istio shape: {@code (histogram_quantile(...) / 1000) or histogram_quantile(...)} — a top-level union of a
+     * scaled quantile and a bare one. Must keep a resolvable value column through {@code UnionAll}/{@code TopNBy}.
+     */
+    public void testHistogramQuantileDivOrHistogramQuantilePlans() {
+        LogicalPlan plan = planHistogramPromql(
+            "PROMQL index=prom_hist step=1m result=((histogram_quantile(0.5, sum by (job, le) (request_duration_seconds_bucket)) / 1000) "
+                + "or histogram_quantile(0.5, sum by (job, le) (request_duration_seconds_bucket)))"
+        );
+        assertThat(outputColumns(plan), hasItem("result"));
+        assertThat(plan.output().stream().map(Attribute::name).toList(), hasItem("result"));
+    }
+
     public void testHistogramQuantileWithoutLeAfterAggregationResolves() {
         LogicalPlan plan = planHistogramPromql(
             "PROMQL index=prom_hist step=1m result=(histogram_quantile(0.9, sum by (job) (request_duration_seconds_bucket)))"

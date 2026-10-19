@@ -273,15 +273,17 @@ promqlSourceWithGrok
 required_capability: uri_parts_command
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
+required_capability: promql_enable_timeseries_type
 
 PROMQL index=k8s-downsampled step=1h oYJdEiiJ=(network.bytes_in{cluster!="qa",pod!="two"}) 
+| EVAL _timeseries = TO_STRING(_timeseries)
 | GROK _timeseries "%{WORD:zEyDkwmbYa} %{WORD:step} %{WORD:step}" 
 | URI_PARTS parts = _timeseries
 | DROP _timeseries, oYJdEiiJ, step, zEyDkwmbYa
 | LIMIT 1
 ;
-warningregex: Line 3:3: evaluation of \[URI_PARTS parts = _timeseries\] failed, treating result as null. Only first 20 failures recorded.
-warningregex: Line 3:3: java.lang.IllegalArgumentException: unable to parse URI \[
+warningregex: Line 4:3: evaluation of \[URI_PARTS parts = _timeseries\] failed, treating result as null. Only first 20 failures recorded.
+warningregex: Line 4:3: java.lang.IllegalArgumentException: unable to parse URI \[
 
 parts.domain:keyword | parts.fragment:keyword | parts.path:keyword | parts.extension:keyword | parts.port:integer | parts.query:keyword | parts.scheme:keyword | parts.user_info:keyword | parts.username:keyword | parts.password:keyword
 null                 | null                   | null               | null                    | null               | null                | null                 | null                    | null                   | null

@@ -285,10 +285,11 @@ required_capability: promql_command_v0
 required_capability: aggregate_metric_double_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: time_series_translation_in_analyzer
-PROMQL index=k8s-downsampled step=1m network.eth0.tx | sort step, _timeseries | limit 9;
+required_capability: promql_enable_timeseries_type
+PROMQL index=k8s-downsampled step=1m network.eth0.tx | sort step, TO_STRING(_timeseries) | limit 9;
 ignoreOrder:true
 
-network.eth0.tx:double | step:datetime            | _timeseries:keyword
+network.eth0.tx:double | step:datetime            | _timeseries:_timeseries
 729.0                  | 2024-05-09T23:30:00.000Z | "{""cluster"":""prod"",""pod"":""one""}"
 299.0                  | 2024-05-09T23:30:00.000Z | "{""cluster"":""prod"",""pod"":""three""}"
 37.0                   | 2024-05-09T23:30:00.000Z | "{""cluster"":""prod"",""pod"":""two""}"

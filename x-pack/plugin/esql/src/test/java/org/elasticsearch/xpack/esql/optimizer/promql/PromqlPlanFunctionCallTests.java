@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
+import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -537,6 +538,105 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
             nonFiniteExpressions(planPromql("PROMQL index=k8s step=1h result=(min(sum by (cluster) (network.cost)))")),
             not(empty())
         );
+    }
+
+    /**
+     * Classic Prometheus shape {@code sum by (dst) (label_replace(m, "dst", "$1", "src", "(.*):.*"))}: derive a host from
+     * {@code host:port}, then regroup. The derived {@code dst} must be the outer STATS grouping key and the regex must
+     * survive translation as RegexExpand.
+     */
+    public void testSumByLabelReplaceHostPortPlans() {
+        assumeTrue("requires PromQL label functions", EsqlCapabilities.Cap.PROMQL_LABEL_FUNCTIONS.isEnabled());
+        String q =
+            "PROMQL index=k8s step=1h result=(sum by (dst) (label_replace(network.bytes_in, \"dst\", \"$1\", \"pod\", \"(.*):.*\")))";
+        LogicalPlan plan = planPromql(q);
+        assertTrue(plan.resolved());
+        assertTrue("outer result must expose dst", plan.output().stream().anyMatch(a -> "dst".equals(a.name())));
+        List<Expression> expands = new ArrayList<>();
+        plan.forEachExpressionDown(org.elasticsearch.xpack.esql.expression.promql.function.RegexExpand.class, expands::add);
+        assertThat(expands, not(empty()));
+        // Outer regroup by the derived label (not only the per-series TSA).
+        List<Aggregate> outer = plan.collect(Aggregate.class).stream().filter(a -> (a instanceof TimeSeriesAggregate) == false).toList();
+        assertThat(outer, not(empty()));
+        assertTrue(
+            outer.stream().anyMatch(a -> a.groupings().stream().anyMatch(g -> g instanceof Attribute attr && "dst".equals(attr.name())))
+        );
+    }
+
+    /**
+     * {@code label_replace} over an opaque {@code group_left} must keep the child's rest unset (includes already left out
+     * of rest) and add the destination — replacing rest with {@code {dst}} alone used to drop Prometheus labels from the
+     * result (label-name mismatch vs control).
+     */
+    public void testLabelReplaceOverGroupLeftPreservesRestUnset() {
+        assumeTrue("requires PromQL label functions", EsqlCapabilities.Cap.PROMQL_LABEL_FUNCTIONS.isEnabled());
+        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
+        assumeTrue("requires typed _timeseries", typedTimeSeriesMetadata());
+        LogicalPlan plan = planPromql(
+            "PROMQL index=k8s step=5m result=(label_replace("
+                + "network.eth0.tx * on (pod) group_left (region) network.eth0.rx, "
+                + "\"dst\", \"$1\", \"pod\", \"(.+)\"))"
+        );
+        assertTrue("destination promoted: " + plan.output(), plan.output().stream().anyMatch(a -> "dst".equals(a.name())));
+        assertTrue("group_left include retained: " + plan.output(), plan.output().stream().anyMatch(a -> "region".equals(a.name())));
+        // Public {_timeseries} (not PathTrace metadataLabelName) so KEEP / Prometheus emit rest labels beside dst/region.
+        assertTrue(
+            "command output must include public _timeseries: " + plan.output(),
+            plan.output().stream().anyMatch(a -> "_timeseries".equals(a.name()))
+        );
+        assertTrue(
+            "command output must not leak PathTrace rest name: " + plan.output(),
+            plan.output().stream().noneMatch(a -> a.name().startsWith("_timeseries$"))
+        );
+    }
+
+    /**
+     * Opaque {@code label_replace} / {@code label_join} promote the destination beside rest so bare / without / matching
+     * / Prometheus layouts can keep it (#157672).
+     */
+    public void testLabelReplaceOpaquePromotesDestinationBesideRest() {
+        assumeTrue("requires PromQL label functions", EsqlCapabilities.Cap.PROMQL_LABEL_FUNCTIONS.isEnabled());
+        assumeTrue("requires typed _timeseries", typedTimeSeriesMetadata());
+        LogicalPlan bare = planPromql(
+            "PROMQL index=k8s step=1h result=(label_replace(network.bytes_in, \"tier\", \"$1\", \"region\", \"(.+)\"))"
+        );
+        assertTrue(bare.output().stream().anyMatch(a -> "tier".equals(a.name())));
+        assertTrue(bare.output().stream().anyMatch(a -> "_timeseries".equals(a.name())));
+
+        LogicalPlan by = planPromql(
+            "PROMQL index=k8s step=1h result=(sum by (tier) (label_replace(network.bytes_in, \"tier\", \"$1\", \"region\", \"(.+)\")))"
+        );
+        assertTrue(by.output().stream().anyMatch(a -> "tier".equals(a.name())));
+
+        LogicalPlan join = planPromql(
+            "PROMQL index=k8s step=1h result=(label_join(network.bytes_in, \"combo\", \"-\", \"pod\", \"region\"))"
+        );
+        assertTrue(join.output().stream().anyMatch(a -> "combo".equals(a.name())));
+    }
+
+    /**
+     * {@code label_replace(m) + m} cannot fold the pending metric into an Eval over an already-collapsed relabel: that
+     * would embed {@code LastOverTime} outside STATS. Asymmetric arithmetic joins two finished per-series pipelines.
+     */
+    public void testLabelReplacePlusSameMetricPlansWithoutLooseAggregate() {
+        assumeTrue("requires PromQL label functions", EsqlCapabilities.Cap.PROMQL_LABEL_FUNCTIONS.isEnabled());
+        assumeTrue("requires typed _timeseries", typedTimeSeriesMetadata());
+        for (String expr : List.of(
+            "label_replace(network.bytes_in, \"tier\", \"$1\", \"region\", \"(.+)\") + network.bytes_in",
+            "network.bytes_in + label_replace(network.bytes_in, \"tier\", \"$1\", \"region\", \"(.+)\")"
+        )) {
+            LogicalPlan plan = planPromql("PROMQL index=k8s step=1h result=(" + expr + ")");
+            // forEachExpression (not Down): Down walks into Aggregate children and would false-flag their AFs.
+            plan.forEachDown(p -> {
+                if (p instanceof Aggregate) {
+                    return;
+                }
+                p.forEachExpression(AggregateFunction.class, af -> {
+                    fail("aggregate function [" + af.sourceText() + "] outside Aggregate in [" + expr + "]");
+                });
+            });
+            assertThat("expected a join of independent series pipelines for [" + expr + "]", plan.collect(HashJoin.class), not(empty()));
+        }
     }
 
     private static List<Expression> nonFiniteExpressions(LogicalPlan plan) {

@@ -810,13 +810,14 @@ maxRate:double | tbucket:datetime
 instant_selector_dimensions_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
+required_capability: promql_enable_timeseries_type
 
 PROMQL index=k8s step=1h network.cost
 | SORT network.cost DESC
 ;
 ignoreOrder:true
 
-network.cost:double | step:datetime            | _timeseries:keyword
+network.cost:double | step:datetime            | _timeseries:_timeseries
 0.0                 | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
 1.75                | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
 4.625               | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
@@ -877,13 +878,14 @@ count:long | _timeseries:keyword                                                
 bare_count_over_time_with_tbucket_outputs_dimensions_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
+required_capability: promql_enable_timeseries_type
 
 PROMQL index=k8s step=1h count=(count_over_time(network.cost[1h]))
 | SORT count DESC
 ;
 ignoreOrder:true
 
-count:double | step:datetime            | _timeseries:keyword
+count:double | step:datetime            | _timeseries:_timeseries
 13.0         | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
 16.0         | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
 20.0         | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
@@ -922,12 +924,13 @@ network.cost:double | _timeseries:keyword                                       
 bare_metric_with_tbucket_outputs_dimensions_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
+required_capability: promql_enable_timeseries_type
 PROMQL index=k8s step=1h network.cost
 | SORT network.cost DESC
 ;
 ignoreOrder:true
 
-network.cost:double | step:datetime            | _timeseries:keyword
+network.cost:double | step:datetime            | _timeseries:_timeseries
 0.0                 | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
 1.75                | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
 4.625               | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
@@ -992,13 +995,14 @@ avg:double         | _timeseries:keyword                                        
 bare_avg_over_time_with_tbucket_outputs_dimensions_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
+required_capability: promql_enable_timeseries_type
 
 PROMQL index=k8s step=1h avg=(avg_over_time(network.cost[1h]))
 | SORT avg DESC
 ;
 ignoreOrder:true
 
-avg:double         | step:datetime            | _timeseries:keyword
+avg:double         | step:datetime            | _timeseries:_timeseries
 4.0703125          | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
 5.1826923076923075 | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
 5.586956521739131  | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
@@ -1059,13 +1063,14 @@ sum:double | _timeseries:keyword                                                
 bare_sum_over_time_with_tbucket_outputs_dimensions_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
+required_capability: promql_enable_timeseries_type
 
 PROMQL index=k8s step=1h sum=(sum_over_time(network.cost[1h]))
 | SORT sum DESC
 ;
 ignoreOrder:true
 
-sum:double | step:datetime            | _timeseries:keyword
+sum:double | step:datetime            | _timeseries:_timeseries
 65.125     | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
 67.375     | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
 128.5      | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
@@ -1131,6 +1136,7 @@ bare_rate_with_tbucket_outputs_dimensions_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_displaying_ts_dimensions_in_metrics_group_by_all
+required_capability: promql_enable_timeseries_type
 
 PROMQL index=k8s step=1h rate=(rate(network.total_bytes_in[1h]))
 | EVAL rate=ROUND(rate, 3)
@@ -1138,7 +1144,7 @@ PROMQL index=k8s step=1h rate=(rate(network.total_bytes_in[1h]))
 ;
 ignoreOrder:true
 
-step:datetime            | _timeseries:keyword                                   | rate:double
+step:datetime            | _timeseries:_timeseries                                   | rate:double
 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"   | 3.13
 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}" | 2.83
 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"   | 2.621

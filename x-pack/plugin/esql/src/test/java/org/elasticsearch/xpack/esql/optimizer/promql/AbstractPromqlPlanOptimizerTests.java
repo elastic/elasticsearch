@@ -8,13 +8,16 @@
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
 import org.elasticsearch.xpack.esql.TestAnalyzer;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
@@ -23,6 +26,7 @@ import org.hamcrest.Matcher;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.empty;
@@ -45,6 +49,29 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
             .minimumTransportVersion(minimumVersionAtLeast(TimeSeriesCollapse.TS_COLLAPSE));
     }
 
+    /**
+     * Whether {@code _timeseries} is typed metadata for {@link #tsAnalyzer()}'s minimum version. A view is then read as
+     * typed metadata without its labels instead of a keyword column without them.
+     */
+    protected boolean typedTimeSeriesMetadata() {
+        return EsqlCapabilities.Cap.PROMQL_ENABLE_TIMESERIES_TYPE.isEnabled()
+            && TimeSeriesMetadataAttribute.supportTimeSeriesMetadataType(minimumVersionAtLeast(TimeSeriesCollapse.TS_COLLAPSE));
+    }
+
+    /**
+     * The labels the {@code _timeseries} view of {@code plan}'s source leaves out, typed metadata or keyword alike: the
+     * loader reads the view without them. Null when the plan reads no view.
+     */
+    protected Set<String> viewExclusions(LogicalPlan plan) {
+        return plan.collect(EsRelation.class)
+            .stream()
+            .flatMap(relation -> relation.output().stream())
+            .filter(TimeSeriesMetadataAttribute.class::isInstance)
+            .map(attribute -> ((TimeSeriesMetadataAttribute) attribute).excludedFields())
+            .findFirst()
+            .orElse(null);
+    }
+
     protected LogicalPlan planPromql(String query) {
         return planPromql(query, false, true);
     }
@@ -60,6 +87,9 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
      * {@code SubstituteTransportVersionAwareExpressionsTests}.
      */
     protected LogicalPlan planPromql(String query, boolean allowEmptyReferences, boolean optimize) {
+        // Keyword _timeseries cannot leave labels out (rate/arith/without/…).
+        // That path is unsupported; plans need typed metadata.
+        assumeTrue("requires typed _timeseries", typedTimeSeriesMetadata());
         var now = Instant.now();
         query = query.replace("$now-1h", "\"" + now.minus(1, ChronoUnit.HOURS) + "\"");
         query = query.replace("$now", "\"" + now + "\"");

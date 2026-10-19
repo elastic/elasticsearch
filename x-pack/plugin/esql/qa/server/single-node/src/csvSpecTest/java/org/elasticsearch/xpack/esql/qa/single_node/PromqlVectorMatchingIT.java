@@ -130,12 +130,73 @@ public class PromqlVectorMatchingIT extends RestEsqlTestCase {
         );
     }
 
+    /**
+     * Fuzz repro: labelless {@code sum} + {@code ignoring} opaque selector must be the empty vector (empty Prometheus
+     * signature never matches), not a 400 duplicate-row / 500 IndexOOB from asymmetric join keys.
+     */
+    public void testIgnoringLabellessVsOpaqueIsEmpty() throws IOException {
+        assumeTrue(
+            "typed _timeseries required for opaque ignoring join keys",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.PROMQL_ENABLE_TIMESERIES_TYPE.capabilityName()))
+        );
+        assertRows(
+            "PROMQL index=k8s step=10m result=(sum(network.eth0.tx) + ignoring (pod) network.eth0.tx) | KEEP result, step",
+            List.of()
+        );
+        assertRows(
+            "PROMQL index=k8s step=10m result=(network.eth0.tx + ignoring (pod) sum(network.eth0.tx)) | KEEP result, step",
+            List.of()
+        );
+        assertRows(
+            "PROMQL index=k8s step=10m result=((sum(network.eth0.tx) + ignoring (pod) network.eth0.tx) "
+                + "* on (cluster) group_left network.eth0.rx) | KEEP result, step",
+            List.of()
+        );
+    }
+
+    /** Fuzz repro: {@code label_replace} over opaque {@code group_left} keeps includes and derives dst. */
+    public void testLabelReplaceOverOpaqueGroupLeft() throws IOException {
+        assumeTrue(
+            "PromQL label functions required",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.PROMQL_LABEL_FUNCTIONS.capabilityName()))
+        );
+        assumeTrue(
+            "typed _timeseries required",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.PROMQL_ENABLE_TIMESERIES_TYPE.capabilityName()))
+        );
+        assertRows(
+            "PROMQL index=k8s step=10m result=(label_replace("
+                + "network.eth0.tx / on (cluster) group_left (region) "
+                + "sum by (cluster, region) (network.eth0.rx{cluster=\"staging\"}), "
+                + "\"dst\", \"$1\", \"pod\", \"(.+)\")) "
+                + "| WHERE step == \"2024-05-10T00:10:00.000Z\" | KEEP result, dst, region | SORT dst",
+            List.of(
+                List.of(0.25535055350553504, "one", "us"),
+                List.of(0.33062730627306275, "three", "us"),
+                List.of(0.34833948339483395, "two", "us")
+            )
+        );
+    }
+
     public void testOrWithOnIsRejected() throws IOException {
         requirePromqlUnion();
         assertPromqlError(
             "PROMQL index=k8s step=10m " + "sum by (cluster) (network.eth0.tx) or on (cluster) sum by (cluster) (network.eth0.rx)",
             "set operator [or] with on/ignoring is not supported at this time"
         );
+    }
+
+    public void testOrOnEmptyVectorFillIsSupported() throws IOException {
+        requirePromqlUnion();
+        // Labelless empty-guard: keep the sum when present, else fill with vector(1). Must plan and execute.
+        Map<String, Object> fill = runEsqlSync(
+            requestObjectBuilder().query("PROMQL index=k8s step=10m sum(network.eth0.tx) or on () vector(1)")
+        );
+        assertNotNull(fill.get("values"));
+        Map<String, Object> ratio = runEsqlSync(
+            requestObjectBuilder().query("PROMQL index=k8s step=10m sum(network.eth0.tx) / (sum(network.eth0.tx) or on () vector(1))")
+        );
+        assertNotNull(ratio.get("values"));
     }
 
     private void requirePromqlUnion() {

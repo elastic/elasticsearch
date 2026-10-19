@@ -1,4 +1,4 @@
-ProjectExec[[result{r}#0, step{r}#1, _timeseries{r}#2 AS _timeseries#3]]
+ProjectExec[[result{r}#0, step{r}#1, _timeseries{f}#2 AS _timeseries#3]]
 \_LimitExec[10000[INTEGER],null]
   \_FilterExec[ISNOTNULL(result{r}#0)]
     \_EvalExec[[TODOUBLE(result{r}#4) AS result#0]]

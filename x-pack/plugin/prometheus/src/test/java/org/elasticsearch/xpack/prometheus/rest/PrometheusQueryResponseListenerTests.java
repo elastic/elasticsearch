@@ -40,6 +40,39 @@ public class PrometheusQueryResponseListenerTests extends ESTestCase {
     // Range query (matrix) tests
     // -------------------------------------------------------------------------
 
+    public void testPrometheusLabelNameStripsLabelsPrefix() {
+        assertThat(PrometheusQueryResponseListener.prometheusLabelName("job"), equalTo("job"));
+        assertThat(PrometheusQueryResponseListener.prometheusLabelName("labels.value"), equalTo("value"));
+        assertThat(PrometheusQueryResponseListener.prometheusLabelName("labels.job"), equalTo("job"));
+    }
+
+    // A BY label named "value" is exposed as labels.value so it does not collide with the sample column; the listener
+    // strips the prefix when building the Prometheus metric map.
+    public void testConvertRangeQueryWithLabelsValueColumn() throws IOException {
+        List<ColumnInfoImpl> columns = List.of(
+            col("value", "double"),
+            col("job", "keyword"),
+            col("labels.value", "keyword"),
+            col("step", "long")
+        );
+        List<List<Object>> rows = List.of(List.of(List.of(1.5), "prometheus", "true", List.of(1735689600000L)));
+        List<Page> pages = pagesOf(rows);
+        try (
+            XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(
+                pages,
+                columns,
+                ZoneOffset.UTC,
+                "matrix",
+                QueryMode.RANGE
+            )
+        ) {
+            ObjectPath path = toObjectPath(builder);
+            assertSuccessMatrix(path);
+            assertThat(path.evaluate("data.result.0.metric.job"), equalTo("prometheus"));
+            assertThat(path.evaluate("data.result.0.metric.value"), equalTo("true"));
+        }
+    }
+
     // Column names are bare label names (e.g. "job", "instance") — no "labels." prefix.
     // The Prometheus data stream maps labels with type: passthrough, so PROMQL resolves
     // labels.job → column "job", labels.instance → column "instance", etc.
@@ -165,6 +198,128 @@ public class PrometheusQueryResponseListenerTests extends ESTestCase {
         );
 
         assertMetric(rows, columns, Map.of("__name__", "http_requests_total", "job", "prometheus"));
+    }
+
+    /** Dual _timeseries metadata blobs must not both become metric labels (fingerprint poison). */
+    public void testConvertSkipsSecondaryTimeseriesRestColumn() throws IOException {
+        List<ColumnInfoImpl> columns = List.of(
+            col("value", "double"),
+            col("_timeseries", "keyword"),
+            col("_timeseries$__name__", "keyword"),
+            col("step", "long")
+        );
+        List<List<Object>> rows = List.of(
+            List.of(
+                List.of(1.0),
+                "{\"labels\":{\"__name__\":\"a\",\"job\":\"api\"}}",
+                "{\"labels\":{\"job\":\"api\"}}",
+                List.of(1735689600000L)
+            )
+        );
+        assertMetric(rows, columns, Map.of("__name__", "a", "job", "api"));
+    }
+
+    /** Sole _timeseries$… column is still the series blob. */
+    public void testConvertUsesNameSuffixedTimeseriesAsSeriesCol() throws IOException {
+        List<ColumnInfoImpl> columns = List.of(col("value", "double"), col("_timeseries$__name__", "keyword"), col("step", "long"));
+        List<List<Object>> rows = List.of(
+            List.of(List.of(1.0), "{\"labels\":{\"job\":\"api\",\"instance\":\"i1\"}}", List.of(1735689600000L))
+        );
+        assertMetric(rows, columns, Map.of("job", "api", "instance", "i1"));
+    }
+
+    /** Blob may sit after promoted labels; must still be found or series collapse to {}. */
+    public void testConvertFindsTimeseriesAfterPromotedLabelColumn() throws IOException {
+        List<ColumnInfoImpl> columns = List.of(
+            col("value", "double"),
+            col("tier", "keyword"),
+            col("_timeseries", "keyword"),
+            col("step", "long")
+        );
+        List<List<Object>> rows = List.of(
+            Arrays.asList(List.of(10.0), null, "{\"labels\":{\"job\":\"promcheck\",\"instance\":\"test:9999\"}}", List.of(0L)),
+            List.of(List.of(20.0), "x-b", "{\"labels\":{\"job\":\"promcheck\",\"instance\":\"test:9998\"}}", List.of(0L))
+        );
+        try (
+            XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(
+                pagesOf(rows),
+                columns,
+                ZoneOffset.UTC,
+                "vector",
+                QueryMode.INSTANT
+            )
+        ) {
+            ObjectPath path = toObjectPath(builder);
+            assertThat(path.evaluate("data.result"), hasSize(2));
+            assertThat(path.evaluate("data.result.0.metric"), equalTo(Map.of("job", "promcheck", "instance", "test:9999")));
+            assertThat(path.evaluate("data.result.1.metric"), equalTo(Map.of("job", "promcheck", "instance", "test:9998", "tier", "x-b")));
+        }
+    }
+
+    /** Concrete columns overlay the blob; null/empty means absent. */
+    public void testConvertRangeQueryOverlaysConcreteColumnsOnTimeseries() throws IOException {
+        List<ColumnInfoImpl> columns = List.of(
+            col("value", "double"),
+            col("_timeseries", "keyword"),
+            col("node", "keyword"),
+            col("dst", "keyword"),
+            col("step", "long")
+        );
+        List<List<Object>> rows = Arrays.asList(
+            List.of(
+                List.of(1.5, 2.0),
+                "{\"labels\":{\"__name__\":\"http_requests_total\",\"pod\":\"p1\",\"job\":\"api\"}}",
+                "n1",
+                "replaced",
+                List.of(1735689600000L, 1735689660000L)
+            ),
+            Arrays.asList(
+                List.of(3.0, 4.0),
+                "{\"labels\":{\"__name__\":\"http_requests_total\",\"pod\":\"p2\",\"job\":\"api\"}}",
+                null,
+                "",
+                List.of(1735689600000L, 1735689660000L)
+            )
+        );
+        List<Page> pages = pagesOf(rows);
+        try (
+            XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(
+                pages,
+                columns,
+                ZoneOffset.UTC,
+                "matrix",
+                QueryMode.RANGE
+            )
+        ) {
+            ObjectPath path = toObjectPath(builder);
+            assertSuccessMatrix(path);
+            assertThat(path.evaluate("data.result"), hasSize(2));
+            assertThat(
+                path.evaluate("data.result.0.metric"),
+                equalTo(Map.of("__name__", "http_requests_total", "pod", "p1", "job", "api", "node", "n1", "dst", "replaced"))
+            );
+            // Null and empty overlay columns are absent labels, like on the concrete-column path.
+            assertThat(
+                path.evaluate("data.result.1.metric"),
+                equalTo(Map.of("__name__", "http_requests_total", "pod", "p2", "job", "api"))
+            );
+        }
+    }
+
+    /** Empty overlay must delete the blob key — otherwise emptied destinations linger. */
+    public void testConvertOverlayRemovesBlobLabelWhenConcreteEmpty() throws IOException {
+        List<ColumnInfoImpl> columns = List.of(
+            col("value", "double"),
+            col("_timeseries", "keyword"),
+            col("dst", "keyword"),
+            col("step", "long")
+        );
+        List<List<Object>> rows = List.of(
+            Arrays.asList(List.of(1.0), "{\"labels\":{\"__name__\":\"m\",\"job\":\"api\",\"dst\":\"old\"}}", "", List.of(1735689600000L)),
+            Arrays.asList(List.of(2.0), "{\"labels\":{\"__name__\":\"m\",\"job\":\"api\",\"dst\":\"old\"}}", null, List.of(1735689600000L))
+        );
+        assertMetric(List.of(rows.get(0)), columns, Map.of("__name__", "m", "job", "api"));
+        assertMetric(List.of(rows.get(1)), columns, Map.of("__name__", "m", "job", "api"));
     }
 
     private static void assertMetric(List<List<Object>> rows, List<ColumnInfoImpl> columns, Map<String, String> metric) throws IOException {

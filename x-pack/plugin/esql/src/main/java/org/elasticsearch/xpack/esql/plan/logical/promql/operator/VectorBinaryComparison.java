@@ -65,7 +65,7 @@ public final class VectorBinaryComparison extends VectorBinaryOperator {
         boolean boolMode,
         ComparisonOp op
     ) {
-        super(source, left, right, match, boolMode == false, op);
+        super(source, left, right, match, boolMode, op);
         this.op = op;
         this.boolMode = boolMode;
     }

@@ -39,7 +39,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
-import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
@@ -235,30 +235,32 @@ public class Mapper {
     }
 
     private PhysicalPlan mapBinary(BinaryPlan bp) {
-        if (bp instanceof InnerJoin innerJoin) {
+        if (bp instanceof HashJoin hashJoin) {
             PhysicalPlan left = mapInner(bp.left());
             PhysicalPlan right = mapInner(bp.right());
             if (right instanceof LocalSourceExec localData) {
-                var marker = newJoinMarker(innerJoin.source());
-                List<Attribute> addedFields = new ArrayList<>(innerJoin.addedFields());
+                var marker = newJoinMarker(hashJoin.source());
+                List<Attribute> addedFields = new ArrayList<>(hashJoin.addedFields());
                 addedFields.add(marker);
                 PhysicalPlan join = new HashJoinExec(
-                    innerJoin.source(),
+                    hashJoin.source(),
                     left,
                     localData,
-                    innerJoin.leftFields(),
-                    innerJoin.rightFields(),
+                    hashJoin.leftFields(),
+                    hashJoin.rightFields(),
                     addedFields
                 );
-                // inner join := left join where marker != null
-                join = new FilterExec(innerJoin.source(), join, new IsNotNull(innerJoin.source(), marker));
-                if (innerJoin.unique()) {
+                // INNER drops unmatched probe rows; LEFT keeps them (PromQL unless).
+                if (hashJoin.config().type() == JoinTypes.INNER) {
+                    join = new FilterExec(hashJoin.source(), join, new IsNotNull(hashJoin.source(), marker));
+                }
+                if (hashJoin.unique()) {
                     // Guard: unique=true requires every build row to be matched at most once. The marker
                     // is unique per build row, so a distinct-by on it alone detects duplicates independent
                     // of the join key types and count.
-                    join = new DistinctByExec(innerJoin.source(), join, marker, true);
+                    join = new DistinctByExec(hashJoin.source(), join, marker, true);
                 }
-                return new ProjectExec(innerJoin.source(), join, innerJoin.output());
+                return new ProjectExec(hashJoin.source(), join, hashJoin.output());
             }
             return MapperUtils.unsupported(bp);
         }

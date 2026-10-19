@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCoun
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
@@ -68,12 +69,21 @@ public class Count extends UnaryAggregateFunction
         .capabilities("flattened", "histogram_bucket")
         .name("count");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
-        .acrossSeries((source, field) -> new Count(source, CountOverTime.promqlSample(field)))
+        .acrossSeries((source, field) -> zeroCountAsNull(new Count(source, CountOverTime.promqlSample(field))))
         .description("Counts the number of elements in the input vector.")
         .example("count(http_requests_total)")
         .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .differenceFromPrometheus(PromqlFunctionDefinition.COUNT_NOTE)
         .name("count");
+
+    /**
+     * PromQL counts are positive for existing elements. A group or range without samples has no element, represented
+     * by null, rather than the zero returned by an ES|QL count.
+     */
+    public static Expression zeroCountAsNull(Expression count) {
+        Expression empty = new Equals(count.source(), count, new Literal(count.source(), 0L, DataType.LONG));
+        return new Case(count.source(), empty, List.of(Literal.NULL, count));
+    }
 
     @FunctionInfo(
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },

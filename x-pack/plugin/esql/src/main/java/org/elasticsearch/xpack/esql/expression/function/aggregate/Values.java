@@ -66,6 +66,7 @@ public class Values extends UnaryAggregateFunction implements ToAggregator, AnyN
         Map.entry(DataType.GEO_SHAPE, ValuesBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.CARTESIAN_SHAPE, ValuesBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.FLATTENED, ValuesBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(DataType.TIMESERIES_DATA_TYPE, ValuesBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.GEOHASH, ValuesLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.GEOTILE, ValuesLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.GEOHEX, ValuesLongAggregatorFunctionSupplier::new),

@@ -764,6 +764,8 @@ public final class CsvTestUtils {
         HISTOGRAM(CsvTestUtils::parseHistogram, BytesRef.class),
         FLATTENED(s -> s, String.class),
         SOURCE(s -> s, String.class),
+        // typed time-series metadata, compared in its JSON display form
+        TIMESERIES(s -> s, String.class),
         UNSUPPORTED(Type::convertUnsupported, Void.class);
 
         private static Void convertUnsupported(String s) {
@@ -810,6 +812,7 @@ public final class CsvTestUtils {
             LOOKUP.put("DENSE_VECTOR", DENSE_VECTOR);
 
             LOOKUP.put("_SOURCE", SOURCE);
+            LOOKUP.put("_TIMESERIES", TIMESERIES);
         }
 
         private final Function<String, Object> converter;
@@ -880,6 +883,7 @@ public final class CsvTestUtils {
                 case HISTOGRAM -> HISTOGRAM;
                 case FLATTENED -> FLATTENED;
                 case SOURCE -> SOURCE;
+                case TIMESERIES -> TIMESERIES;
                 default -> KEYWORD;
             };
         }

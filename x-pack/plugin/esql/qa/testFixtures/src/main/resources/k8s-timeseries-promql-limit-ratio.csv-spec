@@ -18,10 +18,11 @@ limit_ratio_r_one
 required_capability: promql_command_v0
 required_capability: promql_limit_ratio
 required_capability: fix_promql_time_bucket_v2
+required_capability: promql_enable_timeseries_type
 PROMQL index=k8s step=1h result=(limit_ratio(1.0, network.total_bytes_in{cluster="prod"}))
 | SORT result;
 
-result:double | step:datetime            | _timeseries:keyword
+result:double | step:datetime            | _timeseries:_timeseries
 947.0         | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
 9969.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
 10277.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
@@ -32,10 +33,11 @@ limit_ratio_r_zero
 required_capability: promql_command_v0
 required_capability: promql_limit_ratio
 required_capability: fix_promql_time_bucket_v2
+required_capability: promql_enable_timeseries_type
 PROMQL index=k8s step=1h result=(limit_ratio(0.0, network.total_bytes_in{cluster="prod"}))
 | SORT result;
 
-result:double | step:datetime | _timeseries:keyword
+result:double | step:datetime | _timeseries:_timeseries
 ;
 
 // r=-1.0: every offset is at or above 0.0, so every series is kept unconditionally.
@@ -43,10 +45,11 @@ limit_ratio_r_minus_one
 required_capability: promql_command_v0
 required_capability: promql_limit_ratio
 required_capability: fix_promql_time_bucket_v2
+required_capability: promql_enable_timeseries_type
 PROMQL index=k8s step=1h result=(limit_ratio(-1.0, network.total_bytes_in{cluster="prod"}))
 | SORT result;
 
-result:double | step:datetime            | _timeseries:keyword
+result:double | step:datetime            | _timeseries:_timeseries
 947.0         | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
 9969.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
 10277.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
@@ -57,10 +60,11 @@ limit_ratio_by_grouping
 required_capability: promql_command_v0
 required_capability: promql_limit_ratio
 required_capability: fix_promql_time_bucket_v2
+required_capability: promql_enable_timeseries_type
 PROMQL index=k8s step=1h result=(limit_ratio(1.0, network.total_bytes_in) by (pod))
 | SORT result;
 
-result:double | step:datetime            | _timeseries:keyword
+result:double | step:datetime            | _timeseries:_timeseries
 947.0         | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
 5187.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
 6637.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
@@ -78,9 +82,10 @@ limit_ratio_r_half_stable_subset
 required_capability: promql_command_v0
 required_capability: promql_limit_ratio
 required_capability: fix_promql_time_bucket_v2
+required_capability: promql_enable_timeseries_type
 PROMQL index=k8s step=1h result=(limit_ratio(0.5, network.total_bytes_in{cluster="prod"}))
 | SORT result;
 
-result:double | step:datetime            | _timeseries:keyword
+result:double | step:datetime            | _timeseries:_timeseries
 10277.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
 ;

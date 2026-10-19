@@ -179,9 +179,6 @@ public class ResolvePromqlFunctions extends ParameterizedAnalyzerRule<PromqlComm
                 : new ValueTransformationFunction(unresolved.source(), child, metadata, extraParams);
             case METADATA_MANIPULATION -> resolveMetadataManipulation(unresolved, child, metadata, extraParams);
             case RESULT_ORDERING -> new SortFunction(unresolved.source(), child, metadata, extraParams);
-            default -> throw new VerificationException(
-                List.of(Failure.fail(unresolved, "Unsupported function type [{}] for function [{}]", metadata.functionType(), name))
-            );
         };
     }
 

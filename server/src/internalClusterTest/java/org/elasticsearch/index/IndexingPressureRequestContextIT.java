@@ -61,6 +61,8 @@ public class IndexingPressureRequestContextIT extends ESIntegTestCase {
     private static final String LARGE_HEADER = "x-request-context-test";
     private static final int HEADER_LENGTH = 50_000;
     private static final ByteSizeValue PRIMARY_LIMIT = ByteSizeValue.ofKb(200);
+    // below the 1.5x primary default, so that queued replica contexts reach the replica limit before the primary rejects
+    private static final ByteSizeValue REPLICA_LIMIT = ByteSizeValue.ofKb(120);
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
@@ -69,6 +71,7 @@ public class IndexingPressureRequestContextIT extends ESIntegTestCase {
             // writes held in flight must queue rather than be rejected for lack of queue capacity
             .put("thread_pool.write.queue_size", -1)
             .put(IndexingPressure.MAX_PRIMARY_BYTES.getKey(), PRIMARY_LIMIT)
+            .put(IndexingPressure.MAX_REPLICA_BYTES.getKey(), REPLICA_LIMIT)
             .build();
     }
 
@@ -156,8 +159,8 @@ public class IndexingPressureRequestContextIT extends ESIntegTestCase {
         final String coordinatingNode = coordinatingOnlyNode();
         final IndexingPressure primaryPressure = internalCluster().getInstance(IndexingPressure.class, primaryNode);
         final int requests = 12;
-        // the payload of every request together is a small fraction of the limit, so only the contexts can reach it
-        assertThat(requests * oneDocumentBulk().ramBytesUsed(), lessThan(PRIMARY_LIMIT.getBytes() / 10));
+        // without their contexts, the requests together could not reach the limit
+        assertThat(requests * oneDocumentBulk().ramBytesUsed(), lessThanOrEqualTo(PRIMARY_LIMIT.getBytes()));
         final long rejectionsBefore = primaryPressure.stats().getPrimaryRejections();
 
         HoldIndexingPlugin.hold();
@@ -209,13 +212,43 @@ public class IndexingPressureRequestContextIT extends ESIntegTestCase {
         final IndexingPressure replicaPressure = internalCluster().getInstance(IndexingPressure.class, replicaNode);
         final String header = randomAlphaOfLength(HEADER_LENGTH);
 
-        try (Releasable blocked = blockWriteThreadPool(internalCluster().getInstance(ThreadPool.class, replicaNode))) {
-            final ActionFuture<BulkResponse> response = client(coordinatingOnlyNode()).filterWithHeader(Map.of(LARGE_HEADER, header))
-                .bulk(oneDocumentBulk());
-
+        final ActionFuture<BulkResponse> response;
+        try (Releasable ignored = blockWriteThreadPool(internalCluster().getInstance(ThreadPool.class, replicaNode))) {
+            response = client(coordinatingOnlyNode()).filterWithHeader(Map.of(LARGE_HEADER, header)).bulk(oneDocumentBulk());
             assertBusy(() -> assertThat(replicaPressure.stats().getCurrentReplicaBytes(), greaterThanOrEqualTo((long) header.length())));
+        }
+        assertNoFailures(response.actionGet());
+        assertBusy(() -> assertThat(replicaPressure.stats().getCurrentReplicaBytes(), equalTo(0L)));
+    }
 
-            blocked.close();
+    /**
+     * Several small requests, each retaining a large context, queue on a replica node whose write pool is blocked. Their payloads are
+     * far below the replica limit, so only the contexts can reach it: once they do, further replica writes are rejected. A replica
+     * rejection is not returned to the client; the primary retries the replica write, so every request succeeds once the replica
+     * drains its queue.
+     */
+    public void testReplicaRejectsWhenRetainedContextsExceedLimit() throws Exception {
+        assertAcked(prepareCreate(INDEX_NAME, indexSettings(1, 1)));
+        ensureGreen(INDEX_NAME);
+        final String replicaNode = replicaNodeName();
+        final String coordinatingNode = coordinatingOnlyNode();
+        final IndexingPressure replicaPressure = internalCluster().getInstance(IndexingPressure.class, replicaNode);
+        // two contexts fit within the replica limit and a third does not, while three stay within the primary limit
+        final int requests = 3;
+        // without their contexts, the requests together could not reach the limit
+        assertThat(requests * oneDocumentBulk().ramBytesUsed(), lessThanOrEqualTo(REPLICA_LIMIT.getBytes()));
+        final long rejectionsBefore = replicaPressure.stats().getReplicaRejections();
+
+        final List<ActionFuture<BulkResponse>> responses = new ArrayList<>();
+        try (Releasable ignored = blockWriteThreadPool(internalCluster().getInstance(ThreadPool.class, replicaNode))) {
+            for (int i = 0; i < requests; i++) {
+                final String header = randomAlphaOfLength(HEADER_LENGTH);
+                responses.add(client(coordinatingNode).filterWithHeader(Map.of(LARGE_HEADER, header)).bulk(oneDocumentBulk()));
+            }
+            assertBusy(() -> assertThat(replicaPressure.stats().getReplicaRejections(), greaterThan(rejectionsBefore)));
+            assertThat(replicaPressure.stats().getCurrentReplicaBytes(), lessThanOrEqualTo(REPLICA_LIMIT.getBytes()));
+        }
+        for (ActionFuture<BulkResponse> response : responses) {
             assertNoFailures(response.actionGet());
         }
         assertBusy(() -> assertThat(replicaPressure.stats().getCurrentReplicaBytes(), equalTo(0L)));
@@ -260,6 +293,7 @@ public class IndexingPressureRequestContextIT extends ESIntegTestCase {
                 }
             });
         }
+        safeAwait(allBlocked);
         return release::countDown;
     }
 

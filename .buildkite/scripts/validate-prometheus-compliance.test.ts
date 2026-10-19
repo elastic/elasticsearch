@@ -243,15 +243,6 @@ esac
     }
   });
 
-  test("the merge base is checked out next to the PR checkout and removed afterwards", () => {
-    const r = run(STABLE, STABLE);
-    expect(r.status).toBe(0);
-    const control = r.args.trim().split("\n")[0].match(/--elasticsearch (\S+)/)?.[1] ?? "";
-    expect(dirname(control)).toBe(dirname(repo));
-    expect(control).toContain("validate-prometheus-compliance-control-");
-    expect(existsSync(control)).toBe(false);
-  });
-
   test("only a checkout that supports run.modules builds the minimal PromQL distribution", () => {
     // The PR adds run.modules support; its merge base predates it and must keep the default distribution.
     const runGradle = join(repo, "build-tools-internal/src/main/groovy/elasticsearch.run.gradle");

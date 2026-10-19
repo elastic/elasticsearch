@@ -440,11 +440,8 @@ main() (
   base=$(git merge-base "origin/$GITHUB_PR_TARGET_BRANCH" HEAD) \
     || not_compared "This PR has no merge base with $GITHUB_PR_TARGET_BRANCH"
   revision=$(git rev-parse HEAD)
-  # Next to the PR checkout, so both builds run on the same filesystem: the pipeline's RAM disk on CI, where /tmp
-  # is a disk that made the merge-base build slower than the PR's.
-  control_dir=$(mktemp -d "${PWD%/*}/validate-prometheus-compliance-control-XXXXXX")
+  control_dir=$(mktemp -d "$TMP_ROOT/validate-prometheus-compliance-control-XXXXXX")
   git worktree add --detach -- "$control_dir" "$base" || not_compared "Could not check out the merge base $base"
-  df -h -- "$control_dir" >&2 || true
 
   log "--- Running promcheck on the merge base $base"
   run_promcheck "$control_dir" "$CONTROL_LOG" || not_compared "The control run failed"

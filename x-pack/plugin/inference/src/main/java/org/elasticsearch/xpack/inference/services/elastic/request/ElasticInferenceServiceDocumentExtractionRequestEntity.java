@@ -27,8 +27,8 @@ import java.util.Objects;
  *     }
  *   ],
  *   "output_format": "markdown",
- *   "preset": "ocr",
  *   "parameters": {
+ *     "preset": "ocr",
  *     "page": 2
  *   }
  * }</pre>

@@ -39,34 +39,34 @@ import static org.elasticsearch.xpack.inference.services.SettingsScope.TASK_SETT
  * <pre>
  * {
  *   "output_format": "markdown",
- *   "preset": "ocr",
  *   "parameters": {
+ *     "preset": "ocr",
  *     "page": 2
  *   }
  * }</pre>
- * {@code preset} names an extraction pipeline and {@code parameters} is a free-form object of additional options. Elasticsearch
- * validates neither beyond their shape: the Elastic Inference Service owns the set of accepted presets and parameters, so it can add,
- * tune or remove them without a change here.
+ * {@code parameters} is a free-form object of extraction options. Elasticsearch only validates that it is an object: the Elastic
+ * Inference Service owns the set of accepted parameters, so it can add, tune or remove them without a change here. The Elastic
+ * Inference Service passes them through to Jina Reader, whose options are documented at
+ * <a href="https://r.jina.ai/docs">https://r.jina.ai/docs</a>.
  */
 public class ElasticInferenceServiceDocumentExtractionTaskSettings implements TaskSettings {
 
     public static final String NAME = "elastic_inference_service_document_extraction_task_settings";
     public static final String OUTPUT_FORMAT = "output_format";
-    public static final String PRESET = "preset";
     public static final String PARAMETERS = "parameters";
 
     private static final TransportVersion INFERENCE_API_EIS_DOCUMENT_EXTRACTION_ADDED = TransportVersion.fromName(
         "inference_api_eis_document_extraction_added"
     );
     /**
-     * Adds {@code preset} and {@code parameters} and drops the {@code css} settings that earlier versions serialized.
+     * Adds {@code parameters} and drops the {@code css} settings that earlier versions serialized.
      */
-    private static final TransportVersion INFERENCE_API_EIS_DOCUMENT_EXTRACTION_PRESET_PARAMETERS = TransportVersion.fromName(
-        "inference_api_eis_document_extraction_preset_parameters"
+    private static final TransportVersion INFERENCE_API_EIS_DOCUMENT_EXTRACTION_PARAMETERS = TransportVersion.fromName(
+        "inference_api_eis_document_extraction_parameters"
     );
 
     public static final ElasticInferenceServiceDocumentExtractionTaskSettings EMPTY_SETTINGS =
-        new ElasticInferenceServiceDocumentExtractionTaskSettings(null, null, Map.of());
+        new ElasticInferenceServiceDocumentExtractionTaskSettings(null, Map.of());
 
     private static final ObjectParser<Builder, Void> REQUEST_PARSER = createParser(false);
     private static final ObjectParser<Builder, Void> PERSISTENT_PARSER = createParser(true);
@@ -74,7 +74,6 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettings implements Ta
     private static ObjectParser<Builder, Void> createParser(boolean ignoreUnknownFields) {
         var parser = new ObjectParser<Builder, Void>(TASK_SETTINGS.toString(), ignoreUnknownFields, Builder::new);
         parser.declareString(Builder::setOutputFormat, new ParseField(OUTPUT_FORMAT));
-        parser.declareString(Builder::setPreset, new ParseField(PRESET));
         // Parsed as a plain map rather than through a parser so that its content is never validated here, also not in the request
         // context: the accepted parameters are defined by the Elastic Inference Service
         parser.declareField(Builder::setParameters, (p, c) -> p.mapOrdered(), new ParseField(PARAMETERS), ObjectParser.ValueType.OBJECT);
@@ -114,43 +113,34 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettings implements Ta
         parameters.putAll(requestSettings.parameters);
         return new ElasticInferenceServiceDocumentExtractionTaskSettings(
             requestSettings.outputFormat != null ? requestSettings.outputFormat : originalSettings.outputFormat,
-            requestSettings.preset != null ? requestSettings.preset : originalSettings.preset,
             parameters
         );
     }
 
     private final String outputFormat;
-    private final String preset;
     private final Map<String, Object> parameters;
 
     public ElasticInferenceServiceDocumentExtractionTaskSettings(StreamInput in) throws IOException {
         this.outputFormat = in.readOptionalString();
-        if (in.getTransportVersion().supports(INFERENCE_API_EIS_DOCUMENT_EXTRACTION_PRESET_PARAMETERS)) {
-            this.preset = in.readOptionalString();
+        if (in.getTransportVersion().supports(INFERENCE_API_EIS_DOCUMENT_EXTRACTION_PARAMETERS)) {
             this.parameters = in.readGenericMap();
         } else {
             // Earlier versions serialized the since removed css settings (extract_only and remove selectors), which are discarded
             in.readOptionalStringCollectionAsList();
             in.readOptionalStringCollectionAsList();
-            this.preset = null;
             this.parameters = Map.of();
         }
     }
 
     public ElasticInferenceServiceDocumentExtractionTaskSettings(@Nullable String outputFormat) {
-        this(outputFormat, null, Map.of());
+        this(outputFormat, Map.of());
     }
 
     /**
-     * @param parameters free-form additional options; an empty map means none are set
+     * @param parameters free-form extraction options; an empty map means none are set
      */
-    public ElasticInferenceServiceDocumentExtractionTaskSettings(
-        @Nullable String outputFormat,
-        @Nullable String preset,
-        Map<String, Object> parameters
-    ) {
+    public ElasticInferenceServiceDocumentExtractionTaskSettings(@Nullable String outputFormat, Map<String, Object> parameters) {
         this.outputFormat = outputFormat;
-        this.preset = preset;
         this.parameters = Objects.requireNonNull(parameters);
     }
 
@@ -159,18 +149,13 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettings implements Ta
         return outputFormat;
     }
 
-    @Nullable
-    public String preset() {
-        return preset;
-    }
-
     public Map<String, Object> parameters() {
         return parameters;
     }
 
     @Override
     public boolean isEmpty() {
-        return Strings.isNullOrEmpty(outputFormat) && Strings.isNullOrEmpty(preset) && parameters.isEmpty();
+        return Strings.isNullOrEmpty(outputFormat) && parameters.isEmpty();
     }
 
     @Override
@@ -191,8 +176,7 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettings implements Ta
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(outputFormat);
-        if (out.getTransportVersion().supports(INFERENCE_API_EIS_DOCUMENT_EXTRACTION_PRESET_PARAMETERS)) {
-            out.writeOptionalString(preset);
+        if (out.getTransportVersion().supports(INFERENCE_API_EIS_DOCUMENT_EXTRACTION_PARAMETERS)) {
             out.writeGenericMap(parameters);
         } else {
             // Earlier versions expect the since removed css settings, which are never set anymore
@@ -218,9 +202,6 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettings implements Ta
         if (Strings.isNullOrEmpty(outputFormat) == false) {
             builder.field(OUTPUT_FORMAT, outputFormat);
         }
-        if (Strings.isNullOrEmpty(preset) == false) {
-            builder.field(PRESET, preset);
-        }
         if (parameters.isEmpty() == false) {
             builder.field(PARAMETERS, parameters);
         }
@@ -232,27 +213,20 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettings implements Ta
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ElasticInferenceServiceDocumentExtractionTaskSettings that = (ElasticInferenceServiceDocumentExtractionTaskSettings) o;
-        return Objects.equals(outputFormat, that.outputFormat)
-            && Objects.equals(preset, that.preset)
-            && Objects.equals(parameters, that.parameters);
+        return Objects.equals(outputFormat, that.outputFormat) && Objects.equals(parameters, that.parameters);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(outputFormat, preset, parameters);
+        return Objects.hash(outputFormat, parameters);
     }
 
     private static class Builder {
         private String outputFormat;
-        private String preset;
         private Map<String, Object> parameters = Map.of();
 
         private void setOutputFormat(String outputFormat) {
             this.outputFormat = outputFormat;
-        }
-
-        private void setPreset(String preset) {
-            this.preset = preset;
         }
 
         private void setParameters(Map<String, Object> parameters) {
@@ -260,15 +234,12 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettings implements Ta
         }
 
         private ElasticInferenceServiceDocumentExtractionTaskSettings build() {
-            var validationException = new ValidationException();
             if (outputFormat != null && outputFormat.isEmpty()) {
+                var validationException = new ValidationException();
                 validationException.addValidationError(ServiceUtils.mustBeNonEmptyString(OUTPUT_FORMAT, TASK_SETTINGS));
+                throw validationException;
             }
-            if (preset != null && preset.isEmpty()) {
-                validationException.addValidationError(ServiceUtils.mustBeNonEmptyString(PRESET, TASK_SETTINGS));
-            }
-            validationException.throwIfValidationErrorsExist();
-            return new ElasticInferenceServiceDocumentExtractionTaskSettings(outputFormat, preset, parameters);
+            return new ElasticInferenceServiceDocumentExtractionTaskSettings(outputFormat, parameters);
         }
     }
 }

@@ -847,28 +847,66 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
 
     public void testDocumentExtractionInfer_SendsDocumentExtractionRequest_WithStoredTaskSettings() throws IOException {
         assertDocumentExtractionInferSendsRequest(
-            new ElasticInferenceServiceDocumentExtractionTaskSettings("markdown", "ocr", Map.of("page", 2)),
+            new ElasticInferenceServiceDocumentExtractionTaskSettings("markdown", Map.of("preset", "ocr", "page", 2)),
             Map.of(),
-            Map.of("output_format", "markdown", "preset", "ocr", "parameters", Map.of("page", 2))
+            Map.of("output_format", "markdown", "parameters", Map.of("preset", "ocr", "page", 2))
         );
     }
 
     public void testDocumentExtractionInfer_SendsDocumentExtractionRequest_WithRequestTaskSettings() throws IOException {
         assertDocumentExtractionInferSendsRequest(
             ElasticInferenceServiceDocumentExtractionTaskSettings.EMPTY_SETTINGS,
-            Map.of("output_format", "text", "preset", "pdf", "parameters", Map.of("page", 2, "retain_images", "none")),
-            Map.of("output_format", "text", "preset", "pdf", "parameters", Map.of("page", 2, "retain_images", "none"))
+            Map.of("output_format", "text", "parameters", Map.of("preset", "pdf", "page", 2, "retain_images", "none")),
+            Map.of("output_format", "text", "parameters", Map.of("preset", "pdf", "page", 2, "retain_images", "none"))
         );
     }
 
     public void testDocumentExtractionInfer_SendsDocumentExtractionRequest_RequestTaskSettingsOverrideStoredOnesPerField()
         throws IOException {
         assertDocumentExtractionInferSendsRequest(
-            new ElasticInferenceServiceDocumentExtractionTaskSettings("markdown", "pdf", Map.of("page", 1, "retain_images", "none")),
-            Map.of("preset", "ocr", "parameters", Map.of("page", 3)),
-            // preset and the page parameter come from the request, output_format and the other parameters are kept from the stored
+            new ElasticInferenceServiceDocumentExtractionTaskSettings(
+                "markdown",
+                Map.of("preset", "pdf", "page", 1, "retain_images", "none")
+            ),
+            Map.of("parameters", Map.of("preset", "ocr", "page", 3)),
+            // the preset and page parameters come from the request, output_format and the other parameters are kept from the stored
             // settings
-            Map.of("output_format", "markdown", "preset", "ocr", "parameters", Map.of("page", 3, "retain_images", "none"))
+            Map.of("output_format", "markdown", "parameters", Map.of("preset", "ocr", "page", 3, "retain_images", "none"))
+        );
+    }
+
+    /**
+     * The parameters are made-up values only demonstrating the pass-through; they are not valid Jina Reader parameters.
+     * <p>
+     * Parameters are passed through to the Elastic Inference Service as they are, including embedded objects, arrays and arrays of
+     * objects. Stored and request parameters are merged per top-level parameter, so an object in the request replaces the stored one.
+     */
+    public void testDocumentExtractionInfer_SendsEmbeddedParameterObjects() throws IOException {
+        assertDocumentExtractionInferSendsRequest(
+            new ElasticInferenceServiceDocumentExtractionTaskSettings(
+                null,
+                Map.of("ocr", Map.of("preferEndToEnd", true, "inlineFormula", true), "targetSelector", List.of("main", "article"))
+            ),
+            Map.of(
+                "parameters",
+                Map.of(
+                    "ocr",
+                    Map.of("preferEndToEnd", false),
+                    "layout",
+                    Map.of("regions", List.of(Map.of("name", "header", "order", 1), Map.of("name", "body", "order", 2)))
+                )
+            ),
+            Map.of(
+                "parameters",
+                Map.of(
+                    "ocr",
+                    Map.of("preferEndToEnd", false),
+                    "targetSelector",
+                    List.of("main", "article"),
+                    "layout",
+                    Map.of("regions", List.of(Map.of("name", "header", "order", 1), Map.of("name", "body", "order", 2)))
+                )
+            )
         );
     }
 

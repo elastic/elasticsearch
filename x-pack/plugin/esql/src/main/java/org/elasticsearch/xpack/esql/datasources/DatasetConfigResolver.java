@@ -14,12 +14,15 @@ import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -103,18 +106,35 @@ public final class DatasetConfigResolver {
                 name
             );
         }
-        final StoragePath resource;
+        final List<StoragePath> resources;
         try {
-            resource = StoragePath.of(dataset.resource());
+            resources = resourcePaths(dataset.resource());
         } catch (IllegalArgumentException e) {
             // PUT validation parses the resource for every file-type data source, so this is a definition this node's
             // readers cannot bind to; keep the one binding-failure message rather than leak the parser's.
             throw notRegistered(name);
         }
         for (ExternalSplit split : exec.splits()) {
-            checkSplit(name, split, resource);
+            checkSplit(name, split, resources);
         }
         return exec.withSourcePathAndConfig(dataset.resource(), resolved);
+    }
+
+    /**
+     * The paths a resource names, one per top-level comma segment, decomposed the way the listing does
+     * ({@link GlobExpander#commaSegments}) so a comma inside a brace group stays part of its glob. An HTTP resource is
+     * always one path: the listing never treats its commas as separators, so neither does this.
+     */
+    private static List<StoragePath> resourcePaths(String resource) {
+        StoragePath whole = StoragePath.of(resource);
+        if (whole.scheme().equalsIgnoreCase("http") || whole.scheme().equalsIgnoreCase("https")) {
+            return List.of(whole);
+        }
+        List<StoragePath> paths = new ArrayList<>();
+        for (String segment : GlobExpander.commaSegments(resource)) {
+            paths.add(StoragePath.of(segment));
+        }
+        return paths;
     }
 
     /**
@@ -130,18 +150,18 @@ public final class DatasetConfigResolver {
     }
 
     /**
-     * Every leaf of {@code split} must lie within the resource. {@code ExternalSplit} itself exposes no path, so only
-     * the file-backed shapes are accepted: a {@link FileSplit}, or a {@link CoalescedSplit} whose children all pass.
-     * See {@link #isWithin} for what "within" admits.
+     * Every leaf of {@code split} must lie within one of the resource's paths. {@code ExternalSplit} itself exposes no
+     * path, so only the file-backed shapes are accepted: a {@link FileSplit}, or a {@link CoalescedSplit} whose children
+     * all pass. See {@link #isWithin} for what "within" admits.
      */
-    private static void checkSplit(String datasetName, ExternalSplit split, StoragePath resource) {
+    private static void checkSplit(String datasetName, ExternalSplit split, List<StoragePath> resources) {
         if (split instanceof CoalescedSplit coalesced) {
             for (ExternalSplit child : coalesced.children()) {
-                checkSplit(datasetName, child, resource);
+                checkSplit(datasetName, child, resources);
             }
             return;
         }
-        if (split instanceof FileSplit file && isWithin(file.path(), resource)) {
+        if (split instanceof FileSplit file && resources.stream().anyMatch(resource -> isWithin(file.path(), resource))) {
             return;
         }
         throw new ElasticsearchStatusException(

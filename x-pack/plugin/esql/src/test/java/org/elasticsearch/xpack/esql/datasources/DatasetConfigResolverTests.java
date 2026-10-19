@@ -222,6 +222,30 @@ public class DatasetConfigResolverTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("does not cover split [s3://bucket/secret/x.parquet]"));
     }
 
+    /**
+     * A resource may list several paths, comma-separated; a split under any one of them is covered. The list is cut the
+     * way the listing cuts it, so the comma of a brace group stays inside its glob, and an HTTP resource is one path.
+     */
+    public void testCommaSeparatedResourceCoversEachSegment() {
+        String listed = "s3://bucket/a/*.parquet, s3://bucket/b/x.{parquet,orc}";
+        Dataset dataset = new Dataset(DATASET, new DataSourceReference(PARENT), listed, null, Map.of());
+        ProjectMetadata project = project(dataSource(Map.of("auth", "anonymous")), dataset);
+        DatasetConfigResolver resolver = new DatasetConfigResolver(project, false);
+
+        List<ExternalSplit> inside = splits("s3://bucket/a/2024/f.parquet", "s3://bucket/b/x.parquet");
+        ExternalSourceExec rebound = resolver.rebind(exec(HOSTILE_CONFIG, DATASET).withSplits(inside));
+        assertThat(rebound.splits(), equalTo(inside));
+        assertThat(rebound.sourcePath(), equalTo(listed));
+
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> resolver.rebind(exec(HOSTILE_CONFIG, DATASET).withSplits(splits("s3://bucket/a/f.parquet", "s3://bucket/c/f.parquet")))
+        );
+        assertThat(e.getMessage(), containsString("external dataset [logs] does not cover split [s3://bucket/c/f.parquet]"));
+
+        assertTrue(isWithin("http://host/a,b.csv", StoragePath.of("http://host/a,b.csv")));
+    }
+
     /** Only file-backed splits carry a path to check; any other split shape is refused for a registered dataset. */
     public void testNonFileSplitRefused() {
         ProjectMetadata project = project(dataSource(Map.of("auth", "anonymous")), dataset(Map.of()));

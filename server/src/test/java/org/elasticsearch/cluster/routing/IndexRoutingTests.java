@@ -752,6 +752,127 @@ public class IndexRoutingTests extends ESTestCase {
         assertIndexShard(fixture, Map.of("dim.a", "true"), 1);
     }
 
+    /**
+     * Series with dimensions under the default tsid dimensions prefix: the prefixed-dimensions hash changes the tsid, and
+     * with it the shard, of indices created on or after {@link IndexVersions#TSID_PREFIXED_DIMENSIONS_HASH}, while series
+     * without such dimensions keep the shard of the previous layout.
+     */
+    public void testRoutingWithPrefixedDimensionsHash() throws IOException {
+        TimeSeriesRoutingFixture before = indexRoutingForTimeSeriesDimensions(
+            IndexVersionUtils.randomVersionBetween(
+                IndexVersions.TSID_SINGLE_PREFIX_BYTE,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.TSID_PREFIXED_DIMENSIONS_HASH)
+            ),
+            8,
+            "resource.attributes.*,attributes.*,_metric_names_hash",
+            randomBoolean()
+        );
+        TimeSeriesRoutingFixture after = indexRoutingForTimeSeriesDimensions(
+            IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TSID_PREFIXED_DIMENSIONS_HASH),
+            8,
+            "resource.attributes.*,attributes.*,_metric_names_hash",
+            randomBoolean()
+        );
+        assertNull(((IndexRouting.ExtractFromSource.ForIndexDimensions) before.routing()).tsidLayout.effectiveDimensionsPrefix());
+        assertThat(
+            ((IndexRouting.ExtractFromSource.ForIndexDimensions) after.routing()).tsidLayout.effectiveDimensionsPrefix(),
+            equalTo("resource.attributes.")
+        );
+        /*
+         * These are the expected shards. If these values change time series will be routed to unexpected shards.
+         * You may modify them with a new index created version, but when you do you must copy this test and patch
+         * the versions at the top. Because newer versions of Elasticsearch must continue to route based on the
+         * version on the index.
+         */
+        Map<String, Object> withResource = Map.of(
+            "_metric_names_hash",
+            "abc",
+            "resource",
+            Map.of("attributes", Map.of("host.name", "host-1", "service.name", "service-a")),
+            "attributes",
+            Map.of("operation", "op-1")
+        );
+        Map<String, Object> withFlatResource = Map.of(
+            "_metric_names_hash",
+            "abc",
+            "resource.attributes.host.name",
+            "host-1",
+            "resource.attributes.service.name",
+            "service-a",
+            "attributes.operation",
+            "op-1"
+        );
+        Map<String, Object> withOtherResource = Map.of(
+            "_metric_names_hash",
+            "abc",
+            "resource",
+            Map.of("attributes", Map.of("host.name", "host-2", "service.name", "service-a")),
+            "attributes",
+            Map.of("operation", "op-1")
+        );
+        Map<String, Object> withThirdResource = Map.of(
+            "_metric_names_hash",
+            "abc",
+            "resource",
+            Map.of("attributes", Map.of("host.name", "host-3", "service.name", "service-b")),
+            "attributes",
+            Map.of("operation", "op-1")
+        );
+        Map<String, Object> withOtherOperation = Map.of(
+            "_metric_names_hash",
+            "abc",
+            "resource",
+            Map.of("attributes", Map.of("host.name", "host-1", "service.name", "service-a")),
+            "attributes",
+            Map.of("operation", "op-2")
+        );
+        Map<String, Object> withoutResource = Map.of("_metric_names_hash", "abc", "attributes", Map.of("operation", "op-1"));
+        assertIndexShard(before, withResource, 1);
+        assertIndexShard(before, withFlatResource, 1);
+        assertIndexShard(before, withOtherResource, 2);
+        assertIndexShard(before, withThirdResource, 0);
+        assertIndexShard(before, withOtherOperation, 3);
+        assertIndexShard(before, withoutResource, 1);
+        assertIndexShard(after, withResource, 5);
+        assertIndexShard(after, withFlatResource, 5);
+        assertIndexShard(after, withOtherResource, 5);
+        assertIndexShard(after, withThirdResource, 4);
+        assertIndexShard(after, withOtherOperation, 5);
+        assertIndexShard(after, withoutResource, 1);
+    }
+
+    /** The tsid dimensions prefix setting is honored by routing, so a non-default prefix changes the shard. */
+    public void testRoutingHonorsTsidDimensionsPrefixSetting() throws IOException {
+        IndexVersion version = IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TSID_PREFIXED_DIMENSIONS_HASH);
+        String dimensions = "resource.attributes.*,attributes.*,_metric_names_hash";
+        Map<String, Object> source = Map.of(
+            "_metric_names_hash",
+            "def",
+            "resource.attributes.host.name",
+            "host-1",
+            "attributes.operation",
+            "op-1"
+        );
+        TimeSeriesRoutingFixture defaultPrefix = indexRoutingForTimeSeriesDimensions(version, 8, dimensions, randomBoolean());
+        TimeSeriesRoutingFixture customPrefix = indexRoutingForTimeSeriesDimensions(
+            version,
+            8,
+            dimensions,
+            randomBoolean(),
+            Settings.builder().put(IndexSettings.TIME_SERIES_TSID_DIMENSIONS_PREFIX.getKey(), "attributes.").build()
+        );
+        TimeSeriesRoutingFixture disabledPrefix = indexRoutingForTimeSeriesDimensions(
+            version,
+            8,
+            dimensions,
+            randomBoolean(),
+            Settings.builder().put(IndexSettings.TIME_SERIES_TSID_DIMENSIONS_PREFIX.getKey(), "").build()
+        );
+        assertIndexShard(defaultPrefix, source, 0);
+        assertIndexShard(customPrefix, source, 2);
+        assertIndexShard(disabledPrefix, source, 5);
+    }
+
     public void testRoutingPathReadWithInvalidString() {
         int shards = between(2, 1000);
         IndexRouting indexRouting = indexRoutingForPath(shards, "foo").routing();
@@ -1239,7 +1360,24 @@ public class IndexRoutingTests extends ESTestCase {
         String path,
         boolean useSyntheticId
     ) {
-        return getIndexRoutingWithSetting(createdVersion, shards, path, IndexMetadata.INDEX_DIMENSIONS.getKey(), useSyntheticId);
+        return indexRoutingForTimeSeriesDimensions(createdVersion, shards, path, useSyntheticId, Settings.EMPTY);
+    }
+
+    private TimeSeriesRoutingFixture indexRoutingForTimeSeriesDimensions(
+        IndexVersion createdVersion,
+        int shards,
+        String path,
+        boolean useSyntheticId,
+        Settings extraSettings
+    ) {
+        return getIndexRoutingWithSetting(
+            createdVersion,
+            shards,
+            path,
+            IndexMetadata.INDEX_DIMENSIONS.getKey(),
+            useSyntheticId,
+            extraSettings
+        );
     }
 
     /**
@@ -1252,11 +1390,23 @@ public class IndexRoutingTests extends ESTestCase {
         String setting,
         boolean useSyntheticId
     ) {
+        return getIndexRoutingWithSetting(indexVersion, shards, path, setting, useSyntheticId, Settings.EMPTY);
+    }
+
+    private static TimeSeriesRoutingFixture getIndexRoutingWithSetting(
+        IndexVersion indexVersion,
+        int shards,
+        String path,
+        String setting,
+        boolean useSyntheticId,
+        Settings extraSettings
+    ) {
         if (useSyntheticId) {
             assert indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94) : "Can't use synthetic id with this index version";
         }
         Settings.Builder settingsBuilder = settings(indexVersion).put(setting, path)
-            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES);
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(extraSettings);
         if (indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94)) {
             settingsBuilder.put(IndexSettings.SYNTHETIC_ID.getKey(), useSyntheticId);
         }

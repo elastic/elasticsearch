@@ -12,7 +12,6 @@ package org.elasticsearch.test.codec.columnar;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomInt;
@@ -21,7 +20,7 @@ import static org.elasticsearch.test.ESTestCase.randomList;
 import static org.elasticsearch.test.ESTestCase.randomSubsetOf;
 
 /**
- * A named keyword document shape. Each scenario builds a deterministic corpus flavor (single dense, multi
+ * The named keyword document shapes. Each scenario builds a deterministic corpus flavor (single dense, multi
  * sparse, nulls, duplicates, high cardinality, unicode, long values, and so on) from {@link KeywordValues}.
  * Scenarios own document structure only; the literals come from {@link KeywordValues}. Document counts and
  * per-document choices are randomized through {@link org.elasticsearch.test.ESTestCase}, so a corpus
@@ -32,61 +31,28 @@ import static org.elasticsearch.test.ESTestCase.randomSubsetOf;
  * keyword values in doc values, and the value-multiplicity checks assert the baseline and ColumNAR agree on
  * those preserved duplicate entries.
  */
-public final class KeywordScenario {
+public final class KeywordScenarios {
 
-    private final String name;
-    private final Supplier<List<KeywordDoc>> builder;
-    private final boolean multiValue;
+    private KeywordScenarios() {}
 
-    private KeywordScenario(final String name, final Supplier<List<KeywordDoc>> builder) {
-        this(name, builder, true);
+    public static DuelScenario singleDense() {
+        return new DuelScenario("single_dense", () -> build(doc -> List.of(KeywordValues.themed())));
     }
 
-    private KeywordScenario(final String name, final Supplier<List<KeywordDoc>> builder, boolean multiValue) {
-        this.name = name;
-        this.builder = builder;
-        this.multiValue = multiValue;
+    public static DuelScenario singleSparse() {
+        return new DuelScenario("single_sparse", () -> build(doc -> present() ? List.of(KeywordValues.themed()) : null));
     }
 
-    public String name() {
-        return name;
+    public static DuelScenario multiDense() {
+        return new DuelScenario("multi_dense", () -> build(doc -> distinctThemed(randomIntBetween(2, 4))));
     }
 
-    /**
-     * @return whether the keyword field is mapped to accept several values a document. A scenario that says not maps it
-     *         {@code doc_values.multi_value: false}, which selects a different doc-values layout, and generates at most
-     *         one value a document to match.
-     */
-    public boolean multiValue() {
-        return multiValue;
+    public static DuelScenario multiSparse() {
+        return new DuelScenario("multi_sparse", () -> build(doc -> present() ? distinctThemed(randomIntBetween(2, 4)) : null));
     }
 
-    /**
-     * @return a freshly generated corpus for this shape. Called once per duel so both indices in a pair see
-     *         the identical document list.
-     */
-    public List<KeywordDoc> documents() {
-        return builder.get();
-    }
-
-    public static KeywordScenario singleDense() {
-        return new KeywordScenario("single_dense", () -> build(doc -> List.of(KeywordValues.themed())));
-    }
-
-    public static KeywordScenario singleSparse() {
-        return new KeywordScenario("single_sparse", () -> build(doc -> present() ? List.of(KeywordValues.themed()) : null));
-    }
-
-    public static KeywordScenario multiDense() {
-        return new KeywordScenario("multi_dense", () -> build(doc -> distinctThemed(randomIntBetween(2, 4))));
-    }
-
-    public static KeywordScenario multiSparse() {
-        return new KeywordScenario("multi_sparse", () -> build(doc -> present() ? distinctThemed(randomIntBetween(2, 4)) : null));
-    }
-
-    public static KeywordScenario nulls() {
-        return new KeywordScenario("nulls", () -> build(doc -> switch (randomInt(2)) {
+    public static DuelScenario nulls() {
+        return new DuelScenario("nulls", () -> build(doc -> switch (randomInt(2)) {
             case 0 -> null;
             case 1 -> withInlineNull(distinctThemed(2));
             case 2 -> List.of(KeywordValues.themed());
@@ -94,18 +60,15 @@ public final class KeywordScenario {
         }));
     }
 
-    public static KeywordScenario emptyArrays() {
-        return new KeywordScenario(
-            "empty_arrays",
-            () -> build(doc -> randomBoolean() ? List.of() : distinctThemed(randomIntBetween(1, 3)))
-        );
+    public static DuelScenario emptyArrays() {
+        return new DuelScenario("empty_arrays", () -> build(doc -> randomBoolean() ? List.of() : distinctThemed(randomIntBetween(1, 3))));
     }
 
-    public static KeywordScenario duplicates() {
+    public static DuelScenario duplicates() {
         // This is the only shape that repeats a value within a document (for example [alpha, alpha, bravo]);
         // every other multi-valued shape is kept distinct. Both strict columnar layouts preserve the repeats in
         // doc values, which the value-multiplicity checks verify the baseline and ColumNAR agree on.
-        return new KeywordScenario("duplicates", () -> build(doc -> {
+        return new DuelScenario("duplicates", () -> build(doc -> {
             final String repeated = KeywordValues.themed();
             final List<String> values = new ArrayList<>();
             final int copies = randomIntBetween(2, 4);
@@ -117,16 +80,16 @@ public final class KeywordScenario {
         }));
     }
 
-    public static KeywordScenario highCardinality() {
-        return new KeywordScenario("high_cardinality", () -> build(doc -> List.of(KeywordValues.unique(doc))));
+    public static DuelScenario highCardinality() {
+        return new DuelScenario("high_cardinality", () -> build(doc -> List.of(KeywordValues.unique(doc))));
     }
 
-    public static KeywordScenario unicode() {
-        return new KeywordScenario("unicode", () -> build(doc -> distinct(randomList(1, 3, KeywordValues::unicode))));
+    public static DuelScenario unicode() {
+        return new DuelScenario("unicode", () -> build(doc -> distinct(randomList(1, 3, KeywordValues::unicode))));
     }
 
-    public static KeywordScenario longValues() {
-        return new KeywordScenario("long_values", () -> build(doc -> distinct(randomList(1, 2, KeywordValues::longValue))));
+    public static DuelScenario longValues() {
+        return new DuelScenario("long_values", () -> build(doc -> distinct(randomList(1, 2, KeywordValues::longValue))));
     }
 
     /**
@@ -134,8 +97,8 @@ public final class KeywordScenario {
      * {@code BinaryDocValuesLengthQuery}, which is a distinct execution path from non-empty terms; including
      * nulls in the same corpus verifies the codec keeps a null slot and an empty value apart.
      */
-    public static KeywordScenario emptyStrings() {
-        return new KeywordScenario("empty_strings", () -> build(doc -> switch (randomInt(3)) {
+    public static DuelScenario emptyStrings() {
+        return new DuelScenario("empty_strings", () -> build(doc -> switch (randomInt(3)) {
             case 0 -> List.of(KeywordValues.emptyString());
             case 1 -> null;
             case 2 -> List.of(KeywordValues.emptyString(), KeywordValues.themed());
@@ -148,8 +111,8 @@ public final class KeywordScenario {
      * Generates a corpus above the default Lucene block size (128 values) to exercise the ordinal block
      * cursor and the single-chunk read cache, which only activate beyond that threshold.
      */
-    public static KeywordScenario largeCorpus() {
-        return new KeywordScenario("large_corpus", () -> build(randomIntBetween(300, 500), doc -> List.of(KeywordValues.themed())));
+    public static DuelScenario largeCorpus() {
+        return new DuelScenario("large_corpus", () -> build(randomIntBetween(300, 500), doc -> List.of(KeywordValues.themed())));
     }
 
     /**
@@ -157,8 +120,8 @@ public final class KeywordScenario {
      * the shapes the multi-valued scenarios cover one at a time - repeated, unique, unicode, long, and empty - so a
      * single corpus exercises the single-valued layout with a dictionary, escapes, and variable lengths.
      */
-    public static KeywordScenario singleValued() {
-        return new KeywordScenario("single_valued", () -> build(doc -> switch (randomInt(5)) {
+    public static DuelScenario singleValued() {
+        return new DuelScenario("single_valued", () -> build(doc -> switch (randomInt(5)) {
             case 0 -> null;
             case 1 -> List.of(KeywordValues.themed());
             case 2 -> List.of(KeywordValues.unique(doc));
@@ -169,8 +132,8 @@ public final class KeywordScenario {
         }), false);
     }
 
-    public static KeywordScenario randomizedMixed() {
-        return new KeywordScenario("randomized_mixed", () -> build(doc -> switch (randomInt(6)) {
+    public static DuelScenario randomizedMixed() {
+        return new DuelScenario("randomized_mixed", () -> build(doc -> switch (randomInt(6)) {
             case 0 -> null;
             case 1 -> List.of();
             case 2 -> List.of(KeywordValues.any());
@@ -182,14 +145,14 @@ public final class KeywordScenario {
         }));
     }
 
-    private static List<KeywordDoc> build(final DocValues perDoc) {
+    private static List<DuelDoc> build(final DocValues perDoc) {
         return build(randomIntBetween(30, 120), perDoc);
     }
 
-    private static List<KeywordDoc> build(final int count, final DocValues perDoc) {
-        final List<KeywordDoc> docs = new ArrayList<>(count);
+    private static List<DuelDoc> build(final int count, final DocValues perDoc) {
+        final List<DuelDoc> docs = new ArrayList<>(count);
         for (long docId = 0; docId < count; docId++) {
-            docs.add(new KeywordDoc(docId, perDoc.valuesFor(docId)));
+            docs.add(new DuelDoc(docId, perDoc.valuesFor(docId)));
         }
         return docs;
     }

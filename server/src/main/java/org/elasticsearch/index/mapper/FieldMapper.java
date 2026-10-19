@@ -23,7 +23,6 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.Maps;
@@ -127,22 +126,6 @@ public abstract class FieldMapper extends Mapper {
         Property.Final,
         Property.ServerlessPublic
     );
-
-    /**
-     * Guards {@code doc_values.on_failure=ignore}. The {@code ._on_failure} sidecar is surfaced in synthetic {@code _source} only —
-     * not block loaders, ESQL, or aggregations, since {@code multi_value=false} advertises a single-valued column to those paths.
-     */
-    public static final FeatureFlag DOC_VALUES_ON_FAILURE_FEATURE_FLAG = new FeatureFlag("doc_values_on_failure");
-
-    /**
-     * Resolves {@link #DOC_VALUES_ON_FAILURE_SETTING}, falling back to {@link DocValuesParameter.Values.OnFailure#FAIL} while
-     * {@link #DOC_VALUES_ON_FAILURE_FEATURE_FLAG} is disabled.
-     */
-    public static DocValuesParameter.Values.OnFailure resolveOnFailureSetting(Settings settings) {
-        return DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled()
-            ? DOC_VALUES_ON_FAILURE_SETTING.get(settings)
-            : DocValuesParameter.Values.OnFailure.FAIL;
-    }
 
     /**
      * Guards {@code doc_values.updatable=true}, which lets a field's doc-values column be mutated in place via the bulk API instead of
@@ -2035,11 +2018,7 @@ public abstract class FieldMapper extends Mapper {
                 m -> initializer.apply(m).onFailure,
                 subParameterDefaults.onFailure,
                 Values.OnFailure.class
-            ).addValidator(v -> {
-                if (v == Values.OnFailure.IGNORE && DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled() == false) {
-                    throw new MapperParsingException("[doc_values.on_failure=ignore] is not yet supported");
-                }
-            });
+            );
             // updatable is not updateable in the mapping-merge sense: flipping it would change the Lucene doc-values type of a field
             // that already has values on disk.
             updatableParameter = Parameter.boolParam(

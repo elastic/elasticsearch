@@ -5071,6 +5071,34 @@ emp_no:integer | last_name:keyword | extra:integer | first_name:boolean
 10003          | Bamford           | 2             | true
 ;
 
+evalInSubqueryNonInOverwriteWithInterveningReference
+required_capability: where_in_subquery_without_view
+required_capability: eval_in_subquery
+required_capability: eval_in_subquery_overwrite_appended
+required_capability: subquery_with_row
+
+ROW a0 = 0
+| EVAL a = 1, z = a + 1, a = 3, m = a0 IN (ROW y = 0 | KEEP y)
+;
+
+a0:integer | z:integer | a:integer | m:boolean
+0          | 2         | 3         | true
+;
+
+evalInSubqueryNonInOverwriteOfInResult
+required_capability: where_in_subquery_without_view
+required_capability: eval_in_subquery
+required_capability: eval_in_subquery_overwrite_appended
+required_capability: subquery_with_row
+
+ROW x = 0
+| EVAL a = x IN (ROW y = 0 | KEEP y), b = a, a = 1
+;
+
+x:integer | b:boolean | a:integer
+0         | true      | 1
+;
+
 inSubqueryInStatsWhere
 required_capability: where_in_subquery_without_view
 required_capability: stats_where_in_subquery

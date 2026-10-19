@@ -256,10 +256,9 @@ public class InSubqueryResolver {
      * is stacked below the whole {@link Eval} regardless of how many aliases it defines.
      * <p>
      * Overwrites are appended, matching ordinary EVAL: {@code EVAL a = 1, z = a + 1, a = y IN (sub)} keeps both {@code a} aliases in
-     * {@code fields()} so {@link org.elasticsearch.xpack.esql.expression.NamedExpressions#mergeOutputAttributes mergeOutputAttributes}
-     * emits the last definition at the end.
+     * {@code fields()} so {@code NamedExpressions#mergeOutputAttributes mergeOutputAttributes} emits the last definition at the end.
      * <p>
-     * Make this public, so that {@link org.elasticsearch.xpack.esql.view.ViewResolver} can drive IN subquery resolution.
+     * Make this public, so that {@code ViewResolver} can drive IN subquery resolution.
      */
     public static LogicalPlan resolveInSubqueryInEval(Eval eval) {
         // List, not a name-keyed map: EVAL keeps duplicate names, let the existing planner rules and mergeOutputAttributes to handle them.

@@ -94,12 +94,6 @@ tests:
 - class: org.elasticsearch.xpack.ilm.TimeSeriesLifecycleActionsIT
   method: testForceMergeActionWithCompressionCodec
   issue: https://github.com/elastic/elasticsearch/issues/159423
-- class: org.elasticsearch.xpack.inference.InferenceRestIT
-  method: test {yaml=inference/30_semantic_text_inference/Calculates embeddings using the default ELSER 2 endpoint}
-  issue: https://github.com/elastic/elasticsearch/issues/159673
-- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
-  method: test {yaml=reference/search/search-your-data/retrievers-examples/line_118}
-  issue: https://github.com/elastic/elasticsearch/issues/159676
 - class: org.elasticsearch.xpack.rank.linear.LinearRetrieverIT
   method: testLinearRetrieverPartialSearchErrorsFalse
   issue: https://github.com/elastic/elasticsearch/issues/159724

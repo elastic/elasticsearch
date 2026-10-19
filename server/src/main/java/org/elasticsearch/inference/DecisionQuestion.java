@@ -23,9 +23,9 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -47,8 +47,9 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  *   "choices": {"billing": "Charges, refunds, invoices", "other": null}
  * }
  *
- * {"type": "score", "instructions": "How angry is the customer?", "levels": ["calm", "annoyed", "furious"]}</pre>
- * {@code choices} maps each option to an optional description, {@code levels} are ordered from lowest to highest.
+ * {"type": "score", "instructions": "How angry is the customer?", "levels": ["calm", "annoyed", {"label": "furious", "description": "Threatens to leave"}]}</pre>
+ * {@code choices} maps each option to an optional description, {@code levels} are ordered from lowest to highest. A level is either a
+ * plain label or an object with a {@code label} and an optional {@code description}.
  */
 public sealed interface DecisionQuestion extends Writeable, ToXContentObject permits DecisionQuestion.Predicate, DecisionQuestion.Choice,
     DecisionQuestion.Score {
@@ -57,6 +58,8 @@ public sealed interface DecisionQuestion extends Writeable, ToXContentObject per
     String INSTRUCTIONS_FIELD = "instructions";
     String CHOICES_FIELD = "choices";
     String LEVELS_FIELD = "levels";
+    String LABEL_FIELD = "label";
+    String DESCRIPTION_FIELD = "description";
 
     int MIN_CHOICES = 2;
     int MIN_LEVELS = 2;
@@ -117,7 +120,7 @@ public sealed interface DecisionQuestion extends Writeable, ToXContentObject per
         var parser = new ConstructingObjectParser<DecisionQuestion, Void>(
             "decision_question",
             ignoreUnknownFields,
-            args -> of((Type) args[0], (String) args[1], (Map<String, String>) args[2], (List<String>) args[3])
+            args -> of((Type) args[0], (String) args[1], (Map<String, String>) args[2], (List<Level>) args[3])
         );
         parser.declareString(constructorArg(), Type::fromString, new ParseField(TYPE_FIELD));
         parser.declareString(constructorArg(), new ParseField(INSTRUCTIONS_FIELD));
@@ -127,7 +130,13 @@ public sealed interface DecisionQuestion extends Writeable, ToXContentObject per
             new ParseField(CHOICES_FIELD),
             ObjectParser.ValueType.OBJECT
         );
-        parser.declareStringArray(optionalConstructorArg(), new ParseField(LEVELS_FIELD));
+        var levelParser = createLevelParser(ignoreUnknownFields);
+        parser.declareField(
+            optionalConstructorArg(),
+            (p, c) -> parseLevels(p, levelParser),
+            new ParseField(LEVELS_FIELD),
+            ObjectParser.ValueType.OBJECT_ARRAY
+        );
         return parser;
     }
 
@@ -138,7 +147,7 @@ public sealed interface DecisionQuestion extends Writeable, ToXContentObject per
         Type type,
         String instructions,
         @Nullable Map<String, String> choices,
-        @Nullable List<String> levels
+        @Nullable List<Level> levels
     ) {
         return switch (type) {
             case PREDICATE -> {
@@ -195,6 +204,38 @@ public sealed interface DecisionQuestion extends Writeable, ToXContentObject per
             }
         }
         return choices;
+    }
+
+    private static ConstructingObjectParser<Level, Void> createLevelParser(boolean ignoreUnknownFields) {
+        var parser = new ConstructingObjectParser<Level, Void>(
+            "decision_question_level",
+            ignoreUnknownFields,
+            args -> new Level((String) args[0], (String) args[1])
+        );
+        parser.declareString(constructorArg(), new ParseField(LABEL_FIELD));
+        parser.declareString(optionalConstructorArg(), new ParseField(DESCRIPTION_FIELD));
+        return parser;
+    }
+
+    /**
+     * Parses the {@code levels} array, in which every level is either a plain label or an object with a label and a description.
+     */
+    private static List<Level> parseLevels(XContentParser parser, ConstructingObjectParser<Level, Void> levelParser) throws IOException {
+        var levels = new ArrayList<Level>();
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+            if (token == XContentParser.Token.VALUE_STRING) {
+                levels.add(new Level(parser.text()));
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                levels.add(levelParser.parse(parser, null));
+            } else {
+                throw new XContentParseException(
+                    parser.getTokenLocation(),
+                    Strings.format("Each of the [%s] must be a string or an object, but found [%s]", LEVELS_FIELD, token)
+                );
+            }
+        }
+        return levels;
     }
 
     private static void rejectField(Type type, String field, @Nullable Object value) {
@@ -310,11 +351,54 @@ public sealed interface DecisionQuestion extends Writeable, ToXContentObject per
     }
 
     /**
+     * A level of the scale of a {@link Score} question.
+     *
+     * @param label The name of the level, which identifies it in the answer
+     * @param description An optional explanation of what the level stands for
+     */
+    record Level(String label, @Nullable String description) implements Writeable {
+
+        public Level {
+            if (Strings.isNullOrBlank(label)) {
+                throw new IllegalArgumentException(Strings.format("Field [%s] must not contain empty levels", LEVELS_FIELD));
+            }
+        }
+
+        public Level(String label) {
+            this(label, null);
+        }
+
+        Level(StreamInput in) throws IOException {
+            this(in.readString(), in.readOptionalString());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(label);
+            out.writeOptionalString(description);
+        }
+
+        /**
+         * Writes a level without description as a plain label, which keeps the output parseable and the common case compact.
+         */
+        void toXContent(XContentBuilder builder) throws IOException {
+            if (description == null) {
+                builder.value(label);
+            } else {
+                builder.startObject();
+                builder.field(LABEL_FIELD, label);
+                builder.field(DESCRIPTION_FIELD, description);
+                builder.endObject();
+            }
+        }
+    }
+
+    /**
      * A question answered with a position on the scale given by {@code levels}.
      *
      * @param levels The levels of the scale, ordered from lowest to highest
      */
-    record Score(String instructions, List<String> levels) implements DecisionQuestion {
+    record Score(String instructions, List<Level> levels) implements DecisionQuestion {
 
         public Score {
             validateInstructions(instructions);
@@ -324,17 +408,21 @@ public sealed interface DecisionQuestion extends Writeable, ToXContentObject per
                     Strings.format("Field [%s] must contain at least [%d] levels, but found [%d]", LEVELS_FIELD, MIN_LEVELS, levels.size())
                 );
             }
-            if (levels.stream().anyMatch(Strings::isNullOrBlank)) {
-                throw new IllegalArgumentException(Strings.format("Field [%s] must not contain empty levels", LEVELS_FIELD));
-            }
-            if (new HashSet<>(levels).size() != levels.size()) {
+            if (levels.stream().map(Level::label).distinct().count() != levels.size()) {
                 throw new IllegalArgumentException(Strings.format("Field [%s] must not contain duplicate levels", LEVELS_FIELD));
             }
             levels = List.copyOf(levels);
         }
 
         Score(StreamInput in) throws IOException {
-            this(in.readString(), in.readStringCollectionAsImmutableList());
+            this(in.readString(), in.readCollectionAsImmutableList(Level::new));
+        }
+
+        /**
+         * The labels of the levels, ordered from lowest to highest.
+         */
+        public List<String> labels() {
+            return levels.stream().map(Level::label).toList();
         }
 
         @Override
@@ -345,7 +433,7 @@ public sealed interface DecisionQuestion extends Writeable, ToXContentObject per
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(instructions);
-            out.writeStringCollection(levels);
+            out.writeCollection(levels);
         }
 
         @Override
@@ -353,7 +441,11 @@ public sealed interface DecisionQuestion extends Writeable, ToXContentObject per
             builder.startObject();
             builder.field(TYPE_FIELD, type().toString());
             builder.field(INSTRUCTIONS_FIELD, instructions);
-            builder.stringListField(LEVELS_FIELD, levels);
+            builder.startArray(LEVELS_FIELD);
+            for (var level : levels) {
+                level.toXContent(builder);
+            }
+            builder.endArray();
             builder.endObject();
             return builder;
         }

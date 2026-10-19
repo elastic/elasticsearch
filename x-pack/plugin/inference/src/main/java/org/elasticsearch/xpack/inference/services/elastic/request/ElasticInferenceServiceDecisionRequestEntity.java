@@ -37,7 +37,7 @@ import java.util.Objects;
  *       "type": "score",
  *       "name": "anger",
  *       "instructions": "How angry is the customer?",
- *       "levels": [{"label": "calm"}, {"label": "furious"}]
+ *       "levels": [{"label": "calm"}, {"label": "furious", "description": "Threatens to leave"}]
  *     }
  *   ]
  * }</pre>
@@ -104,7 +104,10 @@ public record ElasticInferenceServiceDecisionRequestEntity(InferenceString input
                 builder.startArray(LEVELS_FIELD);
                 for (var level : score.levels()) {
                     builder.startObject();
-                    builder.field(LABEL_FIELD, level);
+                    builder.field(LABEL_FIELD, level.label());
+                    if (level.description() != null) {
+                        builder.field(DESCRIPTION_FIELD, level.description());
+                    }
                     builder.endObject();
                 }
                 builder.endArray();

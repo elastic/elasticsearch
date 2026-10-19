@@ -28,21 +28,22 @@ import static org.hamcrest.Matchers.is;
 public class DecisionQuestionsTests extends AbstractBWCSerializationTestCase<DecisionQuestions> {
 
     public void testParse_WithAllQuestionTypes() throws IOException {
-        var json = """
-            {
-                "is_complaint": {"type": "predicate", "instructions": "Is the customer complaining?"},
-                "team": {
-                    "type": "choice",
-                    "instructions": "Which team should handle this?",
-                    "choices": {
-                        "billing": "Charges, refunds, invoices",
-                        "shipping": "Delivery status, delays, lost packages",
-                        "other": null
-                    }
-                },
-                "anger": {"type": "score", "instructions": "How angry is the customer?", "levels": ["calm", "annoyed", "furious"]}
-            }
-            """;
+        var json =
+            """
+                {
+                    "is_complaint": {"type": "predicate", "instructions": "Is the customer complaining?"},
+                    "team": {
+                        "type": "choice",
+                        "instructions": "Which team should handle this?",
+                        "choices": {
+                            "billing": "Charges, refunds, invoices",
+                            "shipping": "Delivery status, delays, lost packages",
+                            "other": null
+                        }
+                    },
+                    "anger": {"type": "score", "instructions": "How angry is the customer?", "levels": ["calm", {"label": "annoyed", "description": "Mildly upset"}, "furious"]}
+                }
+                """;
 
         var choices = new LinkedHashMap<String, String>();
         choices.put("billing", "Charges, refunds, invoices");
@@ -59,7 +60,14 @@ public class DecisionQuestionsTests extends AbstractBWCSerializationTestCase<Dec
                     "team",
                     new DecisionQuestion.Choice("Which team should handle this?", choices),
                     "anger",
-                    new DecisionQuestion.Score("How angry is the customer?", List.of("calm", "annoyed", "furious"))
+                    new DecisionQuestion.Score(
+                        "How angry is the customer?",
+                        List.of(
+                            new DecisionQuestion.Level("calm"),
+                            new DecisionQuestion.Level("annoyed", "Mildly upset"),
+                            new DecisionQuestion.Level("furious")
+                        )
+                    )
                 )
             )
         );
@@ -151,6 +159,12 @@ public class DecisionQuestionsTests extends AbstractBWCSerializationTestCase<Dec
             """, "Field [levels] must contain at least [2] levels, but found [1]");
     }
 
+    public void testParse_ScoreWithEmptyLevelLabel_Throws() {
+        assertParseFailure("""
+            {"q": {"type": "score", "instructions": "How much?", "levels": ["low", {"label": " ", "description": "none"}]}}
+            """, "Field [levels] must not contain empty levels");
+    }
+
     public void testParse_ScoreWithDuplicateLevels_Throws() {
         assertParseFailure("""
             {"q": {"type": "score", "instructions": "How much?", "levels": ["low", "high", "low"]}}
@@ -235,9 +249,11 @@ public class DecisionQuestionsTests extends AbstractBWCSerializationTestCase<Dec
                 yield new DecisionQuestion.Choice(instructions, choices);
             }
             case SCORE -> {
-                var levels = new ArrayList<String>();
+                var levels = new ArrayList<DecisionQuestion.Level>();
                 for (int i = 0; i < randomIntBetween(DecisionQuestion.MIN_LEVELS, 5); i++) {
-                    levels.add(randomAlphaOfLength(8) + i);
+                    levels.add(
+                        new DecisionQuestion.Level(randomAlphaOfLength(8) + i, randomBoolean() ? randomAlphaOfLengthBetween(1, 20) : null)
+                    );
                 }
                 yield new DecisionQuestion.Score(instructions, levels);
             }

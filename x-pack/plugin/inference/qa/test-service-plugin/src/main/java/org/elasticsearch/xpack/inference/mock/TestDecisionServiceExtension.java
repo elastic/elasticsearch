@@ -237,7 +237,7 @@ public class TestDecisionServiceExtension implements InferenceServiceExtension {
                         );
                     }
                     case DecisionQuestion.Score score -> {
-                        var levels = score.levels();
+                        var levels = score.labels();
                         var selected = weight % levels.size();
                         var probabilities = probabilities(levels, selected);
                         var weightedScore = 0.0;

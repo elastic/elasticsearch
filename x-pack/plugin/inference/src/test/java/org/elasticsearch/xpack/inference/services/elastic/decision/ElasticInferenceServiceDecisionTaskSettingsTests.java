@@ -125,7 +125,10 @@ public class ElasticInferenceServiceDecisionTaskSettingsTests extends AbstractWi
             new DecisionQuestions(
                 Map.of(
                     "anger",
-                    new DecisionQuestion.Score("How angry is the customer?", List.of("calm", "furious")),
+                    new DecisionQuestion.Score(
+                        "How angry is the customer?",
+                        List.of(new DecisionQuestion.Level("calm"), new DecisionQuestion.Level("furious"))
+                    ),
                     "is_complaint",
                     new DecisionQuestion.Predicate("Is this a complaint?")
                 )

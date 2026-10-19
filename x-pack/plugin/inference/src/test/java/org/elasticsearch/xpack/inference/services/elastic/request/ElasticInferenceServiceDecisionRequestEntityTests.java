@@ -33,7 +33,17 @@ public class ElasticInferenceServiceDecisionRequestEntityTests extends ESTestCas
         var questions = new LinkedHashMap<String, DecisionQuestion>();
         questions.put("is_complaint", new DecisionQuestion.Predicate("Is the customer complaining?"));
         questions.put("team", new DecisionQuestion.Choice("Which team should handle this?", choices));
-        questions.put("anger", new DecisionQuestion.Score("How angry is the customer?", List.of("calm", "annoyed", "furious")));
+        questions.put(
+            "anger",
+            new DecisionQuestion.Score(
+                "How angry is the customer?",
+                List.of(
+                    new DecisionQuestion.Level("calm"),
+                    new DecisionQuestion.Level("annoyed"),
+                    new DecisionQuestion.Level("furious", "Threatens to leave")
+                )
+            )
+        );
 
         var entity = new ElasticInferenceServiceDecisionRequestEntity(
             InferenceString.ofText("I was charged twice for my order."),
@@ -57,7 +67,7 @@ public class ElasticInferenceServiceDecisionRequestEntityTests extends ESTestCas
                         "type": "score",
                         "name": "anger",
                         "instructions": "How angry is the customer?",
-                        "levels": [{"label": "calm"}, {"label": "annoyed"}, {"label": "furious"}]
+                        "levels": [{"label": "calm"}, {"label": "annoyed"}, {"label": "furious", "description": "Threatens to leave"}]
                     }
                 ]
             }""")));

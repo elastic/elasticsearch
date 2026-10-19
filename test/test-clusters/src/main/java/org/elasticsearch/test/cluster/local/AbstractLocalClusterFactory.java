@@ -611,17 +611,28 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
 
                 LOGGER.info("Creating users for node '{}'", name);
                 final Set<String> operators = new HashSet<>();
+                final Map<String, String> hashByPassword = new HashMap<>();
+                final Set<String> usernames = new HashSet<>();
                 for (User user : spec.getUsers()) {
-                    runToolScript(
-                        "elasticsearch-users",
-                        null,
-                        "useradd",
-                        user.getUsername(),
-                        "-p",
-                        user.getPassword(),
-                        "-r",
-                        user.getRole()
-                    );
+                    if (usernames.add(user.getUsername()) == false) {
+                        throw new IllegalStateException("User [" + user.getUsername() + "] is defined more than once");
+                    }
+                    String passwordHash = hashByPassword.get(user.getPassword());
+                    if (passwordHash == null) {
+                        runToolScript(
+                            "elasticsearch-users",
+                            null,
+                            "useradd",
+                            user.getUsername(),
+                            "-p",
+                            user.getPassword(),
+                            "-r",
+                            user.getRole()
+                        );
+                        hashByPassword.put(user.getPassword(), FileRealmUsers.readPasswordHash(configDir, user.getUsername()));
+                    } else {
+                        FileRealmUsers.addUser(configDir, user.getUsername(), passwordHash, user.getRole());
+                    }
                     if (user.isOperator()) {
                         operators.add(user.getUsername());
                     }

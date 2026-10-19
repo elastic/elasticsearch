@@ -70,6 +70,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsup
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedEmbeddingOperation;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedReasoningUnifiedCompletionOperation;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedSessionIdUnifiedCompletionOperation;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedTemplateUnifiedCompletionOperation;
 
 public abstract class SenderService<M extends Model> implements InferenceService {
 
@@ -274,6 +275,9 @@ public abstract class SenderService<M extends Model> implements InferenceService
             if (supportsChatCompletionSessionId() == false && body.containsSessionId()) {
                 throwUnsupportedSessionIdUnifiedCompletionOperation(name());
             }
+            if (supportsChatCompletionTemplates() == false && body.containsTemplate()) {
+                throwUnsupportedTemplateUnifiedCompletionOperation(name());
+            }
             if (request.stream() == false && supportsNonStreamingChatCompletion() == false) {
                 throw createUnsupportedNonStreamingChatCompletionException(name());
             }
@@ -292,6 +296,13 @@ public abstract class SenderService<M extends Model> implements InferenceService
     }
 
     protected boolean supportsChatCompletionSessionId() {
+        return false;
+    }
+
+    /**
+     * Whether the service accepts a {@code template} instead of {@code messages}.
+     */
+    protected boolean supportsChatCompletionTemplates() {
         return false;
     }
 

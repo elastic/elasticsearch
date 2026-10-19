@@ -1067,6 +1067,18 @@ public final class ServiceUtils {
         throwUnsupportedTaskOperation(serviceName, "unified completion with session id");
     }
 
+    public static void throwUnsupportedTemplateUnifiedCompletionOperation(String serviceName) {
+        throw createUnsupportedTemplateUnifiedCompletionException(serviceName);
+    }
+
+    /**
+     * For services that do not go through {@code SenderService} and therefore report failures through a listener instead of
+     * throwing.
+     */
+    public static UnsupportedOperationException createUnsupportedTemplateUnifiedCompletionException(String serviceName) {
+        return createUnsupportedTaskOperationException(serviceName, "unified completion with templates");
+    }
+
     public static void throwUnsupportedEmbeddingOperation(String serviceName) {
         throwUnsupportedTaskOperation(serviceName, "embedding");
     }
@@ -1080,7 +1092,11 @@ public final class ServiceUtils {
     }
 
     private static void throwUnsupportedTaskOperation(String serviceName, String taskName) {
-        throw new UnsupportedOperationException(Strings.format("The %s service does not support %s", serviceName, taskName));
+        throw createUnsupportedTaskOperationException(serviceName, taskName);
+    }
+
+    private static UnsupportedOperationException createUnsupportedTaskOperationException(String serviceName, String taskName) {
+        return new UnsupportedOperationException(Strings.format("The %s service does not support %s", serviceName, taskName));
     }
 
     public static ElasticsearchStatusException createUnsupportedNonStreamingChatCompletionException(String serviceName) {

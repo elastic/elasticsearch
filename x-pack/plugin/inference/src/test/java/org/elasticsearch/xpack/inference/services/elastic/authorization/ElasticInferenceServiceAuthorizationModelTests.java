@@ -1971,7 +1971,8 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                 List.of(ReasoningEffort.HIGH, ReasoningEffort.MEDIUM, ReasoningEffort.LOW, ReasoningEffort.NONE),
                 ReasoningEffort.HIGH
             ),
-            new EndpointMetadata.ContextWindow(1050000, 128000)
+            new EndpointMetadata.ContextWindow(1050000, 128000),
+            new EndpointMetadata.TemplatesCapability(EndpointMetadata.TemplatePolicy.REQUIRED)
         );
 
         var response = new ElasticInferenceServiceAuthorizationResponseEntity(

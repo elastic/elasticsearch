@@ -649,8 +649,7 @@ final class CoalescedRangeReader {
                 );
                 return;
             }
-            // PER_GET is test-only; production passes GROUP_HOLD or UNGATED. Named exception:
-            // this path may still wait on the caller after a forceAdd.
+            // Test-only ByteGate.PER_GET unit ticket. UntrackedWait.PER_GET lets this wait after a forceAdd.
             ioWatermark.nodeByteBudget()
                 .admitAsync(unitBytes, lease, cancel, executor, NodeByteBudget.UntrackedWait.PER_GET)
                 .addListener(ActionListener.wrap(hold -> {
@@ -898,6 +897,9 @@ final class CoalescedRangeReader {
             fileAbsOffset = storageObject.offsetForFooterCache(mr.offset());
         } catch (Exception e) {
             logger.debug("footer cache lookup skipped", e);
+            return null;
+        }
+        if (key == null) {
             return null;
         }
         byte[] cached = footerBytes.get(key);

@@ -537,6 +537,26 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         return callAsyncUnified(endpoint, input, "user", responseConsumerCallback);
     }
 
+    protected Deque<ServerSentEvent> unifiedCompletionTemplateInferOnMockService(
+        String modelId,
+        String templateId,
+        int templateVersion,
+        Map<String, Object> variables
+    ) throws Exception {
+        var endpoint = Strings.format("_inference/%s/%s/_stream", TaskType.CHAT_COMPLETION, modelId);
+        var request = new Request("POST", endpoint);
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        builder.startObject();
+        builder.startObject("template");
+        builder.field("id", templateId);
+        builder.field("version", templateVersion);
+        builder.field("variables", variables);
+        builder.endObject();
+        builder.endObject();
+        request.setJsonEntity(org.elasticsearch.common.Strings.toString(builder));
+        return execAsyncCall(request, null);
+    }
+
     protected Map<String, Object> embedding(String modelId, List<InferenceString> input) throws IOException {
         var endpoint = Strings.format("_inference/embedding/%s", modelId);
         var request = new Request("POST", endpoint);

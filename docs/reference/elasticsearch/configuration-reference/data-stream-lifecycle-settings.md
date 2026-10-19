@@ -27,6 +27,11 @@ $$$data-streams-lifecycle-poll-interval$$$
 `data_streams.lifecycle.poll_interval`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), [time unit value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) How often {{es}} checks what the next action is for all data streams with a built-in lifecycle. Defaults to `5m`.
 
+$$$data-streams-lifecycle-minimum-enabled$$$
+
+`data_streams.lifecycle.minimum.enabled` {applies_to}`stack: ga 9.6`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), boolean) When `true`, a minimum data stream lifecycle manages time series data streams that don't have their own data stream lifecycle. The minimum lifecycle runs only the operations a data stream needs to stay healthy, such as rollover and tail merging. It doesn't downsample or delete data, even if cluster-wide retention is configured. Backing indices that have an {{ilm-init}} policy stay managed by {{ilm-init}} unless [`index.lifecycle.prefer_ilm`](#index-lifecycle-prefer-ilm) is `false`. Defaults to `true`.
+
 $$$cluster-lifecycle-default-rollover$$$
 
 `cluster.lifecycle.default.rollover`

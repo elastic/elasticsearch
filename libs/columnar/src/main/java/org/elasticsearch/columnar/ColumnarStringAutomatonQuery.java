@@ -25,7 +25,9 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
@@ -55,7 +57,8 @@ import java.util.Objects;
  * one: an updated field is read as an overlay of its layers, which is no column, and then the values are
  * read a document at a time like any binary doc values.
  */
-public final class ColumnarStringAutomatonQuery extends Query {
+public final class ColumnarStringAutomatonQuery extends Query implements Accountable {
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ColumnarStringAutomatonQuery.class);
 
     private final String field;
     private final ByteRunAutomaton automaton;
@@ -204,5 +207,10 @@ public final class ColumnarStringAutomatonQuery extends Query {
     @Override
     public int hashCode() {
         return Objects.hash(field, automaton, description, singleValued);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + automaton.ramBytesUsed() + RamUsageEstimator.sizeOf(field) + RamUsageEstimator.sizeOf(description);
     }
 }

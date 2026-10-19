@@ -10,6 +10,7 @@ package org.elasticsearch.index;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 import org.elasticsearch.Build;
@@ -1232,6 +1233,51 @@ public final class IndexSettings {
         Property.Final
     );
 
+    /**
+     * Largest value, in bytes, of a non-indexed keyword or flattened field in a columnar index mode. Lucene imposes no limit on
+     * such values, so this bounds storage and scan cost. Fields that feed the inverted index or sorted-set doc values, and all
+     * fields outside columnar index modes, keep Lucene's {@link IndexWriter#MAX_TERM_LENGTH} instead.
+     */
+    public static final Setting<ByteSizeValue> NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING = new Setting<>(
+        "index.mapping.non_indexed_field.max_value_length",
+        ByteSizeValue.of(1, ByteSizeUnit.MB).getStringRep(),
+        s -> Setting.parseByteSize(
+            s,
+            ByteSizeValue.ofBytes(IndexWriter.MAX_TERM_LENGTH),
+            ByteSizeValue.ofBytes(Integer.MAX_VALUE),
+            "index.mapping.non_indexed_field.max_value_length"
+        ),
+        new Setting.Validator<>() {
+            @Override
+            public void validate(ByteSizeValue value) {}
+
+            @Override
+            public void validate(ByteSizeValue value, Map<Setting<?>, Object> settings, boolean isPresent) {
+                var indexMode = (IndexMode) settings.get(MODE);
+                if (isPresent && indexMode.isStrictColumnar() == false) {
+                    throw new IllegalArgumentException(
+                        String.format(
+                            Locale.ROOT,
+                            "The setting [%s] is only permitted when [%s] is a columnar index mode. Current mode: [%s].",
+                            NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.getKey(),
+                            MODE.getKey(),
+                            indexMode.getName()
+                        )
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final List<Setting<?>> settings = List.of(MODE);
+                return settings.iterator();
+            }
+        },
+        Property.IndexScope,
+        Property.Final,
+        Property.ServerlessPublic
+    );
+
     public static final Setting<Integer> IGNORE_ABOVE_SETTING = Setting.intSetting(
         "index.mapping.ignore_above",
         settings -> String.valueOf(getIgnoreAboveDefaultValue(settings)),
@@ -1498,6 +1544,7 @@ public final class IndexSettings {
     private final boolean recoverySourceEnabled;
     private final boolean recoverySourceSyntheticEnabled;
     private final int ignoreAbove;
+    private final int nonIndexedFieldMaxValueLength;
     private final boolean useDocValuesSkipper;
     private final boolean useDocValuesSkipperForHostname;
     private final boolean useTimeSeriesSyntheticId;
@@ -1732,6 +1779,7 @@ public final class IndexSettings {
         recoverySourceSyntheticEnabled = DiscoveryNode.isStateless(nodeSettings) == false
             && scopedSettings.get(RECOVERY_USE_SYNTHETIC_SOURCE_SETTING);
         ignoreAbove = scopedSettings.get(IGNORE_ABOVE_SETTING);
+        nonIndexedFieldMaxValueLength = Math.toIntExact(scopedSettings.get(NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING).getBytes());
         useDocValuesSkipper = scopedSettings.get(USE_DOC_VALUES_SKIPPER);
         useDocValuesSkipperForHostname = USE_DOC_VALUES_SKIPPER.exists(settings)
             ? scopedSettings.get(USE_DOC_VALUES_SKIPPER)
@@ -2557,6 +2605,19 @@ public final class IndexSettings {
 
     public int getIgnoreAbove() {
         return ignoreAbove;
+    }
+
+    public int getNonIndexedFieldMaxValueLength() {
+        return nonIndexedFieldMaxValueLength;
+    }
+
+    /**
+     * Byte limit for one keyword or flattened value. Lucene enforces {@link IndexWriter#MAX_TERM_LENGTH} only in the inverted
+     * index and in sorted-set doc values. Other values get {@link #NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING} in columnar index
+     * modes, and {@link IndexWriter#MAX_TERM_LENGTH} in all other index modes.
+     */
+    public int maxValueLength(boolean useLuceneMaxTermLength) {
+        return useLuceneMaxTermLength || mode.isStrictColumnar() == false ? IndexWriter.MAX_TERM_LENGTH : nonIndexedFieldMaxValueLength;
     }
 
     public boolean useDocValuesSkipper() {

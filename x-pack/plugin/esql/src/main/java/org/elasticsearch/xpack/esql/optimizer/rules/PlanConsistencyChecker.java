@@ -11,6 +11,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.physical.BinaryExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -60,10 +62,17 @@ public class PlanConsistencyChecker {
         }
 
         List<Attribute> output = p.output();
-        var outputAttributeNames = Sets.<String>newHashSetWithExpectedSize(output.size());
+        var outputAttributesByName = new HashMap<String, Attribute>();
         var outputAttributeIds = Sets.<NameId>newHashSetWithExpectedSize(output.size());
         for (Attribute outputAttr : output) {
-            if (outputAttributeNames.add(outputAttr.name()) == false || outputAttributeIds.add(outputAttr.id()) == false) {
+            // Independent projections may read the same source field. Their ids distinguish the
+            // extractions; aliases give the result columns distinct names.
+            Attribute previous = outputAttributesByName.putIfAbsent(outputAttr.name(), outputAttr);
+            boolean sameSourceField = previous instanceof FieldAttribute previousField
+                && outputAttr instanceof FieldAttribute outputField
+                && previousField.fieldName().equals(outputField.fieldName());
+            boolean duplicateName = previous != null && sameSourceField == false;
+            if (duplicateName || outputAttributeIds.add(outputAttr.id()) == false) {
                 failures.add(
                     fail(p, "Plan [{}] optimized incorrectly due to duplicate output attribute {}", p.nodeString(), outputAttr.toString())
                 );

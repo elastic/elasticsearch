@@ -225,6 +225,20 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         assertThat(stat.query(), is(nullValue()));
     }
 
+    public void testDateTruncAfterRenamingFieldBack() {
+        var plan = plannerOptimizer.plan("""
+            FROM test
+            | RENAME hire_date AS x, x AS hire_date
+            | WHERE hire_date > "1987-01-01" AND hire_date < "1988-01-01"
+            | EVAL y = date_trunc(1 month, hire_date)
+            | STATS c = count(emp_no) BY y
+            | SORT y
+            | KEEP y, c
+            | LIMIT 5
+            """);
+        assertEquals(List.of("y", "c"), plan.output().stream().map(Attribute::name).toList());
+    }
+
     /**
      * Expects
      * LimitExec[1000[INTEGER]]

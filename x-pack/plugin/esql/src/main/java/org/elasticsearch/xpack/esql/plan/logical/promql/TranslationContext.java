@@ -7,13 +7,14 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
@@ -36,6 +37,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -64,11 +66,11 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
-import java.util.TreeSet;
 
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combineAndNullable;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels.PROMETHEUS_LABELS_PREFIX;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.intersect;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.open;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.project;
@@ -86,8 +88,15 @@ public record TranslationContext(
     /* The columns the result subtree MUST expose. */
     TranslationSchema required,
     /* The current evaluation time (default: @timestamp). */
-    Expression time
+    Expression time,
+    /* Aliases for source metadata projections, shared by every branch of this translation. */
+    Map<Set<String>, Alias> metadataAliases
 ) {
+    /** PromQL plans with several source identities require independent metadata readers on every participating node. */
+    public static final TransportVersion ESQ_ENABLE_TIMESERIES_METADATA_ALIASING = TransportVersion.fromName(
+        "esq_enable_timeseries_metadata_aliasing"
+    );
+
     // Sentinel bounds for open-ended range queries (PROMQL step=X without explicit start/end): TStep requires explicit bounds,
     // so pass the widest representable range. EPOCH/MAX_MILLIS_BEFORE_9999 avoid time boundary handling in the engine.
     private static final Instant EPOCH_MIN = Instant.EPOCH;
@@ -95,12 +104,12 @@ public record TranslationContext(
 
     /** The command exposes every label of the result series: the full open label space. */
     public TranslationContext(PromqlCommand cmd, AnalyzerContext analyzer) {
-        this(cmd, analyzer, null, open(), null);
+        this(cmd, analyzer, null, open(), null, new HashMap<>());
     }
 
     /** Translate an independent child without changing the enclosing branch's timing or aggregation state. */
     public TranslationContext withRequired(TranslationSchema childRequired) {
-        return new TranslationContext(cmd, analyzer, stepBucketAlias, childRequired, time);
+        return new TranslationContext(cmd, analyzer, stepBucketAlias, childRequired, time, metadataAliases);
     }
 
     /**
@@ -126,7 +135,7 @@ public record TranslationContext(
     public IntermediateResult translateIntermediate(LogicalPlan branch, NameId stepId, NameId valueId) {
         Expression branchTime = cmd.collectEvaluationTimestampForBranch(branch);
         Alias step = canCreateStepBucket() ? emitStepBucketExpression(stepId, branchTime) : null;
-        var run = new TranslationContext(cmd, analyzer, step, required, branchTime);
+        var run = new TranslationContext(cmd, analyzer, step, required, branchTime, metadataAliases);
         return run.translateIntermediate(branch, valueId);
     }
 
@@ -147,7 +156,7 @@ public record TranslationContext(
 
         if (branches.size() == 1) {
             IntermediateResult intermediateResult = translateIntermediate(cmd.promqlPlan(), cmd.stepId(), cmd.valueId());
-            Attribute declared = find(cmd.output(), mapOpen());
+            Attribute declared = find(cmd.output(), MetadataAttribute.TIMESERIES);
             LogicalPlan plan = emitTimeSeriesAlias(intermediateResult, declared != null ? declared.id() : new NameId());
             return doTranslateFinal(plan, intermediateResult.kind().constant);
         }
@@ -165,7 +174,7 @@ public record TranslationContext(
     }
 
     /**
-     * A finished table exposes its packing under the canonical {@code _timeseries} name. Packings travel under
+     * A finished table exposes its metadata under the canonical {@code _timeseries} name. Metadata projections travel under
      * their derived names so nodes can tell them apart; the one surviving at a root is whatever the enclosing
      * regroups left, and the command declares it as {@code _timeseries}.
      */
@@ -174,9 +183,9 @@ public record TranslationContext(
         if (skip == null || skip.isEmpty()) {
             return table.plan();
         }
-        Attribute packed = table.packed(skip);
-        assert packed != null : "invariant: packing " + skip + " must be carried by the finished table";
-        return new Eval(cmd.source(), table.plan(), List.of(new Alias(cmd.source(), MetadataAttribute.TIMESERIES, packed, id)));
+        Attribute metadata = metadataColumn(table, skip);
+        assert metadata != null : "invariant: metadata column " + skip + " must be carried by the finished table";
+        return new Eval(cmd.source(), table.plan(), List.of(new Alias(cmd.source(), MetadataAttribute.TIMESERIES, metadata, id)));
     }
 
     /**
@@ -303,14 +312,14 @@ public record TranslationContext(
     }
 
     /**
-     * The table a {@code without} regroup exposes: the child columns surviving the dropped labels. Under a packed
+     * The table a {@code without} regroup exposes: the child columns surviving the dropped labels. Under a metadata
      * column the labels are derived columns, so only those the enclosing translation asks for are carried; a finite
      * child keeps every remaining label because they are its label set.
      */
     public TranslationSchema regroupWithout(TranslationSchema child, List<String> keys) {
         TranslationSchema schema = intersect(child, keys);
         assert child.isOpen() == false || schema.isOpen()
-            : "invariant: required [" + required + "] must declare a packed column excluding " + keys + ", got " + child;
+            : "invariant: required [" + required + "] must declare a metadata column excluding " + keys + ", got " + child;
         return schema.isOpen() ? project(schema, required.labels()) : schema;
     }
 
@@ -339,10 +348,23 @@ public record TranslationContext(
     }
 
     /**
-     * The innermost aggregate owns the physical {@code _timeseries} grouping and materializes every packed column in
+     * The innermost aggregate owns the physical {@code _timeseries} grouping and materializes every metadata column in
      * the schema over that column's own skip set.
      */
     private LogicalPlan emitCollapse(IntermediateResult input, TranslationSchema schema, Alias value) {
+        if (schema.skips().size() > 1 && analyzer.minimumVersion().supports(ESQ_ENABLE_TIMESERIES_METADATA_ALIASING) == false) {
+            throw new VerificationException(
+                List.of(
+                    fail(
+                        cmd,
+                        "This PromQL query needs different label sets from the same series, "
+                            + "as in [metric / sum by (label) (other_metric)] or [group_left]/[group_right] joins "
+                            + "involving unaggregated series. "
+                            + "Upgrade every participating node, including remote clusters, to a newer version to run this query"
+                    )
+                )
+            );
+        }
         Source source = cmd.promqlPlan().source();
         LogicalPlan plan = input.plan();
         boolean groupsBySeries = schema.isOpen() || schema.labels().isEmpty() == false;
@@ -360,8 +382,8 @@ public record TranslationContext(
             value = value.replaceChild(new Values(agg.source(), agg));
         }
 
-        // Every packing is materialized under its derived name, finest first, and every label the relation has is a
-        // key too. Every column is functionally dependent on the finest packing, so grouping by all of them
+        // Every metadata projection is materialized under its derived name, finest first, and every label the relation has is a
+        // key too. Every column is functionally dependent on the finest metadata projection, so grouping by all of them
         // preserves per-series granularity while making the full schema available to the surrounding query.
         var groupKeys = new ArrayList<NamedExpression>();
         var outKeys = new ArrayList<NamedExpression>();
@@ -370,9 +392,9 @@ public record TranslationContext(
                 Attribute resolved = find(plan.output(), label);
                 return resolved != null ? resolved : mapToRef(label);
             }).toList();
-            Alias packing = new Alias(source, mapOpen(skip), new TimeSeriesWithout(source, excluded));
-            groupKeys.add(packing);
-            outKeys.add(packing.toAttribute());
+            Alias metadata = metadataAlias(skip, new TimeSeriesWithout(source, excluded));
+            groupKeys.add(metadata);
+            outKeys.add(metadata.toAttribute());
         }
         for (String label : schema.labels()) {
             Attribute carrier = find(plan.output(), label);
@@ -410,8 +432,8 @@ public record TranslationContext(
         var nulls = new ArrayList<Alias>();
         var keys = new ArrayList<Attribute>();
         for (Set<String> skip : finestFirst(schema.skips())) {
-            Attribute carrier = find(available, mapOpen(skip));
-            assert carrier != null : "invariant: packing " + skip + " must be carried by the child";
+            Attribute carrier = metadataColumn(input, skip);
+            assert carrier != null : "invariant: metadata column " + skip + " must be carried by the child";
             keys.add(carrier);
         }
         for (String label : schema.labels()) {
@@ -671,23 +693,30 @@ public record TranslationContext(
         public Attribute label(String name) {
             return find(plan.output(), name);
         }
-
-        /** The attribute carrying a packing in this table's plan, or null when the table lacks it. */
-        public Attribute packed(Set<String> skip) {
-            return find(plan.output(), mapOpen(skip));
-        }
     }
 
     // -- helpers --
 
-    /** The canonical name exposed at a finished command's boundary. */
-    public static String mapOpen() {
-        return mapOpen(Set.of());
+    /** Reuse the alias for each metadata projection across the translation's branches. */
+    Alias metadataAlias(Set<String> excludedLabels, TimeSeriesWithout metadata) {
+        return metadataAliases.computeIfAbsent(
+            Set.copyOf(excludedLabels),
+            ignored -> new Alias(
+                metadata.source(),
+                excludedLabels.isEmpty()
+                    ? MetadataAttribute.TIMESERIES
+                    : TemporaryNameGenerator.locallyUniqueTemporaryName(MetadataAttribute.TIMESERIES),
+                metadata,
+                null,
+                true
+            )
+        );
     }
 
-    /** The existing internal name distinguishing packings with different exclusions. */
-    public static String mapOpen(Set<String> skip) {
-        return MetadataAttribute.TIMESERIES + (skip.isEmpty() ? "" : "$" + String.join("$", new TreeSet<>(skip)));
+    /** Resolve a table's metadata projection through its alias, including after a branch has been reidentified. */
+    public Attribute metadataColumn(IntermediateResult table, Set<String> skip) {
+        Alias alias = metadataAliases.get(skip);
+        return alias == null ? null : find(table.plan().output(), alias.name());
     }
 
     /** Canonical label names in declaration order, without duplicates. */
@@ -697,8 +726,7 @@ public record TranslationContext(
 
     /** Label names ignore the physical field prefix used for Prometheus passthrough dimensions. */
     public static String mapFinite(Attribute attribute) {
-        String name = attribute instanceof FieldAttribute field ? field.fieldName().string() : attribute.name();
-        return name.startsWith(PROMETHEUS_LABELS_PREFIX) ? name.substring(PROMETHEUS_LABELS_PREFIX.length()) : name;
+        return PromqlLabels.labelName(attribute);
     }
 
     /** A missing label's reference, subsequently defined as null by its consumer. */
@@ -706,7 +734,7 @@ public record TranslationContext(
         return new ReferenceAttribute(Source.EMPTY, name, DataType.KEYWORD);
     }
 
-    /** The skip sets of a schema ordered finest first: the grain-fixing packing leads, coarser variants follow. */
+    /** The skip sets of a schema ordered finest first: the metadata projection fixing the grain leads, coarser variants follow. */
     public static List<Set<String>> finestFirst(Set<Set<String>> skips) {
         return skips.stream().sorted(Comparator.comparingInt(Set::size)).toList();
     }

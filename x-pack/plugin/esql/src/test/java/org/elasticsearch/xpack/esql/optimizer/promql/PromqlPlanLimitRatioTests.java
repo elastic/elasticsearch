@@ -13,19 +13,23 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.promql.function.HashOffset;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.junit.Before;
 
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -153,19 +157,34 @@ public class PromqlPlanLimitRatioTests extends AbstractPromqlPlanOptimizerTests 
     }
 
     /**
-     * A label already carried inside a packing adds no identity: regrouping its table only
-     * narrows which packed rows survive, so the outer grouping must not append the label.
-     * Here the outer {@code sum by (pod)} regroups packed {@code _timeseries$region} rows that
+     * A label already carried inside metadata adds no identity: regrouping its table only
+     * narrows which metadata rows survive, so the outer grouping must not append the label.
+     * Here the outer {@code sum by (pod)} regroups metadata rows excluding {@code region} that
      * already determine pod, sampling exactly the inner identity -- like the bare query.
      */
-    public void testLimitRatioIgnoresPackingCoveredOuterGrouping() {
-        var bare = hashOffset("PROMQL index=k8s step=1h result=(limit_ratio(0.5, sum without (region) (network.bytes_in)))");
-        var regrouped = hashOffset(
+    public void testLimitRatioIgnoresMetadataCoveredOuterGrouping() {
+        for (String query : List.of(
+            "PROMQL index=k8s step=1h result=(limit_ratio(0.5, sum without (region) (network.bytes_in)))",
             "PROMQL index=k8s step=1h result=(sum by (pod) (limit_ratio(0.5, sum without (region) (network.bytes_in))))"
-        );
-
-        assertThat(samplingKeyNames(regrouped), equalTo(samplingKeyNames(bare)));
-        assertThat(regrouped.children(), hasSize(1));
+        )) {
+            var plan = logicalOptimizerWithLatestVersion.optimize(planPromql(query, false, false));
+            var offset = hashOffset(plan);
+            assertThat(offset.children(), hasSize(1));
+            // Temporary names can differ after alias removal. Only the metadata dimension is sampled, not the outer pod grouping.
+            var key = as(offset.children().getFirst(), Attribute.class);
+            var unpack = as(hashOffsetFilter(plan).child(), UnpackDims.class);
+            assertTrue(key.semanticEquals(unpack.dims().getFirst()));
+            var metadata = plan.collect(EsRelation.class)
+                .getFirst()
+                .output()
+                .stream()
+                .filter(TimeSeriesMetadataAttribute.class::isInstance)
+                .map(TimeSeriesMetadataAttribute.class::cast)
+                .toList();
+            assertThat(metadata, hasSize(1));
+            assertEquals(Set.of("region"), metadata.getFirst().excludedFields());
+            assertEquals(metadata.getFirst().dataType(), key.dataType());
+        }
     }
 
     /**

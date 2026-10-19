@@ -77,6 +77,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -116,14 +117,23 @@ import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.inference.embedding.EmbeddingOperator;
 import org.elasticsearch.xpack.esql.inference.textembedding.TextEmbeddingOperator;
+import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceUnambiguousAliasesWithAttributes;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
+import org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.DistinctByExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
@@ -139,6 +149,7 @@ import org.elasticsearch.xpack.esql.plan.physical.inference.DenseVectorExec;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.hamcrest.Matcher;
 import org.junit.After;
@@ -148,6 +159,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -1387,6 +1399,74 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         // Only the row matching "fox" passes, with the search's score rather than the 0.0 from before it.
         assertThat(scores, hasSize(1));
         assertThat(scores.get(0), greaterThan(0.5));
+    }
+
+    /** Compare actual grouping results before and after removing aliases, including nulls and duplicate multivalues. */
+    public void testAliasSubstitutionPreservesGroupingResults() throws IOException {
+        var blockFactory = TestBlockFactory.getNonBreakingInstance();
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(30)) {
+            builder.appendNull();
+            builder.beginPositionEntry().appendLong(1).appendLong(1).appendLong(2).endPositionEntry();
+            for (int row = 0; row < 28; row++) {
+                int values = between(0, 3);
+                if (values == 0) {
+                    builder.appendNull();
+                } else {
+                    builder.beginPositionEntry();
+                    for (int value = 0; value < values; value++) {
+                        builder.appendLong(between(0, 5));
+                    }
+                    builder.endPositionEntry();
+                }
+            }
+            try (LongBlock block = builder.build()) {
+                var field = new ReferenceAttribute(Source.EMPTY, "value", DataType.LONG);
+                var source = new LocalRelation(Source.EMPTY, List.of(field), new CopyingLocalSupplier(new Page(block)));
+                var alias = new Alias(Source.EMPTY, "temporary", field, null, true);
+                var project = new Project(Source.EMPTY, source, List.of(alias));
+                var filter = new Filter(Source.EMPTY, project, new IsNotNull(Source.EMPTY, alias.toAttribute()));
+                var grouping = new Alias(Source.EMPTY, "grouping", alias.toAttribute(), null, true);
+                var count = new Alias(Source.EMPTY, "count", new Count(Source.EMPTY, literal(1)));
+                var aggregate = new Aggregate(Source.EMPTY, filter, List.of(grouping), List.of(count, grouping.toAttribute()));
+                var original = new Project(
+                    Source.EMPTY,
+                    aggregate,
+                    List.of(new Alias(Source.EMPTY, "key", grouping.toAttribute()), count.toAttribute())
+                );
+                var rewritten = new ReplaceUnambiguousAliasesWithAttributes().apply(original);
+                assertNotSame(original, rewritten);
+                assertEquals(original.output(), rewritten.output());
+                var before = runLogicalGrouping(original);
+                assertFalse(before.isEmpty());
+                assertEquals(before, runLogicalGrouping(rewritten));
+            }
+        }
+    }
+
+    private List<List<Long>> runLogicalGrouping(LogicalPlan plan) throws IOException {
+        var optimizer = new LogicalPlanOptimizer(
+            EsqlTestUtils.logicalOptimizerContext(config(), FoldContext.small(), TransportVersion.current())
+        );
+        var physical = EstimatesRowSize.estimateRowSize(
+            0,
+            new Mapper().map(new Versioned<>(optimizer.optimize(plan), TransportVersion.current()))
+        );
+        var operation = planner().plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            physical,
+            EmptyIndexedByShardId.instance(),
+            false
+        ).driverFactories.getFirst().driverSupplier().physicalOperation();
+        var pages = runPlanned(operation);
+        try {
+            var rows = longRows(pages);
+            rows.sort(Comparator.comparing(row -> row.getFirst()));
+            return rows;
+        } finally {
+            pages.forEach(Page::releaseBlocks);
+        }
     }
 
     private Add add(Expression left, Expression right) {

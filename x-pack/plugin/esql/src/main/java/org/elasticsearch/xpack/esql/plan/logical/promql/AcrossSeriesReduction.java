@@ -150,7 +150,7 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
             if (isLimitRatio) {
                 // A constant vector's empty label set is a valid identity: sample it directly with an
                 // empty key set, without introducing an aggregation.
-                LogicalPlan sampled = emitLimitRatioFilter(childResult);
+                LogicalPlan sampled = emitLimitRatioFilter(context, childResult);
                 return childResult.with(sampled, childResult.schema(), childResult.value());
             }
             return childResult;
@@ -162,7 +162,9 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
         IntermediateResult aggregated = childResult.kind().afterInitialAggregation
             ? context.regroup(childResult, schema, false, childResult.value())
             : context.collapse(childResult, schema, childResult.value());
-        LogicalPlan result = isLimitRatio ? emitLimitRatioFilter(aggregated) : emitTopNBy(context, aggregated, partitions, promqlCtx);
+        LogicalPlan result = isLimitRatio
+            ? emitLimitRatioFilter(context, aggregated)
+            : emitTopNBy(context, aggregated, partitions, promqlCtx);
         return aggregated.with(result, aggregated.schema(), aggregated.value());
     }
 
@@ -185,12 +187,12 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
      * {@link Filter} over the internal {@link HashOffset} sampling offset, so no sort order is
      * built and no dedicated plan node or execution operator is needed. The sampling key is
      * membership-neutral: solely the input identity (the {@code _timeseries} blob at series
-     * grain, else the surviving grouping labels or packed label sets, with packing-covered
-     * labels dropped and the rest ordered by name so key order cannot change the hash).
+     * grain, else the surviving grouping labels or metadata columns, with labels already covered
+     * by metadata dropped and the rest ordered by name so key order cannot change the hash).
      * Outer {@code by} partition labels are neither hashed nor materialized as null columns. The filter sits
      * above the aggregation producing its keys, which the optimizer cannot push past.
      */
-    private LogicalPlan emitLimitRatioFilter(IntermediateResult table) {
+    private LogicalPlan emitLimitRatioFilter(TranslationContext context, IntermediateResult table) {
         // The sampling key is the input identity from below. At series grain that is the
         // _timeseries blob; over an aggregated input the rows are groups, so their own grain
         // labels are the key (for example pod and cluster groups for limit_ratio over sum by).
@@ -202,19 +204,19 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
             addIfMissing(keys, series);
         } else {
             // No series blob: the rows are groups. Their identity is the concrete grouping
-            // underneath -- packed label sets when the schema packs labels away (for example
-            // sum without), else the grain label columns. Packings hold only dimensions, never
+            // underneath -- metadata columns when the schema carries labels in metadata (for example
+            // sum without), else the grain label columns. Metadata columns hold only dimensions, never
             // the step, so the identity is stable across steps.
             var resolvedSkips = new ArrayList<Set<String>>();
             for (Set<String> skip : TranslationContext.finestFirst(table.schema().skips())) {
-                Attribute packing = table.packed(skip);
-                if (packing != null) {
-                    addIfMissing(keys, packing);
+                Attribute metadata = context.metadataColumn(table, skip);
+                if (metadata != null) {
+                    addIfMissing(keys, metadata);
                     resolvedSkips.add(skip);
                 }
             }
-            // A finite label carried inside any packing adds no identity: the packing already
-            // determines it (for example pod inside _timeseries$region). The surviving labels
+            // A finite label carried inside metadata adds no identity: the metadata already
+            // determines it (for example pod inside metadata excluding region). The surviving labels
             // sort by name so grouping-key order cannot change the hashed bytes.
             table.schema()
                 .labels()

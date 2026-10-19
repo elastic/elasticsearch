@@ -380,7 +380,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         Expression leftValue = probeRight ? build.value() : probe.value();
         Expression rightValue = probeRight ? probe.value() : build.value();
 
-        LogicalPlan join = emitJoin(context.cmd(), probe, build, keyLabels(left, right));
+        LogicalPlan join = emitJoin(context, probe, build, keyLabels(left, right));
         List<NamedExpression> output = bindOutput(schema, declared, probe, build);
         return bindResult(context, schema, leftValue, rightValue, probe.step(), join, output);
     }
@@ -458,9 +458,10 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
     }
 
     /** The inner join of the two operands on step plus the packed match key. */
-    private LogicalPlan emitJoin(PromqlCommand cmd, IntermediateResult probe, IntermediateResult build, List<String> keyLabels) {
-        Input probeInput = emitInput(cmd, probe, keyLabels);
-        Input buildInput = emitInput(cmd, build, keyLabels);
+    private LogicalPlan emitJoin(TranslationContext context, IntermediateResult probe, IntermediateResult build, List<String> keyLabels) {
+        PromqlCommand cmd = context.cmd();
+        Input probeInput = emitInput(context, probe, keyLabels);
+        Input buildInput = emitInput(context, build, keyLabels);
 
         // The build side carries its join fields plus what the join adds: its value and the group_x labels. Neither can
         // already be a join field (the step, or the freshly packed key), so the two lists are disjoint.
@@ -494,8 +495,9 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
     }
 
     /** One side's plan with its match key defined and packed next to step; step alone when the key is empty. */
-    private Input emitInput(PromqlCommand cmd, IntermediateResult input, List<String> keyLabels) {
-        List<NamedExpression> key = joinKey(input, keyLabels);
+    private Input emitInput(TranslationContext context, IntermediateResult input, List<String> keyLabels) {
+        PromqlCommand cmd = context.cmd();
+        List<NamedExpression> key = joinKey(context, input, keyLabels);
         List<Alias> nullFills = defined(key);
         LogicalPlan plan = nullFills.isEmpty() ? input.plan() : new Eval(cmd.source(), input.plan(), nullFills);
         if (key.isEmpty()) {
@@ -510,12 +512,12 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
      * The operand's match key columns: its packed columns surviving the ignored labels (an opaque operand under
      * ignoring), then the shared key labels, each as the operand's own column or a null where it lacks the label.
      */
-    private List<NamedExpression> joinKey(IntermediateResult input, List<String> keyLabels) {
+    private List<NamedExpression> joinKey(TranslationContext context, IntermediateResult input, List<String> keyLabels) {
         var key = new ArrayList<NamedExpression>();
         if (match.filter() != VectorMatch.Filter.ON) {
             TranslationSchema surviving = intersect(input.schema(), match.filterLabels());
             for (Set<String> skip : TranslationContext.finestFirst(surviving.skips())) {
-                Attribute packed = input.packed(skip);
+                Attribute packed = context.metadataColumn(input, skip);
                 assert packed != null : "invariant: packing " + skip + " must be carried by the operand";
                 key.add(packed);
             }

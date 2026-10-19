@@ -13,6 +13,8 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 
 import java.util.concurrent.Executor;
@@ -29,9 +31,16 @@ import java.util.function.Consumer;
  * full, and resumes via the provided {@link Executor} when space is freed (cold path). No timeout is
  * needed — cancellation propagates via {@link AsyncExternalSourceBuffer#finish(boolean)} setting
  * {@code noMoreInputs}, which causes {@link AsyncExternalSourceBuffer#waitForSpace()} to return an
- * already-completed listener so the drain loop exits promptly.
+ * already-completed listener and, through {@link AsyncExternalSourceBuffer#waitForReadyOrFinished},
+ * ends a park on the iterator's {@link CloseableIterator#waitForReady()} as well, so the drain loop
+ * exits promptly whichever signal it was parked on.
  */
 public final class ExternalSourceDrainUtils {
+
+    private static final Logger logger = LogManager.getLogger(ExternalSourceDrainUtils.class);
+
+    /** Bound on the ready-but-not-exhausted retry. Cap then park; never declare EOF from the cap. */
+    static final int TRY_ADVANCE_OR_PARK_MAX_RETRIES = 64;
 
     private ExternalSourceDrainUtils() {}
 
@@ -59,8 +68,11 @@ public final class ExternalSourceDrainUtils {
      * every drain step (initial and executor-resumed) — mirroring the {@code runProducerLoop} read path.
      * The hot loop parks on {@link CloseableIterator#waitForReady()} rather than blocking
      * {@code hasNext()}, so an async iterator can yield the executor slot while I/O is in flight.
-     * EOF is {@code tryAdvance() == null} after {@code waitForReady()} is done; the drain never
-     * calls {@code hasNext()}.
+     * That park is registered through {@link AsyncExternalSourceBuffer#waitForReadyOrFinished}, so
+     * {@code buffer.finish(..)} also ends it: the drain does not wait for the iterator's I/O to
+     * settle before it can observe {@code noMoreInputs}.
+     * EOF is {@code tryAdvance() == null} after {@code waitForReady()} is done and
+     * {@link CloseableIterator#isExhausted()} is true; the drain never calls {@code hasNext()}.
      */
     public static void drainPagesAsync(
         CloseableIterator<Page> pages,
@@ -109,27 +121,34 @@ public final class ExternalSourceDrainUtils {
      * Non-blocking drain probe. Never {@link CloseableIterator#hasNext()}. Returns a page,
      * {@code null} at EOF, or {@code null} with {@code blockedOn} set when the iterator is
      * waiting on I/O. Callers must already have a done {@link CloseableIterator#waitForReady()}.
-     * A second {@code tryAdvance} after a done recheck is required because a page can arrive
-     * in that race, and that second call can start the next GET.
+     * A done {@code waitForReady()} is not EOF: retry {@code tryAdvance} until
+     * {@link CloseableIterator#isExhausted()} or the listener is not done. After
+     * {@value #TRY_ADVANCE_OR_PARK_MAX_RETRIES} retries this parks rather than declaring EOF.
+     * A park on a done listener may complete inline; the continuation is submitted to the
+     * executor, not run on this stack.
      */
     static Page tryAdvanceOrPark(CloseableIterator<Page> pages, Holder<SubscribableListener<Void>> blockedOn) {
-        Page tryPage = pages.tryAdvance();
-        if (tryPage == null) {
-            SubscribableListener<Void> recheck = pages.waitForReady();
-            if (recheck.isDone() == false) {
-                blockedOn.set(recheck);
+        for (int i = 0; i < TRY_ADVANCE_OR_PARK_MAX_RETRIES; i++) {
+            Page tryPage = pages.tryAdvance();
+            if (tryPage != null) {
+                return tryPage;
+            }
+            SubscribableListener<Void> ready = pages.waitForReady();
+            if (ready.isDone() == false) {
+                blockedOn.set(ready);
                 return null;
             }
-            tryPage = pages.tryAdvance();
-            if (tryPage == null) {
-                SubscribableListener<Void> after = pages.waitForReady();
-                if (after.isDone() == false) {
-                    blockedOn.set(after);
-                    return null;
-                }
+            if (pages.isExhausted()) {
+                return null;
             }
         }
-        return tryPage;
+        logger.debug(
+            "tryAdvanceOrPark retry cap: waitForReady still done and not exhausted after [{}] retries; parking",
+            TRY_ADVANCE_OR_PARK_MAX_RETRIES
+        );
+        assert false : "tryAdvanceOrPark retry cap: waitForReady still done and not exhausted";
+        blockedOn.set(pages.waitForReady());
+        return null;
     }
 
     private static Consumer<Page> defaultPageSink(AsyncExternalSourceBuffer buffer) {
@@ -212,9 +231,9 @@ public final class ExternalSourceDrainUtils {
     }
 
     /**
-     * Parks the drain until {@code signal} fires, then force-submits one continuation
-     * on {@code executor}. {@code heldPage} is a page already pulled from the iterator; it is
-     * sunk on resume or released if the drain has stopped.
+     * Parks the drain until {@code signal} fires or the buffer is finished, then force-submits
+     * one continuation on {@code executor}. {@code heldPage} is a page already pulled from the
+     * iterator; it is sunk on resume or released if the drain has stopped.
      */
     private static void park(
         SubscribableListener<Void> signal,
@@ -230,9 +249,10 @@ public final class ExternalSourceDrainUtils {
         Object token
     ) {
         // Unlock before addListener so an already-done signal (DIRECT inline completion) can
-        // claim the run. This task must not mutate drain state after this point.
+        // claim the run. This task must not mutate drain state after this point. An already
+        // finished buffer completes the park inline as well.
         session.run.compareAndSet(token, null);
-        signal.addListener(ActionListener.wrap(v -> {
+        buffer.waitForReadyOrFinished(signal).addListener(ActionListener.wrap(v -> {
             boolean consumed = heldPage == null;
             try {
                 if (heldPage != null) {

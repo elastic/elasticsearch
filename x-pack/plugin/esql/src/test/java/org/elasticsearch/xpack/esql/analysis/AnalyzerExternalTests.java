@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.datasources.DatasetRewriter;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
@@ -47,6 +46,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.rewriteDatasetsUnsecured;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
@@ -66,7 +66,7 @@ import static org.hamcrest.Matchers.not;
  * The {@code Analyzer} itself never parses {@code FROM <dataset>} — that rewrite happens earlier, in
  * {@code DatasetRewriter}, which turns the {@code UnresolvedRelation} for a registered dataset into the same
  * {@code UnresolvedExternalRelation} the (internal-only, snapshot-gated) {@code EXTERNAL} command produces. These
- * tests drive that same production pipeline: parse the query, run {@code DatasetRewriter.rewriteUnsecured} against a
+ * tests drive that same production pipeline: parse the query, run {@code EsqlTestUtils.rewriteDatasetsUnsecured} against a
  * single-dataset {@code ProjectMetadata}, then analyze — {@code EXTERNAL} itself is no longer part of the surface
  * these tests exercise; it remains only as the internal rewrite target.
  */
@@ -233,23 +233,14 @@ public class AnalyzerExternalTests extends ESTestCase {
     }
 
     /**
-     * KNN function requires vector field from index; an external dataset is rejected, and the message names the
-     * federated-source limitation.
+     * KNN function can operate on dense_vector fields in external dataset via runtime search
      */
-    public void testWithKnnFunctionRejected() {
+    public void testWithKnnFunction() {
         assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
         List<Attribute> schema = List.of(referenceAttribute("id", LONG), referenceAttribute("vector", DENSE_VECTOR));
         var testAnalyzer = analyzer().externalSourceUnresolved(S3_PATH, schema);
 
-        datasetError(
-            testAnalyzer,
-            S3_PATH,
-            "FROM " + DATASET_NAME + " | WHERE KNN(vector, [3, 100, 0])",
-            containsString(
-                "function cannot operate on [vector], which is not a field from an index mapping "
-                    + "(the source is a federated data source, not an index)"
-            )
-        );
+        analyzeDataset(testAnalyzer, S3_PATH, "FROM " + DATASET_NAME + " | WHERE KNN(vector, [3, 100, 0])");
     }
 
     /**
@@ -351,6 +342,29 @@ public class AnalyzerExternalTests extends ESTestCase {
             S3_PATH,
             "FROM " + DATASET_NAME + " | KEEP _file.nonexistent",
             containsString("Unknown column [_file.nonexistent]")
+        );
+    }
+
+    public void testMatchOnFileMetadata() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        var plan = analyzeDataset(
+            external(),
+            S3_PATH,
+            "FROM " + DATASET_NAME + " METADATA _file.name | WHERE MATCH(`_file.name`, \"foo\")"
+        );
+        Limit limit = as(plan, Limit.class);
+        Filter filter = as(limit.child(), Filter.class);
+        Match match = as(filter.condition(), Match.class);
+        assertThat(match.field(), instanceOf(ExternalMetadataAttribute.class));
+        assertThat(filter.child(), instanceOf(ExternalRelation.class));
+
+        // a _file.* column not named in METADATA is not in scope, so MATCH reports it like any other unknown column
+        datasetError(
+            external(),
+            S3_PATH,
+            "FROM " + DATASET_NAME + " | WHERE MATCH(`_file.name`, \"foo\")",
+            containsString("Unknown column [_file.name]")
         );
     }
 
@@ -726,7 +740,7 @@ public class AnalyzerExternalTests extends ESTestCase {
      * {@code DatasetRewriter} produces in production, and analyzes the result with {@code testAnalyzer}.
      */
     private static LogicalPlan analyzeDataset(TestAnalyzer testAnalyzer, String resource, String query) {
-        LogicalPlan rewritten = DatasetRewriter.rewriteUnsecured(
+        LogicalPlan rewritten = rewriteDatasetsUnsecured(
             TEST_PARSER.parseQuery(query),
             datasetProject(resource),
             TestIndexNameExpressionResolver.newInstance(),

@@ -9,12 +9,17 @@
 
 package org.elasticsearch.test.codec.columnar;
 
+import org.elasticsearch.action.admin.indices.segments.IndexSegments;
+import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
+import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,21 +36,25 @@ import static org.elasticsearch.test.ESTestCase.randomIntBetween;
  */
 public final class BehaviorWritePlan {
 
-    private static final String DOC_ID_FIELD = "doc_id";
+    static final String DOC_ID_FIELD = "doc_id";
+    static final String TIMESTAMP_FIELD = "@timestamp";
+    private static final long TIMESTAMP_BASE_MILLIS = 1_700_000_000_000L;
 
     private final int batches;
     private final int finalMaxSegments;
+    private final int postCheckMaxSegments;
 
-    private BehaviorWritePlan(int batches, int finalMaxSegments) {
+    private BehaviorWritePlan(int batches, int finalMaxSegments, int postCheckMaxSegments) {
         this.batches = batches;
         this.finalMaxSegments = finalMaxSegments;
+        this.postCheckMaxSegments = postCheckMaxSegments;
     }
 
     /**
      * @return a plan that writes the whole corpus in one refreshed batch.
      */
     public static BehaviorWritePlan singleBatch() {
-        return new BehaviorWritePlan(1, 0);
+        return new BehaviorWritePlan(1, 0, 0);
     }
 
     /**
@@ -53,7 +62,7 @@ public final class BehaviorWritePlan {
      * @return a plan that writes the corpus in {@code batches} batches, building multiple segments.
      */
     public static BehaviorWritePlan multiSegment(int batches) {
-        return new BehaviorWritePlan(Math.max(1, batches), 0);
+        return new BehaviorWritePlan(Math.max(1, batches), 0, 0);
     }
 
     /**
@@ -62,7 +71,16 @@ public final class BehaviorWritePlan {
      * @return a plan that writes the corpus in batches then force merges down to {@code finalMaxSegments}.
      */
     public static BehaviorWritePlan multiSegmentThenForceMerge(int batches, int finalMaxSegments) {
-        return new BehaviorWritePlan(Math.max(1, batches), Math.max(1, finalMaxSegments));
+        return new BehaviorWritePlan(Math.max(1, batches), Math.max(1, finalMaxSegments), 0);
+    }
+
+    /**
+     * @param batches the number of refresh-separated batches
+     * @return a plan that writes the corpus in {@code batches} batches and leaves the segments unmerged, then
+     *         asks the harness to merge down to one segment after the first round of checks and check again.
+     */
+    public static BehaviorWritePlan multiSegmentCheckedBeforeAndAfterMerge(int batches) {
+        return new BehaviorWritePlan(Math.max(2, batches), 0, 1);
     }
 
     /**
@@ -81,25 +99,71 @@ public final class BehaviorWritePlan {
      * Writes {@code docs} into {@code indexName} following this plan. Deterministic for a given batch count so
      * both indices in a pair receive the same batch boundaries.
      *
-     * @param client       the client to index through
-     * @param indexName    the target index
-     * @param docs         the corpus
-     * @param keywordField the keyword field name
+     * @param client     the client to index through
+     * @param indexName  the target index
+     * @param docs       the corpus
+     * @param fieldNames the fields that receive each document's values
      */
-    public void apply(final Client client, final String indexName, final List<KeywordDoc> docs, final String keywordField) {
-        for (final List<KeywordDoc> chunk : split(docs)) {
-            bulkIndex(client, indexName, chunk, keywordField);
+    public void apply(final Client client, final String indexName, final List<DuelDoc> docs, final List<String> fieldNames) {
+        for (final List<DuelDoc> chunk : split(docs)) {
+            bulkIndex(client, indexName, chunk, fieldNames);
             client.admin().indices().prepareRefresh(indexName).get();
         }
         if (finalMaxSegments > 0) {
-            client.admin().indices().prepareForceMerge(indexName).setMaxNumSegments(finalMaxSegments).get();
-            client.admin().indices().prepareRefresh(indexName).get();
+            forceMerge(client, indexName, finalMaxSegments);
         }
     }
 
-    private List<List<KeywordDoc>> split(final List<KeywordDoc> docs) {
+    /**
+     * @return whether the harness must merge every index after the first round of checks and check again.
+     */
+    public boolean mergesAfterChecks() {
+        return postCheckMaxSegments > 0;
+    }
+
+    /**
+     * Force merges {@code indexName} down to this plan's post-check segment target, failing if any shard copy does
+     * not reach it so the merged comparison never runs on unmerged segments.
+     */
+    public void forceMergeAfterChecks(final Client client, final String indexName) {
+        forceMerge(client, indexName, postCheckMaxSegments);
+    }
+
+    private static void forceMerge(final Client client, final String indexName, int maxSegments) {
+        final BroadcastResponse merge = client.admin().indices().prepareForceMerge(indexName).setMaxNumSegments(maxSegments).get();
+        if (merge.getFailedShards() > 0) {
+            throw new AssertionError(
+                "force merge of ["
+                    + indexName
+                    + "] failed on "
+                    + merge.getFailedShards()
+                    + " shards: "
+                    + Arrays.toString(merge.getShardFailures())
+            );
+        }
+        client.admin().indices().prepareRefresh(indexName).get();
+        final IndexSegments segments = client.admin().indices().prepareSegments(indexName).get().getIndices().get(indexName);
+        for (final IndexShardSegments shard : segments.getShards().values()) {
+            for (final ShardSegments copy : shard) {
+                if (copy.getSegments().size() > maxSegments) {
+                    throw new AssertionError(
+                        "force merge of ["
+                            + indexName
+                            + "] to "
+                            + maxSegments
+                            + " segments left "
+                            + copy.getSegments().size()
+                            + " on "
+                            + copy.getShardRouting()
+                    );
+                }
+            }
+        }
+    }
+
+    private List<List<DuelDoc>> split(final List<DuelDoc> docs) {
         final int effectiveBatches = Math.min(batches, Math.max(1, docs.size()));
-        final List<List<KeywordDoc>> chunks = new ArrayList<>(effectiveBatches);
+        final List<List<DuelDoc>> chunks = new ArrayList<>(effectiveBatches);
         final int chunkSize = (docs.size() + effectiveBatches - 1) / effectiveBatches;
         for (int start = 0; start < docs.size(); start += chunkSize) {
             chunks.add(docs.subList(start, Math.min(start + chunkSize, docs.size())));
@@ -107,13 +171,16 @@ public final class BehaviorWritePlan {
         return chunks;
     }
 
-    private static void bulkIndex(final Client client, final String indexName, final List<KeywordDoc> docs, final String keywordField) {
+    private static void bulkIndex(final Client client, final String indexName, final List<DuelDoc> docs, final List<String> fieldNames) {
         final BulkRequestBuilder bulk = client.prepareBulk();
-        for (final KeywordDoc doc : docs) {
+        for (final DuelDoc doc : docs) {
             final Map<String, Object> source = new LinkedHashMap<>();
             source.put(DOC_ID_FIELD, doc.docId());
+            source.put(TIMESTAMP_FIELD, TIMESTAMP_BASE_MILLIS + doc.docId() * 1000);
             if (doc.values() != null) {
-                source.put(keywordField, doc.values());
+                for (final String fieldName : fieldNames) {
+                    source.put(fieldName, doc.values());
+                }
             }
             bulk.add(client.prepareIndex(indexName).setId(doc.id()).setSource(source));
         }
@@ -125,6 +192,6 @@ public final class BehaviorWritePlan {
 
     @Override
     public String toString() {
-        return "batches=" + batches + " finalMaxSegments=" + finalMaxSegments;
+        return "batches=" + batches + " finalMaxSegments=" + finalMaxSegments + " postCheckMaxSegments=" + postCheckMaxSegments;
     }
 }

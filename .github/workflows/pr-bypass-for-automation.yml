@@ -25,7 +25,7 @@ jobs:
       github.event.label.name == 'auto-merge-bypass' &&
       contains(fromJSON('["infra-vault-gh-plugin-prod[bot]"]'), github.event.sender.login)
     steps:
-      - uses: elastic/es-pr-bypass@main
+      - uses: elastic/es-pr-bypass-public@main
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 

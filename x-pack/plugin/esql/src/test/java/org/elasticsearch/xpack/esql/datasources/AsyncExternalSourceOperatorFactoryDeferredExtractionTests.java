@@ -171,8 +171,8 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
     /**
      * The deferred extractor's warning sink must deposit into the driver's {@link DriverContext}, which
      * {@code DriverCompletionInfo} ships back from whatever node ran the scan, rather than into the emitting
-     * thread's {@code ThreadContext} — the latter only reaches the client when the scan runs on the coordinator
-     * (elastic/esql-planning#1837). The sink stays budget-gated, so a flood still collapses to the cap plus one
+     * thread's {@code ThreadContext} — the latter only reaches the client when the scan runs on the coordinator.
+     * The sink stays budget-gated, so a flood still collapses to the cap plus one
      * overflow marker.
      */
     public void testDeferredExtractorWarningSinkFeedsTheDriverSinkUnderTheBudget() throws Exception {

@@ -15,9 +15,12 @@ import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xpack.esql.action.EsqlResolveDatasetAction;
+import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
 import org.elasticsearch.xpack.esql.datasources.DatasetRewriter.DatasetResolution;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.EsqlLicenseChecker;
 
 import java.util.ArrayList;
@@ -91,11 +94,15 @@ public class DatasetResolver {
      *                         {@code Configuration} and applied to this coordinator's own dataset expansion. Only this
      *                         coordinator's registry is expanded here; what a remote cluster does with its own datasets
      *                         is decided by {@code EsqlResolveFieldsAction.clearDatasetResolution}, not by this setting.
+     * @param pragmas the request query pragmas. A set {@code max_branch_count_per_merge} pragma overrides {@code flags}.
+     * @param flags the coordinator's live {@link EsqlFlags}, including {@code esql.query.max_branch_count_per_merge}.
      */
     public void replaceDatasets(
         LogicalPlan parsed,
         ProjectMetadata projectMetadata,
         boolean wildcardsMatchDatasets,
+        QueryPragmas pragmas,
+        EsqlFlags flags,
         ActionListener<LogicalPlan> listener
     ) {
         // Federation not available: do not attempt any dataset resolution, so the feature is indistinguishable from one
@@ -115,14 +122,15 @@ public class DatasetResolver {
 
         // Collect the relations worth a round-trip: skip remote-prefixed (datasets are local-only, CCS sees the original
         // FROM) and skip any relation whose patterns could not match a registered dataset name (ordinary FROM <index>).
-        List<UnresolvedRelation> relations = new ArrayList<>();
-        parsed.forEachUp(UnresolvedRelation.class, r -> {
+        // Per relation: a wildcard inside a view body never matches datasets (DatasetRewriter.forEachRelation).
+        List<ScopedRelation> relations = new ArrayList<>();
+        DatasetRewriter.forEachRelation(parsed, wildcardsMatchDatasets, (r, relationWildcards) -> {
             List<String> patterns = DatasetRewriter.patternsOf(r);
             if (DatasetRewriter.hasRemotePattern(patterns)
-                || DatasetRewriter.anyPatternCouldMatchDataset(patterns, datasetNames, wildcardsMatchDatasets) == false) {
+                || DatasetRewriter.anyPatternCouldMatchDataset(patterns, datasetNames, relationWildcards) == false) {
                 return;
             }
-            relations.add(r);
+            relations.add(new ScopedRelation(r, relationWildcards));
         });
         if (relations.isEmpty()) {
             listener.onResponse(parsed);
@@ -139,11 +147,12 @@ public class DatasetResolver {
         }
 
         // One request per relation, chained sequentially via andThen so each result lands in the identity-keyed map
-        // before the next dispatches. (forEachUp may visit the same relation instance more than once in a degenerate
+        // before the next dispatches. (The walk may visit the same relation instance more than once in a degenerate
         // tree; the map dedups by identity.)
         Map<UnresolvedRelation, DatasetResolution> resolutions = new IdentityHashMap<>();
         SubscribableListener<Void> chain = SubscribableListener.newForked(l -> l.onResponse(null));
-        for (UnresolvedRelation relation : relations) {
+        for (ScopedRelation scoped : relations) {
+            UnresolvedRelation relation = scoped.relation();
             chain = chain.andThen((l, ignored) -> {
                 if (resolutions.containsKey(relation)) {
                     l.onResponse(null);
@@ -152,18 +161,22 @@ public class DatasetResolver {
                 var request = new EsqlResolveDatasetAction.Request(
                     REST_MASTER_TIMEOUT_DEFAULT,
                     DatasetRewriter.patternsOf(relation).toArray(String[]::new),
-                    wildcardsMatchDatasets
+                    scoped.wildcardsMatchDatasets()
                 );
                 client.execute(
                     EsqlResolveDatasetAction.TYPE,
                     request,
-                    new ThreadedActionListener<>(executor, l.delegateFailureAndWrap((delegate, response) -> {
-                        resolutions.put(
-                            relation,
-                            new DatasetResolution(response.datasets(), response.nonDatasetNames(), response.explicitUnauthorized())
-                        );
-                        delegate.onResponse(null);
-                    }))
+                    // Metered inside the fork, so planning CPU is measured on the SEARCH thread, not the transport thread.
+                    new ThreadedActionListener<>(
+                        executor,
+                        PlanningCpuTracker.inheritMeteredCpu(l.delegateFailureAndWrap((delegate, response) -> {
+                            resolutions.put(
+                                relation,
+                                new DatasetResolution(response.datasets(), response.nonDatasetNames(), response.explicitUnauthorized())
+                            );
+                            delegate.onResponse(null);
+                        }))
+                    )
                 );
             });
         }
@@ -178,7 +191,10 @@ public class DatasetResolver {
             if (anyDatasetResolved) {
                 federationLicense.isAllowed(); // records feature-usage telemetry; license already checked above
             }
-            return DatasetRewriter.rewrite(parsed, projectMetadata, resolutions, crossProjectEnabled);
+            return DatasetRewriter.rewrite(parsed, projectMetadata, resolutions, crossProjectEnabled, pragmas, flags);
         }).addListener(listener);
     }
+
+    /** A relation worth a dataset round-trip, with its effective {@code wildcards_match_datasets}. */
+    private record ScopedRelation(UnresolvedRelation relation, boolean wildcardsMatchDatasets) {}
 }

@@ -5785,6 +5785,19 @@ public class GlobExpanderTests extends ESTestCase {
             e.getMessage(),
             containsString("max_listed_objects")
         );
+
+        // Nothing survived before the ceiling, so there is no prefix to keep: TreeStubProvider sorts by path, so
+        // the ten keys read are all `other.parquet` and the two matches sort after them. An empty truncated
+        // listing would send the rewrite-empty fallback to the same ceiling unbounded, so it stops here instead.
+        List<StorageEntry> matchesLast = new ArrayList<>();
+        for (int i = 0; i < 30; i++) {
+            matchesLast.add(entry("s3://bucket/data/a" + i + "/other.parquet", 10));
+        }
+        matchesLast.add(entry("s3://bucket/data/z0/keep.parquet", 10));
+        expectThrows(
+            ListedObjectsLimitException.class,
+            () -> expandSync(pattern, new TreeStubProvider(matchesLast), null, HIVE_ON, MAX, MAX, 10, 5, 1, () -> false)
+        );
     }
 
     /**

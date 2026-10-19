@@ -1276,12 +1276,20 @@ public final class GlobExpander {
                 listed++;
                 if (listed > maxListedObjects) {
                     // A heavily-pruning pattern reads far past one page to fill its sample, so this ceiling is
-                    // reachable. Keep the survivors: a listing that bounded its file set can report a prefix.
-                    // One that bounded nothing promised every survivor, and a quiet prefix would drop files from
-                    // a scan, so it stops hard instead.
-                    if (extents.acceptsPrefix() == false) {
+                    // reachable. A listing that bounded its file set keeps its survivors and reports a prefix;
+                    // one that bounded nothing promised every survivor, and a quiet prefix would drop files from
+                    // a scan. With no survivors there is nothing to keep and the rewrite-empty fallback re-lists
+                    // unbounded to this same ceiling, so both of those stop hard here instead.
+                    if (extents.acceptsPrefix() == false || globKeptCount == 0) {
                         throw new ListedObjectsLimitException(listed, maxListedObjects);
                     }
+                    logger.debug(
+                        "Listing of [{}] kept [{}] files from [{}] keys and stopped at the key ceiling [{}]",
+                        pattern,
+                        globKeptCount,
+                        listed,
+                        maxListedObjects
+                    );
                     keyCeilingReached = true;
                     break;
                 }

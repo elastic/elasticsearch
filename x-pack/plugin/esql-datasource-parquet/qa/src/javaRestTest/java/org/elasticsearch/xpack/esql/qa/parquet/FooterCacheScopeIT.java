@@ -76,6 +76,7 @@ public class FooterCacheScopeIT extends ESRestTestCase {
     private static final String REGION = "us-east-1";
     private static final String ENC_ID = "test";
     private static final String CONTROL_KEY = "scope/control/part-1.parquet";
+    private static final String REPUT_KEY = "scope/reput/part-1.parquet";
     private static final byte[] CONTROL_BYTES;
 
     static {
@@ -132,6 +133,9 @@ public class FooterCacheScopeIT extends ESRestTestCase {
 
         // Test 3 (control): same file used twice through two data sources with identical settings.
         fixture1.seedBlob(CONTROL_KEY, CONTROL_BYTES);
+
+        // Test 4: one data source re-registered with the same settings. Its own object, so no other test warms it.
+        fixture1.seedBlob(REPUT_KEY, CONTROL_BYTES);
     }
 
     // per-test tracking for cleanup
@@ -232,8 +236,49 @@ public class FooterCacheScopeIT extends ESRestTestCase {
         );
     }
 
+    // -----------------------------------------------------------------------------------------
+    // Test 4: re-registering a data source with the settings it already has keeps the cache warm
+    // -----------------------------------------------------------------------------------------
+
+    /**
+     * Storing a data source again with byte-identical settings must not take its datasets cold.
+     * <p>
+     * This is not the same scenario as test 3. A secret is encrypted on the way into cluster state and the cipher
+     * draws a fresh IV per write, so re-registering unchanged settings produces a different ciphertext for the same
+     * secret. Anything keyed on that ciphertext therefore moves while nothing about the definition has, and every
+     * entry derived from it becomes unreachable — the file's schema, its statistics and the length and mtime that
+     * save the next resolve a live probe. Read off the fixture's request log: the first query reads the file tail,
+     * the re-registration happens, and the second query must not read it again.
+     */
+    public void testReRegisteringTheSameSettingsKeepsTheCacheWarm() throws IOException {
+        String resource = "s3://" + BUCKET + "/" + REPUT_KEY;
+
+        putDataSource("reput_ds", fixture1.getAddress(), READER_KEY);
+        putDataset("reput_rows", "reput_ds", resource);
+
+        int before = getRanges(REPUT_KEY).size();
+        assertThat(rowCount(runEsql("FROM reput_rows | SORT id | LIMIT 100")), equalTo(20));
+        List<String> firstQuery = getRanges(REPUT_KEY).subList(before, getRanges(REPUT_KEY).size());
+        assertTrue("first query must read the footer from S3; GET ranges: " + firstQuery, firstQuery.stream().anyMatch(this::isTailRead));
+
+        // Same name, same endpoint, same key: the stored secret is encrypted again, so only the ciphertext differs.
+        putDataSource("reput_ds", fixture1.getAddress(), READER_KEY);
+
+        int afterReRegister = getRanges(REPUT_KEY).size();
+        assertThat(rowCount(runEsql("FROM reput_rows | SORT id | LIMIT 100")), equalTo(20));
+        List<String> secondQuery = getRanges(REPUT_KEY).subList(afterReRegister, getRanges(REPUT_KEY).size());
+        assertFalse(
+            "re-registering a data source with the settings it already has must not take the cache cold; GET ranges: " + secondQuery,
+            secondQuery.stream().anyMatch(this::isTailRead)
+        );
+    }
+
     private List<String> controlGetRanges() {
-        String s3Path = "/" + BUCKET + "/" + CONTROL_KEY;
+        return getRanges(CONTROL_KEY);
+    }
+
+    private List<String> getRanges(String objectKey) {
+        String s3Path = "/" + BUCKET + "/" + objectKey;
         return fixture1.requestLog()
             .stream()
             .filter(e -> "GET".equals(e.method()) && s3Path.equals(e.path()))

@@ -236,6 +236,12 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         }
 
         @Override
+        public void deleteShardsOutsideIndexRange(IndexMetadata metadata, ActionListener<Void> listener) {
+            // The mock has no on-disk shard stores to delete
+            listener.onResponse(null);
+        }
+
+        @Override
         public synchronized void removeIndex(
             Index index,
             IndexRemovalReason reason,

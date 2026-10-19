@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plugin.EsqlQueryStatus;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -69,6 +70,11 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private Boolean allowPartialResults = null;
 
     private final Map<QuerySettingDef<?>, Object> requestSettings = new HashMap<>();
+    /**
+     * The settings the query resolved to, if it got far enough to resolve them.
+     * Runtime-only state of the node that runs the query: it is not serialized.
+     */
+    private transient ResolvedSettings resolvedSettings;
     /**
      * Values from the canonical {@code settings.{}} block; merged into {@link #requestSettings} by
      * {@link #applyCanonicalRequestSettings()}. A setting that also has a legacy top-level body field
@@ -395,6 +401,17 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     public Map<QuerySettingDef<?>, Object> requestSettings() {
         // Immutable snapshot: callers read (resolve, telemetry) but must go through set() to mutate (it enforces null-removes).
         return Map.copyOf(requestSettings);
+    }
+
+    /** Records the settings the query resolved to. Not serialized. */
+    public void setResolvedSettings(ResolvedSettings resolvedSettings) {
+        this.resolvedSettings = resolvedSettings;
+    }
+
+    /** The settings the query resolved to, or {@code null} if it has not resolved them (yet) */
+    @Nullable
+    public ResolvedSettings resolvedSettings() {
+        return resolvedSettings;
     }
 
     Map<QuerySettingDef<?>, Object> canonicalRequestSettings() {

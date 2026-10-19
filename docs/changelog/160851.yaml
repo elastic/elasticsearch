@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 160851
+summary: Open streams after segmentator admission
+type: bug

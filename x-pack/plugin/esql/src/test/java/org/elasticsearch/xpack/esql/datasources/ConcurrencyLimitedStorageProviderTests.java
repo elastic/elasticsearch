@@ -44,7 +44,10 @@ public class ConcurrencyLimitedStorageProviderTests extends ESTestCase {
             @Override
             public void close() {}
         };
-        when(delegate.listObjects(any(), anyBoolean())).thenReturn(emptyIterator);
+        // The three-argument form, because that is the one the provider calls: its two-argument entry point
+        // forwards to it. A mock does not run the interface default, so stubbing only the two-argument form
+        // leaves the call the provider makes returning null, and the wrapper closes a null delegate.
+        when(delegate.listObjects(any(), any(), anyBoolean())).thenReturn(emptyIterator);
 
         ConcurrencyLimitedStorageProvider provider = new ConcurrencyLimitedStorageProvider(delegate, limiter);
         assertEquals(5, limiter.availablePermits());
@@ -99,7 +102,10 @@ public class ConcurrencyLimitedStorageProviderTests extends ESTestCase {
             @Override
             public void close() {}
         };
-        when(delegate.listObjects(any(), anyBoolean())).thenReturn(emptyIterator);
+        // The three-argument form, because that is the one the provider calls: its two-argument entry point
+        // forwards to it. A mock does not run the interface default, so stubbing only the two-argument form
+        // leaves the call the provider makes returning null, and the wrapper closes a null delegate.
+        when(delegate.listObjects(any(), any(), anyBoolean())).thenReturn(emptyIterator);
         when(delegate.exists(any())).thenReturn(true);
 
         ConcurrencyLimitedStorageProvider provider = new ConcurrencyLimitedStorageProvider(delegate, limiter);
@@ -137,7 +143,10 @@ public class ConcurrencyLimitedStorageProviderTests extends ESTestCase {
             @Override
             public void close() {}
         };
-        when(delegate.listObjects(any(), anyBoolean())).thenReturn(emptyIterator);
+        // The three-argument form, because that is the one the provider calls: its two-argument entry point
+        // forwards to it. A mock does not run the interface default, so stubbing only the two-argument form
+        // leaves the call the provider makes returning null, and the wrapper closes a null delegate.
+        when(delegate.listObjects(any(), any(), anyBoolean())).thenReturn(emptyIterator);
         when(delegate.exists(any())).thenReturn(true);
 
         ConcurrencyLimitedStorageProvider provider = new ConcurrencyLimitedStorageProvider(delegate, limiter);

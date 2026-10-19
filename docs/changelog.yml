@@ -20,6 +20,7 @@ products:
   # Default products when --products not specified
   default:
     - product: elasticsearch
+    - product: cloud-serverless
   #     lifecycle: ga
 
 # Extraction configuration
@@ -185,6 +186,11 @@ pivot:
   #   # Specify a target version if known:
   #   # 'elasticsearch 9.2.0':
   #   #   - ":feature/new-in-9.2"
+  products:
+    'elasticsearch':
+      - "stateful"
+    'cloud-serverless':
+      - "serverless"
 
 # Rules configuration — controls which PRs create changelogs and which changelogs are published.
 # All list-like fields (exclude, include, exclude_types) accept BOTH forms:
@@ -209,6 +215,8 @@ rules:
     exclude:
       - ">non-issue"
       - ">test"
+      - ">test-failure"
+      - ">test-mute"
       - ">refactoring"
       - ":Delivery/Build"
       - ":Delivery/Tooling"

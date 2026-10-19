@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.NodeNamePatternConverter;
+import org.elasticsearch.foreign.testing.GuardPageAllocator;
 import org.elasticsearch.test.ESTestCase;
 
 import java.lang.foreign.Arena;

@@ -18,21 +18,21 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.snapshots.CachingSnapshotAndShardByStateMetricsService;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.LongAsyncGauge;
+import org.elasticsearch.telemetry.metric.LongAsyncMeasurement;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 public class SnapshotMetrics extends AbstractLifecycleComponent {
 
-    public static final SnapshotMetrics NOOP = new SnapshotMetrics(MeterRegistry.NOOP, List::of, List::of, List::of, List::of);
+    public static final SnapshotMetrics NOOP = new SnapshotMetrics(MeterRegistry.NOOP, m -> {}, m -> {}, m -> {}, m -> {});
 
     public static final String SNAPSHOTS_STARTED = "es.repositories.snapshots.started.total";
     public static final String SNAPSHOTS_COMPLETED = "es.repositories.snapshots.completed.total";
@@ -71,10 +71,10 @@ public class SnapshotMetrics extends AbstractLifecycleComponent {
     private final LongCounter restoreThrottleDurationCounter;
     private final List<LongAsyncGauge> asyncGauges;
     private final MeterRegistry meterRegistry;
-    private final Supplier<Collection<LongWithAttributes>> shardSnapshotsInProgressObserver;
-    private final Supplier<Collection<LongWithAttributes>> shardSnapshotsByStatusObserver;
-    private final Supplier<Collection<LongWithAttributes>> snapshotsByStatusObserver;
-    private final Supplier<Collection<LongWithAttributes>> longestWaitingTimeMillisObserver;
+    private final Consumer<LongAsyncMeasurement> shardSnapshotsInProgressObserver;
+    private final Consumer<LongAsyncMeasurement> shardSnapshotsByStatusObserver;
+    private final Consumer<LongAsyncMeasurement> snapshotsByStatusObserver;
+    private final Consumer<LongAsyncMeasurement> longestWaitingTimeMillisObserver;
 
     public SnapshotMetrics(
         MeterRegistry meterRegistry,
@@ -83,19 +83,19 @@ public class SnapshotMetrics extends AbstractLifecycleComponent {
     ) {
         this(
             meterRegistry,
-            () -> repositoriesServiceSupplier.get().getShardSnapshotsInProgress(),
-            cachingSnapshotAndShardByStateMetricsService::getShardsByState,
-            cachingSnapshotAndShardByStateMetricsService::getSnapshotsByState,
-            cachingSnapshotAndShardByStateMetricsService::getLongestWaitingTimeMillis
+            measurement -> repositoriesServiceSupplier.get().recordShardSnapshotsInProgress(measurement),
+            cachingSnapshotAndShardByStateMetricsService::recordShardsByState,
+            cachingSnapshotAndShardByStateMetricsService::recordSnapshotsByState,
+            cachingSnapshotAndShardByStateMetricsService::recordLongestWaitingTimeMillis
         );
     }
 
     public SnapshotMetrics(
         MeterRegistry meterRegistry,
-        Supplier<Collection<LongWithAttributes>> shardSnapshotsInProgressObserver,
-        Supplier<Collection<LongWithAttributes>> shardSnapshotsByStatusObserver,
-        Supplier<Collection<LongWithAttributes>> snapshotsByStatusObserver,
-        Supplier<Collection<LongWithAttributes>> longestWaitingTimeMillisObserver
+        Consumer<LongAsyncMeasurement> shardSnapshotsInProgressObserver,
+        Consumer<LongAsyncMeasurement> shardSnapshotsByStatusObserver,
+        Consumer<LongAsyncMeasurement> snapshotsByStatusObserver,
+        Consumer<LongAsyncMeasurement> longestWaitingTimeMillisObserver
     ) {
         this.shardSnapshotsInProgressObserver = shardSnapshotsInProgressObserver;
         this.shardSnapshotsByStatusObserver = shardSnapshotsByStatusObserver;
@@ -223,7 +223,7 @@ public class SnapshotMetrics extends AbstractLifecycleComponent {
     @Override
     protected void doStart() {
         asyncGauges.add(
-            meterRegistry.registerLongsAsyncGauge(
+            meterRegistry.registerLongAsyncGauge(
                 SNAPSHOT_SHARDS_IN_PROGRESS,
                 "shard snapshots in progress",
                 "unit",
@@ -231,16 +231,16 @@ public class SnapshotMetrics extends AbstractLifecycleComponent {
             )
         );
         asyncGauges.add(
-            meterRegistry.registerLongsAsyncGauge(
+            meterRegistry.registerLongAsyncGauge(
                 SNAPSHOT_SHARDS_BY_STATE,
                 "snapshotting shards by state",
                 "unit",
                 shardSnapshotsByStatusObserver
             )
         );
-        asyncGauges.add(meterRegistry.registerLongsAsyncGauge(SNAPSHOTS_BY_STATE, "snapshots by state", "unit", snapshotsByStatusObserver));
+        asyncGauges.add(meterRegistry.registerLongAsyncGauge(SNAPSHOTS_BY_STATE, "snapshots by state", "unit", snapshotsByStatusObserver));
         asyncGauges.add(
-            meterRegistry.registerLongsAsyncGauge(
+            meterRegistry.registerLongAsyncGauge(
                 SNAPSHOT_SHARDS_WAITING_LATENCY,
                 "current longest time any shard snapshot has been WAITING (with the current master)",
                 "milliseconds",

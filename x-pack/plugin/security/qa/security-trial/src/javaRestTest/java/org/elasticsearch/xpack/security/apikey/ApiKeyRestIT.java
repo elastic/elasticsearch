@@ -667,6 +667,16 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
               "indices": [
                 {
                   "names": [
+                    "$.nightshift.sources.*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "read_view_metadata"
+                  ],
+                  "allow_restricted_indices": false
+                },
+                {
+                  "names": [
                     "*"
                   ],
                   "privileges": [
@@ -692,6 +702,15 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                   "names": [
                     ".alert-actions*",
                     ".rule-events*"
+                  ],
+                  "privileges": [
+                    "read"
+                  ],
+                  "allow_restricted_indices": false
+                },
+                {
+                  "names": [
+                    ".significant_events-*"
                   ],
                   "privileges": [
                     "read"

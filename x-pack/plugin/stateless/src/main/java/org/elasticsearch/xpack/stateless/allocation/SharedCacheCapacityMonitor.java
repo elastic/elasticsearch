@@ -90,12 +90,12 @@ public class SharedCacheCapacityMonitor {
      */
     public void onNewInfo(ClusterInfo clusterInfo) {
         if (clusterStateSupplier.get().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
-            logger.debug("skipping monitor as the cluster state is not recovered yet");
+            logger.trace("skipping monitor as the cluster state is not recovered yet");
             return;
         }
 
         if (enabled == false || canRemainEnabled == false) {
-            logger.debug("skipping monitor as the shared cache capacity decider or its canRemain check is disabled");
+            logger.trace("skipping monitor as the shared cache capacity decider or its canRemain check is disabled");
             lastNodeCommitments = Map.of();
             return;
         }

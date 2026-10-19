@@ -27,15 +27,18 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -72,12 +75,21 @@ import java.util.stream.Collectors;
  */
 public class PrefetchLatencySimulationTests extends ESTestCase {
 
+    /**
+     * Footer byte cache budget that admits no entry, for a test that injects a failure into the scan's own
+     * GET on a file that fits the footer prefetch: with the default cache the footer parse stores such a file
+     * whole and the scan reads nothing.
+     */
+    private static final Settings NO_FOOTER_BYTE_CACHE = Settings.builder()
+        .put(ExternalSourceCacheSettings.FOOTER_CACHE_SIZE.getKey(), "1b")
+        .build();
+
     private BlockFactory blockFactory;
     private ExecutorService asyncIoExecutor;
 
     @Before
     public void initBlockFactoryAndExecutor() throws Exception {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         // Owned, deterministically shut down in tearDown: using ForkJoinPool.commonPool() here leaks
         // worker threads that ESTestCase's suite-scoped ThreadLeakControl flags as a class failure.
         asyncIoExecutor = Executors.newFixedThreadPool(4, EsExecutors.daemonThreadFactory("test", "prefetch-test-async-io"));
@@ -267,19 +279,17 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
 
             assertTrue(iter.hasNext());
             assertEquals("the first real prefetch must fail", 1, storage.failedAsyncReadCount.get());
-            assertTrue(opi.probingPrefetch());
-            assertEquals(1, opi.prefetchDepth());
             Page first = iter.next();
             first.releaseBlocks();
 
             assertTrue(storage.successfulAsyncReads.await(10, TimeUnit.SECONDS));
             assertTrue(iter.hasNext());
-            assertFalse(opi.probingPrefetch());
+            assertFalse("the re-ticketed GET is a successful probe and must leave probe mode", opi.probingPrefetch());
             assertEquals(floor, opi.prefetchDepth());
-            assertEquals("the fallback barrier must not leak queued-byte accounting", 0L, opi.queuedPrefetchBytes());
             Page second = iter.next();
             second.releaseBlocks();
             assertFalse(iter.hasNext());
+            assertEquals("the fallback barrier must not leak queued-byte accounting", 0L, opi.queuedPrefetchBytes());
         }
     }
 
@@ -292,7 +302,12 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
             new CompletionException(new CompletionException(injected))
         );
 
-        try (CloseableIterator<Page> iter = new ParquetFormatReader(blockFactory, true).read(storage, FormatReadContext.of(null, 1024))) {
+        try (
+            CloseableIterator<Page> iter = new ParquetFormatReader(NO_FOOTER_BYTE_CACHE, blockFactory).read(
+                storage,
+                FormatReadContext.of(null, 1024)
+            )
+        ) {
             int syncReadBaseline = storage.syncReadCount.get();
             AssertionError actual = expectThrows(AssertionError.class, iter::hasNext);
             assertSame(injected, actual);
@@ -463,7 +478,8 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
         );
         FormatReadContext ctx = FormatReadContext.of(null, 1024);
         // Tiny cap: the first empty-queue admit is the node-wide overshoot. The sliding window is
-        // not charged until a read, so this must not be sized around a reserved window.
+        // not charged until a read, so this must not be sized around a reserved window. The second
+        // iterator waits on an admission ticket; look-ahead must refuse without blocking.
         ParquetIoWatermark watermark = new ParquetIoWatermark(1);
         try (
             CloseableIterator<Page> first = new ParquetFormatReader(blockFactory, true).withIoWatermark(watermark)
@@ -473,21 +489,35 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
         ) {
             OptimizedParquetColumnIterator opi1 = (OptimizedParquetColumnIterator) first;
             OptimizedParquetColumnIterator opi2 = (OptimizedParquetColumnIterator) second;
+            // Construction can return before an admission ticket grants; drive the consumer to
+            // readiness before checking the retained overshoot rather than inspecting its queue.
+            assertTrue("first iterator must read the current group", first.hasNext());
+            assertNotNull("first iterator must retain the node-wide overshoot owner", watermark.overshootOwner());
+            int firstQueued = opi1.pendingPrefetchCount();
+            int secondQueued = opi2.pendingPrefetchCount();
             growPrefetchDepth(opi1, 3);
             growPrefetchDepth(opi2, 3);
+            long startNanos = System.nanoTime();
             opi1.fillLookaheadPrefetches();
             opi2.fillLookaheadPrefetches();
-            int combined = opi1.pendingPrefetchCount() + opi2.pendingPrefetchCount();
-            assertEquals("empty-queue overrun stays one node, not one per iterator: " + combined, 1, combined);
+            assertTrue("next-group fill must not block on PER_GET", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos) < 1_000L);
+            assertEquals("look-ahead must not queue extra groups over the cap", firstQueued, opi1.pendingPrefetchCount());
+            assertEquals(secondQueued, opi2.pendingPrefetchCount());
             assertEquals(32_000_000L, OptimizedParquetColumnIterator.MAX_QUEUED_PREFETCH_BYTES);
+            first.next().releaseBlocks();
         }
+        assertEquals("closing both iterators must release watermark bytes", 0, watermark.used());
+        assertNull("closing both iterators must release the overshoot owner", watermark.overshootOwner());
         try (
             CloseableIterator<Page> next = new ParquetFormatReader(blockFactory, true).withIoWatermark(watermark)
                 .read(new CountingStorageObject(parquetData, asyncIoExecutor), ctx)
         ) {
-            OptimizedParquetColumnIterator opi = (OptimizedParquetColumnIterator) next;
-            assertEquals("release on close allows the next iterator", 1, opi.pendingPrefetchCount());
+            assertTrue("release on close allows the next iterator to read", next.hasNext());
+            assertNotNull("third iterator must take the vacant overshoot owner", watermark.overshootOwner());
+            next.next().releaseBlocks();
         }
+        assertEquals("closing the third iterator must release watermark bytes", 0, watermark.used());
+        assertNull("closing the third iterator must release the overshoot owner", watermark.overshootOwner());
     }
 
     /**
@@ -601,6 +631,15 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
         CountingStorageObject(byte[] data, ExecutorService asyncIoExecutor) {
             this.data = data;
             this.asyncIoExecutor = asyncIoExecutor;
+        }
+
+        /**
+         * A version, so this object's footer cache key is non-null. Without one the key is null, nothing is ever
+         * stored or read, and NO_FOOTER_BYTE_CACHE stops being what keeps the cache out of these tests.
+         */
+        @Override
+        public String version() {
+            return "v1";
         }
 
         @Override
@@ -738,6 +777,14 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
 
     private StorageObject createPlainStorageObject(byte[] data) {
         return new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;

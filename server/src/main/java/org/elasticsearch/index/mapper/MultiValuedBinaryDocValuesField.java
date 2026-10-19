@@ -133,6 +133,15 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
     }
 
     /**
+     * Whether an index created on {@code indexVersion} writes multi-valued binary doc values in the {@link SeparateCount} layout (the
+     * value field plus a {@code .counts} companion) rather than the deprecated {@link IntegratedCount} one. Everything that writes the
+     * layout, including the columnar batch path, has to decide through this one predicate so that they cannot disagree.
+     */
+    static boolean useSeparateCount(IndexVersion indexVersion) {
+        return indexVersion.onOrAfter(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES);
+    }
+
+    /**
      * This function exists for backwards compatibility with old indices that used {@link IntegratedCount}.
      * <p>
      * For indices created on or after {@link IndexVersions#DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES}, the {@link SeparateCount}
@@ -145,7 +154,7 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
         ValueOrdering ordering,
         IndexVersion indexVersion
     ) {
-        if (indexVersion.onOrAfter(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES)) {
+        if (useSeparateCount(indexVersion)) {
             SeparateCount.addToDoc(doc, fieldName, value, ordering);
         } else {
             IntegratedCount.addToDoc(doc, fieldName, value, ordering);
@@ -175,7 +184,7 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
         } else {
             // In the non-nested case all ignored source values only need to be added to one Lucene document,
             // and then we can avoid the usage of LuceneDocument#addWithKey(...), which results in redundant hash map interaction.
-            final boolean useSeparateCount = indexVersion.onOrAfter(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES);
+            final boolean useSeparateCount = useSeparateCount(indexVersion);
             var ignoredSourceField = useSeparateCount ? new SeparateCount(fieldName, ordering) : new IntegratedCount(fieldName, ordering);
             var luceneDocument = ignoredFieldValues.iterator().next().doc();
             for (var value : ignoredFieldValues) {

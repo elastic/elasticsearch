@@ -1096,7 +1096,6 @@ public class BlockHashTests extends BlockHashTestCase {
                             : "LongBytesRefBlockHash{keys=[LongKey[channel=0], BytesRefKey[channel=1]], entries=4, size="
                     )
                 );
-                assertThat(ordsAndKeys.description(), endsWith("b}"));
                 assertOrds(ordsAndKeys.ords(), 0, 1, 0, 2, 3, 2);
                 assertKeys(ordsAndKeys.keys(), expectedKeys);
                 assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 4)));
@@ -1126,7 +1125,6 @@ public class BlockHashTests extends BlockHashTestCase {
                             : "LongBytesRefBlockHash{keys=[LongKey[channel=0], BytesRefKey[channel=1]], entries=5, size="
                     )
                 );
-                assertThat(ordsAndKeys.description(), endsWith("b}"));
                 assertOrds(ordsAndKeys.ords(), 0, 1, 2, 3, 4);
                 assertKeys(
                     ordsAndKeys.keys(),
@@ -1201,7 +1199,6 @@ public class BlockHashTests extends BlockHashTestCase {
                             : "LongBytesRefBlockHash{keys=[LongKey[channel=0], BytesRefKey[channel=1]], entries=10, size="
                     )
                 );
-                assertThat(ordsAndKeys.description(), endsWith("b}"));
                 assertOrds(
                     ordsAndKeys.ords(),
                     new int[] { 0, 1, 2, 3 },

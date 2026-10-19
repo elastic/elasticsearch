@@ -367,9 +367,9 @@ public final class AsymmetricHashingQuantizer {
                 ESVectorUtil.linearCombination(-1f, centroid, 0, block, base, originalDim); // block row = vector - centroid
                 ESVectorUtil.l2Normalize(block, base, originalDim);
             }
-            // secondMoment += block^T @ block
+            // secondMoment += block^T @ block, which is symmetric
             ESVectorUtil.transposeMatrix(block, rows, originalDim, blockT);
-            ESVectorUtil.matrixMultiply(blockT, block, originalDim, rows, originalDim, blockProduct, executor);
+            ESVectorUtil.matrixMultiplySymmetric(blockT, block, originalDim, rows, blockProduct, executor);
             ESVectorUtil.linearCombination(1f, blockProduct, 1f, secondMoment);
         }
         return secondMoment;

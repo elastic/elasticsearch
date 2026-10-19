@@ -815,6 +815,12 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         multiplyAccumulate(a, k, b, result, m, k, n, executor);
     }
 
+    @Override
+    public void matrixMultiplySymmetric(float[] a, float[] b, int n, int k, float[] result, TaskExecutor executor) {
+        // a symmetric product is the same computed in full, if not as fast
+        matrixMultiply(a, b, n, k, n, result, executor);
+    }
+
     private static final int MIN_PARALLEL_TASKS = 16;
 
     /**

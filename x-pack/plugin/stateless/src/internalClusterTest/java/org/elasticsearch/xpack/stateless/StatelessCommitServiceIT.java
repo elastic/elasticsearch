@@ -157,7 +157,7 @@ public class StatelessCommitServiceIT extends AbstractStatelessPluginIntegTestCa
 
             // Save this information to check that the current commits of the indexing shard are later deleted, after a force merge, and
             // the search ends and finally releases any retained commit references.
-            commitsBeforeForceMerge = listBlobsTermAndGenerations(shardId);
+            commitsBeforeForceMerge = listBccBlobsTermAndGenerations(shardId);
             logger.info("--> Blob store shard commit generations for search: " + commitsBeforeForceMerge);
 
             removeSearchShardFromSearchNodeA.apply(indexName, searchNodeA, searchNodeB);
@@ -169,7 +169,7 @@ public class StatelessCommitServiceIT extends AbstractStatelessPluginIntegTestCa
             refresh(indexName);
             flushAndUpdateCommitServiceTrackingAndBlobStoreFiles(indexNode, indexName);
 
-            logger.info("--> Blob store shard commit generations before force-merge: " + listBlobsTermAndGenerations(shardId));
+            logger.info("--> Blob store shard commit generations before force-merge: " + listBccBlobsTermAndGenerations(shardId));
 
             client().admin().indices().forceMerge(new ForceMergeRequest(indexName).maxNumSegments(1)).actionGet();
             flush(indexName);
@@ -193,7 +193,7 @@ public class StatelessCommitServiceIT extends AbstractStatelessPluginIntegTestCa
                 trackingSearchNodes.contains(getNodeId(searchNodeA))
             );
 
-            final Set<PrimaryTermAndGeneration> commitsAfterForceMerge = listBlobsTermAndGenerations(shardId);
+            final Set<PrimaryTermAndGeneration> commitsAfterForceMerge = listBccBlobsTermAndGenerations(shardId);
             var maxCommitAfterMerge = commitsAfterForceMerge.stream().max(PrimaryTermAndGeneration::compareTo).get();
             var maxCommitBeforeMerge = commitsBeforeForceMerge.stream().max(PrimaryTermAndGeneration::compareTo).get();
             logger.info("--> Blob store shard commit generations after force-merge: " + commitsAfterForceMerge);
@@ -212,7 +212,7 @@ public class StatelessCommitServiceIT extends AbstractStatelessPluginIntegTestCa
         // can verify that the pre-merge commits are finally deleted once old searchNodeA reports that it no longer uses any commits.
         flushAndUpdateCommitServiceTrackingAndBlobStoreFiles(indexNode, indexName);
 
-        Set<PrimaryTermAndGeneration> afterScrollReleaseCommitBlobs = listBlobsTermAndGenerations(shardId);
+        Set<PrimaryTermAndGeneration> afterScrollReleaseCommitBlobs = listBccBlobsTermAndGenerations(shardId);
         logger.info("--> Blob store shard commit generations after search scroll release: " + afterScrollReleaseCommitBlobs);
         logger.info(
             "--> Index shard's tracked search nodes: {}",
@@ -224,7 +224,7 @@ public class StatelessCommitServiceIT extends AbstractStatelessPluginIntegTestCa
         assertBusy(() -> {
             flushAndUpdateCommitServiceTrackingAndBlobStoreFiles(indexNode, indexName);
 
-            Set<PrimaryTermAndGeneration> shardCommitBlobs = listBlobsTermAndGenerations(shardId);
+            Set<PrimaryTermAndGeneration> shardCommitBlobs = listBccBlobsTermAndGenerations(shardId);
             for (PrimaryTermAndGeneration generation : commitsBeforeForceMerge) {
                 assertThat(shardCommitBlobs, not(hasItem(generation)));
             }
@@ -546,7 +546,7 @@ public class StatelessCommitServiceIT extends AbstractStatelessPluginIntegTestCa
                 Matchers.containsInAnyOrder(getNodeId(searchNodeA), getNodeId(searchNodeB))
             );
 
-            commitsBeforeForceMerge = listBlobsTermAndGenerations(shardId);
+            commitsBeforeForceMerge = listBccBlobsTermAndGenerations(shardId);
 
             // Generate a new commit by a force merge
             indexDocs(indexName, numDocsToIndex);
@@ -562,7 +562,7 @@ public class StatelessCommitServiceIT extends AbstractStatelessPluginIntegTestCa
         // Re-poll commit usage because search readers may release old commits asynchronously.
         assertBusy(() -> {
             flushAndUpdateCommitServiceTrackingAndBlobStoreFiles(indexNodeB, indexName);
-            Set<PrimaryTermAndGeneration> afterScrollReleaseCommitBlobs = listBlobsTermAndGenerations(shardId);
+            Set<PrimaryTermAndGeneration> afterScrollReleaseCommitBlobs = listBccBlobsTermAndGenerations(shardId);
             commitsBeforeForceMerge.forEach(e -> assertThat(afterScrollReleaseCommitBlobs, not(hasItem(e))));
         });
     }

@@ -388,7 +388,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
             final var genE = getIndexingShardTermAndGeneration(indexName, 0);
 
             assertBusy(() -> {
-                var blobCommits = listBlobsTermAndGenerations(indexShard.shardId());
+                var blobCommits = listBccBlobsTermAndGenerations(indexShard.shardId());
                 // genA and genB retained due to being referenced by the snapshot. genE retained as latest commit.
                 assertThat(blobCommits, hasItems(genA, genB, genE));
                 // genC and genD have been merged away and not referenced by anything.
@@ -407,7 +407,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
             snapshot.join();
 
             assertBusy(() -> {
-                var blobCommits = listBlobsTermAndGenerations(indexShard.shardId());
+                var blobCommits = listBccBlobsTermAndGenerations(indexShard.shardId());
                 // genE retained as latest commit.
                 assertThat(blobCommits, hasItems(genE));
                 // genB and genC are ultimately deleted after the snapshot has ended.

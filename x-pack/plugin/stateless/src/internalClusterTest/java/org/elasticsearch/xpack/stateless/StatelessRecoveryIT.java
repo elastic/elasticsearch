@@ -432,7 +432,7 @@ public class StatelessRecoveryIT extends AbstractStatelessPluginIntegTestCase {
         assertThat(findIndexShard(resolveIndex(indexName), 0).docStats().getCount(), greaterThan(0L));
 
         logger.debug("--> record blobs and primary term before the empty allocation");
-        Set<PrimaryTermAndGeneration> blobsBefore = listBlobsTermAndGenerations(shardId);
+        Set<PrimaryTermAndGeneration> blobsBefore = listBccBlobsTermAndGenerations(shardId);
         assertThat("should have blobs from at least one primary term", blobsBefore.size(), greaterThanOrEqualTo(1));
         long primaryTermBefore = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .get()
@@ -498,7 +498,7 @@ public class StatelessRecoveryIT extends AbstractStatelessPluginIntegTestCase {
         }
 
         logger.debug("--> verify new blobs exist under the new primary term");
-        Set<PrimaryTermAndGeneration> blobsAfter = listBlobsTermAndGenerations(shardId);
+        Set<PrimaryTermAndGeneration> blobsAfter = listBccBlobsTermAndGenerations(shardId);
         Set<Long> termsAfter = blobsAfter.stream().map(PrimaryTermAndGeneration::primaryTerm).collect(Collectors.toSet());
         assertThat("new primary term blobs must exist", termsAfter.contains(primaryTermAfter), is(true));
 

@@ -353,7 +353,7 @@ public final class StatelessDirectoryFactory {
         private BlobFileRanges newBlobFileRanges(String name) throws IOException {
             long fileLength = fakeBlobStoreDirectory.fileLength(name);
             int generation = blobFileGenerationGenerator.incrementAndGet();
-            blobNameToFileName.put(blobName, name);
+            blobNameToFileName.put(BccBlobFile.blobNameFromGeneration(generation), name);
             return new BlobFileRanges(
                 new BlobLocation(new BccBlobFile(new PrimaryTermAndGeneration(1, generation)), 0, fileLength)
             );

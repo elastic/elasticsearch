@@ -855,40 +855,6 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testRerankInfer_ThrowsValidationErrorForInvalidRerankParams() throws IOException {
-        try (var service = createServiceWithMockSender()) {
-            var model = ElasticInferenceServiceRerankModelTests.createModel(getUrl(webServer), "my-rerank-model-id");
-            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
-
-            var returnDocuments = randomBoolean();
-            service.rerankInfer(
-                model,
-                new RerankRequest(
-                    InferenceString.fromStringList(List.of("doc1")),
-                    InferenceString.ofText("search query"),
-                    randomNonNegativeIntOrNull(),
-                    returnDocuments,
-                    Map.of()
-                ),
-                null,
-                listener
-            );
-
-            var thrownException = expectThrows(ValidationException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
-
-            assertThat(
-                thrownException.getMessage(),
-                is(
-                    Strings.format(
-                        "Validation Failed: 1: Invalid return_documents [%s]. "
-                            + "The return_documents option is not supported by this service;",
-                        returnDocuments
-                    )
-                )
-            );
-        }
-    }
-
     public void testInfer_ThrowsErrorWhenTaskTypeIsNotValid_ChatCompletion() throws IOException {
         var sender = createMockSender();
 

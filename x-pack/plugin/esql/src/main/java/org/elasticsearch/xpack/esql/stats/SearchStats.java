@@ -46,6 +46,15 @@ public interface SearchStats {
     boolean canUseEqualityOnSyntheticSourceDelegate(FieldName name, String value);
 
     /**
+     * Whether every index this reads holds no empty string for {@code field}, because one given at index time was
+     * read as a null. A comparison against an empty string is then a question about whether the field holds a
+     * value at all.
+     */
+    default boolean emptyStringReadsAsNull(FieldName field) {
+        return false;
+    }
+
+    /**
      * Do all fields with the matching name answer a query over the values their doc values hold? Such a query matches a
      * document's value whole, which is what a predicate over the value means, so one can be pushed to Lucene for a
      * field whose index holds no exact form of it - a {@code text} field keeping its values in a column.

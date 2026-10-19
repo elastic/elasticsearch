@@ -111,8 +111,7 @@ public class RescorePhase {
         if (profilers == null) {
             return ctx.rescorer().rescore(topDocs, context.searcher(), ctx);
         }
-        String type = ctx.name() != null ? ctx.name() : ctx.rescorer().getClass().getName();
-        RescoreProfiler rescoreProfiler = profilers.addRescoreProfiler(type, ctx.profileDescription(), ctx.getWindowSize());
+        RescoreProfiler rescoreProfiler = profilers.addRescoreProfiler(ctx.name(), ctx.profileDescription(), ctx.getWindowSize());
         QueryProfiler queryProfiler = profilers.getCurrentQueryProfiler();
         ctx.setProfiler(rescoreProfiler);
         queryProfiler.setRescorer(position);

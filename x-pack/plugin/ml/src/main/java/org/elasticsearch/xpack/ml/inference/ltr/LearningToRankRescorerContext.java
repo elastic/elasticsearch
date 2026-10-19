@@ -54,7 +54,9 @@ public class LearningToRankRescorerContext extends RescoreContext {
 
     @Override
     public String profileDescription() {
-        return regressionModelDefinition == null ? super.profileDescription() : "model [" + regressionModelDefinition.getModelId() + "]";
+        return regressionModelDefinition == null
+            ? super.profileDescription()
+            : "LTR model [" + regressionModelDefinition.getModelId() + "]";
     }
 
     /**

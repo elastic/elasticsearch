@@ -41,11 +41,11 @@ public class RescoreContext {
 
     /**
      * The name of the rescorer this context was built for, for example {@code query}. Used to label the rescorer in search profile
-     * results. It is {@code null} if the context was not built through {@link RescorerBuilder#buildContext}.
+     * results. Falls back to the simple class name of the rescorer if the context was not built through
+     * {@link RescorerBuilder#buildContext}.
      */
-    @Nullable
     public String name() {
-        return name;
+        return name != null ? name : rescorer.getClass().getSimpleName();
     }
 
     void setName(String name) {

@@ -868,10 +868,10 @@ The `rescore` section in the profile response is an array with one element per r
   }
 }
 ```
- % TESTRESPONSE[s/"time_in_nanos": 254826/"time_in_nanos": $body.profile.shards.0.rescore.0.time_in_nanos/]
+% TESTRESPONSE[s/"time_in_nanos": 254826/"time_in_nanos": $body.profile.shards.0.rescore.0.time_in_nanos/]
 
 1. The name of the rescorer, such as `query` or `learning_to_rank`.
-2. What the rescorer runs. For a `query` rescorer, this is its `rescore_query`. For a `learning_to_rank` rescorer, this is `model [<model_id>]`.
+2. What the rescorer runs. For a `query` rescorer, this is its `rescore_query`. For a `learning_to_rank` rescorer, this is `LTR model [<model_id>]`.
 3. The total time spent in the rescorer, including the time spent running its queries.
 4. The time spent in each step of the rescorer. Rescorers that don't report steps, like the `query` rescorer, have an empty `breakdown`.
 5. The number of top documents the rescorer was configured to rescore on each shard.

@@ -243,7 +243,7 @@ public class RescorePhaseTests extends IndexShardTestCase {
                 ContextIndexSearcher searcher = newContextIndexSearcher(reader);
                 Profilers profilers = new Profilers(searcher);
                 TopDocs firstPass = firstPass(searcher, profilers);
-                Rescorer timingOutRescorer = new Rescorer() {
+                class TimingOutRescorer implements Rescorer {
                     @Override
                     public TopDocs rescore(TopDocs topDocs, IndexSearcher searcher, RescoreContext rescoreContext) throws IOException {
                         searcher.createWeight(new TermQuery(new Term("f", "c")), ScoreMode.COMPLETE, 1f);
@@ -260,8 +260,8 @@ public class RescorePhaseTests extends IndexShardTestCase {
                     ) {
                         throw new UnsupportedOperationException();
                     }
-                };
-                List<RescoreContext> rescorers = List.of(new RescoreContext(10, timingOutRescorer));
+                }
+                List<RescoreContext> rescorers = List.of(new RescoreContext(10, new TimingOutRescorer()));
                 try (SearchContext context = new ProfilingSearchContext(searcher, profilers, rescorers)) {
                     context.queryResult().topDocs(new TopDocsAndMaxScore(firstPass, 1f), new DocValueFormat[0]);
 
@@ -277,7 +277,7 @@ public class RescorePhaseTests extends IndexShardTestCase {
                     List<ProfileResult> rescoreResults = result.getRescoreProfileResults();
                     assertThat(rescoreResults, hasSize(1));
                     ProfileResult rescoreResult = rescoreResults.get(0);
-                    assertThat(rescoreResult.getQueryName(), equalTo(timingOutRescorer.getClass().getName()));
+                    assertThat(rescoreResult.getQueryName(), equalTo("TimingOutRescorer"));
                     assertThat(rescoreResult.getLuceneDescription(), equalTo("rescore top documents"));
                     assertThat(rescoreResult.getDebugInfo(), equalTo(Map.of("window_size", 10, "timed_out", true)));
                     assertThat(rescoreResult.getProfiledChildren(), empty());

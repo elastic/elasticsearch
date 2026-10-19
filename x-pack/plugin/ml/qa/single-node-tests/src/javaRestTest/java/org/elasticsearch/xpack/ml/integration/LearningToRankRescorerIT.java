@@ -139,7 +139,7 @@ public class LearningToRankRescorerIT extends InferenceTestCase {
         assertThat(rescorers.size(), equalTo(1));
         Map<String, Object> rescorer = rescorers.get(0);
         assertThat(rescorer.get("type"), equalTo("learning_to_rank"));
-        assertThat(rescorer.get("description"), equalTo("model [ltr-model]"));
+        assertThat(rescorer.get("description"), equalTo("LTR model [ltr-model]"));
         assertThat(rescorer.get("children"), nullValue());
         assertThat(rescorer.get("debug"), equalTo(Map.of("window_size", 10)));
         Map<String, Object> breakdown = (Map<String, Object>) rescorer.get("breakdown");

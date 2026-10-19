@@ -97,7 +97,7 @@ public class LearningToRankProfileIT extends BaseMlIntegTestCase {
             assertThat(rescorers, hasSize(1));
             ProfileResult rescorer = rescorers.get(0);
             assertThat(rescorer.getQueryName(), equalTo("learning_to_rank"));
-            assertThat(rescorer.getLuceneDescription(), equalTo("model [" + MODEL_ID + "]"));
+            assertThat(rescorer.getLuceneDescription(), equalTo("LTR model [" + MODEL_ID + "]"));
             assertThat(rescorer.getProfiledChildren(), empty());
             assertThat(rescorer.getDebugInfo(), equalTo(Map.of("window_size", 10)));
 

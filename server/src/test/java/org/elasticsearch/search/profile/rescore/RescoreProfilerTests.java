@@ -45,7 +45,7 @@ public class RescoreProfilerTests extends ESTestCase {
      * A rescorer can report its own steps in the breakdown, timed while the rescorer itself is timed, and add to the debug section.
      */
     public void testRescorerBreakdownAndDebugInfo() {
-        RescoreProfiler profiler = new RescoreProfiler("learning_to_rank", "model [my-model]", 10);
+        RescoreProfiler profiler = new RescoreProfiler("learning_to_rank", "LTR model [my-model]", 10);
         StepsBreakdown breakdown = new StepsBreakdown();
         profiler.setBreakdown(breakdown);
         profiler.addDebugInfo("model_cached", true);

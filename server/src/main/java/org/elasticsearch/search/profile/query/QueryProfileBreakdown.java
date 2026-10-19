@@ -11,6 +11,7 @@ package org.elasticsearch.search.profile.query;
 
 import org.elasticsearch.search.profile.AbstractProfileBreakdown;
 
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -36,6 +37,12 @@ public final class QueryProfileBreakdown extends AbstractProfileBreakdown<QueryT
 
     @Override
     protected Map<String, Object> toDebugMap() {
-        return rescorer == null ? super.toDebugMap() : Map.of("rescorer", rescorer);
+        Map<String, Object> debug = super.toDebugMap();
+        if (rescorer == null) {
+            return debug;
+        }
+        Map<String, Object> withRescorer = new HashMap<>(debug);
+        withRescorer.put("rescorer", rescorer);
+        return withRescorer;
     }
 }

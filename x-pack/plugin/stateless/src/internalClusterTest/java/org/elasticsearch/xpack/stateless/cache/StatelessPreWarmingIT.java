@@ -14,7 +14,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryPlugin;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryStrategy;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccBlobFile;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import java.io.FilterInputStream;
@@ -75,7 +75,7 @@ public class StatelessPreWarmingIT extends AbstractStatelessPluginIntegTestCase 
         Set<String> recoveringBCCs = new HashSet<>();
         for (int i = 0; i < numberOfShards; i++) {
             var indexShard = findIndexShard(resolveIndex(indexName), 0);
-            var latestBCCName = BatchedCompoundCommit.blobNameFromGeneration(indexShard.commitStats().getGeneration());
+            var latestBCCName = BccBlobFile.blobNameFromGeneration(indexShard.commitStats().getGeneration());
             recoveringBCCs.add(latestBCCName);
         }
 

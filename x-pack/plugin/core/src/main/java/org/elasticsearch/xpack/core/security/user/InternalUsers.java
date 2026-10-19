@@ -194,7 +194,7 @@ public class InternalUsers {
                         // System data stream for kibana saved objects change history
                         ".kibana_change_history*",
                         // System data stream for the kibana notification center
-                        ".kibana-notifications*"
+                        ".kibana-notifications*",
                         // System data stream for serverless shard recovery history
                         ".serverless-recovery-history"
                     )

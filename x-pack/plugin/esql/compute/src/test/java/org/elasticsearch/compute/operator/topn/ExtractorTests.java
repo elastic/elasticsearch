@@ -11,7 +11,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral;
 import org.elasticsearch.compute.data.Block;
@@ -276,7 +275,7 @@ public class ExtractorTests extends ESTestCase {
     }
 
     static BreakingBytesRefBuilder nonBreakingBytesRefBuilder() {
-        return new BreakingBytesRefBuilder(new NoopCircuitBreaker(CircuitBreaker.REQUEST), "topn");
+        return new BreakingBytesRefBuilder(NoopCircuitBreaker.INSTANCE, "topn");
     }
 
     public void testNotInKey() {

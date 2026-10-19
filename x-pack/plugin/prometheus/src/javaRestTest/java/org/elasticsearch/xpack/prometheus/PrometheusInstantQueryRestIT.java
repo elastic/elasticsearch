@@ -13,6 +13,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.xpack.prometheus.proto.RemoteWrite;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -145,7 +146,10 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
 
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("invalid parameter \\\"timeout\\\""));
+        ObjectPath errorPath = ObjectPath.createFromResponse(e.getResponse());
+        assertThat(errorPath.evaluate("status"), equalTo("error"));
+        assertThat(errorPath.evaluate("errorType"), equalTo("bad_data"));
+        assertThat(errorPath.evaluate("error"), equalTo("invalid parameter \"timeout\": cannot parse \"soon\" to a valid duration"));
     }
 
     public void testInstantQueryReturnsLatestSampleWithinDefaultLookback() throws Exception {
@@ -154,6 +158,28 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         ObjectPath responsePath = executeInstantQuery("test_gauge_iq{job=\"test_job\"}", "2026-01-01T00:08:00Z", null);
         assertThat(responsePath.evaluate("data.result"), hasSize(1));
         assertThat(responsePath.evaluate("data.result.0.value"), equalTo(List.of(1767226080.0 /*=2026-01-01T00:08:00Z*/, "40.0")));
+    }
+
+    public void testInstantQueryChangesCountsValueTransitions() throws Exception {
+        assumePromqlChangesSupported();
+
+        String metric = "test_gauge_changes_iq";
+        RemoteWrite.TimeSeries series = RemoteWrite.TimeSeries.newBuilder()
+            .addLabels(label("__name__", metric))
+            .addLabels(label("job", "test_job"))
+            .addLabels(label("instance", "localhost:9090"))
+            .addSamples(sample(0.0, 1767225600000L))
+            .addSamples(sample(0.0, 1767225660000L))
+            .addSamples(sample(1.0, 1767225720000L))
+            .addSamples(sample(1.0, 1767225780000L))
+            .addSamples(sample(2.0, 1767225840000L))
+            .build();
+        ingestTestData(RemoteWrite.WriteRequest.newBuilder().addTimeseries(series).build());
+
+        assertThat(
+            PromqlResponseSeries.ofInstant(executeInstantQuery("changes(" + metric + "[5m])", "2026-01-01T00:04:00Z", null)),
+            contains(new PromqlResponseSeries(Map.of("job", "test_job", "instance", "localhost:9090"), 2.0))
+        );
     }
 
     /**
@@ -173,6 +199,19 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertThat(path.evaluate("data.resultType"), equalTo("scalar"));
         // scalar result is [timestamp_seconds, value_string]
         assertThat(path.evaluate("data.result"), equalTo(List.of(1767225900.0, "3.14")));
+    }
+
+    /** Prometheus: a duration literal is a float literal in seconds - {@code 1h30m} is the scalar {@code 5400}. */
+    public void testInstantQueryDurationLiteralIsSeconds() throws Exception {
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/query",
+            new BasicNameValuePair("query", "1h30m"),
+            new BasicNameValuePair("time", "2026-01-01T00:05:00Z")
+        );
+        ObjectPath path = ObjectPath.createFromResponse(client().performRequest(request));
+        assertThat(path.evaluate("status"), equalTo("success"));
+        assertThat(path.evaluate("data.resultType"), equalTo("scalar"));
+        assertThat(Double.parseDouble(path.evaluate("data.result.1")), equalTo(5400.0));
     }
 
     /** Prometheus: a string literal is a result of type {@code string}, rendered as {@code [<unix_time>, "<string>"]}. */
@@ -229,6 +268,26 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         ingestLabelledSeries(METRIC);
 
         assertThat(instantSeries(METRIC + " > 1"), containsInAnyOrder(seriesWithValueAbove(1.0)));
+    }
+
+    public void testInstantQuerySortOrdersByValueAscending() throws Exception {
+        ingestLabelledSeries(METRIC);
+
+        assertThat(instantSeries("sort(" + METRIC + ")"), contains(LABELLED_SERIES.toArray(PromqlResponseSeries[]::new)));
+    }
+
+    public void testInstantQuerySortDescOrdersByValueAndOmitsSyntheticNanLabel() throws Exception {
+        ingestLabelledSeries(METRIC);
+
+        List<PromqlResponseSeries> series = instantSeries("sort_desc(" + METRIC + ")");
+        List<PromqlResponseSeries> expected = LABELLED_SERIES.reversed();
+        assertThat(series, contains(expected.toArray(PromqlResponseSeries[]::new)));
+        for (PromqlResponseSeries s : series) {
+            for (String label : s.labels().keySet()) {
+                assertFalse("synthetic sort key leaked into metric labels: " + s.labels(), label.contains("promql_sort"));
+                assertFalse("synthetic sort key leaked into metric labels: " + s.labels(), label.startsWith("$$"));
+            }
+        }
     }
 
     private static PromqlResponseSeries[] seriesWithValueAbove(double threshold) {
@@ -500,6 +559,19 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         wipeDefaultStream();
         ingestTestDataUsingRemoteWriteAndBulk(QUERY_TIME);
         assertBinopInstantGroups("sum by (host, __name__) (tx) / on (host) sum by (host, __name__) (rx)", "host", txRxRatios());
+    }
+
+    /**
+     * {@code vector(s)} in an {@code or} fills what the other side lacks: its steps are its own, so the instant query's range
+     * filter still drops the sample exactly one lookback before the query time, and the range query keeps one step per row.
+     */
+    public void testInstantOrConstantVector() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME.minusSeconds(300));
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantValues("tx or vector(0)", 10, 30, 12, 0);
+        assertBinopInstantValues("vector(0) or tx", 0, 10, 30, 12);
+        assertBinopInstantValues("sum(tx) or vector(0)", 52);
+        assertBinopInstantValues("sum(tx{host=~\"nope\"}) or vector(0)", 0);
     }
 
     /**

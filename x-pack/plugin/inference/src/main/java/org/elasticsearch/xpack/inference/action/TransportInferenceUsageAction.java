@@ -49,6 +49,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.inference.InferenceFeatures.DOCUMENT_EXTRACTION_TASK_TYPE;
 import static org.elasticsearch.xpack.inference.InferenceFeatures.EMBEDDING_TASK_TYPE;
 
 public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAction {
@@ -183,7 +184,9 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
         for (TaskType taskType : TaskType.values()) {
             if (taskType == TaskType.ANY
                 || (taskType == TaskType.EMBEDDING
-                    && featureService.clusterHasFeature(clusterService.state(), EMBEDDING_TASK_TYPE) == false)) {
+                    && featureService.clusterHasFeature(clusterService.state(), EMBEDDING_TASK_TYPE) == false)
+                || (taskType == TaskType.DOCUMENT_EXTRACTION
+                    && featureService.clusterHasFeature(clusterService.state(), DOCUMENT_EXTRACTION_TASK_TYPE) == false)) {
                 continue;
             }
             var allStatsForTaskType = endpointStats.computeIfAbsent(

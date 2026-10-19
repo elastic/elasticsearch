@@ -8,21 +8,32 @@
 package org.elasticsearch.xpack.ml.action.job;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequestHelper;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.license.MockLicenseState;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -31,15 +42,28 @@ import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
+import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
+import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.MachineLearningExtension;
+import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
+import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.JobManager;
+import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -49,6 +73,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -56,6 +81,7 @@ import java.util.function.Consumer;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
@@ -66,6 +92,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 public class TransportPutJobActionTests extends ESTestCase {
@@ -226,6 +253,256 @@ public class TransportPutJobActionTests extends ESTestCase {
         Exception failure = expectThrows(Exception.class, listener::actionGet);
         assertThat(failure, sameInstance(mintFailure));
         verify(jobManager).deleteJob(any(DeleteJobAction.Request.class), any(), any());
+    }
+
+    private static final String ESQL_GATE_JOB_ID = "job-1";
+
+    public void testEmbeddedEsqlDatafeedWhenFlagOffShouldBeRejectedBeforeCreatingJob() throws Exception {
+        JobManager esqlJobManager = mock(JobManager.class);
+        JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
+        DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
+        ClusterService esqlClusterService = mock(ClusterService.class);
+        TransportPutJobAction action = createEsqlGatedAction(
+            false,
+            esqlJobManager,
+            jobConfigProvider,
+            datafeedConfigProvider,
+            esqlClusterService
+        );
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        PutJobAction.Request request = new PutJobAction.Request(jobWithEsqlDatafeed(esqlDatafeedBuilder()));
+        action.masterOperation(
+            null,
+            request,
+            clusterStateWithMinTransportVersion(TransportVersion.current()),
+            ActionTestUtils.assertNoSuccessListener(failure::set)
+        );
+
+        assertThat(failure.get(), instanceOf(ElasticsearchStatusException.class));
+        assertThat(((ElasticsearchStatusException) failure.get()).status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(
+            failure.get().getMessage(),
+            equalTo("Cannot create ES|QL datafeed [job-1] because ES|QL datafeeds are not enabled on this node.")
+        );
+        verifyNoInteractions(esqlJobManager, datafeedConfigProvider, jobConfigProvider);
+    }
+
+    public void testEmbeddedEsqlDatafeedOnMixedVersionClusterShouldBeRejectedBeforeCreatingJob() throws Exception {
+        JobManager esqlJobManager = mock(JobManager.class);
+        JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
+        DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
+        ClusterService esqlClusterService = mock(ClusterService.class);
+        TransportPutJobAction action = createEsqlGatedAction(
+            true,
+            esqlJobManager,
+            jobConfigProvider,
+            datafeedConfigProvider,
+            esqlClusterService
+        );
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        PutJobAction.Request request = new PutJobAction.Request(jobWithEsqlDatafeed(esqlDatafeedBuilder()));
+        action.masterOperation(
+            null,
+            request,
+            clusterStateWithMinTransportVersion(preEsqlDatafeedTransportVersion()),
+            ActionTestUtils.assertNoSuccessListener(failure::set)
+        );
+
+        assertThat(failure.get(), instanceOf(ElasticsearchStatusException.class));
+        assertThat(((ElasticsearchStatusException) failure.get()).status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(
+            failure.get().getMessage(),
+            equalTo(
+                Messages.getMessage(
+                    Messages.DATAFEED_ESQL_CREATE_UPGRADE_IN_PROGRESS,
+                    "job-1",
+                    "datafeed uses an ES|QL query, which requires support for ES|QL datafeeds"
+                )
+            )
+        );
+        verifyNoInteractions(esqlJobManager, datafeedConfigProvider, jobConfigProvider);
+    }
+
+    public void testCoordinatingNodeShouldRejectEmbeddedEsqlDatafeedBeforeSendingToOlderMaster() {
+        JobManager esqlJobManager = mock(JobManager.class);
+        JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
+        DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
+        ClusterService esqlClusterService = mock(ClusterService.class);
+        when(esqlClusterService.state()).thenReturn(coordinatingStateWithOlderMaster());
+        TransportPutJobAction action = createEsqlGatedAction(
+            true,
+            esqlJobManager,
+            jobConfigProvider,
+            datafeedConfigProvider,
+            esqlClusterService
+        );
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        PutJobAction.Request request = new PutJobAction.Request(jobWithEsqlDatafeed(esqlDatafeedBuilder()));
+        action.doExecute(null, request, ActionTestUtils.assertNoSuccessListener(failure::set));
+
+        assertThat(failure.get(), instanceOf(ElasticsearchStatusException.class));
+        assertThat(((ElasticsearchStatusException) failure.get()).status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(failure.get().getMessage(), containsString("cluster upgrade is in progress"));
+        verifyNoInteractions(esqlJobManager, datafeedConfigProvider, jobConfigProvider);
+    }
+
+    public void testEmbeddedEsqlDatafeedWhenFlagOnAndClusterSupportsItShouldCreateJob() throws Exception {
+        JobManager esqlJobManager = mock(JobManager.class);
+        JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
+        DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
+        ClusterService esqlClusterService = mock(ClusterService.class);
+        TransportPutJobAction action = createEsqlGatedAction(
+            true,
+            esqlJobManager,
+            jobConfigProvider,
+            datafeedConfigProvider,
+            esqlClusterService
+        );
+
+        PutJobAction.Request request = new PutJobAction.Request(jobWithEsqlDatafeed(esqlDatafeedBuilder()));
+        action.masterOperation(
+            null,
+            request,
+            clusterStateWithMinTransportVersion(TransportVersion.current()),
+            ActionTestUtils.assertNoFailureListener(response -> {})
+        );
+
+        verify(esqlJobManager).putJob(any(), any(), any(), any());
+    }
+
+    public void testEmbeddedNonEsqlDatafeedWhenFlagOffOnMixedVersionClusterShouldCreateJob() throws Exception {
+        JobManager esqlJobManager = mock(JobManager.class);
+        JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
+        DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
+        ClusterService esqlClusterService = mock(ClusterService.class);
+        TransportPutJobAction action = createEsqlGatedAction(
+            false,
+            esqlJobManager,
+            jobConfigProvider,
+            datafeedConfigProvider,
+            esqlClusterService
+        );
+        DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder().setIndices(List.of("index-1"));
+
+        PutJobAction.Request request = new PutJobAction.Request(jobWithEsqlDatafeed(datafeed));
+        action.masterOperation(
+            null,
+            request,
+            clusterStateWithMinTransportVersion(preEsqlDatafeedTransportVersion()),
+            ActionTestUtils.assertNoFailureListener(response -> {})
+        );
+
+        verify(esqlJobManager).putJob(any(), any(), any(), any());
+    }
+
+    public void testJobWithoutDatafeedWhenFlagOffOnMixedVersionClusterShouldCreateJob() throws Exception {
+        JobManager esqlJobManager = mock(JobManager.class);
+        JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
+        DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
+        ClusterService esqlClusterService = mock(ClusterService.class);
+        TransportPutJobAction action = createEsqlGatedAction(
+            false,
+            esqlJobManager,
+            jobConfigProvider,
+            datafeedConfigProvider,
+            esqlClusterService
+        );
+
+        PutJobAction.Request request = new PutJobAction.Request(jobWithEsqlDatafeed(null));
+        action.masterOperation(
+            null,
+            request,
+            clusterStateWithMinTransportVersion(preEsqlDatafeedTransportVersion()),
+            ActionTestUtils.assertNoFailureListener(response -> {})
+        );
+
+        verify(esqlJobManager).putJob(any(), any(), any(), any());
+    }
+
+    private TransportPutJobAction createEsqlGatedAction(
+        boolean esqlDatafeedsEnabled,
+        JobManager esqlJobManager,
+        JobConfigProvider jobConfigProvider,
+        DatafeedConfigProvider datafeedConfigProvider,
+        ClusterService esqlClusterService
+    ) {
+        Settings settings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), false).build();
+        ClusterService datafeedManagerClusterService = mock(ClusterService.class);
+        when(datafeedManagerClusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(settings, Set.of(MachineLearning.REQUIRE_ROLLBACK_SNAPSHOT_BEFORE_SCOPE_CHANGE))
+        );
+        DatafeedManager realDatafeedManager = new DatafeedManager(
+            datafeedConfigProvider,
+            jobConfigProvider,
+            NamedXContentRegistry.EMPTY,
+            settings,
+            datafeedManagerClusterService,
+            mock(Client.class),
+            mock(MachineLearningExtension.class),
+            mock(AnomalyDetectionAuditor.class),
+            mock(AnnotationPersister.class),
+            mock(JobResultsProvider.class)
+        );
+        ProjectResolver projectResolver = mock(ProjectResolver.class);
+        when(projectResolver.getProjectId()).thenReturn(ProjectId.DEFAULT);
+        return new TransportPutJobAction(
+            settings,
+            mock(TransportService.class),
+            esqlClusterService,
+            mock(ThreadPool.class),
+            mock(XPackLicenseState.class),
+            mock(ActionFilters.class),
+            esqlJobManager,
+            realDatafeedManager,
+            null,
+            projectResolver,
+            () -> esqlDatafeedsEnabled
+        );
+    }
+
+    private static Job.Builder jobWithEsqlDatafeed(DatafeedConfig.Builder datafeed) {
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(List.of(new Detector.Builder("count", null).build()));
+        Job.Builder job = new Job.Builder(ESQL_GATE_JOB_ID).setAnalysisConfig(analysisConfig)
+            .setDataDescription(new DataDescription.Builder());
+        if (datafeed != null) {
+            job.setDatafeed(datafeed);
+        }
+        return job;
+    }
+
+    private static DatafeedConfig.Builder esqlDatafeedBuilder() {
+        return new DatafeedConfig.Builder().setEsqlQuery("FROM logs")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1));
+    }
+
+    private static ClusterState clusterStateWithMinTransportVersion(TransportVersion transportVersion) {
+        return ClusterState.builder(new ClusterName("put-job-action-tests"))
+            .putCompatibilityVersions("node-1", transportVersion, SystemIndices.SERVER_SYSTEM_MAPPINGS_VERSIONS)
+            .build();
+    }
+
+    private static ClusterState coordinatingStateWithOlderMaster() {
+        DiscoveryNode coordinatingNode = DiscoveryNodeUtils.create("coordinating-node");
+        DiscoveryNode masterNode = DiscoveryNodeUtils.create("older-master-node");
+        return ClusterState.builder(new ClusterName("put-job-action-tests"))
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(coordinatingNode)
+                    .add(masterNode)
+                    .localNodeId(coordinatingNode.getId())
+                    .masterNodeId(masterNode.getId())
+            )
+            .putCompatibilityVersions(coordinatingNode.getId(), TransportVersion.current(), SystemIndices.SERVER_SYSTEM_MAPPINGS_VERSIONS)
+            .putCompatibilityVersions(masterNode.getId(), preEsqlDatafeedTransportVersion(), SystemIndices.SERVER_SYSTEM_MAPPINGS_VERSIONS)
+            .build();
+    }
+
+    private static TransportVersion preEsqlDatafeedTransportVersion() {
+        return TransportVersion.fromName("histogram_blocks_multivalue_support");
     }
 
     private DiscoveryNode[] allNodes() {

@@ -32,7 +32,8 @@ import java.util.Set;
  * {@link SourceStatisticsSerializer#normalizeStatsToReconciled} before the next file joins, and the
  * cross-file arithmetic is {@link SplitStats#fold}.
  * <p>
- * Not thread-safe. The gather calls {@link #accept} under one lock.
+ * Thread-safe by its own monitor: the gather folds each file's metadata as that file's read completes,
+ * from whichever thread completes it.
  */
 final class RunningFileStatsFold {
 
@@ -96,7 +97,7 @@ final class RunningFileStatsFold {
      * Folds listing position {@code index}. A repeated path is a second call with the same metadata, matching
      * a scan that reads that file twice. A file with no row count fails the whole fold.
      */
-    void accept(int index, SourceMetadata meta) {
+    synchronized void accept(int index, SourceMetadata meta) {
         accepted++;
         if (failed) {
             return;
@@ -129,11 +130,19 @@ final class RunningFileStatsFold {
     }
 
     /**
+     * Whether an aggregate is still reachable. Once false, every further {@link #accept} is a no-op and
+     * {@link #finish} returns null, so a gather reading on its behalf is reading for nothing.
+     */
+    synchronized boolean canStillProduceAnAggregate() {
+        return failed == false;
+    }
+
+    /**
      * The relation-level fold, or null when any accepted file lacked a row count. Pinned columns are not
      * applied here; they are known only once every schema has been reconciled. See {@link #applyPinnedColumns}.
      */
     @Nullable
-    Map<String, Object> finish() {
+    synchronized Map<String, Object> finish() {
         if (failed || accepted == 0 || accumulator == null) {
             return null;
         }

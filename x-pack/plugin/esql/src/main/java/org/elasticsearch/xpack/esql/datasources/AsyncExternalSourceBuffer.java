@@ -33,6 +33,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.ToLongFunction;
 
@@ -74,6 +75,14 @@ public final class AsyncExternalSourceBuffer {
     private final Object notFullLock = new Object();
     private SubscribableListener<Void> notFullFuture = null;
 
+    /**
+     * The producer's current park on a signal this buffer does not own (the iterator's
+     * {@code waitForReady()}), so {@link #finish} / {@link #onFailure} can end it. See
+     * {@link #waitForReadyOrFinished}. One slot suffices: a buffer has one producer, and a producer
+     * only parks again after it resumed from the previous park, so a replaced park is always done.
+     */
+    private final AtomicReference<SubscribableListener<Void>> parkedProducer = new AtomicReference<>();
+
     private final SubscribableListener<Void> completionFuture = new SubscribableListener<>();
 
     private final AtomicBoolean noMoreInputs = new AtomicBoolean(false);
@@ -95,6 +104,8 @@ public final class AsyncExternalSourceBuffer {
      * degenerate-query case this does <em>not</em> fix: a read wedged in a genuinely uncancellable operation off
      * the scoped thread (a parallel-parse worker, a native reader) still unwinds only on its own timeout, so the
      * driver's completion and final resource release wait for it even though the task is already marked cancelled.
+     * A producer that is <em>parked</em> (not blocked) on the iterator's readiness is a different case: it is
+     * woken by {@link #waitForReadyOrFinished} on any finish, STOP included, and exits between pages.
      */
     private volatile boolean readCancelled = false;
 
@@ -428,6 +439,58 @@ public final class AsyncExternalSourceBuffer {
         }
     }
 
+    /**
+     * Returns a listener for the producer to park on that completes when {@code signal} does
+     * <em>or</em> when this buffer is finished, whichever comes first.
+     * <p>
+     * The producer parks on two kinds of signal: {@link #waitForSpace()}, which this buffer owns
+     * and {@link #finish} already completes, and the iterator's {@code waitForReady()}, which only
+     * the iterator completes (a byte-budget ticket grant, an in-flight object-store GET settling).
+     * Without this hook a cancel ({@code finish(true)} from the operator's close) could not reach a
+     * producer parked on the latter: it stayed parked until the GET or ticket ended on its own and
+     * only then exited on {@code noMoreInputs}, so {@code removeAsyncAction()} -- and with it the
+     * driver's completion and the task's {@code is_running} -- waited on the object store rather
+     * than on the cancel. Routing every park through here makes "a finished buffer wakes its
+     * producer" hold regardless of which signal the producer is parked on.
+     * <p>
+     * Success and failure of {@code signal} are forwarded unchanged, so an iterator that fails its
+     * readiness still fails the producer; a wake by {@link #finish} / {@link #onFailure} completes
+     * the park successfully and the producer exits on {@code noMoreInputs} between pages. A late
+     * completion of {@code signal} after the wake is a no-op. When the buffer is already finished
+     * the returned listener is complete, and the caller's resume may therefore run inline on the
+     * calling thread; callers must release any run-exclusion token before registering the resume,
+     * as they already do for an already-done {@code signal}.
+     * <p>
+     * An already-done {@code signal} is returned as-is: no park is published and {@code noMoreInputs}
+     * is not re-checked here, because the caller's resume runs right away and checks the flag itself.
+     * The slot holds one park at a time (one producer per buffer) and is cleared only by a wake; a
+     * park completed through {@code signal} stays in the slot, already done, until the next park
+     * replaces it or a finish drains it.
+     */
+    public SubscribableListener<Void> waitForReadyOrFinished(SubscribableListener<Void> signal) {
+        if (signal.isDone()) {
+            return signal;
+        }
+        SubscribableListener<Void> park = new SubscribableListener<>();
+        // Publish the park before re-checking noMoreInputs. finish()/onFailure() set the flag and
+        // then drain this slot, so either this re-check sees the flag or the finisher sees the park;
+        // the same double-check waitForSpace() relies on.
+        SubscribableListener<Void> previous = parkedProducer.getAndSet(park);
+        assert previous == null || previous.isDone() : "producer parked twice";
+        signal.addListener(park);
+        if (noMoreInputs.get()) {
+            notifyParkedProducer();
+        }
+        return park;
+    }
+
+    private void notifyParkedProducer() {
+        SubscribableListener<Void> park = parkedProducer.getAndSet(null);
+        if (park != null) {
+            park.onResponse(null);
+        }
+    }
+
     // Drains and releases every queued page on teardown. Only call from finish/onFailure;
     // bytesInBuffer is reset wholesale, which is only safe when no further pollPage() is expected
     // to subtract from it.
@@ -475,6 +538,10 @@ public final class AsyncExternalSourceBuffer {
         }
         notifyNotEmpty();
         notifyNotFull(); // wake producers so they observe noMoreInputs and exit
+        // Unconditional, like notifyNotFull(): a park published concurrently with this call is woken
+        // here, one published after it self-wakes on its own re-check; do not tie it to `transitioned`
+        // (onFailure sets noMoreInputs without a CAS and wakes the same way).
+        notifyParkedProducer();
         signalCompletionIfDrained();
         assert invariantsHold() : "buffer invariants violated after finish";
         return transitioned;
@@ -506,6 +573,7 @@ public final class AsyncExternalSourceBuffer {
         noMoreInputs.set(true);
         notifyNotEmpty();
         notifyNotFull();
+        notifyParkedProducer();
         signalCompletionIfDrained();
         assert invariantsHold() : "buffer invariants violated after onFailure";
     }

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferIsNotNull
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferNonNullAggConstraint;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InjectTemporality;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundTo;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceEmptyStringWithNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceFieldWithConstantOrNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplacePotentiallyUnmappedFieldWithMappedField;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceTopNWithLimitAndSort;
@@ -30,6 +31,7 @@ import java.util.List;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.cleanup;
 import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.operators;
+import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.selectSlices;
 
 /**
  * This class is part of the planner. Data node level logical optimizations.  At this point we have access to
@@ -53,9 +55,12 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
             new ReplaceFieldWithConstantOrNull(),
             new InferIsNotNull(),
             new InferNonNullAggConstraint(),
-            new ReplaceDateTruncBucketWithRoundTo()
+            new ReplaceDateTruncBucketWithRoundTo(),
+            new ReplaceEmptyStringWithNull()
         ),
         localOperators(),
+        // After localOperators() has built the filters of the knn functions again.
+        localSelectSlices(),
         localCleanup()
     );
 
@@ -71,6 +76,11 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
     @SuppressWarnings("unchecked")
     private static Batch<LogicalPlan> localOperators() {
         return localBatch(operators(), new ReplaceStringCasingWithInsensitiveRegexMatch());
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Batch<LogicalPlan> localSelectSlices() {
+        return localBatch(selectSlices());
     }
 
     @SuppressWarnings("unchecked")

@@ -306,23 +306,16 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         assertThat(rolledDs.getIndexMode(), equalTo(IndexMode.LOGSDB));
     }
 
-    public void testRolloverFromLogsdbToTsdb() {
+    public void testRolloverFromLogsdbToTsdbIsRejected() {
         DataStream ds = DataStreamTestHelper.randomInstance().copy().setReplicated(false).setIndexMode(IndexMode.LOGSDB).build();
         final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
         var newCoordinates = ds.nextWriteIndexAndGeneration(project, ds.getDataComponent());
 
-        var rolledDs = ds.rollover(
-            new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()),
-            newCoordinates.v2(),
-            IndexMode.TIME_SERIES,
-            null
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ds.rollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), IndexMode.TIME_SERIES, null)
         );
-        assertThat(rolledDs.getName(), equalTo(ds.getName()));
-        assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
-        assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
-        assertTrue(rolledDs.getIndices().containsAll(ds.getIndices()));
-        assertTrue(rolledDs.getIndices().contains(rolledDs.getWriteIndex()));
-        assertThat(rolledDs.getIndexMode(), equalTo(IndexMode.TIME_SERIES));
+        assertThat(e.getMessage(), containsString("migrating from [logsdb] to [time_series] is not supported"));
     }
 
     public void testRolloverDowngradeFromTsdbToRegularDataStream() {
@@ -444,20 +437,16 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         assertThat(rolledDs.getIndexMode(), equalTo(to));
     }
 
-    public void testRolloverFromColumnarToTimeSeries() {
+    public void testRolloverFromColumnarToTimeSeriesIsRejected() {
         DataStream ds = DataStreamTestHelper.randomInstance().copy().setReplicated(false).setIndexMode(IndexMode.COLUMNAR).build();
         final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
         var newCoordinates = ds.nextWriteIndexAndGeneration(project, ds.getDataComponent());
 
-        var rolledDs = ds.rollover(
-            new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()),
-            newCoordinates.v2(),
-            IndexMode.TIME_SERIES,
-            null
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ds.rollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), IndexMode.TIME_SERIES, null)
         );
-        assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
-        assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
-        assertThat(rolledDs.getIndexMode(), equalTo(IndexMode.TIME_SERIES));
+        assertThat(e.getMessage(), containsString("migrating from [columnar] to [time_series] is not supported"));
     }
 
     public void testRolloverDowngradeFromTimeSeriesDataStreamToColumnar() {
@@ -487,20 +476,16 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         assertThat(rolledDs.getIndexMode(), equalTo(IndexMode.LOGSDB_COLUMNAR));
     }
 
-    public void testRolloverFromColumnarLogsdbToTimeSeries() {
+    public void testRolloverFromColumnarLogsdbToTimeSeriesIsRejected() {
         DataStream ds = DataStreamTestHelper.randomInstance().copy().setReplicated(false).setIndexMode(IndexMode.LOGSDB_COLUMNAR).build();
         final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
         var newCoordinates = ds.nextWriteIndexAndGeneration(project, ds.getDataComponent());
 
-        var rolledDs = ds.rollover(
-            new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()),
-            newCoordinates.v2(),
-            IndexMode.TIME_SERIES,
-            null
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ds.rollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), IndexMode.TIME_SERIES, null)
         );
-        assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
-        assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
-        assertThat(rolledDs.getIndexMode(), equalTo(IndexMode.TIME_SERIES));
+        assertThat(e.getMessage(), containsString("migrating from [logsdb_columnar] to [time_series] is not supported"));
     }
 
     public void testRolloverFromLogsdbToColumnarLogsdb() {
@@ -553,6 +538,58 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
         assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
         assertThat(rolledDs.getIndexMode(), equalTo(templateMode));
+    }
+
+    public void testIsMinimumLifecycleApplicable() {
+        DataStream timeSeries = DataStreamTestHelper.randomInstance().copy().setIndexMode(IndexMode.TIME_SERIES).setLifecycle(null).build();
+        assertThat(timeSeries.isMinimumLifecycleApplicable(true), is(true));
+        assertThat(timeSeries.isMinimumLifecycleApplicable(false), is(false));
+
+        DataStreamLifecycle lifecycle = randomBoolean()
+            ? DataStreamLifecycle.dataLifecycleBuilder().enabled(false).build()
+            : DataStreamLifecycle.dataLifecycleBuilder().dataRetention(randomPositiveTimeValue()).build();
+        timeSeries = timeSeries.copy().setLifecycle(lifecycle).build();
+        assertThat(timeSeries.isMinimumLifecycleApplicable(randomBoolean()), is(false));
+
+        IndexMode indexMode = randomFrom(
+            IndexMode.STANDARD,
+            IndexMode.LOGSDB,
+            IndexMode.LOOKUP,
+            IndexMode.COLUMNAR,
+            IndexMode.LOGSDB_COLUMNAR,
+            null
+        );
+        DataStream dataStream = DataStreamTestHelper.randomInstance().copy().setIndexMode(indexMode).setLifecycle(null).build();
+        assertThat(dataStream.isMinimumLifecycleApplicable(randomBoolean()), is(false));
+    }
+
+    public void testIsMinimumLifecycleApplicableForIndex() {
+        DataStream timeSeries = DataStreamTestHelper.randomInstance(true)
+            .copy()
+            .setIndexMode(IndexMode.TIME_SERIES)
+            .setLifecycle(null)
+            .build();
+        String backingIndex = timeSeries.getIndices().get(randomIntBetween(0, timeSeries.getIndices().size() - 1)).getName();
+        String failureIndex = timeSeries.getFailureIndices().get(randomIntBetween(0, timeSeries.getFailureIndices().size() - 1)).getName();
+
+        // A backing index of a time series data stream without a lifecycle
+        assertThat(timeSeries.isMinimumLifecycleApplicable(backingIndex, true), is(true));
+        assertThat(timeSeries.isMinimumLifecycleApplicable(backingIndex, false), is(false));
+
+        // A failure index of a time series data stream without a lifecycle
+        assertThat(timeSeries.isMinimumLifecycleApplicable(failureIndex, true), is(false));
+        assertThat(timeSeries.isMinimumLifecycleApplicable(failureIndex, false), is(false));
+
+        // An index that does not belong to the data stream
+        String otherIndex = randomValueOtherThan(backingIndex, () -> randomAlphaOfLength(10));
+        assertThat(timeSeries.isMinimumLifecycleApplicable(otherIndex, randomBoolean()), is(false));
+
+        // A data stream with a lifecycle configured
+        DataStreamLifecycle lifecycle = randomBoolean()
+            ? DataStreamLifecycle.dataLifecycleBuilder().enabled(false).build()
+            : DataStreamLifecycle.dataLifecycleBuilder().dataRetention(randomPositiveTimeValue()).build();
+        DataStream withLifecycle = timeSeries.copy().setLifecycle(lifecycle).build();
+        assertThat(withLifecycle.isMinimumLifecycleApplicable(backingIndex, randomBoolean()), is(false));
     }
 
     public void testRolloverFailureStore() {
@@ -2395,7 +2432,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         Index unrelatedIndex = new Index(randomAlphaOfLength(10), randomUUID());
         DataStream.DataStreamIndices failureIndices = DataStream.DataStreamIndices.failureIndicesBuilder(List.of(failureIndex)).build();
 
-        // Time series data stream without a lifecycle: backing indices get the default lifecycle only when enabled
+        // Time series data stream without a lifecycle: backing indices get the minimum lifecycle only when enabled
         DataStream timeSeries = DataStream.builder("tsds", List.of(backingIndex))
             .setIndexMode(IndexMode.TIME_SERIES)
             .setFailureIndices(failureIndices)
@@ -2403,7 +2440,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         assertThat(timeSeries.getEffectiveLifecycleForIndex(backingIndex, true), equalTo(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE));
         assertThat(timeSeries.getEffectiveLifecycleForIndex(backingIndex, false), nullValue());
 
-        // Non time series data stream without a lifecycle never gets the default lifecycle
+        // Non time series data stream without a lifecycle never gets the minimum lifecycle
         DataStream standard = DataStream.builder("ds", List.of(backingIndex))
             .setIndexMode(randomFrom(IndexMode.STANDARD, IndexMode.LOGSDB, null))
             .build();
@@ -2434,12 +2471,12 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             Arrays.stream(IndexMode.values()).filter(mode -> mode != IndexMode.TIME_SERIES).toArray(IndexMode[]::new)
         );
 
-        // A time series data stream without a lifecycle gets the default lifecycle only when enabled
+        // A time series data stream without a lifecycle gets the minimum lifecycle only when enabled
         DataStream timeSeriesWithoutLifecycle = DataStream.builder("tsds", indices).setIndexMode(IndexMode.TIME_SERIES).build();
         assertThat(timeSeriesWithoutLifecycle.getEffectiveDataLifecycle(true), equalTo(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE));
         assertThat(timeSeriesWithoutLifecycle.getEffectiveDataLifecycle(false), nullValue());
 
-        // A non time series data stream without a lifecycle never gets the default lifecycle
+        // A non time series data stream without a lifecycle never gets the minimum lifecycle
         DataStream nonTimeSeriesWithoutLifecycle = DataStream.builder("ds", indices)
             .setIndexMode(randomBoolean() ? nonTimeSeriesIndexMode : null)
             .build();

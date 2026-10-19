@@ -46,6 +46,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -715,6 +716,85 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
                 // Source comes from the _ignored_source blob, not from kwd doc values
                 assertThat(source.internalSourceRef().utf8ToString(), equalTo("{\"kwd\":\"blob_value\"}"));
             }
+        });
+    }
+
+    /**
+     * Verifies that synthetic source reads back right when documents with and without values in {@code _ignored_source} follow each
+     * other, as the source loader (and so the objects in it) is reused for all of them. A document with an ignored value has
+     * to merge it with the values of the other fields of its object, while one without can write its fields in the order of the
+     * mapping.
+     */
+    public void testSyntheticSourceWithAndWithoutIgnoredValuesInTurn() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC.toString())
+            .build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {
+            b.startObject("a_plain").field("type", "keyword").endObject();
+            b.startObject("b_ignored").field("type", "keyword").field("ignore_above", 3).endObject();
+            b.startObject("z_id").field("type", "keyword").endObject();
+            b.startObject("obj");
+            {
+                b.startObject("properties");
+                b.startObject("c_plain").field("type", "keyword").endObject();
+                b.startObject("d_ignored").field("type", "keyword").field("ignore_above", 3).endObject();
+                b.startObject("e_num").field("type", "long").endObject();
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        int numDocs = between(20, 50);
+        List<Map<String, Object>> expectedSources = new ArrayList<>();
+        List<ParsedDocument> parsedDocs = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            // The index may end up in several segments, and in any order, so every document says which one it is.
+            Map<String, Object> doc = new LinkedHashMap<>();
+            doc.put("z_id", Integer.toString(i));
+            Map<String, Object> obj = new LinkedHashMap<>();
+            if (randomBoolean()) {
+                doc.put("a_plain", randomAlphaOfLengthBetween(1, 3));
+            }
+            if (randomBoolean()) {
+                // Longer than ignore_above half of the time, which moves the value to _ignored_source.
+                doc.put("b_ignored", randomAlphaOfLengthBetween(1, 6));
+            }
+            if (randomBoolean()) {
+                obj.put("c_plain", randomAlphaOfLengthBetween(1, 3));
+            }
+            if (randomBoolean()) {
+                obj.put("d_ignored", randomAlphaOfLengthBetween(1, 6));
+            }
+            if (randomBoolean()) {
+                obj.put("e_num", randomIntBetween(0, 1000));
+            }
+            if (obj.isEmpty() == false) {
+                doc.put("obj", obj);
+            }
+            expectedSources.add(doc);
+            parsedDocs.add(mapperService.documentMapper().parse(source(b -> b.mapContents(doc))));
+        }
+
+        withLuceneIndex(mapperService, iw -> {
+            for (ParsedDocument parsed : parsedDocs) {
+                iw.addDocument(parsed.rootDoc());
+            }
+        }, reader -> {
+            SourceLoader loader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP, null);
+            int checked = 0;
+            for (LeafReaderContext leaf : reader.leaves()) {
+                int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
+                SourceLoader.Leaf sourceLeaf = loader.leaf(leaf, docIds);
+                LeafStoredFieldLoader sfLoader = StoredFieldLoader.create(false, loader.requiredStoredFields()).getLoader(leaf, docIds);
+                for (int docId : docIds) {
+                    sfLoader.advanceTo(docId);
+                    Map<String, Object> source = sourceLeaf.source(sfLoader, docId).source();
+                    int id = Integer.parseInt((String) source.get("z_id"));
+                    assertThat("doc " + id, source, equalTo(expectedSources.get(id)));
+                    checked++;
+                }
+            }
+            assertThat(checked, equalTo(numDocs));
         });
     }
 

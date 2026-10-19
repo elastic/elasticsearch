@@ -422,9 +422,6 @@ tests:
 - class: org.elasticsearch.xpack.transform.transforms.TransformIndexerStateTests
   method: testStopAtCheckpointForThrottledTransform
   issue: https://github.com/elastic/elasticsearch/issues/161096
-- class: org.elasticsearch.xpack.stateless.engine.translog.StatelessTranslogIT
-  method: testTranslogIsolatedNodeOnlyStressRecoveryTest
-  issue: https://github.com/elastic/elasticsearch/issues/161325
 - class: org.elasticsearch.xpack.migrate.action.ReindexDatastreamIndexTransportActionIT
   issue: https://github.com/elastic/elasticsearch/issues/161483
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardDisruptionIT

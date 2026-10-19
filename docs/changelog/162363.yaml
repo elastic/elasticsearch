@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 162363
-summary: "Allow LOAD_ALL with views, without loading from them"
-type: enhancement

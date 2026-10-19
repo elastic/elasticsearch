@@ -16,8 +16,9 @@ import java.util.Objects;
 
 /**
  * Record-boundary splitter for the no-quote modes ({@link CsvFormatOptions.Mode#PLAIN} and
- * {@link CsvFormatOptions.Mode#ESCAPED}). Without quoting, a raw line terminator is always a
- * record boundary — in {@code ESCAPED} data an in-field newline is the two bytes {@code \}+{@code n},
+ * {@link CsvFormatOptions.Mode#ESCAPED}), and for a quoting or escaping dataset not declared {@code multiline_fields: true},
+ * where newlines are presumed to be boundaries and the reader fails on a record that proves otherwise. Without quoting,
+ * a raw line terminator is always a record boundary — in {@code ESCAPED} data an in-field newline is the two bytes {@code \}+{@code n},
  * never raw — so boundary detection is a plain terminator scan with no quote-state machine. That is
  * what makes this path cheap; it must never grow per-byte mode state. (Structurally the same scan
  * as the NDJSON splitter, which relies on the same no-raw-newlines-in-a-record property.)

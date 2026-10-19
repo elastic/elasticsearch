@@ -18,12 +18,14 @@ import com.sun.net.httpserver.HttpPrincipal;
 
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.MergePolicyConfig;
@@ -31,6 +33,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.azure.AzureRepositoryPlugin;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.TestUtils;
@@ -161,14 +164,20 @@ public class AzureBccUploadRefillRaceIT extends AbstractStatelessPluginIntegTest
     protected Settings.Builder nodeSettings() {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("azure.client.test.account", ACCOUNT);
-        // The mock server does not validate HMAC signatures; any base64-encoded value works.
-        secureSettings.setString("azure.client.test.key", Base64.getEncoder().encodeToString("test-key".getBytes(StandardCharsets.UTF_8)));
+        // The mock server does not validate HMAC signatures, but FIPS requires keys of at least 112 bits.
+        secureSettings.setString(
+            "azure.client.test.key",
+            Base64.getEncoder().encodeToString(randomAlphaOfLength(14).getBytes(StandardCharsets.UTF_8))
+        );
 
         String endpoint = "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=http://" + testServer.serverUrl() + "/" + ACCOUNT;
 
         return super.nodeSettings().put(disableIndexingDiskAndMemoryControllersNodeSettings())
             // upload every commit as its own BCC so each flush is one upload
             .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 1)
+            // indexing reads every segment, keep them in the cache instead of reading them from the squeezed object store
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(128))
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(256))
             .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.AZURE)
             .put(ObjectStoreService.BUCKET_SETTING.getKey(), CONTAINER)
             .put(ObjectStoreService.BASE_PATH_SETTING.getKey(), basePath)
@@ -310,9 +319,10 @@ public class AzureBccUploadRefillRaceIT extends AbstractStatelessPluginIntegTest
             RepositoriesService repositoriesService,
             ThreadPool threadPool,
             ClusterService clusterService,
-            ProjectResolver projectResolver
+            ProjectResolver projectResolver,
+            MeterRegistry meterRegistry
         ) {
-            return new ObjectStoreService(settings, repositoriesService, threadPool, clusterService, projectResolver) {
+            return new ObjectStoreService(settings, repositoriesService, threadPool, clusterService, projectResolver, meterRegistry) {
                 @Override
                 public void uploadBatchedCompoundCommitFile(
                     long primaryTerm,

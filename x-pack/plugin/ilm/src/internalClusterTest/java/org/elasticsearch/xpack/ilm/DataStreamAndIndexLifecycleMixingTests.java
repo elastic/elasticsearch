@@ -23,6 +23,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -54,10 +55,12 @@ import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
@@ -883,6 +886,124 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
         // since the ILM related settings are gone from the index template and the lifeclcye is disabled, this data stream should now be
         // managed unmanaged
         assertThat(dataStreamInfo.getNextGenerationManagedBy(), is(ManagedBy.UNMANAGED));
+    }
+
+    /**
+     * A time series data stream without a data stream lifecycle that has an ILM policy but does not prefer it, is managed by the minimum
+     * lifecycle while the `data_streams.lifecycle.minimum.enabled` setting is enabled and by ILM when it is disabled.
+     */
+    public void testMinimumLifecycleTakesOverFromIlmWhenIlmIsNotPreferred() throws Exception {
+        // ILM would only roll over after a lot of documents, the minimum lifecycle rolls over after 1 document
+        RolloverAction rolloverIlmAction = new RolloverAction(RolloverConditions.newBuilder().addMaxIndexDocsCondition(10L).build());
+        Phase hotPhase = new Phase("hot", TimeValue.ZERO, Map.of(rolloverIlmAction.getWriteableName(), rolloverIlmAction));
+        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, Map.of("hot", hotPhase));
+        assertAcked(
+            client().execute(ILMActions.PUT, new PutLifecycleRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, lifecyclePolicy)).get()
+        );
+
+        putComposableIndexTemplate(
+            indexTemplateName,
+            """
+                {
+                  "properties": {
+                    "@timestamp": { "type": "date" },
+                    "host": { "type": "keyword", "time_series_dimension": true }
+                  }
+                }""",
+            List.of(dataStreamName + "*"),
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), "time_series")
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+                .put(IndexSettings.PREFER_ILM, false)
+                .build(),
+            null,
+            null
+        );
+        client().execute(
+            CreateDataStreamAction.INSTANCE,
+            new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, dataStreamName)
+        ).get();
+
+        // The minimum lifecycle is enabled by default, so it is managing the data stream and it rolls it over after one document
+        assertThat(nextGenerationManagedBy(), is(ManagedBy.LIFECYCLE));
+        indexTimeSeriesDoc();
+        List<Index> backingIndices = waitForDataStreamBackingIndices(dataStreamName, 2);
+        String firstGenerationIndex = backingIndices.get(0).getName();
+        String secondGenerationIndex = backingIndices.get(1).getName();
+        assertManagedBy(ManagedBy.LIFECYCLE, firstGenerationIndex, secondGenerationIndex);
+
+        // Index a doc to the new backing index
+        indexTimeSeriesDocInWriteIndex(secondGenerationIndex);
+
+        // Disabling the minimum lifecycle hands the data stream over to ILM, because it is not explicitly configured with a lifecycle
+        updateClusterSettings(Settings.builder().put(DataStreamLifecycleSettings.MINIMUM_LIFECYCLE_ENABLED_SETTING_NAME, false));
+        try {
+            assertBusy(() -> assertThat(nextGenerationManagedBy(), is(ManagedBy.ILM)));
+            assertManagedBy(ManagedBy.ILM, firstGenerationIndex, secondGenerationIndex);
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(DataStreamLifecycleSettings.MINIMUM_LIFECYCLE_ENABLED_SETTING_NAME));
+        }
+
+        // Re-enabling the minimum lifecycle hands the data stream back to it, and it rolls over the data stream again
+        assertBusy(() -> assertThat(nextGenerationManagedBy(), is(ManagedBy.LIFECYCLE)));
+        assertManagedBy(ManagedBy.LIFECYCLE, firstGenerationIndex, secondGenerationIndex);
+        // The write index holds the document indexed while ILM was in charge, so the minimum lifecycle's min_docs=1 and max_docs=1
+        // conditions are met and it rolls over without more documents.
+        waitForDataStreamBackingIndices(dataStreamName, 3);
+    }
+
+    private ManagedBy nextGenerationManagedBy() {
+        GetDataStreamAction.Response response = client().execute(
+            GetDataStreamAction.INSTANCE,
+            new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamName })
+        ).actionGet();
+        assertThat(response.getDataStreams().size(), equalTo(1));
+        return response.getDataStreams().get(0).getNextGenerationManagedBy();
+    }
+
+    /**
+     * Asserts that the indices are reported as managed by the expected system, in the get data stream API, the ILM explain API and the
+     * data stream lifecycle explain API.
+     */
+    private void assertManagedBy(ManagedBy expected, String... indices) throws Exception {
+        assertBusy(() -> {
+            GetDataStreamAction.Response.DataStreamInfo dataStreamInfo = client().execute(
+                GetDataStreamAction.INSTANCE,
+                new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamName })
+            ).actionGet().getDataStreams().get(0);
+            Map<String, GetDataStreamAction.Response.IndexProperties> indexSettingsValues = dataStreamInfo.getIndexSettingsValues()
+                .entrySet()
+                .stream()
+                .collect(Collectors.toMap(entry -> entry.getKey().getName(), Map.Entry::getValue));
+            for (var index : indices) {
+                assertThat(indexSettingsValues.containsKey(index), is(true));
+                assertThat(indexSettingsValues.get(index).managedBy(), equalTo(expected));
+            }
+        });
+    }
+
+    /**
+     * Time series documents are routed to the backing index whose time range contains their timestamp, so a document with the current
+     * timestamp would end up in the first generation. We use the start time of the write index to ensure the document lands there.
+     */
+    private void indexTimeSeriesDocInWriteIndex(String writeIndex) {
+        Instant writeIndexStartTime = IndexSettings.TIME_SERIES_START_TIME.get(
+            clusterService().state().metadata().getProject().index(writeIndex).getSettings()
+        );
+        indexTimeSeriesDoc(writeIndexStartTime.toEpochMilli());
+    }
+
+    private void indexTimeSeriesDoc() {
+        indexTimeSeriesDoc(System.currentTimeMillis());
+    }
+
+    private void indexTimeSeriesDoc(long timestampMillis) {
+        String timestamp = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(timestampMillis);
+        client().index(
+            new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.CREATE)
+                .source(String.format(Locale.ROOT, "{\"@timestamp\":\"%s\",\"host\":\"host-1\"}", timestamp), XContentType.JSON)
+        ).actionGet();
+        indicesAdmin().refresh(new RefreshRequest(dataStreamName)).actionGet();
     }
 
     static void indexDocs(String dataStream, int numDocs) {

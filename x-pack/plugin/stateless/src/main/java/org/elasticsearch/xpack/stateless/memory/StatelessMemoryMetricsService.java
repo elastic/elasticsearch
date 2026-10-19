@@ -938,9 +938,14 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
          */
         NodeHeapEstimates getHeapEstimate(long postingsForTotalEstimate) {
             final long totalHeapEstimateInBytes = getHeapUsageEstimate(postingsForTotalEstimate);
+            // Search nodes leave total heap unmodeled, so they do not publish a non-shard component either.
+            final long nonShardHeapUsage = indexNode
+                ? addExact(nodeBaseHeapEstimateInBytes, minimumRequiredHeapForAcceptingLargeIndexingOps, shardMergeMemoryEstimate)
+                : 0L;
             return new NodeHeapEstimates(
                 totalHeapEstimateInBytes,
-                addExact(mappingSizeInBytes, shardMemoryUsageInBytes, totalPostingsInMemoryBytes)
+                addExact(mappingSizeInBytes, shardMemoryUsageInBytes, totalPostingsInMemoryBytes),
+                nonShardHeapUsage
             );
         }
 

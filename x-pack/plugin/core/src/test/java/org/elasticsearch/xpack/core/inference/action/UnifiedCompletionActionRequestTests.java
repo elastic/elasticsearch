@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.inference.action;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -14,7 +15,13 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.UnifiedCompletionRequestBody;
+import org.elasticsearch.inference.completion.Message;
+import org.elasticsearch.inference.completion.Reasoning;
+import org.elasticsearch.inference.completion.Template;
+import org.elasticsearch.inference.completion.Tool;
+import org.elasticsearch.inference.completion.ToolChoice;
 import org.elasticsearch.inference.completion.UnifiedCompletionUtils;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.InferenceContext;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
@@ -22,8 +29,10 @@ import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
-import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CHAT_COMPLETION_TEMPLATE_ADDED;
+import static org.elasticsearch.test.BWCVersions.DEFAULT_BWC_VERSIONS;
 import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.INFERENCE_REQUEST_PER_TASK_TIMEOUT_ADDED;
 import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
 import static org.hamcrest.Matchers.is;
@@ -62,6 +71,91 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
         );
         var exception = request.validate();
         assertThat(exception.getMessage(), is("Validation Failed: 1: Field [messages] cannot be null;"));
+    }
+
+    public void testValidation_ReturnsException_When_MessagesAndTemplate_AreBothPresent() {
+        var request = templateRequest(
+            List.of(UnifiedCompletionRequestBodyTests.randomMessage()),
+            new Template(".summarize", 1, Map.of()),
+            null,
+            null
+        );
+        var exception = request.validate();
+        assertThat(exception.getMessage(), is("Validation Failed: 1: Fields [messages] and [template] are mutually exclusive;"));
+    }
+
+    public void testValidation_ReturnsException_When_TemplateId_IsBlank() {
+        var request = templateRequest(null, new Template(" ", 1, Map.of()), null, null);
+        var exception = request.validate();
+        assertThat(exception.getMessage(), is("Validation Failed: 1: Field [template.id] cannot be empty;"));
+    }
+
+    public void testValidation_ReturnsException_When_TemplateId_DoesNotStartWithDot() {
+        var request = templateRequest(null, new Template("summarize", 1, Map.of()), null, null);
+        var exception = request.validate();
+        assertThat(exception.getMessage(), is("Validation Failed: 1: Field [template.id] must start with a dot ([.]);"));
+    }
+
+    public void testValidation_ReturnsException_When_TemplateVersion_IsNotPositive() {
+        var request = templateRequest(null, new Template(".summarize", randomIntBetween(-10, 0), Map.of()), null, null);
+        var exception = request.validate();
+        assertThat(exception.getMessage(), is("Validation Failed: 1: Field [template.version] must be a positive integer;"));
+    }
+
+    public void testValidation_ReturnsException_When_Template_IsCombinedWithTools() {
+        var request = templateRequest(
+            null,
+            new Template(".summarize", 1, Map.of()),
+            List.of(new Tool("function", new Tool.FunctionField("description", "name", null, null))),
+            null
+        );
+        var exception = request.validate();
+        assertThat(exception.getMessage(), is("Validation Failed: 1: Field [tools] cannot be specified with [template];"));
+    }
+
+    public void testValidation_ReturnsException_When_Template_IsCombinedWithToolChoice() {
+        var request = templateRequest(null, new Template(".summarize", 1, Map.of()), null, new ToolChoice.ToolChoiceString("auto"));
+        var exception = request.validate();
+        assertThat(exception.getMessage(), is("Validation Failed: 1: Field [tool_choice] cannot be specified with [template];"));
+    }
+
+    public void testValidation_ReturnsNull_When_TemplateIsValid() {
+        var body = new UnifiedCompletionRequestBody(
+            null,
+            "model",
+            10L,
+            List.of("stop"),
+            0.5f,
+            null,
+            null,
+            0.9f,
+            new Reasoning(Reasoning.ReasoningEffort.HIGH, null, null, null),
+            null,
+            "session",
+            new Template(".summarize", 1, Map.of("time_range", "24h"))
+        );
+        var request = new UnifiedCompletionAction.Request(
+            "inference_id",
+            TaskType.CHAT_COMPLETION,
+            UnifiedCompletionRequest.streaming(body),
+            TimeValue.timeValueSeconds(10)
+        );
+        assertNull(request.validate());
+    }
+
+    private static UnifiedCompletionAction.Request templateRequest(
+        List<Message> messages,
+        Template template,
+        List<Tool> tools,
+        ToolChoice toolChoice
+    ) {
+        var body = new UnifiedCompletionRequestBody(messages, null, null, null, null, toolChoice, tools, null, null, null, null, template);
+        return new UnifiedCompletionAction.Request(
+            "inference_id",
+            TaskType.CHAT_COMPLETION,
+            UnifiedCompletionRequest.streaming(body),
+            TimeValue.timeValueSeconds(10)
+        );
     }
 
     public void testValidation_ReturnsException_When_UnifiedCompletionRequest_Is_EmptyArray() {
@@ -123,23 +217,42 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
     }
 
     /**
-     * Versions before {@link UnifiedCompletionUtils#MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED} throw an exception when serializing
-     * non-text content, so we filter those out of the bwc versions to avoid test failures.
-     * The logic is tested directly by {@link #testMultimodalContentIsNotBackwardsCompatible}
+     * Versions before {@link UnifiedCompletionUtils#MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED} refuse to serialize non-text content
+     * and versions before {@link UnifiedCompletionUtils#CHAT_COMPLETION_TEMPLATE_ADDED} refuse to serialize a template, so the
+     * generic BWC test only covers versions that accept every random instance. Older versions are covered by
+     * {@link #testBwcSerialization_VersionsBeforeTemplates}.
      */
     @Override
     protected Collection<TransportVersion> bwcVersions() {
-        return super.bwcVersions().stream().filter(version -> version.supports(MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED)).toList();
+        return super.bwcVersions().stream().filter(version -> version.supports(CHAT_COMPLETION_TEMPLATE_ADDED)).toList();
     }
 
-    public void testMultimodalContentIsNotBackwardsCompatible() throws IOException {
-        testSerializationIsNotBackwardsCompatible(
-            MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED,
-            i -> i.getUnifiedCompletionRequest().body().containsMultimodalContent(),
-            """
-                Cannot send a multimodal chat completion request to an older node. \
-                Please wait until all nodes are upgraded before using multimodal chat completion inputs"""
-        );
+    /**
+     * The template and multimodal refusals are asserted by
+     * {@link UnifiedCompletionRequestBodyTests#testUnsupportedFieldsAreNotBackwardsCompatible}; they only pass through this request
+     * unchanged. This loop exists for the instances older versions do accept: it is the only run of the context and timeout
+     * down-casts in {@link #mutateInstanceForVersion} against versions that {@link #bwcVersions()} leaves out.
+     */
+    public void testBwcSerialization_VersionsBeforeTemplates() throws IOException {
+        for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
+            var instance = createTestInstance();
+            for (var version : DEFAULT_BWC_VERSIONS) {
+                var expectedError = UnifiedCompletionRequestBodyTests.expectedSerializationError(
+                    instance.getUnifiedCompletionRequest().body(),
+                    version
+                );
+                if (expectedError == null) {
+                    assertBwcSerialization(instance, version);
+                } else {
+                    var e = expectThrows(
+                        ElasticsearchStatusException.class,
+                        () -> copyWriteable(instance, getNamedWriteableRegistry(), instanceReader(), version)
+                    );
+                    assertThat(e.status(), is(RestStatus.BAD_REQUEST));
+                    assertThat(e.getMessage(), is(expectedError));
+                }
+            }
+        }
     }
 
     @Override

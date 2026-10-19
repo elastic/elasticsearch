@@ -33,6 +33,8 @@ import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
+import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
@@ -42,6 +44,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -489,6 +492,63 @@ public class DatasetRewriterTests extends ESTestCase {
         // Setting off: the wildcard is left untouched, so it reaches no dataset.
         UnresolvedRelation relation = relationOf("logs_*");
         assertSame(relation, rewriteWildcardsDisabled(relation, project));
+    }
+
+    public void testWildcardsMatchDatasetsStopsAtViewBranches() {
+        // The caller's wildcard reaches the dataset, the same wildcard in a view body does not: the caller's SET stops at the
+        // view boundary. The two relations are equal; only the view branch they sit in tells them apart.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset dataset = new Dataset("logs_ds", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_ds", dataset));
+
+        UnresolvedRelation callers = relationOf("logs_*");
+        UnresolvedRelation inView = relationOf("logs_*");
+        assertEquals(callers, inView);
+        LinkedHashMap<String, LogicalPlan> branches = new LinkedHashMap<>();
+        branches.put("main", callers);
+        branches.put("logs_view", inView);
+        BranchPlan plan = new BranchPlan(Source.EMPTY, branches, Map.of("logs_view", BranchIdentity.view("logs_view")), List.of());
+
+        LogicalPlan rewritten = rewrite(plan, project);
+        assertThat(rewritten.children().get(0), instanceOf(UnresolvedExternalRelation.class));
+        assertSame(inView, rewritten.children().get(1));
+    }
+
+    public void testWildcardsMatchDatasetsAppliesToUserSubqueryBranches() {
+        // A subquery the user wrote is not a view: its wildcard keeps the caller's setting, like the branch beside it.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset dataset = new Dataset("logs_ds", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_ds", dataset));
+
+        LinkedHashMap<String, LogicalPlan> branches = new LinkedHashMap<>();
+        branches.put("main", relationOf("logs_*"));
+        branches.put("unnamed_view_1", relationOf("logs_*"));
+        BranchPlan plan = new BranchPlan(Source.EMPTY, branches, Map.of("unnamed_view_1", BranchIdentity.SUBQUERY), List.of());
+
+        LogicalPlan rewritten = rewrite(plan, project);
+        assertThat(rewritten.children().get(0), instanceOf(UnresolvedExternalRelation.class));
+        assertThat(rewritten.children().get(1), instanceOf(UnresolvedExternalRelation.class));
+    }
+
+    public void testWildcardsMatchDatasetsStaysOffInsideNestedBranchesOfAViewBranch() {
+        // Everything beneath a view branch belongs to the view, including the branches of a union nested in its body.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset dataset = new Dataset("logs_ds", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_ds", dataset));
+
+        UnresolvedRelation first = relationOf("logs_*");
+        UnresolvedRelation second = relationOf("logs_*");
+        LinkedHashMap<String, LogicalPlan> nested = new LinkedHashMap<>();
+        nested.put("first", first);
+        nested.put("second", second);
+        BranchPlan body = new BranchPlan(Source.EMPTY, nested, Map.of(), List.of());
+        LinkedHashMap<String, LogicalPlan> branches = new LinkedHashMap<>();
+        branches.put("logs_view", body);
+        BranchPlan plan = new BranchPlan(Source.EMPTY, branches, Map.of("logs_view", BranchIdentity.view("logs_view")), List.of());
+
+        LogicalPlan rewritten = rewrite(plan, project);
+        assertSame(first, rewritten.children().get(0).children().get(0));
+        assertSame(second, rewritten.children().get(0).children().get(1));
     }
 
     public void testAliasAlongsideExactDatasetUnionsWhenWildcardsMatchDatasetsOff() {

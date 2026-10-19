@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -100,8 +99,7 @@ public final class QuerySettings {
         .canonicalize(ZoneId::normalized)
         .build();
 
-    // LOAD_ALL is deliberately absent from this description: it is snapshot-only, and there is no mechanism to hold
-    // docs back for a snapshot-only value of an already-released setting. Document it once it ships.
+    // LOAD_ALL is not documented here yet; its docs follow separately.
     @Param(name = "unmapped_fields", type = { "keyword" }, since = "preview 9.3-9.4, ga 9.5+", description = """
         Determines how unmapped fields are treated.
         For a conceptual overview and use cases, including performance considerations, refer to
@@ -155,11 +153,6 @@ public final class QuerySettings {
         "unmapped_fields",
         QuerySettings::parseUnmappedResolution
     )
-        .withValidator(
-            (value, ctx) -> value == UnmappedResolution.LOAD_ALL && ctx.isSnapshot() == false
-                ? "unmapped_fields value [LOAD_ALL] requires a snapshot build"
-                : null
-        )
         .withDefault(UnmappedResolution.DEFAULT)
         .withClusterDefault()
         .withTelemetryLabels(
@@ -378,19 +371,10 @@ public final class QuerySettings {
         try {
             return UnmappedResolution.valueOf(value.toUpperCase(Locale.ROOT));
         } catch (Exception e) {
-            throw new IllegalArgumentException(invalidUnmappedResolutionMessage(value, Build.current().isSnapshot()));
+            throw new IllegalArgumentException(
+                "Invalid unmapped_fields resolution [" + value + "], must be one of " + Arrays.toString(UnmappedResolution.values())
+            );
         }
-    }
-
-    /**
-     * Parsing runs before the snapshot-only validator of {@link #UNMAPPED_FIELDS}, so this message is what a user of a production build
-     * sees for a typo. It must not advertise {@link UnmappedResolution#LOAD_ALL}, which that build rejects.
-     */
-    static String invalidUnmappedResolutionMessage(String value, boolean snapshotBuild) {
-        List<UnmappedResolution> available = Arrays.stream(UnmappedResolution.values())
-            .filter(resolution -> snapshotBuild || resolution.loadsAllUnmappedFields() == false)
-            .toList();
-        return "Invalid unmapped_fields resolution [" + value + "], must be one of " + available;
     }
 
     /**
@@ -483,7 +467,6 @@ public final class QuerySettings {
      * above is only the fold, without those overrides.
      *
      * @param licenseState the license of the cluster, which decides what an operator's default for approximation means
-     * @param loadAllMaxFields the limit on the fields {@code unmapped_fields="LOAD_ALL"} discovers
      */
     public static ResolvedSettings resolve(
         Settings clusterState,
@@ -491,11 +474,10 @@ public final class QuerySettings {
         Map<QuerySettingDef<?>, Object> requestParams,
         @Nullable EsqlStatement statement,
         SettingsValidationContext ctx,
-        @Nullable XPackLicenseState licenseState,
-        int loadAllMaxFields
+        @Nullable XPackLicenseState licenseState
     ) {
         ResolvedSettings resolved = resolve(clusterState, nodeSettings, requestParams, statement, ctx);
-        return applyLoadAllMaxFields(applyApproximationLicense(resolved, requestParams, statement, licenseState), loadAllMaxFields);
+        return applyApproximationLicense(resolved, requestParams, statement, licenseState);
     }
 
     /**
@@ -531,19 +513,6 @@ public final class QuerySettings {
             return resolved;
         }
         return resolved.withOverride(APPROXIMATION, null);
-    }
-
-    /**
-     * A limit of {@code 0} on the fields {@code LOAD_ALL} discovers makes {@code LOAD_ALL} discover nothing, which is what
-     * {@code LOAD} is. Resolve it to {@code LOAD} then, so that every phase of the query sees {@code LOAD}: no
-     * {@code _unmapped_fields} column is planned and shipped from the data nodes only to be dropped, and the restrictions
-     * that only {@code LOAD_ALL} has do not apply.
-     */
-    private static ResolvedSettings applyLoadAllMaxFields(ResolvedSettings resolved, int loadAllMaxFields) {
-        if (loadAllMaxFields == 0 && resolved.get(UNMAPPED_FIELDS) == UnmappedResolution.LOAD_ALL) {
-            return resolved.withOverride(UNMAPPED_FIELDS, UnmappedResolution.LOAD);
-        }
-        return resolved;
     }
 
     /**

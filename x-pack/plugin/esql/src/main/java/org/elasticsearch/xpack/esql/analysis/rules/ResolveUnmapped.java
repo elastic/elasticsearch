@@ -130,7 +130,7 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
         boolean changed = false;
         for (int i = 0; i < children.size(); i++) {
             LogicalPlan child = children.get(i);
-            LogicalPlan newChild = isViewBody(plan, i)
+            LogicalPlan newChild = ViewUtils.isViewBody(plan, i)
                 ? fn.apply(((BranchPlan) plan).branchIdentity(i).settingsViewName(), child)
                 : transformViewBranches(child, fn);
             changed |= newChild != child;

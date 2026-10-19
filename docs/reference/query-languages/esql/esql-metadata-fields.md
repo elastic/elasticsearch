@@ -93,18 +93,8 @@ Refer to [{{esql}} for search](docs-content://solutions/search/esql-for-search.m
 
 A [subquery](esql-from-subquery.md#subqueries-with-metadata) or [view](esql-views.md#views-with-metadata) returns `null` for `_score` when its output does not contain that field. This example combines rows from a subquery over `languages` with rows read directly from the same index:
 
-```esql
-FROM (FROM languages), languages METADATA _score
-| WHERE MATCH(language_name, "English") OR MATCH(language_name, "French")
-| SORT _score DESC NULLS LAST, language_code
-```
-
-| language_code:integer | language_name:keyword | _score:double |
-| --- | --- | --- |
-| 1 | English | 1.2039728164672852 |
-| 2 | French | 1.2039728164672852 |
-| 1 | English | null |
-| 2 | French | null |
+:::{include} _snippets/generated/x-pack-esql/commands/examples/metadata-views-and-subqueries.csv-spec/scoresAcrossMixedSources.md
+:::
 
 The `WHERE` filter applies to both sources. The index rows return a score from `MATCH`. The subquery rows return `null`, because the subquery does not produce `_score`.
 

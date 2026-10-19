@@ -210,8 +210,8 @@ Views follow the same rules as [subqueries](/reference/query-languages/esql/esql
 
 Inside the view, the directive generates columns just like other fields. You can use them for filtering and as output columns.
 
-Except for `_class` and `_name`, an outer `METADATA` request returns `null` when the view's output does not contain the requested field.
-When the view retains a metadata field in its output, the outer query receives its values even if it does not request that field with `METADATA`.
+:::{include} _snippets/common/outer_metadata_rules.md
+:::
 
 :::{warning}
 :applies_to: stack: preview =9.4
@@ -219,9 +219,8 @@ When the view retains a metadata field in its output, the outer query receives i
 
 If the `FROM` names only a view, the directive is ignored. For example, `FROM my_view METADATA _index` returns the view contents without an `_index` column.
 
-If the `FROM` combines a view with other sources, the requested metadata columns might appear with `null` values for the subquery rows, but this behavior is not consistent.
-
-To retrieve metadata values reliably, request the fields inside the view and retain them in its output.
+:::{include} _snippets/common/outer_metadata_9_4_warning.md
+:::
 :::
 
 {applies_to}`stack: ga 9.6+` `_class` and `_name` are the only metadata fields that work on a view without the view body declaring them. The outer query answers them for each view. `_class` is `view`. `_name` is the view name. You do not need the directive inside the view. If the view body also declares `_class` or `_name`, the outer values replace them.

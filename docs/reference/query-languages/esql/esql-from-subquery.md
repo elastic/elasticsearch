@@ -210,6 +210,11 @@ per-`cluster` aggregates, and the `ROW` subquery provides the synthesized
 
 The [`METADATA` directive](/reference/query-languages/esql/esql-metadata-fields.md) is supported both inside and outside a subquery.
 
+Inside the subquery, the directive generates columns that you can use for filtering or return in the output.
+
+:::{include} _snippets/common/outer_metadata_rules.md
+:::
+
 If the directive is used only outside the subquery, it will report `null` for the values within the subquery:
 
 :::{include} _snippets/generated/x-pack-esql/commands/examples/subquery.csv-spec/subquery_with_metadata_outer.md
@@ -231,9 +236,8 @@ If you only have the directive within the subquery, null values will be returned
 
 If the `FROM` contains only a subquery, the directive is ignored. For example, `FROM (FROM employees) METADATA _index` behaves like `FROM employees` and returns no `_index` column.
 
-If the `FROM` combines a subquery with other sources, the requested metadata columns might appear with `null` values for the subquery rows, but this behavior is not consistent.
-
-To retrieve metadata values reliably, request the fields inside the subquery and retain them in its output.
+:::{include} _snippets/common/outer_metadata_9_4_warning.md
+:::
 :::
 
 {applies_to}`stack: ga 9.6+` `_class` and `_name` are the only metadata fields that work on a subquery without the subquery body declaring them. The outer `FROM` answers them for each subquery on its own. `_class` is `subquery`. `_name` is `null`, because a subquery has no name. You do not need the directive inside the subquery. If the subquery body also declares `_class` or `_name`, the outer values replace them.

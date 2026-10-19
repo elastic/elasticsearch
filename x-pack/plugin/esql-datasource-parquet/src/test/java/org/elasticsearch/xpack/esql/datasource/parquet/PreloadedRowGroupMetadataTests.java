@@ -44,6 +44,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
@@ -95,6 +96,15 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
      * within a test and automatic isolation between tests.
      */
     private final FooterByteCache footerByteCache = FooterByteCache.fromSettings(Settings.EMPTY);
+
+    /**
+     * Footer byte cache budget that admits no entry, for a test that observes the preload's own GETs on a file
+     * that fits the footer prefetch: with the default cache the footer parse stores such a file whole and the
+     * preload reads nothing.
+     */
+    private static final Settings NO_FOOTER_BYTE_CACHE = Settings.builder()
+        .put(ExternalSourceCacheSettings.FOOTER_CACHE_SIZE.getKey(), "1b")
+        .build();
 
     private BlockFactory blockFactory;
     private CircuitBreaker breaker;
@@ -246,13 +256,11 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
         StorageObject storage = createRangeReadStorageObject(parquetData);
         CircuitBreaker trackingBreaker = new LimitedBreaker("release-raw", ByteSizeValue.ofMb(32));
         ParquetIoWatermark watermark = new ParquetIoWatermark(64 * 1024 * 1024);
+        FooterByteCache noEntries = FooterByteCache.fromSettings(NO_FOOTER_BYTE_CACHE);
 
         ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
         try (
-            ParquetFileReader reader = ParquetFileReader.open(
-                new ParquetStorageObjectAdapter(storage, footerByteCache, trackingBreaker),
-                options
-            )
+            ParquetFileReader reader = ParquetFileReader.open(new ParquetStorageObjectAdapter(storage, noEntries, trackingBreaker), options)
         ) {
             try (
                 PreloadedRowGroupMetadata metadata = PreloadedRowGroupMetadata.preload(
@@ -264,7 +272,7 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
                     Integer.MAX_VALUE,
                     trackingBreaker,
                     watermark,
-                    footerByteCache
+                    noEntries
                 )
             ) {
                 assertFalse("Pre-warm map must be populated", metadata.preWarmedChunks().isEmpty());
@@ -1424,6 +1432,11 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
         }
 
         @Override
+        public String version() {
+            return "v1";
+        }
+
+        @Override
         public StorageIdentity storageIdentity() {
             return AbstractTestStorageObject.NOOP;
         }
@@ -1519,6 +1532,11 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
 
             @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -1585,6 +1603,11 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
 
             @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -1640,6 +1663,11 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
         return new StorageObject() {
             @Override
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
 
             @Override
             public StorageIdentity storageIdentity() {

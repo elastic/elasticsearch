@@ -281,7 +281,7 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testThePlainSkipperIsPersistedOnlyForAPrimarySortThatTheReaderCannotBisect() throws IOException {
+    public void testThePlainSkipperIsPersistedOnlyForAPrimarySort() throws IOException {
         assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
 
         final int numDocs = 3000;
@@ -342,13 +342,17 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
             bytes.put(variant, skipIndexBytes(index));
         }
         final long oneEntry = Long.BYTES + Integer.BYTES + Long.BYTES + Byte.BYTES;
-        assertTrue("descending primary sort writes the bounds: " + bytes, bytes.get("descending") >= bytes.get("ascending") + oneEntry);
         assertEquals(
-            "documents without the field leave an ascending column bisectable: " + bytes,
+            "ascending and descending primary sorts write the same bounds: " + bytes,
+            bytes.get("ascending"),
+            bytes.get("descending")
+        );
+        assertEquals(
+            "documents without the field do not change them: " + bytes,
             bytes.get("ascending"),
             bytes.get("ascending-with-missing")
         );
-        assertEquals("a secondary sort key does not: " + bytes, bytes.get("ascending"), bytes.get("descending-secondary"));
+        assertTrue("a secondary sort key writes none: " + bytes, bytes.get("descending-secondary") + oneEntry <= bytes.get("descending"));
     }
 
     private void assertQueriesMatch(String index, Map<String, String> values) {

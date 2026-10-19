@@ -26,6 +26,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
 public class PlainSkipBoundsTests extends ESTestCase {
@@ -221,15 +222,15 @@ public class PlainSkipBoundsTests extends ESTestCase {
         }
     }
 
-    public void testNothingIsAppendedWhenTheRegionIsNotKeptAndStagedFilesAreRemoved() throws IOException {
+    public void testNothingIsAppendedWhenTheWriterIsNotFinishedAndStagedFilesAreRemoved() throws IOException {
         try (Directory dir = newDirectory()) {
             final int before = dir.listAll().length;
             try (IndexOutput out = dir.createOutput("kept.cns", IOContext.DEFAULT)) {
                 final PlainSkipBounds.Writer writer = new PlainSkipBounds.Writer(dir, IOContext.DEFAULT, "kept", 2);
                 writer.add(0, 0, 0, new BytesRef("a"));
                 writer.add(1, 1, 1, new BytesRef("b"));
-                assertNull(writer.finish(out, false));
-                assertEquals(0, out.getFilePointer());
+                assertNotNull(writer.finish(out));
+                assertThat(out.getFilePointer(), greaterThan(0L));
             }
             assertEquals(before + 1, dir.listAll().length);
             try (IndexOutput out = dir.createOutput("never.cns", IOContext.DEFAULT)) {
@@ -264,7 +265,7 @@ public class PlainSkipBoundsTests extends ESTestCase {
         ) {
             writer.add(0, 0, 0, new BytesRef("a"));
             writer.add(1, 1, 0, new BytesRef("b"));
-            expectThrows(IllegalStateException.class, () -> writer.finish(out, true));
+            expectThrows(IllegalStateException.class, () -> writer.finish(out));
         }
     }
 
@@ -295,7 +296,7 @@ public class PlainSkipBoundsTests extends ESTestCase {
     public void testAColumnWithoutSlotsWritesNoRegion() throws IOException {
         try (Directory dir = newDirectory(); IndexOutput out = dir.createOutput("none.cns", IOContext.DEFAULT)) {
             try (PlainSkipBounds.Writer writer = new PlainSkipBounds.Writer(dir, IOContext.DEFAULT, "none", 0)) {
-                assertNull(writer.finish(out, true));
+                assertNull(writer.finish(out));
             }
             assertEquals(0, out.getFilePointer());
         }

@@ -21,15 +21,15 @@ import java.io.IOException;
  * skip-hostile:
  *
  * <ul>
- * <li>{@code SORTED_POD_NAME}: values arrive in term order, so the reader bisects and the skip index
- *     writes nothing. It is the control: both formats must measure the same.</li>
+ * <li>{@code SORTED_POD_NAME}: values arrive in term order, so the reader bisects and does not use the skip
+ *     index, which is still written. It is the control: both formats must measure the same.</li>
  * <li>{@code DESCENDING_POD_NAME}: values arrive in reverse term order. The reader cannot bisect, and each
- *     block covers a narrow portion of the vocabulary, so nearly every block outside the query range is
+ *     chunk covers a narrow portion of the vocabulary, so nearly every chunk outside the query range is
  *     pruned. This is the best case for the skip index.</li>
  * <li>{@code SHUFFLED_POD_NAME}: the same multiset in uniformly random document order. Every
- *     block spans roughly the full vocabulary, so no block can be pruned. This is the worst case.</li>
- * <li>{@code TRACE_ID}: all values are distinct hex strings. Blocks cover a modest portion of
- *     the lexicographic space, so some pruning is possible at low selectivities.</li>
+ *     chunk spans roughly the full vocabulary, so no chunk can be pruned. This is the worst case.</li>
+ * <li>{@code TRACE_ID}: all values are distinct hex strings. Chunks cover almost the whole
+ *     lexicographic space, so little pruning is possible.</li>
  * </ul>
  *
  * <p>Run commands (from the repository root):

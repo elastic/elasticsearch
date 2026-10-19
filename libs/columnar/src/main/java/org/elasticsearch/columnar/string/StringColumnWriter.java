@@ -270,7 +270,7 @@ public final class StringColumnWriter {
             written = stream.finish();
             valuesWorthNaming = dictionaryPolicy.enabled() == false || stream.runs() * StringColumnReader.MIN_PAGE_REPEAT <= numValues;
             addressing = slots.finish(valueAddress);
-            skipper = bounds == null ? null : bounds.finish(skipIndex, (sorted && SlotAddressing.NONE.equals(addressing)) == false);
+            skipper = bounds == null ? null : bounds.finish(skipIndex);
             finished = true;
         } finally {
             if (finished == false) {

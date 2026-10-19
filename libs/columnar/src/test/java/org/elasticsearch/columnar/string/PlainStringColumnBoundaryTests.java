@@ -171,7 +171,7 @@ public class PlainStringColumnBoundaryTests extends ColumnarStringTestCase {
         );
     }
 
-    public void testAnAscendingSparseColumnWritesNoRegionAndAnswersExactly() throws IOException {
+    public void testAnAscendingSparseColumnWritesARegionAndAnswersExactly() throws IOException {
         final BytesRef[][] docSlots = new BytesRef[1000][];
         for (int doc = 0; doc < docSlots.length; doc++) {
             if (randomInt(3) != 0) {
@@ -179,7 +179,7 @@ public class PlainStringColumnBoundaryTests extends ColumnarStringTestCase {
             }
         }
         withColumn(docSlots, plainWithBounds(), (metadata, reader) -> {
-            assertNull(((StringColumnMetadata.Plain) metadata).skipper());
+            assertNotNull(((StringColumnMetadata.Plain) metadata).skipper());
             StringMatchOracle.checkRandomQueries(reader, docSlots, PlainSkipTestValues.sortedPool(10), 20);
             StringMatchOracle.assertRange(reader, docSlots, new BytesRef("k000100"), true, new BytesRef("k000200"), false);
         });

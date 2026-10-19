@@ -25,7 +25,7 @@ public class PlainSkipBoundsFormatTests extends ESTestCase {
 
     private static final int DOCS = 20_000;
 
-    public void testBothFormatsAnswerAlikeAndOnlyTheBoundedOneWritesTheIndexWhereItShould() throws IOException {
+    public void testBothFormatsAnswerAlikeAndOnlyTheBoundedOneWritesTheIndex() throws IOException {
         for (StringData data : new StringData[] {
             StringData.SORTED_POD_NAME,
             StringData.DESCENDING_POD_NAME,
@@ -43,11 +43,7 @@ public class PlainSkipBoundsFormatTests extends ESTestCase {
                 ) {
                     StringFormat.COLUMNAR_PLAIN.requirePlainLayout(plain, DOCS);
                     StringFormat.COLUMNAR_PLAIN_BOUNDED.requirePlainLayout(bounded, DOCS);
-                    if (data == StringData.SORTED_POD_NAME) {
-                        assertEquals(plain.skipIndexBytes(), bounded.skipIndexBytes());
-                    } else {
-                        assertThat(bounded.skipIndexBytes(), greaterThan(plain.skipIndexBytes()));
-                    }
+                    assertThat(bounded.skipIndexBytes(), greaterThan(plain.skipIndexBytes()));
                     assertSameAnswers(data.toString(), plain, bounded, sorted);
                 }
             }

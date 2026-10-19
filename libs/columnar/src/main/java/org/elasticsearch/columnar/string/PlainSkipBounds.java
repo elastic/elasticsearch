@@ -126,15 +126,15 @@ final class PlainSkipBounds {
             }
         }
 
-        /** Appends the region to {@code skipIndex} and returns where it went, or null if not {@code keep} or there are no slots. */
-        StringColumnMetadata.Plain.Skipper finish(IndexOutput skipIndex, boolean keep) throws IOException {
+        /** Appends the region to {@code skipIndex} and returns where it went, or null if there are no slots. */
+        StringColumnMetadata.Plain.Skipper finish(IndexOutput skipIndex) throws IOException {
             writeCurrent();
             if (nextAddress != numValues) {
                 throw new IllegalStateException("took [" + nextAddress + "] slots for [" + numValues + "] expected");
             }
             final long payloadLength = payloadOutput.getFilePointer();
             closeOutputs();
-            if (keep == false || entriesWritten == 0) {
+            if (entriesWritten == 0) {
                 close();
                 return null;
             }

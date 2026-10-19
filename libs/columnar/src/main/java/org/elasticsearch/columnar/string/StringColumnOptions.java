@@ -29,7 +29,7 @@ import org.elasticsearch.columnar.substrate.ChunkCodec;
  * @param enableSkipIndex whether a dictionary column without escapes writes the smallest and largest ordinal of
  *                     each interval of documents, which a range query uses to skip intervals
  * @param enablePlainSkipIndex whether a plain column writes the bounds of the values each compressed chunk owns,
- *                     which a query uses to skip chunks. A column the reader bisects writes none
+ *                     which a query uses to skip chunks
  */
 public record StringColumnOptions(
     DictionaryPolicy dictionary,

@@ -66,7 +66,7 @@ public class PlainStringColumnSkipperTests extends ColumnarStringTestCase {
         }
     }
 
-    public void testBoundsAreWrittenOnlyWhenEnabledAndWhenTheReaderDoesNotBisect() throws IOException {
+    public void testBoundsAreWrittenOnlyWhenEnabledWhateverTheOrderOfTheValues() throws IOException {
         final int count = 3 * INTERVAL + 5;
         final BytesRef[] pool = PlainSkipTestValues.sortedPool(20);
         final BytesRef[][] ascending = new BytesRef[count][];
@@ -86,27 +86,20 @@ public class PlainStringColumnSkipperTests extends ColumnarStringTestCase {
             withColumn(docSlots, plain(true, sizes), (metadata, reader) -> {
                 assertThat(metadata, instanceOf(StringColumnMetadata.Plain.class));
                 final StringColumnMetadata.Plain column = (StringColumnMetadata.Plain) metadata;
-                assertEquals(bisected, column.skipper() == null);
                 assertEquals(bisected, column.valuesSorted() && column.hasValueAddresses() == false);
-                if (bisected == false) {
-                    final List<BytesRef> slots = new ArrayList<>();
-                    Arrays.stream(docSlots).forEach(slotsOfDoc -> slots.addAll(Arrays.asList(slotsOfDoc)));
-                    final int[] owners = PlainChunkModel.owners(
-                        slots,
-                        sizes.plainChunks(),
-                        sizes.valuesPerBlock(),
-                        sizes.lengthBlockSize()
-                    );
-                    assertEquals(PlainSkipFixture.entriesOf(owners), column.skipper().entryCount());
-                    assertEquals(with - without, column.skipper().entryCount() * 20L + column.skipper().payloadLength());
-                }
+                assertNotNull(column.skipper());
+                final List<BytesRef> slots = new ArrayList<>();
+                Arrays.stream(docSlots).forEach(slotsOfDoc -> slots.addAll(Arrays.asList(slotsOfDoc)));
+                final int[] owners = PlainChunkModel.owners(slots, sizes.plainChunks(), sizes.valuesPerBlock(), sizes.lengthBlockSize());
+                assertEquals(PlainSkipFixture.entriesOf(owners), column.skipper().entryCount());
+                assertEquals(with - without, column.skipper().entryCount() * 20L + column.skipper().payloadLength());
             });
             withColumn(
                 docSlots,
                 plain(false, sizes),
                 (metadata, reader) -> { assertNull(((StringColumnMetadata.Plain) metadata).skipper()); }
             );
-            assertEquals(bisected, with == without);
+            assertThat(with, greaterThan(without));
         }
     }
 

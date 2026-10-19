@@ -282,16 +282,14 @@ public enum StringFormat {
     }
 
     /**
-     * Throws unless the column is plain and carries a skip index exactly when the format asks for one and the
-     * values are not already in term order, where the reader bisects and writes none.
+     * Throws unless the column is plain and carries a skip index exactly when the format asks for one.
      */
     void requirePlainLayout(Column column, int numDocs) throws IOException {
         if (column.shape().startsWith("plain") == false) {
             throw new IllegalStateException(this + " produced a non-plain layout: " + column.shape());
         }
         final boolean hasBounds = column.skipIndexBytes() >= emptySkipIndexBytes() + MIN_PLAIN_BOUNDS_BYTES;
-        final boolean expectsBounds = this == COLUMNAR_PLAIN_BOUNDED && column.shape().contains("+sorted") == false;
-        if (hasBounds != expectsBounds) {
+        if (hasBounds != (this == COLUMNAR_PLAIN_BOUNDED)) {
             throw new IllegalStateException(
                 this + " wrote a skip index of " + column.skipIndexBytes() + " bytes for " + numDocs + " documents: " + column.shape()
             );

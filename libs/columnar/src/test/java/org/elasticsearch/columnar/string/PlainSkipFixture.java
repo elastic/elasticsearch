@@ -172,7 +172,7 @@ final class PlainSkipFixture implements Closeable {
                         }
                     }
                 }
-                skipper = writer.finish(out, true);
+                skipper = writer.finish(out);
             }
         }
         return new PlainSkipFixture(docSlots, owners, skipper, dir.openInput("fixture.cns", IOContext.DEFAULT), leading);

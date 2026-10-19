@@ -66,6 +66,10 @@ public sealed interface DecisionQuestion extends Writeable, ToXContentObject per
 
     /**
      * The kind of a question, which determines the shape of both the question and its answer.
+     * <p>
+     * Questions are persisted with the inference endpoint and sent between nodes, so a node that does not know a type can neither parse
+     * nor read it. Adding a new type therefore requires guarding its use, for example behind a node feature and a transport version,
+     * until every node in the cluster is able to parse it.
      */
     enum Type implements Writeable {
         /**
@@ -340,11 +344,7 @@ public sealed interface DecisionQuestion extends Writeable, ToXContentObject per
             builder.startObject();
             builder.field(TYPE_FIELD, type().toString());
             builder.field(INSTRUCTIONS_FIELD, instructions);
-            builder.startObject(CHOICES_FIELD);
-            for (var choice : choices.entrySet()) {
-                builder.field(choice.getKey(), choice.getValue());
-            }
-            builder.endObject();
+            builder.field(CHOICES_FIELD, choices);
             builder.endObject();
             return builder;
         }

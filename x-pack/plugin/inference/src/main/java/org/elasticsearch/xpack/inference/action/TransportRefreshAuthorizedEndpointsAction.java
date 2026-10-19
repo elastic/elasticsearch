@@ -142,12 +142,7 @@ public class TransportRefreshAuthorizedEndpointsAction extends HandledTransportA
     private List<Model> selectEndpointsToPersist(ElasticInferenceServiceAuthorizationModel authModel) {
         logger.debug("Received authorization response, {}", authModel);
 
-        var taskTypes = EnumSet.copyOf(ElasticInferenceService.IMPLEMENTED_TASK_TYPES);
-        // Nodes that are not upgraded yet can't read decision endpoints, a later poll persists them once the cluster is upgraded
-        if (inferenceFeatureService.hasFeature(InferenceFeatures.DECISION_TASK_TYPE) == false) {
-            taskTypes.remove(TaskType.DECISION);
-        }
-        var scopedAuthModel = authModel.newLimitedToTaskTypes(taskTypes);
+        var scopedAuthModel = scopeAuthModel(authModel);
         logger.debug("Authorization entity limited to service task types, {}", scopedAuthModel);
 
         List<Model> endpoints = scopedAuthModel.getEndpoints(scopedAuthModel.getEndpointIds());
@@ -161,6 +156,18 @@ public class TransportRefreshAuthorizedEndpointsAction extends HandledTransportA
         return endpoints.stream()
             .filter(model -> shouldPersistEndpoint(model, existingById.get(model.getInferenceEntityId())))
             .collect(Collectors.toList());
+    }
+
+    /**
+     * Limits the authorization to the task types the service implements, which excludes the ones the cluster can't read yet.
+     */
+    private ElasticInferenceServiceAuthorizationModel scopeAuthModel(ElasticInferenceServiceAuthorizationModel authModel) {
+        var taskTypes = EnumSet.copyOf(ElasticInferenceService.IMPLEMENTED_TASK_TYPES);
+        // Nodes that are not upgraded yet can't read decision endpoints, a later poll persists them once the cluster is upgraded
+        if (inferenceFeatureService.hasFeature(InferenceFeatures.DECISION_TASK_TYPE) == false) {
+            taskTypes.remove(TaskType.DECISION);
+        }
+        return authModel.newLimitedToTaskTypes(taskTypes);
     }
 
     private static boolean shouldPersistEndpoint(Model newEndpoint, @Nullable EndpointClusterState existingEndpoint) {

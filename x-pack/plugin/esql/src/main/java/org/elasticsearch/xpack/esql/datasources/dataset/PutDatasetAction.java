@@ -84,7 +84,8 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
         "comment",
         "multi_value_syntax",
         "column_prefix",
-        "datetime_format"
+        "datetime_format",
+        "multiline_fields"
     );
 
     private PutDatasetAction() {

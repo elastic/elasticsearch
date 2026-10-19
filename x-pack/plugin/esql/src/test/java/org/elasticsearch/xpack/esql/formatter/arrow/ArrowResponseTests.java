@@ -52,6 +52,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongRangeBlock;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder.LongRange;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -436,7 +437,36 @@ public class ArrowResponseTests extends ESTestCase {
         var column = TestColumn.create("some-field", DataType.INTEGER, true);
         TestCase testCase = new TestCase(List.of(column), List.of(new TestPage(List.of(TestBlock.create(column, block)))));
 
-        compareEsqlAndArrow(testCase);
+        try (testCase; VectorSchemaRoot root = toArrowVectors(testCase)) {
+            compareEsqlAndArrow(testCase, root);
+            ListVector vector = (ListVector) root.getVector("some-field");
+            assertListLayout(vector, 0, 2, 2, 4, 5);
+        }
+    }
+
+    public void testAllNullMultivaluedIntegerPageLayout() throws IOException {
+        IntBlock multivaluedBlock;
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(1)) {
+            builder.beginPositionEntry();
+            builder.appendInt(1);
+            builder.appendInt(2);
+            builder.endPositionEntry();
+            multivaluedBlock = builder.build();
+        }
+        Block nullBlock = blockFactory.newConstantNullBlock(2);
+        var column = TestColumn.create("some-field", DataType.INTEGER, true);
+        TestCase testCase = new TestCase(
+            List.of(column),
+            List.of(
+                new TestPage(List.of(TestBlock.create(column, multivaluedBlock))),
+                new TestPage(List.of(TestBlock.create(column, nullBlock)))
+            )
+        );
+
+        try (testCase; VectorSchemaRoot root = toArrowVectors(testCase)) {
+            compareEsqlAndArrow(testCase, root);
+            assertListLayout((ListVector) root.getVector("some-field"), 0, 2, 2, 2);
+        }
     }
 
     /**
@@ -575,6 +605,41 @@ public class ArrowResponseTests extends ESTestCase {
 
         TestColumn col = TestColumn.create("col-version", DataType.VERSION, false);
         compareEsqlAndArrow(new TestCase(List.of(col), List.of(new TestPage(List.of(TestBlock.create(col, ordinalBlock))))));
+    }
+
+    public void testMultivaluedOrdinalBytesRefBlockLayout() throws IOException {
+        BytesRefBlock ordinalBlock;
+        try (
+            IntBlock.Builder ordinals = blockFactory.newIntBlockBuilder(3);
+            BytesRefVector.Builder dictionary = blockFactory.newBytesRefVectorBuilder(3)
+        ) {
+            ordinals.beginPositionEntry();
+            ordinals.appendInt(0);
+            ordinals.appendInt(1);
+            ordinals.endPositionEntry();
+            ordinals.appendNull();
+            ordinals.appendInt(2);
+            dictionary.appendBytesRef(new Version("1.2.3").toBytesRef());
+            dictionary.appendBytesRef(new Version("2.0.0").toBytesRef());
+            dictionary.appendBytesRef(new Version("3.0.0").toBytesRef());
+            ordinalBlock = new OrdinalBytesRefBlock(ordinals.build(), dictionary.build());
+        }
+
+        var column = TestColumn.create("some-field", DataType.VERSION, true);
+        TestCase testCase = new TestCase(List.of(column), List.of(new TestPage(List.of(TestBlock.create(column, ordinalBlock)))));
+        try (testCase; VectorSchemaRoot root = toArrowVectors(testCase)) {
+            compareEsqlAndArrow(testCase, root);
+            assertListLayout((ListVector) root.getVector("some-field"), 0, 2, 2, 3);
+        }
+    }
+
+    private static void assertListLayout(ListVector vector, int... expectedOffsets) {
+        assertEquals(expectedOffsets.length - 1, vector.getValueCount());
+        for (int row = 0; row < vector.getValueCount(); row++) {
+            assertEquals(expectedOffsets[row], vector.getElementStartIndex(row));
+            assertEquals(expectedOffsets[row + 1], vector.getElementEndIndex(row));
+        }
+        assertEquals(expectedOffsets[expectedOffsets.length - 1], vector.getDataVector().getValueCount());
     }
 
     // ---------------------------------------------------------------------------------------------

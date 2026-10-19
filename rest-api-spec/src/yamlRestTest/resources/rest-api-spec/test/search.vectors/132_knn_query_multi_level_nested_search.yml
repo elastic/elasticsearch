@@ -1,0 +1,160 @@
+# WIP: the filtered tests below fail. Root-level kNN pre-filters are joined down only one nested level, so they match
+# nothing when the vector field is nested two levels deep.
+setup:
+  - requires:
+      cluster_features: "search.vectors.nested_knn_alias_filter_root_scope"
+      reason: 'alias filters with nested queries were previously built in the nested kNN scope'
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              name:
+                type: keyword
+              tags:
+                type: nested
+                properties:
+                  tag:
+                    type: keyword
+              outer:
+                type: nested
+                properties:
+                  label:
+                    type: keyword
+                  inner:
+                    type: nested
+                    properties:
+                      vector:
+                        type: dense_vector
+                        dims: 3
+                        index: true
+                        similarity: l2_norm
+          aliases:
+            name_alias:
+              filter:
+                term:
+                  name: "a"
+            tag_alias:
+              filter:
+                nested:
+                  path: tags
+                  query:
+                    term:
+                      tags.tag: "x"
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          name: a
+          tags: [ { tag: x } ]
+          outer:
+            - label: L1
+              inner:
+                - vector: [ 1, 1, 1 ]
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          name: b
+          tags: [ { tag: y } ]
+          outer:
+            - label: L2
+              inner:
+                - vector: [ 1, 1, 2 ]
+
+  - do:
+      indices.refresh: {}
+
+---
+"multi-level nested kNN search":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            nested:
+              path: outer
+              query:
+                nested:
+                  path: outer.inner
+                  query:
+                    knn:
+                      field: outer.inner.vector
+                      query_vector: [ 1, 1, 1 ]
+                      num_candidates: 10
+
+  - match: { hits.total.value: 2 }
+
+---
+"multi-level nested kNN search pre-filtered on alias with filter on top level field":
+  - do:
+      search:
+        index: name_alias
+        body:
+          query:
+            nested:
+              path: outer
+              query:
+                nested:
+                  path: outer.inner
+                  query:
+                    knn:
+                      field: outer.inner.vector
+                      query_vector: [ 1, 1, 2 ]
+                      num_candidates: 1
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+---
+"multi-level nested kNN search pre-filtered on alias with filter on another nested field":
+  - do:
+      search:
+        index: tag_alias
+        body:
+          query:
+            nested:
+              path: outer
+              query:
+                nested:
+                  path: outer.inner
+                  query:
+                    knn:
+                      field: outer.inner.vector
+                      query_vector: [ 1, 1, 2 ]
+                      num_candidates: 1
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+---
+"multi-level nested kNN search with filter on top level field":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            nested:
+              path: outer
+              query:
+                nested:
+                  path: outer.inner
+                  query:
+                    knn:
+                      field: outer.inner.vector
+                      query_vector: [ 1, 1, 2 ]
+                      num_candidates: 1
+                      filter:
+                        term:
+                          name: "a"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }

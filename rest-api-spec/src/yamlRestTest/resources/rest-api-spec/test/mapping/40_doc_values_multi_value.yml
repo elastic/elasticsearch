@@ -17,9 +17,26 @@
                   multi_value: false
 
 ---
+"top-level multi_value rejected outside columnar mode":
+  - requires:
+      cluster_features: ["mapper.doc_values.top_level_attributes"]
+      reason: "top-level multi_value attribute requires top_level_attributes"
+
+  - do:
+      catch: /parameter \[multi_value\] can only be used in columnar index modes/
+      indices.create:
+        index: test_non_columnar_top_level_rejected
+        body:
+          mappings:
+            properties:
+              kw:
+                type: keyword
+                multi_value: false
+
+---
 "legacy doc_values.multi_value nested form is still accepted":
   - requires:
-      test_runner_features: [ capabilities ]
+      test_runner_features: [ capabilities, allowed_warnings ]
       capabilities:
         - method: PUT
           path: /{index}
@@ -28,6 +45,8 @@
       reason: "nested doc_values object form must still be accepted for BWC; top_level_attributes to verify output is at top level"
 
   - do:
+      allowed_warnings:
+        - "Specifying [multi_value], [nullability] or [on_failure] inside [doc_values] for field [kw] is deprecated, set them at the top level of the field mapping instead"
       indices.create:
         index: test_legacy_mv
         body:

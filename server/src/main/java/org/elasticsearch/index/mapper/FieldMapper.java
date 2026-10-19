@@ -1996,12 +1996,23 @@ public abstract class FieldMapper extends Mapper {
                         "parameters [multi_value], [nullability] and [on_failure] cannot be set both at top level and inside [doc_values]"
                     );
                 }
+                boolean anyNestedAttribute = false;
                 for (Parameter<?> sub : List.of(multiValueParameter, nullabilityParameter, onFailureParameter)) {
                     if (valueMap.containsKey(sub.name)) {
                         sub.parse(field, context, valueMap.get(sub.name));
+                        anyNestedAttribute = true;
                     }
                 }
                 nestedFormParsed = true;
+                if (anyNestedAttribute && supportsTopLevelAttributes) {
+                    deprecationLogger.warn(
+                        DeprecationCategory.MAPPINGS,
+                        "doc_values_nested_attributes",
+                        "Specifying [multi_value], [nullability] or [on_failure] inside [doc_values] for field [{}] is deprecated, "
+                            + "set them at the top level of the field mapping instead",
+                        field
+                    );
+                }
                 super.setValue(backingValue(true, getDefaultValue().cardinality));
             } else {
                 if (XContentMapValues.nodeBooleanValue(value, name)) {

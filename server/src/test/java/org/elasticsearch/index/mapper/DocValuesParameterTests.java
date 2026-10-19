@@ -372,6 +372,9 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         }
     }
 
+    private static final String NESTED_ATTRIBUTES_DEPRECATION = "Specifying [multi_value], [nullability] or [on_failure] inside "
+        + "[doc_values] for field [field] is deprecated, set them at the top level of the field mapping instead";
+
     public void testNestedAndTopLevelFormsCannotBeCombined() {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         for (boolean nestedFirst : new boolean[] { true, false }) {
@@ -387,6 +390,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
             })));
             assertThat(e.getMessage(), containsString("top level"));
         }
+        assertWarnings(NESTED_ATTRIBUTES_DEPRECATION);
     }
 
     public void testLegacyNullabilityFalseNestedFormStillParses() throws Exception {
@@ -398,6 +402,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
         assertThat(mapper.docValuesParameters().nullability(), equalTo(false));
         assertThat(mapper.isNullable(), equalTo(false));
+        assertWarnings(NESTED_ATTRIBUTES_DEPRECATION);
     }
 
     public void testIndexSettingNullabilityFalseRequiresValue() throws Exception {
@@ -642,6 +647,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         );
         KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
         assertThat(mapper.docValuesParameters().onFailure(), equalTo(FieldMapper.DocValuesParameter.Values.OnFailure.IGNORE));
+        assertWarnings(NESTED_ATTRIBUTES_DEPRECATION);
     }
 
     /**
@@ -1175,6 +1181,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         // both serialize to top-level on a new index
         assertThat(Strings.toString(nested.documentMapper().mapping()), containsString("\"multi_value\":false"));
         assertThat(Strings.toString(nested.documentMapper().mapping()), not(containsString("\"doc_values\":{")));
+        assertWarnings(NESTED_ATTRIBUTES_DEPRECATION);
     }
 
     /**

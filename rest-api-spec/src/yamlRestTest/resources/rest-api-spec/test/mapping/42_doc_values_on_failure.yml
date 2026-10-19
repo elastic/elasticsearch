@@ -1483,7 +1483,7 @@
 ---
 "legacy doc_values.on_failure nested form is still accepted":
   - requires:
-      test_runner_features: [ capabilities ]
+      test_runner_features: [ capabilities, allowed_warnings ]
       capabilities:
         - method: PUT
           path: /{index}
@@ -1492,6 +1492,8 @@
       reason: "nested doc_values object form must still be accepted for BWC; top_level_attributes to verify output is at top level"
 
   - do:
+      allowed_warnings:
+        - "Specifying [multi_value], [nullability] or [on_failure] inside [doc_values] for field [kw] is deprecated, set them at the top level of the field mapping instead"
       indices.create:
         index: test_legacy_on_failure
         body:

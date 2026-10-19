@@ -18,6 +18,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.profile.ProfileResult;
+import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -25,11 +26,9 @@ import org.elasticsearch.xcontent.XContentFactory;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
@@ -164,26 +163,30 @@ public class PostFilterHnswKnnSearchIT extends ESIntegTestCase {
             for (SearchHit hit : response.getHits().getHits()) {
                 assertEquals("common", hit.getSourceAsMap().get(TAG_FIELD));
             }
-            long intoBitSetCount = knnIntoBitSetCount(response);
-            assertThat(intoBitSetCount, expectPostFiltered ? equalTo(0L) : greaterThan(0L));
+            // Filtering during the search first turns the filter into a bitset; post-filtering only checks it per candidate.
+            if (expectPostFiltered) {
+                assertFalse("post-filtering should not build a bitset of the filter", builtBitSet(knnProfile(response)));
+            } else {
+                assertTrue("filtering during the search should build a bitset of the filter", builtBitSet(knnProfile(response)));
+            }
         });
     }
 
-    /** How many times the kNN search materialized a query into a bitset, summed over every node of its profile tree. */
-    private static long knnIntoBitSetCount(SearchResponse response) {
-        List<ProfileResult> nodes = response.getSearchProfileShardResults()
-            .values()
-            .stream()
-            .flatMap(pr -> pr.getQueryPhase().getSearchProfileDfsPhaseResult().getQueryProfileShardResult().stream())
-            .flatMap(qpr -> qpr.getQueryResults().stream())
-            .flatMap(PostFilterHnswKnnSearchIT::profileTree)
-            .toList();
-        assertFalse("Expected the kNN search to be profiled", nodes.isEmpty());
-        return nodes.stream().mapToLong(node -> node.getTimeBreakdown().getOrDefault("into_bit_set_count", 0L)).sum();
+    /** The profiled queries of the kNN search, on the single shard these tests use. */
+    private static List<ProfileResult> knnProfile(SearchResponse response) {
+        assertEquals(1, response.getSearchProfileShardResults().size());
+        SearchProfileShardResult shard = response.getSearchProfileShardResults().values().iterator().next();
+        return shard.getSearchProfileDfsPhaseResult().getQueryProfileShardResult().getFirst().getQueryResults();
     }
 
-    private static Stream<ProfileResult> profileTree(ProfileResult result) {
-        return Stream.concat(Stream.of(result), result.getProfiledChildren().stream().flatMap(PostFilterHnswKnnSearchIT::profileTree));
+    /** Whether any of these queries, or the queries nested in them, turned its matches into a bitset. */
+    private static boolean builtBitSet(List<ProfileResult> queries) {
+        for (ProfileResult query : queries) {
+            if (query.getTimeBreakdown().getOrDefault("into_bit_set_count", 0L) > 0 || builtBitSet(query.getProfiledChildren())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

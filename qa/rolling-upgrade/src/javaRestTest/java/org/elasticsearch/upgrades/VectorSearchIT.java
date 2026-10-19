@@ -786,8 +786,9 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
         filteredKnnSearch(false);
 
         if (isUpgradedCluster()) {
-            // the index was created before the setting existed, and is post-filtered under the new default
-            assertThat(knnIntoBitSetCount(filteredKnnSearch(true)), equalTo(0L));
+            // The index was created before the setting existed, and is post-filtered under the new default. Post-filtering never
+            // turns the filter into a bitset, while filtering during the search always does.
+            assertFalse(builtBitSet(knnProfile(filteredKnnSearch(true))));
         }
     }
 
@@ -819,23 +820,22 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
         return response;
     }
 
-    /** How many times the kNN search materialized a query into a bitset, summed over every node of its profile tree. */
-    private static long knnIntoBitSetCount(Map<String, Object> response) throws IOException {
-        return intoBitSetCount(ObjectPath.evaluate(response, "profile.shards.0.dfs.knn.0.query"));
+    /** The profiled queries of the kNN search, on the single shard of the index. */
+    private static List<Map<String, Object>> knnProfile(Map<String, Object> searchResponse) throws IOException {
+        return ObjectPath.evaluate(searchResponse, "profile.shards.0.dfs.knn.0.query");
     }
 
+    /** Whether any of these queries, or the queries nested in them, turned its matches into a bitset. */
     @SuppressWarnings("unchecked")
-    private static long intoBitSetCount(List<Map<String, Object>> queries) {
-        long count = 0;
+    private static boolean builtBitSet(List<Map<String, Object>> queries) {
         for (Map<String, Object> query : queries) {
             Map<String, Object> breakdown = (Map<String, Object>) query.get("breakdown");
-            count += ((Number) breakdown.getOrDefault("into_bit_set_count", 0)).longValue();
-            List<Map<String, Object>> children = (List<Map<String, Object>>) query.get("children");
-            if (children != null) {
-                count += intoBitSetCount(children);
+            List<Map<String, Object>> children = (List<Map<String, Object>>) query.getOrDefault("children", List.of());
+            if (((Number) breakdown.getOrDefault("into_bit_set_count", 0)).longValue() > 0 || builtBitSet(children)) {
+                return true;
             }
         }
-        return count;
+        return false;
     }
 
     private void index64DimVectors(String indexName) throws Exception {

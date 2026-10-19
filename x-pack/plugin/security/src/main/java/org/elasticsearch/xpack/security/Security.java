@@ -2096,6 +2096,7 @@ public class Security extends Plugin
                 populateClientCertificate = (channel, threadContext) -> {};
             }
             final AuthenticationService authenticationService = this.authcService.get();
+            final SecondaryAuthenticator secondaryAuthenticator = this.secondayAuthc.get();
             final ThreadContext threadContext = this.threadContext.get();
             return getHttpServerTransportWithHeadersValidator(
                 settings,
@@ -2117,7 +2118,13 @@ public class Security extends Plugin
                     RemoteHostHeader.process(channel, threadContext);
                     // step 2: Run authentication on the now properly prepared thread-context.
                     // This inspects and modifies the thread context.
-                    authenticationService.authenticate(httpPreRequest, listener.delegateFailureAndWrap((l, ignored) -> l.onResponse(null)));
+                    authenticationService.authenticate(
+                        httpPreRequest,
+                        listener.delegateFailureAndWrap(
+                            // step 3: Authenticate the secondary credentials, if any.
+                            (l, ignored) -> secondaryAuthenticator.authenticateAndAttachResultToContext(httpPreRequest, l)
+                        )
+                    );
                 },
                 (httpRequest, channel, listener) -> {
                     // allow unauthenticated OPTIONS request through

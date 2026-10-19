@@ -70,6 +70,17 @@ public class SecurityRestFilter implements RestInterceptor {
             return;
         }
 
+        // RestRequest might have stream content, in some cases we need to aggregate request content, for example audit logging.
+        final Consumer<RestRequest> aggregationCallback = (aggregatedRestRequest) -> {
+            final RestRequest wrappedRequest = maybeWrapRestRequest(aggregatedRestRequest, targetHandler);
+            try {
+                auditTrailService.get().authenticationSuccess(wrappedRequest);
+                secondaryAuthenticator.completeAuthentication(wrappedRequest);
+            } catch (Exception e) {
+                handleException(aggregatedRestRequest, e, listener);
+                return;
+            }
+            WorkflowService.resolveWorkflowAndStoreInThreadContext(targetHandler, threadContext);
         final RestRequest wrappedRequest = maybeWrapRestRequest(request, targetHandler);
         auditTrailService.get().authenticationSuccess(wrappedRequest);
         secondaryAuthenticator.authenticateAndAttachToContext(wrappedRequest, ActionListener.wrap(secondaryAuthentication -> {
@@ -78,6 +89,28 @@ public class SecurityRestFilter implements RestInterceptor {
             }
             WorkflowService.resolveWorkflowAndStoreInThreadContext(targetHandler, threadContext);
 
+            doHandleRequest(aggregatedRestRequest, channel, targetHandler, listener);
+        };
+        if (request.isStreamedContent() && auditTrailService.includeRequestBody()) {
+            aggregate(request, aggregationCallback::accept);
+        } else {
+            aggregationCallback.accept(request);
+        }
+
+    }
+
+    @Override
+    public boolean allowsBrowserSafelistedContentType(RestRequest request) {
+        if (enabled == false || httpSslEnabled == false) {
+            return false;
+        }
+        try {
+            final Authentication authentication = authenticationSerializer.readFromContext(threadContext);
+            return authentication != null && authentication.getAuthenticationType() != Authentication.AuthenticationType.ANONYMOUS;
+        } catch (IOException e) {
+            logger.debug(() -> format("failed to read authentication for REST request [%s]", request.uri()), e);
+            return false;
+        }
             doHandleRequest(request, channel, targetHandler, listener);
         }, e -> handleException(request, e, listener)));
     }

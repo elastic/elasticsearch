@@ -20,8 +20,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.license.License;
 import org.elasticsearch.license.TestUtils;
+import org.elasticsearch.license.License;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -45,7 +45,9 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig.RealmIdentifier;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
+import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.Realms;
@@ -72,11 +74,19 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator.SECONDARY_AUTH_HEADER_NAME;
+import static org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator.SECONDARY_X_CLIENT_AUTH_HEADER_NAME;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 public class SecondaryAuthenticatorTests extends ESTestCase {
@@ -181,7 +191,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
     public void testAuthenticateRestRequestIsANoOpIfHeaderIsMissing() throws Exception {
         final RestRequest request = new FakeRestRequest();
         final PlainActionFuture<SecondaryAuthentication> future = new PlainActionFuture<>();
-        authenticator.authenticateAndAttachToContext(request, future);
+        authenticator.authenticateHttpRequest(request.getHttpRequest(), future);
 
         assertThat(future.result(), nullValue());
         assertThat(SecondaryAuthentication.readFromContext(securityContext), nullValue());
@@ -206,7 +216,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         threadPool.getThreadContext().putHeader(SECONDARY_AUTH_HEADER_NAME, "Fake " + randomAlphaOfLengthBetween(5, 30));
         final RestRequest request = new FakeRestRequest();
         final PlainActionFuture<SecondaryAuthentication> future = new PlainActionFuture<>();
-        authenticator.authenticateAndAttachToContext(request, future);
+        authenticator.authenticateHttpRequest(request.getHttpRequest(), future);
 
         final ElasticsearchSecurityException ex = expectThrows(
             ExecutionException.class,
@@ -229,9 +239,91 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
     public void testAuthenticateRestRequestSucceedsWithBasicAuthentication() throws Exception {
         final SecondaryAuthentication secondaryAuthentication = assertAuthenticateWithBasicAuthentication(listener -> {
             final RestRequest request = new FakeRestRequest();
-            authenticator.authenticateAndAttachToContext(request, listener);
+            authenticator.authenticateHttpRequest(request.getHttpRequest(), listener);
         });
         assertThat(SecondaryAuthentication.readFromContext(securityContext), equalTo(secondaryAuthentication));
+    }
+
+    public void testCompleteAuthenticationAuditsSuccessInSecondaryAuthenticationContext() throws Exception {
+        final AuditTrail auditTrail = mock(AuditTrail.class);
+        authenticator = new SecondaryAuthenticator(securityContext, authenticationService, enabledAuditTrailService(auditTrail));
+        final ThreadContext threadContext = threadPool.getThreadContext();
+        final String primaryRequestId = AuditUtil.generateRequestId(threadContext);
+        final String user = randomAlphaOfLengthBetween(6, 12);
+        final SecureString password = new SecureString(randomAlphaOfLengthBetween(8, 24).toCharArray());
+        realm.defineUser(user, password);
+        threadContext.putHeader(SECONDARY_AUTH_HEADER_NAME, basicAuthHeaderValue(user, password));
+
+        authenticateAndAttachResultToContext();
+
+        final RestRequest restRequest = new FakeRestRequest();
+        final AtomicReference<String> auditedPrincipal = new AtomicReference<>();
+        final AtomicReference<String> auditedRequestId = new AtomicReference<>();
+        doAnswer(invocation -> {
+            auditedPrincipal.set(securityContext.getUser().principal());
+            auditedRequestId.set(AuditUtil.extractRequestId(threadContext));
+            return null;
+        }).when(auditTrail).authenticationSuccess(restRequest);
+
+        authenticator.completeAuthentication(restRequest);
+
+        verify(auditTrail).authenticationSuccess(restRequest);
+        assertThat(auditedPrincipal.get(), equalTo(user));
+        assertThat(auditedRequestId.get(), allOf(notNullValue(), not(equalTo(primaryRequestId))));
+        assertThat(AuditUtil.extractRequestId(threadContext), equalTo(primaryRequestId));
+    }
+
+    public void testCompleteAuthenticationFailsWithDeferredFailure() throws Exception {
+        final AuditTrail auditTrail = mock(AuditTrail.class);
+        authenticator = new SecondaryAuthenticator(securityContext, authenticationService, enabledAuditTrailService(auditTrail));
+        final String user = randomAlphaOfLengthBetween(6, 12);
+        final SecureString password = new SecureString(randomAlphaOfLengthBetween(8, 24).toCharArray());
+        realm.defineUser(user, password);
+        threadPool.getThreadContext()
+            .putHeader(SECONDARY_AUTH_HEADER_NAME, basicAuthHeaderValue(user, new SecureString("NOT-" + password)));
+
+        authenticateAndAttachResultToContext();
+        assertThat(SecondaryAuthentication.readFromContext(securityContext), nullValue());
+
+        final ElasticsearchSecurityException ex = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> authenticator.completeAuthentication(new FakeRestRequest())
+        );
+        assertThat(ex, TestMatchers.throwableWithMessage(Matchers.containsString("secondary user")));
+        assertThat(ex.getCause(), TestMatchers.throwableWithMessage(Matchers.containsString(user)));
+        verify(auditTrail, never()).authenticationSuccess(any(RestRequest.class));
+    }
+
+    public void testCompleteAuthenticationIsANoOpWithoutSecondaryAuthentication() throws Exception {
+        final AuditTrail auditTrail = mock(AuditTrail.class);
+        authenticator = new SecondaryAuthenticator(securityContext, authenticationService, enabledAuditTrailService(auditTrail));
+        authenticateAndAttachResultToContext();
+        authenticator.completeAuthentication(new FakeRestRequest());
+        verifyNoInteractions(auditTrail);
+    }
+
+    /**
+     * Restores the context seen by the listener, like the HTTP validator snapshots it onto the request.
+     */
+    private void authenticateAndAttachResultToContext() throws Exception {
+        final ThreadContext threadContext = threadPool.getThreadContext();
+        final PlainActionFuture<ThreadContext.StoredContext> future = new PlainActionFuture<>();
+        authenticator.authenticateAndAttachResultToContext(
+            new FakeRestRequest().getHttpRequest(),
+            future.map(ignored -> threadContext.newStoredContext())
+        );
+        future.result().restore();
+    }
+
+    private AuditTrailService enabledAuditTrailService(AuditTrail auditTrail) {
+        final ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(
+                Settings.builder().put(XPackSettings.AUDIT_ENABLED.getKey(), true).build(),
+                Set.of(XPackSettings.AUDIT_ENABLED)
+            )
+        );
+        return new AuditTrailService(auditTrail, TestUtils.newTestLicenseState(), clusterService);
     }
 
     private SecondaryAuthentication assertAuthenticateWithBasicAuthentication(Consumer<ActionListener<SecondaryAuthentication>> consumer)
@@ -273,7 +365,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
     public void testAuthenticateRestRequestFailsWithIncorrectPassword() throws Exception {
         assertAuthenticateWithIncorrectPassword(listener -> {
             final RestRequest request = new FakeRestRequest();
-            authenticator.authenticateAndAttachToContext(request, listener);
+            authenticator.authenticateHttpRequest(request.getHttpRequest(), listener);
         });
         assertThat(SecondaryAuthentication.readFromContext(securityContext), nullValue());
     }
@@ -339,6 +431,101 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         assertThat(secondaryAuthentication.getAuthentication(), Matchers.notNullValue());
         assertThat(secondaryAuthentication.getAuthentication().getEffectiveSubject().getUser(), equalTo(user));
         assertThat(secondaryAuthentication.getAuthentication().getAuthenticationType(), equalTo(AuthenticationType.TOKEN));
+    }
+
+    public void testSecondaryXClientAuthHeaderIsPlacedInThreadContext() throws Exception {
+        final String xClientAuthValue = randomAlphaOfLengthBetween(20, 40);
+        final String capturedHeader = authenticateAndCaptureXClientAuthHeader(xClientAuthValue);
+        assertThat(capturedHeader, equalTo(xClientAuthValue));
+    }
+
+    public void testSecondaryXClientAuthHeaderIsNotPlacedWhenNotProvided() throws Exception {
+        final String capturedHeader = authenticateAndCaptureXClientAuthHeader(randomBoolean() ? null : "");
+        assertThat(capturedHeader, nullValue());
+    }
+
+    private String authenticateAndCaptureXClientAuthHeader(String xClientAuthValue) throws Exception {
+        final AtomicReference<String> capturedHeader = new AtomicReference<>();
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User(randomAlphaOfLengthBetween(6, 12)))
+            .realmRef(new RealmRef("test_realm", "dummy", "node1"))
+            .build(false);
+
+        final AuthenticationService mockAuthService = mock(AuthenticationService.class);
+        boolean useTransportRequest = randomBoolean();
+        if (useTransportRequest) {
+            doAnswer(invocation -> {
+                capturedHeader.set(threadPool.getThreadContext().getHeader("X-Client-Authentication"));
+                @SuppressWarnings("unchecked")
+                ActionListener<Authentication> listener = (ActionListener<Authentication>) invocation.getArguments()[3];
+                listener.onResponse(authentication);
+                return null;
+            }).when(mockAuthService).authenticate(any(String.class), any(TransportRequest.class), any(Boolean.class), anyActionListener());
+        } else {
+            doAnswer(invocation -> {
+                capturedHeader.set(threadPool.getThreadContext().getHeader("X-Client-Authentication"));
+                @SuppressWarnings("unchecked")
+                ActionListener<Authentication> listener = (ActionListener<Authentication>) invocation.getArguments()[2];
+                listener.onResponse(authentication);
+                return null;
+            }).when(mockAuthService).authenticate(any(), any(Boolean.class), anyActionListener());
+        }
+
+        final SecondaryAuthenticator mockAuthenticator = new SecondaryAuthenticator(securityContext, mockAuthService, auditTrailService);
+
+        threadPool.getThreadContext()
+            .putHeader(SECONDARY_AUTH_HEADER_NAME, basicAuthHeaderValue(randomAlphanumericOfLength(5), randomSecureStringOfLength(5)));
+
+        if (xClientAuthValue != null) {
+            threadPool.getThreadContext().putHeader(SECONDARY_X_CLIENT_AUTH_HEADER_NAME, xClientAuthValue);
+        }
+
+        final PlainActionFuture<SecondaryAuthentication> future = new PlainActionFuture<>();
+        if (useTransportRequest) {
+            mockAuthenticator.authenticate(AuthenticateAction.NAME, AuthenticateRequest.INSTANCE, future);
+        } else {
+            mockAuthenticator.authenticateHttpRequest(new FakeRestRequest().getHttpRequest(), future);
+        }
+
+        assertThat(future.result(), notNullValue());
+        return capturedHeader.get();
+    }
+
+    public void testOnlyAuthenticationTokenTransientsAreCaptured() throws Exception {
+        final String tokenKey = "_secondary_auth_credential";
+        final AuthenticationToken tokenValue = mock(AuthenticationToken.class);
+        when(tokenValue.principal()).thenReturn("test-principal");
+        final String nonTokenKey = "_some_non_token_transient";
+        final String nonTokenValue = "should-not-be-captured";
+
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User(randomAlphaOfLengthBetween(6, 12)))
+            .realmRef(new RealmRef("test_realm", "dummy", "node1"))
+            .build(false);
+
+        final AuthenticationService mockAuthService = mock(AuthenticationService.class);
+        doAnswer(invocation -> {
+            threadPool.getThreadContext().putTransient(tokenKey, tokenValue);
+            threadPool.getThreadContext().putTransient(nonTokenKey, nonTokenValue);
+            @SuppressWarnings("unchecked")
+            ActionListener<Authentication> listener = (ActionListener<Authentication>) invocation.getArguments()[3];
+            listener.onResponse(authentication);
+            return null;
+        }).when(mockAuthService).authenticate(any(String.class), any(TransportRequest.class), any(Boolean.class), anyActionListener());
+
+        final SecondaryAuthenticator mockAuthenticator = new SecondaryAuthenticator(securityContext, mockAuthService, auditTrailService);
+
+        threadPool.getThreadContext()
+            .putHeader(SECONDARY_AUTH_HEADER_NAME, basicAuthHeaderValue(randomAlphanumericOfLength(5), randomSecureStringOfLength(5)));
+
+        final PlainActionFuture<SecondaryAuthentication> future = new PlainActionFuture<>();
+        mockAuthenticator.authenticate(AuthenticateAction.NAME, AuthenticateRequest.INSTANCE, future);
+
+        final SecondaryAuthentication secondaryAuthentication = future.result();
+        assertThat(secondaryAuthentication, notNullValue());
+        assertThat(secondaryAuthentication.getTransientHeaders().get(tokenKey), equalTo(tokenValue));
+        assertThat(secondaryAuthentication.getTransientHeaders().containsKey(nonTokenKey), is(false));
+        assertThat(secondaryAuthentication.getTransientHeaders().containsKey(AuthenticationField.AUTHENTICATION_KEY), is(false));
     }
 
 }

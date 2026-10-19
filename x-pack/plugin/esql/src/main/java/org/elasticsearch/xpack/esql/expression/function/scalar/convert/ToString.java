@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesEvaluator;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -64,6 +65,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TDIGEST;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TIMESERIES_DATA_TYPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_NANOS_FORMATTER;
@@ -115,6 +117,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
         Map.entry(HISTOGRAM, ToStringFromHistogramEvaluator.Factory::new),
         Map.entry(EXPONENTIAL_HISTOGRAM, ToStringFromExponentialHistogramEvaluator.Factory::new),
         Map.entry(TDIGEST, ToStringFromTDigestEvaluator.Factory::new),
+        Map.entry(TIMESERIES_DATA_TYPE, (source, fieldEval) -> TimeSeriesEvaluator.toStringFactory(fieldEval)),
 
         // Evaluators dynamically created in #factories()
         Map.entry(DATETIME, (source, fieldEval) -> null),
@@ -165,7 +168,8 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
                 "version",
                 "date_range",
                 "exponential_histogram",
-                "flattened" },
+                "flattened",
+                "_timeseries" },
             description = "Input value. The input can be a single- or multi-valued column or an expression."
         ) Expression v,
         Configuration configuration

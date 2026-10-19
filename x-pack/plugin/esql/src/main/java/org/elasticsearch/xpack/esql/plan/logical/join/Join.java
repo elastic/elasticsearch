@@ -64,6 +64,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.PARTIAL_AGG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SOURCE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TDIGEST;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TIMESERIES_DATA_TYPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TSID_DATA_TYPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
@@ -99,6 +100,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         TIME_DURATION,
         DOC_DATA_TYPE,
         TSID_DATA_TYPE,
+        TIMESERIES_DATA_TYPE,
         AGGREGATE_METRIC_DOUBLE,
         EXPONENTIAL_HISTOGRAM,
         TDIGEST,
@@ -339,12 +341,17 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
                 );
             }
             // TODO: Add support for VERSION by implementing QueryList.versionTermQueryList similar to ipTermQueryList
-            if (Arrays.stream(UNSUPPORTED_TYPES).anyMatch(t -> rightField.dataType().equals(t))) {
+            if (supportsKeyType(rightField.dataType()) == false) {
                 failures.add(
                     fail(leftField, "JOIN with right field [{}] of type [{}] is not supported", rightField.name(), rightField.dataType())
                 );
             }
         }
+    }
+
+    /** Whether the join backend supports equality lookup for keys of this type. */
+    protected boolean supportsKeyType(DataType type) {
+        return Arrays.stream(UNSUPPORTED_TYPES).noneMatch(type::equals);
     }
 
     private static boolean comparableTypes(Attribute left, Attribute right) {

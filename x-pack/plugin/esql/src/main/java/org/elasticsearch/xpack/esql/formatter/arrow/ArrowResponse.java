@@ -471,6 +471,7 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             case TIME_DURATION -> null;
             case DOC_DATA_TYPE -> null;
             case PARTIAL_AGG -> null;
+            case TIMESERIES_DATA_TYPE -> null;
         };
     }
 }

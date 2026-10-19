@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -37,6 +38,27 @@ public class NotEqualsTests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
+        var tsids = List.of(
+            new TestCaseSupplier.TypedDataSupplier("<empty-label tsid>", () -> new BytesRef(new byte[16]), DataType.TSID_DATA_TYPE),
+            new TestCaseSupplier.TypedDataSupplier(
+                "<binary tsid>",
+                () -> new BytesRef(randomByteArrayOfLength(16)),
+                DataType.TSID_DATA_TYPE
+            )
+        );
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "NotEqualsBytesRefEvaluator",
+                "lhs",
+                "rhs",
+                (left, right) -> left.equals(right) == false,
+                DataType.BOOLEAN,
+                tsids,
+                tsids,
+                List.of(),
+                false
+            )
+        );
         suppliers.addAll(
 
             TestCaseSupplier.forBinaryComparisonWithWidening(

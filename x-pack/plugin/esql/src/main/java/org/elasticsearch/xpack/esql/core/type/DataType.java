@@ -422,6 +422,10 @@ public enum DataType implements Writeable {
             .docValues()
             .supportedSince(DataTypesTransportVersions.INDEX_SOURCE, DataTypesTransportVersions.INDEX_SOURCE)
     ),
+    /** Time-series metadata: a label dictionary manipulated by scalar functions. Never rendered directly. */
+    TIMESERIES_DATA_TYPE(
+        builder().typeName("_timeseries").estimatedSize(1024).underConstruction(TransportVersion.fromName("promql_functional_timeseries"))
+    ),
     PARTIAL_AGG(
         builder().esType("partial_agg")
             .estimatedSize(1024)
@@ -875,7 +879,8 @@ public enum DataType implements Writeable {
     }
 
     public static boolean isSortable(DataType t) {
-        return false == (t == SOURCE
+        return false == (t == TIMESERIES_DATA_TYPE
+            || t == SOURCE
             || isCounter(t)
             || isSpatialOrGrid(t)
             || t == AGGREGATE_METRIC_DOUBLE

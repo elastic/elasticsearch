@@ -12,6 +12,8 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.FirstOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -79,6 +81,11 @@ public final class WithinSeriesAggregate extends PromqlFunctionCall {
 
     @Override
     public IntermediateResult translate(TranslationContext context) {
-        return translateValueFunction(context);
+        IntermediateResult result = translateValueFunction(context);
+        if (result.kind().constant || definition() == LastOverTime.PROMQL_DEFINITION || definition() == FirstOverTime.PROMQL_DEFINITION) {
+            return result;
+        }
+        // _tsid still defines per-series evaluation. Removing a result label does not merge input series.
+        return context.addInput(source(), result, List.of(), true);
     }
 }

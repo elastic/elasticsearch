@@ -66,6 +66,7 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
         Map.entry(DataType.GEOTILE, EqualsLongsEvaluator.Factory::new),
         Map.entry(DataType.GEOHEX, EqualsLongsEvaluator.Factory::new),
         Map.entry(DataType.KEYWORD, EqualsBytesRefEvaluator.Factory::new),
+        Map.entry(DataType.TSID_DATA_TYPE, EqualsBytesRefEvaluator.Factory::new),
         Map.entry(DataType.TEXT, EqualsBytesRefEvaluator.Factory::new),
         Map.entry(DataType.VERSION, EqualsBytesRefEvaluator.Factory::new),
         Map.entry(DataType.IP, EqualsBytesRefEvaluator.Factory::new),
@@ -89,6 +90,7 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
         @Param(
             name = "lhs",
             type = {
+                "_tsid",
                 "aggregate_metric_double",
                 "boolean",
                 "cartesian_point",
@@ -119,6 +121,7 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
         @Param(
             name = "rhs",
             type = {
+                "_tsid",
                 "aggregate_metric_double",
                 "boolean",
                 "cartesian_point",

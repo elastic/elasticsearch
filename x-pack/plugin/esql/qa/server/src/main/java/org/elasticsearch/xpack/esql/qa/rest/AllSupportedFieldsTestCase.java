@@ -1291,7 +1291,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         return switch (t) {
             // These are supported but implied by the index process.
             // TODO: current versions already support _tsid; update this once we can tell whether all nodes support it.
-            case OBJECT, SOURCE, DOC_DATA_TYPE, TSID_DATA_TYPE,
+            case OBJECT, SOURCE, DOC_DATA_TYPE, TSID_DATA_TYPE, TIMESERIES_DATA_TYPE,
                 // Internal only
                 UNSUPPORTED, PARTIAL_AGG,
                 // You can't index these - they are just constants.

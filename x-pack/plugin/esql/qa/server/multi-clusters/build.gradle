@@ -62,8 +62,22 @@ def remoteDatasetInvisibleTest = tasks.register("remoteDatasetInvisibleTest", St
     includeTestsMatching remoteDatasetInvisibleTestPattern
   }
 }
+
+// Typed metadata stays disabled in the shared fixtures. This suite opts in dynamically and checks both
+// current-to-current metadata execution and the legacy fallback in the new-to-old tasks below.
+def functionalTimeSeriesTest = tasks.register("functionalTimeSeriesTest", StandaloneRestIntegTestTask) {
+  systemProperty("tests.version.remote_cluster", currentVersion)
+  systemProperty("tests.version.local_cluster", currentVersion)
+  maxParallelForks = 1
+  testClassesDirs = sourceSets.javaRestTest.output.classesDirs
+  classpath = sourceSets.javaRestTest.runtimeClasspath
+  filter {
+    includeTestsMatching "org.elasticsearch.xpack.esql.ccq.FunctionalTimeSeriesCcsIT"
+  }
+}
 tasks.named("check").configure {
   dependsOn remoteDatasetInvisibleTest
+  dependsOn functionalTimeSeriesTest
   dependsOn currentToCurrent
 }
 

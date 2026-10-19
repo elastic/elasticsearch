@@ -91,7 +91,7 @@ public abstract sealed class HistogramFunctionCall extends PromqlFunctionCall pe
         // bucket bound off the `le` column itself, so the child must also expose it by name.
         List<String> le = List.of(HistogramFunctionCall.LE_LABEL);
         TranslationSchema childRequired = union(union(subtract(context.required(), le), open(le)), finite(le));
-        IntermediateResult result = context.withRequired(childRequired).translate(child());
+        IntermediateResult result = context.withRequirement(childRequired).translate(child());
         if (result.kind().constant) {
             return result;
         }

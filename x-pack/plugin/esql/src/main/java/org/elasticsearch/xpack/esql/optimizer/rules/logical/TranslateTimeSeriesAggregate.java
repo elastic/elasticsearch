@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -313,7 +314,26 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
                 } else {
                     var unwrapped = Alias.unwrap(g);
                     if (unwrapped instanceof Attribute a) {
-                        addAttribute(g, a, firstPassAggs, secondPassGroupings, context, packDimensions, unpackDimensions, packPositions, i);
+                        if (a.semanticEquals(tsid.get())) {
+                            // _tsid is already a first-pass grouping. A VALUES alias would collide with its name
+                            // and be removed as an overridden aggregate, leaving the second pass with a missing input.
+                            secondPassGroupings.add(new Alias(g.source(), g.name(), tsid.get(), g.id()));
+                        } else {
+                            // After time and _tsid, PromQL groups only by logical labels or its scalar metadata identity.
+                            addAttribute(
+                                g,
+                                a,
+                                firstPassAggs,
+                                secondPassGroupings,
+                                context,
+                                packDimensions,
+                                unpackDimensions,
+                                packPositions,
+                                aggregate.origin() == TimeSeriesAggregate.Origin.PROMQL_COMMAND
+                                    && a.dataType() != DataType.TIMESERIES_DATA_TYPE,
+                                i
+                            );
+                        }
                     } else {
                         assert g instanceof Alias : "g must be an Alias at this point";
                         if (unwrapped instanceof Bucket bucket && bucket.field().dataType().isHistogram()) {
@@ -468,11 +488,14 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
         List<Attribute> packDimensions,
         List<Attribute> unpackDimensions,
         boolean[] packPositions,
+        boolean promqlLabel,
         int position
     ) {
-        var valuesAgg = new Alias(group.source(), group.name(), valuesAggregate(context, attribute));
+        // PromQL labels retain their complete dimension value through aliases used for normalization and private names.
+        boolean dimension = attribute.isDimension() || promqlLabel;
+        var valuesAgg = new Alias(group.source(), group.name(), valuesAggregate(context, attribute, dimension));
         firstPassAggs.add(valuesAgg);
-        if (attribute.isDimension()) {
+        if (dimension) {
             packDimensions.add(valuesAgg.toAttribute());
             unpackDimensions.add(
                 new ReferenceAttribute(group.source(), null, group.name(), attribute.dataType(), Nullability.TRUE, group.id(), false)
@@ -499,8 +522,8 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
         return merged;
     }
 
-    private AggregateFunction valuesAggregate(AnalyzerContext context, Attribute group) {
-        if (group.isDimension() && context.minimumVersion().supports(DimensionValues.DIMENSION_VALUES_VERSION)) {
+    private AggregateFunction valuesAggregate(AnalyzerContext context, Attribute group, boolean dimension) {
+        if (dimension && context.minimumVersion().supports(DimensionValues.DIMENSION_VALUES_VERSION)) {
             return new DimensionValues(group.source(), group);
         } else {
             return new Values(group.source(), group);
@@ -597,7 +620,13 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
                 for (NamedExpression agg : aggs.aggregates()) {
                     if (agg instanceof Alias alias && alias.child() instanceof AggregateFunction fn) {
                         if (fn instanceof DimensionValues dv) {
-                            dims.add((Attribute) dv.field());
+                            // Late dimension extraction reads PackDimsAgg inputs directly from the source. An Eval alias
+                            // must instead retain its computed value through DimensionValues and the following PackDims.
+                            if (dv.field() instanceof FieldAttribute field && field.isDimension()) {
+                                dims.add(field);
+                            } else {
+                                return packDims;
+                            }
                         } else {
                             newAggregates.add(agg);
                         }

@@ -28,8 +28,6 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.core.expression.FieldAttribute.timeSeriesField;
-
 /**
  * Lowers {@link TimeSeriesWithout} into the {@code _timeseries} metadata attribute expected by
  * the time-series aggregation pipeline.
@@ -101,18 +99,13 @@ public final class TranslateTimeSeriesWithout extends AnalyzerRules.Parameterize
                 if (groupingAttribute instanceof TimeSeriesMetadataAttribute t && excludedFields.equals(t.excludedFields())) {
                     lowered = t;
                 } else {
-                    String parentName = groupingAttribute instanceof FieldAttribute fieldAttribute ? fieldAttribute.parentName() : null;
-                    lowered = new TimeSeriesMetadataAttribute(
+                    lowered = (TimeSeriesMetadataAttribute) TimeSeriesMetadataAttribute.create(
                         groupingAttribute.source(),
-                        parentName,
-                        groupingAttribute.qualifier(),
-                        MetadataAttribute.TIMESERIES,
-                        timeSeriesField(),
+                        excludedFields,
+                        null,
                         groupingAttribute.nullable(),
-                        keepAlias ? new NameId() : groupingAttribute.id(),
-                        groupingAttribute.synthetic(),
-                        excludedFields
-                    );
+                        groupingAttribute.synthetic()
+                    ).withQualifier(groupingAttribute.qualifier()).withId(keepAlias ? new NameId() : groupingAttribute.id());
                 }
 
                 if (keepAlias) {

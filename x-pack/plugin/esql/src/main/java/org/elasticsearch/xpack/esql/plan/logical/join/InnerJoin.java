@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -91,6 +92,12 @@ public class InnerJoin extends Join implements SortPreserving {
     @Override
     public List<NamedExpression> computeOutputExpressions(List<? extends NamedExpression> left, List<? extends NamedExpression> right) {
         return new ArrayList<>(output());
+    }
+
+    @Override
+    protected boolean supportsKeyType(DataType type) {
+        // In-memory hash joins compare TSID bytes directly; no lookup-index query support is required.
+        return type == DataType.TSID_DATA_TYPE || super.supportsKeyType(type);
     }
 
     @Override

@@ -145,6 +145,7 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
         @Param(
             name = "field",
             type = {
+                "_tsid",
                 "boolean",
                 "cartesian_point",
                 "cartesian_shape",
@@ -167,6 +168,7 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
         @Param(
             name = "inlist",
             type = {
+                "_tsid",
                 "boolean",
                 "cartesian_point",
                 "cartesian_shape",
@@ -267,6 +269,12 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
 
     @Override
     protected TypeResolution resolveType() { // TODO: move the foldability check from QL's In to SQL's and remove this method
+        if (childrenResolved() == false) {
+            return new TypeResolution("Unresolved children");
+        }
+        if (children().stream().anyMatch(child -> child.dataType() == DataType.TIMESERIES_DATA_TYPE)) {
+            return new TypeResolution("[IN] does not support [_timeseries] values; use [TS_HASH] to compare time-series metadata");
+        }
         TypeResolution resolution = EsqlTypeResolutions.isExact(value, functionName(), DEFAULT);
         if (resolution.unresolved()) {
             return resolution;
@@ -382,6 +390,7 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
             return new InLongEvaluator.Factory(source(), lhs, factories);
         }
         if (commonType == KEYWORD
+            || commonType == DataType.TSID_DATA_TYPE
             || commonType == TEXT
             || commonType == IP
             || commonType == VERSION

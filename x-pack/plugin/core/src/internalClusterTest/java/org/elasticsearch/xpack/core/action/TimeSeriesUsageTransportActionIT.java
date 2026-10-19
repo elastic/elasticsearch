@@ -14,11 +14,13 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -45,6 +47,7 @@ import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.ReadOnlyAction;
+import org.junit.After;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -81,7 +84,13 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
      */
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(DataStreamsPlugin.class, TestTimeSeriesUsagePlugin.class);
+        return List.of(DataStreamsPlugin.class, TestPlugin.class);
+    }
+
+    @After
+    public void resetClusterSettings() {
+        updateClusterSettings(Settings.builder().putNull(DataStreamLifecycleSettings.MINIMUM_LIFECYCLE_ENABLED_SETTING_NAME));
+
     }
 
     public void testActionNoTimeSeriesDataStreams() throws Exception {
@@ -103,6 +112,86 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
         assertThat(((Number) map.get("size_in_bytes")).longValue(), greaterThanOrEqualTo(0L));
         assertThat(map.get("index_count"), nullValue());
         assertThat(map.get("downsampling"), nullValue());
+    }
+
+    /**
+     * Verifies that the time series data streams are split by the feature that manages them, and that the DLM count includes the
+     * data streams managed by the minimum lifecycle, which are also reported separately.
+     */
+    public void testManagedBy() throws Exception {
+        int dlmConfigured = randomIntBetween(1, 3);
+        int withoutLifecycle = randomIntBetween(1, 3);
+        int ilm = randomIntBetween(1, 3);
+        boolean minimumLifecycleEnabled = randomBoolean();
+        updateClusterSettings(
+            Settings.builder()
+                .put(DataStreamLifecycleSettings.MINIMUM_LIFECYCLE_ENABLED_SETTING_NAME, minimumLifecycleEnabled ? "true" : "false")
+        );
+        updateClusterState(clusterState -> {
+            Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata());
+            Map<String, DataStream> dataStreamMap = new HashMap<>();
+            for (int i = 0; i < dlmConfigured; i++) {
+                addManagedByDataStream(
+                    metadataBuilder,
+                    dataStreamMap,
+                    IndexMode.TIME_SERIES,
+                    DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE,
+                    null
+                );
+            }
+            for (int i = 0; i < withoutLifecycle; i++) {
+                addManagedByDataStream(metadataBuilder, dataStreamMap, IndexMode.TIME_SERIES, null, null);
+            }
+            for (int i = 0; i < ilm; i++) {
+                addManagedByDataStream(metadataBuilder, dataStreamMap, IndexMode.TIME_SERIES, null, NO_DOWNSAMPLING_POLICY);
+            }
+            // The minimum lifecycle is applicable only to time series data streams
+            addManagedByDataStream(metadataBuilder, dataStreamMap, IndexMode.STANDARD, null, null);
+            metadataBuilder.dataStreams(dataStreamMap, Map.of());
+            return ClusterState.builder(clusterState).metadata(metadataBuilder).build();
+        });
+
+        Map<String, Object> map = getTimeSeriesUsage();
+        assertThat(map.get("data_stream_count"), equalTo(dlmConfigured + withoutLifecycle + ilm));
+        int minimumLifecycle = minimumLifecycleEnabled ? withoutLifecycle : 0;
+        assertThat(map.get("data_streams_managed_by_dlm"), equalTo(dlmConfigured + minimumLifecycle));
+        assertThat(map.get("data_streams_managed_by_minimum_lifecycle"), equalTo(minimumLifecycle));
+        assertThat(map.get("data_streams_managed_by_ilm"), equalTo(ilm));
+    }
+
+    private static void addManagedByDataStream(
+        Metadata.Builder metadataBuilder,
+        Map<String, DataStream> dataStreamMap,
+        IndexMode indexMode,
+        DataStreamLifecycle lifecycle,
+        String ilmPolicy
+    ) {
+        String name = randomAlphaOfLength(50);
+        Instant startTime = Instant.now().minus(1, ChronoUnit.DAYS);
+        Settings.Builder settingsBuilder = settings(IndexVersion.current()).put("index.hidden", true).put(SETTING_INDEX_UUID, randomUUID());
+        if (ilmPolicy != null) {
+            settingsBuilder.put("index.lifecycle.name", ilmPolicy);
+        }
+        if (indexMode == IndexMode.TIME_SERIES) {
+            settingsBuilder.put("index.mode", "time_series")
+                .put("index.time_series.start_time", FORMATTER.format(startTime))
+                .put("index.time_series.end_time", FORMATTER.format(startTime.plus(2, ChronoUnit.HOURS)))
+                .put("index.routing_path", "uid");
+        }
+        IndexMetadata indexMetadata = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(name, 1))
+            .settings(settingsBuilder)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        metadataBuilder.put(indexMetadata, true);
+        dataStreamMap.put(
+            name,
+            DataStream.builder(name, List.of(indexMetadata.getIndex()))
+                .setIndexMode(indexMode)
+                .setLifecycle(lifecycle)
+                .setFailureIndices(DataStream.DataStreamIndices.failureIndicesBuilder(List.of()).setRolloverOnWrite(true).build())
+                .build()
+        );
     }
 
     @SuppressWarnings("unchecked")
@@ -617,13 +706,18 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
     }
 
     /*
-     * This plugin exposes the TimeSeriesUsageTransportAction.
+     * This plugin exposes the TimeSeriesUsageTransportAction and the minimum lifecycle setting.
      */
-    public static final class TestTimeSeriesUsagePlugin extends XPackClientPlugin {
+    public static final class TestPlugin extends XPackClientPlugin {
 
         @Override
         public List<ActionHandler> getActions() {
             return List.of(new ActionHandler(TIME_SERIES_DATA_STREAMS, TimeSeriesUsageTransportAction.class));
+        }
+
+        @Override
+        public List<Setting<?>> getSettings() {
+            return List.of(DataStreamLifecycleSettings.MINIMUM_LIFECYCLE_ENABLED_SETTING);
         }
     }
 }

@@ -114,6 +114,14 @@ public final class Source implements Writeable, WarningSourceLocation {
 
     /**
      * Returns the name of the view this source came from, or null if it came from the original query.
+     * <p>
+     * <b>Only for locating the source text and for messages.</b> This names the query text that {@link #source()} and
+     * {@link #text()} point into, so that serialization can reconstruct the text and errors and warnings can say
+     * "in view [...]". It must not be used for weight-bearing decisions, like whether a plan node or relation lies
+     * inside a view: plan node equality ignores the {@link Source}, so transformations drop changes that only touch it,
+     * and rewrites copy, replace and merge sources freely — a node built from several inputs carries just one of their
+     * sources. Decide view membership from the plan structure instead, i.e. the view branches of a
+     * {@code BranchPlan}.
      */
     @Override
     public String viewName() {

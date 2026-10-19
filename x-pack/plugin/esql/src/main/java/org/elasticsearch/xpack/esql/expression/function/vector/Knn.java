@@ -92,7 +92,7 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Knn", Knn::readFrom);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Knn.class)
         .ternary(Knn::new)
-        .capabilities("runtime_anywhere", "runtime_similarity_function")
+        .capabilities("runtime_anywhere", "runtime_similarity_function", "single_dimension_query_vector")
         .name("knn");
 
     private final Integer implicitK;
@@ -247,6 +247,10 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
         // we need to check that we got a list and every element in the list is a number
         Expression query = query();
         if (query instanceof Literal literal) {
+            // a one-element multivalue (i.e. a 1-dimension vector) is folded into a scalar
+            if (literal.value() instanceof Number number) {
+                return List.of(number);
+            }
             @SuppressWarnings("unchecked")
             List<Number> result = ((List<Number>) literal.value());
             return result;

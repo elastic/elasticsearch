@@ -11,7 +11,6 @@ package org.elasticsearch.gradle.internal.test;
 
 import org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin;
 import org.elasticsearch.gradle.internal.ElasticsearchTestBasePlugin;
-import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.precommit.InternalPrecommitTasks;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -23,6 +22,8 @@ import org.gradle.api.tasks.testing.Test;
 
 import java.util.Map;
 
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.applyGlobalBuildInfoIfRoot;
+
 /**
  * Configures the build to compile against Elasticsearch's test framework and
  * run integration and unit tests. Use BuildPlugin if you want to build main
@@ -31,7 +32,7 @@ import java.util.Map;
 public class StandaloneTestPlugin implements Plugin<Project> {
     @Override
     public void apply(final Project project) {
-        project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
+        applyGlobalBuildInfoIfRoot(project);
         project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
         project.getPluginManager().apply(ElasticsearchTestBasePlugin.class);
 

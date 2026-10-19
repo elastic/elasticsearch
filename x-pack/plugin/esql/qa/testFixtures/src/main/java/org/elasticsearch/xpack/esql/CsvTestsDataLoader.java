@@ -196,6 +196,10 @@ public class CsvTestsDataLoader {
         new TestDataset("no_mapping_sample_data", "mapping-no_mapping_sample_data.json", "partial_mapping_sample_data.csv"),
         new TestDataset("unmapped_array_data", "mapping-unmapped_array_data.json", "unmapped_array_data.csv"),
         new TestDataset("unmapped_object_data", "mapping-unmapped_object_data.json", "unmapped_object_data.csv"),
+        new TestDataset("nested_paths_mapped", "mapping-nested_paths_mapped.json", "nested_paths_mapped.csv"),
+        new TestDataset("nested_paths_unmapped", "mapping-nested_paths_unmapped.json", "nested_paths_unmapped.csv"),
+        new TestDataset("mv_expand_mapped", "mapping-mv_expand_mapped.json", "mv_expand_mapped.csv"),
+        new TestDataset("mv_expand_unmapped", "mapping-mv_expand_unmapped.json", "mv_expand_unmapped.csv"),
         new TestDataset("flattened_paths_mapped", "mapping-flattened_paths_mapped.json", "flattened_paths_mapped.csv"),
         new TestDataset("flattened_paths_unmapped", "mapping-flattened_paths_unmapped.json", "flattened_paths_unmapped.csv"),
         // Four indices that give the same conceptual "unmapped" field a different shape each, for LOAD_ALL multi-index expansion:
@@ -558,6 +562,9 @@ public class CsvTestsDataLoader {
         new ViewConfig("employees_in_subquery_nested_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
         new ViewConfig("view_partial_mapping_sample_data"),
         new ViewConfig("view_sample_data"),
+        new ViewConfig("view_country_wildcard"),
+        new ViewConfig("view_partially_unmapped_sample_data"),
+        new ViewConfig("view_partially_unmapped_conflicting_sample_data"),
         new ViewConfig("view_languages"),
         new ViewConfig("view_languages_meta_index", List.of(OUTER_METADATA_NULL_INJECTION)),
         new ViewConfig("view_languages_meta_index_keep_star", List.of(OUTER_METADATA_NULL_INJECTION)),
@@ -568,7 +575,8 @@ public class CsvTestsDataLoader {
         ),
         new ViewConfig("view_with_fork", List.of(EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND_WITH_VIEW_FORK_DATASET)),
         new ViewConfig("view_with_unionall", List.of(EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND_WITH_VIEW_FORK_DATASET)),
-        new ViewConfig("fork_over_union_view", List.of(EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_FORK_NULL_FILL_DATE_NANOS))
+        new ViewConfig("fork_over_union_view", List.of(EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_FORK_NULL_FILL_DATE_NANOS)),
+        new ViewConfig("view_with_let", List.of(EsqlCapabilities.Cap.NAMED_SUBQUERY_LET))
     ).collect(toMap(ViewConfig::name, Function.identity()));
 
     /**

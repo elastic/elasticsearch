@@ -35,7 +35,8 @@ public class ColumnarPayloadBinaryDocValuesSyntheticFieldLoaderLayer implements 
     private boolean hasField;
     private BytesRef payload;
     private int slotCount;
-    private int nonNullCount;
+    // Only computed for payloads of at most one slot: more slots always render as an array whatever they hold.
+    private boolean allNull;
 
     public ColumnarPayloadBinaryDocValuesSyntheticFieldLoaderLayer(String name) {
         this.name = Objects.requireNonNull(name);
@@ -60,7 +61,7 @@ public class ColumnarPayloadBinaryDocValuesSyntheticFieldLoaderLayer implements 
         // The blob stays valid until the next advance, and nothing touches it between here and write().
         payload = values.binaryValue();
         slotCount = decoder.reset(payload);
-        nonNullCount = slotCount - decoder.nullSlotCount();
+        allNull = slotCount == 0 || (slotCount == 1 && decoder.nullSlotCount() == 1);
         return true;
     }
 
@@ -74,7 +75,7 @@ public class ColumnarPayloadBinaryDocValuesSyntheticFieldLoaderLayer implements 
         if (hasField == false) {
             return 0;
         }
-        if (nonNullCount == 0) {
+        if (allNull) {
             // An empty array, or one holding nothing but nulls, still has to render as an array. Two is simply
             // "more than one" to CompositeSyntheticFieldLoader, which is all it takes to get the brackets.
             return 2;

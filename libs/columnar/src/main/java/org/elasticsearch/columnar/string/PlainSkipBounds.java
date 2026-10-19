@@ -231,6 +231,14 @@ final class PlainSkipBounds {
             if (bounded == false) {
                 return true;
             }
+            if (rulesOut(query)) {
+                requireOrdered(block);
+                return true;
+            }
+            return false;
+        }
+
+        private boolean rulesOut(Query query) throws IOException {
             if (query.prefix() != null) {
                 return compareMax(query.prefix()) < 0 || (compareMin(query.prefix()) > 0 && minStartsWith(query.prefix()) == false);
             }
@@ -276,6 +284,22 @@ final class PlainSkipBounds {
                 throw corrupt(block, "bounds of [" + minLength + ", " + maxLength + "] bytes at payload offset [" + offset + "]");
             }
             bounded = true;
+        }
+
+        private void requireOrdered(int block) throws IOException {
+            final int common = Math.min(minLength, maxLength);
+            for (int i = 0; i < common; i++) {
+                final int diff = (region.readByte(minPosition + i) & 0xFF) - (region.readByte(maxPosition + i) & 0xFF);
+                if (diff != 0) {
+                    if (diff > 0) {
+                        throw corrupt(block, "the minimum is larger than the maximum");
+                    }
+                    return;
+                }
+            }
+            if (minLength > maxLength) {
+                throw corrupt(block, "the minimum is larger than the maximum");
+            }
         }
 
         private CorruptIndexException corrupt(int block, String reason) {

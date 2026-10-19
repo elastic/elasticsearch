@@ -312,6 +312,30 @@ public class PlainSkipBoundsTests extends ESTestCase {
         }
     }
 
+    public void testBoundsWhoseMinimumExceedsTheMaximumNeverPrune() throws IOException {
+        final BytesRef[][] docSlots = new BytesRef[][] { { new BytesRef("a"), new BytesRef("z") } };
+        try (Directory dir = newDirectory(); PlainSkipFixture fixture = PlainSkipFixture.build(dir, docSlots, 2)) {
+            final long minimumByte = 12 + 1 + 8;
+            try (
+                PlainSkipFixture lowered = fixture.withByte(dir, minimumByte, (byte) 'z');
+                PlainSkipFixture reversed = lowered.withByte(dir, minimumByte + 1, (byte) 'a')
+            ) {
+                final PlainSkipBounds.Reader reader = reversed.reader();
+                final BytesRef middle = new BytesRef("m");
+                expectThrows(
+                    CorruptIndexException.class,
+                    () -> reader.excludes(0, PlainSkipBounds.Query.range(middle, true, middle, true))
+                );
+                expectThrows(CorruptIndexException.class, () -> reader.excludes(0, PlainSkipBounds.Query.prefix(middle)));
+                assertFalse(reader.excludes(0, PlainSkipBounds.Query.range(null, true, null, true)));
+            }
+            try (PlainSkipFixture intact = fixture.withByte(dir, minimumByte, (byte) 'a')) {
+                final BytesRef middle = new BytesRef("m");
+                assertFalse(intact.reader().excludes(0, PlainSkipBounds.Query.range(middle, true, middle, true)));
+            }
+        }
+    }
+
     public void testARegionPastTheEndOfTheSkipIndexIsCorrupt() throws IOException {
         final BytesRef[][] docSlots = new BytesRef[][] { { new BytesRef("a") }, { new BytesRef("b") } };
         try (Directory dir = newDirectory(); PlainSkipFixture fixture = PlainSkipFixture.build(dir, docSlots, 1)) {

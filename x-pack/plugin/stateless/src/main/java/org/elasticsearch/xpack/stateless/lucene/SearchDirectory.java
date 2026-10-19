@@ -118,6 +118,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
 
     @Override
     public long estimateDataSetSizeInBytes() {
+        // data set size is equal to the size of the last commit fetched from the object store
         return currentDataSetSizeInBytes;
     }
 

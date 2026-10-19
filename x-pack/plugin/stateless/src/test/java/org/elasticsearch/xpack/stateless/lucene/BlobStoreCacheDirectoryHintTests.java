@@ -581,6 +581,20 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             public BlobStoreCacheDirectory createNewBlobStoreCacheDirectoryForWarming() {
                 return this;
             }
+
+            @Override
+            public BlobStoreCacheDirectory createPerBccMetadataReadDirectory(
+                Map<String, BlobFileRanges> readMetadata,
+                long readDataSetSizeInBytes
+            ) {
+                throw new UnsupportedOperationException(
+                    "test directory does not support per-BCC metadata reads for "
+                        + readMetadata.size()
+                        + " files totaling "
+                        + readDataSetSizeInBytes
+                        + " bytes"
+                );
+            }
         };
     }
 }

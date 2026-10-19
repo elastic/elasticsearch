@@ -537,6 +537,10 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
         return 0L;
     }
 
+    /**
+     * @return the size of the latest commit this directory publishes. This can differ from {@link #estimateSizeInBytes()},
+     *         which is zero because these directories store no files locally.
+     */
     @Override
     public abstract long estimateDataSetSizeInBytes();
 
@@ -551,11 +555,10 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
      * @param dataSetSizeInBytes the data set size to publish on the returned directory
      * @return the {@link BlobStoreCacheDirectory} for a single BCC metadata read through cache, populated with {@code metadata}
      */
-    public BlobStoreCacheDirectory createPerBccMetadataReadDirectory(Map<String, BlobFileRanges> metadata, long dataSetSizeInBytes) {
-        assert false
-            : "per-BCC metadata reads are not supported for " + metadata.size() + " files totaling " + dataSetSizeInBytes + " bytes";
-        throw new UnsupportedOperationException("stateless directory does not support per-BCC metadata reads");
-    }
+    public abstract BlobStoreCacheDirectory createPerBccMetadataReadDirectory(
+        Map<String, BlobFileRanges> metadata,
+        long dataSetSizeInBytes
+    );
 
     private static UnsupportedOperationException unsupportedException() {
         assert false : "this operation is not supported and should have not be called";

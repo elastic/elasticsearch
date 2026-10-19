@@ -382,6 +382,20 @@ public final class StatelessDirectoryFactory {
                 public BlobStoreCacheDirectory createNewBlobStoreCacheDirectoryForWarming() {
                     throw new UnsupportedOperationException("search-node benchmark directory does not support warming clones");
                 }
+
+                @Override
+                public BlobStoreCacheDirectory createPerBccMetadataReadDirectory(
+                    Map<String, BlobFileRanges> readMetadata,
+                    long readDataSetSizeInBytes
+                ) {
+                    throw new UnsupportedOperationException(
+                        "search-node benchmark directory does not support per-BCC metadata reads for "
+                            + readMetadata.size()
+                            + " files totaling "
+                            + readDataSetSizeInBytes
+                            + " bytes"
+                    );
+                }
             };
 
             return new SearchNodeDirectory(cacheDirectory, fakeBlobStoreDirectory, blobNameToFileName, infra, metadata, dataSetSizeInBytes);

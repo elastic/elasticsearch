@@ -55,6 +55,7 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
 
     @Override
     public long estimateDataSetSizeInBytes() {
+        // data set size is equal to the size of the last commit uploaded to the object store
         return currentDataSetSizeInBytes;
     }
 
@@ -199,7 +200,7 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
                 return getCacheService().getShardReadThreadPoolExecutor();
             }
         };
-        directory.updateMetadata(metadata, dataSetSizeInBytes);
+        directory.updateMetadata(Map.copyOf(metadata), dataSetSizeInBytes);
         return directory;
     }
 

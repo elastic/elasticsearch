@@ -298,7 +298,7 @@ public class DriverContext {
     }
 
     /**
-     * Sets who is told each time this driver waits in its thread pool queue. Set while the driver is built, before it starts.
+     * Sets the listener notified with the queue wait in nanoseconds each time this driver is taken off its thread pool queue. Must be called before the driver starts.
      */
     public void setQueueTimeListener(LongConsumer queueTimeListener) {
         this.queueTimeListener = Objects.requireNonNull(queueTimeListener);

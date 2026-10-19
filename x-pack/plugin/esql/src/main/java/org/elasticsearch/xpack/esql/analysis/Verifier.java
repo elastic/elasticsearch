@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Esq
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -56,6 +57,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
@@ -63,10 +65,12 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
+import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
@@ -680,8 +684,9 @@ public class Verifier {
                 failures.add(
                     fail(
                         p,
-                        "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
-                            + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; [{}] is not supported yet",
+                        "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, "
+                            + "MV_EXPAND, SAMPLE, WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and "
+                            + "subquery commands; [{}] is not supported yet",
                         p instanceof EsRelation esr && esr.indexMode().isTsdb() ? "TS"
                             : p instanceof BranchPlan ? "BranchPlan"
                             : p instanceof NamedSubquery ? "NamedSubquery"
@@ -700,6 +705,10 @@ public class Verifier {
             || plan instanceof Drop
             || plan instanceof Rename
             || plan instanceof Eval
+            || plan instanceof Grok
+            || plan instanceof Dissect
+            || plan instanceof MvExpand
+            || plan instanceof Sample
             || plan instanceof Filter
             || plan instanceof OrderBy
             || plan instanceof Limit

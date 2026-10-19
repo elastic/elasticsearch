@@ -56,6 +56,7 @@ public class DriverCompletionInfoBwcWarningsTests extends ESTestCase {
             0,
             0,
             0,
+            0,
             List.of(),
             List.of(),
             null,
@@ -98,7 +99,22 @@ public class DriverCompletionInfoBwcWarningsTests extends ESTestCase {
         TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(DriverCompletionInfo.ESQL_DRIVER_WARNINGS);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
 
-        DriverCompletionInfo original = new DriverCompletionInfo(1, 2, 0, 0, 0, 0, 0, List.of(), List.of(), null, false, false, Set.of());
+        DriverCompletionInfo original = new DriverCompletionInfo(
+            1,
+            2,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            List.of(),
+            List.of(),
+            null,
+            false,
+            false,
+            Set.of()
+        );
         BytesReference bytes = serialize(original, oldVersion);
 
         DriverCompletionInfo deserialized = deserialize(bytes, oldVersion, threadContext);
@@ -125,6 +141,7 @@ public class DriverCompletionInfoBwcWarningsTests extends ESTestCase {
             0,
             0,
             0,
+            0,
             List.of(),
             List.of(),
             null,
@@ -146,6 +163,40 @@ public class DriverCompletionInfoBwcWarningsTests extends ESTestCase {
         // Thread context warnings should be untouched
         List<String> headers = threadContext.getResponseHeaders().getOrDefault("Warning", List.of());
         assertThat(headers, hasSize(1));
+    }
+
+    /**
+     * {@code driverNanos} round-trips on current nodes. Nodes that predate it read 0, while {@code cpuNanos}
+     * still round-trips.
+     */
+    public void testDriverNanosSerialization() throws IOException {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        DriverCompletionInfo original = new DriverCompletionInfo(
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            700,
+            900,
+            List.of(),
+            List.of(),
+            null,
+            false,
+            false,
+            Set.of()
+        );
+
+        TransportVersion current = TransportVersion.current();
+        DriverCompletionInfo copy = deserialize(serialize(original, current), current, threadContext);
+        assertThat(copy.cpuNanos(), equalTo(700L));
+        assertThat(copy.driverNanos(), equalTo(900L));
+
+        TransportVersion beforeDriverNanos = TransportVersionUtils.getPreviousVersion(DriverStatus.ESQL_DRIVER_NANOS);
+        DriverCompletionInfo old = deserialize(serialize(original, beforeDriverNanos), beforeDriverNanos, threadContext);
+        assertThat(old.cpuNanos(), equalTo(700L));
+        assertThat(old.driverNanos(), equalTo(0L));
     }
 
     private static BytesReference serialize(DriverCompletionInfo info, TransportVersion version) throws IOException {

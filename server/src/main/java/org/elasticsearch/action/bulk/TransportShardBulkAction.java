@@ -1041,7 +1041,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 docValuesUpdate.operationPrimaryTerm(),
                 primaryResponse.getVersion(),
                 docValuesUpdate.id(),
-                docValuesUpdate.updates()
+                docValuesUpdate.updates(),
+                docValuesUpdate.ifSeqNo(),
+                docValuesUpdate.ifPrimaryTerm()
             );
         }
         switch (docWriteRequest.opType()) {

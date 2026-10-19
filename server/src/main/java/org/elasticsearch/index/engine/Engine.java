@@ -2234,7 +2234,7 @@ public abstract class Engine implements Closeable {
         private final long ifSeqNo;
         private final long ifPrimaryTerm;
 
-        /** For replica and recovery operations, which replay a primary-assigned update and perform no optimistic-concurrency check. */
+        /** For operations with no base identity (e.g. sequence-number-disabled indices), where the apply-time safety check does not apply. */
         public DocValuesUpdate(
             String id,
             BytesRef uid,
@@ -2291,10 +2291,12 @@ public abstract class Engine implements Closeable {
         }
 
         /**
-         * The sequence number the document is expected to still carry when this update is applied on the primary, captured when the
-         * update was prepared. It closes the prepare-to-apply race: a concurrent delete or reindex changes the document's identity and
-         * makes the update conflict instead of silently patching a document it was not computed against. {@link
-         * SequenceNumbers#UNASSIGNED_SEQ_NO} on replica and recovery operations, which replay a decision the primary already made.
+         * The document's identity (base version) the delta was computed against, captured when the update was prepared. On the primary
+         * it is the optimistic-concurrency precondition: a concurrent delete or reindex changes the document's identity and makes the
+         * update conflict instead of silently patching a document it was not computed against. On a replica, recovery or CCR-follower
+         * operation it is the apply-time safety check: the delta is applied in place only while the live document still carries this
+         * identity (see {@code InternalEngine#planDocValuesUpdateAsNonPrimary}). {@link SequenceNumbers#UNASSIGNED_SEQ_NO} when there is no
+         * base identity, e.g. on sequence-number-disabled indices.
          */
         public long getIfSeqNo() {
             return ifSeqNo;
@@ -2311,7 +2313,7 @@ public abstract class Engine implements Closeable {
 
         @Override
         public int estimatedSizeInBytes() {
-            int size = uid().length + (3 * Long.BYTES); // seq_no, primary_term, version
+            int size = uid().length + (5 * Long.BYTES); // seq_no, primary_term, version, ifSeqNo, ifPrimaryTerm
             for (Translog.DocValuesUpdate.FieldUpdate update : updates) {
                 size += 2 * update.field().length() + switch (update) {
                     case Translog.DocValuesUpdate.NumericFieldUpdate n -> Long.BYTES;

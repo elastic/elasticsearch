@@ -522,6 +522,11 @@ public class UpdateHelper {
      * so the update must instead be realized as a self-sufficient reindex.
      */
     private static boolean inPlaceUpdateSafeToReplicate(IndexShard indexShard, GetResult getResult) {
+        // Ship the delta only when its base document is at or below the global checkpoint, so every in-sync copy has already processed it
+        // and a replica never has to apply a delta against a document it does not yet hold. A copy that is still recovering is not covered
+        // by the global checkpoint, so it can still receive a delta ahead of its base; that case is resolved per operation on the copy
+        // itself (see InternalEngine#planDocValuesUpdateAsNonPrimary), which applies the delta only while the live document is still the
+        // base and otherwise fails it for replay once the base arrives.
         return getResult.getSeqNo() <= indexShard.getLastKnownGlobalCheckpoint();
     }
 
@@ -599,7 +604,14 @@ public class UpdateHelper {
                 } else {
                     values = List.of(value);
                 }
-                fieldMapper.encodeDocValuesUpdate(values, sink);
+                try {
+                    fieldMapper.encodeDocValuesUpdate(values, sink);
+                } catch (Exception e) {
+                    // A value the fast path cannot encode (a malformed number, an unparseable date, ...) falls back to the
+                    // read-modify-reindex path, where normal document parsing applies: it honours ignore_malformed and wraps a parse
+                    // error in a document_parsing_exception, rather than surfacing the raw encoding exception here.
+                    return null;
+                }
             } else {
                 return null;
             }

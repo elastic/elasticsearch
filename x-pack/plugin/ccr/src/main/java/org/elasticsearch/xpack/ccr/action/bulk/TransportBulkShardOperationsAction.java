@@ -162,6 +162,8 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
                     update.seqNo(),
                     primaryTerm,
                     update.version(),
+                    update.baseSeqNo(),
+                    update.baseTerm(),
                     update.updates()
                 );
             }

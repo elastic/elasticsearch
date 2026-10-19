@@ -1918,6 +1918,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         private final BytesRef uid;
         private final long version;
+        // The document's identity (sequence number and primary term) when the delta was computed on the primary. The delta is only
+        // valid against that exact version, so a non-primary copy applies it in place only when its live document still carries this
+        // identity; otherwise the live document has moved on (the delta is obsolete) or the base has not arrived yet (see
+        // InternalEngine#planDocValuesUpdateAsNonPrimary). UNASSIGNED on sequence-number-disabled indices, where the check does not apply.
+        private final long baseSeqNo;
+        private final long baseTerm;
         private final List<FieldUpdate> updates;
 
         private static DocValuesUpdate readFrom(StreamInput in) throws IOException {
@@ -1928,23 +1934,36 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             final long version = in.readLong();
             final long seqNo = in.readLong();
             final long primaryTerm = in.readLong();
+            final long baseSeqNo = in.readZLong();
+            final long baseTerm = in.readVLong();
             final BytesRef uid = in.readBytesRef();
             final List<FieldUpdate> updates = in.readCollectionAsList(FieldUpdate::readFrom);
-            return new DocValuesUpdate(uid, seqNo, primaryTerm, version, updates);
+            return new DocValuesUpdate(uid, seqNo, primaryTerm, version, baseSeqNo, baseTerm, updates);
         }
 
-        public DocValuesUpdate(String id, long seqNo, long primaryTerm, long version, List<FieldUpdate> updates) {
-            this(Uid.encodeId(id), seqNo, primaryTerm, version, updates);
+        public DocValuesUpdate(
+            String id,
+            long seqNo,
+            long primaryTerm,
+            long version,
+            long baseSeqNo,
+            long baseTerm,
+            List<FieldUpdate> updates
+        ) {
+            this(Uid.encodeId(id), seqNo, primaryTerm, version, baseSeqNo, baseTerm, updates);
         }
 
         /**
-         * Serializes the uid and field updates into the payload stored on a doc-values-update history document. The uid rides in the
-         * payload (rather than an indexed {@code _id} field) so that a later {@code IndexWriter#updateDocValues} by the {@code _id} term
-         * does not also rewrite the history document. The inverse is {@link #fromHistoryPayload}.
+         * Serializes the uid, base identity and field updates into the payload stored on a doc-values-update history document. The uid
+         * rides in the payload (rather than an indexed {@code _id} field) so that a later {@code IndexWriter#updateDocValues} by the
+         * {@code _id} term does not also rewrite the history document. The inverse is {@link #fromHistoryPayload}.
          */
-        public static BytesReference serializeUpdates(BytesRef uid, List<FieldUpdate> updates) throws IOException {
+        public static BytesReference serializeUpdates(BytesRef uid, long baseSeqNo, long baseTerm, List<FieldUpdate> updates)
+            throws IOException {
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 out.writeBytesRef(uid);
+                out.writeZLong(baseSeqNo);
+                out.writeVLong(baseTerm);
                 out.writeCollection(updates);
                 return out.bytes();
             }
@@ -1957,15 +1976,27 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         public static DocValuesUpdate fromHistoryPayload(long seqNo, long primaryTerm, long version, BytesRef payload) throws IOException {
             try (StreamInput in = new BytesArray(payload).streamInput()) {
                 final BytesRef uid = in.readBytesRef();
+                final long baseSeqNo = in.readZLong();
+                final long baseTerm = in.readVLong();
                 final List<FieldUpdate> updates = in.readCollectionAsList(FieldUpdate::readFrom);
-                return new DocValuesUpdate(uid, seqNo, primaryTerm, version, updates);
+                return new DocValuesUpdate(uid, seqNo, primaryTerm, version, baseSeqNo, baseTerm, updates);
             }
         }
 
-        public DocValuesUpdate(BytesRef uid, long seqNo, long primaryTerm, long version, List<FieldUpdate> updates) {
+        public DocValuesUpdate(
+            BytesRef uid,
+            long seqNo,
+            long primaryTerm,
+            long version,
+            long baseSeqNo,
+            long baseTerm,
+            List<FieldUpdate> updates
+        ) {
             super(seqNo, primaryTerm);
             this.uid = Objects.requireNonNull(uid);
             this.version = version;
+            this.baseSeqNo = baseSeqNo;
+            this.baseTerm = baseTerm;
             this.updates = List.copyOf(updates);
         }
 
@@ -1976,7 +2007,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         @Override
         public long estimateSize() {
-            long size = uid.length + (3 * Long.BYTES); // seq_no, primary_term, version
+            long size = uid.length + (5 * Long.BYTES); // seq_no, primary_term, version, base_seq_no, base_term
             for (FieldUpdate update : updates) {
                 size += update.estimatedSizeInBytes();
             }
@@ -1991,6 +2022,14 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             return version;
         }
 
+        public long baseSeqNo() {
+            return baseSeqNo;
+        }
+
+        public long baseTerm() {
+            return baseTerm;
+        }
+
         public List<FieldUpdate> updates() {
             return updates;
         }
@@ -2001,6 +2040,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             out.writeLong(version);
             out.writeLong(seqNo);
             out.writeLong(primaryTerm);
+            out.writeZLong(baseSeqNo);
+            out.writeVLong(baseTerm);
             out.writeBytesRef(uid);
             out.writeCollection(updates);
         }
@@ -2022,6 +2063,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             return seqNo == that.seqNo
                 && primaryTerm == that.primaryTerm
                 && version == that.version
+                && baseSeqNo == that.baseSeqNo
+                && baseTerm == that.baseTerm
                 && uid.equals(that.uid)
                 && updates.equals(that.updates);
         }
@@ -2032,6 +2075,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             result = 31 * result + Long.hashCode(seqNo);
             result = 31 * result + Long.hashCode(primaryTerm);
             result = 31 * result + Long.hashCode(version);
+            result = 31 * result + Long.hashCode(baseSeqNo);
+            result = 31 * result + Long.hashCode(baseTerm);
             result = 31 * result + updates.hashCode();
             return result;
         }
@@ -2048,6 +2093,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 + primaryTerm
                 + ", version="
                 + version
+                + ", baseSeqNo="
+                + baseSeqNo
+                + ", baseTerm="
+                + baseTerm
                 + ", updates="
                 + updates
                 + '}';

@@ -150,7 +150,9 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
                     versionType,
                     origin,
                     System.nanoTime(),
-                    update.updates()
+                    update.updates(),
+                    update.baseSeqNo(),
+                    update.baseTerm()
                 );
             }
             default -> throw new IllegalStateException("No operation defined for [" + operation + "]");

@@ -2087,6 +2087,8 @@ public class TranslogTests extends ESTestCase {
             randomNonNegativeLong(),
             primaryTerm.get(),
             randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            primaryTerm.get(),
             List.of(
                 new Translog.DocValuesUpdate.NumericFieldUpdate("count", randomLong()),
                 new Translog.DocValuesUpdate.BinaryFieldUpdate("status", new BytesRef(randomAlphaOfLengthBetween(1, 16)))

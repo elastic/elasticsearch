@@ -210,7 +210,6 @@ import java.util.function.Supplier;
 import static org.elasticsearch.cluster.metadata.DataStream.TIMESERIES_LEAF_READERS_SORTER;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.indices.recovery.FailureStrategy.ABORT;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SEND;
@@ -1073,14 +1072,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * Apply an in-place doc-values update on a replica, replaying the primary's {@code seqNo}, {@code opPrimaryTerm}, and {@code version}.
-     * The optimistic-concurrency check was already performed on the primary, so none is repeated here.
+     * The optimistic-concurrency check was already performed on the primary, so none is repeated here. {@code baseSeqNo}/{@code baseTerm}
+     * are the document identity the delta was computed against on the primary; the engine applies the delta in place only while the live
+     * document still carries that identity, so an out-of-order replica or recovery delivery cannot patch the wrong version.
      */
     public Engine.DocValuesUpdateResult applyDocValuesUpdateOnReplica(
         long seqNo,
         long opPrimaryTerm,
         long version,
         String id,
-        List<Translog.DocValuesUpdate.FieldUpdate> updates
+        List<Translog.DocValuesUpdate.FieldUpdate> updates,
+        long baseSeqNo,
+        long baseTerm
     ) throws IOException {
         return applyDocValuesUpdate(
             getEngine(),
@@ -1091,8 +1094,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             updates,
             null,
             Engine.Operation.Origin.REPLICA,
-            UNASSIGNED_SEQ_NO,
-            UNASSIGNED_PRIMARY_TERM
+            baseSeqNo,
+            baseTerm
         );
     }
 
@@ -1521,8 +1524,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             update.updates(),
             versionType,
             origin,
-            UNASSIGNED_SEQ_NO,
-            UNASSIGNED_PRIMARY_TERM
+            update.baseSeqNo(),
+            update.baseTerm()
         );
     }
 

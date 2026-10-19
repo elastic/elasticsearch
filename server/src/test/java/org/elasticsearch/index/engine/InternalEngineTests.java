@@ -480,7 +480,14 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-    private Engine.DocValuesUpdate replicaDocValuesUpdate(String id, long seqNo, long version, long counter) {
+    private Engine.DocValuesUpdate replicaDocValuesUpdate(
+        String id,
+        long seqNo,
+        long version,
+        long counter,
+        long baseSeqNo,
+        long baseTerm
+    ) {
         return new Engine.DocValuesUpdate(
             id,
             Uid.encodeId(id),
@@ -490,7 +497,9 @@ public class InternalEngineTests extends EngineTestCase {
             null,
             REPLICA,
             System.nanoTime(),
-            List.of(new Translog.DocValuesUpdate.NumericFieldUpdate("counter", counter))
+            List.of(new Translog.DocValuesUpdate.NumericFieldUpdate("counter", counter)),
+            baseSeqNo,
+            baseTerm
         );
     }
 
@@ -571,17 +580,19 @@ public class InternalEngineTests extends EngineTestCase {
             engine.advanceMaxSeqNoOfUpdatesOrDeletes(2L);
             engine.index(replicaIndexForDoc(doc, 1L, 0L, false));
 
-            // The newer operation (seqNo 2) arrives first and is applied in place.
+            // Two concurrent updates computed against the same base (the indexed document at seqNo 0). The newer operation (seqNo 2)
+            // arrives first and is applied in place because the live document is still exactly its base.
             assertThat(
-                engine.docValuesUpdate(replicaDocValuesUpdate("1", 2L, 1L, 99)).getResultType(),
+                engine.docValuesUpdate(replicaDocValuesUpdate("1", 2L, 1L, 99, 0L, primaryTerm.get())).getResultType(),
                 equalTo(Engine.Result.Type.SUCCESS)
             );
             engine.refresh("test"); // evict the id from the version map so the stale op resolves against the effective seq_no in Lucene
             assertThat(readCounterOfLiveDoc(engine), equalTo(99L));
 
-            // The stale operation (seqNo 1) arrives second: it is recorded as history but must not patch the live document.
+            // The stale operation (seqNo 1) arrives second: its base (seqNo 0) was applied but the live document has moved past it, so it
+            // is obsolete — recorded as history but not applied to the live document.
             assertThat(
-                engine.docValuesUpdate(replicaDocValuesUpdate("1", 1L, 1L, 42)).getResultType(),
+                engine.docValuesUpdate(replicaDocValuesUpdate("1", 1L, 1L, 42, 0L, primaryTerm.get())).getResultType(),
                 equalTo(Engine.Result.Type.SUCCESS)
             );
             engine.refresh("test");
@@ -603,11 +614,13 @@ public class InternalEngineTests extends EngineTestCase {
             engine.advanceMaxSeqNoOfUpdatesOrDeletes(2L);
             engine.index(replicaIndexForDoc(doc, 1L, 0L, false));
 
-            engine.docValuesUpdate(replicaDocValuesUpdate("1", 1L, 1L, 42));
+            // First update is computed against the indexed document (base seqNo 0) and applies.
+            engine.docValuesUpdate(replicaDocValuesUpdate("1", 1L, 1L, 42, 0L, primaryTerm.get()));
             engine.refresh("test");
             assertThat(readCounterOfLiveDoc(engine), equalTo(42L));
 
-            engine.docValuesUpdate(replicaDocValuesUpdate("1", 2L, 1L, 99));
+            // Second update is computed against the result of the first (base seqNo 1) and applies on top of it.
+            engine.docValuesUpdate(replicaDocValuesUpdate("1", 2L, 1L, 99, 1L, primaryTerm.get()));
             engine.refresh("test");
             assertThat(readCounterOfLiveDoc(engine), equalTo(99L));
             assertThat(countHistoryDocsInLucene(engine), equalTo(2));
@@ -623,19 +636,42 @@ public class InternalEngineTests extends EngineTestCase {
             engine.advanceMaxSeqNoOfUpdatesOrDeletes(1L);
             engine.index(replicaIndexForDoc(doc, 1L, 0L, false));
 
-            engine.docValuesUpdate(replicaDocValuesUpdate("1", 1L, 1L, 42));
+            engine.docValuesUpdate(replicaDocValuesUpdate("1", 1L, 1L, 42, 0L, primaryTerm.get()));
             engine.refresh("test");
             assertThat(readCounterOfLiveDoc(engine), equalTo(42L));
             assertThat(countHistoryDocsInLucene(engine), equalTo(1));
 
             // Replaying the same operation (same seq_no) is skipped: the value is unchanged and no second history document is written.
             assertThat(
-                engine.docValuesUpdate(replicaDocValuesUpdate("1", 1L, 1L, 42)).getResultType(),
+                engine.docValuesUpdate(replicaDocValuesUpdate("1", 1L, 1L, 42, 0L, primaryTerm.get())).getResultType(),
                 equalTo(Engine.Result.Type.SUCCESS)
             );
             engine.refresh("test");
             assertThat(readCounterOfLiveDoc(engine), equalTo(42L));
             assertThat(countHistoryDocsInLucene(engine), equalTo(1));
+        });
+    }
+
+    public void testDocValuesUpdateReplicaFailsWhenBaseNotPresent() throws Exception {
+        // A delta can race ahead of its base version on a copy that is still catching up (peer recovery / CCR deliver operations
+        // concurrently). Applying it against an older document would corrupt it, so the operation is failed and retried once the base,
+        // delivered in sequence-number order, is present. The failure is retryable, not a client error.
+        runOnColumnarEngine(engine -> {
+            LuceneDocument document = testDocument();
+            document.add(new SortedNumericDocValuesField("counter", 1));
+            ParsedDocument doc = testParsedDocument("1", null, document, new BytesArray("{}"));
+            engine.advanceMaxSeqNoOfUpdatesOrDeletes(2L);
+            engine.index(replicaIndexForDoc(doc, 1L, 0L, false));
+
+            // The delta's base is seqNo 1, which has not been applied on this copy (only the index at seqNo 0 has): it cannot be applied.
+            expectThrows(
+                DocValuesUpdateBaseNotPresentException.class,
+                () -> engine.docValuesUpdate(replicaDocValuesUpdate("1", 2L, 1L, 99, 1L, primaryTerm.get()))
+            );
+            engine.refresh("test");
+            // The live document is untouched and no history document was written for the failed operation.
+            assertThat(readCounterOfLiveDoc(engine), equalTo(1L));
+            assertThat(countHistoryDocsInLucene(engine), equalTo(0));
         });
     }
 

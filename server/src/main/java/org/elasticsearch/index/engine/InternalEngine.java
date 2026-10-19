@@ -2430,50 +2430,41 @@ public class InternalEngine extends Engine {
         // concurrency and realtime get stay correct. The version is left unchanged: it is the observable signal that a change took the
         // in-place path rather than a reindex.
         final boolean seqNoAware = engineConfig.getIndexSettings().seqNoAwareDocValuesUpdates();
-        DocValuesUpdate op = docValuesUpdate;
         DocValuesUpdateResult result;
-        try (var ignored = acquireEnsureOpenRef(); Releasable ignored2 = versionMap.acquireLock(op.uid())) {
-            lastWriteNanos = op.startTime();
-            if (op.origin() == Operation.Origin.PRIMARY) {
-                // Enforce the document's optimistic-concurrency identity captured when the update was prepared, exactly as index and
-                // delete do: a delete or reindex that raced the prepare-to-apply window changed the identity and must conflict rather
-                // than let this update patch a document it was not computed against.
-                final DocValuesUpdateResult conflict = checkDocValuesUpdateConflict(op);
-                if (conflict != null) {
-                    conflict.setTook(System.nanoTime() - op.startTime());
-                    conflict.freeze();
-                    return conflict;
-                }
-                op = new DocValuesUpdate(
-                    op.id(),
-                    op.uid(),
-                    generateSeqNoForOperationOnPrimary(op),
-                    op.primaryTerm(),
-                    op.version(),
-                    op.versionType(),
-                    op.origin(),
-                    op.startTime(),
-                    op.updates()
-                );
-                advanceMaxSeqNoOfUpdatesOnPrimary(op.seqNo());
+        try (var ignored = acquireEnsureOpenRef(); Releasable ignored2 = versionMap.acquireLock(docValuesUpdate.uid())) {
+            lastWriteNanos = docValuesUpdate.startTime();
+            final DocValuesUpdateStrategy strategy = docValuesUpdateStrategyForOperation(docValuesUpdate);
+            final DocValuesUpdate op = strategy.op();
+            if (strategy.earlyResult() != null) {
+                // An optimistic-concurrency conflict (primary) or an already-processed operation (CCR follower): the live document is not
+                // touched and the result carries UNASSIGNED_SEQ_NO, so nothing is replicated or re-marked, exactly as a skipped index or
+                // delete operation.
+                result = strategy.earlyResult();
             } else {
-                advanceMaxSeqNo(op.seqNo());
+                final DocValuesUpdatePlan plan = strategy.plan();
+                assert op.seqNo() >= 0 : "ops should have an assigned seq no.; origin: " + op.origin();
+                result = updateDocValuesInLucene(op, plan);
+                if (seqNoAware && plan.applyInPlace() && result.getResultType() == Result.Type.SUCCESS) {
+                    // Publish the document's new identity to the version map so optimistic-concurrency reads and realtime get see the
+                    // update before the next refresh. A null operation location routes realtime get through a refresh and the searcher
+                    // (the new value lives in doc-values columns, applied via updateDocValues, not in a translog index operation to
+                    // replay). A stale out-of-order op is not applied in place, so it must not regress the live document's identity.
+                    versionMap.maybePutIndexUnderLock(op.uid(), new IndexVersionValue(null, op.version(), op.seqNo(), op.primaryTerm()));
+                }
             }
-            assert op.seqNo() >= 0 : "ops should have an assigned seq no.; origin: " + op.origin();
-            final DocValuesUpdatePlan plan = planDocValuesUpdate(op);
-            result = updateDocValuesInLucene(op, plan);
             if (op.origin().isFromTranslog() == false && result.getResultType() == Result.Type.SUCCESS) {
                 final Translog.Location location = translog.add(
-                    new Translog.DocValuesUpdate(op.uid(), op.seqNo(), op.primaryTerm(), op.version(), op.updates())
+                    new Translog.DocValuesUpdate(
+                        op.uid(),
+                        op.seqNo(),
+                        op.primaryTerm(),
+                        op.version(),
+                        op.getIfSeqNo(),
+                        op.getIfPrimaryTerm(),
+                        op.updates()
+                    )
                 );
                 result.setTranslogLocation(location);
-            }
-            if (seqNoAware && plan.applyInPlace() && result.getResultType() == Result.Type.SUCCESS) {
-                // Publish the document's new identity to the version map so optimistic-concurrency reads and realtime get see the update
-                // before the next refresh. A null operation location routes realtime get through a refresh and the searcher (the new value
-                // lives in doc-values columns, applied via updateDocValues, not in a translog index operation to replay). A stale
-                // out-of-order op is not applied in place, so it must not regress the live document's published identity.
-                versionMap.maybePutIndexUnderLock(op.uid(), new IndexVersionValue(null, op.version(), op.seqNo(), op.primaryTerm()));
             }
             localCheckpointTracker.markSeqNoAsProcessed(result.getSeqNo());
             if (result.getTranslogLocation() == null) {
@@ -2494,12 +2485,60 @@ public class InternalEngine extends Engine {
     }
 
     /**
+     * Decides how a {@link DocValuesUpdate} is realized: the (possibly re-sequenced) operation to apply, how it touches Lucene, and an
+     * optional early result that short-circuits application — an optimistic-concurrency conflict on the primary, or an already-processed
+     * skip on a CCR follower. Overridable so {@link org.elasticsearch.index.engine.InternalEngine} subclasses (the CCR following engine)
+     * can treat a leader-assigned primary-origin operation as a replayed, non-primary operation.
+     */
+    public record DocValuesUpdateStrategy(
+        DocValuesUpdate op,
+        @Nullable DocValuesUpdatePlan plan,
+        @Nullable DocValuesUpdateResult earlyResult
+    ) {}
+
+    /**
+     * Builds the {@link DocValuesUpdateStrategy} for an operation: on the primary it runs the optimistic-concurrency check, assigns a
+     * sequence number, and plans an in-place apply; a replica or recovery operation is resolved against the live document. Overridden by
+     * the CCR following engine, which treats a leader-assigned primary-origin operation as a replayed, non-primary operation.
+     */
+    protected DocValuesUpdateStrategy docValuesUpdateStrategyForOperation(DocValuesUpdate op) throws IOException {
+        if (op.origin() == Operation.Origin.PRIMARY) {
+            // Enforce the document's optimistic-concurrency identity captured when the update was prepared, exactly as index and delete
+            // do: a delete or reindex that raced the prepare-to-apply window changed the identity and must conflict rather than let this
+            // update patch a document it was not computed against.
+            final DocValuesUpdateResult conflict = checkDocValuesUpdateConflict(op);
+            if (conflict != null) {
+                return new DocValuesUpdateStrategy(op, null, conflict);
+            }
+            final DocValuesUpdate seqNoOp = new DocValuesUpdate(
+                op.id(),
+                op.uid(),
+                generateSeqNoForOperationOnPrimary(op),
+                op.primaryTerm(),
+                op.version(),
+                op.versionType(),
+                op.origin(),
+                op.startTime(),
+                op.updates(),
+                op.getIfSeqNo(),
+                op.getIfPrimaryTerm()
+            );
+            advanceMaxSeqNoOfUpdatesOnPrimary(seqNoOp.seqNo());
+            // The primary generated this operation against the current live document (the pre-update get captured its identity), so it is
+            // always the document's newest operation.
+            return new DocValuesUpdateStrategy(seqNoOp, DocValuesUpdatePlan.APPLY_IN_PLACE, null);
+        }
+        advanceMaxSeqNo(op.seqNo());
+        return new DocValuesUpdateStrategy(op, planDocValuesUpdateAsNonPrimary(op), null);
+    }
+
+    /**
      * How an in-place doc-values update is applied to Lucene. A primary operation is always the newest change to its document and is
      * applied in place. A replica or recovery operation can arrive out of order relative to the document's other operations, so it is
      * resolved against the live document first (exactly as index and delete are): a stale op records history without patching the live
      * document, and an already-processed op is skipped entirely.
      */
-    private enum DocValuesUpdatePlan {
+    public enum DocValuesUpdatePlan {
         /** Patch the live document's columns and record the operation in history. */
         APPLY_IN_PLACE(true, true),
         /** A newer operation already changed the document: record history for recovery and CCR, but do not patch the live document. */
@@ -2556,23 +2595,52 @@ public class InternalEngine extends Engine {
         return new DocValuesUpdateResult(e, op.version(), op.primaryTerm(), SequenceNumbers.UNASSIGNED_SEQ_NO, op.id());
     }
 
-    private DocValuesUpdatePlan planDocValuesUpdate(DocValuesUpdate op) throws IOException {
-        if (op.origin() == Operation.Origin.PRIMARY) {
-            // The primary generated this operation against the current live document (the pre-update get captured its identity), so it
-            // is always the document's newest operation.
-            return DocValuesUpdatePlan.APPLY_IN_PLACE;
-        }
+    /**
+     * Plans how a replicated in-place update (replica, recovery, or CCR follower) touches Lucene. The delta was computed against a
+     * specific base version of the document (see {@link DocValuesUpdate#getIfSeqNo()}) and is only valid against that exact version:
+     * <ul>
+     *   <li>already processed here (recovery replay / CCR redelivery) &rarr; {@link DocValuesUpdatePlan#SKIP_LUCENE};</li>
+     *   <li>the base has not been applied on this copy yet (the delta raced ahead of its base) &rarr; fail the operation so recovery and
+     *       CCR retry it once the base, delivered in order, is present;</li>
+     *   <li>the live document is still exactly the base &rarr; {@link DocValuesUpdatePlan#APPLY_IN_PLACE};</li>
+     *   <li>a newer reindex or delete has superseded the base &rarr; the delta is obsolete, recorded as {@link
+     *       DocValuesUpdatePlan#HISTORY_ONLY} for recovery and CCR but not applied to the live document.</li>
+     * </ul>
+     */
+    protected DocValuesUpdatePlan planDocValuesUpdateAsNonPrimary(DocValuesUpdate op) throws IOException {
         if (hasBeenProcessedBefore(op)) {
-            // The operation is already part of the Lucene commit (e.g. a translog operation replayed during recovery). Skip Lucene so it
+            // Already part of the Lucene commit (a translog operation replayed during recovery, or a CCR redelivery). Skip Lucene so it
             // is not applied twice and so a document removed by an out-of-order delete that is not replayed is not resurrected.
             return DocValuesUpdatePlan.SKIP_LUCENE;
         }
+        final long baseSeqNo = op.getIfSeqNo();
+        if (baseSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+            // No base identity (a sequence-number-disabled index does not replicate deltas): fall back to comparing the operation's own
+            // sequence number, the behavior before base tracking.
+            return planDocValuesUpdateBySeqNo(op);
+        }
+        if (localCheckpointTracker.hasProcessed(baseSeqNo) == false) {
+            // The base version has not been applied on this copy yet: the delta is racing ahead of its base (peer recovery and CCR
+            // deliver operations concurrently). It cannot be applied against an older document, so fail it; recovery and CCR retry it,
+            // and by then the base, delivered in order, is present. A started replica never reaches here: the primary ships a delta only
+            // once the base is at or below the global checkpoint, so every in-sync copy already holds it (see UpdateHelper).
+            throw new DocValuesUpdateBaseNotPresentException(shardId, op.id(), op.seqNo(), baseSeqNo);
+        }
+        versionMap.enforceSafeAccess();
+        final VersionValue live = resolveDocVersion(op, true);
+        if (live != null && live.isDelete() == false && live.seqNo == baseSeqNo) {
+            // The live document is still exactly the base the delta was computed against: safe to patch in place.
+            return DocValuesUpdatePlan.APPLY_IN_PLACE;
+        }
+        // The base was applied but the live document has since moved on (a newer reindex or delete won): the delta is obsolete. Record it
+        // in history for recovery and CCR, but do not patch the live document.
+        return DocValuesUpdatePlan.HISTORY_ONLY;
+    }
+
+    private DocValuesUpdatePlan planDocValuesUpdateBySeqNo(DocValuesUpdate op) throws IOException {
         return switch (compareOpToLuceneDocBasedOnSeqNo(op)) {
             case OP_NEWER -> DocValuesUpdatePlan.APPLY_IN_PLACE;
             case OP_STALE_OR_EQUAL -> DocValuesUpdatePlan.HISTORY_ONLY;
-            // The primary only ships a delta in-place update once its base document is on every copy (see the global-checkpoint gate in
-            // UpdateHelper), so a replicated in-place update always finds its live document. Record history defensively rather than
-            // patching a missing document if that invariant is ever violated.
             case LUCENE_DOC_NOT_FOUND -> {
                 assert false : "in-place doc-values update [" + op.id() + "] seq#[" + op.seqNo() + "] found no live document";
                 yield DocValuesUpdatePlan.HISTORY_ONLY;
@@ -2613,7 +2681,7 @@ public class InternalEngine extends Engine {
                 final ParsedDocument history = ParsedDocument.docValuesUpdateHistory(
                     engineConfig.getIndexSettings().seqNoIndexOptions(),
                     op.id(),
-                    Translog.DocValuesUpdate.serializeUpdates(op.uid(), op.updates()).toBytesRef()
+                    Translog.DocValuesUpdate.serializeUpdates(op.uid(), op.getIfSeqNo(), op.getIfPrimaryTerm(), op.updates()).toBytesRef()
                 );
                 history.updateSeqID(op.seqNo(), op.primaryTerm());
                 history.version().setLongValue(op.version());

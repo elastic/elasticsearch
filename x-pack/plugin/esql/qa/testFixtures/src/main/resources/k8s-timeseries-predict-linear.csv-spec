@@ -140,7 +140,7 @@ required_capability: promql_command_v0
 required_capability: promql_predict_linear
 required_capability: fix_tstep_bucket_rounding
 
-PROMQL index=k8s step=1m start="2024-05-10T00:01:00.000Z" end="2024-05-10T00:01:00.000Z" prediction=(sum(predict_linear(network.cost{cluster="prod",pod="three"}[1m], (1 + 2))));
+PROMQL index=k8s step=1m start="2024-05-10T00:01:00.000Z" end="2024-05-10T00:01:00.000Z" prediction=(sum(predict_linear(network.cost{cluster="prod",pod="three"}[1m], 1 + 2)));
 
 prediction:double | step:datetime
 15.0              | 2024-05-10T00:01:00.000Z

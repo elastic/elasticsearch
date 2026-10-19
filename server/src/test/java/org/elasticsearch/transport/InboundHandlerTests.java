@@ -283,6 +283,63 @@ public class InboundHandlerTests extends ESTestCase {
         assertEquals(networkMessageSize + TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE, capturedNetworkMessageSize.get().intValue());
     }
 
+    public void testRequestReceivedReportsNetworkMessageSize() throws Exception {
+        String action = "test-request";
+        AtomicReference<Integer> capturedNetworkMessageSize = new AtomicReference<>();
+        requestHandlers.registerHandler(
+            new RequestHandlerRegistry<>(
+                action,
+                TestRequest::new,
+                taskManager,
+                (request, channel, task) -> {},
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                false,
+                true
+            )
+        );
+        final long requestId = randomNonNegativeLong();
+
+        handler.setMessageListener(new TransportMessageListener() {
+            @Override
+            public void onRequestReceived(long id, String receivedAction, int networkMessageSize) {
+                assertEquals(requestId, id);
+                assertEquals(action, receivedAction);
+                assertTrue("request reported more than once", capturedNetworkMessageSize.compareAndSet(null, networkMessageSize));
+            }
+        });
+
+        try (var recyclerBytesStreamOutput = new RecyclerBytesStreamOutput(recycler)) {
+            BytesReference fullRequestBytes = OutboundHandler.serialize(
+                OutboundHandler.MessageDirection.REQUEST,
+                action,
+                requestId,
+                false,
+                TransportVersion.current(),
+                null,
+                new TestRequest(randomAlphaOfLength(10)),
+                threadPool.getThreadContext(),
+                recyclerBytesStreamOutput,
+                recycler
+            );
+            BytesReference requestContent = fullRequestBytes.slice(
+                TcpHeader.HEADER_SIZE,
+                fullRequestBytes.length() - TcpHeader.HEADER_SIZE
+            );
+            Header requestHeader = new Header(
+                fullRequestBytes.length() - TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE,
+                requestId,
+                TransportStatus.setRequest((byte) 0),
+                TransportVersion.current()
+            );
+            InboundMessage requestMessage = new InboundMessage(requestHeader, ReleasableBytesReference.wrap(requestContent), () -> {});
+            requestHeader.finishParsingHeader(requestMessage.openOrGetStreamInput());
+            handler.inboundMessage(channel, requestMessage);
+
+            // the reported size is that of the whole message on the wire, the same as what the sender serialized
+            assertEquals(fullRequestBytes.length(), capturedNetworkMessageSize.get().intValue());
+        }
+    }
+
     public void testClosesChannelOnErrorInHandshake() throws Exception {
         // Nodes use their minimum compatibility version for the TCP handshake, so a node from v(major-1).x will report its version as
         // v(major-2).last in the TCP handshake, with which we are not really compatible. We put extra effort into making sure that if

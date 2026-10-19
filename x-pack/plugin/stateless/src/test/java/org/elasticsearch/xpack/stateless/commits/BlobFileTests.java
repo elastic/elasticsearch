@@ -12,14 +12,14 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit.blobNameFromGeneration;
+import static org.elasticsearch.xpack.stateless.commits.BccBlobFile.blobNameFromGeneration;
 import static org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGenerationTests.mutatePrimaryTermAndGeneration;
 import static org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGenerationTests.randomPrimaryTermAndGeneration;
 
 public class BlobFileTests extends AbstractWireSerializingTestCase<BlobFile> {
     @Override
     protected Writeable.Reader<BlobFile> instanceReader() {
-        return BlobFile::new;
+        return BlobFile::readFrom;
     }
 
     @Override
@@ -29,16 +29,16 @@ public class BlobFileTests extends AbstractWireSerializingTestCase<BlobFile> {
 
     private BlobFile randomBlobFile() {
         var termAndGen = randomPrimaryTermAndGeneration();
-        return new BlobFile(blobNameFromGeneration(termAndGen.generation()), termAndGen);
+        return new BccBlobFile(termAndGen);
     }
 
     @Override
     protected BlobFile mutateInstance(BlobFile instance) throws IOException {
         var mutatedTermAndGen = mutatePrimaryTermAndGeneration(instance.termAndGeneration());
-        return new BlobFile(blobNameFromGeneration(mutatedTermAndGen.generation()), mutatedTermAndGen);
+        return new BccBlobFile(mutatedTermAndGen);
     }
 
     public void testValidation() {
-        expectThrows(AssertionError.class, () -> new BlobFile(randomAlphaOfLengthBetween(0, 30), randomPrimaryTermAndGeneration()));
+        expectThrows(AssertionError.class, () -> new BccBlobFile(randomAlphaOfLengthBetween(0, 30), randomPrimaryTermAndGeneration()));
     }
 }

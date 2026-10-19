@@ -15,7 +15,7 @@ public class BlobLocationTestUtils {
 
     public static BlobLocation createBlobLocation(long primaryTerm, long generation, long offset, long fileLength) {
         return new BlobLocation(
-            new BlobFile(BatchedCompoundCommit.PREFIX + generation, new PrimaryTermAndGeneration(primaryTerm, generation)),
+            new BccBlobFile(new PrimaryTermAndGeneration(primaryTerm, generation)),
             offset,
             fileLength
         );

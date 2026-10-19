@@ -61,6 +61,14 @@ public final class DynamicMap implements Map<String, Object> {
         return value;
     }
 
+    /**
+     * The value stored under {@code key} before any function is applied to it, so a caller can see what {@link #get} would
+     * compute from without computing it.
+     */
+    public Object getRaw(String key) {
+        return delegate.get(key);
+    }
+
     @Override
     public Object put(final String key, final Object value) {
         return delegate.put(key, value);

@@ -33,8 +33,9 @@ import static org.hamcrest.Matchers.equalTo;
  * the running total over the threshold.
  *
  * <p>The same cluster gives the {@code field} context a 16 KB limit, so a script field that
- * reads {@code params['_source']} shows the other kind of charge: the whole parsed document,
- * paid once per execution, no matter how little of it the script reads.
+ * reads {@code params['_source']} shows the other kind of charge: the whole document, a floor
+ * before the parse and the rest after it, paid once per execution no matter how little of it
+ * the script reads.
  */
 public class PainlessScoreAllocationIT extends HeapPressurePainlessTestCase {
 
@@ -90,8 +91,9 @@ public class PainlessScoreAllocationIT extends HeapPressurePainlessTestCase {
     }
 
     public void testScriptFieldReadingSourceOverLimitFails() throws IOException {
-        // Reading _source parses the whole document, so a ten thousand character field costs more than the 16 KB limit even
-        // though the script only reads the small value next to it.
+        // Reading _source loads and parses the whole document even though the script only reads the small value next to the
+        // ten thousand character field. The loaded bytes and the parse floor alone pass the 16 KB limit, so the script stops
+        // before the parse runs.
         Request doc = new Request("POST", "/" + INDEX + "/_doc");
         doc.setJsonEntity("{\"value\": 1, \"message\": \"" + "x".repeat(10_000) + "\"}");
         client().performRequest(doc);

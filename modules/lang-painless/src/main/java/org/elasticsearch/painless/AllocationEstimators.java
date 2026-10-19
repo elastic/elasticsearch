@@ -369,6 +369,18 @@ public final class AllocationEstimators {
         return 0L;
     }
 
+    /**
+     * The least a parse costs per stored byte: a document that is mostly one long string, where the parse makes little more than
+     * that String. Short values and keys cost far more per byte, so this is a floor, charged before the parse and trued up from
+     * the real tree after it.
+     */
+    private static final long PARSED_BYTES_PER_STORED_BYTE = 2;
+
+    /** The least parsing {@code storedLength} bytes of source can cost. {@link ChargedParams} charges this before the parse. */
+    public static long parseFloorBytes(long storedLength) {
+        return AllocSizes.mulSat(PARSED_BYTES_PER_STORED_BYTE, Math.max(0L, storedLength));
+    }
+
     /** The table a {@code HashMap} ends with after {@code size} puts from the default capacity, doubling at three quarters full. */
     private static long hashTableCapacity(long size) {
         long capacity = 16;

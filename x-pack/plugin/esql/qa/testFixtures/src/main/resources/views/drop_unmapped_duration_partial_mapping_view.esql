@@ -1,1 +1,0 @@
-FROM partial_mapping_sample_data | DROP unmapped_event_duration

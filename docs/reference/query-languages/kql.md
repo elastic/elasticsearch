@@ -11,7 +11,7 @@ products:
 
 # {{kib}} Query Language (KQL) syntax reference [kuery-query]
 
-This page shows the KQL syntax for each kind of condition, with examples you can adapt. To learn what KQL is and where to use it, refer to [{{kib}} Query Language (KQL) overview](docs-content://explore-analyze/query-filter/languages/kql.md).
+This page shows the KQL syntax for each kind of condition, with examples you can adapt. The same syntax works in the {{kib}} query bar, in the [`kql` query](/reference/query-languages/query-dsl/query-dsl-kql-query.md) in {{es}}, and in the [`KQL` function](/reference/query-languages/esql/functions-operators/search-functions/kql.md) in {{esql}}. To learn what KQL is and where to use it, refer to [{{kib}} Query Language (KQL) overview](docs-content://explore-analyze/query-filter/languages/kql.md).
 
 
 ## Syntax at a glance [kql-syntax-at-a-glance]
@@ -49,7 +49,7 @@ To match a number, text, date, or boolean value, enter the field name, a colon, 
 http.request.method: GET
 ```
 
-On keyword, numeric, date, or boolean fields, the value must match exactly, including punctuation and case.
+On keyword, numeric, date, or boolean fields, the value must match exactly, including punctuation and case. To ignore case, use the `case_insensitive` parameter of the [`kql` query](/reference/query-languages/query-dsl/query-dsl-kql-query.md).
 
 On `text` fields, {{es}} analyzes the value using the [field's mapping settings](docs-content://solutions/search/full-text/text-analysis-during-search.md). For example, documents where `http.request.body.content` contains "null pointer":
 
@@ -65,7 +65,7 @@ http.request.body.content: "null pointer"
 
 ### Search all fields without a field name
 
-The field name is optional. If you leave it out, KQL searches all fields for the value. For example, to search all fields for "Hello":
+The field name is optional. If you leave it out, KQL searches the fields set by the [`index.query.default_field`](/reference/elasticsearch/index-settings/index-modules.md#index-query-default-field) index setting. By default, that is every field that supports term queries, except metadata fields and nested fields. For example, to search for "Hello" in those fields:
 
 ```yaml
 Hello
@@ -76,7 +76,7 @@ Hello
 To use one of these characters in a value, escape it with a backslash, unless you surround the value with quotation marks:
 
 ```yaml
-\():<>"*
+\():<>"*{}
 ```
 
 For example, either of these queries matches documents where `http.request.referrer` is `https://example.com`:
@@ -85,6 +85,10 @@ For example, either of these queries matches documents where `http.request.refer
 http.request.referrer: "https://example.com"
 http.request.referrer: https\://example.com
 ```
+
+Inside quotation marks, escape only the quotation mark and the backslash, as `\"` and `\\`. An asterisk inside quotation marks is a literal asterisk, not a wildcard.
+
+The words `and`, `or`, and `not` are keywords (not case-sensitive). To use one as a value, escape it with a backslash, as in `\and`, or surround it with quotation marks. Field names follow the same escaping rules as values.
 
 
 ## Filter for documents within a range [_filter_for_documents_within_a_range]
@@ -108,6 +112,14 @@ You can also use range syntax with strings, IP addresses, and timestamps. For ex
 ```yaml
 @timestamp < now-2w
 ```
+
+A date that includes a time contains a colon, so surround it with quotation marks. For example, documents on or after 10:00 on January 1, 2021:
+
+```yaml
+@timestamp >= "2021-01-01T10:00:00"
+```
+
+{{kib}} interprets explicit dates in the time zone set by the **Time zone** (`dateFormat:tz`) advanced setting. In the `kql` query, use the `time_zone` parameter instead.
 
 For more examples of acceptable date formats, refer to [Date Math](/reference/elasticsearch/rest-apis/common-options.md#date-math).
 
@@ -141,6 +153,12 @@ To exclude documents, use the `not` keyword (not case-sensitive). For example, d
 NOT http.request.method: GET
 ```
 
+To exclude a group of conditions, put them in parentheses. For example, documents where `http.request.method` is neither GET nor POST:
+
+```yaml
+NOT (http.request.method: GET OR http.request.method: POST)
+```
+
 
 ## Combine multiple queries [_combining_multiple_queries]
 
@@ -163,10 +181,22 @@ To set precedence, use parentheses. For example, documents where `http.request.m
 (http.request.method: POST AND http.response.status_code: 400)
 ```
 
+Without parentheses, `not` applies first, then `and`, then `or`. For example, this query matches GET requests, and also POST requests with status 400:
+
+```yaml
+http.request.method: GET OR http.request.method: POST AND http.response.status_code: 400
+```
+
 You can also use parentheses to match several values on one field. For example, documents where `http.request.method` is GET, POST, **or** DELETE:
 
 ```yaml
 http.request.method: (GET OR POST OR DELETE)
+```
+
+Inside the parentheses, you can also use `and` and `not`. For example, documents where `tags` contains `production` and doesn't contain `deprecated`:
+
+```yaml
+tags: (production AND NOT deprecated)
 ```
 
 

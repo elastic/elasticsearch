@@ -29,8 +29,8 @@ import static org.hamcrest.Matchers.not;
  * whatever the caller SET — a materialized view would have baked its contents in. Covers {@code unmapped_fields}
  * (not reaching inside view bodies, null-filling at the view output instead) and {@code wildcards_match_views}
  * (a wildcard inside a view body never matches views). A view definition may {@code SET} those same settings for
- * its own body; that {@code SET} does not leak into a nested view. See {@code SETTINGS_SCOPED_AT_VIEW_BOUNDARIES}
- * and {@code SET_IN_VIEW_DEFINITIONS}.
+ * its own body; that {@code SET} does not leak into a nested view. Dataset wildcards are covered in
+ * {@link FromDatasetViewIT}. See {@code SETTINGS_SCOPED_AT_VIEW_BOUNDARIES} and {@code SET_IN_VIEW_DEFINITIONS}.
  */
 public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
 
@@ -496,7 +496,7 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
      * {@code FROM a*} sees index {@code abc} and, once the caller SETs {@code wildcards_match_views}, view {@code a_view}.
      * {@code a_view}'s {@code FROM b*} sees index {@code bcd} and, only once {@code a_view} itself SETs the flag, view
      * {@code b_view}. {@code b_view}'s {@code FROM c*} likewise sees {@code c_view} only when {@code b_view} SETs the flag.
-     * Each definition stands alone. esql-planning#2321.
+     * Each definition stands alone.
      */
     public void testWildcardSettingInsideViewResolvesExactlyOneMoreLevel() {
         String mapping = """

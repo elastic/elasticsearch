@@ -680,7 +680,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     /**
      * A wildcard matches views one level at a time. The outer query's {@code wildcards_match_views} resolves the first
      * view; that view's own {@code SET} resolves the next; a definition without the {@code SET} stops there, whatever
-     * the level above it asked for. Mirrors esql-planning#2321.
+     * the level above it asked for.
      */
     public void testWildcardsMatchViewsInsideViewDefinitionsResolveOneMoreLevel() {
         addIndex("abc");

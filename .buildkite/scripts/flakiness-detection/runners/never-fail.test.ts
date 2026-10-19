@@ -156,9 +156,9 @@ describe("never-fail.sh", () => {
   });
 
   /**
-   * The analyze step's opt-in: on a PR whose team added its label to BLOCKING_LABELS, the verdict has to
-   * reach Buildkite. Only the designated code does - everything else still honours the never-fail
-   * contract, which is what keeps a crash or an overrun of the analyze step off the PR.
+   * The analyze step's exception: on a build that blocks (see `shouldBlock` in entrypoints/analyze.ts), the
+   * verdict has to reach Buildkite. Only the designated code does - everything else still honours the
+   * never-fail contract, which is what keeps a crash or an overrun of the analyze step off the PR.
    */
   test("with --hard-fail-rc the designated code is propagated", () => {
     const r = run("exit 42", { hardFailRc: "42" });
@@ -178,8 +178,8 @@ describe("never-fail.sh", () => {
   });
 
   test("without --hard-fail-rc even the designated code exits 0", () => {
-    // An unlabelled PR: analyze.ts reports the same verdict regardless of labels, and this is what makes
-    // it a no-op there.
+    // A batch step: it is never given the flag, so even a gradle run that happened to exit with the
+    // designated code cannot redden a PR without a verdict behind it.
     const r = run("exit 42");
     expect(r.status).toBe(0);
   });

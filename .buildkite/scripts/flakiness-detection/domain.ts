@@ -231,20 +231,35 @@ export const DEFAULT_AGENT_CONFIG: AgentConfig = {
 };
 
 // ---------------------------------------------------------------------------
-// Label-gated blocking
+// Blocking
 //
-// Flakiness detection reports rather than blocks: every batch step and the analyze step run through
-// never-fail.sh, which exits 0 whatever the wrapped command did (that script's header explains why a
-// soft_fail step is not an alternative). A team that trusts the signal can opt out of that for its own
-// PRs, and then proven flakiness turns the build red.
+// Flakiness detection reports rather than blocks by default: every batch step and the analyze step run
+// through never-fail.sh, which exits 0 whatever the wrapped command did (that script's header explains why
+// a soft_fail step is not an alternative). Proven flakiness turns the build red in three cases, checked in
+// this order:
+//
+//   1. A non-PR build, i.e. the manually-triggered pipeline. Someone asked for these exact classes to be
+//      checked, so a proven failure is the answer and is reported as a red build.
+//   2. Any PR build, when BLOCK_ALL_PRS is on. The labels below are then a no-op.
+//   3. A PR build carrying one of BLOCKING_LABELS, the per-team opt-in.
 //
 // The whole decision lives in the analyze step (entrypoints/analyze.ts `shouldBlock`), which is the only
-// place that has both the labels and deriveOutcome's verdict. Detection, resolution, batching and
-// reporting never look at labels.
+// place that has the build's PR number, its labels and deriveOutcome's verdict. Detection, resolution,
+// batching and reporting never look at any of them.
 // ---------------------------------------------------------------------------
 
 /**
+ * Makes proven flakiness fail every PR build, not only the ones carrying a label from BLOCKING_LABELS.
+ *
+ * While it is on, BLOCKING_LABELS has no effect: every PR already blocks, so a label cannot add anything.
+ * The labels stay in place so turning the switch back off restores the per-team opt-in unchanged.
+ * Non-PR builds block regardless of this switch.
+ */
+export const BLOCK_ALL_PRS = false;
+
+/**
  * PR labels that make flakiness detection blocking. A team opts in by adding its GitHub label here.
+ * A no-op while BLOCK_ALL_PRS is on.
  */
 export const BLOCKING_LABELS: readonly string[] = ["Team:Core/Infra"];
 
@@ -254,8 +269,8 @@ export const BLOCKING_LABELS: readonly string[] = ["Team:Core/Infra"];
  *
  * It is deliberately distinct from every code that can reach the wrapper for a reason other than a
  * failing test - `timeout`'s 124 and 137, gradle's 1, and the 2 the wrapper itself uses for a malformed
- * invocation - so that a red PR means exactly one thing. Propagating any non-zero code instead would
- * redden a labeled PR when the analyze step crashed or overran, which is the sort of false failure the
+ * invocation - so that a red build means exactly one thing. Propagating any non-zero code instead would
+ * redden a blocking build when the analyze step crashed or overran, which is the sort of false failure the
  * whole outcome taxonomy exists to keep off PRs.
  */
 export const FLAKINESS_PROVEN_EXIT_CODE = 42;
@@ -269,7 +284,7 @@ export const FLAKINESS_PROVEN_EXIT_CODE = 42;
  *
  * Matching is exact, as in .buildkite/scripts/pull-request/pipeline.ts. Buildkite captures the variable
  * when the build is created, so labelling an open PR takes effect on its next build.
- * The manually-triggered pipeline has no PR and therefore no labels, so it is never blocking.
+ * Only consulted for PR builds while BLOCK_ALL_PRS is off; see `shouldBlock` in entrypoints/analyze.ts.
  */
 export function matchedBlockingLabels(labels: string): string[] {
   return labels

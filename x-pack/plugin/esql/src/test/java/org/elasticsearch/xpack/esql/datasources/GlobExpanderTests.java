@@ -5818,8 +5818,8 @@ public class GlobExpanderTests extends ESTestCase {
         TreeStubProvider provider = new TreeStubProvider(tree);
         // A globstar lead, so the hint cannot narrow the prefix the drain lists from - that is what makes the
         // bounded attempt reach the ceiling at all. A keyed `year=*` glob under this single-value hint rewrites
-        // to a concrete path with no metacharacter left, which resolves through one exists() probe and lists
-        // nothing, so it cannot reach the ceiling and cannot pin this.
+        // to a concrete path with no metacharacter left, which is probed with exists() rather than listed, so a
+        // keyed fixture cannot pin this arm either way.
         String globstar = "s3://bucket/data/" + "**/keep.parquet";
         FileList result = expandSync(globstar, provider, hints, HIVE_ON, MAX, MAX, 10, 5, 1, () -> false);
 

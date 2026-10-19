@@ -1831,10 +1831,11 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     public void testNumericEpochFormatCoercionUnderDeferredExtraction() throws Exception {
-        // The deferred-extraction twin of testDeclaredEpochSecondFormatOnParquetLongCoerces: ParquetColumnExtractor
-        // never consults fusedInDecode — it always decodes at the file type and coerces through castBlock with the
-        // column's declared formatter — so the deferred (TopN-materialized) read of an int64 + epoch_second column must
-        // produce the SAME instant as the eager scan. Pins extractor/eager parity for the new numeric-format arm.
+        // The deferred-extraction twin of testDeclaredEpochSecondFormatOnParquetLongCoerces. ParquetColumnExtractor
+        // decodes a fusedInDecode pair natively and coerces every other pair at the file type through castBlock; a
+        // column carrying a declared formatter is never fused, so this one takes the castBlock path, and the deferred
+        // (TopN-materialized) read of an int64 + epoch_second column must produce the SAME instant as the eager scan.
+        // Pins extractor/eager parity for the numeric-format arm.
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         Path parquet = writeParquetDeferredCoerceFixture(); // physical int64 id = 1,2,3
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();

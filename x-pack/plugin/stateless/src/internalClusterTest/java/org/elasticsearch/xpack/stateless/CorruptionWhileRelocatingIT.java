@@ -615,8 +615,8 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessPluginIntegTes
                 }
 
                 private void maybeBlockCommitUpload(String blobName) {
-                    if (BatchedCompoundCommit.startsWithBlobPrefix(blobName)) {
-                        if (BatchedCompoundCommit.parseGenerationFromBlobName(blobName) > generationBeforeMerge) {
+                    if (BccBlobFile.startsWithBlobPrefix(blobName)) {
+                        if (BccBlobFile.parseGenerationFromBlobName(blobName) > generationBeforeMerge) {
                             if (mergeCommitLandsBelowBound) {
                                 mergeUploadBlocked.countDown();
                             } else {

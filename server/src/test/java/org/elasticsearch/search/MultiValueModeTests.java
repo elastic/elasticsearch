@@ -42,6 +42,11 @@ public class MultiValueModeTests extends ESTestCase {
         T get() throws IOException;
     }
 
+    // These tests do not exercise the doc id iterator, so build the singleton without one.
+    private static SortedNumericLongValues singletonLongsWithoutDocIdIterator(LongValues values) {
+        return SortedNumericLongValues.singleton(values, null);
+    }
+
     private static FixedBitSet randomRootDocs(int maxDoc) {
         FixedBitSet set = new FixedBitSet(maxDoc);
         for (int i = 0; i < maxDoc; ++i) {
@@ -79,7 +84,7 @@ public class MultiValueModeTests extends ESTestCase {
             }
         }
 
-        final Supplier<SortedNumericLongValues> multiValues = () -> SortedNumericLongValues.singletonWithoutDocIdIterator(new LongValues() {
+        final Supplier<SortedNumericLongValues> multiValues = () -> singletonLongsWithoutDocIdIterator(new LongValues() {
             int docId = -1;
 
             @Override

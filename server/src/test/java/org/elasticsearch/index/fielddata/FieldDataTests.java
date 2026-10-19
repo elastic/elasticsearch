@@ -45,22 +45,25 @@ public class FieldDataTests extends ESTestCase {
         }
     }
 
+    // These tests do not exercise the doc id iterator, so build the singleton without one.
+    private static SortedNumericLongValues singletonLongsWithoutDocIdIterator(LongValues values) {
+        return SortedNumericLongValues.singleton(values, null);
+    }
+
     public void testSortableLongBitsToDoubles() throws IOException {
         final double value = randomDouble();
         final long valueBits = NumericUtils.doubleToSortableLong(value);
 
         LongValues values = new DummyValues(valueBits);
 
-        SortedNumericDoubleValues asMultiDoubles = FieldData.sortableLongBitsToDoubles(
-            SortedNumericLongValues.singletonWithoutDocIdIterator(values)
-        );
+        SortedNumericDoubleValues asMultiDoubles = FieldData.sortableLongBitsToDoubles(singletonLongsWithoutDocIdIterator(values));
         DoubleValues asDoubles = SortedNumericDoubleValues.unwrapSingleton(asMultiDoubles);
         assertNotNull(asDoubles);
         assertTrue(asDoubles.advanceExact(0));
         assertEquals(value, asDoubles.doubleValue(), 0);
 
         values = new DummyValues(valueBits);
-        asMultiDoubles = FieldData.sortableLongBitsToDoubles(SortedNumericLongValues.singletonWithoutDocIdIterator(values));
+        asMultiDoubles = FieldData.sortableLongBitsToDoubles(singletonLongsWithoutDocIdIterator(values));
         LongValues backToLongs = SortedNumericLongValues.unwrapSingleton(FieldData.toSortableLongBits(asMultiDoubles));
         assertSame(values, backToLongs);
 
@@ -90,7 +93,7 @@ public class FieldDataTests extends ESTestCase {
     public void testCastToDoubleSingleton() throws IOException {
         final long value = randomLong();
         LongValues values = new DummyValues(value);
-        SortedNumericDoubleValues asMultiDoubles = FieldData.castToDouble(SortedNumericLongValues.singletonWithoutDocIdIterator(values));
+        SortedNumericDoubleValues asMultiDoubles = FieldData.castToDouble(singletonLongsWithoutDocIdIterator(values));
         // a singleton input should produce a singleton output, not just the right values
         DoubleValues asDoubles = SortedNumericDoubleValues.unwrapSingleton(asMultiDoubles);
         assertNotNull(asDoubles);

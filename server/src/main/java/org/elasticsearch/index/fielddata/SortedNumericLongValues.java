@@ -126,8 +126,8 @@ public abstract class SortedNumericLongValues {
      *
      * <p> Callers that derive a singleton view from another doc-values instance must pass that
      * instance's {@link #docIdIterator()}. The iterator is deliberately a required argument so that
-     * dropping it is always an explicit choice; use {@link #singletonWithoutDocIdIterator(LongValues)}
-     * when there is genuinely no iterator backing {@code values}.
+     * dropping it is always an explicit choice: pass {@code null} only when there is genuinely no
+     * iterator backing {@code values}.
      */
     public static SortedNumericLongValues singleton(LongValues values, @Nullable DocIdSetIterator docIdSetIterator) {
         return new SortedNumericLongValues(true, docIdSetIterator) {
@@ -151,18 +151,6 @@ public abstract class SortedNumericLongValues {
                 return values;
             }
         };
-    }
-
-    /**
-     * Converts a {@link LongValues} to a {@link SortedNumericLongValues} that has no
-     * {@link DocIdSetIterator}, so {@link #docIdIterator()} returns {@code null}.
-     *
-     * <p> Only use this when nothing backs {@code values} with a doc id iterator. If {@code values} is
-     * derived from another doc-values instance, use {@link #singleton(LongValues, DocIdSetIterator)}
-     * and pass that instance's iterator.
-     */
-    public static SortedNumericLongValues singletonWithoutDocIdIterator(LongValues values) {
-        return singleton(values, null);
     }
 
     /**

@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -49,10 +50,14 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Esq
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dedup;
+import org.elasticsearch.xpack.esql.plan.logical.Dissect;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -60,16 +65,15 @@ import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
-import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
-import org.elasticsearch.xpack.esql.plan.logical.Sample;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.TranslationAwareExpressionQuery;
@@ -304,21 +308,8 @@ public abstract class FullTextFunction extends Function
             || hasFilterPushdownTarget(plan) == false;
         if (checkCommandsBeforeExpression) {
             if (isLookupJoinOnCondition == false) {
-                List.of(QueryString.class, Kql.class).forEach(functionClass -> {
-                    // Check for limitations of QSTR and KQL function.
-                    checkCommandsBeforeExpression(
-                        plan,
-                        condition,
-                        functionClass,
-                        lp -> (lp instanceof Filter
-                            || lp instanceof OrderBy
-                            || lp instanceof EsRelation
-                            || lp instanceof ParameterizedQuery
-                            || lp instanceof Sample),
-                        fullTextFunction -> "[" + fullTextFunction.functionName() + "] " + fullTextFunction.functionType(),
-                        failures
-                    );
-                });
+                List.of(QueryString.class, Kql.class)
+                    .forEach(functionClass -> { checkFieldShadowing(plan, condition, functionClass, failures); });
             }
 
             // Collect the Aggregate nodes that belong to an INLINE STATS. Unlike a plain STATS, INLINE STATS keeps every input
@@ -377,6 +368,143 @@ public abstract class FullTextFunction extends Function
                 }
             });
         });
+    }
+
+    private static void checkFieldShadowing(
+        LogicalPlan plan,
+        Expression condition,
+        Class<? extends FullTextFunction> typeToken,
+        Failures failures
+    ) {
+        // "Did we reach an EsRelation" cannot be inferred from indexedNames being non-empty (a no-fields index is a
+        // legitimate, non-federated EsRelation with zero FieldAttributes), and "did we reach some other kind of
+        // relation instead" needs its own signal - a federated FROM and a relation-less ROW/SHOW get different
+        // messages below. One combined pass over every node type collects all three.
+        boolean[] sawEsRelation = { false };
+        Set<String> indexedNames = new HashSet<>();
+        ExternalRelation[] externalRelation = { null };
+        String[] sourcelessCommand = { null }; // "ROW" or "SHOW": the only commands with no relation of any kind
+        plan.forEachDown(LogicalPlan.class, lp -> {
+            // A LOOKUP JOIN's right-hand index is itself an EsRelation, just with indexMode() == LOOKUP. Its fields
+            // are not part of "the index" QSTR/KQL's text would resolve against (same reasoning fieldVerifier already
+            // uses for LOOKUP-side fields below) - counting them here would make the Join branch of asShadowingCommand
+            // compare a lookup field against itself and always "match", e.g. a lookup index's own `extra` field would
+            // spuriously shadow itself the moment it's joined in.
+            if (lp instanceof EsRelation r && r.indexMode() != IndexMode.LOOKUP) {
+                sawEsRelation[0] = true;
+                for (Attribute attribute : r.output()) {
+                    if (attribute instanceof FieldAttribute fa) {
+                        indexedNames.add(fa.name());
+                    }
+                }
+            } else if (lp instanceof ExternalRelation er) {
+                externalRelation[0] = er;
+            } else if (lp instanceof Row) {
+                sourcelessCommand[0] = "ROW";
+            } else if (lp instanceof ShowInfo) {
+                sourcelessCommand[0] = "SHOW";
+            }
+        });
+
+        condition.forEachDown(typeToken, exp -> {
+            // No early exit: forEachDown always walks the full subtree (Node#forEachDown has no short-circuit),
+            // and checkCommandsBeforeExpression's existing walk reports every violating ancestor rather than just
+            // the first, e.g. both LIMIT and MV_EXPAND each get their own failure if both precede the function.
+            // Match that behavior here instead of stopping at the first shadowing ancestor found.
+            plan.forEachDown(LogicalPlan.class, lp -> {
+                ShadowingCommand hit = asShadowingCommand(lp, indexedNames);
+                if (hit != null) {
+                    // Anchored at `plan` (the Filter/LookupJoin itself), matching checkCommandsBeforeExpression's own
+                    // convention - its failures are all `fail(plan, ...)`, never `fail(lp, ...)`, even though `lp` is
+                    // the specific ancestor that triggered the check.
+                    failures.add(
+                        fail(
+                            plan,
+                            "[{}] {} cannot be used after {} because [{}] redefines a field used by the index",
+                            exp.functionName(),
+                            exp.functionType(),
+                            hit.commandName(),
+                            hit.fieldName()
+                        )
+                    );
+                }
+            });
+            if (sawEsRelation[0] == false) {
+                if (externalRelation[0] != null) {
+                    // Same wording checkCommandsBeforeExpression's own (now-dead, see Implementation Notes) ExternalRelation
+                    // branch used to produce for this function, before deleting the old QSTR/KQL block made it unreachable.
+                    failures.add(
+                        fail(
+                            plan,
+                            "{} {} is not supported on federated data sources [{}]; it requires an index. "
+                                + "Use MATCH(field, \"term\") for full-text search on non-indexed data.",
+                            exp.functionName(),
+                            exp.functionType(),
+                            externalRelation[0].datasetName() != null ? externalRelation[0].datasetName() : externalRelation[0].sourceText()
+                        )
+                    );
+                } else if (sourcelessCommand[0] != null) {
+                    // Unchanged wording from the deleted allow-list: "[QSTR] function cannot be used after ROW"/"...SHOW".
+                    failures.add(
+                        fail(plan, "[{}] {} cannot be used after {}", exp.functionName(), exp.functionType(), sourcelessCommand[0])
+                    );
+                }
+            }
+        });
+    }
+
+    private record ShadowingCommand(String commandName, String fieldName) {}
+
+    /**
+     * Returns the command name and indexed field it redefines if {@code lp} introduces a new attribute whose name
+     * collides with {@code indexedNames}, or {@code null} otherwise. Deliberately checks only the names a node
+     * actually *introduces*, never its full output - most of a node's output is just indexed fields passed through
+     * unchanged from its child, which would otherwise always spuriously "match".
+     * <p>
+     * Names the command directly per type rather than reusing {@code checkCommandsBeforeExpression}'s
+     * {@code sourceText().split(" ")[0]} trick: that breaks for the multi-word {@code LOOKUP JOIN} (it would yield
+     * just {@code "LOOKUP"}) - the same reason {@code TopN} already needs a hardcoded override there.
+     */
+    private static ShadowingCommand asShadowingCommand(LogicalPlan lp, Set<String> indexedNames) {
+        String commandName;
+        List<String> introducedNames;
+        if (lp instanceof Eval eval) {
+            commandName = "EVAL";
+            introducedNames = eval.fields().stream().map(Alias::name).toList();
+        } else if (lp instanceof Enrich enrich) {
+            commandName = "ENRICH";
+            introducedNames = enrich.enrichFields().stream().map(NamedExpression::name).toList();
+        } else if (lp instanceof Grok grok) {
+            commandName = "GROK";
+            introducedNames = grok.extractedFields().stream().map(Attribute::name).toList();
+        } else if (lp instanceof Dissect dissect) {
+            commandName = "DISSECT";
+            introducedNames = dissect.extractedFields().stream().map(Attribute::name).toList();
+        } else if (lp instanceof Project project) {
+            // KEEP/DROP projections are plain Attribute references and introduce nothing; only a renaming
+            // Alias (RENAME x AS y) introduces a name that can shadow an indexed field.
+            commandName = "RENAME";
+            introducedNames = project.projections().stream().filter(ne -> ne instanceof Alias).map(NamedExpression::name).toList();
+        } else if (lp instanceof Join join) {
+            // Exclude the join's own key fields (config().rightFields()): an equi-join's key is guaranteed to carry
+            // the same value on both sides by the join condition itself, so it can't shadow anything even though
+            // it's technically part of the right relation's output. Without this exclusion, the common
+            // `LOOKUP JOIN x ON existingField` shape (joining on a real indexed field, not a renamed copy) would
+            // always "shadow itself" and be wrongly rejected - matches the same exclusion
+            // PushDownAndCombineFilters#scopeInlineStatsFilter makes for the identical reason.
+            commandName = "LOOKUP JOIN";
+            introducedNames = join.right()
+                .outputSet()
+                .subtract(AttributeSet.of(join.config().rightFields()))
+                .stream()
+                .map(Attribute::name)
+                .toList();
+        } else {
+            // Filter, OrderBy, EsRelation, Sample, ParameterizedQuery, MvExpand introduce no new name.
+            return null;
+        }
+        String fieldName = introducedNames.stream().filter(indexedNames::contains).findFirst().orElse(null);
+        return fieldName == null ? null : new ShadowingCommand(commandName, fieldName);
     }
 
     /**

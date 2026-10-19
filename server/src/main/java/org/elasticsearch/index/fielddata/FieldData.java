@@ -42,7 +42,7 @@ public enum FieldData {
      * Return a {@link SortedNumericDoubleValues} that doesn't contain any value.
      */
     public static SortedNumericDoubleValues emptySortedNumericDoubles() {
-        return singleton(DoubleValues.EMPTY);
+        return SortedNumericDoubleValues.singletonWithoutDocIdIterator(DoubleValues.EMPTY);
     }
 
     /**
@@ -123,7 +123,7 @@ public enum FieldData {
             } else {
                 longBits = new SortableLongBitsNumericDocValues(singleton);
             }
-            return SortedNumericLongValues.singleton(longBits);
+            return SortedNumericLongValues.singleton(longBits, values.docIdIterator());
         } else {
             if (values instanceof SortableLongBitsToSortedNumericDoubleValues) {
                 return ((SortableLongBitsToSortedNumericDoubleValues) values).getLongValues();
@@ -147,7 +147,7 @@ public enum FieldData {
             } else {
                 doubles = new SortableLongBitsToNumericDoubleValues(singleton);
             }
-            return singleton(doubles);
+            return SortedNumericDoubleValues.singleton(doubles, values.docIdIterator());
         } else {
             if (values instanceof SortableLongBitsSortedNumericDocValues) {
                 return ((SortableLongBitsSortedNumericDocValues) values).getDoubleValues();
@@ -194,13 +194,6 @@ public enum FieldData {
                 return (long) values.nextValue();
             }
         };
-    }
-
-    /**
-     * Returns a multi-valued view over the provided {@link DoubleValues}.
-     */
-    public static SortedNumericDoubleValues singleton(DoubleValues values) {
-        return SortedNumericDoubleValues.singleton(values);
     }
 
     /**

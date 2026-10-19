@@ -79,7 +79,7 @@ public class MultiValueModeTests extends ESTestCase {
             }
         }
 
-        final Supplier<SortedNumericLongValues> multiValues = () -> SortedNumericLongValues.singleton(new LongValues() {
+        final Supplier<SortedNumericLongValues> multiValues = () -> SortedNumericLongValues.singletonWithoutDocIdIterator(new LongValues() {
             int docId = -1;
 
             @Override
@@ -274,20 +274,22 @@ public class MultiValueModeTests extends ESTestCase {
                 docsWithValue.set(i);
             }
         }
-        final Supplier<SortedNumericDoubleValues> multiValues = () -> FieldData.singleton(new DoubleValues() {
-            int docID;
+        final Supplier<SortedNumericDoubleValues> multiValues = () -> SortedNumericDoubleValues.singletonWithoutDocIdIterator(
+            new DoubleValues() {
+                int docID;
 
-            @Override
-            public boolean advanceExact(int doc) throws IOException {
-                docID = doc;
-                return docsWithValue == null || docsWithValue.get(doc);
-            }
+                @Override
+                public boolean advanceExact(int doc) throws IOException {
+                    docID = doc;
+                    return docsWithValue == null || docsWithValue.get(doc);
+                }
 
-            @Override
-            public double doubleValue() {
-                return array[docID];
+                @Override
+                public double doubleValue() {
+                    return array[docID];
+                }
             }
-        });
+        );
         verifySortedNumericDouble(multiValues, numDocs);
         final FixedBitSet rootDocs = randomRootDocs(numDocs);
         final FixedBitSet innerDocs = randomInnerDocs(rootDocs);

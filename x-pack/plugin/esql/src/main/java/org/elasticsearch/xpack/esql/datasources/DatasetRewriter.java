@@ -266,9 +266,8 @@ public final class DatasetRewriter {
         for (int i = 0; i < children.size(); i++) {
             boolean effective = wildcardsMatchDatasets;
             if (plan instanceof BranchPlan branchPlan && branchPlan.isViewBranch(i)) {
-                String viewName = branchPlan.branchIdentity(i).settingsViewName();
-                ViewQuerySettings settings = viewName == null ? null : viewSettings.get(viewName);
-                effective = settings != null && settings.wildcardsMatchDatasets();
+                effective = ViewQuerySettings.forView(branchPlan.branchIdentity(i).settingsViewName(), viewSettings)
+                    .wildcardsMatchDatasets();
             }
             forEachRelation(children.get(i), effective, viewSettings, action);
         }

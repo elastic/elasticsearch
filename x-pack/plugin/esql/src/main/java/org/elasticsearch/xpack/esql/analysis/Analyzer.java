@@ -229,6 +229,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.elasticsearch.xpack.esql.view.ViewCompaction;
+import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 
 import java.time.Duration;
 import java.time.temporal.TemporalAmount;
@@ -1448,8 +1449,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static UnmappedResolution resolutionForView(AnalyzerContext context, String viewName) {
-            var settings = viewName == null ? null : context.viewSettings().get(viewName);
-            return settings == null ? UnmappedResolution.DEFAULT : settings.unmappedFields();
+            return ViewQuerySettings.forView(viewName, context.viewSettings()).unmappedFields();
         }
 
         @Override
@@ -3973,8 +3973,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static UnmappedResolution resolutionForView(AnalyzerContext context, String viewName) {
-            var settings = viewName == null ? null : context.viewSettings().get(viewName);
-            return settings == null ? UnmappedResolution.DEFAULT : settings.unmappedFields();
+            return ViewQuerySettings.forView(viewName, context.viewSettings()).unmappedFields();
         }
 
         private static class UnionTypeResolutionState {
@@ -4530,8 +4529,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static UnmappedResolution resolutionForView(AnalyzerContext context, String viewName) {
-            var settings = viewName == null ? null : context.viewSettings().get(viewName);
-            return settings == null ? UnmappedResolution.DEFAULT : settings.unmappedFields();
+            return ViewQuerySettings.forView(viewName, context.viewSettings()).unmappedFields();
         }
 
         private static LogicalPlan planWithoutSyntheticAttributes(LogicalPlan plan) {
@@ -4609,11 +4607,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
-            return applyScope(plan, context.unmappedResolution().loadsUnmappedFields(), context);
+            return applyScoped(plan, context.unmappedResolution().loadsUnmappedFields(), context);
         }
 
         /** Same view-scope split as {@link ResolveTwoLeggedPunksInEsRelation}: a view's own {@code SET} decides its relations. */
-        private static LogicalPlan applyScope(LogicalPlan plan, boolean loads, AnalyzerContext context) {
+        private static LogicalPlan applyScoped(LogicalPlan plan, boolean loads, AnalyzerContext context) {
             List<LogicalPlan> children = plan.children();
             List<LogicalPlan> newChildren = new ArrayList<>(children.size());
             boolean changed = false;
@@ -4621,11 +4619,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 LogicalPlan child = children.get(i);
                 boolean childLoads = loads;
                 if (plan instanceof BranchPlan branchPlan && branchPlan.isViewBranch(i)) {
-                    String viewName = branchPlan.branchIdentity(i).settingsViewName();
-                    var settings = viewName == null ? null : context.viewSettings().get(viewName);
-                    childLoads = settings != null && settings.unmappedFields().loadsUnmappedFields();
+                    childLoads = ViewQuerySettings.forView(branchPlan.branchIdentity(i).settingsViewName(), context.viewSettings())
+                        .unmappedFields()
+                        .loadsUnmappedFields();
                 }
-                LogicalPlan newChild = applyScope(child, childLoads, context);
+                LogicalPlan newChild = applyScoped(child, childLoads, context);
                 changed |= newChild != child;
                 newChildren.add(newChild);
             }
@@ -4704,10 +4702,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             // A view definition's SET unmapped_fields loads only that view's relations. The caller's setting does not
             // enter a view, and a view's SET does not enter a view nested inside it — same boundary as ResolveUnmapped.
-            return applyScope(plan, callerLoads, context);
+            return applyScoped(plan, callerLoads, context);
         }
 
-        private static LogicalPlan applyScope(LogicalPlan plan, boolean loads, AnalyzerContext context) {
+        private static LogicalPlan applyScoped(LogicalPlan plan, boolean loads, AnalyzerContext context) {
             List<LogicalPlan> children = plan.children();
             List<LogicalPlan> newChildren = new ArrayList<>(children.size());
             boolean changed = false;
@@ -4715,11 +4713,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 LogicalPlan child = children.get(i);
                 boolean childLoads = loads;
                 if (plan instanceof BranchPlan branchPlan && branchPlan.isViewBranch(i)) {
-                    String viewName = branchPlan.branchIdentity(i).settingsViewName();
-                    var settings = viewName == null ? null : context.viewSettings().get(viewName);
-                    childLoads = settings != null && settings.unmappedFields().loadsUnmappedFields();
+                    childLoads = ViewQuerySettings.forView(branchPlan.branchIdentity(i).settingsViewName(), context.viewSettings())
+                        .unmappedFields()
+                        .loadsUnmappedFields();
                 }
-                LogicalPlan newChild = applyScope(child, childLoads, context);
+                LogicalPlan newChild = applyScoped(child, childLoads, context);
                 changed |= newChild != child;
                 newChildren.add(newChild);
             }

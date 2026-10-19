@@ -83,6 +83,7 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.FieldNameUtils;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
+import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -676,9 +677,10 @@ public class Verifier {
             List<LogicalPlan> children = branchPlan.children();
             for (int i = 0; i < children.size(); i++) {
                 if (branchPlan.isViewBranch(i)) {
-                    String viewName = branchPlan.branchIdentity(i).settingsViewName();
-                    var settings = viewName == null ? null : context.viewSettings().get(viewName);
-                    UnmappedResolution viewResolution = settings == null ? UnmappedResolution.DEFAULT : settings.unmappedFields();
+                    UnmappedResolution viewResolution = ViewQuerySettings.forView(
+                        branchPlan.branchIdentity(i).settingsViewName(),
+                        context.viewSettings()
+                    ).unmappedFields();
                     checkLoadRestrictions(children.get(i), viewResolution, context, failures, false);
                 } else {
                     promqlReported = checkLoadRestrictions(children.get(i), resolution, context, failures, promqlReported);

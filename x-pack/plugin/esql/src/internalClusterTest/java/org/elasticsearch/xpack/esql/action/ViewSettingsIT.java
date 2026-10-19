@@ -418,6 +418,26 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * A cluster default of {@code unmapped_fields=nullify} applies to a query run on its own. The same text stored as a
+     * view does not pick it up: a definition that does not {@code SET} the mode keeps the registry default, so the
+     * view does not change if the cluster default later changes.
+     */
+    public void testClusterDefaultOfUnmappedFieldsDoesNotReachViewBody() {
+        setupUnmappedIndices();
+        assertAcked(createView("plain_view", "FROM view_source | KEEP id, extra"));
+        String key = "esql.query.settings.unmapped_fields";
+        updateClusterSettings(org.elasticsearch.common.settings.Settings.builder().put(key, "nullify"));
+        try {
+            try (var resp = run("FROM view_source | KEEP id, extra | SORT id")) {
+                assertThat(getValuesList(resp), equalTo(List.of(Arrays.asList(1, null), Arrays.asList(2, null))));
+            }
+            expectThrows(VerificationException.class, containsString("Unknown column [extra]"), () -> run("FROM plain_view").close());
+        } finally {
+            updateClusterSettings(org.elasticsearch.common.settings.Settings.builder().putNull(key));
+        }
+    }
+
     public void testLoadSetInsideViewLoadsFullyUnmappedField() {
         setupUnmappedIndices();
         assertAcked(createView("load_view", """

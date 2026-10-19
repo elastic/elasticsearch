@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static java.util.stream.Collectors.joining;
@@ -43,6 +44,16 @@ public record ViewQuerySettings(UnmappedResolution unmappedFields, boolean wildc
         QuerySettings.WILDCARDS_MATCH_VIEWS.name(),
         QuerySettings.WILDCARDS_MATCH_DATASETS.name()
     );
+
+    /**
+     * Settings for a view branch. A view branch has a name; a definition that did not {@code SET} a mode contributes
+     * {@link #DEFAULTS}, which is the registry default and not the cluster default.
+     */
+    public static ViewQuerySettings forView(String viewName, Map<String, ViewQuerySettings> viewSettings) {
+        assert viewName != null : "a view branch has no view name to read settings from";
+        ViewQuerySettings settings = viewSettings.get(viewName);
+        return settings == null ? DEFAULTS : settings;
+    }
 
     /**
      * Reads the view-scoped settings from a parsed view definition. Call {@link #validate} first; this assumes the

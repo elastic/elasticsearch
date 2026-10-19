@@ -2622,9 +2622,9 @@ public class EsqlSession {
             LogicalPlan child = children.get(i);
             Boolean childScope = viewLoadsUnmapped;
             if (plan instanceof BranchPlan branchPlan && branchPlan.isViewBranch(i)) {
-                String viewName = branchPlan.branchIdentity(i).settingsViewName();
-                ViewQuerySettings settings = viewName == null ? null : viewSettings.get(viewName);
-                childScope = settings != null && settings.unmappedFields().loadsUnmappedFields();
+                childScope = ViewQuerySettings.forView(branchPlan.branchIdentity(i).settingsViewName(), viewSettings)
+                    .unmappedFields()
+                    .loadsUnmappedFields();
             }
             LogicalPlan newChild = scopeIndexPatterns(child, childScope, viewSettings);
             changed |= newChild != child;

@@ -154,7 +154,10 @@ public class EsqlParser {
      * so they can be correctly deserialized when the view positions exceed the outer query's length.
      * A view definition may {@code SET} only the settings that are scoped at view boundaries for callers
      * ({@code unmapped_fields}, {@code wildcards_match_views}, {@code wildcards_match_datasets}); any other
-     * setting is rejected with a {@link ParsingException} — see {@link ViewQuerySettings#validate}.
+     * setting is rejected with a {@link ParsingException} — see {@link ViewQuerySettings#validate}. A setting the
+     * definition does not {@code SET} stays at its registry default. A cluster default, such as
+     * {@code esql.query.settings.unmapped_fields}, applies to a query run on its own and does not apply once that
+     * query is stored as a view: the definition stays self-contained if the cluster default later changes.
      */
     public EsqlStatement parseView(String query, QueryParams params, InferenceSettings inferenceSettings, String viewName) {
         var parsed = createStatement(query, params, inferenceSettings, viewName);

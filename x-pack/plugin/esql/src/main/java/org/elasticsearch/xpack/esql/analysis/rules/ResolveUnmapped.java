@@ -106,7 +106,7 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
 
     @Override
     public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
-        return applyScope(plan, context.unmappedResolution(), context.viewSettings());
+        return applyScoped(plan, context.unmappedResolution(), context.viewSettings());
     }
 
     /**
@@ -117,11 +117,10 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
      * when its own settings required nested view identity, so a definition without {@code SET}s is one flat skip,
      * exactly as before per-view settings existed.
      */
-    private static LogicalPlan applyScope(LogicalPlan plan, UnmappedResolution resolution, Map<String, ViewQuerySettings> viewSettings) {
+    private static LogicalPlan applyScoped(LogicalPlan plan, UnmappedResolution resolution, Map<String, ViewQuerySettings> viewSettings) {
         LogicalPlan withInnerScopes = transformViewBranches(plan, (viewName, branch) -> {
-            ViewQuerySettings settings = viewName == null ? null : viewSettings.get(viewName);
-            UnmappedResolution viewResolution = settings == null ? UnmappedResolution.DEFAULT : settings.unmappedFields();
-            return applyScope(branch, viewResolution, viewSettings);
+            UnmappedResolution viewResolution = ViewQuerySettings.forView(viewName, viewSettings).unmappedFields();
+            return applyScoped(branch, viewResolution, viewSettings);
         });
         return switch (resolution) {
             case UnmappedResolution.DEFAULT -> withInnerScopes;

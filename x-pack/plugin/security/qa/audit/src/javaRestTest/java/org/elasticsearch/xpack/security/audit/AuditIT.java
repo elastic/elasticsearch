@@ -201,16 +201,19 @@ public class AuditIT extends ESRestTestCase {
         final Response response = executeAndVerifyAudit(request, AuditLevel.AUTHENTICATION_SUCCESS, event -> {
             String body = asInstanceOf(String.class, event.get(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME));
             assertThat(body, containsString("\"data_source\""));
+            var requestId = (String) event.get(LoggingAuditTrail.REQUEST_ID_FIELD_NAME);
+
+            try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
+                var events = findEvents(
+                    Streams.readAllLines(auditLog),
+                    AuditLevel.ACCESS_GRANTED,
+                    e -> EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME.equals(e.get(LoggingAuditTrail.ACTION_FIELD_NAME))
+                        && e.get(LoggingAuditTrail.REQUEST_ID_FIELD_NAME).equals(requestId)
+                );
+                assertThat(events, hasSize(1));
+                assertThat(events.get(0), hasEntry(LoggingAuditTrail.DATA_SOURCES_FIELD_NAME, List.of(dataSourceName)));
+            }
         });
-        try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
-            var events = findEvents(
-                Streams.readAllLines(auditLog),
-                AuditLevel.ACCESS_GRANTED,
-                e -> EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME.equals(e.get(LoggingAuditTrail.ACTION_FIELD_NAME))
-            );
-            assertThat(events, hasSize(1));
-            assertThat(events.get(0), hasEntry(LoggingAuditTrail.DATA_SOURCES_FIELD_NAME, List.of(dataSourceName)));
-        }
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         assertPutDataset(
             datasetName,

@@ -794,8 +794,10 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
 
     /**
      * The number of consecutive extraction failures after which the datafeed stops itself, or {@code null} to use
-     * the default (a value proportional to the datafeed frequency, i.e. roughly one day's worth of searches). A value
-     * of {@code -1} disables the behaviour so the datafeed retries indefinitely.
+     * the default (a value proportional to the datafeed frequency, i.e. roughly one day's worth of searches). Unlike
+     * {@code max_empty_searches}, leaving this unset does not mean "never stop": there is no way to disable the
+     * auto-stop, and a datafeed that should keep retrying for longer sets a large value instead. An {@code _update}
+     * request that sets {@code -1} resets the setting to the default, which is why a built config never holds it.
      */
     public Integer getMaxConsecutiveExtractionFailures() {
         return maxConsecutiveExtractionFailures;

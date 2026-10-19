@@ -92,7 +92,9 @@ public abstract class HeapPressureTestCase extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
-    /** The memory currently charged to the request breaker of the node, which includes what in-flight searches have retained. */
+    /** The memory currently charged to the request breaker of the node, which includes what in-flight searches have retained.
+     * This method is only suitable for one-node setups, otherwise it will return data for just one of the nodes.
+     */
     protected long requestBreakerUsedBytes() throws IOException {
         return ((Number) XContentMapValues.extractValue("breakers.request.estimated_size_in_bytes", nodeStats())).longValue();
     }

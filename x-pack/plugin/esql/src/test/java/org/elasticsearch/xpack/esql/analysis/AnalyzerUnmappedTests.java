@@ -861,6 +861,26 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 """), allOf(containsString("in view [emp_lang_view]"), containsString("Unknown column [does_not_exist]")));
     }
 
+    // The same boundary under LOAD_ALL, which does not load anything from a view's _source either: a field a view body names fails
+    // resolution as without the setting, whether it is read, kept, dropped or renamed.
+    public void testLoadAllReferenceInsideViewBodyFailsResolution() {
+        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
+        for (String body : List.of(
+            "FROM test | WHERE does_not_exist IS NOT NULL",
+            "FROM test | KEEP emp_no, does_not_exist",
+            "FROM test | DROP does_not_exist",
+            "FROM test | RENAME does_not_exist AS renamed",
+            "FROM test | STATS c = COUNT(does_not_exist)"
+        )) {
+            test().addView("bad_view", body)
+                .statementError(
+                    setUnmappedLoadAll("FROM bad_view"),
+                    allOf(containsString("in view [bad_view]"), containsString("Unknown column [does_not_exist]"))
+                );
+        }
+    }
+
     public void testNullifyReferenceInsideViewBodyFailsResolution() {
         assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
         test().addLanguages()

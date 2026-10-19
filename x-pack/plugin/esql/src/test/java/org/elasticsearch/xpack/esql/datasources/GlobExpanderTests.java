@@ -5786,9 +5786,10 @@ public class GlobExpanderTests extends ESTestCase {
             containsString("max_listed_objects")
         );
 
-        // Nothing survived before the ceiling, so there is no prefix to keep: TreeStubProvider sorts by path, so
-        // the ten keys read are all `other.parquet` and the two matches sort after them. An empty truncated
-        // listing would send the rewrite-empty fallback to the same ceiling unbounded, so it stops here instead.
+        // Nothing survives before the ceiling: TreeStubProvider sorts by path, so the ten keys read are all
+        // `other.parquet` and the one match sorts after them. The drain returns empty and truncated, which is
+        // what sends the rewrite-empty fallback to re-list unbounded; this glob is not walkable, so that retry
+        // drains flat to the same ceiling and refuses.
         List<StorageEntry> matchesLast = new ArrayList<>();
         for (int i = 0; i < 30; i++) {
             matchesLast.add(entry("s3://bucket/data/a" + i + "/other.parquet", 10));
@@ -5798,6 +5799,31 @@ public class GlobExpanderTests extends ESTestCase {
             ListedObjectsLimitException.class,
             () -> expandSync(pattern, new TreeStubProvider(matchesLast), null, HIVE_ON, MAX, MAX, 10, 5, 1, () -> false)
         );
+    }
+
+    /**
+     * The empty-and-truncated listing of the case above is load-bearing, so the drain must not short-circuit to an
+     * exception when nothing survived. A bounded listing skips the partition walk; the rewrite-empty fallback
+     * re-lists unbounded, which is walk-eligible, and the walk descends only the hinted folder and never reaches
+     * the key ceiling. Refusing in the drain to save that second listing would refuse a query the walk serves.
+     */
+    public void testAZeroSurvivorBoundedListingStillLetsTheWalkAnswer() throws Exception {
+        List<StorageEntry> tree = new ArrayList<>();
+        for (int year = 2001; year <= 2030; year++) {
+            tree.add(entry("s3://bucket/data/year=" + year + "/other.parquet", 10));
+        }
+        tree.add(entry("s3://bucket/data/year=2025/keep.parquet", 10));
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2025));
+
+        TreeStubProvider provider = new TreeStubProvider(tree);
+        // A globstar lead, so the hint cannot narrow the prefix the drain lists from - that is what makes the
+        // bounded attempt reach the ceiling at all. A keyed `year=*` glob would be rewritten to `year=2025` and
+        // list two keys, never reaching it.
+        String globstar = "s3://bucket/data/" + "**/keep.parquet";
+        FileList result = expandSync(globstar, provider, hints, HIVE_ON, MAX, MAX, 10, 5, 1, () -> false);
+
+        assertEquals(List.of("s3://bucket/data/year=2025/keep.parquet"), paths(result));
+        assertFalse("the walk saw every folder the hint kept, so this is not a prefix", result.isTruncated());
     }
 
     /**

@@ -1278,9 +1278,14 @@ public final class GlobExpander {
                     // A heavily-pruning pattern reads far past one page to fill its sample, so this ceiling is
                     // reachable. A listing that bounded its file set keeps its survivors and reports a prefix;
                     // one that bounded nothing promised every survivor, and a quiet prefix would drop files from
-                    // a scan. With no survivors there is nothing to keep and the rewrite-empty fallback re-lists
-                    // unbounded to this same ceiling, so both of those stop hard here instead.
-                    if (extents.acceptsPrefix() == false || globKeptCount == 0) {
+                    // a scan, so it stops hard instead.
+                    //
+                    // Kept even when nothing survived. An empty truncated listing is what sends the rewrite-empty
+                    // fallback to re-list unbounded, and that retry is unbounded where this one was not, so it can
+                    // take the partition walk this one skipped (`boundsFileSet() == false` above) and answer
+                    // without ever reaching the ceiling. Refusing here to save that listing would refuse a query
+                    // the walk can serve.
+                    if (extents.acceptsPrefix() == false) {
                         throw new ListedObjectsLimitException(listed, maxListedObjects);
                     }
                     logger.debug(

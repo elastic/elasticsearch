@@ -719,7 +719,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
 
             var request = webServer.requests().getFirst();
             assertThat(request.getUri().getPath(), is("/api/v1/decide"));
-            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), equalTo("application/json; charset=UTF-8"));
             assertThat(
                 entityAsMap(request.getBody()),
                 is(

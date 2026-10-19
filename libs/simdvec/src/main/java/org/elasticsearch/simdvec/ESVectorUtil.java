@@ -1233,6 +1233,23 @@ public class ESVectorUtil {
     }
 
     /**
+     * Computes {@code C = A @ B} where A is (m x k) and B is (k x n), both row-major signed bytes.
+     * Result C is (m x n), accumulated in exact int32 arithmetic.
+     */
+    public static void matrixMultiply(byte[] a, byte[] b, int m, int k, int n, int[] result, TaskExecutor executor) {
+        if (a.length != m * k) {
+            throw new IllegalArgumentException("Invalid a array size [" + a.length + "] for matrix multiplication");
+        }
+        if (b.length != k * n) {
+            throw new IllegalArgumentException("Invalid b array size [" + b.length + "] for matrix multiplication");
+        }
+        if (result.length != m * n) {
+            throw new IllegalArgumentException("Invalid result array size [" + result.length + "] for matrix multiplication");
+        }
+        IMPL.matrixMultiply(a, b, m, k, n, result, executor);
+    }
+
+    /**
      * Computes {@code result = A @ v} where A is a (rows x cols) row-major matrix.
      *
      * @param a    flat row-major matrix, length rows*cols

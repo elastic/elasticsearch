@@ -47,6 +47,7 @@ import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnap
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomIOContext;
 import static org.elasticsearch.xpack.stateless.TestUtils.newCacheService;
 import static org.elasticsearch.xpack.stateless.commits.BlobLocationTestUtils.createBlobFileRanges;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommitTestUtils.randomNonZeroPositiveLong;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -147,7 +148,7 @@ public class BlobCacheIndexInputStressTests extends ESIndexInputTestCase {
             checksumAndLengthList.add(new ChecksumAndLength(checksumBytes.v1(), checksumBytes.v2().length));
         }
 
-        final long primaryTerm = randomNonNegativeLong();
+        final long primaryTerm = randomNonZeroPositiveLong();
         final String compoundFileName = BccBlobFile.blobNameFromGeneration(primaryTerm);
         long offset = 0;
         final Map<BlobCacheIndexInput, String> blobCacheIndexInputs = new HashMap<>();

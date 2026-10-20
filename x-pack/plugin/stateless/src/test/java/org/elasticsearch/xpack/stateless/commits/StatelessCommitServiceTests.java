@@ -1825,10 +1825,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 new PrimaryTermAndGeneration(2L, 1L),
                 1L,
                 "xx",
-                Map.of(
-                    "segments_2",
-                    new BlobLocation(new BccBlobFile(new PrimaryTermAndGeneration(2, 1)), 12, 12)
-                ),
+                Map.of("segments_2", new BlobLocation(new BccBlobFile(new PrimaryTermAndGeneration(2, 1)), 12, 12)),
                 10,
                 Set.of("segments_2"),
                 0L,

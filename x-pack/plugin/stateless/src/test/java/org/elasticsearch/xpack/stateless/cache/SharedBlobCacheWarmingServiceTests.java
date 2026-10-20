@@ -1509,11 +1509,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 final long rangeStart = region * rangeSize;
                 final long offset = randomLongBetween(stepSize * (i - 1), stepSize * i - fileLength) + rangeStart;
                 final long minimizedEnd = rangeStart + stepSize * i;
-                final var blobLocation = new BlobLocation(
-                    new BccBlobFile(termAndGen),
-                    offset,
-                    fileLength
-                );
+                final var blobLocation = new BlobLocation(new BccBlobFile(termAndGen), offset, fileLength);
                 final var commit = new StatelessCompoundCommit(
                     node.shardId,
                     termAndGen,
@@ -1574,11 +1570,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
 
             final long fileLength = randomLongBetween(1, rangeSize);
             final long offset = randomLongBetween(0, rangeSize - fileLength);
-            final var blobLocation = new BlobLocation(
-                new BccBlobFile(termAndGen),
-                offset,
-                fileLength
-            );
+            final var blobLocation = new BlobLocation(new BccBlobFile(termAndGen), offset, fileLength);
             final var commit = new StatelessCompoundCommit(
                 node.shardId,
                 termAndGen,
@@ -2148,13 +2140,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 final long gen = i + 1L;
                 final long blobSize = randomLongBetween(1, 1024 * 1024);
                 final long warmEndOffset = randomLongBetween(1, blobSize);
-                blobSpecs.add(
-                    new WarmTarget(
-                        new BccBlobFile(new PrimaryTermAndGeneration(primaryTerm, gen)),
-                        warmEndOffset,
-                        blobSize
-                    )
-                );
+                blobSpecs.add(new WarmTarget(new BccBlobFile(new PrimaryTermAndGeneration(primaryTerm, gen)), warmEndOffset, blobSize));
             }
 
             final Map<BlobFile, SharedBlobCacheWarmingService.WarmTarget> warmTargets = new HashMap<>();

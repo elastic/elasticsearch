@@ -354,9 +354,7 @@ public final class StatelessDirectoryFactory {
             long fileLength = fakeBlobStoreDirectory.fileLength(name);
             int generation = blobFileGenerationGenerator.incrementAndGet();
             blobNameToFileName.put(BccBlobFile.blobNameFromGeneration(generation), name);
-            return new BlobFileRanges(
-                new BlobLocation(new BccBlobFile(new PrimaryTermAndGeneration(1, generation)), 0, fileLength)
-            );
+            return new BlobFileRanges(new BlobLocation(new BccBlobFile(new PrimaryTermAndGeneration(1, generation)), 0, fileLength));
         }
 
         private void refreshMetadata() {

@@ -318,9 +318,7 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
             var headerOffset = positionTracking.position();
             var totalSize = headerOffset + internalFiles.stream().mapToLong(StatelessCompoundCommit.InternalFile::length).sum();
             var expectedCommitFiles = StatelessCompoundCommit.combineCommitFiles(
-                new BccBlobFile(
-                    new PrimaryTermAndGeneration(testInstance.primaryTerm(), testInstance.generation())
-                ),
+                new BccBlobFile(new PrimaryTermAndGeneration(testInstance.primaryTerm(), testInstance.generation())),
                 InternalFilesReplicatedRanges.EMPTY,
                 internalFiles,
                 referencedCommitBlobsWithoutBlobLength,

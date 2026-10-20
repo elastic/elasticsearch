@@ -915,7 +915,8 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             RestStatus.BAD_REQUEST,
             allOf(
                 containsString(
-                    "[constant_keyword] field [field1] only accepts values that are equal to the value defined in the mappings, but got [wrong]"
+                    "[constant_keyword] field [field1] only accepts values that are equal to the value defined in the mappings, " +
+                        "but got [wrong]"
                 ),
                 not(containsString("prod"))
             )

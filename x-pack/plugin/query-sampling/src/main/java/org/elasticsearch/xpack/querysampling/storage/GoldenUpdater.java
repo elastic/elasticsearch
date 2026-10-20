@@ -24,6 +24,7 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 
 /**
@@ -47,20 +48,22 @@ public final class GoldenUpdater {
     private final GoldenStaleness staleness;
     private final GroundTruthRunner runner;
 
-    /** A null {@code staleness} (and {@code exact}) leaves the ground truth as it is. */
+    /** A null {@code staleness} (and {@code exact} and {@code executor}) leaves the ground truth as it is. */
     public GoldenUpdater(
         GoldenReader reader,
         StoredSamples samples,
         GoldenWriter writer,
         @Nullable GoldenStaleness staleness,
-        @Nullable BiConsumer<SearchRequest, ActionListener<SearchResponse>> exact
+        @Nullable BiConsumer<SearchRequest, ActionListener<SearchResponse>> exact,
+        @Nullable Executor executor
     ) {
         assert (staleness == null) == (exact == null) : "looking at the data and computing again go together";
+        assert (exact == null) == (executor == null) : "the exact searches are started on the executor";
         this.reader = reader;
         this.samples = samples;
         this.writer = writer;
         this.staleness = staleness;
-        this.runner = exact == null ? null : new GroundTruthRunner(exact);
+        this.runner = exact == null ? null : new GroundTruthRunner(exact, executor);
     }
 
     public void update(int limit, ActionListener<Result> listener) {

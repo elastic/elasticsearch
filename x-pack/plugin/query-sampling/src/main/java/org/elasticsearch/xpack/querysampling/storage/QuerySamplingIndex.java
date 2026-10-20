@@ -20,7 +20,7 @@ public final class QuerySamplingIndex {
 
     public static final String NAME = ".query_sampling";
 
-    static final int MAPPINGS_VERSION = 4;
+    static final int MAPPINGS_VERSION = 1;
 
     private QuerySamplingIndex() {}
 

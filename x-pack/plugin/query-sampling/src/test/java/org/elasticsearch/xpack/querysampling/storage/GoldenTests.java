@@ -22,6 +22,7 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
@@ -155,7 +156,7 @@ public class GoldenTests extends ESTestCase {
             hit.score(1f);
             hit.shard(new SearchShardTarget("node", new ShardId("idx" + n, "_na_", 0), null));
             respond(listener, List.of(hit));
-        });
+        }, EsExecutors.DIRECT_EXECUTOR_SERVICE);
     }
 
     private GoldenUpdater.Result update(GoldenUpdater updater, int limit) {

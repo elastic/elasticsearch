@@ -19,6 +19,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -149,7 +150,7 @@ public class GroundTruthTests extends ESTestCase {
                 shards.set(changed);
                 respond(listener, "doc");
             }
-        });
+        }, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         CapturedQuery query = query(1);
 
         run(runner, List.of(query));
@@ -238,7 +239,13 @@ public class GroundTruthTests extends ESTestCase {
             } finally {
                 response.decRef();
             }
-        }), new NamedXContentRegistry(new SearchModule(Settings.EMPTY, List.of()).getNamedXContents()), budget, "sampler", () -> NOW);
+        }),
+            new NamedXContentRegistry(new SearchModule(Settings.EMPTY, List.of()).getNamedXContents()),
+            budget,
+            "sampler",
+            () -> NOW,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
     }
 
     private void respondWithPending(ActionListener<SearchResponse> listener, int count) throws IOException {

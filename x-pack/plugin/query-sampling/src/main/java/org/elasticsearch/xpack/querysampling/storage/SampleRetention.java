@@ -16,18 +16,14 @@ import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.threadpool.Scheduler;
-import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.BiConsumer;
-import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 
 /**
- * Deletes sampled queries older than the retention, counted from when they were picked. Only the elected master
- * does it, as every node has the plugin and the others would just repeat the same deletes.
+ * Deletes sampled queries older than the retention, counted from when they were picked. {@link MasterTasks} runs it,
+ * on the elected master only, as the other nodes would just repeat the same deletes.
  */
 public final class SampleRetention {
 
@@ -36,7 +32,6 @@ public final class SampleRetention {
     private static final TimeValue MAX_INTERVAL = TimeValue.timeValueHours(1);
 
     private final BiConsumer<DeleteByQueryRequest, ActionListener<BulkByPaginatedSearchResponse>> deleteByQuery;
-    private final BooleanSupplier electedMaster;
     private final LongSupplier clock;
     private final TimeValue retention;
 
@@ -44,12 +39,10 @@ public final class SampleRetention {
 
     public SampleRetention(
         BiConsumer<DeleteByQueryRequest, ActionListener<BulkByPaginatedSearchResponse>> deleteByQuery,
-        BooleanSupplier electedMaster,
         LongSupplier clock,
         TimeValue retention
     ) {
         this.deleteByQuery = deleteByQuery;
-        this.electedMaster = electedMaster;
         this.clock = clock;
         this.retention = retention;
     }
@@ -60,14 +53,7 @@ public final class SampleRetention {
         return quarter.compareTo(MAX_INTERVAL) < 0 ? quarter : MAX_INTERVAL;
     }
 
-    public Scheduler.Cancellable start(ThreadPool threadPool, Executor executor) {
-        return threadPool.scheduleWithFixedDelay(this::run, interval(retention), executor);
-    }
-
     public void run() {
-        if (electedMaster.getAsBoolean() == false) {
-            return;
-        }
         DeleteByQueryRequest request = new DeleteByQueryRequest(QuerySamplingIndex.NAME).setQuery(
             QueryBuilders.rangeQuery("picked_at").lt(clock.getAsLong() - retention.millis())
         );

@@ -44,7 +44,7 @@ public final class QuerySamplingSettings {
     public static final Setting<TimeValue> RETENTION = Setting.timeSetting(
         "xpack.query_sampling.retention",
         TimeValue.timeValueDays(7),
-        TimeValue.timeValueSeconds(1),
+        TimeValue.timeValueHours(1),
         Setting.Property.NodeScope
     );
 

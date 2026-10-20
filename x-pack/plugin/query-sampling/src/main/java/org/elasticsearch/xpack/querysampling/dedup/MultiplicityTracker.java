@@ -19,17 +19,19 @@ import java.util.function.LongSupplier;
 
 /**
  * Counts arrivals per distinct query so duplicates can be stored once with their multiplicity, which keeps traffic
- * estimates unbiased. Queries are forgotten between one and two windows after their last arrival (two generations,
- * rotated every window). The number of distinct queries is bounded; unknown queries beyond it are only counted as untracked.
+ * estimates unbiased. Queries are forgotten between one and two windows after their last arrival: each remembers the
+ * window of its last arrival, and at the end of a window the ones from two windows ago are removed. The number of
+ * distinct queries is bounded; unknown queries beyond it are only counted as untracked.
  */
 public final class MultiplicityTracker {
 
     private final int maxDistinct;
     private volatile long windowNanos;
     private final LongSupplier nanoTime;
-    private volatile Map<QueryFingerprint, TrackedQuery> current = new ConcurrentHashMap<>();
-    private volatile Map<QueryFingerprint, TrackedQuery> previous = new ConcurrentHashMap<>();
+    private final Map<QueryFingerprint, TrackedQuery> tracked = new ConcurrentHashMap<>();
+    // both only used by the thread that records
     private long windowStart;
+    private long window;
     private final LongAdder untracked = new LongAdder();
 
     public MultiplicityTracker(int maxDistinct) {
@@ -60,18 +62,16 @@ public final class MultiplicityTracker {
     @Nullable
     public TrackedQuery record(QueryFingerprint fingerprint, double captureRate) {
         rotateIfDue();
-        TrackedQuery query = current.get(fingerprint);
+        TrackedQuery query = tracked.get(fingerprint);
         if (query == null) {
-            query = previous.remove(fingerprint);
-            if (query == null && distinct() >= maxDistinct) {
+            if (distinct() >= maxDistinct) {
                 untracked.increment();
                 return null;
             }
-            if (query == null) {
-                query = new TrackedQuery();
-            }
-            current.put(fingerprint, query);
+            query = new TrackedQuery();
+            tracked.put(fingerprint, query);
         }
+        query.lastWindow = window;
         query.recordArrival(1.0 / captureRate);
         return query;
     }
@@ -79,22 +79,22 @@ public final class MultiplicityTracker {
     private void rotateIfDue() {
         long now = nanoTime.getAsLong();
         long elapsed = now - windowStart;
-        long window = windowNanos;
-        if (elapsed >= window) {
-            // after a quiet spell of two windows or more the current generation is out of date too
-            previous = elapsed / window >= 2 ? new ConcurrentHashMap<>() : current;
-            current = new ConcurrentHashMap<>();
+        long windowLength = windowNanos;
+        if (elapsed >= windowLength) {
+            // after a quiet spell of two windows or more every query is out of date
+            window += Math.min(2, elapsed / windowLength);
+            tracked.values().removeIf(query -> query.lastWindow < window - 1);
             windowStart = now;
         }
     }
 
     // once false, the query's counters no longer change: its next arrival starts a new count
     public boolean isTracking(QueryFingerprint fingerprint, TrackedQuery query) {
-        return current.get(fingerprint) == query || previous.get(fingerprint) == query;
+        return tracked.get(fingerprint) == query;
     }
 
     public int distinct() {
-        return current.size() + previous.size();
+        return tracked.size();
     }
 
     public long untracked() {

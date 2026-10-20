@@ -15,6 +15,9 @@ import org.elasticsearch.core.Nullable;
  */
 public final class TrackedQuery {
 
+    // the window of the last arrival, for the tracker that records from one thread only
+    long lastWindow;
+
     private long multiplicity;
     private double weightedMultiplicity;
     private double lastArrivalWeight;

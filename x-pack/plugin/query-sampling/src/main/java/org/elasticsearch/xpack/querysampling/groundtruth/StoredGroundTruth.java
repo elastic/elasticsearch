@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.querysampling.storage.StoredSamples;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 
@@ -47,18 +48,21 @@ public final class StoredGroundTruth {
     private final BiConsumer<BulkRequest, ActionListener<BulkResponse>> sampleBulk;
     private final BiConsumer<SearchRequest, ActionListener<SearchResponse>> exactSearch;
     private final LongSupplier clock;
+    private final Executor executor;
 
     public StoredGroundTruth(
         BiConsumer<SearchRequest, ActionListener<SearchResponse>> sampleSearch,
         BiConsumer<BulkRequest, ActionListener<BulkResponse>> sampleBulk,
         BiConsumer<SearchRequest, ActionListener<SearchResponse>> exactSearch,
         NamedXContentRegistry registry,
-        LongSupplier clock
+        LongSupplier clock,
+        Executor executor
     ) {
         this.samples = new StoredSamples(sampleSearch, registry);
         this.sampleBulk = sampleBulk;
         this.exactSearch = exactSearch;
         this.clock = clock;
+        this.executor = executor;
     }
 
     /**
@@ -85,7 +89,7 @@ public final class StoredGroundTruth {
 
     private void compute(List<StoredSample> samples, int unreadable, ActionListener<GroundTruthRunner.Result> listener) {
         Map<StoredSample, GroundTruth> computed = new IdentityHashMap<>();
-        new GroundTruthRunner(exactSearch).run(
+        new GroundTruthRunner(exactSearch, executor).run(
             samples,
             sample -> sample.search().query(),
             computed::put,

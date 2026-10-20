@@ -62,7 +62,8 @@ public final class GroundTruthWorker {
         NamedXContentRegistry registry,
         CostBudget budget,
         String samplerId,
-        LongSupplier clock
+        LongSupplier clock,
+        Executor executor
     ) {
         this.budget = budget;
         this.samplerId = samplerId;
@@ -75,7 +76,8 @@ public final class GroundTruthWorker {
                 listener.onResponse(response);
             }, listener::onFailure)),
             registry,
-            clock
+            clock,
+            executor
         );
     }
 

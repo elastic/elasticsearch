@@ -31,14 +31,20 @@ import org.elasticsearch.xpack.querysampling.QuerySamplingSettings;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * Captures a copy of eligible kNN searches on the coordinating node; the search itself proceeds unchanged.
  * Eligible: a single top-level {@code knn} with a literal float vector, and nothing that changes which documents are
  * searched or which hits come back. Searches with a parent task (cross-cluster or internal) are skipped.
+ * <p>
+ * The filter sees the request before the search rewrites it, so a vector that is only known after the rewrite (a query
+ * vector builder such as a {@code semantic_text} field, or a {@code knn} query inside {@code query}) is not captured.
+ * Capturing those would need a hook after the rewrite.
  */
 public final class QueryCaptureFilter implements MappedActionFilter {
 
@@ -47,6 +53,7 @@ public final class QueryCaptureFilter implements MappedActionFilter {
     private static final int DEFAULT_SIZE = 10;
 
     private final Consumer<CapturedSearch> consumer;
+    private final Supplier<Random> random;
     private volatile boolean enabled;
     private final CaptureRate captureRate = new CaptureRate(0, 0);
     private long knnSearchesAtLastUpdate;
@@ -54,7 +61,13 @@ public final class QueryCaptureFilter implements MappedActionFilter {
     private final LongAdder captured = new LongAdder();
 
     public QueryCaptureFilter(ClusterSettings clusterSettings, Consumer<CapturedSearch> consumer) {
+        this(clusterSettings, consumer, Randomness::get);
+    }
+
+    /** {@code random} is for the benchmark: {@link Randomness#get()} does not work in a JVM that has the test framework but no test. */
+    public QueryCaptureFilter(ClusterSettings clusterSettings, Consumer<CapturedSearch> consumer, Supplier<Random> random) {
         this.consumer = consumer;
+        this.random = random;
         clusterSettings.initializeAndWatch(QuerySamplingSettings.ENABLED, value -> this.enabled = value);
         clusterSettings.initializeAndWatch(QuerySamplingSettings.CAPTURE_RATE, captureRate::configured);
         clusterSettings.initializeAndWatch(QuerySamplingSettings.MIN_CAPTURES_PER_HOUR, captureRate::minPerHour);
@@ -105,7 +118,7 @@ public final class QueryCaptureFilter implements MappedActionFilter {
             }
             // read once: the draw and the rate recorded with the search must be the same value
             double rate = captureRate.effective();
-            if (knn != null && Randomness.get().nextDouble() < rate) {
+            if (knn != null && random.get().nextDouble() < rate) {
                 captured.increment();
                 try {
                     searchListener = withResults(listener, capture(task, searchRequest, knn), rate);

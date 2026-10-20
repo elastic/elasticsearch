@@ -13,18 +13,25 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
 import org.elasticsearch.xpack.querysampling.groundtruth.DataState;
 import org.elasticsearch.xpack.querysampling.groundtruth.ExactSearch;
 import org.elasticsearch.xpack.querysampling.groundtruth.GroundTruth;
 
 import java.util.List;
+import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 /**
  * Computes ground truth by running exact searches one after the other, since each scans the index. Searches go
  * through the given function so they run as whoever asked.
+ * <p>
+ * Each search is started on the given executor, as a search may be completed by a network thread, which must not start
+ * the next scan. A query whose search fails is left without ground truth and the run goes on with the others: their
+ * answers do not depend on it, and the exact search does not allow partial results, so a failed shard fails the query
+ * and never leaves an incomplete answer behind.
  */
 public final class GroundTruthRunner {
 
@@ -33,9 +40,11 @@ public final class GroundTruthRunner {
     public record Result(int computed, int failed) {}
 
     private final BiConsumer<SearchRequest, ActionListener<SearchResponse>> search;
+    private final Executor executor;
 
-    public GroundTruthRunner(BiConsumer<SearchRequest, ActionListener<SearchResponse>> search) {
+    public GroundTruthRunner(BiConsumer<SearchRequest, ActionListener<SearchResponse>> search, Executor executor) {
         this.search = search;
+        this.executor = executor;
     }
 
     public <T> void run(
@@ -44,7 +53,16 @@ public final class GroundTruthRunner {
         BiConsumer<T, GroundTruth> store,
         ActionListener<Result> listener
     ) {
-        next(items, query, store, 0, 0, 0, listener);
+        resume(listener, () -> next(items, query, store, 0, 0, 0, listener));
+    }
+
+    // never runs the rest of the run on the thread that completed the last search
+    private void resume(ActionListener<Result> listener, Runnable next) {
+        try {
+            executor.execute(next);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     private <T> void next(
@@ -56,6 +74,7 @@ public final class GroundTruthRunner {
         int failed,
         ActionListener<Result> listener
     ) {
+        assert Transports.assertNotTransportThread("the exact searches of a ground truth run must not be started by a network thread");
         if (index == queries.size()) {
             listener.onResponse(new Result(computed, failed));
             return;
@@ -64,10 +83,10 @@ public final class GroundTruthRunner {
         // a search function may complete the listener and then still throw, only the first outcome counts
         ActionListener<GroundTruth> computedListener = ActionListener.notifyOnce(ActionListener.wrap(groundTruth -> {
             store.accept(query, groundTruth);
-            next(queries, queryOf, store, index + 1, computed + 1, failed, listener);
+            resume(listener, () -> next(queries, queryOf, store, index + 1, computed + 1, failed, listener));
         }, e -> {
             logger.warn("failed to compute the ground truth of a sampled kNN search", e);
-            next(queries, queryOf, store, index + 1, computed, failed + 1, listener);
+            resume(listener, () -> next(queries, queryOf, store, index + 1, computed, failed + 1, listener));
         }));
         try {
             compute(queryOf.apply(query), computedListener);

@@ -40,12 +40,14 @@ import org.elasticsearch.xpack.querysampling.storage.GoldenPromotionJob;
 import org.elasticsearch.xpack.querysampling.storage.GoldenReader;
 import org.elasticsearch.xpack.querysampling.storage.GoldenUpdater;
 import org.elasticsearch.xpack.querysampling.storage.GoldenWriter;
+import org.elasticsearch.xpack.querysampling.storage.MasterTasks;
 import org.elasticsearch.xpack.querysampling.storage.QuerySamplingIndex;
 import org.elasticsearch.xpack.querysampling.storage.SampleRetention;
 import org.elasticsearch.xpack.querysampling.storage.SampleWriter;
 import org.elasticsearch.xpack.querysampling.storage.StoredSamples;
 import org.elasticsearch.xpack.querysampling.storage.WeightsRefresher;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
@@ -116,15 +118,12 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
             MAX_PENDING_WRITES,
             WRITE_INTERVAL
         );
+        TimeValue retentionPeriod = QuerySamplingSettings.RETENTION.get(services.clusterService().getSettings());
         SampleRetention retention = new SampleRetention(
             (request, listener) -> client.execute(DeleteByQueryAction.INSTANCE, request, listener),
-            () -> services.clusterService().state().nodes().isLocalNodeElectedMaster(),
             services.threadPool()::absoluteTimeInMillis,
-            QuerySamplingSettings.RETENTION.get(services.clusterService().getSettings())
+            retentionPeriod
         );
-        if (QUERY_SAMPLING_FEATURE_FLAG.isEnabled()) {
-            retention.start(services.threadPool(), services.threadPool().generic());
-        }
         GoldenReader goldenReader = new GoldenReader(client::search, services.xContentRegistry());
         // the schedule only adds; recomputing ground truth searches user data, so it runs as the caller
         GoldenUpdater goldenUpdater = new GoldenUpdater(
@@ -132,16 +131,21 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
             new StoredSamples(client::search, services.xContentRegistry()),
             new GoldenWriter(client::search, client::index, client::bulk, client::update, services.threadPool()::absoluteTimeInMillis),
             null,
+            null,
             null
         );
-        GoldenPromotionJob goldenPromotion = new GoldenPromotionJob(
-            goldenUpdater::update,
-            () -> services.clusterService().state().nodes().isLocalNodeElectedMaster()
-        );
+        GoldenPromotionJob goldenPromotion = new GoldenPromotionJob(goldenUpdater::update);
         goldenPromotion.watch(clusterSettings);
+        // the jobs of which one node is enough: the elected master runs them
+        List<MasterTasks.Task> masterTasks = new ArrayList<>();
+        masterTasks.add(new MasterTasks.Task(retention::run, SampleRetention.interval(retentionPeriod)));
         TimeValue goldenInterval = QuerySamplingSettings.GOLDEN_PROMOTION_INTERVAL.get(services.clusterService().getSettings());
-        if (QUERY_SAMPLING_FEATURE_FLAG.isEnabled() && goldenInterval.millis() > 0) {
-            goldenPromotion.start(services.threadPool(), services.threadPool().generic(), goldenInterval);
+        if (goldenInterval.millis() > 0) {
+            masterTasks.add(new MasterTasks.Task(goldenPromotion::run, GoldenPromotionJob.interval(goldenInterval)));
+        }
+        if (QUERY_SAMPLING_FEATURE_FLAG.isEnabled()) {
+            services.clusterService()
+                .addLocalNodeMasterListener(new MasterTasks(services.threadPool(), services.threadPool().generic(), masterTasks));
         }
         // placeholders until the settings are read
         QuerySampler sampler = new QuerySampler(
@@ -167,7 +171,8 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
             services.xContentRegistry(),
             budget,
             samplerId,
-            services.threadPool()::absoluteTimeInMillis
+            services.threadPool()::absoluteTimeInMillis,
+            services.threadPool().generic()
         );
         if (QUERY_SAMPLING_FEATURE_FLAG.isEnabled()) {
             groundTruthWorker.start(services.threadPool(), services.threadPool().generic());
@@ -179,29 +184,7 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
         if (QUERY_SAMPLING_FEATURE_FLAG.isEnabled()) {
             filter.startRateUpdates(services.threadPool(), services.threadPool().generic());
         }
-        return List.of(
-            new QuerySamplingService(
-                () -> new QuerySamplingStats(
-                    filter.knnSearches(),
-                    filter.captured(),
-                    handoff.dropped(),
-                    tracker.distinct(),
-                    tracker.untracked(),
-                    pipeline.picked(),
-                    writer.written(),
-                    writer.failed(),
-                    writer.dropped(),
-                    refresher.refreshed(),
-                    retention.deleted(),
-                    groundTruthWorker.computed(),
-                    groundTruthWorker.failed(),
-                    pipeline.starved(),
-                    filter.effectiveCaptureRate(),
-                    pipeline.acceptanceScale(),
-                    budget.credit()
-                )
-            )
-        );
+        return List.of();
     }
 
     @Override

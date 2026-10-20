@@ -21,7 +21,7 @@ public final class GoldenIndex {
 
     public static final String NAME = ".query_golden";
 
-    static final int MAPPINGS_VERSION = 2;
+    static final int MAPPINGS_VERSION = 1;
 
     static final String RECORD = "record";
     static final String VERSION = "version";

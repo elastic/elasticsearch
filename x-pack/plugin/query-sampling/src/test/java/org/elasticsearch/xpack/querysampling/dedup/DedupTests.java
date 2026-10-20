@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.querysampling.dedup;
 
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -32,6 +34,34 @@ public class DedupTests extends ESTestCase {
 
         assertThat(tracker.distinct(), equalTo(2));
         assertThat(tracker.untracked(), equalTo(0L));
+    }
+
+    public void testAQueryIsForgottenBetweenOneAndTwoWindowsAfterItsLastArrival() {
+        AtomicLong nanos = new AtomicLong();
+        TimeValue window = TimeValue.timeValueMinutes(1);
+        MultiplicityTracker tracker = new MultiplicityTracker(10, window, nanos::get);
+        QueryFingerprint a = new QueryFingerprint(1, 1);
+        QueryFingerprint b = new QueryFingerprint(2, 2);
+        QueryFingerprint c = new QueryFingerprint(3, 3);
+
+        TrackedQuery firstA = tracker.record(a);
+        nanos.addAndGet(window.nanos());
+        TrackedQuery firstB = tracker.record(b);
+        assertTrue("a window later it is still known", tracker.isTracking(a, firstA));
+        assertThat(tracker.distinct(), equalTo(2));
+
+        nanos.addAndGet(window.nanos());
+        assertThat("b arrived in the window before", tracker.record(b), sameInstance(firstB));
+        assertFalse("a was last seen two windows ago", tracker.isTracking(a, firstA));
+        assertThat(tracker.distinct(), equalTo(1));
+        TrackedQuery secondA = tracker.record(a);
+        assertThat("its next arrival starts a new count", secondA, not(sameInstance(firstA)));
+        assertThat(secondA.multiplicity(), equalTo(1L));
+
+        nanos.addAndGet(5 * window.nanos());
+        tracker.record(c);
+        assertThat("after a long quiet spell nothing else is known", tracker.distinct(), equalTo(1));
+        assertFalse(tracker.isTracking(b, firstB));
     }
 
     public void testParametersThatDecideTheQualityAreInTheIdentityAndTheLabelIsNot() {

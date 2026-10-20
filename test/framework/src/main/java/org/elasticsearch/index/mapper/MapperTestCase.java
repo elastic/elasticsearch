@@ -1581,9 +1581,9 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     private boolean canBeIndexSortField() throws IOException {
         final Settings settings = Settings.builder().put("index.sort.field", "field").build();
-        final MapperService mapperService = createMapperService(settings, fieldMapping(this::minimalMapping));
-        assertParseMinimalWarnings();
         try {
+            final MapperService mapperService = createMapperService(settings, fieldMapping(this::minimalMapping));
+            assertParseMinimalWarnings();
             final Sort indexSort = new IndexSortConfig(mapperService.getIndexSettings()).buildIndexSort(
                 mapperService::fieldType,
                 (ft, searchLookup) -> ft.fielddataBuilder(FieldDataContext.noRuntimeFields("index")).build(null, null)

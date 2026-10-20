@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.allocation.SnapshotRestoreAllocationResult;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -25,12 +26,14 @@ import java.util.Objects;
  *                           which runs async to reroute, uses the latest request's data to compute the desired balance.
  * @param assignments a set of the (persistent) node IDs to which each {@link ShardId} should be allocated
  * @param weightsPerNode The node weights calculated based on {@link WeightFunction#calculateNodeWeight}
+ * @param snapshotRestoreAllocationResult snapshot restore shards that could not be placed because of disk capacity
  */
 public record DesiredBalance(
     long lastConvergedIndex,
     Map<ShardId, ShardAssignment> assignments,
     Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats> weightsPerNode,
-    ComputationFinishReason finishReason
+    ComputationFinishReason finishReason,
+    SnapshotRestoreAllocationResult snapshotRestoreAllocationResult
 ) {
 
     enum ComputationFinishReason {
@@ -43,7 +46,24 @@ public record DesiredBalance(
     }
 
     public DesiredBalance(long lastConvergedIndex, Map<ShardId, ShardAssignment> assignments) {
-        this(lastConvergedIndex, assignments, Map.of(), ComputationFinishReason.CONVERGED);
+        this(lastConvergedIndex, assignments, Map.of(), ComputationFinishReason.CONVERGED, SnapshotRestoreAllocationResult.EMPTY);
+    }
+
+    public DesiredBalance(
+        long lastConvergedIndex,
+        Map<ShardId, ShardAssignment> assignments,
+        SnapshotRestoreAllocationResult snapshotRestoreAllocationResult
+    ) {
+        this(lastConvergedIndex, assignments, Map.of(), ComputationFinishReason.CONVERGED, snapshotRestoreAllocationResult);
+    }
+
+    public DesiredBalance(
+        long lastConvergedIndex,
+        Map<ShardId, ShardAssignment> assignments,
+        Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats> weightsPerNode,
+        ComputationFinishReason finishReason
+    ) {
+        this(lastConvergedIndex, assignments, weightsPerNode, finishReason, SnapshotRestoreAllocationResult.EMPTY);
     }
 
     /**

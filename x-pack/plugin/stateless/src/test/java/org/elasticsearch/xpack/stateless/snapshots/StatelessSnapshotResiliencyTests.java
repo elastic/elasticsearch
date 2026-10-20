@@ -97,7 +97,6 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.IndexShardCacheWarmer;
-import org.elasticsearch.xpack.stateless.SnapshotRestoreDiskPressure;
 import org.elasticsearch.xpack.stateless.StatelessComponents;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.TestUtils;
@@ -650,9 +649,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                     MeterRegistry.NOOP,
                     createBuiltInClusterSettings(settings)
                 );
-                allocationService.setExistingShardsAllocators(
-                    Map.of(StatelessPlugin.NAME, new StatelessExistingShardsAllocator(new SnapshotRestoreDiskPressure(Settings.EMPTY)))
-                );
+                allocationService.setExistingShardsAllocators(Map.of(StatelessPlugin.NAME, new StatelessExistingShardsAllocator()));
                 return allocationService;
             }
 

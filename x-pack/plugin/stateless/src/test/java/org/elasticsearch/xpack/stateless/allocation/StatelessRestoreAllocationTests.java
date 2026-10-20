@@ -15,8 +15,11 @@ import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -29,13 +32,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
-import org.elasticsearch.xpack.stateless.SnapshotRestoreDiskPressure;
 
 import java.util.HashMap;
 import java.util.List;
@@ -60,7 +63,7 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
     private static final String PATH = "/data";
 
     private ClusterState restoreState(int count) {
-        var metadata = Metadata.builder();
+        var projectMetadata = ProjectMetadata.builder(ProjectId.DEFAULT);
         var routing = RoutingTable.builder(new StatelessShardRoutingRoleStrategy());
         for (int i = 0; i < count; i++) {
             var index = IndexMetadata.builder("index-" + i)
@@ -68,12 +71,12 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .build();
-            metadata.put(index, false);
+            projectMetadata.put(index, false);
             routing.addAsNewRestore(
                 index,
                 new RecoverySource.SnapshotRecoverySource(
                     RecoverySource.SnapshotRecoverySource.NO_API_RESTORE_UUID,
-                    new Snapshot("repo", new SnapshotId("snapshot-" + i, "uuid-" + i)),
+                    new Snapshot(ProjectId.DEFAULT, "repo", new SnapshotId("snapshot-" + i, "uuid-" + i)),
                     IndexVersion.current(),
                     new IndexId(index.getIndex().getName(), "repository-index-" + i)
                 ),
@@ -81,8 +84,8 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
             );
         }
         return ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(metadata)
-            .routingTable(routing.build())
+            .metadata(Metadata.builder().put(projectMetadata))
+            .routingTable(GlobalRoutingTable.builder().put(ProjectId.DEFAULT, routing).build())
             .nodes(
                 DiscoveryNodes.builder()
                     .add(newNode(NODE, Set.of(DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.MASTER_ROLE)))
@@ -94,7 +97,7 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
 
     private SnapshotShardSizeInfo sizes(ClusterState state, long size) {
         Map<InternalSnapshotsInfoService.SnapshotShard, Long> sizes = new HashMap<>();
-        state.routingTable().allShards().forEach(shard -> {
+        state.routingTable(ProjectId.DEFAULT).allShards().forEach(shard -> {
             var source = (RecoverySource.SnapshotRecoverySource) shard.recoverySource();
             sizes.put(new InternalSnapshotsInfoService.SnapshotShard(source.snapshot(), source.index(), shard.shardId()), size);
         });
@@ -109,16 +112,12 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
         return ClusterInfo.builder().leastAvailableSpaceUsage(disks).mostAvailableSpaceUsage(disks).reservedSpace(reservations).build();
     }
 
-    private record RestoreDeciderAndPressure(SnapshotRestoreAllocationDecider decider, SnapshotRestoreDiskPressure pressure) {}
-
-    private static RestoreDeciderAndPressure restoreDecider() {
-        var pressure = new SnapshotRestoreDiskPressure(Settings.EMPTY);
-        return new RestoreDeciderAndPressure(new SnapshotRestoreAllocationDecider(Settings.EMPTY, pressure), pressure);
+    private static SnapshotRestoreAllocationDecider restoreDecider() {
+        return new SnapshotRestoreAllocationDecider(Settings.EMPTY);
     }
 
     private AllocationService service(
         SnapshotRestoreAllocationDecider restoreDecider,
-        SnapshotRestoreDiskPressure pressure,
         AtomicReference<ClusterInfo> info,
         AtomicReference<SnapshotShardSizeInfo> sizes
     ) {
@@ -133,17 +132,20 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
             MeterRegistry.NOOP,
             clusterSettings
         );
-        service.setExistingShardsAllocators(Map.of("stateless", new StatelessExistingShardsAllocator(pressure)));
+        service.setExistingShardsAllocators(Map.of("stateless", new StatelessExistingShardsAllocator()));
         return service;
     }
 
     private AllocationService service(AtomicReference<ClusterInfo> info, AtomicReference<SnapshotShardSizeInfo> sizes) {
-        var restore = restoreDecider();
-        return service(restore.decider(), restore.pressure(), info, sizes);
+        return service(restoreDecider(), info, sizes);
+    }
+
+    private static Map<ShardId, Long> unplaceableRestoreShards(AllocationService service) {
+        return service.getDesiredBalance().snapshotRestoreAllocationResult().unplaceableShardSizes();
     }
 
     private static ShardRouting primary(ClusterState state, String index) {
-        return state.routingTable().index(index).shard(0).primaryShard();
+        return state.routingTable(ProjectId.DEFAULT).index(index).shard(0).primaryShard();
     }
 
     public void testWaitsWhileSnapshotShardSizeUnknownThenAllocates() {
@@ -177,110 +179,129 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
 
     public void testWaitsWhenDiskTooSmallThenAllocatesWhenCapacityAppears() {
         var state = restoreState(1);
-        var restore = restoreDecider();
         // free 70 - 1: shard 50 leaves less than 20 GiB indexing reserve
         var info = new AtomicReference<>(info(70 * GB - 1));
         var sizes = new AtomicReference<>(sizes(state, 50 * GB));
-        var service = service(restore.decider(), restore.pressure(), info, sizes);
+        var service = service(info, sizes);
 
         state = service.reroute(state, "disk tight", ActionListener.noop());
         assertTrue(primary(state, "index-0").unassigned());
         assertEquals(UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED, primary(state, "index-0").unassignedInfo().lastAllocationStatus());
-        assertEquals(Map.of(primary(state, "index-0").shardId(), 50 * GB), restore.pressure().restoreShardSizes().shardSizes());
+        assertEquals(Map.of(primary(state, "index-0").shardId(), 50 * GB), unplaceableRestoreShards(service));
 
         info.set(info(70 * GB));
         state = service.reroute(state, "exact fit", ActionListener.noop());
         assertTrue(primary(state, "index-0").initializing());
-        assertTrue(restore.pressure().restoreShardSizes().shardSizes().isEmpty());
+        assertTrue(unplaceableRestoreShards(service).isEmpty());
     }
 
     public void testWaitsWhenDiskStatsMissing() {
         var state = restoreState(1);
-        var restore = restoreDecider();
         var info = new AtomicReference<>(ClusterInfo.EMPTY);
         var sizes = new AtomicReference<>(sizes(state, 50 * GB));
-        var service = service(restore.decider(), restore.pressure(), info, sizes);
+        var service = service(info, sizes);
 
         state = service.reroute(state, "no disk stats", ActionListener.noop());
         assertTrue(primary(state, "index-0").unassigned());
         assertEquals(UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED, primary(state, "index-0").unassignedInfo().lastAllocationStatus());
         // Missing disk stats throttle without identifying an unplaceable shard.
-        assertTrue(restore.pressure().restoreShardSizes().shardSizes().isEmpty());
+        assertTrue(unplaceableRestoreShards(service).isEmpty());
     }
 
     public void testIncomingAssignmentsConsumeCapacity() {
         // free 70 holds one 50 GiB restore; a second must wait until capacity increases.
         var state = restoreState(2);
-        var restore = restoreDecider();
         var sizes = new AtomicReference<>(sizes(state, 50 * GB));
         var info = new AtomicReference<>(info(70 * GB));
-        var service = service(restore.decider(), restore.pressure(), info, sizes);
+        var service = service(info, sizes);
 
         state = service.reroute(state, "initial", ActionListener.noop());
-        assertEquals(1, state.routingTable().allShards().filter(ShardRouting::initializing).toList().size());
+        assertEquals(1, state.routingTable(ProjectId.DEFAULT).allShards().filter(ShardRouting::initializing).toList().size());
         assertEquals(1, state.getRoutingNodes().unassigned().size());
-        assertEquals(1, restore.pressure().restoreShardSizes().shardSizes().size());
-        assertTrue(restore.pressure().restoreShardSizes().shardSizes().containsValue(50 * GB));
+        assertEquals(1, unplaceableRestoreShards(service).size());
+        assertTrue(unplaceableRestoreShards(service).containsValue(50 * GB));
 
         info.set(info(120 * GB));
         state = service.reroute(state, "more capacity", ActionListener.noop());
         assertEquals(0, state.getRoutingNodes().unassigned().size());
-        assertTrue(restore.pressure().restoreShardSizes().shardSizes().isEmpty());
+        assertTrue(unplaceableRestoreShards(service).isEmpty());
+    }
+
+    public void testShardIsNotPublishedWhenAnyCandidateHasCapacity() {
+        final String fittingNode = "a-fitting-node";
+        var state = restoreState(1);
+        state = ClusterState.builder(state)
+            .nodes(DiscoveryNodes.builder(state.nodes()).add(newNode(fittingNode, Set.of(DiscoveryNodeRole.INDEX_ROLE))))
+            .build();
+        var sizes = new AtomicReference<>(sizes(state, 50 * GB));
+        var info = new AtomicReference<>(
+            info(
+                Map.of(
+                    NODE,
+                    new DiskUsage(NODE, NODE, PATH, TOTAL, 70 * GB - 1),
+                    fittingNode,
+                    new DiskUsage(fittingNode, fittingNode, PATH, TOTAL, 70 * GB)
+                ),
+                Map.of()
+            )
+        );
+        var service = service(info, sizes);
+
+        state = service.reroute(state, "one node fits", ActionListener.noop());
+
+        assertTrue(primary(state, "index-0").initializing());
+        assertTrue(unplaceableRestoreShards(service).isEmpty());
     }
 
     public void testShardSizesAccumulateAcrossConcurrentThrottledRestores() {
         // Neither 50 GiB restore fits: free 70-1 leaves less than 20 GiB indexing reserve after one shard.
         var state = restoreState(2);
-        var restore = restoreDecider();
         var info = new AtomicReference<>(info(70 * GB - 1));
         var sizes = new AtomicReference<>(sizes(state, 50 * GB));
-        var service = service(restore.decider(), restore.pressure(), info, sizes);
+        var service = service(info, sizes);
 
         state = service.reroute(state, "both tight", ActionListener.noop());
         assertEquals(2, state.getRoutingNodes().unassigned().size());
         assertEquals(UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED, primary(state, "index-0").unassignedInfo().lastAllocationStatus());
         assertEquals(UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED, primary(state, "index-1").unassignedInfo().lastAllocationStatus());
-        assertEquals(2, restore.pressure().restoreShardSizes().shardSizes().size());
-        assertTrue(restore.pressure().restoreShardSizes().shardSizes().values().stream().allMatch(size -> size == 50 * GB));
+        assertEquals(2, unplaceableRestoreShards(service).size());
+        assertTrue(unplaceableRestoreShards(service).values().stream().allMatch(size -> size == 50 * GB));
     }
 
-    public void testExplainDoesNotRecordDiskPressure() {
+    public void testExplainDoesNotChangeDesiredBalanceResult() {
         var state = restoreState(1);
-        var restore = restoreDecider();
         var info = new AtomicReference<>(info(70 * GB - 1));
         var sizes = new AtomicReference<>(sizes(state, 50 * GB));
-        var service = service(restore.decider(), restore.pressure(), info, sizes);
+        var service = service(info, sizes);
 
-        assertTrue(restore.pressure().restoreShardSizes().shardSizes().isEmpty());
+        assertTrue(unplaceableRestoreShards(service).isEmpty());
         var decision = service.explainShardAllocation(primary(state, "index-0"), state, RoutingAllocation.DebugMode.ON);
         assertTrue(decision.getAllocateDecision().isDecisionTaken());
-        assertTrue(restore.pressure().restoreShardSizes().shardSizes().isEmpty());
+        assertTrue(unplaceableRestoreShards(service).isEmpty());
     }
 
-    public void testCancelledRestoreDoesNotLeakDiskPressure() {
+    public void testCancelledRestoreDoesNotRemainInDesiredBalanceResult() {
         var state = restoreState(1);
-        var restore = restoreDecider();
         var info = new AtomicReference<>(info(70 * GB - 1));
         var sizes = new AtomicReference<>(sizes(state, 50 * GB));
-        var service = service(restore.decider(), restore.pressure(), info, sizes);
+        var service = service(info, sizes);
 
         state = service.reroute(state, "first restore throttled", ActionListener.noop());
-        assertEquals(Map.of(primary(state, "index-0").shardId(), 50 * GB), restore.pressure().restoreShardSizes().shardSizes());
+        assertEquals(Map.of(primary(state, "index-0").shardId(), 50 * GB), unplaceableRestoreShards(service));
 
         // Fresh index UUID → different ShardId. Only the live restore may contribute.
         state = restoreState(1);
         sizes.set(sizes(state, 50 * GB));
         state = service.reroute(state, "replacement restore throttled", ActionListener.noop());
         assertEquals(1, state.getRoutingNodes().unassigned().size());
-        assertEquals(Map.of(primary(state, "index-0").shardId(), 50 * GB), restore.pressure().restoreShardSizes().shardSizes());
+        assertEquals(Map.of(primary(state, "index-0").shardId(), 50 * GB), unplaceableRestoreShards(service));
     }
 
     public void testUnmetShortfallNotRecordedWhileFetchingShardSize() {
         var state = restoreState(1);
-        var restore = restoreDecider();
         var sizeInfo = new AtomicReference<>(SnapshotShardSizeInfo.EMPTY);
         var info = new AtomicReference<>(info(70 * GB - 1));
-        var service = service(restore.decider(), restore.pressure(), info, sizeInfo);
+        var service = service(info, sizeInfo);
 
         state = service.reroute(state, "size unknown", ActionListener.noop());
         assertTrue(primary(state, "index-0").unassigned());
@@ -288,7 +309,7 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
             UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA,
             primary(state, "index-0").unassignedInfo().lastAllocationStatus()
         );
-        assertTrue(restore.pressure().restoreShardSizes().shardSizes().isEmpty());
+        assertTrue(unplaceableRestoreShards(service).isEmpty());
     }
 
     public void testMonitorReroutesWhenStorageChangesWhileRestorePending() {

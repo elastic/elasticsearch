@@ -14,12 +14,8 @@ import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.xpack.stateless.SnapshotRestoreDiskPressure;
 
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.function.Predicate;
 
 /**
@@ -31,25 +27,8 @@ import java.util.function.Predicate;
  */
 public class StatelessExistingShardsAllocator implements ExistingShardsAllocator {
 
-    private final SnapshotRestoreDiskPressure diskPressure;
-
-    public StatelessExistingShardsAllocator(SnapshotRestoreDiskPressure diskPressure) {
-        this.diskPressure = diskPressure;
-    }
-
     @Override
-    public void beforeAllocation(RoutingAllocation allocation) {
-        // Run before DesiredBalanceReconciler drains unassigned so retainOnly sees all live restores.
-        Set<ShardId> live = new HashSet<>();
-        for (ShardRouting unassigned : allocation.routingNodes().unassigned()) {
-            if (unassigned.primary()
-                && unassigned.recoverySource() != null
-                && unassigned.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
-                live.add(unassigned.shardId());
-            }
-        }
-        diskPressure.retainOnly(live);
-    }
+    public void beforeAllocation(RoutingAllocation allocation) {}
 
     @Override
     public void afterPrimariesBeforeReplicas(RoutingAllocation allocation, Predicate<ShardRouting> isRelevantShardPredicate) {}

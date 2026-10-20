@@ -19,28 +19,20 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
 import org.elasticsearch.xpack.stateless.IndexingDiskController;
-import org.elasticsearch.xpack.stateless.SnapshotRestoreDiskPressure;
 
 /**
  * Prevents snapshot restores from being admitted without space for their local files and a node-wide reserve.
  * <p>
- * Records shard sizes on {@link SnapshotRestoreDiskPressure} only while reconciling a desired balance
- * ({@link RoutingAllocation#isReconciling()}), so autoscaling sees THROTTLEd restores. Simulations and explain
- * must not write — explain uses an immutable allocation with {@code isSimulating() == false}, so
- * {@code !isSimulating()} is not a safe write gate.
- * This decider clears an entry when a shard fits (YES) or its size is permanently unavailable.
- * Stale entries for cancelled restores are dropped by {@link StatelessExistingShardsAllocator#beforeAllocation}
- * via {@link SnapshotRestoreDiskPressure#retainOnly}.
+ * During desired-balance simulation, records each shard's disk feasibility in the allocation-scoped result. Explain and reconciliation do
+ * not mutate this result.
  */
 public class SnapshotRestoreAllocationDecider extends AllocationDecider {
     private static final String NAME = "stateless_snapshot_restore_storage";
 
     private final RelativeByteSizeValue indexingReservedDisk;
-    private final SnapshotRestoreDiskPressure diskPressure;
 
-    public SnapshotRestoreAllocationDecider(Settings settings, SnapshotRestoreDiskPressure diskPressure) {
+    public SnapshotRestoreAllocationDecider(Settings settings) {
         this.indexingReservedDisk = IndexingDiskController.INDEXING_DISK_RESERVED_BYTES_SETTING.get(settings);
-        this.diskPressure = diskPressure;
     }
 
     @Override
@@ -60,9 +52,6 @@ public class SnapshotRestoreAllocationDecider extends AllocationDecider {
             );
         }
         if (shardSize == ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE) {
-            if (allocation.isReconciling()) {
-                diskPressure.clear(shard.shardId());
-            }
             return allocation.decision(Decision.NO, NAME, "snapshot shard size is permanently unavailable");
         }
         var disk = allocation.clusterInfo().getNodeMostAvailableDiskUsages().get(node.nodeId());
@@ -88,12 +77,8 @@ public class SnapshotRestoreAllocationDecider extends AllocationDecider {
         long freeAfterRestore = disk.freeBytes() - committed - shardSize;
         long indexingReservedBytes = indexingReservedDisk.calculateValue(ByteSizeValue.ofBytes(disk.totalBytes()), null).getBytes();
         boolean fits = freeAfterRestore >= indexingReservedBytes;
-        if (allocation.isReconciling()) {
-            if (fits) {
-                diskPressure.clear(shard.shardId());
-            } else {
-                diskPressure.recordShardSize(shard.shardId(), shardSize);
-            }
+        if (allocation.isSimulating()) {
+            allocation.recordSnapshotRestoreDiskDecision(shard.shardId(), shardSize, fits);
         }
         return allocation.decision(
             fits ? Decision.YES : allocation.isSimulating() ? Decision.NO : Decision.THROTTLE,

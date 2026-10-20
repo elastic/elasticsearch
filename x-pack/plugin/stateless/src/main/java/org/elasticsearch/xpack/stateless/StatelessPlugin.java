@@ -580,7 +580,6 @@ public class StatelessPlugin extends Plugin
     private final boolean hasMasterRole;
     private final StatelessIndexSettingProvider statelessIndexSettingProvider;
     private final boolean hollowShardsEnabled;
-    private final SnapshotRestoreDiskPressure snapshotRestoreDiskPressure;
     private final SnapshotRestoreAllocationDecider snapshotRestoreAllocationDecider;
 
     private final SetOnce<CodecProviderFactory> codecProviderFactory = new SetOnce<>();
@@ -656,13 +655,7 @@ public class StatelessPlugin extends Plugin
         hasMasterRole = DiscoveryNode.isMasterNode(settings);
         statelessIndexSettingProvider = new StatelessIndexSettingProvider();
         hollowShardsEnabled = STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.get(settings);
-        snapshotRestoreDiskPressure = new SnapshotRestoreDiskPressure(settings);
-        snapshotRestoreAllocationDecider = new SnapshotRestoreAllocationDecider(settings, snapshotRestoreDiskPressure);
-    }
-
-    /** Unmet restore-disk demand from live allocation, for autoscaling */
-    public SnapshotRestoreDiskPressure getSnapshotRestoreDiskPressure() {
-        return snapshotRestoreDiskPressure;
+        snapshotRestoreAllocationDecider = new SnapshotRestoreAllocationDecider(settings);
     }
 
     @Override
@@ -1190,8 +1183,7 @@ public class StatelessPlugin extends Plugin
                     hollowShardsService,
                     searchShardSizeCollector,
                     memoryMetricsService,
-                    objectStoreService,
-                    snapshotRestoreDiskPressure
+                    objectStoreService
                 );
             }
         }
@@ -2098,7 +2090,7 @@ public class StatelessPlugin extends Plugin
 
     @Override
     public Map<String, ExistingShardsAllocator> getExistingShardsAllocators() {
-        return Map.of(StatelessPlugin.NAME, new StatelessExistingShardsAllocator(snapshotRestoreDiskPressure));
+        return Map.of(StatelessPlugin.NAME, new StatelessExistingShardsAllocator());
     }
 
     @Override

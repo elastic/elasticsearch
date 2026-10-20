@@ -74,6 +74,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.COMPLETIO
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EMBEDDING_FUNCTION;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.KNN_FUNCTION_V5;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ML_ANOMALIES;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.RERANK;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SEMANTIC_TEXT_FIELD_CAPS;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SOURCE_FIELD_MAPPING;
@@ -258,10 +259,20 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     public final void test() throws Throwable {
         try {
             shouldSkipTest(testName);
+            awaitReservedViews();
             doTest();
         } catch (Exception e) {
             ensureTestClustersAreOk(e);
             throw reworkException(e);
+        }
+    }
+
+    /**
+     * Reserved views are created asynchronously by the master after cluster startup, so wait for the ones the test relies on.
+     */
+    private void awaitReservedViews() throws Exception {
+        if (testCase.requiredCapabilities.contains(ML_ANOMALIES.capabilityName())) {
+            assertBusy(() -> adminClient().performRequest(new Request("GET", "/_query/view/.ml-anomalies")));
         }
     }
 
@@ -282,7 +293,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         return "views".equals(groupName)
             || "approximation".equals(groupName)
             || "unmapped-load".equals(groupName)
-            || "metadata-views-and-subqueries".equals(groupName);
+            || "unmapped-load-all".equals(groupName)
+            || "metadata-views-and-subqueries".equals(groupName)
+            || "named_subquery".equals(groupName);
     }
 
     private boolean allTestsInGroupNeedViews() {

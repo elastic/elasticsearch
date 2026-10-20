@@ -109,7 +109,7 @@ public abstract sealed class Int7uOSQVectorScorer extends RandomVectorScorer.Abs
     final float upperInterval;
     final float additionalCorrection;
     final int quantizedComponentSum;
-    final FixedSizeScratch scratch;
+    final FixedSizeSegmentScratch scratch;
     final AddressesScratch addrsScratch = new AddressesScratch();
     final OffsetsScratch offsetsScratch = new OffsetsScratch();
 
@@ -141,7 +141,7 @@ public abstract sealed class Int7uOSQVectorScorer extends RandomVectorScorer.Abs
         // Scratch sized to the full per-vector record (vector + corrections), so that the same
         // backing slice can be used for both the dot product (first vectorByteSize bytes) and the
         // corrections (trailing CORRECTIONS_BYTES bytes).
-        this.scratch = new FixedSizeScratch((int) vectorPitch);
+        this.scratch = new FixedSizeSegmentScratch((int) vectorPitch);
     }
 
     abstract float applyCorrections(float rawScore, MemorySegment correctionsSlice);

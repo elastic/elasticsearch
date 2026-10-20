@@ -32,6 +32,7 @@ public final class SimdJsonTestDocuments {
             docs,
             """
                 {}""","""
+                { }""","""
                 {"a":1}""", """
                 {"s":"hello"}""", """
                 {"b":true}""", """
@@ -41,6 +42,12 @@ public final class SimdJsonTestDocuments {
                 {"sci":1.5e10}""",  """
                 {"neg":-42}""", """
                 {"arr":[1,"s",true,null,3.14]}""", """
+                {"a":[]}""", """
+                {"a":{}}""", """
+                {"a":[ ]}""", """
+                {"a":[[]]}""", """
+                {"a":[{}]}""", """
+                {"a":[[],{},[1],{"b":[]}],"c":{}}""", """
                 {"o":{"inner":"val"}}""", """
                 {"esc":"line1\\nline2"}""", """
                 {"q":"say \\"hi\\""}""", """
@@ -196,13 +203,44 @@ public final class SimdJsonTestDocuments {
                 {"a":1,,"b":2}""", """
                 {"a":1:"b":2}""", """
                 {"a":[1,2}""",
+            // Trailing commas: a comma must be followed by another member or element.
+            """
+                {"a":1,}""", """
+                {"a":[1,]}""", """
+                {"a":{"b":1,}}""", """
+                {"a":[{"b":1,}]}""", """
+                {"a":[{"b":1},]}""", """
+                {"a":[[1,2,]]}""", """
+                {"a":[1,],"b":2}""", """
+                {"a":1,"b":2,}""", """
+                {"a":["x",]}""", """
+                {"a":[{},]}""", """
+                {"a":[[],]}""",
             // Non-standard number tokens (JsonReadFeature-gated in Jackson; simdjson has no
             // equivalent opt-in).
             """
                 {"a":NaN}""", """
                 {"a":Infinity}""", """
                 {"a":+1}""", """
-                {"a":0x1A}"""
+                {"a":0x1A}""",
+            // Truncated documents: input ends where the grammar still requires more tokens. These
+            // leave the structural index window exhausted mid-walk (see BitIndexes#getAndAdvance).
+            "{",
+            "{\"a\"",
+            "{\"a\":",
+            "{\"a\":1",
+            "{\"a\":1,",
+            "{\"a\":\"x",
+            "{\"a\":[",
+            "{\"a\":[1",
+            "{\"a\":[1,",
+            "{\"a\":{",
+            "{\"a\":{\"b\":1}",
+            "{\"a\":[{\"b\":1}",
+            "{\"a\":[{\"b\":1},",
+            // Truncated after a string containing structural characters, so the document's own
+            // structural indexes are not a prefix of what a shorter document would produce.
+            "{\"s\":\"}}}}}}}}}}\",\"y\":"
         );
         // end::noformat
         return List.copyOf(docs);

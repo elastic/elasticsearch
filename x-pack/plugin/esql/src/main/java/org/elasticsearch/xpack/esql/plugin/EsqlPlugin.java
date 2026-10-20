@@ -162,6 +162,7 @@ import org.elasticsearch.xpack.esql.session.EsqlLicenseChecker;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.GetViewAction;
+import org.elasticsearch.xpack.esql.view.MlAnomaliesView;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.elasticsearch.xpack.esql.view.RestDeleteViewAction;
 import org.elasticsearch.xpack.esql.view.RestGetViewAction;
@@ -640,7 +641,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 c.onQueryCompleted(metrics);
             }
         };
-
+        ViewService viewService = new ViewService(services.clusterService(), parser);
         DataSourceService dataSourceService = new DataSourceService(
             services.clusterService(),
             crudValidators,
@@ -689,7 +690,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 services.client(),
                 services.crossProjectModeDecider()
             ),
-            new ViewService(services.clusterService(), parser),
+            viewService,
+            new MlAnomaliesView(viewService),
             new FederationLicense(this::getLicenseState),
             dataSourceService,
             new DatasetService(services.clusterService(), crudValidators, dataSourceModule.externalSourceMetrics()),
@@ -743,8 +745,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 EsqlFlags.ESQL_STRING_LIKE_ON_INDEX,
                 EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD,
                 EsqlFlags.ESQL_MAX_BRANCH_COUNT,
+                EsqlFlags.ESQL_MAX_COMMAND_COUNT,
                 EsqlFlags.ESQL_MAX_BRANCH_LEVEL,
                 EsqlFlags.ESQL_MAX_BRANCH_COUNT_PER_MERGE,
+                EsqlFlags.ESQL_MAX_FILLNULL_FIELDS,
                 ViewService.MAX_VIEWS_COUNT_SETTING,
                 ViewService.MAX_VIEW_LENGTH_SETTING,
                 ViewResolver.MAX_VIEW_DEPTH_SETTING,
@@ -898,7 +902,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
         return List.of(
-            new NamedXContentRegistry.Entry(Metadata.ProjectCustom.class, new ParseField(ViewMetadata.TYPE), ViewMetadata::fromXContent),
             new NamedXContentRegistry.Entry(
                 Metadata.ProjectCustom.class,
                 new ParseField(DataSourceMetadata.TYPE),

@@ -82,7 +82,7 @@ public class ElasticInferenceServiceAuthorizationRequestTests extends ESTestCase
         );
 
         var httpRequest = RequestTests.getHttpRequestSync(request);
-        var header = httpRequest.httpRequestBase().getFirstHeader(X_ELASTIC_INFERENCE_ALLOWED_REGIONS_HEADER);
+        var header = httpRequest.httpRequest().getFirstHeader(X_ELASTIC_INFERENCE_ALLOWED_REGIONS_HEADER);
 
         assertThat(header.getValue(), equalTo("aws:eu-west-1"));
     }

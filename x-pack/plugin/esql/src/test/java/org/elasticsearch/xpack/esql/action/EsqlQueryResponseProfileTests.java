@@ -63,6 +63,7 @@ public class EsqlQueryResponseProfileTests extends AbstractWireSerializingTestCa
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
+                randomNonNegativeLong(),
                 randomList(10, EsqlQueryResponseProfileTests::randomOperatorStatus),
                 DriverSleeps.empty()
             )

@@ -31,6 +31,7 @@ import org.gradle.initialization.layout.BuildLayout;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -129,8 +130,9 @@ public abstract class NoticeTask extends DefaultTask {
             appendFile(new File(file.getParentFile(), name + "-LICENSE.txt"), name, "LICENSE", output);
         });
 
-        // Find any source files with "@notice" annotated license header
-        for (File sourceFile : sources.getFiles()) {
+        // Find any source files with "@notice" annotated license header. The file tree's iteration order is not stable
+        // between builds, so sort the files to make the generated notice reproducible.
+        for (File sourceFile : sortedSourceFiles(sources)) {
             boolean isPackageInfo = sourceFile.getName().equals("package-info.java");
             boolean foundNotice = false;
             boolean inNotice = false;
@@ -185,6 +187,14 @@ public abstract class NoticeTask extends DefaultTask {
 
     private List<File> existingLicenseDirs() {
         return getLicenseDirs().get().stream().filter(d -> d.exists()).collect(Collectors.toList());
+    }
+
+    /**
+     * Orders source files by file name, which is what their notices are listed under, and then by path to
+     * disambiguate files with the same name in different directories.
+     */
+    static List<File> sortedSourceFiles(FileCollection sources) {
+        return sources.getFiles().stream().sorted(Comparator.comparing(File::getName).thenComparing(File::getPath)).toList();
     }
 
     @InputFiles

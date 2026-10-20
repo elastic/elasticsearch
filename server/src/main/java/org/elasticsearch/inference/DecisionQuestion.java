@@ -47,7 +47,11 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  *   "choices": {"billing": "Charges, refunds, invoices", "other": null}
  * }
  *
- * {"type": "score", "instructions": "How angry is the customer?", "levels": ["calm", "annoyed", {"label": "furious", "description": "Threatens to leave"}]}</pre>
+ * {
+ *   "type": "score",
+ *   "instructions": "How angry is the customer?",
+ *   "levels": ["calm", "annoyed", {"label": "furious", "description": "Threatens to leave"}]
+ * }</pre>
  * {@code choices} maps each option to an optional description, {@code levels} are ordered from lowest to highest. A level is either a
  * plain label or an object with a {@code label} and an optional {@code description}.
  */

@@ -28,22 +28,25 @@ import static org.hamcrest.Matchers.is;
 public class DecisionQuestionsTests extends AbstractBWCSerializationTestCase<DecisionQuestions> {
 
     public void testParse_WithAllQuestionTypes() throws IOException {
-        var json =
-            """
-                {
-                    "is_complaint": {"type": "predicate", "instructions": "Is the customer complaining?"},
-                    "team": {
-                        "type": "choice",
-                        "instructions": "Which team should handle this?",
-                        "choices": {
-                            "billing": "Charges, refunds, invoices",
-                            "shipping": "Delivery status, delays, lost packages",
-                            "other": null
-                        }
-                    },
-                    "anger": {"type": "score", "instructions": "How angry is the customer?", "levels": ["calm", {"label": "annoyed", "description": "Mildly upset"}, "furious"]}
+        var json = """
+            {
+                "is_complaint": {"type": "predicate", "instructions": "Is the customer complaining?"},
+                "team": {
+                    "type": "choice",
+                    "instructions": "Which team should handle this?",
+                    "choices": {
+                        "billing": "Charges, refunds, invoices",
+                        "shipping": "Delivery status, delays, lost packages",
+                        "other": null
+                    }
+                },
+                "anger": {
+                    "type": "score",
+                    "instructions": "How angry is the customer?",
+                    "levels": ["calm", {"label": "annoyed", "description": "Mildly upset"}, "furious"]
                 }
-                """;
+            }
+            """;
 
         var choices = new LinkedHashMap<String, String>();
         choices.put("billing", "Charges, refunds, invoices");

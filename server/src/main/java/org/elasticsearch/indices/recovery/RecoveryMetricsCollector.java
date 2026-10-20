@@ -109,16 +109,16 @@ public class RecoveryMetricsCollector extends AbstractLifecycleComponent impleme
 
     /// @param telemetryProvider telemetry provider
     /// @param throttlingRecoveryService the [ThrottlingRecoveryService]
+    /// @param relativeTimeInMillisSupplier supplies relative time in milliseconds, must use the same clock as
+    /// [BlockedState#sinceRelativeMillis()] for the [BlockedState] returned by [ThrottlingRecoveryService#blockedState()]
     /// @param clusterSettings the cluster settings to watch for the incoming and outgoing recovery throttle settings
     /// @param maxHeap the node's max heap, from which the heap-based incoming and outgoing recovery limits are derived
-    /// @param relativeTimeInMillisSupplier supplies relative time in milliseconds; must use the same clock as
-    /// [BlockedState#sinceRelativeMillis()] for the [BlockedState] returned by [ThrottlingRecoveryService#blockedState()]
     public RecoveryMetricsCollector(
         TelemetryProvider telemetryProvider,
         ThrottlingRecoveryService throttlingRecoveryService,
+        LongSupplier relativeTimeInMillisSupplier,
         ClusterSettings clusterSettings,
-        ByteSizeValue maxHeap,
-        LongSupplier relativeTimeInMillisSupplier
+        ByteSizeValue maxHeap
     ) {
         this(
             telemetryProvider,

@@ -60,7 +60,7 @@ The general query performance advice in [optimize {{esql}} query performance](es
 - **File listings** are reused for a fixed time before {{es}} lists the storage again. A file added to or removed from the bucket becomes visible once the listing expires.
 - **Inferred schemas** are invalidated when the underlying file changes. 
   - {applies_to}`stack: experimental 9.6+` Additionally, a schema is reused for at most 20 minutes by default.
-- {applies_to}`stack: experimental 9.6+` **Footers of columnar files**, such as Parquet footers, are kept while queries keep reading them, and dropped 5 minutes after the last read by default. Footer entries are keyed by path and file length rather than by the object's version, so a file overwritten in place at the same byte length shares a cache entry with its predecessor. A write cap bounds how long a stale footer can be served: at the default TTL of 5 minutes, raw footer bytes are force-expired within 30 minutes regardless of how often they are read. Parsed footers can remain longer — up to approximately 60 minutes at the default — because a parsed-cache eviction may reload from raw bytes still within their own cap, starting a new parsed-entry clock.
+- {applies_to}`stack: experimental 9.6+` **Footers of columnar files**, such as Parquet footers, are kept while queries keep reading them, and dropped 5 minutes after the last read by default. Footer entries are keyed by the object's version, so a file overwritten in place is read with its new footer. Objects without a version aren't footer-cached.
 
 The data in your files is not cached. Every query reads the rows it needs from object storage, so running the same query again or refreshing a dashboard reads the data again.
 

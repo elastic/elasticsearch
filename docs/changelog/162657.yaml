@@ -1,0 +1,5 @@
+area: Authorization
+issues: []
+pr: 162657
+summary: Add built-in roles for the service accounts of Nightshift in Kibana
+type: enhancement

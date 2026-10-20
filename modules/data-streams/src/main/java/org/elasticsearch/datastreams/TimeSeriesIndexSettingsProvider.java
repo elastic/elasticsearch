@@ -37,6 +37,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_PATH;
 
@@ -49,10 +50,21 @@ public class TimeSeriesIndexSettingsProvider implements IndexSettingProvider {
 
     static final DateFormatter FORMATTER = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 
+    private static final Set<String> AFFECTED_SETTINGS = Set.of(
+        IndexSettings.TIME_SERIES_START_TIME.getKey(),
+        IndexSettings.TIME_SERIES_END_TIME.getKey(),
+        INDEX_ROUTING_PATH.getKey()
+    );
+
     private final CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory;
 
     TimeSeriesIndexSettingsProvider(CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory) {
         this.mapperServiceFactory = mapperServiceFactory;
+    }
+
+    @Override
+    public Set<String> affectedSettings() {
+        return AFFECTED_SETTINGS;
     }
 
     @Override

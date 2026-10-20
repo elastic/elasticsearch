@@ -527,3 +527,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.plugin.DataNodeRequestDatasetRebindIT
   method: testShardRequestCarryingAnExternalSourceIsReboundToTheRegisteredDataset
   issue: https://github.com/elastic/elasticsearch/issues/162689
+- class: org.elasticsearch.xpack.esql.plugin.EsqlQueryMetricsCollectorIT
+  method: testCsvReadNanosIsolatedBetweenQueries
+  issue: https://github.com/elastic/elasticsearch/issues/162715

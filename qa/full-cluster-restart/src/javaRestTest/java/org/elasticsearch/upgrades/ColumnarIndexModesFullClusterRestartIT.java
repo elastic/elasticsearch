@@ -16,6 +16,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
@@ -23,8 +24,10 @@ import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 
@@ -52,14 +55,27 @@ public class ColumnarIndexModesFullClusterRestartIT extends ParameterizedFullClu
     private static final int METHODS = 5;
     private static final Instant BASE_TIMESTAMP = Instant.parse("2024-01-01T00:00:00Z");
 
+    private static String licenseType;
+
+    /**
+     * The license of the cluster, which columnar indices react to: under basic they keep a stored source. It is picked when the cluster
+     * starts, as static initializers run before there is a random seed, and kept so the upgraded cluster has the license of the old one.
+     */
+    private static synchronized String licenseType() {
+        if (licenseType == null) {
+            licenseType = randomFrom("basic", "trial");
+        }
+        return licenseType;
+    }
+
     @ClassRule
     public static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .version(OLD_CLUSTER_VERSION, isOldClusterDetachedVersion())
         // Temporary: upgrade tests turn the flag off by default, but the codec has to be on for the upgraded cluster to write ColumNAR
         .feature(FeatureFlag.COLUMNAR_CODEC)
-        .setting("xpack.security.enabled", "false")
-        .setting("xpack.license.self_generated.type", "trial")
+        .setting("xpack.security.enabled", "true")
+        .setting("xpack.license.self_generated.type", ColumnarIndexModesFullClusterRestartIT::licenseType)
         .setting("xpack.ml.enabled", "false")
         .build();
 
@@ -72,6 +88,12 @@ public class ColumnarIndexModesFullClusterRestartIT extends ParameterizedFullClu
         return cluster;
     }
 
+    @Override
+    protected Settings restClientSettings() {
+        String token = "Basic " + Base64.getEncoder().encodeToString("test_user:x-pack-test-password".getBytes(StandardCharsets.UTF_8));
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
+    }
+
     public void testColumnar() throws Exception {
         testDataStream("fcr-columnar", "columnar");
     }
@@ -81,6 +103,9 @@ public class ColumnarIndexModesFullClusterRestartIT extends ParameterizedFullClu
     }
 
     private void testDataStream(String dataStream, String indexMode) throws Exception {
+        Map<String, Object> license = entityAsMap(client().performRequest(new Request("GET", "/_license")));
+        assertThat(ObjectPath.evaluate(license, "license.type"), equalTo(licenseType()));
+        logger.info("running under a [{}] license", licenseType());
         if (isRunningAgainstOldCluster()) {
             assumeTrue(
                 "the old cluster does not support columnar index modes",

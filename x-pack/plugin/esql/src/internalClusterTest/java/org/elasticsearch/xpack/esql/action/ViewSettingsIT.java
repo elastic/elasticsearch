@@ -22,6 +22,7 @@ import org.junit.After;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -253,7 +254,7 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
      * in the analyzer before: the reference to an unmapped field resolves one pass after the identical conversion of the WHERE.
      */
     public void testLoadAllSameConversionResolvedOnLaterPassOverViewAndIndex() {
-        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_VIEWS", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_VIEWS.isEnabled());
         setupUnmappedIndices();
         assertAcked(createView("filtered_view", "FROM view_source | WHERE id > 0"));
         try (var resp = run("""
@@ -268,7 +269,7 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testLoadAllViewOutputsNullUnmappedFieldsAndCallerPatternLoadsThem() {
-        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_VIEWS", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_VIEWS.isEnabled());
         setupUnmappedIndices();
         assertAcked(createView("filtered_view", "FROM view_source | WHERE id > 0"));
         try (var resp = run("""
@@ -278,7 +279,9 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
             """)) {
             assertThat(columnNames(resp), equalTo(List.of("id", "_unmapped_fields")));
             // The caller's own index returns its unmapped field, the view's rows get none.
-            assertThat(getValuesList(resp).stream().map(row -> row.get(1) == null).toList(), equalTo(List.of(true, true, false)));
+            List<List<Object>> rows = getValuesList(resp);
+            assertThat(rows.stream().map(row -> row.get(1) == null).toList(), equalTo(List.of(true, true, false)));
+            assertThat(rows.get(2).get(1), equalTo(Map.of("extra", "e3")));
         }
     }
 

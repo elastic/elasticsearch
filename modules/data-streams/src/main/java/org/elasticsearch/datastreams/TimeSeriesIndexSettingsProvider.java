@@ -70,7 +70,8 @@ public class TimeSeriesIndexSettingsProvider implements IndexSettingProvider {
         IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(),
         IndexSettings.SYNTHETIC_ID.getKey(),
         INDEX_DIMENSIONS.getKey(),
-        INDEX_ROUTING_PATH.getKey()
+        INDEX_ROUTING_PATH.getKey(),
+        MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey()
     );
 
     private final CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory;

@@ -22,7 +22,6 @@ import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineBatch;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
@@ -181,9 +180,7 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
                 final List<IndexableField> fields = cursor.fields();
 
                 // LuceneBinaryColumn stores field names as BytesRef, so check binaryValue(), not stringValue().
-                final BytesRef expected = ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled()
-                    ? new BytesRef("\u0001\u0008toolong")
-                    : new BytesRef("toolong");
+                final BytesRef expected = new BytesRef("\u0001\u0008toolong");
                 assertTrue(
                     "f binary DV should contain the value when ignore_above is a no-op",
                     fields.stream().anyMatch(fld -> "f".equals(fld.name()) && expected.equals(fld.binaryValue()))
@@ -794,8 +791,6 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
     }
 
     public void testSingleValuedColumnarKeywordBatchWritesTheBareValue() throws IOException {
-        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
-
         final String mapping = """
             {
               "dynamic": "strict",

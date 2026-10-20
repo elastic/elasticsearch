@@ -17,7 +17,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -671,17 +670,11 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
     private static Settings columnarCodecSettings() {
         return Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), true)
             .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
             .build();
     }
 
-    private void assumeColumnarCodecEnabled() {
-        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
-    }
-
     public void testColumnarCodecSingleValue() throws IOException {
-        assumeColumnarCodecEnabled();
         final boolean multiValue = randomBoolean();
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "keyword");
@@ -701,7 +694,6 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
     }
 
     public void testColumnarCodecNoIndexDocValuesOnly() throws IOException {
-        assumeColumnarCodecEnabled();
         final boolean multiValue = randomBoolean();
         // index:false, so the doc-values column is the only output and cannot ride along with a terms column.
         assertColumnarMatchesXContent(mapping(b -> {
@@ -720,7 +712,6 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
     }
 
     public void testColumnarCodecIgnoreAbove() throws IOException {
-        assumeColumnarCodecEnabled();
         final boolean multiValue = randomBoolean();
         // A value that trips ignore_above writes no doc value, and deoptimizes the shared terms column it would have ridden on.
         assertColumnarMatchesXContent(mapping(b -> {
@@ -740,7 +731,6 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
     }
 
     public void testColumnarCodecNullValueSubstitution() throws IOException {
-        assumeColumnarCodecEnabled();
         final boolean multiValue = randomBoolean();
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "keyword").field("null_value", "NULL");
@@ -759,7 +749,6 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
     }
 
     public void testColumnarCodecScalarCoercions() throws IOException {
-        assumeColumnarCodecEnabled();
         final boolean multiValue = randomBoolean();
         // A non-STRING source column is built through the shared builder, whichever framing the doc values take.
         assertColumnarMatchesXContent(mapping(b -> {
@@ -779,7 +768,6 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
     }
 
     public void testColumnarCodecArrayOrder() throws IOException {
-        assumeColumnarCodecEnabled();
         // The multi-valued arm, where the payload replaces both the inline-null blob and its .counts companion.
         assertColumnarMatchesXContent(
             mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),

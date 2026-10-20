@@ -520,8 +520,9 @@ public class LiveVersionMapTests extends ESTestCase {
     /**
      * A concurrent indexing op can flip the map from safe to unsafe after a caller has already observed it as safe.
      * The archived version for an unrelated id is still the correct one, but {@link LiveVersionMap#getUnderLockOrUnsafe}
-     * returns {@link LiveVersionMap#VERSION_MAP_UNSAFE} instead of that entry. The engine uses the sentinel to advance
-     * {@code lastUnsafeSegmentGenerationForGets} and resolve the version from Lucene, rather than trusting the archive.
+     * returns {@link LiveVersionMap#VERSION_MAP_UNSAFE} instead of that entry. On the sentinel, the engine recovers rather than
+     * trusting the archive: it refreshes (a flush in stateless), advances {@code lastUnsafeSegmentGenerationForGets} to the
+     * resulting commit, and resolves the version from Lucene.
      */
     public void testArchiveUnsafeGateDropsValidEntryAfterConcurrentFlip() throws IOException {
         final TestArchive archive = new TestArchive();

@@ -1169,35 +1169,17 @@ public class InternalEngine extends Engine {
         // Just the above recovery path is therefore insufficient for stateless — so we don't trust the archive when unsafe.
         VersionValue v = versionMap.getUnderLockOrUnsafe(id);
         if (v == LiveVersionMap.VERSION_MAP_UNSAFE) {
-            // The id is not in current or old, so a refresh already moved it into the archive. Do not trust that
-            // archive entry. Resolve the version from Lucene / the search tier by returning null.
+            // The map became (or stayed) unsafe, so we could not trust the archive. Recover (internal refresh + advance
+            // lastUnsafeSegmentGenerationForGets) unless the pre-check already did it for this call, then force resolving the version
+            // from Lucene / the search tier by returning null.
             if (recovered) {
-                // The pre-check already refreshed and advanced lastUnsafeSegmentGenerationForGets.
                 return null;
             } else {
-                // That refresh may only be local, so the search tier cannot see the doc until we advance the
-                // generation it waits for. Skip another refresh: the doc is already in the last local commit.
-                advanceUnsafeSegmentGenerationForGets();
+                recoverFromUnsafe();
                 return null;
             }
         }
         return v;
-    }
-
-    /**
-     * Record the latest local commit as the generation a search shard must wait for, without refreshing.
-     * Called when the version map flips unsafe after {@link #getVersionFromMap} already observed it as safe.
-     */
-    private void advanceUnsafeSegmentGenerationForGets() {
-        synchronized (versionMap) {
-            if (versionMap.isUnsafe()) {
-                // The doc is already in a local commit (otherwise it would still be in current or old).
-                // Point the search tier at that generation. A newer committed generation is also fine.
-                lastUnsafeSegmentGenerationForGets.set(lastCommittedSegmentInfos.getGeneration());
-            }
-            // Switch later indexing back to recording versions. The archive can still be unsafe after this.
-            versionMap.enforceSafeAccess();
-        }
     }
 
     private void recoverFromUnsafe() {

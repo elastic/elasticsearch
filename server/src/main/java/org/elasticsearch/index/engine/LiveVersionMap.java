@@ -346,8 +346,8 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
     /**
      * Like {@link #getUnderLock(BytesRef)} but, while the version map or its archive is unsafe, returns the
      * {@link #VERSION_MAP_UNSAFE} sentinel instead of consulting the archive (which may hold a stale version). Callers must
-     * compare the result against {@link #VERSION_MAP_UNSAFE} by identity and resolve the version from Lucene rather than
-     * trusting it. Used by the engine version-resolution path.
+     * compare the result against {@link #VERSION_MAP_UNSAFE} by identity and recover (refresh + resolve from Lucene) rather
+     * than trusting it. Used by the engine version-resolution path.
      */
     VersionValue getUnderLockOrUnsafe(final BytesRef uid) {
         return getUnderLock(uid, maps, true);

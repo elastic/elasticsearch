@@ -220,18 +220,8 @@ public class LongBytesRefBlockHashTests extends BlockHashTestCase {
 
     /**
      * Adds the page and checks that every position was collected into exactly the groups of its key combinations.
-     * <p>
-     *     A multivalued position fans out to one group id per long and bytes combination. The hash emits group ids in
-     *     chunks of {@code emitBatchSize} and may emit a chunk partway through a position, sending the rest of that
-     *     position's group ids in the next chunk, as
-     *     {@link org.elasticsearch.compute.aggregation.GroupingAggregatorFunction.AddInput} allows. So a chunk can hold
-     *     only some of a position's group ids, and the remaining combinations may not be in the hash yet.
-     *     Checking each chunk as it arrives would report those combinations as missing. Instead, group ids are
-     *     collected per position across all chunks and checked only after the whole page has been added.
-     * </p>
-     * <p>
-     *     A group id must not be emitted twice for the same position, since aggregations would count it twice.
-     * </p>
+     * A chunk may end partway through a multivalued position, so group ids are collected across all chunks and
+     * checked once the whole page has been added.
      * @return the number of emitted chunks
      */
     private static int addAndAssertGroupIds(LongBytesRefBlockHash hash, LongBlock longs, BytesRefBlock bytes) {

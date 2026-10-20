@@ -136,6 +136,7 @@ esac
         GH_TOKEN: "token",
         PROMCHECK_VER: VERSION,
         PROMCHECK_TEST_INSTANCE_TIMEOUT: "900",
+        GRADLEW: GRADLEW,
         GITHUB_PR_TARGET_BRANCH: "main",
         BUILDKITE_BUILD_URL: "",
         BUILDKITE_JOB_ID: "",
@@ -160,6 +161,10 @@ esac
       args: read(join(dir, "args.log")),
     };
   }
+
+  // The pre-command hook's GRADLEW, whose options the script reuses.
+  const GRADLEW =
+    "./gradlew --console=plain --parallel --scan --build-cache --no-watch-fs -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/";
 
   const STABLE: Case[] = [
     ["001", "match", "up"],
@@ -239,7 +244,7 @@ esac
       expect(args).toContain("--output json");
       expect(args).toContain(`--concurrency ${cpus} --`);
       expect(args).toMatch(
-        / -- --build-cache --scan --configuration-cache -I \S+\/\.ci\/init\.gradle -Dorg\.elasticsearch\.build\.cache\.url=https:\/\/gradle-enterprise\.elastic\.co\/cache\/ /,
+        / -- --console=plain --parallel --scan --build-cache --no-watch-fs -Dorg\.elasticsearch\.build\.cache\.url=https:\/\/gradle-enterprise\.elastic\.co\/cache\/ --configuration-cache -I \S+\/\.ci\/init\.gradle /,
       );
       expect(args).toContain(` -Dtests.es.node.processors=${cpus} `);
       expect(args).toMatch(/ -Dtests\.heap\.size=[1-9]\d*m /);
@@ -555,6 +560,22 @@ exec "${JQ}" "$@"
     expect(r.status).toBe(1);
     expect(r.output).toContain("PROMCHECK_TEST_INSTANCE_TIMEOUT must be a positive integer: soon");
     expect(r.agent).toBe("");
+    const noGradlew = run(STABLE, STABLE, { env: { GRADLEW: "" } });
+    expect(noGradlew.status).toBe(1);
+    expect(noGradlew.output).toContain("GRADLEW must be set");
+    const badConcurrency = run(STABLE, STABLE, { env: { PROMCHECK_CONCURRENCY: "lots" } });
+    expect(badConcurrency.status).toBe(1);
+    expect(badConcurrency.output).toContain("PROMCHECK_CONCURRENCY must be a positive integer: lots");
+  });
+
+  test("PROMCHECK_CONCURRENCY overrides the CPU count for promcheck but not for the node", () => {
+    const cpus = execFileSync("getconf", ["_NPROCESSORS_ONLN"]).toString().trim();
+    const r = run(STABLE, STABLE, { env: { PROMCHECK_CONCURRENCY: "3" } });
+    expect(r.status).toBe(0);
+    for (const args of r.args.trim().split("\n")) {
+      expect(args).toContain("--concurrency 3 --");
+      expect(args).toContain(` -Dtests.es.node.processors=${cpus} `);
+    }
   });
 
   test("stderr is streamed to the console and saved separately from JSONL", () => {

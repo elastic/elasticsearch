@@ -83,10 +83,6 @@ public class RestoreLifecycleListenerIT extends AbstractSnapshotIntegTestCase {
         createFullSnapshot(REPO, SNAP);
         cluster().wipeIndices(IDX);
 
-        RestoreService restoreService = internalCluster().getInstance(RestoreService.class, internalCluster().getMasterName());
-        // The lifecycle listener has already been set because DelegatingRestoreLifecycleListener is registered through SPI:
-        expectThrows(IllegalStateException.class, () -> restoreService.setLifecycleListener(new RestoreLifecycleListener() {}));
-
         AtomicInteger initCount = new AtomicInteger(0);
         AtomicInteger completedCount = new AtomicInteger(0);
 

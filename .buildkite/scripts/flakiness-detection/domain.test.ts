@@ -17,7 +17,6 @@ describe("matchedBlockingLabels", () => {
   });
 
   test("empty for a PR with no labels at all", () => {
-    // Also the manually-triggered pipeline, which has no PR and so never sets the variable.
     expect(matchedBlockingLabels("")).toEqual([]);
     expect(matchedBlockingLabels(",, ,")).toEqual([]);
   });

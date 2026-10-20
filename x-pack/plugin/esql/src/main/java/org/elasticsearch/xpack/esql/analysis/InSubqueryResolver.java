@@ -46,7 +46,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -265,13 +264,15 @@ public class InSubqueryResolver {
      * lower {@link Eval} so the LHS field is in scope for the {@link MarkJoin}. When no such dependency exists, a single {@link MarkJoin}
      * is stacked below the whole {@link Eval} regardless of how many aliases it defines.
      * <p>
+     * Overwrites are appended, matching ordinary EVAL: {@code EVAL a = 1, z = a + 1, a = y IN (sub)} keeps both {@code a} aliases in
+     * {@code fields()} so {@code NamedExpressions#mergeOutputAttributes mergeOutputAttributes} emits the last definition at the end.
+     * <p>
      * Make this public, so that {@link ViewResolver} can drive IN subquery resolution. Every node the
      * rewrite adds is added to {@code planSize} as soon as it is created, so the rewrite stops at the first IN subquery that exceeds it.
      */
     public static LogicalPlan resolveInSubqueryInEval(Eval eval, PlanSize planSize) {
-        // LinkedHashMap preserves insertion order (needed when flushing into an Eval) and exposes
-        // its keySet() as the name-lookup set — a single structure instead of a parallel List+Set pair.
-        LinkedHashMap<String, Alias> pending = new LinkedHashMap<>();
+        // List, not a name-keyed map: EVAL keeps duplicate names, let the existing planner rules and mergeOutputAttributes to handle them.
+        List<Alias> pending = new ArrayList<>();
         LogicalPlan current = eval.child();
         boolean changed = false;
 
@@ -289,22 +290,19 @@ public class InSubqueryResolver {
             List<Alias> fieldConsts = new ArrayList<>(allConsts.subList(constsBefore, allConsts.size()));
 
             if (fieldMarks.isEmpty()) {
-                // No InSubquery in this field — accumulate as-is.
-                pending.put(field.name(), field);
+                pending.add(field);
                 continue;
             }
 
             changed = true;
 
-            // Flush accumulated fields below the MarkJoin(s) when either:
-            // (a) a mark's left field references an alias produced by a preceding field (e.g. EVAL a = x+1, b = a IN (sub)), or
-            // (b) this field's name collides with an existing pending entry (e.g. EVAL a = 1, z = a+1, a = y IN (sub)) —
-            // without the flush, pending.put() would silently overwrite the prior alias, losing its NameId from the plan
-            // while other pending fields still reference it, producing dangling references.
-            if (pending.isEmpty() == false && (referencesPendingName(fieldMarks, pending.keySet()) || pending.containsKey(field.name()))) {
+            // Flush accumulated fields below the MarkJoin(s) only when a mark's left field references an alias produced by a preceding
+            // field (e.g. EVAL a = x+1, b = a IN (sub)). A later field that reuses a pending name is appended, not flushed — ordinary EVAL
+            // already keeps both aliases.
+            if (pending.isEmpty() == false && referencesPendingName(fieldMarks, pendingNames(pending))) {
                 planSize.add(1);
-                current = new Eval(eval.source(), current, new ArrayList<>(pending.values()));
-                pending = new LinkedHashMap<>();
+                current = new Eval(eval.source(), current, pending);
+                pending = new ArrayList<>();
             }
 
             // Materialize any foldable LHS constants (e.g. EVAL b = 10001 IN (sub)).
@@ -320,7 +318,7 @@ public class InSubqueryResolver {
 
             // Re-create the alias with the rewritten expression, preserving the original NameId so
             // downstream references (e.g. a later WHERE m) resolve to the right column.
-            pending.put(field.name(), new Alias(field.source(), field.name(), rewritten, field.id(), field.synthetic()));
+            pending.add(new Alias(field.source(), field.name(), rewritten, field.id(), field.synthetic()));
         }
 
         if (changed == false) {
@@ -328,7 +326,7 @@ public class InSubqueryResolver {
         }
 
         if (pending.isEmpty() == false) {
-            current = new Eval(eval.source(), current, new ArrayList<>(pending.values()));
+            current = new Eval(eval.source(), current, pending);
         }
         return current;
     }
@@ -450,6 +448,15 @@ public class InSubqueryResolver {
             }
         }
         return null;
+    }
+
+    /** Names of aliases still waiting to be flushed into an {@link Eval}. Used only for {@link #referencesPendingName}. */
+    private static Set<String> pendingNames(List<Alias> pending) {
+        Set<String> names = new HashSet<>(pending.size());
+        for (Alias alias : pending) {
+            names.add(alias.name());
+        }
+        return names;
     }
 
     /**

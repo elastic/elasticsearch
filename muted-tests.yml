@@ -519,3 +519,6 @@ tests:
 - class: org.elasticsearch.action.bulk.BulkItemResponseFailureWireSerializingTests
   method: testFailureStoreCauseIsSuppressedForOlderVersions
   issue: https://github.com/elastic/elasticsearch/issues/162587
+- class: org.elasticsearch.xpack.esql.datasource.parquet.PrefetchLatencySimulationTests
+  method: testPrefetchFailureEntersAndSuccessfulProbeExitsProbeMode
+  issue: https://github.com/elastic/elasticsearch/issues/162589

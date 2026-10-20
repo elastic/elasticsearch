@@ -19,6 +19,8 @@
 #   BUILDKITE_JOB_ID                 Job anchor added to the build link.
 # When buildkite-agent is available, the report is annotated and saved as PR-comment
 # metadata for the build bot (the pipeline enables ELASTIC_PR_COMMENTS_ENABLED).
+# With the argument notify, it only posts the running note as an early PR comment and exits;
+# that needs PROMCHECK_VER alone.
 
 # Requires Bash 4.4+ (the Buildkite agent runs Linux).
 set -euo pipefail
@@ -33,11 +35,27 @@ die() {
   exit 1
 }
 
+# What reporting needs: the annotation and PR comment, and the links in them. The build link points at this job when
+# the argument is true.
+configure_report() {
+  local link_job="$1" build_url
+  [[ -n "${PROMCHECK_VER:-}" ]] || die "PROMCHECK_VER must be set"
+  declare -gr RELEASE_URL="https://github.com/elastic/promcheck/releases/tag/v$PROMCHECK_VER"
+  declare -gr ANNOTATION_CONTEXT="ctx-validate-prometheus-compliance"
+  declare -gr PR_COMMENT_KEY="pr_comment:validate-prometheus-compliance:body"
+  build_url="${BUILDKITE_BUILD_URL:-}"
+  if [[ "$link_job" == true && -n "$build_url" && -n "${BUILDKITE_JOB_ID:-}" ]]; then
+    build_url+="#$BUILDKITE_JOB_ID"
+  fi
+  declare -gr BUILD_URL="$build_url"
+}
+
 configure() {
+  configure_report true
   declare -gr CORPUS=grafanalabs-top100
 
-  local var cmd build_url
-  for var in PROMCHECK_VER PROMCHECK_TEST_INSTANCE_TIMEOUT GITHUB_PR_TARGET_BRANCH GRADLEW; do
+  local var cmd
+  for var in PROMCHECK_TEST_INSTANCE_TIMEOUT GITHUB_PR_TARGET_BRANCH GRADLEW; do
     [[ -n "${!var:-}" ]] || die "$var must be set"
   done
   for cmd in curl getconf git jq tee sort mkfifo; do
@@ -52,9 +70,6 @@ configure() {
   fi
 
   declare -gr GITHUB_API_TOKEN="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
-  declare -gr RELEASE_URL="https://github.com/elastic/promcheck/releases/tag/v$PROMCHECK_VER"
-  declare -gr ANNOTATION_CONTEXT="ctx-validate-prometheus-compliance"
-  declare -gr PR_COMMENT_KEY="pr_comment:validate-prometheus-compliance:body"
   # Changed queries listed per section; the full list is the changes artifact.
   declare -gr MAX_ROWS=50
   declare -gr MAX_QUERY_CHARS=200
@@ -90,13 +105,6 @@ configure() {
   declare -gr REPORT_FILE="$OUTPUT_DIR/@$CORPUS-report.md"
   # Artifacts keep their absolute path without the leading slash.
   declare -gr CHANGES_LINK="<a href=\"artifact://${CHANGES_FILE#/}\">${CHANGES_FILE##*/}</a>"
-
-  # The exact job this comparison ran in.
-  build_url="${BUILDKITE_BUILD_URL:-}"
-  if [[ -n "$build_url" && -n "${BUILDKITE_JOB_ID:-}" ]]; then
-    build_url+="#$BUILDKITE_JOB_ID"
-  fi
-  declare -gr BUILD_URL="$build_url"
 }
 
 # Shows the report on the build and sets it as pr_comment meta-data, which the Buildkite build bot posts in its PR
@@ -121,6 +129,24 @@ report() {
     printf '[Buildkite run](%s) | ' "$BUILD_URL"
   fi
   printf '[promcheck v%s](%s)\n' "$PROMCHECK_VER" "$RELEASE_URL"
+}
+
+# The note shown while the comparison runs. The final report reuses the same annotation context and comment key, so
+# it replaces this note instead of adding a second one.
+announce_running() {
+  annotate info "$(printf '**Promcheck running**\n\nChecking Prometheus/Elasticsearch mismatches on the merge base and this PR with promcheck v%s. The verdict replaces this note when both runs finish.\n\n' "$PROMCHECK_VER" | report)"
+}
+
+# The pipeline's first step: posts the running note as the PR comment right away. The build bot comments early once
+# the job named by pr_comment:early_comment_job_id finishes, as the performance benchmark pipeline does, instead of
+# when the whole build ends.
+notify() {
+  configure_report false
+  announce_running
+  if command -v buildkite-agent >/dev/null 2>&1; then
+    buildkite-agent meta-data set pr_comment:early_comment_job_id "${BUILDKITE_JOB_ID:-}" \
+      || log "Failed to request an early PR comment"
+  fi
 }
 
 # The comparison could not run. It is reported like a result rather than failing the PR.
@@ -405,10 +431,8 @@ main() (
   rm -rf -- "$WORK_DIR" "$OUTPUT_DIR"
   mkdir -p -- "$WORK_DIR" "$OUTPUT_DIR"
 
-  # Show up on the build as soon as the comparison starts. The final
-  # report reuses the same annotation context and comment key, so it
-  # replaces this note instead of adding a second one.
-  annotate info "$(printf '**Promcheck running**\n\nChecking Prometheus/Elasticsearch mismatches on the merge base and this PR with promcheck v%s. The verdict replaces this note when both runs finish.\n\n' "$PROMCHECK_VER" | report)"
+  # Show up on the build as soon as the comparison starts.
+  announce_running
 
   log "--- Downloading promcheck v$PROMCHECK_VER"
   release=$(
@@ -463,4 +487,8 @@ main() (
   exit "$status"
 )
 
-main "$@"
+if [[ "${1:-}" == notify ]]; then
+  notify
+else
+  main
+fi

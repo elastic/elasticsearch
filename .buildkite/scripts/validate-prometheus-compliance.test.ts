@@ -122,12 +122,12 @@ esac
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
   /** Runs the script with the given control and test logs, returning what CI would see. */
-  function run(control: Case[], tested: Case[], opts: { controlRc?: number; testRc?: number; controlLog?: string; testLog?: string; env?: Record<string, string> } = {}) {
+  function run(control: Case[], tested: Case[], opts: { controlRc?: number; testRc?: number; controlLog?: string; testLog?: string; env?: Record<string, string>; args?: string[] } = {}) {
     writeFileSync(join(dir, "control.log"), opts.controlLog ?? promcheckLog(control));
     writeFileSync(join(dir, "test.log"), opts.testLog ?? promcheckLog(tested));
     if (opts.controlRc !== undefined) writeFileSync(join(dir, "control.rc"), String(opts.controlRc));
     if (opts.testRc !== undefined) writeFileSync(join(dir, "test.rc"), String(opts.testRc));
-    const result = spawnSync("bash", [SCRIPT], {
+    const result = spawnSync("bash", [SCRIPT, ...(opts.args ?? [])], {
       cwd: repo,
       env: {
         ...process.env,
@@ -553,6 +553,30 @@ exec "${JQ}" "$@"
     expect(r.stderr).toContain("Failed to annotate the build");
     expect(r.stderr).toContain("Failed to set the PR comment");
     expect(r.stdout).not.toContain("Failed to");
+  });
+
+  test("notify posts only the running note and asks the build bot to comment early", () => {
+    const r = run(STABLE, STABLE, {
+      args: ["notify"],
+      env: {
+        GH_TOKEN: "",
+        GRADLEW: "",
+        GITHUB_PR_TARGET_BRANCH: "",
+        BUILDKITE_BUILD_URL: "https://buildkite.example/builds/7",
+        BUILDKITE_JOB_ID: "notify-job",
+      },
+    });
+    expect(r.status).toBe(0);
+    expect(r.args).toBe("");
+    expect(r.agent).toContain("== meta-data set pr_comment:validate-prometheus-compliance:body");
+    expect(r.agent).toContain("<!-- promcheck-pr-report -->\n## Promcheck\n\n**Promcheck running**");
+    // The note links the build, not the short-lived notify job.
+    expect(r.agent).toContain("[Buildkite run](https://buildkite.example/builds/7) | ");
+    expect(r.agent).not.toContain("#notify-job");
+    expect(r.agent).toContain("== meta-data set pr_comment:early_comment_job_id notify-job");
+    expect(r.agent.indexOf("pr_comment:early_comment_job_id")).toBeGreaterThan(
+      r.agent.indexOf("pr_comment:validate-prometheus-compliance:body"),
+    );
   });
 
   test("a misconfigured pipeline fails the job", () => {

@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper.vectors;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.VectorScorer;
+import org.elasticsearch.index.codec.vectors.SequentialVectorValues;
 
 import java.io.IOException;
 
@@ -19,7 +20,7 @@ import java.io.IOException;
  * Provides the denormalized vectors. Float vectors stored with cosine similarity are normalized by default. So when reading the value
  * for scripts, we to denormalize them.
  */
-public class DenormalizedCosineFloatVectorValues extends FloatVectorValues {
+public class DenormalizedCosineFloatVectorValues extends FloatVectorValues implements SequentialVectorValues {
 
     private final FloatVectorValues in;
     private final NumericDocValues magnitudeIn;
@@ -52,6 +53,12 @@ public class DenormalizedCosineFloatVectorValues extends FloatVectorValues {
     @Override
     public FloatVectorValues copy() throws IOException {
         return in.copy();
+    }
+
+    @Override
+    public FloatVectorValues sequential() throws IOException {
+        FloatVectorValues sequential = SequentialVectorValues.sequential(in);
+        return sequential == in ? this : new DenormalizedCosineFloatVectorValues(sequential, magnitudeIn);
     }
 
     @Override

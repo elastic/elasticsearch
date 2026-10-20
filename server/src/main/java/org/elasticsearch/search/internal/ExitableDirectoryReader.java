@@ -32,6 +32,7 @@ import org.apache.lucene.search.suggest.document.CompletionTerms;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
+import org.elasticsearch.index.codec.vectors.SequentialVectorValues;
 import org.elasticsearch.search.vectors.BulkKnnCollector;
 
 import java.io.IOException;
@@ -584,7 +585,7 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
     }
 
-    private static class ExitableFloatVectorValues extends FilterFloatVectorValues {
+    private static class ExitableFloatVectorValues extends FilterFloatVectorValues implements SequentialVectorValues {
         protected final QueryCancellation queryCancellation;
 
         ExitableFloatVectorValues(FloatVectorValues vectorValues, QueryCancellation queryCancellation) {
@@ -655,6 +656,12 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         @Override
         public FloatVectorValues copy() throws IOException {
             return new ExitableFloatVectorValues(in.copy(), queryCancellation);
+        }
+
+        @Override
+        public FloatVectorValues sequential() throws IOException {
+            FloatVectorValues sequential = SequentialVectorValues.sequential(in);
+            return sequential == in ? this : new ExitableFloatVectorValues(sequential, queryCancellation);
         }
     }
 

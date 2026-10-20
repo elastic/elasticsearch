@@ -575,7 +575,8 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
 
     /**
      * Sends ES|QL lookup requests straight to the remote cluster port and checks that the shard each one targets must belong to
-     * an index authorized through the request's index pattern, as for other shard-level requests.
+     * an index authorized through the request's index pattern, as for other shard-level requests. Covers both {@code LOOKUP JOIN}
+     * and {@code ENRICH}; an enrich request's index pattern is always the index name of its shard, so only the index UUID can differ.
      */
     public void testEsqlLookupRequestForShardOutsideRequestedIndicesIsRejected() throws Exception {
         final Map<String, Object> crossClusterApiKeyMap = createCrossClusterAccessApiKey(adminClient(), """
@@ -611,7 +612,12 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
                 "node",
                 threadPool,
                 (String) crossClusterApiKeyMap.get("encoded"),
-                Map.of(LookupRequestFactory.ACTION_NAME, buildCrossClusterAccessSubjectInfo("lookup-allowed", "lookup-allowed-alias")),
+                Map.of(
+                    LookupRequestFactory.ACTION_NAME,
+                    buildCrossClusterAccessSubjectInfo("lookup-allowed", "lookup-allowed-alias"),
+                    LookupRequestFactory.ENRICH_ACTION_NAME,
+                    buildCrossClusterAccessSubjectInfo("lookup-allowed", "lookup-allowed-alias")
+                ),
                 randomBoolean()
             )
         ) {
@@ -640,11 +646,33 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
                 );
                 assertThat(e.getMessage(), containsString("is unauthorized"));
             }
+
+            final LookupRequestFactory.KeywordValues allowedEnrich = executeRemote(
+                remoteClusterClient,
+                ENRICH_ACTION,
+                valueEnrich(allowedShard)
+            );
+            assertThat(allowedEnrich.values(), contains("allowed-value"));
+
+            for (LookupTransportRequest request : List.of(
+                valueEnrich(otherShard),
+                valueEnrich(new ShardId("lookup-allowed", otherShard.getIndex().getUUID(), 0))
+            )) {
+                final ElasticsearchSecurityException e = expectThrows(
+                    ElasticsearchSecurityException.class,
+                    () -> executeRemote(remoteClusterClient, ENRICH_ACTION, request)
+                );
+                assertThat(e.getMessage(), containsString("is unauthorized"));
+            }
         }
     }
 
     private static LookupTransportRequest valueLookup(String indexPattern, ShardId shardId) {
         return new LookupTransportRequest(LookupRequestFactory.keywordLookup(indexPattern, shardId, "key", "1", "value"));
+    }
+
+    private static LookupTransportRequest valueEnrich(ShardId shardId) {
+        return new LookupTransportRequest(LookupRequestFactory.keywordEnrich(shardId, "key", "1", "value"));
     }
 
     private static String indexUuid(String index) throws IOException {
@@ -787,6 +815,11 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
     private static final RemoteClusterActionType<LookupRequestFactory.KeywordValues> LOOKUP_ACTION = new RemoteClusterActionType<>(
         LookupRequestFactory.ACTION_NAME,
         LookupRequestFactory.KeywordValues::new
+    );
+
+    private static final RemoteClusterActionType<LookupRequestFactory.KeywordValues> ENRICH_ACTION = new RemoteClusterActionType<>(
+        LookupRequestFactory.ENRICH_ACTION_NAME,
+        LookupRequestFactory.KeywordValues::readEnrichResponse
     );
 
     /**

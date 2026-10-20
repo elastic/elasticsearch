@@ -39,6 +39,7 @@ import java.util.Map;
 public final class LookupRequestFactory {
 
     public static final String ACTION_NAME = LookupFromIndexService.LOOKUP_ACTION_NAME;
+    public static final String ENRICH_ACTION_NAME = EnrichLookupService.LOOKUP_ACTION_NAME;
 
     private static final BlockFactory BLOCK_FACTORY = new BlockFactory(new NoopCircuitBreaker("test"), BigArrays.NON_RECYCLING_INSTANCE);
 
@@ -74,17 +75,45 @@ public final class LookupRequestFactory {
     }
 
     /**
+     * An {@code ENRICH ... ON matchField} request with a {@code match} policy for a single keyword {@code key}, returning the keyword
+     * {@code extractField} of the matching documents in the index of {@code shardId}. Its index pattern is always the name of the
+     * index in {@code shardId}.
+     */
+    public static Writeable keywordEnrich(ShardId shardId, String matchField, String key, String extractField) {
+        return new EnrichLookupService.TransportRequest(
+            "session",
+            shardId,
+            DataType.KEYWORD,
+            "match",
+            matchField,
+            new Page(BLOCK_FACTORY.newConstantBytesRefBlockWith(new BytesRef(key), 1)),
+            null,
+            List.of(
+                new FieldAttribute(
+                    Source.EMPTY,
+                    extractField,
+                    new EsField(extractField, DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+                )
+            ),
+            Source.EMPTY
+        );
+    }
+
+    /**
      * The keyword values returned by a lookup request.
      */
     public static final class KeywordValues extends ActionResponse {
         private final List<String> values;
 
         public KeywordValues(StreamInput in) throws IOException {
-            LookupFromIndexService.LookupResponse response = new LookupFromIndexService.LookupResponse(
-                in,
-                BLOCK_FACTORY,
-                new ThreadContext(Settings.EMPTY)
-            );
+            this(new LookupFromIndexService.LookupResponse(in, BLOCK_FACTORY, new ThreadContext(Settings.EMPTY)));
+        }
+
+        public static KeywordValues readEnrichResponse(StreamInput in) throws IOException {
+            return new KeywordValues(new EnrichLookupService.LookupResponse(in, BLOCK_FACTORY, new ThreadContext(Settings.EMPTY)));
+        }
+
+        private KeywordValues(AbstractLookupService.LookupResponse response) {
             List<Page> pages = response.takePages();
             try {
                 values = new ArrayList<>();

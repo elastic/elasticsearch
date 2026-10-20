@@ -18,7 +18,9 @@ import org.junit.BeforeClass;
 
 import java.io.File;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -43,25 +45,49 @@ public class VectorSystemPropertyTests extends ESTestCase {
         JarUtils.createJarWithEntries(jarPath, jarEntries);
     }
 
-    @SuppressForbidden(reason = "pathSeparator")
     public void testSystemPropertyDisabled() throws Exception {
-        var process = new ProcessBuilder(
-            getJavaExecutable(),
-            "-D" + ENABLE_JDK_VECTOR_LIBRARY + "=false",
-            "-Xms16m",
-            "-Xmx16m",
-            "-cp",
-            jarPath + File.pathSeparator + System.getProperty("java.class.path"),
-            "-Des.nativelibs.path=" + System.getProperty("es.nativelibs.path"),
-            "p.Test"
-        ).start();
-        String output = new String(process.getInputStream().readAllBytes(), UTF_8);
-        String error = new String(process.getErrorStream().readAllBytes(), UTF_8);
-        // System.out.println(output);
-        // System.out.println(error);
-        process.waitFor(30, TimeUnit.SECONDS);
+        String output = run(System.getProperty("es.nativelibs.path"), "-D" + ENABLE_JDK_VECTOR_LIBRARY + "=false");
+
         assertThat(output, containsString("SimdVecLibrary.instance=[Optional.empty]"));
+    }
+
+    /**
+     * {@code es.nativelibs.path} may hold several directories, so a library is whichever entry first has it.
+     * Prefixing an entry that does not must therefore leave the outcome alone, whatever it is on this host.
+     */
+    @SuppressForbidden(reason = "pathSeparator")
+    public void testLibraryIsFoundPastAnEntryWithoutIt() throws Exception {
+        String nativeLibsPath = System.getProperty("es.nativelibs.path");
+        assumeTrue("vec is not available on this host", isLibraryLoaded(run(nativeLibsPath)));
+
+        assertTrue(isLibraryLoaded(run(createTempDir() + File.pathSeparator + nativeLibsPath)));
+    }
+
+    private static boolean isLibraryLoaded(String output) {
+        return output.contains("SimdVecLibrary.instance=[Optional.empty]") == false;
+    }
+
+    @SuppressForbidden(reason = "pathSeparator")
+    private String run(String nativeLibsPath, String... vmArgs) throws Exception {
+        var command = new ArrayList<String>();
+        command.add(getJavaExecutable());
+        command.addAll(List.of(vmArgs));
+        command.addAll(
+            List.of(
+                "-Xms16m",
+                "-Xmx16m",
+                "-cp",
+                jarPath + File.pathSeparator + System.getProperty("java.class.path"),
+                "-Des.nativelibs.path=" + nativeLibsPath,
+                "p.Test"
+            )
+        );
+
+        var process = new ProcessBuilder(command).start();
+        String output = new String(process.getInputStream().readAllBytes(), UTF_8);
+        process.waitFor(30, TimeUnit.SECONDS);
         assertThat(process.exitValue(), equalTo(0));
+        return output;
     }
 
     static String getJavaExecutable() {

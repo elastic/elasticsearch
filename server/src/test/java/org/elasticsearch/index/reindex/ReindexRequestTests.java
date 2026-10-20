@@ -17,6 +17,8 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -34,6 +36,10 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.reindex.AbstractBulkIndexByScrollRequest.MAX_DESCRIPTION_PARAMS_LENGTH;
+import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Tests some of the validation of {@linkplain ReindexRequest}. See reindex's rest tests for much more.
@@ -477,6 +483,28 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         ActionRequestValidationException validationException = r.validate();
         assertNotNull(validationException);
         assertEquals(List.of("use _all if you really want to copy from all existing indexes"), validationException.validationErrors());
+    }
+
+    /** Verifies that large script params are cut in the task description and that the rest of the description is kept. */
+    public void testDescriptionTruncatesLargeScriptParams() {
+        ReindexRequest request = new ReindexRequest();
+        request.setDestIndex("dest");
+        request.getSearchRequest().indices("src");
+        request.setScript(
+            new Script(
+                ScriptType.INLINE,
+                Script.DEFAULT_SCRIPT_LANG,
+                "ctx._source.message = params.message",
+                Map.of("message", "x".repeat(MAX_DESCRIPTION_PARAMS_LENGTH * 10))
+            )
+        );
+
+        String description = request.getDescription();
+
+        assertThat(description, startsWith("reindex from [src] updated with Script{type=inline, lang='painless'"));
+        assertThat(description, endsWith("...} to [dest]"));
+        int paramsStart = description.indexOf("params=") + "params=".length();
+        assertThat(description.length() - paramsStart, equalTo(MAX_DESCRIPTION_PARAMS_LENGTH + "...} to [dest]".length()));
     }
 
     public void testValidateGivenRemoteIndex() throws IOException {

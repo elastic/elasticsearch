@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.esql.view;
 
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 
+import java.util.Map;
+
 /**
  * How much view structure {@link ViewResolver} must keep intact for the boundary features that act on a view's
  * <em>output</em>. The levels are ordered — each keeps everything the previous one keeps — and the request decides
@@ -53,13 +55,22 @@ public enum ViewBoundaryPreservation {
     }
 
     /**
-     * Whether the analyzer must keep view branches because of the query settings: only {@code unmapped_fields} is applied during
-     * analysis ({@code ResolveUnmapped} acts on the view branches). {@code wildcards_match_datasets} is applied before it, on the
-     * plan view resolution produced, so by the time of analysis nothing relies on the view branches for it. Shared by production and
-     * the analyzer test harness so they cannot drift.
+     * Whether the analyzer must keep view branches because of the caller's {@code unmapped_fields}: only that setting is applied
+     * during analysis ({@code ResolveUnmapped} acts on the view branches). {@code wildcards_match_datasets} is applied before it, on
+     * the plan view resolution produced, so by the time of analysis nothing relies on the view branches for it.
      */
     public static boolean analysisRequiresViewBranches(UnmappedResolution unmappedResolution) {
         return unmappedResolution != UnmappedResolution.DEFAULT;
+    }
+
+    /**
+     * Whether the analyzer must keep view branches because of {@code unmapped_fields}, either the caller's or a {@code SET} in a view
+     * definition. A definition's setting applies to that view's body alone, so its branch has to survive compaction for
+     * {@code ResolveUnmapped} to find it. Shared by production and the analyzer test harness so they cannot drift.
+     */
+    public static boolean analysisRequiresViewBranches(UnmappedResolution unmappedResolution, Map<String, ViewQuerySettings> viewSettings) {
+        return analysisRequiresViewBranches(unmappedResolution)
+            || viewSettings.values().stream().anyMatch(ViewQuerySettings::requiresViewBranches);
     }
 
     /** View subplans stay wrapped as identified {@code BranchPlan} branches (both non-{@link #NONE} levels). */

@@ -53,6 +53,20 @@ public abstract class HeapPressureTestCase extends ESRestTestCase {
     }
 
     /**
+     * Blocks the pause field like {@link #blockPauseField}, and also makes every query on it wait at an admission gate while it is being
+     * built, before the clauses after it are built, until {@link #admitOne} lets it in. With the pause field as the first clause, this
+     * serializes building the rest. {@link #unblockPauseField} removes the gate too.
+     */
+    protected static void stopPauseField() throws IOException {
+        adminClient().performRequest(new Request("POST", "/_pause_field/stop"));
+    }
+
+    /** Lets one query waiting at the admission gate of {@link #stopPauseField} in. */
+    protected static void admitOne() throws IOException {
+        adminClient().performRequest(new Request("POST", "/_pause_field/admit"));
+    }
+
+    /**
      * Checks that the node still answers requests, which one that ran out of memory would not. The cluster health API is used because
      * it exists in every distribution, unlike {@code GET /}.
      */
@@ -76,6 +90,37 @@ public abstract class HeapPressureTestCase extends ESRestTestCase {
                 active.intValue() >= minActive || tripped.longValue() > 0
             );
         }, 30, TimeUnit.SECONDS);
+    }
+
+    /** The memory currently charged to the request breaker of the node, which includes what in-flight searches have retained.
+     * This method is only suitable for one-node setups, otherwise it will return data for just one of the nodes.
+     */
+    protected long requestBreakerUsedBytes() throws IOException {
+        return ((Number) XContentMapValues.extractValue("breakers.request.estimated_size_in_bytes", nodeStats())).longValue();
+    }
+
+    /** The number of times any circuit breaker of the node has tripped. */
+    @SuppressWarnings("unchecked")
+    protected long trippedCount() throws IOException {
+        long tripped = 0;
+        for (Object breaker : ((Map<String, Object>) nodeStats().get("breakers")).values()) {
+            tripped += ((Number) ((Map<String, Object>) breaker).get("tripped")).longValue();
+        }
+        return tripped;
+    }
+
+    /** The number of threads currently blocked on the pause field, across all nodes. */
+    protected static int parkedCount() throws IOException {
+        return ((Number) pauseFieldStatus().get("parked")).intValue();
+    }
+
+    /** The number of threads currently waiting at the admission gate of the pause field, across all nodes. */
+    protected static int gatedCount() throws IOException {
+        return ((Number) pauseFieldStatus().get("gated")).intValue();
+    }
+
+    private static Map<String, Object> pauseFieldStatus() throws IOException {
+        return entityAsMap(adminClient().performRequest(new Request("GET", "/_pause_field/status")));
     }
 
     @SuppressWarnings("unchecked")
@@ -120,6 +165,44 @@ public abstract class HeapPressureTestCase extends ESRestTestCase {
         } finally {
             pool.shutdown();
         }
+    }
+
+    /**
+     * Performs the search and returns how many of its shards were rejected by a circuit breaker: none if it fully succeeded, the shards
+     * that failed if it returned partial results, and all of them if every shard failed. Fails the test if any failure isn't a circuit
+     * breaker rejection. Partial results are the default, so a breaker rejecting some shards of a search doesn't fail the search.
+     *
+     * @param shardCount the number of shards the search targets, which is what a search that failed on all of them counts
+     */
+    protected int circuitBreakerRejectedShards(Request search, int shardCount) throws IOException {
+        Map<String, Object> body;
+        try {
+            body = entityAsMap(client().performRequest(search));
+        } catch (ResponseException e) {
+            Map<String, Object> error = entityAsMap(e.getResponse());
+            // Failed on all shards: the failures are grouped by cause, so check them all but count the shards searched.
+            assertTrue("expected only circuit_breaking_exception failures, but got: " + error, containsCircuitBreakingException(error));
+            List<?> failedShards = (List<?>) XContentMapValues.extractValue("error.failed_shards", error);
+            if (failedShards != null) {
+                for (Object failure : failedShards) {
+                    assertTrue(
+                        "expected only circuit_breaking_exception failures, but got: " + failure,
+                        containsCircuitBreakingException(failure)
+                    );
+                }
+            }
+            return shardCount;
+        }
+        List<?> failures = (List<?>) XContentMapValues.extractValue("_shards.failures", body);
+        if (failures != null) {
+            for (Object failure : failures) {
+                assertTrue(
+                    "expected only circuit_breaking_exception failures, but got: " + failure,
+                    containsCircuitBreakingException(failure)
+                );
+            }
+        }
+        return ((Number) XContentMapValues.extractValue("_shards.failed", body)).intValue();
     }
 
     /** The breaker error is nested at a depth that depends on the failing phase, so search the whole body. */

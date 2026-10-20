@@ -19,7 +19,9 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.AbstractStatementParserTests;
+import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -41,6 +43,7 @@ import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.view.InMemoryViewResolver;
 import org.elasticsearch.xpack.esql.view.InMemoryViewService;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
+import org.elasticsearch.xpack.esql.view.ViewBoundaryPreservation;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 import org.junit.After;
 import org.junit.Before;
@@ -775,11 +778,19 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
 
     private ViewResolver.ViewResolutionResult resolve(String query) {
         PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-        viewResolver.replaceViews(query(query), null, true, false, this::parse, false, future.delegateFailureAndWrap((l, viewResult) -> {
-            // Validate: no InSubquery expressions should survive view+subquery resolution.
-            InSubqueryResolver.verify(viewResult.plan());
-            l.onResponse(viewResult);
-        }));
+        viewResolver.replaceViews(
+            query(query),
+            null,
+            true,
+            false,
+            this::parse,
+            ViewBoundaryPreservation.NONE,
+            future.delegateFailureAndWrap((l, viewResult) -> {
+                // Validate: no InSubquery expressions should survive view+subquery resolution.
+                InSubqueryResolver.verify(viewResult.plan());
+                l.onResponse(viewResult);
+            })
+        );
         return future.actionGet();
     }
 
@@ -796,8 +807,8 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
         return metrics.stats().get("features." + FeatureMetric.IN_SUBQUERY);
     }
 
-    private LogicalPlan parse(String query, String viewName) {
-        return TEST_PARSER.parseView(query, queryParams, EMPTY_INFERENCE_SETTINGS, viewName).plan();
+    private EsqlStatement parse(String query, String viewName) {
+        return TEST_PARSER.parseView(query, queryParams, EMPTY_INFERENCE_SETTINGS, viewName, EsqlParser.DEFAULT_MAX_COMMAND_COUNT);
     }
 
     private void addView(String name, String query) {

@@ -665,7 +665,7 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
         }
     }
 
-    public void testWildcardInViewBodyHonorsOuterWildcardsMatchDatasets() {
+    public void testWildcardInViewBodyDoesNotMatchDatasets() {
         registerEmployees();
         registerEmployeesAlt();
         createView("emp_star_view", "FROM employees*");
@@ -673,21 +673,12 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
         try (var response = run(syncEsqlQueryRequest("FROM emp_star_view | STATS c = COUNT(*)"))) {
             assertThat(getValuesList(response), equalTo(List.of(List.of(0L))));
         }
-        // The outer SET is applied to the inlined view body, same as wildcards_match_views on nested views.
-        try (
-            var response = run(
-                syncEsqlQueryRequest(
-                    "SET wildcards_match_datasets = true; FROM emp_star_view | KEEP emp_no, first_name | SORT emp_no, first_name"
-                )
-            )
-        ) {
-            assertColumnNames(response.columns(), List.of("emp_no", "first_name"));
-            assertThat(
-                getValuesList(response),
-                equalTo(List.of(List.of(1, "Alice"), List.of(2, "Bob"), List.of(3, "Carol"), List.of(10, "Diana"), List.of(11, "Eve")))
-            );
+        // The caller's SET stops at the view boundary (SETTINGS_SCOPED_AT_VIEW_BOUNDARIES): the view produces the
+        // same rows whatever the caller's settings say, so the body's wildcard still reaches no dataset.
+        try (var response = run(syncEsqlQueryRequest("SET wildcards_match_datasets = true; FROM emp_star_view | STATS c = COUNT(*)"))) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(0L))));
         }
-        // The same SET on an outer wildcard still reaches both datasets.
+        // The same SET on an outer wildcard reaches both datasets.
         try (
             var response = run(
                 syncEsqlQueryRequest(
@@ -700,6 +691,136 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
                 getValuesList(response),
                 equalTo(List.of(List.of(1, "Alice"), List.of(2, "Bob"), List.of(3, "Carol"), List.of(10, "Diana"), List.of(11, "Eve")))
             );
+        }
+    }
+
+    /**
+     * A pass-through view next to an index in the same FROM: the view keeps a boundary of its own instead of merging
+     * into the caller's relation, so the caller's SET stops at it and the wildcard inside the body matches no dataset.
+     */
+    public void testWildcardInPassThroughViewBodyBesideIndexDoesNotMatchDatasets() {
+        registerEmployees();
+        registerEmployeesAlt();
+        createRealEmployees();
+        createView("emp_star_view", "FROM employees*");
+        // Default: only real_employees' 5 rows; the view's wildcard reaches no dataset.
+        try (var response = run(syncEsqlQueryRequest("FROM real_employees, emp_star_view | STATS c = COUNT(*)"))) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(5L))));
+        }
+        // The caller's SET stops at the view boundary, so still only real_employees' rows, not the datasets' 5 more.
+        try (
+            var response = run(
+                syncEsqlQueryRequest("SET wildcards_match_datasets = true; FROM real_employees, emp_star_view | STATS c = COUNT(*)")
+            )
+        ) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(5L))));
+        }
+    }
+
+    /**
+     * A view's own {@code SET wildcards_match_datasets} opens wildcards in that definition only. It does not leak into
+     * a nested view, and a nested view that SETs the flag does not need the enclosing view to.
+     */
+    public void testWildcardMatchDatasetsSetInsideViewAppliesToThatBodyOnly() {
+        registerEmployees();
+        registerEmployeesAlt();
+        createView("emp_star_on", """
+            SET wildcards_match_datasets = true;
+            FROM employees*
+            """);
+        try (var response = run(syncEsqlQueryRequest("FROM emp_star_on | KEEP emp_no | SORT emp_no"))) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(1), List.of(2), List.of(3), List.of(10), List.of(11))));
+        }
+
+        createView("inner_plain", "FROM employees*");
+        createView("outer_on", """
+            SET wildcards_match_datasets = true;
+            FROM inner_plain
+            """);
+        try (var response = run(syncEsqlQueryRequest("FROM outer_on | STATS c = COUNT(*)"))) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(0L))));
+        }
+
+        createView("inner_on", """
+            SET wildcards_match_datasets = true;
+            FROM employees*
+            """);
+        createView("outer_plain", "FROM inner_on");
+        try (var response = run(syncEsqlQueryRequest("FROM outer_plain | KEEP emp_no | SORT emp_no"))) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(1), List.of(2), List.of(3), List.of(10), List.of(11))));
+        }
+    }
+
+    public void testWildcardInNestedViewBodyDoesNotMatchDatasets() {
+        registerEmployees();
+        registerEmployeesAlt();
+        createView("emp_star_view", "FROM employees*");
+        createView("emp_nested_star_view", "FROM emp_star_view");
+        try (
+            var response = run(syncEsqlQueryRequest("SET wildcards_match_datasets = true; FROM emp_nested_star_view | STATS c = COUNT(*)"))
+        ) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(0L))));
+        }
+    }
+
+    /**
+     * Exact names inside a view body are not what the setting controls: the exact dataset is read, the wildcard still is not.
+     */
+    public void testWildcardAndExactDatasetInViewBody() {
+        registerEmployees();
+        registerEmployeesAlt();
+        createView("emp_mixed_view", "FROM employees*, employees_alt");
+        for (String set : List.of("", "SET wildcards_match_datasets = true; ")) {
+            try (var response = run(syncEsqlQueryRequest(set + "FROM emp_mixed_view | KEEP emp_no | SORT emp_no"))) {
+                assertThat(getValuesList(response), equalTo(List.of(List.of(10), List.of(11))));
+            }
+        }
+    }
+
+    public void testWildcardInNonPassThroughViewBodyDoesNotMatchDatasets() {
+        registerEmployees();
+        registerEmployeesAlt();
+        createView("emp_count_star_view", "FROM employees* | STATS c = COUNT(*)");
+        for (String set : List.of("", "SET wildcards_match_datasets = true; ")) {
+            try (var response = run(syncEsqlQueryRequest(set + "FROM emp_count_star_view"))) {
+                assertThat(getValuesList(response), equalTo(List.of(List.of(0L))));
+            }
+        }
+    }
+
+    public void testWildcardInSubqueryInsideViewBodyDoesNotMatchDatasets() {
+        registerEmployees();
+        registerEmployeesAlt();
+        createView("emp_sub_view", "FROM (FROM employees*), (FROM employees)");
+        try (
+            var response = run(syncEsqlQueryRequest("SET wildcards_match_datasets = true; FROM emp_sub_view | KEEP emp_no | SORT emp_no"))
+        ) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(1), List.of(2), List.of(3))));
+        }
+    }
+
+    public void testWildcardInViewBodyWithForkDoesNotMatchDatasets() {
+        registerEmployees();
+        registerEmployeesAlt();
+        createView("emp_fork_star_view", "FROM employees*, employees | FORK (WHERE emp_no <= 2) (WHERE emp_no > 2)");
+        try (var response = run(syncEsqlQueryRequest("""
+            SET wildcards_match_datasets = true; FROM emp_fork_star_view | STATS c = COUNT(*) BY _fork | KEEP _fork, c | SORT _fork"""))) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of("fork1", 2L), List.of("fork2", 1L))));
+        }
+    }
+
+    /**
+     * A subquery the user writes is not a view: it keeps the caller's setting.
+     */
+    public void testWildcardInUserSubqueryMatchesDatasets() {
+        registerEmployees();
+        registerEmployeesAlt();
+        try (
+            var response = run(
+                syncEsqlQueryRequest("SET wildcards_match_datasets = true; FROM (FROM employees*) | KEEP emp_no | SORT emp_no")
+            )
+        ) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(1), List.of(2), List.of(3), List.of(10), List.of(11))));
         }
     }
 

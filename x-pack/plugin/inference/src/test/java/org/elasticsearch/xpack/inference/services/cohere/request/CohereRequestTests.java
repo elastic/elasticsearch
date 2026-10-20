@@ -7,11 +7,10 @@
 
 package org.elasticsearch.xpack.inference.services.cohere.request;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.services.cohere.CohereAccount;
 
 import java.net.URI;
@@ -21,14 +20,13 @@ import static org.hamcrest.Matchers.is;
 public class CohereRequestTests extends ESTestCase {
 
     public void testDecorateWithAuthHeader() {
-        var request = new HttpPost("http://www.abc.com");
+        var request = SimpleRequestBuilder.post("http://www.abc.com").build();
 
         CohereRequest.decorateWithAuthHeader(
             request,
             new CohereAccount(URI.create("http://www.abc.com"), new SecureString(new char[] { 'a', 'b', 'c' }))
         );
 
-        assertThat(request.getFirstHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
         assertThat(request.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer abc"));
         assertThat(request.getFirstHeader(CohereUtils.REQUEST_SOURCE_HEADER).getValue(), is(CohereUtils.ELASTIC_REQUEST_SOURCE));
     }

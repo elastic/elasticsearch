@@ -967,18 +967,75 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     /**
-     * In strictly columnar mode, keyword fields use binary doc values, but the 32766-byte ceiling is
-     * deliberately retained to keep values from becoming so large they degrade storage and scanning.
-     * A value longer than {@link IndexWriter#MAX_TERM_LENGTH} must still be rejected.
+     * In strictly columnar mode, an indexed keyword field still feeds the inverted index, so a value longer than
+     * {@link IndexWriter#MAX_TERM_LENGTH} must be rejected.
      */
     public void testKeywordFieldLongerThan32766InColumnarModeIsRejected() throws Exception {
-        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> b.field("type", "keyword")));
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> b.field("type", "keyword").field("index", true)));
         String longValue = "x".repeat(IndexWriter.MAX_TERM_LENGTH + 100);
         DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
             () -> mapper.parse(source(b -> b.field("field", longValue)))
         );
         assertThat(e.getCause().getMessage(), containsString("UTF8 encoding is longer than the max length"));
+    }
+
+    /**
+     * A non-indexed keyword in strictly columnar mode uses binary doc values, which Lucene does not limit in length,
+     * so a value longer than {@link IndexWriter#MAX_TERM_LENGTH} is accepted and round-trips through synthetic source.
+     */
+    public void testKeywordFieldLongerThan32766NotIndexedInColumnarModeIsAccepted() throws Exception {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> b.field("type", "keyword").field("index", false)));
+        String longValue = "x".repeat(IndexWriter.MAX_TERM_LENGTH + 100);
+        assertEquals("{\"field\":\"" + longValue + "\"}", syntheticSource(mapper, b -> b.field("field", longValue)));
+    }
+
+    /**
+     * Non-indexed fields have a separate, configurable ceiling that keeps values from degrading storage and scanning.
+     */
+    public void testKeywordFieldLongerThanNonIndexedFieldLimitInColumnarModeIsRejected() throws Exception {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.getKey(), "64kb")
+            .build();
+        DocumentMapper mapper = createMapperService(settings, fieldMapping(b -> b.field("type", "keyword").field("index", false)))
+            .documentMapper();
+        String longValue = "x".repeat(64 * 1024 + 1);
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.field("field", longValue)))
+        );
+        assertThat(e.getCause().getMessage(), containsString("longer than the max length 65536"));
+        mapper.parse(source(b -> b.field("field", "x".repeat(64 * 1024))));
+    }
+
+    /**
+     * A stored-only keyword writes neither terms nor sorted-set doc values, but the non-indexed field limit applies only in columnar
+     * index modes, which do not allow {@code store}. So it keeps Lucene's term limit.
+     */
+    public void testStoredOnlyKeywordLongerThan32766IsRejected() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "keyword").field("index", false).field("doc_values", false).field("store", true))
+        );
+        String longValue = "x".repeat(IndexWriter.MAX_TERM_LENGTH + 100);
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.field("field", longValue)))
+        );
+        assertThat(e.getCause().getMessage(), containsString("longer than the max length " + IndexWriter.MAX_TERM_LENGTH));
+    }
+
+    /**
+     * A non-indexed keyword in a standard index uses sorted-set doc values by default, so it keeps Lucene's term limit.
+     */
+    public void testNotIndexedSortedSetKeywordLongerThan32766IsRejected() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "keyword").field("index", false)));
+        String longValue = "x".repeat(IndexWriter.MAX_TERM_LENGTH + 100);
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.field("field", longValue)))
+        );
+        assertThat(e.getCause().getMessage(), containsString("longer than the max length " + IndexWriter.MAX_TERM_LENGTH));
     }
 
     /**

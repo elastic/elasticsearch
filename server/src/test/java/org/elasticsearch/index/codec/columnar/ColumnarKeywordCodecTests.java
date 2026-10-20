@@ -11,6 +11,7 @@ package org.elasticsearch.index.codec.columnar;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -70,6 +71,71 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
         assertHitCount(client().prepareSearch(INDEX).setSize(0), 2);
         assertHitCount(client().prepareSearch(INDEX).setQuery(QueryBuilders.termQuery("kw", "hello")), 1);
         assertHitCount(client().prepareSearch(INDEX).setQuery(QueryBuilders.termQuery("kw", "world")), 1);
+    }
+
+    /**
+     * A keyword in a columnar index is not indexed by default, so it may hold a value longer than Lucene's term limit. The codec's
+     * term table cannot hold such a value, so the codec has to write it as an escape rather than fail the flush, and keep doing so
+     * when segments are merged.
+     */
+    public void testKeywordLongerThanTermLimitRoundTripsThroughColumnarCodec() throws IOException {
+        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
+
+        final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
+        final String mapping = Strings.format("""
+            {"properties":{"@timestamp":{"type":"date"},"kw":{"type":"keyword","doc_values":{"multi_value":%s}}}}""", randomBoolean());
+        indicesAdmin().prepareCreate(INDEX).setSettings(columnarSettings(mode)).setMapping(mapping).get();
+
+        final Map<String, String> firstBatch = keywordsWithRepeatedShortValues("first");
+        firstBatch.put("at-limit", "a".repeat(IndexWriter.MAX_TERM_LENGTH));
+        firstBatch.put("just-over", "b".repeat(IndexWriter.MAX_TERM_LENGTH + 1));
+        firstBatch.put("well-over", "c".repeat(40_000));
+        bulkIndexKeywords(firstBatch);
+        assertEquals(
+            "the refresh flushes the long values through the codec",
+            0,
+            indicesAdmin().prepareRefresh(INDEX).get().getFailedShards()
+        );
+        assertKeywordFieldUsesColumnarFormat(INDEX);
+        assertKeywordsReadBack(firstBatch);
+
+        final Map<String, String> secondBatch = keywordsWithRepeatedShortValues("second");
+        secondBatch.put("well-over-again", "d".repeat(50_000));
+        bulkIndexKeywords(secondBatch);
+        assertEquals(0, indicesAdmin().prepareRefresh(INDEX).get().getFailedShards());
+
+        // Deleting a document makes the merge read the values back and survey them again, rather than reuse what each segment recorded.
+        client().prepareDelete(INDEX, "first-0").get();
+        indicesAdmin().prepareForceMerge(INDEX).setMaxNumSegments(1).get();
+        assertEquals(0, indicesAdmin().prepareRefresh(INDEX).get().getFailedShards());
+
+        firstBatch.remove("first-0");
+        assertKeywordsReadBack(firstBatch);
+        assertKeywordsReadBack(secondBatch);
+    }
+
+    private static Map<String, String> keywordsWithRepeatedShortValues(String idPrefix) {
+        final Map<String, String> keywordById = new LinkedHashMap<>();
+        for (int i = 0; i < 200; i++) {
+            keywordById.put(idPrefix + "-" + i, i % 2 == 0 ? "on" : "off");
+        }
+        return keywordById;
+    }
+
+    private void bulkIndexKeywords(Map<String, String> keywordById) {
+        final BulkRequestBuilder bulk = client().prepareBulk();
+        keywordById.forEach(
+            (id, keyword) -> bulk.add(prepareIndex(INDEX).setId(id).setSource("@timestamp", "2024-01-01T00:00:00Z", "kw", keyword))
+        );
+        final var response = bulk.get();
+        assertFalse(response.buildFailureMessage(), response.hasFailures());
+    }
+
+    private void assertKeywordsReadBack(Map<String, String> keywordById) {
+        for (Map.Entry<String, String> entry : keywordById.entrySet()) {
+            final Map<String, Object> source = client().prepareGet(INDEX, entry.getKey()).get().getSourceAsMap();
+            assertEquals(entry.getKey(), entry.getValue(), source.get("kw"));
+        }
     }
 
     public void testMultiValuedKeywordRoundTripsThroughColumnarCodec() throws IOException {

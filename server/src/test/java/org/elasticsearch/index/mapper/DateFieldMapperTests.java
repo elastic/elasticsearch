@@ -1020,6 +1020,17 @@ public class DateFieldMapperTests extends MapperTestCase {
         assertThat(src, containsString("\"field\":[\"" + v2 + "\",\"" + v1 + "\",\"" + v3 + "\",\"" + v2 + "\"]"));
     }
 
+    @Override
+    protected List<CheckedConsumer<XContentBuilder, IOException>> fieldMappingsForIndexSortRangeTest() {
+        return List.of(b -> {
+            minimalMapping(b);
+            b.field("index", false);
+        }, b -> {
+            minimalMapping(b);
+            b.field("index", true);
+        });
+    }
+
     @SuppressWarnings("unchecked")
     private static FieldMapper.Parameter<String> formatParameter(DateFieldMapper.Builder builder) {
         for (FieldMapper.Parameter<?> parameter : builder.getParameters()) {

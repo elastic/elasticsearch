@@ -1585,7 +1585,7 @@ public class NumberFieldMapper extends FieldMapper {
                 } else {
                     query = SortedNumericDocValuesField.newSlowRangeQuery(field, l, u);
                 }
-                if (hasDocValues && context.indexSortedOnField(field)) {
+                if (hasDocValues && context.canUseIndexSortRangeQuery(field)) {
                     query = new IndexSortSortedNumericDocValuesRangeQuery(field, l, u, query);
                 }
                 return query;
@@ -1807,7 +1807,7 @@ public class NumberFieldMapper extends FieldMapper {
                     } else {
                         query = SortedNumericDocValuesField.newSlowRangeQuery(field, l, u);
                     }
-                    if (hasDocValues && context.indexSortedOnField(field)) {
+                    if (hasDocValues && context.canUseIndexSortRangeQuery(field)) {
                         query = new IndexSortSortedNumericDocValuesRangeQuery(field, l, u, query);
                     }
                     return query;

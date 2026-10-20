@@ -37,6 +37,33 @@ base {
   archivesName = 'x-pack-esql'
 }
 
+configurations {
+  /*
+   * Security and its test artifacts for DataNodeRequestDatasetAuthorizationIT. Kept out of internalClusterTestImplementation
+   * because that one is exposed to every module consuming this project's internalClusterTest artifact, and security's
+   * net.jcip:jcip-annotations defines the same classes as the com.github.stephenc.jcip:jcip-annotations that
+   * repository-azure brings: jar hell there. It extends the regular internalClusterTest dependencies, so that both
+   * resolve to one version of every library, and it replaces the regular runtime classpath of the internalClusterTest task.
+   */
+  securityIntegTest {
+    canBeConsumed = false
+    canBeResolved = true
+    extendsFrom internalClusterTestImplementation, internalClusterTestRuntimeOnly
+    def runtimeAttributes = internalClusterTestRuntimeClasspath.attributes
+    runtimeAttributes.keySet().each { attribute -> attributes.attribute(attribute, runtimeAttributes.getAttribute(attribute)) }
+  }
+}
+
+sourceSets {
+  internalClusterTest {
+    compileClasspath += configurations.securityIntegTest
+  }
+}
+
+tasks.named('internalClusterTest').configure {
+  classpath = classpath - configurations.internalClusterTestRuntimeClasspath + configurations.securityIntegTest
+}
+
 dependencies {
   compileOnly project(':modules:lang-painless:spi')
   compileOnly project(xpackModule('ml'))
@@ -107,8 +134,8 @@ dependencies {
   internalClusterTestImplementation project(xpackModule('inference:qa:test-service-plugin'))
   internalClusterTestImplementation(testArtifact(project(xpackModule('inference'))))
   // DataNodeRequestDatasetAuthorizationIT runs a security-enabled internal cluster against crafted compute requests.
-  internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
-  internalClusterTestImplementation(testArtifact(project(xpackModule('security'))))
+  securityIntegTest(testArtifact(project(xpackModule('core'))))
+  securityIntegTest(testArtifact(project(xpackModule('security'))))
   internalClusterTestImplementation project(path: xpackModule('mapper-constant-keyword'))
   internalClusterTestImplementation project(xpackModule('analytics'))
   internalClusterTestImplementation project(xpackModule('spatial'))

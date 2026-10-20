@@ -10,6 +10,7 @@
 import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.OS
+import org.elasticsearch.gradle.internal.distribution.CreateEmptyDirectories
 import org.elasticsearch.gradle.internal.distribution.PackageMetadata
 import org.elasticsearch.gradle.internal.distribution.TokenExpansions
 import org.redline_rpm.header.Flags
@@ -73,22 +74,15 @@ plugins {
 
     filter("tokens": TokenExpansions.forProject(project, type, false), ReplaceTokens.class)
 
-    // create empty dirs, we set the permissions when configuring the packages. The task's own destination directory is
-    // used rather than the script's mkdir() so that the action does not reference the build script at execution time,
-    // which the configuration cache does not support.
-    List<String> emptyDirectories = [
+    // create empty dirs, we set the permissions when configuring the packages
+    doLast(new CreateEmptyDirectories([
       'var/log/elasticsearch',
       'var/lib/elasticsearch',
       'usr/share/elasticsearch/plugins',
       // bare empty dir for /etc/elasticsearch and /etc/elasticsearch/jvm.options.d
       'elasticsearch',
       'elasticsearch/jvm.options.d'
-    ]
-    doLast { Copy copyTask ->
-      emptyDirectories.each { String directory ->
-        Files.createDirectories(copyTask.destinationDir.toPath().resolve(directory))
-      }
-    }
+    ]))
   }
 }
 

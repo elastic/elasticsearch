@@ -112,16 +112,33 @@ final class BatchModeRouter implements Releasable {
     /** Returns the router for this bulk, or {@code null} when batch indexing does not apply. */
     @Nullable
     static BatchModeRouter create(BulkRequest bulkRequest, boolean batchIndexingSupported, Recycler<BytesRef> recycler) {
-        Map<String, SourceBatch> provided = bulkRequest.getPreBuiltBatches();
-        boolean hasProvidedBatch = provided != null && provided.isEmpty() == false;
-
-        if (hasProvidedBatch) {
+        if (bulkRequest.hasPreBuiltBatches()) {
             if (batchIndexingSupported == false) {
                 throw new IllegalStateException(
                     "pre-built source batch submitted but batch indexing is not supported"
                         + " (setting disabled, feature flag off, or mixed-version cluster)"
                 );
             }
+            return createForProvidedBatches(bulkRequest, bulkRequest.takePreBuiltBatches(), recycler);
+        }
+        if (batchIndexingSupported == false || bulkRequest.isSimulated() || bulkRequest.requests().isEmpty()) {
+            return null;
+        }
+        for (DocWriteRequest<?> request : bulkRequest.requests()) {
+            if ((request instanceof IndexRequest indexRequest && BulkBatchEncoders.isItemBatchEligible(indexRequest)) == false) {
+                return null;
+            }
+        }
+        return new BatchModeRouter(new BulkBatchEncoders(recycler), recycler);
+    }
+
+    private static BatchModeRouter createForProvidedBatches(
+        BulkRequest bulkRequest,
+        Map<String, SourceBatch> provided,
+        Recycler<BytesRef> recycler
+    ) {
+        boolean success = false;
+        try {
             if (provided.size() > 1) {
                 throw new IllegalArgumentException(
                     "pre-built source batch bulk carries "
@@ -129,16 +146,8 @@ final class BatchModeRouter implements Releasable {
                         + " batches, but at most one is supported in step 1; multi-batch support will be added in a follow-up"
                 );
             }
-        } else if (batchIndexingSupported == false || bulkRequest.isSimulated() || bulkRequest.requests().isEmpty()) {
-            return null;
-        }
-
-        // Single scan: both paths require all items to be IndexRequests; the provided-batch path
-        // additionally requires every item to carry a source-row reference; the x-content path
-        // requires each item to carry inline source with a known content type.
-        for (DocWriteRequest<?> request : bulkRequest.requests()) {
-            if (request instanceof IndexRequest indexRequest) {
-                if (hasProvidedBatch) {
+            for (DocWriteRequest<?> request : bulkRequest.requests()) {
+                if (request instanceof IndexRequest indexRequest) {
                     if (indexRequest.indexSource().hasSourceRow() == false) {
                         throw new IllegalArgumentException(
                             "item targeting index ["
@@ -146,11 +155,7 @@ final class BatchModeRouter implements Releasable {
                                 + "] must carry a source-row reference when a pre-built batch is attached"
                         );
                     }
-                } else if (BulkBatchEncoders.isItemBatchEligible(indexRequest) == false) {
-                    return null;
-                }
-            } else {
-                if (hasProvidedBatch) {
+                } else {
                     throw new IllegalArgumentException(
                         "["
                             + request.opType()
@@ -160,23 +165,23 @@ final class BatchModeRouter implements Releasable {
                             + " request carrying a source-row reference"
                     );
                 }
-                return null;
             }
-        }
-
-        if (hasProvidedBatch) {
             Map.Entry<String, SourceBatch> only = provided.entrySet().iterator().next();
             String name = only.getKey();
             SourceBatch batch = only.getValue();
             if (batch instanceof EscfBatch escfBatch) {
-                return new BatchModeRouter(name, escfBatch, recycler);
+                BatchModeRouter router = new BatchModeRouter(name, escfBatch, recycler);
+                success = true;
+                return router;
             }
             throw new IllegalArgumentException(
                 "pre-built batch for index [" + name + "] must be an EscfBatch but was [" + batch.getClass().getName() + "]"
             );
+        } finally {
+            if (success == false) {
+                Releasables.close(provided.values());
+            }
         }
-
-        return new BatchModeRouter(new BulkBatchEncoders(recycler), recycler);
     }
 
     /**
@@ -735,11 +740,6 @@ final class BatchModeRouter implements Releasable {
             return;
         }
         closed = true;
-        if (encoders != null) {
-            encoders.close();
-        }
-        if (source != null) {
-            source.close();
-        }
+        Releasables.close(encoders, source);
     }
 }

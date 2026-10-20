@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunctio
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.LenientCast;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.TRange;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -146,6 +147,8 @@ public class Verifier {
         if (failures.hasFailures()) {
             return failures.failures();
         }
+
+        checkNoLenientCastLeft(plan, failures);
 
         if (unmappedResolution.loadsUnmappedFields()) {
             checkLoadModeDisallowedCommands(plan, failures, unmappedResolution);
@@ -319,6 +322,17 @@ public class Verifier {
                         + "rolling upgrade in progress, or a remote cluster is on an older version"
                 )
             )
+        );
+    }
+
+    /**
+     * {@link LenientCast} only marks a cast for {@code ResolveUnionTypes}, which replaces it. One left over means a plan shape
+     * analysis does not handle yet, and it must not reach the optimizer or the data nodes.
+     */
+    private static void checkNoLenientCastLeft(LogicalPlan plan, Failures failures) {
+        plan.forEachExpressionDown(
+            LenientCast.class,
+            lenientCast -> failures.add(fail(lenientCast, "lenient cast [{}] is not supported here", lenientCast.sourceText()))
         );
     }
 

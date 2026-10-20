@@ -4014,8 +4014,8 @@ public class AnalyzerTests extends AnalyzerTestCase {
             );
         var plan = analyzer().minimumTransportVersion(TransportVersion.current())
             .addIndex(resolution)
-            .query("FROM foo, bar | EVAL x = value?::boolean");
-        assertThat(as(plan, Limit.class).child().output().getLast().dataType(), equalTo(DataType.BOOLEAN));
+            .query("FROM foo, bar | EVAL x = value::~boolean");
+        assertThat(plan.output().getLast().dataType(), equalTo(DataType.BOOLEAN));
         assertWarnings("Field [value] of type [ip] in [foo] cannot be converted to [BOOLEAN] and will be null in those indices.");
     }
 
@@ -6229,7 +6229,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
     }
 
     /**
-     * {@code ?::double} accepts {@code datetime} but not {@code date_nanos}, so the nanos leg is nulled. {@code ?::ip}
+     * {@code ::~double} accepts {@code datetime} but not {@code date_nanos}, so the nanos leg is nulled. {@code ::~ip}
      * accepts neither date type, so the lenient cast still fails.
      */
     public void testLenientCastOfDateAndDateNanosUnionToIncompatibleType() {
@@ -6237,16 +6237,16 @@ public class AnalyzerTests extends AnalyzerTestCase {
         IndexResolution index = indexWithDateDateNanosUnionType();
         analyzer().minimumTransportVersion(TransportVersion.current())
             .addIndex(index)
-            .query("FROM index* | EVAL x = date_and_date_nanos?::double");
+            .query("FROM index* | EVAL x = date_and_date_nanos::~double");
         assertWarnings(
             "Field [date_and_date_nanos] of type [date_nanos] cannot be converted to [DOUBLE] and will be null in those indices."
         );
         analyzer().minimumTransportVersion(TransportVersion.current())
             .addIndex(index)
             .error(
-                "FROM index* | EVAL x = date_and_date_nanos?::ip",
+                "FROM index* | EVAL x = date_and_date_nanos::~ip",
                 containsString(
-                    "Mapped types [date_nanos, datetime] of [date_and_date_nanos] cannot be accepted in [date_and_date_nanos?::ip]"
+                    "Mapped types [date_nanos, datetime] of [date_and_date_nanos] cannot be accepted in [date_and_date_nanos::~ip]"
                 )
             );
     }

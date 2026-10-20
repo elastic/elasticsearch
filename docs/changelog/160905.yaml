@@ -2,5 +2,5 @@ area: ES|QL
 issues:
  - 144400
 pr: 160905
-summary: Union types lenient casting
+summary: Add the lenient cast operator `::~` for union types
 type: enhancement

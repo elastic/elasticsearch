@@ -4499,7 +4499,7 @@ public class EsqlCapabilities {
         DEDUP_IGNORES_SYNTHETIC_UNION_CONVERSIONS,
 
         /**
-         * The lenient cast operator {@code field?::type}. On a union-typed field, index branches whose mapped type cannot
+         * The lenient cast operator {@code field::~type}. On a union-typed field, index branches whose mapped type cannot
          * convert to the target load as {@code null} (with a response warning) instead of failing the query. The query still
          * fails, with an error naming the mapped types, when no branch can convert. {@code ::type} and {@code TO_*} stay strict.
          */

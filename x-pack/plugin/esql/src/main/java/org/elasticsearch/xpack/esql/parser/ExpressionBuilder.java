@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.LenientCast;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounter;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.DeferredRegexExpression;
@@ -831,7 +832,9 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Expression visitInlineCast(EsqlBaseParser.InlineCastContext ctx) {
-        return castToType(source(ctx), ctx.primaryExpression(), ctx.dataType());
+        Source source = source(ctx);
+        Expression cast = castToType(source, ctx.primaryExpression(), ctx.dataType());
+        return ctx.lenient == null ? cast : new LenientCast(source, cast);
     }
 
     private Expression castToType(Source source, ParseTree parseTree, EsqlBaseParser.DataTypeContext dataTypeCtx) {

@@ -48,7 +48,7 @@ public enum GenerativeFeature {
     PARQUET_DATASET,
 
     /**
-     * Also generate lenient casts ({@code field?::type}), including on unions where only some index types convert.
+     * Also generate lenient casts ({@code field::~type}), including on unions where only some index types convert.
      * Strict casts are generated without this feature.
      */
     LENIENT_CASTS

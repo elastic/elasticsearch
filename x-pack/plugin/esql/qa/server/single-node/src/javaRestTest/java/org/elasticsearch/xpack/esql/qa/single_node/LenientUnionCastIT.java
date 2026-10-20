@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.greaterThan;
 /**
  * Every {@code union_*} catalog index paired with every other, cast to every conversion target.
  * <ul>
- *     <li>A lenient cast ({@code field?::type}) either returns a value or null, or fails because nothing can convert.
+ *     <li>A lenient cast ({@code field::~type}) either returns a value or null, or fails because nothing can convert.
  *     It must not fail with the generic "due to ambiguities" error.</li>
  *     <li>A strict cast ({@code TO_TYPE(field)}) returns values only when every index's type converts, and fails otherwise.</li>
  * </ul>
@@ -166,8 +166,8 @@ public class LenientUnionCastIT extends ESRestTestCase {
     }
 
     private void checkLenientPair(String left, String right, CastTarget target, List<String> failures) throws IOException {
-        String label = left + "|" + right + " ?::" + target.typeName;
-        String query = String.format(Locale.ROOT, "FROM %s,%s | EVAL x = field?::%s | KEEP x", left, right, target.typeName);
+        String label = left + "|" + right + " ::~" + target.typeName;
+        String query = String.format(Locale.ROOT, "FROM %s,%s | EVAL x = field::~%s | KEEP x", left, right, target.typeName);
         try {
             expectTwoRows(label, target, query, failures);
         } catch (ResponseException e) {
@@ -176,7 +176,7 @@ public class LenientUnionCastIT extends ESRestTestCase {
             // Cannot convert field [field] to [IP]: no type can be converted: [aggregate_metric_double] in [union_aggregate_metric_double],
             // [boolean] in [union_boolean]
             boolean allowed = reason.contains("no type can be converted")
-                // Mapped types [date_nanos, datetime] of [field] cannot be accepted in [field?::ip]
+                // Mapped types [date_nanos, datetime] of [field] cannot be accepted in [field::~ip]
                 || reason.contains("cannot be accepted");
             if (status >= 500 || reason.contains("due to ambiguities") || allowed == false) {
                 failures.add(label + " status " + status + " " + abbreviate(reason));

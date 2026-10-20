@@ -142,7 +142,7 @@ setup:
         body:
           # [foo] is double in index1, long in index2, unmapped (loaded as keyword) in index3.
           # double and long convert; the unmapped keyword leg is nulled.
-          query: 'SET unmapped_fields="load"; FROM index* METADATA _index | EVAL x = foo?::aggregate_metric_double | KEEP _index, x | SORT _index'
+          query: 'SET unmapped_fields="load"; FROM index* METADATA _index | EVAL x = foo::~aggregate_metric_double | KEEP _index, x | SORT _index'
   - length: { values: 3 }
   - match: { values.2.0: "index3" }
   - match: { values.2.1: null }

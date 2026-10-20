@@ -14,7 +14,14 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * The lenient cast operator {@code field?::type}, wrapping the conversion that {@code field::type} would build.
+ * The lenient cast operator {@code field::~type}, wrapping the conversion that {@code field::type} would build.
+ * <p>
+ * On a union-typed field, the indices whose type cannot convert load as null, with a warning, instead of failing the query.
+ * Everywhere else it behaves exactly like the wrapped conversion.
+ * <p>
+ * It only exists during analysis: {@code ResolveUnionTypes} replaces it with the resolved union field or with the wrapped
+ * conversion, and the verifier rejects any that remain. That keeps it out of the optimizer, serialization and execution, so
+ * code there only ever sees plain conversions.
  */
 public final class LenientCast extends UnaryExpression {
 
@@ -23,7 +30,7 @@ public final class LenientCast extends UnaryExpression {
     }
 
     /**
-     * The wrapped conversion, e.g. {@code ToLong(field)} for {@code field?::long}.
+     * The wrapped conversion, e.g. {@code ToLong(field)} for {@code field::~long}.
      */
     public ConvertFunction convert() {
         return (ConvertFunction) child();

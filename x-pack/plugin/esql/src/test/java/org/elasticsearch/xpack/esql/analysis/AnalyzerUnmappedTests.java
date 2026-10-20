@@ -2449,7 +2449,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     /**
-     * {@code ?::integer} accepts the unmapped keyword leg but not {@code ip}, so the mapped leg loads as null and the query
+     * {@code ::~integer} accepts the unmapped keyword leg but not {@code ip}, so the mapped leg loads as null and the query
      * succeeds.
      */
     public void testTwoLeggedPunkLenientCastRejectingMappedType() {
@@ -2458,7 +2458,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
 
         var plan = analyzer().minimumTransportVersion(TransportVersion.current())
             .addIndex(partialIpIndex())
-            .statement(setUnmappedLoad("FROM idx* | EVAL x = partial_ip?::integer | KEEP x"));
+            .statement(setUnmappedLoad("FROM idx* | EVAL x = partial_ip::~integer | KEEP x"));
         var attr = EsqlTestUtils.singleValue(plan.output());
         assertThat(attr.dataType(), equalTo(DataType.INTEGER));
         assertWarnings("Field [partial_ip] of type [ip] cannot be converted to [INTEGER] and will be null in those indices.");

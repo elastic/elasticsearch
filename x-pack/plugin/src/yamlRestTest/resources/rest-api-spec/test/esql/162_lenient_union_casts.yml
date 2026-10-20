@@ -1,5 +1,5 @@
 setup:
-  # Tests using the lenient cast operator `?::` require the lenient_cast_operator capability themselves. Their strict `::`
+  # Tests using the lenient cast operator `::~` require the lenient_cast_operator capability themselves. Their strict `::`
   # and TO_* twins need no capability, since those casts have always failed on these unions.
   - requires:
       test_runner_features: [capabilities, warnings, warnings_regex, allowed_warnings, allowed_warnings_regex, contains]
@@ -172,7 +172,7 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM lenient_text,lenient_object | EVAL m = message?::keyword | KEEP id, m | SORT id'
+          query: 'FROM lenient_text,lenient_object | EVAL m = message::~keyword | KEEP id, m | SORT id'
   - length: { values: 2 }
   - match: { columns.1.name: "m" }
   - match: { columns.1.type: "keyword" }
@@ -211,7 +211,7 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM lenient_text,lenient_object | WHERE message?::keyword IS NOT NULL | STATS c = COUNT(*)'
+          query: 'FROM lenient_text,lenient_object | WHERE message::~keyword IS NOT NULL | STATS c = COUNT(*)'
   - match: { values.0: [1] }
   - do:
       warnings:
@@ -220,7 +220,7 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM lenient_text,lenient_object | EVAL m = message?::keyword | SORT m | KEEP m'
+          query: 'FROM lenient_text,lenient_object | EVAL m = message::~keyword | SORT m | KEEP m'
   - match: { values.0: ["hello"] }
   - match: { values.1: [null] }
   - do:
@@ -230,7 +230,7 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM lenient_text,lenient_object | STATS c = COUNT(*) BY m = message?::keyword | SORT m'
+          query: 'FROM lenient_text,lenient_object | STATS c = COUNT(*) BY m = message::~keyword | SORT m'
   - match: { values.0: [1, "hello"] }
   - match: { values.1: [1, null] }
 
@@ -250,7 +250,7 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM lenient_object,lenient_keyword,lenient_long | EVAL x = f?::keyword | KEEP id, x | SORT id'
+          query: 'FROM lenient_object,lenient_keyword,lenient_long | EVAL x = f::~keyword | KEEP id, x | SORT id'
   - length: { values: 3 }
   - match: { values.0: [2, null] }
   - match: { values.1: [3, "hi"] }
@@ -280,7 +280,7 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM lenient_counter,lenient_double | EVAL m = metric?::keyword | KEEP host, m | SORT m'
+          query: 'FROM lenient_counter,lenient_double | EVAL m = metric::~keyword | KEEP host, m | SORT m'
   - length: { values: 2 }
   - match: { columns.1.type: "keyword" }
   - match: { values.0: ["h", "1.5"] }
@@ -318,7 +318,7 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM lenient_counter,lenient_double | EVAL m = metric?::double | STATS c = COUNT(m)'
+          query: 'FROM lenient_counter,lenient_double | EVAL m = metric::~double | STATS c = COUNT(m)'
   - match: { values.0: [2] }
 
 ---
@@ -337,7 +337,7 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM lenient_amd,lenient_amd_long | EVAL m = metric?::long | KEEP id, m | SORT id'
+          query: 'FROM lenient_amd,lenient_amd_long | EVAL m = metric::~long | KEEP id, m | SORT id'
   - match: { values.0: [6, null] }
   - match: { values.1: [7, 9] }
 
@@ -362,7 +362,7 @@ setup:
       catch: '/Cannot convert field \[f\] to \[IP\]: no type can be converted: \[boolean\] in \[lenient_bool\], \[object\] in \[lenient_object\]/'
       esql.query:
         body:
-          query: 'FROM lenient_object,lenient_bool | EVAL x = f?::ip | KEEP x'
+          query: 'FROM lenient_object,lenient_bool | EVAL x = f::~ip | KEEP x'
 
 ---
 "no mapped type can convert to the strict cast target":
@@ -375,7 +375,7 @@ setup:
 ---
 "lenient cast not wrapping the field directly stays an error":
   # Intentional scope: leniency only applies when the cast directly wraps the conflicted field (including chained casts).
-  # TRIM(f)?::keyword still fails with the generic ambiguities error.
+  # TRIM(f)::~keyword still fails with the generic ambiguities error.
   - requires:
       capabilities:
         - method: POST
@@ -387,7 +387,7 @@ setup:
       catch: '/Cannot use field \[message\] due to ambiguities being mapped as \[2\] incompatible types: \[object\] in \[lenient_object\], \[text\] in \[lenient_text\]/'
       esql.query:
         body:
-          query: 'FROM lenient_text,lenient_object | EVAL m = TRIM(message)?::keyword | KEEP m'
+          query: 'FROM lenient_text,lenient_object | EVAL m = TRIM(message)::~keyword | KEEP m'
 
 ---
 "lenient cast through identifier params":
@@ -405,7 +405,7 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM lenient_text,lenient_object | EVAL m = ??f?::keyword | KEEP id, m | SORT id'
+          query: 'FROM lenient_text,lenient_object | EVAL m = ??f::~keyword | KEEP id, m | SORT id'
           params: [{"f": "message"}]
   - match: { values.0: [1, "hello"] }
   - match: { values.1: [2, null] }
@@ -416,7 +416,18 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM lenient_text,lenient_object | EVAL m = ??1?::keyword | KEEP id, m | SORT id'
+          query: 'FROM lenient_text,lenient_object | EVAL m = ??1::~keyword | KEEP id, m | SORT id'
+          params: ["message"]
+  - match: { values.0: [1, "hello"] }
+  - match: { values.1: [2, null] }
+  - do:
+      warnings:
+        - "Field [message] of type [object] in [lenient_object] cannot be converted to [KEYWORD] and will be null in those indices."
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM lenient_text,lenient_object | EVAL m = ??::~keyword | KEEP id, m | SORT id'
           params: ["message"]
   - match: { values.0: [1, "hello"] }
   - match: { values.1: [2, null] }
@@ -435,7 +446,7 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'ROW a = ?p?::long, c = ?p::long'
+          query: 'ROW a = ?p::~long, c = ?p::long'
           params: [{"p": "42"}]
   - match: { columns.0.type: "long" }
   - match: { values.0: [42, 42] }
@@ -444,7 +455,7 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'ROW a = ? ?::long, b = ?::long'
+          query: 'ROW a = ?::~long, b = ?::long'
           params: ["42", "7"]
   - match: { values.0: [42, 7] }
 
@@ -464,7 +475,7 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'SET unmapped_fields="load"; FROM lenient_punk_long,lenient_punk_unmapped METADATA _index | EVAL x = v?::ip | KEEP _index, x | SORT _index'
+          query: 'SET unmapped_fields="load"; FROM lenient_punk_long,lenient_punk_unmapped METADATA _index | EVAL x = v::~ip | KEEP _index, x | SORT _index'
   - length: { values: 2 }
   - match: { columns.1.type: "ip" }
   - match: { values.0: ["lenient_punk_long", null] }
@@ -510,4 +521,4 @@ setup:
       catch: '/Cannot use field \[f\] with unsupported type \[rank_feature\]/'
       esql.query:
         body:
-          query: 'FROM lenient_rank,lenient_rank_kw | EVAL x = f?::keyword | KEEP x'
+          query: 'FROM lenient_rank,lenient_rank_kw | EVAL x = f::~keyword | KEEP x'

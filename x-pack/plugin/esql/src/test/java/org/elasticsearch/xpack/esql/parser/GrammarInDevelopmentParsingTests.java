@@ -35,8 +35,9 @@ public class GrammarInDevelopmentParsingTests extends ESTestCase {
     }
 
     public void testDevelopmentLenientCast() throws Exception {
-        // outside of dev mode, `?` after an expression is not a lenient cast
-        expectThrows(ParsingException.class, () -> parser().parseQuery("row a = 1 | eval b = a?::long"));
+        // outside of dev mode, `::~` lexes as LENIENT_CAST_OP but the parser rule is predicate-guarded
+        ParsingException pe = expectThrows(ParsingException.class, () -> parser().parseQuery("row a = 1 | eval b = a::~long"));
+        assertThat(pe.getMessage(), containsString("'::~'"));
     }
 
     void parse(String query, String errorMessage) {

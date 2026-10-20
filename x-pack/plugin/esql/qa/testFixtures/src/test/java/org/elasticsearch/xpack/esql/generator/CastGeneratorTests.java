@@ -62,10 +62,10 @@ public class CastGeneratorTests extends ESTestCase {
             long converting = cast.sourceTypes().stream().filter(source -> CastGenerator.converts(cast.target(), source)).count();
             if (cast.lenient()) {
                 assertTrue(cast.expression(), converting > 0);
-                assertThat(cast.expression(), containsString("?::" + cast.target().typeName()));
+                assertThat(cast.expression(), containsString("::~" + cast.target().typeName()));
             } else {
                 assertThat(cast.expression(), converting, equalTo((long) cast.sourceTypes().size()));
-                assertThat(cast.expression(), not(containsString("?::")));
+                assertThat(cast.expression(), not(containsString("::~")));
             }
         }
     }

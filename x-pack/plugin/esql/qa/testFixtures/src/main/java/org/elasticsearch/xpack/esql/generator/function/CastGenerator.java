@@ -35,7 +35,7 @@ import static org.elasticsearch.test.ESTestCase.randomFrom;
  * than an analysis error:
  * <ul>
  *     <li>A strict cast ({@code f::type} or {@code TO_TYPE(f)}) only when every type behind the column converts.</li>
- *     <li>A lenient cast ({@code f?::type}) in that case too, and also on a union where at least one type converts. That
+ *     <li>A lenient cast ({@code f::~type}) in that case too, and also on a union where at least one type converts. That
  *     second case loads the other indices as null.</li>
  * </ul>
  * Which source types a target accepts comes from the conversion functions themselves.
@@ -114,7 +114,7 @@ public final class CastGenerator {
                     candidates.add(new Cast(strict, target, false, sources));
                 }
                 if (allowLenient && converting > 0) {
-                    candidates.add(new Cast(name + "?::" + target.typeName(), target, true, sources));
+                    candidates.add(new Cast(name + "::~" + target.typeName(), target, true, sources));
                 }
             }
         }

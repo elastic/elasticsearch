@@ -370,11 +370,11 @@ load two indices with lenient cast to ip, long branch is null:
         - "Field \\[event_duration\\] of type \\[long\\] in \\[events_ip_long\\] cannot be converted to \\[IP\\] and will be null in those indices."
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
-        - ".*evaluation of \\[event_duration\\?::ip\\] failed.*"
+        - ".*evaluation of \\[event_duration::~ip\\] failed.*"
         - ".*not an IP string literal.*"
       esql.query:
         body:
-          query: 'FROM events_ip_keyword,events_ip_long | EVAL event_duration = event_duration?::ip | STATS c = COUNT(event_duration)'
+          query: 'FROM events_ip_keyword,events_ip_long | EVAL event_duration = event_duration::~ip | STATS c = COUNT(event_duration)'
   - match: { columns.0.name: "c" }
   - match: { columns.0.type: "long" }
   - match: { values.0.0: 0 }
@@ -580,11 +580,11 @@ load two indices with lenient cast to long, ip branch is null:
         - "Field \\[client_ip\\] of type \\[ip\\] in \\[events_ip_long\\] cannot be converted to \\[LONG\\] and will be null in those indices."
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
-        - ".*evaluation of \\[client_ip\\?::long\\] failed.*"
+        - ".*evaluation of \\[client_ip::~long\\] failed.*"
         - ".*Cannot parse.*"
       esql.query:
         body:
-          query: 'FROM events_ip_long,events_keyword_long | EVAL client_ip = client_ip?::long | STATS c = COUNT(client_ip)'
+          query: 'FROM events_ip_long,events_keyword_long | EVAL client_ip = client_ip::~long | STATS c = COUNT(client_ip)'
   - match: { columns.0.type: "long" }
   - match: { values.0.0: 0 }
 

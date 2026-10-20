@@ -21,8 +21,10 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.List;
@@ -35,16 +37,18 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class XpackSystemIndicesUpgradeIT extends AbstractXpackRollingUpgradeWithSecurityTestCase {
 
-    @BeforeClass
-    public static void avoidBugIn8_0_1() {
-        // 8.0.1 crashes when the X-elastic-product-origin header propagates to transport threads; skip to avoid cluster instability.
-        assumeTrue("https://github.com/elastic/elasticsearch/issues/125168", UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_1_0));
-    }
-
     private static final String BASIC_AUTH_VALUE = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
+
+    @ClassRule
+    public static final ElasticsearchCluster cluster = buildClusterWithSecurity();
 
     public XpackSystemIndicesUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
+    }
+
+    @Override
+    protected ElasticsearchCluster getUpgradeCluster() {
+        return cluster;
     }
 
     @Override
@@ -54,6 +58,12 @@ public class XpackSystemIndicesUpgradeIT extends AbstractXpackRollingUpgradeWith
             .put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE)
             .put(ThreadContext.PREFIX + "." + Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, "fleet")
             .build();
+    }
+
+    @BeforeClass
+    public static void avoidBugIn8_0_1() {
+        // 8.0.1 crashes when the X-elastic-product-origin header propagates to transport threads; skip to avoid cluster instability.
+        assumeTrue("https://github.com/elastic/elasticsearch/issues/125168", UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_1_0));
     }
 
     public void testUpgradeSystemIndexAndDataStream() throws Exception {

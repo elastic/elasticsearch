@@ -30,8 +30,6 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
         // Projects that apply LegacyRestTestBasePlugin directly via the legacy-yaml-rest-test or legacy-java-rest-test plugins.
         map.put(LegacyRestTestBasePlugin.class, ":qa:mixed-cluster");
         map.put(LegacyRestTestBasePlugin.class, ":qa:multi-cluster-search");
-        map.put(LegacyRestTestBasePlugin.class, ":qa:rolling-upgrade-legacy");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:qa:rolling-upgrade-basic");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:qa:rolling-upgrade-multi-cluster");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:qa:security-example-spi-extension");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:qa:security-setup-password-tests");
@@ -53,8 +51,6 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
 
         // Projects that apply LegacyRestTestBasePlugin transitively via the standalone-rest-test plugin.
         map.put(LegacyRestTestBasePlugin.class, ":qa:mixed-cluster");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:qa:rolling-upgrade-legacy");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:qa:rolling-upgrade-basic");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:eql:qa:ccs-rolling-upgrade");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:ml:qa:multi-cluster-tests-with-security");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:transform:qa:multi-cluster-tests-with-security");

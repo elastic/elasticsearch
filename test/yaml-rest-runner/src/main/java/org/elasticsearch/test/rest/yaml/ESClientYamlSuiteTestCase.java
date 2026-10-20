@@ -10,6 +10,7 @@
 package org.elasticsearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 import org.apache.http.HttpHost;
@@ -40,6 +41,8 @@ import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Parameter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -112,7 +115,35 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     private static ClientYamlSuiteRestSpec restSpecification;
 
     protected ESClientYamlSuiteTestCase(ClientYamlTestCandidate testCandidate) {
+        assertCandidateParameterNamedYaml(getClass());
         this.testCandidate = testCandidate;
+    }
+
+    /**
+     * randomizedtesting names each parameterized test case from the {@code @Name} annotations on the suite constructor's parameters, and
+     * falls back to {@code p<N>} when one is missing, reporting {@code test {p0=...}} instead of {@code test {yaml=...}}. Build tooling
+     * and {@code muted-tests.yml} match on {@code yaml}, and {@code @Name} is not inherited, so every concrete suite must declare it. This
+     * fails fast, naming the offending suite, rather than letting tests quietly run under a different name.
+     * <p>
+     * The annotation is required on the {@link ClientYamlTestCandidate} parameter wherever it sits; other parameters are not checked.
+     */
+    static void assertCandidateParameterNamedYaml(Class<?> suiteClass) {
+        for (Constructor<?> constructor : suiteClass.getConstructors()) {
+            for (Parameter parameter : constructor.getParameters()) {
+                if (ClientYamlTestCandidate.class.isAssignableFrom(parameter.getType()) == false) {
+                    continue;
+                }
+                Name name = parameter.getAnnotation(Name.class);
+                if (name == null || "yaml".equals(name.value()) == false) {
+                    throw new IllegalStateException(
+                        "Suite ["
+                            + suiteClass.getName()
+                            + "] must declare `@Name(\"yaml\")` on its ClientYamlTestCandidate constructor parameter so test cases are "
+                            + "reported as `test {yaml=...}`. See https://github.com/elastic/elasticsearch/pull/160897."
+                    );
+                }
+            }
+        }
     }
 
     @Before

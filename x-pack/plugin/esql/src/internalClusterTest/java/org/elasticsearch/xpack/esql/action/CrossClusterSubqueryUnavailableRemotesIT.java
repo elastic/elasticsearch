@@ -167,7 +167,7 @@ public class CrossClusterSubqueryUnavailableRemotesIT extends AbstractCrossClust
                 | KEEP v, tag
                 """, randomBoolean())) {
                 var columns = resp.columns().stream().map(ColumnInfoImpl::name).toList();
-                assertThat(columns, hasItems("<no-fields>"));
+                assertThat(columns, hasSize(0));
 
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values, hasSize(0));
@@ -222,7 +222,7 @@ public class CrossClusterSubqueryUnavailableRemotesIT extends AbstractCrossClust
      * Like testSubqueryWithDisconnectedRemoteClusterWithSkipUnavailableTrue, but the unavailable remote is referenced
      * from a nested subquery - two union levels down. The extra union level must behave exactly like the flat case:
      * skip the remote and keep the data flowing when its branch still resolves against another cluster, and degrade to
-     * the (current) whole-query <no-fields> behavior when the branch references only the unavailable remote.
+     * the (current) whole-query empty-result behavior when the branch references only the unavailable remote.
      */
     public void testNestedSubqueryWithDisconnectedRemoteClusterWithSkipUnavailableTrue() throws IOException {
         setSkipUnavailable(REMOTE_CLUSTER_1, true);
@@ -253,13 +253,13 @@ public class CrossClusterSubqueryUnavailableRemotesIT extends AbstractCrossClust
             }
 
             // A nested branch referencing only the unavailable remote behaves like the flat case today: the whole
-            // query resolves to <no-fields> and returns no rows, without throwing.
+            // query resolves to no columns and returns no rows, without throwing.
             try (EsqlQueryResponse resp = runQuery("""
                 FROM logs-*, (FROM r*:logs-*, (FROM c*:logs-*))
                 | KEEP v, tag
                 """, randomBoolean())) {
                 var columns = resp.columns().stream().map(ColumnInfoImpl::name).toList();
-                assertThat(columns, hasItems("<no-fields>"));
+                assertThat(columns, hasSize(0));
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values, hasSize(0));
                 EsqlExecutionInfo executionInfo = resp.getExecutionInfo();

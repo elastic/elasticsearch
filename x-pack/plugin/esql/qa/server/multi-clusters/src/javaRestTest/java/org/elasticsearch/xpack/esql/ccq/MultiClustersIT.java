@@ -798,7 +798,9 @@ public class MultiClustersIT extends ESRestTestCase {
             {
                 var response = runEsql(new RestEsqlTestCase.RequestObjectBuilder().query("FROM remote_cluster:test-remote-*").build());
                 assertThat(response.get("error"), nullValue());
-                assertThat((List<String>) response.get("columns"), contains("<no-fields>"));
+                // the coordinating (local) cluster builds the empty-result columns; an old one still returns the placeholder
+                boolean noColumns = clusterHasCapability("POST", "/_query", List.of(), List.of("drop_no_fields_attribute")).orElse(false);
+                assertThat((List<String>) response.get("columns"), noColumns ? empty() : contains("<no-fields>"));
                 assertThat((List<String>) response.get("values"), empty());
             }
         } finally {

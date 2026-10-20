@@ -178,9 +178,7 @@ public class CrossClusterLookupJoinFailuresIT extends AbstractCrossClusterTestCa
                 )
             ) {
                 var columns = resp.columns().stream().map(ColumnInfoImpl::name).toList();
-                // this is a bit weird but that's how it works
-                assertThat(columns, hasSize(1));
-                assertThat(columns, hasItems("<no-fields>"));
+                assertThat(columns, hasSize(0));
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values, hasSize(0));
                 EsqlExecutionInfo executionInfo = resp.getExecutionInfo();

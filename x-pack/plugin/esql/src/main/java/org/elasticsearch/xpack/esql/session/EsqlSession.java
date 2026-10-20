@@ -756,15 +756,7 @@ public class EsqlSession {
                         executionInfo.queryProfile().planningCpuNanos(planningCpu.finish());
                         listener.onResponse(
                             new Versioned<>(
-                                new Result(
-                                    Analyzer.NO_FIELDS,
-                                    List.of(),
-                                    Map.of(),
-                                    configuration,
-                                    DriverCompletionInfo.EMPTY,
-                                    executionInfo,
-                                    null
-                                ),
+                                new Result(List.of(), List.of(), Map.of(), configuration, DriverCompletionInfo.EMPTY, executionInfo, null),
                                 TransportVersion.current()
                             )
                         );

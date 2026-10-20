@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.local;
 
-import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -173,7 +172,6 @@ public class ResolvingProject extends Project {
             .filter(
                 p -> p.synthetic()
                     && p instanceof UnmappedFieldsAttribute == false
-                    && Analyzer.NO_FIELDS_NAME.equals(p.name()) == false
                     && names.contains(p.name()) == false
                     && childNames.contains(p.name())
             )

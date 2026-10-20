@@ -552,17 +552,56 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     /**
-     * When every column is pruned (e.g. {@code COUNT(*)} with no referenced fields), {@link ProjectAwayColumns}
-     * inserts a single synthetic {@code "<all-fields-projected>"} attribute into the {@link ExternalSourceExec}
-     * output. The planner must translate that sentinel into an empty {@code projectedColumns} list before
-     * handing it to the format reader, so the reader can take its row-count-only fast path.
+     * When every column is pruned (e.g. {@code COUNT(*)} with no referenced fields), the {@link ExternalSourceExec}
+     * has an empty output. The planner must hand an empty {@code projectedColumns} list to the format reader,
+     * so the reader can take its row-count-only fast path.
      */
     public void testExternalSourceCountStarYieldsEmptyProjection() throws IOException {
         AtomicReference<SourceOperatorContext> captured = new AtomicReference<>();
         SourceOperatorFactoryProvider provider = capturingProvider(captured);
         OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(Map.of(), Map.of("file", provider), Runnable::run);
 
-        // Mirrors what ProjectAwayColumns inserts when COUNT(*) prunes every real column.
+        List<Attribute> attrs = List.of();
+        ExternalSourceExec exec = new ExternalSourceExec(
+            Source.EMPTY,
+            "s3://bucket/data.ndjson",
+            "file",
+            attrs,
+            Map.of(),
+            Map.of(),
+            null,
+            10
+        );
+
+        planner(operatorFactoryRegistry).plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            exec,
+            EmptyIndexedByShardId.instance(),
+            randomBoolean()
+        );
+
+        assertThat(captured.get(), notNullValue());
+        assertThat(
+            "COUNT(*) with every column pruned must arrive at the format reader as an empty projection",
+            captured.get().projectedColumns(),
+            equalTo(List.of())
+        );
+    }
+
+    /**
+     * A coordinator that predates zero column fragments inserts a single synthetic {@code "<all-fields-projected>"}
+     * attribute into the {@link ExternalSourceExec} output when every column is pruned. The planner must translate that
+     * sentinel into an empty {@code projectedColumns} list before handing it to the format reader, so the reader can
+     * take its row-count-only fast path.
+     */
+    public void testExternalSourceCountStarSentinelYieldsEmptyProjection() throws IOException {
+        AtomicReference<SourceOperatorContext> captured = new AtomicReference<>();
+        SourceOperatorFactoryProvider provider = capturingProvider(captured);
+        OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(Map.of(), Map.of("file", provider), Runnable::run);
+
+        // Mirrors what ProjectAwayColumns inserts for nodes that cannot handle fragments without columns.
         List<Attribute> attrs = List.of(new ReferenceAttribute(Source.EMPTY, null, ProjectAwayColumns.ALL_FIELDS_PROJECTED, DataType.NULL));
         ExternalSourceExec exec = new ExternalSourceExec(
             Source.EMPTY,

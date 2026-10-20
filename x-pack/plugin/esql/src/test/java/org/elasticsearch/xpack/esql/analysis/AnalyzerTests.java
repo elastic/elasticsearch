@@ -181,7 +181,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.soleHighlight;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.TestAnalyzer.loadMapping;
-import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.EMBEDDING_INFERENCE_ID;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.TEXT_EMBEDDING_INFERENCE_ID;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.englishFallbackWarning;
@@ -209,6 +208,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItem;
@@ -258,7 +258,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
         var limit = as(plan, Limit.class);
 
         assertEquals(
-            new EsRelation(EMPTY, idx.name(), IndexMode.STANDARD, Map.of(), Map.of(), idx.indexProperties(), NO_FIELDS),
+            new EsRelation(EMPTY, idx.name(), IndexMode.STANDARD, Map.of(), Map.of(), idx.indexProperties(), List.of()),
             limit.child()
         );
     }
@@ -275,7 +275,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
         var limit = as(plan, Limit.class);
 
         assertEquals(
-            new EsRelation(EMPTY, idx.name(), IndexMode.STANDARD, Map.of(), Map.of(), idx.indexProperties(), NO_FIELDS),
+            new EsRelation(EMPTY, idx.name(), IndexMode.STANDARD, Map.of(), Map.of(), idx.indexProperties(), List.of()),
             limit.child()
         );
     }
@@ -4079,7 +4079,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
     private void assertEmptyEsRelation(LogicalPlan plan) {
         assertThat(plan, instanceOf(EsRelation.class));
         EsRelation esRelation = (EsRelation) plan;
-        assertThat(esRelation.output(), equalTo(NO_FIELDS));
+        assertThat(esRelation.output(), empty());
     }
 
     public void testTextEmbeddingResolveInferenceId() {

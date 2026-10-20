@@ -236,7 +236,7 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
         filter = new RangeQueryBuilder("@timestamp").from("2025-01-01").to("now");
         try (EsqlQueryResponse resp = runQuery("from logs-*,c*:logs-*", randomBoolean(), filter)) {
             assertThat(getValuesList(resp), hasSize(0));
-            assertThat(resp.columns().stream().map(ColumnInfoImpl::name).toList(), hasItems("<no-fields>"));
+            assertThat(resp.columns(), hasSize(0));
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
             assertNotNull(executionInfo);

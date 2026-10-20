@@ -22,7 +22,6 @@ import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
-import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
@@ -91,15 +90,8 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
     }
 
     public void testBuildColumnsNoFieldsForCCSEmptyResult() {
-        List<ColumnInfoImpl> columns = TransportEsqlStreamQueryAction.buildColumns(Analyzer.NO_FIELDS, Map.of());
-        assertEquals("CCS empty-result schema must have exactly one column", 1, columns.size());
-        assertEquals(Analyzer.NO_FIELDS_NAME, columns.get(0).name());
-        assertEquals(DataType.NULL, columns.get(0).type());
-        assertNull(
-            "NO_FIELDS is a ReferenceAttribute, not UnsupportedAttribute, so originalTypes must be null",
-            columns.get(0).originalTypes()
-        );
-        assertNull("no metadata for NO_FIELDS placeholder", columns.get(0).meta());
+        List<ColumnInfoImpl> columns = TransportEsqlStreamQueryAction.buildColumns(List.of(), Map.of());
+        assertEquals("CCS empty-result schema must have no columns", 0, columns.size());
     }
 
     public void testBuildColumnsMixedAttributes() {

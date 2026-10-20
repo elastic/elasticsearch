@@ -205,15 +205,14 @@ public class AnalyzerInSubqueryTests extends AnalyzerTestCase {
     }
 
     /**
-     * An IN subquery against an index with empty mapping (only the {@code <no-fields>} placeholder)
-     * has no real column to compare against. The analyzer should surface a clear error rather than
-     * letting the placeholder leak into type-compatibility checking.
+     * An IN subquery against an index with empty mapping has no column to compare against, so it is rejected
+     * like any other subquery that does not return exactly one column.
      */
     public void testRejectsInSubqueryAgainstIndexWithEmptyMapping() {
         analyzer().addEmployees().addEmptyIndex().error("""
             FROM employees
             | WHERE emp_no IN (FROM empty_index)
-            """, containsString("IN subquery cannot reference an index with empty mapping"));
+            """, containsString("IN subquery must return exactly one column, found []"));
     }
 
     /**
@@ -224,7 +223,7 @@ public class AnalyzerInSubqueryTests extends AnalyzerTestCase {
         analyzer().addEmployees().addNoFieldsIndex().error("""
             FROM employees
             | WHERE emp_no IN (FROM no_fields_index)
-            """, containsString("IN subquery cannot reference an index with empty mapping"));
+            """, containsString("IN subquery must return exactly one column, found []"));
     }
 
     /**

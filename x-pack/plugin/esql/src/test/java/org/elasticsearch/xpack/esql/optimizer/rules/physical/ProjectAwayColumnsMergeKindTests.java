@@ -7,13 +7,16 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -35,7 +38,10 @@ public class ProjectAwayColumnsMergeKindTests extends ESTestCase {
         PhysicalPlan child = exchangeOverRelation();
         MergeExec merge = new MergeExec(Source.EMPTY, List.of(child, child), child.output(), MergeExec.Kind.FORK);
 
-        PhysicalPlan rewritten = new ProjectAwayColumns().apply(merge);
+        PhysicalPlan rewritten = new ProjectAwayColumns().apply(
+            merge,
+            new PhysicalOptimizerContext(EsqlTestUtils.TEST_CFG, TransportVersion.current())
+        );
 
         MergeExec result = as(rewritten, MergeExec.class);
         assertEquals(MergeExec.Kind.FORK, result.kind());

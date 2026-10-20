@@ -285,13 +285,6 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.maybeParse
  * This class is part of the planner. Resolves references (such as variable and index names) and performs implicit casting.
  */
 public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerContext> {
-    // marker list of attributes for plans that do not have any concrete fields to return, but have other computed columns to return
-    // ie from test | stats c = count(*)
-    public static final String NO_FIELDS_NAME = "<no-fields>";
-    public static final List<Attribute> NO_FIELDS = List.of(
-        new ReferenceAttribute(Source.EMPTY, null, NO_FIELDS_NAME, NULL, Nullability.TRUE, null, true)
-    );
-
     @Override
     protected List<Batch<LogicalPlan>> batches() {
         return List.of(
@@ -467,7 +460,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 esIndex.originalIndices(),
                 esIndex.concreteIndices(),
                 esIndex.indexProperties(),
-                attributes.isEmpty() ? NO_FIELDS : attributes
+                attributes
             );
         }
 
@@ -605,7 +598,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 esIndex.originalIndices(),
                 esIndex.concreteIndices(),
                 esIndex.indexProperties(),
-                attributes.isEmpty() ? NO_FIELDS : attributes
+                attributes
             );
         }
     }
@@ -770,7 +763,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 esIndex.originalIndices(),
                 esIndex.concreteIndices(),
                 esIndex.indexProperties(),
-                attributes.isEmpty() ? NO_FIELDS : attributes
+                attributes
             );
         }
     }
@@ -1977,8 +1970,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * <ul>
          *   <li>Left fields: resolved against the left child's output using standard attribute resolution.</li>
          *   <li>Right fields: set to the subquery's single output column, or an error attribute if the
-         *       subquery returns zero or more than one column, or references an index with empty
-         *       mapping (right output is {@link #NO_FIELDS}). Stale right fields (e.g. after
+         *       subquery returns zero or more than one column (e.g. it references an index with
+         *       empty mapping). Stale right fields (e.g. after
          *       {@link ImplicitCasting} recreated the right subtree) are re-resolved.</li>
          *   <li>Right child: when the subquery returns exactly one resolved field and the top of the
          *       right plan is not already a {@link Project}, an explicit {@code Project[rightField]}
@@ -2041,7 +2034,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<Attribute> rightFields = semiJoin.config().rightFields();
             if (rightFields.isEmpty() == false) {
                 // Bail out if rightFields already carries an analyzer-supplied custom error message
-                // (e.g. NO_FIELDS placeholder, multi-column subquery): re-creating a fresh
+                // (e.g. multi-column subquery): re-creating a fresh
                 // UnresolvedAttribute every iteration mints a new NameId and would never converge.
                 // Mirrors the customMessage() bail-out used for left fields.
                 if (rightFields.stream().anyMatch(a -> a instanceof UnresolvedAttribute ua && ua.customMessage())) {
@@ -2052,11 +2045,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     List<Attribute> rightOutput = semiJoin.right().output();
                     int expectedCount2 = semiJoin.config().leftFields().size();
                     if (rightOutput.size() == expectedCount2) {
-                        List<Attribute> reresolved = new ArrayList<>(expectedCount2);
-                        for (Attribute rightAttr : rightOutput) {
-                            reresolved.add(resolveSingleRightField(semiJoin, rightAttr));
-                        }
-                        return reresolved;
+                        return new ArrayList<>(rightOutput);
                     }
                 }
                 return rightFields;
@@ -2076,25 +2065,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         + "]";
                 return List.of(new UnresolvedAttribute(semiJoin.source(), "*", msg));
             }
-            List<Attribute> resolved = new ArrayList<>(expectedCount);
-            for (Attribute rightAttr : rightOutput) {
-                resolved.add(resolveSingleRightField(semiJoin, rightAttr));
-            }
-            return resolved;
-        }
-
-        /**
-         * If the lone right-side output is the {@link #NO_FIELDS} placeholder (meaning the
-         * subquery references an index with empty mapping and no projected/computed columns),
-         * surface a clear analyzer error instead of letting the type-compatibility check fail
-         * later with an obscure {@code [NULL]}-typed message. Otherwise return the attribute
-         * unchanged.
-         */
-        private static Attribute resolveSingleRightField(AbstractSubqueryJoin semiJoin, Attribute rightAttr) {
-            if (NO_FIELDS_NAME.equals(rightAttr.name())) {
-                return new UnresolvedAttribute(semiJoin.source(), "*", "IN subquery cannot reference an index with empty mapping");
-            }
-            return rightAttr;
+            return new ArrayList<>(rightOutput);
         }
 
         private boolean isCompletelyRightSideAndTranslatable(Expression expression, AttributeSet rightOutputSet) {
@@ -2180,7 +2151,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (toLoad.isEmpty() == false) {
                     LogicalPlan withLoaded = logicalPlan.transformUp(
                         EsRelation.class,
-                        esr -> withAdditionalAttributesUnlessLookup(esr, toLoad, false)
+                        esr -> withAdditionalAttributesUnlessLookup(esr, toLoad)
                     );
                     // mark changed only if the relation gained fields, else the fixed-point iteration never terminates
                     if (withLoaded != logicalPlan) {
@@ -2197,13 +2168,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
                 List<String> subPlanColumns = logicalPlan.output().stream().map(Attribute::name).toList();
                 // We need to add an explicit projection to align the outputs.
-                // If the branch already has a Project on top, and the output of the branch is empty,
-                // don't add another Project with only NO_FIELDS on top of it,
-                // otherwise it will cause an infinite loop in the analyzer, this happens to subquery so far.
-                // mergeColumns do not contain NO_FIELD because MergePlan.outputUnion removes it.
-                if (logicalPlan instanceof Project == false
-                    || (subPlanColumns.equals(mergeColumns) == false
-                        && subqueryReferencingIndexWithEmptyMapping(mergePlan, logicalPlan, mergeColumns) == false)) {
+                if (logicalPlan instanceof Project == false || subPlanColumns.equals(mergeColumns) == false) {
                     changed = true;
                     List<Attribute> newOutput = new ArrayList<>();
                     for (String attrName : mergeColumns) {
@@ -2213,22 +2178,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             }
                         }
                     }
-                    if (mergeColumns.isEmpty()) {
-                        // When mergeColumns is empty (all branches only have no-fields), resolveKeep with empty
-                        // projections would resolve to all child output including no-fields. Create a Project with
-                        // empty output directly so the no-fields marker doesn't leak into the union branch output.
-                        logicalPlan = new Project(logicalPlan.source(), logicalPlan, List.of());
-                    } else {
-                        // Union alignment is structural, not user-named: emit a Project directly rather than
-                        // routing through resolveKeep. A Keep on this path would falsely register every
-                        // virtual attribute in the alignment projection (e.g. EXTERNAL's shim-injected
-                        // _file.* family) as "the user explicitly KEEP'd it", which planWithoutSyntheticAttributes
-                        // then refuses to strip — leaking the columns to the output. The projections here are
-                        // already pre-resolved Attributes drawn from MergePlan.outputUnion, so keepResolver would
-                        // be a no-op anyway (no wildcards, no UnresolvedNamePattern). A user-named KEEP _file.path
-                        // upstream of the union still survives via its own Keep node in the branch's plan tree.
-                        logicalPlan = new Project(logicalPlan.source(), logicalPlan, new ArrayList<>(newOutput));
-                    }
+                    // Union alignment is structural, not user-named: emit a Project directly rather than
+                    // routing through resolveKeep. A Keep on this path would falsely register every
+                    // virtual attribute in the alignment projection (e.g. EXTERNAL's shim-injected
+                    // _file.* family) as "the user explicitly KEEP'd it", which planWithoutSyntheticAttributes
+                    // then refuses to strip — leaking the columns to the output. The projections here are
+                    // already pre-resolved Attributes drawn from MergePlan.outputUnion, so keepResolver would
+                    // be a no-op anyway (no wildcards, no UnresolvedNamePattern). A user-named KEEP _file.path
+                    // upstream of the union still survives via its own Keep node in the branch's plan tree.
+                    // This also covers an empty mergeColumns: a Keep with no projections would resolve to all the child output.
+                    logicalPlan = new Project(logicalPlan.source(), logicalPlan, new ArrayList<>(newOutput));
                 }
 
                 newSubPlans.add(logicalPlan);
@@ -2253,17 +2212,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     )
                     : toReferenceAttributesPreservingIds(outputUnion, mergePlan.output())
             );
-        }
-
-        /*
-         * Returns true if a subquery references an index with empty mapping.
-         */
-        private static boolean subqueryReferencingIndexWithEmptyMapping(
-            LogicalPlan unionAll,
-            LogicalPlan subquery,
-            List<String> outputColumns
-        ) {
-            return unionAll instanceof UnionAll && outputColumns.isEmpty() && subquery.output().equals(NO_FIELDS);
         }
 
         private static Alias nullFillNonLoadable(Source source, FieldAttribute mapped, AnalyzerContext context) {
@@ -2587,15 +2535,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         /**
          * Adds {@code fields} to the output of {@code esr}, which is how a field is loaded from {@code _source} (or nullified) at the
          * relation: {@code ResolveUnmapped} and the alignment of union branches both do it, so both use this. Not for a lookup index,
-         * which has no unmapped fields to load; and a field that the relation already has is not added again. With
-         * {@code replaceNoFieldsMarker}, the no-fields marker of an empty-mapping relation does not remain in its output once real
-         * fields are added; the merge alignment keeps it, as the marker is part of the branch output it aligns.
+         * which has no unmapped fields to load; and a field that the relation already has is not added again.
          */
-        public static EsRelation withAdditionalAttributesUnlessLookup(
-            EsRelation esr,
-            List<? extends Attribute> fields,
-            boolean replaceNoFieldsMarker
-        ) {
+        public static EsRelation withAdditionalAttributesUnlessLookup(EsRelation esr, List<? extends Attribute> fields) {
             if (esr.indexMode() == IndexMode.LOOKUP) {
                 return esr;
             }
@@ -2604,9 +2546,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (newFields.isEmpty()) {
                 return esr;
             }
-            return replaceNoFieldsMarker && esr.output().equals(NO_FIELDS)
-                ? esr.withAttributes(newFields)
-                : esr.withAdditionalAttributes(newFields);
+            return esr.withAdditionalAttributes(newFields);
         }
 
         /**
@@ -2972,11 +2912,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     final List<Attribute> resolved;
                     final int priority;
                     if (proj instanceof UnresolvedStar) {
-                        // KEEP x, * on an empty mapping: * would otherwise keep the <no-fields> placeholder
-                        // after ResolveUnmapped has already replaced it on the relation with x.
-                        resolved = withoutHiddenVirtualAttributes(childOutput).stream()
-                            .filter(a -> NO_FIELDS_NAME.equals(a.name()) == false)
-                            .toList();
+                        resolved = withoutHiddenVirtualAttributes(childOutput);
                         priority = 4;
                     } else if (proj instanceof UnresolvedNamePattern up) {
                         List<Attribute> matched = resolveAgainstList(up, childOutput);
@@ -4610,7 +4546,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<Attribute> newOutput = new ArrayList<>(output.size());
             for (Attribute attr : output) {
                 // Do not let the synthetic union type field attributes end up in the final output.
-                if (attr.synthetic() && attr != NO_FIELDS.getFirst()) {
+                if (attr.synthetic()) {
                     continue;
                 }
                 // EXTERNAL command only: hide its shim-injected metadata from default output unless

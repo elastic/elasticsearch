@@ -177,7 +177,7 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
         {
             String q = "FROM nomatch*";
             try (var response = runQuery(q, false)) {
-                assertThat(response.columns().size(), equalTo(1));
+                assertThat(response.columns().size(), equalTo(0));
                 assertThat(getValuesList(response).size(), equalTo(0));
                 assertThat(response.getExecutionInfo().isCrossClusterSearch(), is(false));
             }
@@ -201,8 +201,7 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
             {
                 String limit1 = q + " | LIMIT 1";
                 try (EsqlQueryResponse resp = runQuery(limit1, requestIncludeMeta)) {
-                    assertThat(resp.columns().size(), equalTo(1));
-                    assertThat(resp.columns().get(0).name(), equalTo("<no-fields>"));
+                    assertThat(resp.columns().size(), equalTo(0));
                     assertThat(getValuesList(resp).size(), equalTo(0));
                     EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
                     assertThat(executionInfo.isCrossClusterSearch(), is(true));
@@ -215,8 +214,7 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
 
                 String limit0 = q + " | LIMIT 0";
                 try (EsqlQueryResponse resp = runQuery(limit0, requestIncludeMeta)) {
-                    assertThat(resp.columns().size(), equalTo(1));
-                    assertThat(resp.columns().get(0).name(), equalTo("<no-fields>"));
+                    assertThat(resp.columns().size(), equalTo(0));
                     assertThat(getValuesList(resp).size(), equalTo(0));
                     EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
                     assertThat(executionInfo.isCrossClusterSearch(), is(true));

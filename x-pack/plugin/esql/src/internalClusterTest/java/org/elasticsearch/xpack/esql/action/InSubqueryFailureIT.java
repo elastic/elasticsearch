@@ -114,7 +114,7 @@ public class InSubqueryFailureIT extends AbstractEsqlIntegTestCase {
 
     public void testRejectsSubqueryWithEmptyMapping() {
         var e = expectThrows(VerificationException.class, () -> run("FROM test | WHERE id IN (FROM empty_mapping) | KEEP id"));
-        assertThat(e.getMessage(), containsString("IN subquery cannot reference an index with empty mapping"));
+        assertThat(e.getMessage(), containsString("IN subquery must return exactly one column, found []"));
     }
 
     // ---- type mismatches ----

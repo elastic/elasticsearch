@@ -195,7 +195,7 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
         var transformed = ViewUtils.transformUpOutsideViews(plan, p -> {
             if (p instanceof EsRelation esr) {
                 List<FieldAttribute> fieldsToNullify = fieldsToNullify(unresolved, Expressions.names(esr.output()));
-                return withAdditionalAttributesUnlessLookup(esr, fieldsToNullify, true);
+                return withAdditionalAttributesUnlessLookup(esr, fieldsToNullify);
             }
             return p;
         });
@@ -306,7 +306,7 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
         return ViewUtils.transformUpOutsideViews(plan, p -> {
             if (p instanceof EsRelation esr) {
                 List<FieldAttribute> fieldsToLoad = fieldsToLoad(toLoad, Expressions.names(esr.output()));
-                return withAdditionalAttributesUnlessLookup(esr, fieldsToLoad, true);
+                return withAdditionalAttributesUnlessLookup(esr, fieldsToLoad);
             }
             return p;
         });

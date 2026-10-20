@@ -29,6 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class AbstractThrottledTaskRunnerTests extends ESTestCase {
@@ -248,6 +249,77 @@ public class AbstractThrottledTaskRunnerTests extends ESTestCase {
         assertThat(taskRunner.runningTasks(), equalTo(0));
         assertTrue(queue.isEmpty());
         assertTrue(permits.tryAcquire(totalPermits));
+    }
+
+    /**
+     * Saturates a fixed executor (one thread, queue of one) and checks that a task for which {@link
+     * AbstractThrottledTaskRunner#isForceExecution} returns {@code true} still runs, while a task that is not force-executed is rejected.
+     */
+    public void testForceExecutionBypassesQueueLimit() {
+        final var fixedExecutor = EsExecutors.newFixed("test", 1, 1, threadFactory, threadContext, TaskTrackingConfig.DO_NOT_TRACK);
+        final var blocker = new CountDownLatch(1);
+        try {
+            final var blockerStarted = new CountDownLatch(1);
+            fixedExecutor.execute(() -> {
+                blockerStarted.countDown();
+                safeAwait(blocker);
+            });
+            safeAwait(blockerStarted);
+            fixedExecutor.execute(() -> {}); // fills the queue
+
+            class TestTask implements ActionListener<Releasable> {
+                private final boolean forceExecution;
+                private final CountDownLatch completed = new CountDownLatch(1);
+                private final AtomicReference<Exception> failure = new AtomicReference<>();
+                private final AtomicInteger runCount = new AtomicInteger();
+
+                TestTask(boolean forceExecution) {
+                    this.forceExecution = forceExecution;
+                }
+
+                @Override
+                public void onResponse(Releasable releasable) {
+                    try (releasable) {
+                        runCount.incrementAndGet();
+                    } finally {
+                        completed.countDown();
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    failure.set(e);
+                    completed.countDown();
+                }
+            }
+
+            final BlockingQueue<TestTask> queue = ConcurrentCollections.newBlockingQueue();
+            final AbstractThrottledTaskRunner<TestTask> taskRunner = new AbstractThrottledTaskRunner<>("test", 1, fixedExecutor, queue) {
+                @Override
+                protected boolean isForceExecution(TestTask task) {
+                    return task.forceExecution;
+                }
+            };
+
+            final var notForcedTask = new TestTask(false);
+            taskRunner.enqueueTask(notForcedTask);
+            safeAwait(notForcedTask.completed);
+            assertThat(notForcedTask.failure.get(), instanceOf(EsRejectedExecutionException.class));
+            assertThat(notForcedTask.runCount.get(), equalTo(0));
+            assertThat(taskRunner.runningTasks(), equalTo(0));
+
+            final var forcedTask = new TestTask(true);
+            taskRunner.enqueueTask(forcedTask);
+            assertThat(forcedTask.completed.getCount(), equalTo(1L));
+            blocker.countDown();
+            safeAwait(forcedTask.completed);
+            assertNull(forcedTask.failure.get());
+            assertThat(forcedTask.runCount.get(), equalTo(1));
+            assertTrue(queue.isEmpty());
+        } finally {
+            blocker.countDown();
+            terminate(fixedExecutor);
+        }
     }
 
     public void testDirectExecutorDoesNotOverflowStack() {

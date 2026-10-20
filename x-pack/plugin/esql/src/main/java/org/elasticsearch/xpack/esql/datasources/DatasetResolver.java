@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.EsqlLicenseChecker;
+import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
@@ -101,6 +102,7 @@ public class DatasetResolver {
         LogicalPlan parsed,
         ProjectMetadata projectMetadata,
         boolean wildcardsMatchDatasets,
+        Map<String, ViewQuerySettings> viewSettings,
         QueryPragmas pragmas,
         EsqlFlags flags,
         ActionListener<LogicalPlan> listener
@@ -122,9 +124,10 @@ public class DatasetResolver {
 
         // Collect the relations worth a round-trip: skip remote-prefixed (datasets are local-only, CCS sees the original
         // FROM) and skip any relation whose patterns could not match a registered dataset name (ordinary FROM <index>).
-        // Per relation: a wildcard inside a view body never matches datasets (DatasetRewriter.forEachRelation).
+        // Per relation: inside a view body, only the view definition's own SET makes wildcards match datasets
+        // (DatasetRewriter.forEachRelation).
         List<ScopedRelation> relations = new ArrayList<>();
-        DatasetRewriter.forEachRelation(parsed, wildcardsMatchDatasets, (r, relationWildcards) -> {
+        DatasetRewriter.forEachRelation(parsed, wildcardsMatchDatasets, viewSettings, (r, relationWildcards) -> {
             List<String> patterns = DatasetRewriter.patternsOf(r);
             if (DatasetRewriter.hasRemotePattern(patterns)
                 || DatasetRewriter.anyPatternCouldMatchDataset(patterns, datasetNames, relationWildcards) == false) {

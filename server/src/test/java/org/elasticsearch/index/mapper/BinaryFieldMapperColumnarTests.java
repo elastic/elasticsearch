@@ -128,7 +128,7 @@ public class BinaryFieldMapperColumnarTests extends MapperServiceTestCase {
         for (SourceFieldMapper.Mode mode : List.of(SourceFieldMapper.Mode.SYNTHETIC, SourceFieldMapper.Mode.COLUMNAR_STORED)) {
             final MapperService mapperService = createMapperService(settings(mode), mapping(b -> {
                 b.startObject("bin").field("type", "binary");
-                b.startObject("doc_values").field("multi_value", false).field("on_failure", "ignore").endObject();
+                b.field("multi_value", false).field("on_failure", "ignore");
                 b.endObject();
                 b.startObject("kwd").field("type", "keyword").endObject();
             }));
@@ -212,7 +212,7 @@ public class BinaryFieldMapperColumnarTests extends MapperServiceTestCase {
         return mapping(b -> {
             b.startObject("bin").field("type", "binary");
             if (multiValue != null) {
-                b.startObject("doc_values").field("multi_value", multiValue).endObject();
+                b.field("multi_value", multiValue);
             }
             b.endObject();
             b.startObject("kwd").field("type", "keyword").endObject();

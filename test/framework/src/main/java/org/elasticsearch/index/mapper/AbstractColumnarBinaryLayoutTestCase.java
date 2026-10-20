@@ -385,7 +385,7 @@ public abstract class AbstractColumnarBinaryLayoutTestCase extends MapperService
             if (layout.multiValue) {
                 b.field("doc_values", true);
             } else {
-                b.startObject("doc_values").field("multi_value", false).endObject();
+                b.field("multi_value", false);
             }
             b.endObject();
         }));

@@ -2465,10 +2465,11 @@ public class BatchBulkIT extends ESIntegTestCase {
             assertTrue("batch path lost document [" + id + "]", fromBatch[i].getResponse().isExists());
             final Map<String, Object> batchSource = fromBatch[i].getResponse().getSourceAsMap();
             assertThat("source of [" + id + "]", batchSource, equalTo(fromRow[i].getResponse().getSourceAsMap()));
-            // Synthetic source renders absorbed leaves under _unmapped. env is in every document, so two empty sinks cannot pass as equal.
+            // Synthetic source renders absorbed leaves under their own paths. env is in every document, so two empty sinks cannot pass as
+            // equal.
             assertThat(
                 "unmapped leaf of [" + id + "]",
-                XContentMapValues.extractValue(FlattenedFieldMapper.UNMAPPED_SINK_NAME + ".env", batchSource),
+                XContentMapValues.extractValue("env", batchSource),
                 equalTo(sources.get(id).get("env"))
             );
         }
@@ -2517,12 +2518,8 @@ public class BatchBulkIT extends ESIntegTestCase {
                     mapping.startObject("field");
                     {
                         mapping.field("type", "keyword");
-                        mapping.startObject("doc_values");
-                        {
-                            mapping.field("multi_value", false);
-                            mapping.field("on_failure", "ignore");
-                        }
-                        mapping.endObject();
+                        mapping.field("multi_value", false);
+                        mapping.field("on_failure", "ignore");
                     }
                     mapping.endObject();
                 }

@@ -102,12 +102,14 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResp
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -902,16 +904,21 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
         var percolateQuery = new PercolateQueryBuilder(
             "query",
-            BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field1", "not-prod").endObject()),
+            BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field1", "wrong").endObject()),
             XContentType.JSON
         );
 
         assertFailures(
-            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user7", USERS_PASSWD)))
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
                 .prepareSearch("query_index")
                 .setQuery(percolateQuery),
             RestStatus.BAD_REQUEST,
-            containsString("[constant_keyword] field [field1] only accepts values that are equal to the value defined in the mappings")
+            allOf(
+                containsString(
+                    "[constant_keyword] field [field1] only accepts values that are equal to the value defined in the mappings, but got [wrong]"
+                ),
+                not(containsString("prod"))
+            )
         );
     }
 

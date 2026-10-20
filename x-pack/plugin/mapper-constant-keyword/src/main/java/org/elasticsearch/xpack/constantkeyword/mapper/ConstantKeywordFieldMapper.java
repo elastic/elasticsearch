@@ -456,7 +456,11 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             assert result != null;
         } else if (Objects.equals(fieldType().value, value) == false) {
             throw new IllegalArgumentException(
-                "[constant_keyword] field [" + fullPath() + "] only accepts values that are equal to the value defined in the mappings"
+                "[constant_keyword] field ["
+                    + fullPath()
+                    + "] only accepts values that are equal to the value defined in the mappings, but got ["
+                    + value
+                    + "]"
             );
         }
 

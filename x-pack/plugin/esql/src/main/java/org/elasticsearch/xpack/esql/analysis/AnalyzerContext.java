@@ -255,17 +255,27 @@ public class AnalyzerContext {
     /**
      * Outer references null-filled at a view's output under a loading {@code unmapped_fields} mode that the view would have
      * surfaced had the mode applied inside it. Warned about once analysis succeeds, since a user who knows the view's contents
-     * may expect the caller's {@code SET} to reach them.
+     * may expect the enclosing {@code SET} to reach them.
      */
     public Set<ViewBoundaryNullFill> viewBoundaryNullFills() {
         return viewBoundaryNullFills;
     }
 
     /**
-     * {@code fieldName} was answered with null at the output of view {@code viewName} because {@code resolution}, the mode of
-     * the scope referencing it, does not apply inside that view.
+     * Where a loading {@code unmapped_fields} mode stopped: {@code resolution} was set by the caller's query, or by the
+     * definition of {@code settingView} if not {@code null}, and does not apply inside view {@code viewName}.
+     * {@code enclosingView} names the view that reads {@code viewName} and whose output the null-fill was placed at, when
+     * {@code viewName} was merged into it.
      */
-    public record ViewBoundaryNullFill(UnmappedResolution resolution, String viewName, String fieldName) {}
+    public record ViewBoundary(
+        UnmappedResolution resolution,
+        @Nullable String settingView,
+        String viewName,
+        @Nullable String enclosingView
+    ) {}
+
+    /** {@code fieldName} was answered with null at the output of {@code boundary}'s view. */
+    public record ViewBoundaryNullFill(ViewBoundary boundary, String fieldName) {}
 
     /**
      * Returns the {@code @timestamp} bounds extracted from the query DSL filter, or {@code null} if not available.

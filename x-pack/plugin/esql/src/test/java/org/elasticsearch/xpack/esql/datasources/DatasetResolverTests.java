@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.view.IndexViewOrigins;
 import org.junit.After;
 import org.junit.Before;
 
@@ -147,7 +148,8 @@ public class DatasetResolverTests extends ESTestCase {
         branches.put("logs_view", inView);
         BranchPlan plan = new BranchPlan(Source.EMPTY, branches, Map.of("logs_view", BranchIdentity.view("logs_view")), List.of());
 
-        LogicalPlan rewritten = replaceDatasets(resolver, plan, project(), true);
+        IndexViewOrigins origins = new IndexViewOrigins(Map.of("log*", Set.of(List.of("logs_view"))));
+        LogicalPlan rewritten = replaceDatasets(resolver, plan, project(), true, origins);
         assertThat(rewritten.children().get(0), instanceOf(UnresolvedExternalRelation.class));
         assertSame(inView, rewritten.children().get(1));
         assertEquals("the caller's wildcard is resolved and the view body's is only looked up", 2, localCalls.get());
@@ -207,6 +209,7 @@ public class DatasetResolverTests extends ESTestCase {
             project,
             true,
             Map.of(),
+            IndexViewOrigins.EMPTY,
             QueryPragmas.EMPTY,
             EsqlFlags.withMaxBranchCountPerMerge(cap),
             future
@@ -289,6 +292,7 @@ public class DatasetResolverTests extends ESTestCase {
                 project(),
                 false,
                 Map.of(),
+                IndexViewOrigins.EMPTY,
                 QueryPragmas.EMPTY,
                 EsqlFlags.DEFAULTS,
                 meteredAtCompletion.map(rewritten -> tracker.isMeteringCurrentThread())
@@ -314,8 +318,27 @@ public class DatasetResolverTests extends ESTestCase {
         ProjectMetadata project,
         boolean wildcardsMatchDatasets
     ) {
+        return replaceDatasets(resolver, plan, project, wildcardsMatchDatasets, IndexViewOrigins.EMPTY);
+    }
+
+    private LogicalPlan replaceDatasets(
+        DatasetResolver resolver,
+        LogicalPlan plan,
+        ProjectMetadata project,
+        boolean wildcardsMatchDatasets,
+        IndexViewOrigins indexViewOrigins
+    ) {
         PlainActionFuture<LogicalPlan> future = new PlainActionFuture<>();
-        resolver.replaceDatasets(plan, project, wildcardsMatchDatasets, Map.of(), QueryPragmas.EMPTY, EsqlFlags.DEFAULTS, future);
+        resolver.replaceDatasets(
+            plan,
+            project,
+            wildcardsMatchDatasets,
+            Map.of(),
+            indexViewOrigins,
+            QueryPragmas.EMPTY,
+            EsqlFlags.DEFAULTS,
+            future
+        );
         return future.actionGet();
     }
 

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis.rules;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -99,7 +101,7 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
 
     @Override
     public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
-        return applyScoped(plan, context.unmappedResolution(), context);
+        return applyScoped(plan, context.unmappedResolution(), null, context);
     }
 
     /**
@@ -108,17 +110,27 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
      * the definition has no {@code SET}; the caller's never applies in there). Inner scopes go first so a widened
      * view-branch output is visible when this scope's pass runs. A view branch only contains further view branches
      * when its own settings required nested view identity, so a definition without {@code SET}s is one flat skip,
-     * exactly as before per-view settings existed.
+     * exactly as before per-view settings existed. {@code settingView} is the view whose definition {@code SET}
+     * {@code resolution}, or {@code null} for the caller's query.
      */
-    private static LogicalPlan applyScoped(LogicalPlan plan, UnmappedResolution resolution, AnalyzerContext context) {
+    private static LogicalPlan applyScoped(
+        LogicalPlan plan,
+        UnmappedResolution resolution,
+        @Nullable String settingView,
+        AnalyzerContext context
+    ) {
         LogicalPlan withInnerScopes = transformViewBranches(plan, (viewName, branch) -> {
             UnmappedResolution viewResolution = ViewQuerySettings.forView(viewName, context.viewSettings()).unmappedFields();
-            return applyScoped(branch, viewResolution, context);
+            return applyScoped(branch, viewResolution, viewName, context);
         });
-        BiConsumer<String, String> onViewNullFill = (viewName, fieldName) -> {
+        BiConsumer<BranchIdentity, String> onViewNullFill = (identity, fieldName) -> {
+            String viewName = identity.settingsViewName();
             // A view that already loads only loads what its own body references; adding the SET to it would change nothing.
             if (ViewQuerySettings.forView(viewName, context.viewSettings()).unmappedFields().loadsUnmappedFields() == false) {
-                context.viewBoundaryNullFills().add(new AnalyzerContext.ViewBoundaryNullFill(resolution, viewName, fieldName));
+                List<String> lineage = identity.lineage();
+                String enclosingView = lineage.size() < 2 ? null : lineage.get(lineage.size() - 2);
+                var boundary = new AnalyzerContext.ViewBoundary(resolution, settingView, viewName, enclosingView);
+                context.viewBoundaryNullFills().add(new AnalyzerContext.ViewBoundaryNullFill(boundary, fieldName));
             }
         };
         return switch (resolution) {
@@ -153,11 +165,11 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
      * {@link AnalyzerRules.ParameterizedAnalyzerRule} would, except that view
      * bodies are skipped entirely: the rule never fires on a node inside one.
      */
-    private static LogicalPlan resolveOutsideViews(LogicalPlan plan, boolean load, BiConsumer<String, String> onViewNullFill) {
+    private static LogicalPlan resolveOutsideViews(LogicalPlan plan, boolean load, BiConsumer<BranchIdentity, String> onViewNullFill) {
         return ViewUtils.transformUpOutsideViews(plan, p -> p.analyzed() || p.resolved() ? p : resolve(p, load, onViewNullFill));
     }
 
-    private static LogicalPlan resolve(LogicalPlan plan, boolean load, BiConsumer<String, String> onViewNullFill) {
+    private static LogicalPlan resolve(LogicalPlan plan, boolean load, BiConsumer<BranchIdentity, String> onViewNullFill) {
         if (plan.childrenResolved() == false) {
             return plan;
         }
@@ -194,16 +206,16 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
      * Passes on only fills of names that something other than a {@code DROP} references: a field the query drops is not in its
      * result, so whether the view would have loaded it does not matter.
      */
-    private static BiConsumer<String, String> observedOnly(LogicalPlan plan, BiConsumer<String, String> onViewNullFill) {
+    private static BiConsumer<BranchIdentity, String> observedOnly(LogicalPlan plan, BiConsumer<BranchIdentity, String> onViewNullFill) {
         Set<String> observed = new HashSet<>();
         ViewUtils.forEachOutsideViews(plan, node -> {
             if ((node instanceof ResolvingProject rp && rp.kind() == ResolvingProject.Kind.DROP) == false) {
                 collectLoadCandidates(node, ua -> observed.add(ua.name()));
             }
         });
-        return (viewName, fieldName) -> {
+        return (identity, fieldName) -> {
             if (observed.contains(fieldName)) {
-                onViewNullFill.accept(viewName, fieldName);
+                onViewNullFill.accept(identity, fieldName);
             }
         };
     }
@@ -227,7 +239,7 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
             return p;
         });
         // Under NULLIFY the view's own rows would be null for the field anyway, so the boundary changes nothing worth reporting.
-        transformed = nullFillViewBoundaries(transformed, unresolved, false, (viewName, fieldName) -> {});
+        transformed = nullFillViewBoundaries(transformed, unresolved, false, (identity, fieldName) -> {});
         return nullifyNonEsRelationSources(transformed, unresolved);
     }
 
@@ -261,7 +273,11 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
      * {@code unresolved} into the plan's {@link EsRelation}s, scope-aware across subqueries/views: an outer reference (surfaced by
      * no {@link UnionAll} branch) is broadcast into all branches; an in-branch reference stays scoped to its own source. See #142033.
      */
-    private static LogicalPlan load(LogicalPlan plan, Set<UnresolvedAttribute> unresolved, BiConsumer<String, String> onViewNullFill) {
+    private static LogicalPlan load(
+        LogicalPlan plan,
+        Set<UnresolvedAttribute> unresolved,
+        BiConsumer<BranchIdentity, String> onViewNullFill
+    ) {
         // TODO: this will need to be revisited for non-lookup joining or scenarios where we won't want extraction from specific sources
         if (plan.anyMatch(p -> p instanceof UnionAll)) {
             // Outer references only: a name already surfaced by a branch resolves through the merge output. #142033
@@ -288,14 +304,14 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
      * processing, and the view's body is never entered. A {@link Join}'s right side is an independent scope whose
      * output must keep its arity (lookup index or IN-subquery RHS), so only the left side is walked.
      * <p>
-     * {@code onViewNullFill} receives the view name and field name of every fill that only happened because the mode stops at
-     * the view boundary; see {@link #nullFillViewOutput}.
+     * {@code onViewNullFill} receives the view branch's identity and the field name of every fill that only happened because
+     * the mode stops at the view boundary; see {@link #nullFillViewOutput}.
      */
     private static LogicalPlan nullFillViewBoundaries(
         LogicalPlan plan,
         Set<UnresolvedAttribute> unresolved,
         boolean load,
-        BiConsumer<String, String> onViewNullFill
+        BiConsumer<BranchIdentity, String> onViewNullFill
     ) {
         List<LogicalPlan> children = plan.children();
         boolean changed = false;
@@ -306,8 +322,7 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
             if (plan instanceof Join && i > 0) {
                 newChild = child;
             } else if (ViewUtils.isViewBody(plan, i)) {
-                String viewName = ((BranchPlan) plan).branchIdentity(i).settingsViewName();
-                newChild = nullFillViewOutput(viewName, child, unresolved, load, onViewNullFill);
+                newChild = nullFillViewOutput(((BranchPlan) plan).branchIdentity(i), child, unresolved, load, onViewNullFill);
             } else {
                 newChild = nullFillViewBoundaries(child, unresolved, load, onViewNullFill);
             }
@@ -327,11 +342,11 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
      * expect to be loaded. A body that projects or aggregates the field away would hide it either way, so is not reported.
      */
     private static LogicalPlan nullFillViewOutput(
-        String viewName,
+        BranchIdentity identity,
         LogicalPlan viewBranch,
         Set<UnresolvedAttribute> unresolved,
         boolean load,
-        BiConsumer<String, String> onViewNullFill
+        BiConsumer<BranchIdentity, String> onViewNullFill
     ) {
         List<Alias> aliases = new ArrayList<>();
         var outputNames = viewBranch.outputSet().names();
@@ -340,7 +355,7 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
             if (outputNames.contains(ua.name()) == false) {
                 aliases.add(load ? new Alias(ua.source(), ua.name(), new Literal(ua.source(), null, DataType.KEYWORD)) : nullAlias(ua));
                 if (load && branchCanSurfaceLoadedField(body, ua.name())) {
-                    onViewNullFill.accept(viewName, ua.name());
+                    onViewNullFill.accept(identity, ua.name());
                 }
             }
         }
@@ -349,15 +364,18 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
     }
 
     /**
-     * {@code branch} without the Project an outer merge puts atop it to align branch outputs, which would otherwise hide every
-     * field the body could surface. That Project is a plain one reusing its branch's source. A view body without a {@code SET}
-     * resolves a user's KEEP, DROP or RENAME to a plain Project too, but one with the source of its own command.
+     * {@code branch} without the nodes stacked atop the view body to align branch outputs, whose Projects would otherwise hide
+     * every field the body could surface. Each analyzer pass that fills a field adds a fill Eval, and the outer merge then
+     * realigns with its own missing-column Eval and Project, so a field referenced only by a later command sees several such
+     * layers. All of them are plain Projects or Evals reusing their child's source. A view body without a {@code SET} resolves
+     * a user's KEEP, DROP or RENAME to a plain Project too, but one with the source of its own command, so peeling stops there.
      */
     private static LogicalPlan withoutMergeAlignment(LogicalPlan branch) {
-        if (branch.getClass() == Project.class && branch.source().equals(((Project) branch).child().source())) {
-            return ((Project) branch).child();
+        LogicalPlan plan = branch;
+        while ((plan.getClass() == Project.class || plan instanceof Eval) && plan.source().equals(((UnaryPlan) plan).child().source())) {
+            plan = ((UnaryPlan) plan).child();
         }
-        return branch;
+        return plan;
     }
 
     /**

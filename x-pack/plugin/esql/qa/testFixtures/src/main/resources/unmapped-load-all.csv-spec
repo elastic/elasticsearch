@@ -6181,7 +6181,7 @@ FROM partial_mapping_view
 | WHERE message == "42"
 | KEEP @timestamp, message, unmapped_message
 ;
-warning:SET unmapped_fields=\"load_all\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; use that setting inside the view definition if you wish to change the view behaviour
+warning:SET unmapped_fields=\"load_all\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 @timestamp:datetime      | message:keyword | unmapped_message:keyword
 2024-10-23T13:33:34.937Z | 42              | null
@@ -6198,7 +6198,7 @@ SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_view
 | STATS loaded = COUNT(unmapped_message), rows = COUNT(*)
 ;
-warning:SET unmapped_fields=\"load_all\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; use that setting inside the view definition if you wish to change the view behaviour
+warning:SET unmapped_fields=\"load_all\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 loaded:long | rows:long
 0           | 7
@@ -6233,7 +6233,7 @@ FROM (FROM partial_mapping_view | KEEP message, unmapped_message), (FROM employe
 | KEEP message, unmapped_message
 | SORT message
 ;
-warning:SET unmapped_fields=\"load_all\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; use that setting inside the view definition if you wish to change the view behaviour
+warning:SET unmapped_fields=\"load_all\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 message:keyword | unmapped_message:keyword
 ;
@@ -6251,7 +6251,7 @@ FROM (FROM partial_mapping_view | WHERE message == "42"), (FROM partial_mapping_
 | KEEP message, unmapped_message
 | SORT message
 ;
-warning:SET unmapped_fields=\"load_all\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; use that setting inside the view definition if you wish to change the view behaviour
+warning:SET unmapped_fields=\"load_all\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 message:keyword        | unmapped_message:keyword
 42                     | null
@@ -6272,7 +6272,7 @@ FROM (FROM partial_mapping_view | WHERE message == "42"),
 | KEEP message, unmapped_message
 | SORT message
 ;
-warning:SET unmapped_fields=\"load_all\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; use that setting inside the view definition if you wish to change the view behaviour
+warning:SET unmapped_fields=\"load_all\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 message:keyword        | unmapped_message:keyword
 42                     | null
@@ -6401,7 +6401,7 @@ FROM partial_mapping_sample_data, partial_mapping_view
 | WHERE message == "42"
 | KEEP message, unmapped_message, unmapped_event_duration
 ;
-warning:SET unmapped_fields=\"load_all\" does not affect the contents of view [partial_mapping_view], so fields [unmapped_message], [unmapped_event_duration] are null in its rows; use that setting inside the view definition if you wish to change the view behaviour
+warning:SET unmapped_fields=\"load_all\" does not affect the contents of view [partial_mapping_view], so fields [unmapped_message], [unmapped_event_duration] are null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 ignoreOrder:true
 
 message:keyword | unmapped_message:keyword | unmapped_event_duration:keyword
@@ -6518,7 +6518,7 @@ FROM partial_mapping_view*
 | WHERE message == "42"
 | KEEP message, unmapped_message, event_duration
 ;
-warning:SET unmapped_fields=\"load_all\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; use that setting inside the view definition if you wish to change the view behaviour
+warning:SET unmapped_fields=\"load_all\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 ignoreOrder:true
 
 message:keyword | unmapped_message:keyword | event_duration:long
@@ -6538,8 +6538,8 @@ FROM partial_mapping_sample_data, no_mapping_view, partial_mapping_view
 | WHERE message == "42"
 | KEEP message, event_duration, unmapped_event_duration
 ;
-warning:SET unmapped_fields=\"load_all\" does not affect the contents of view [no_mapping_view], so field [unmapped_event_duration] is null in its rows; use that setting inside the view definition if you wish to change the view behaviour
-warning:SET unmapped_fields=\"load_all\" does not affect the contents of view [partial_mapping_view], so field [unmapped_event_duration] is null in its rows; use that setting inside the view definition if you wish to change the view behaviour
+warning:SET unmapped_fields=\"load_all\" does not affect the contents of view [no_mapping_view], so field [unmapped_event_duration] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warning:SET unmapped_fields=\"load_all\" does not affect the contents of view [partial_mapping_view], so field [unmapped_event_duration] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 ignoreOrder:true
 
 message:keyword | event_duration:long | unmapped_event_duration:keyword

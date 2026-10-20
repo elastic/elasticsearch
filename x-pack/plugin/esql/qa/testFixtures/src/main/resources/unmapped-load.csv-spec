@@ -3360,7 +3360,7 @@ FROM employees_all
 | WHERE extra IS NULL
 | STATS c = COUNT(*)
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_all], so field [nonexistent_field] is null in its rows; use that setting inside the view definition if you wish to change the view behaviour
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_all], so field [nonexistent_field] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 c:long
 100
@@ -3376,7 +3376,7 @@ SET unmapped_fields="load"\;
 FROM employees_all
 | STATS c = COUNT(*) BY nonexistent_field
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_all], so field [nonexistent_field] is null in its rows; use that setting inside the view definition if you wish to change the view behaviour
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_all], so field [nonexistent_field] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 c:long | nonexistent_field:keyword
 100    | null
@@ -3394,7 +3394,7 @@ FROM employees_all
 | KEEP emp_no, nonexistent_field
 | LIMIT 3
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_all], so field [nonexistent_field] is null in its rows; use that setting inside the view definition if you wish to change the view behaviour
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_all], so field [nonexistent_field] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 emp_no:integer | nonexistent_field:keyword
 10001          | null
@@ -3413,7 +3413,7 @@ FROM employees_all
 | RENAME nonexistent_field AS missing
 | STATS c = COUNT(*), m = COUNT(missing) BY missing
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_all], so field [nonexistent_field] is null in its rows; use that setting inside the view definition if you wish to change the view behaviour
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_all], so field [nonexistent_field] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 c:long | m:long | missing:keyword
 100    | 0      | null
@@ -3430,7 +3430,7 @@ FROM employees_all
 | WHERE nonexistent_field IS NOT NULL
 | STATS c = COUNT(*)
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_all], so field [nonexistent_field] is null in its rows; use that setting inside the view definition if you wish to change the view behaviour
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_all], so field [nonexistent_field] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 c:long
 0
@@ -3448,7 +3448,7 @@ FROM employees_all
 | KEEP emp_no, nonexistent_field
 | LIMIT 2
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_all], so field [nonexistent_field] is null in its rows; use that setting inside the view definition if you wish to change the view behaviour
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_all], so field [nonexistent_field] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 emp_no:integer | nonexistent_field:keyword
 10001          | null
@@ -3467,7 +3467,7 @@ FROM view_with_subquery
 | EVAL extra = nonexistent_field
 | STATS c = COUNT(emp_no), missing = COUNT(extra)
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [view_with_subquery], so field [nonexistent_field] is null in its rows; use that setting inside the view definition if you wish to change the view behaviour
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [view_with_subquery], so field [nonexistent_field] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 c:long | missing:long
 100    | 0
@@ -3485,7 +3485,7 @@ FROM employees_extra
 | EVAL extra = nonexistent_field
 | STATS c = COUNT(emp_no), missing = COUNT(extra)
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_extra], so field [nonexistent_field] is null in its rows; use that setting inside the view definition if you wish to change the view behaviour
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_extra], so field [nonexistent_field] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 c:long | missing:long
 200    | 0
@@ -3503,8 +3503,8 @@ FROM employees_all, employees_extra
 | EVAL extra = nonexistent_field
 | STATS c = COUNT(emp_no), missing = COUNT(extra)
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_all], so field [nonexistent_field] is null in its rows; use that setting inside the view definition if you wish to change the view behaviour
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_extra], so field [nonexistent_field] is null in its rows; use that setting inside the view definition if you wish to change the view behaviour
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_all], so field [nonexistent_field] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_extra], so field [nonexistent_field] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 c:long | missing:long
 300    | 0
@@ -3522,7 +3522,7 @@ FROM (FROM employees_all | WHERE emp_no < 10005)
 | EVAL extra = nonexistent_field
 | STATS rows = COUNT(), missing = COUNT(extra)
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_all], so field [nonexistent_field] is null in its rows; use that setting inside the view definition if you wish to change the view behaviour
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_all], so field [nonexistent_field] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 rows:long | missing:long
 4         | 0
@@ -3593,7 +3593,7 @@ SET unmapped_fields="load"\;
 FROM employees, employees_all
 | STATS c = COUNT(emp_no), missing = COUNT(nonexistent_field)
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_all], so field [nonexistent_field] is null in its rows; use that setting inside the view definition if you wish to change the view behaviour
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_all], so field [nonexistent_field] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 c:long | missing:long
 200    | 0
@@ -3609,7 +3609,7 @@ SET unmapped_fields="load"\;
 FROM employees_all, employees_all
 | STATS c = COUNT(emp_no), missing = COUNT(nonexistent_field)
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_all], so field [nonexistent_field] is null in its rows; use that setting inside the view definition if you wish to change the view behaviour
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_all], so field [nonexistent_field] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 c:long | missing:long
 100    | 0
@@ -3789,7 +3789,7 @@ FROM partial_mapping_view
 | WHERE message == "42"
 | KEEP @timestamp, message, unmapped_message
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; use that setting inside the view definition if you wish to change the view behaviour
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 @timestamp:datetime      | message:keyword | unmapped_message:keyword
 2024-10-23T13:33:34.937Z | 42              | null
@@ -3822,7 +3822,7 @@ SET unmapped_fields="load"\;
 FROM partial_mapping_view
 | STATS loaded = COUNT(unmapped_message), rows = COUNT(*)
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; use that setting inside the view definition if you wish to change the view behaviour
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 loaded:long | rows:long
 0           | 7
@@ -3842,7 +3842,7 @@ FROM (FROM partial_mapping_view | KEEP message, unmapped_message), (FROM employe
 | KEEP message, unmapped_message
 | SORT message
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; use that setting inside the view definition if you wish to change the view behaviour
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 message:keyword | unmapped_message:keyword
 ;
@@ -3860,7 +3860,7 @@ FROM (FROM partial_mapping_view | WHERE message == "42"), (FROM partial_mapping_
 | KEEP message, unmapped_message
 | SORT message
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; use that setting inside the view definition if you wish to change the view behaviour
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 message:keyword        | unmapped_message:keyword
 42                     | null
@@ -3879,7 +3879,7 @@ FROM partial_mapping_mv_view
 | MV_EXPAND unmapped_mv
 | STATS c = COUNT(*)
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_mv_view], so field [unmapped_mv] is null in its rows; use that setting inside the view definition if you wish to change the view behaviour
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_mv_view], so field [unmapped_mv] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 c:long
 7
@@ -3899,7 +3899,7 @@ FROM partial_mapping_mv_view
 | KEEP message, unmapped_mv
 | SORT unmapped_mv
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_mv_view], so field [unmapped_mv] is null in its rows; use that setting inside the view definition if you wish to change the view behaviour
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_mv_view], so field [unmapped_mv] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 message:keyword   | unmapped_mv:keyword
 Connection error? | null
@@ -3920,7 +3920,7 @@ FROM partial_mapping_mv_view
 | EVAL n = MV_COUNT(unmapped_mv), lo = MV_MIN(unmapped_mv), hi = MV_MAX(unmapped_mv)
 | KEEP message, n, lo, hi
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_mv_view], so field [unmapped_mv] is null in its rows; use that setting inside the view definition if you wish to change the view behaviour
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_mv_view], so field [unmapped_mv] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 message:keyword | n:integer | lo:keyword | hi:keyword
 42              | null      | null       | null
@@ -3939,7 +3939,7 @@ FROM partial_mapping_mv_view
 | DISSECT unmapped_message "%{action} from %{host}"
 | KEEP message, action, host
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_mv_view], so field [unmapped_message] is null in its rows; use that setting inside the view definition if you wish to change the view behaviour
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_mv_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 message:keyword        | action:keyword | host:keyword
 Connected to 10.1.0.3! | null           | null
@@ -3957,7 +3957,7 @@ SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_mv_view | WHERE message == "42" | MV_EXPAND unmapped_mv | KEEP message, unmapped_mv), (FROM partial_mapping_mv_view | WHERE message == "Connected to 10.1.0.1!" | KEEP message, unmapped_mv)
 | SORT message, unmapped_mv
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_mv_view], so field [unmapped_mv] is null in its rows; use that setting inside the view definition if you wish to change the view behaviour
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_mv_view], so field [unmapped_mv] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 message:keyword        | unmapped_mv:keyword
 42                     | null
@@ -3979,7 +3979,7 @@ FROM (FROM partial_mapping_view | WHERE message == "42"),
 | KEEP message, unmapped_message, upper
 | SORT message
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; use that setting inside the view definition if you wish to change the view behaviour
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 message:keyword        | unmapped_message:keyword | upper:keyword
 42                     | null                     | null
@@ -4000,7 +4000,7 @@ FROM (FROM partial_mapping_view | WHERE message == "42"),
 | STATS c = COUNT(*) BY unmapped_message
 | SORT unmapped_message
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; use that setting inside the view definition if you wish to change the view behaviour
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 c:long | unmapped_message:keyword
 2      | null
@@ -4023,7 +4023,7 @@ FROM (FROM partial_mapping_view | WHERE message == "42"),
 | KEEP message, unmapped_message
 | SORT unmapped_message DESC, message ASC
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; use that setting inside the view definition if you wish to change the view behaviour
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 message:keyword        | unmapped_message:keyword
 42                     | null
@@ -4045,7 +4045,7 @@ FROM (FROM partial_mapping_view | WHERE message == "42" | DROP unmapped_message)
 | KEEP message, unmapped_message
 | SORT message
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; use that setting inside the view definition if you wish to change the view behaviour
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 message:keyword        | unmapped_message:keyword
 42                     | null
@@ -4066,7 +4066,7 @@ FROM (FROM partial_mapping_view | WHERE message == "42" | RENAME unmapped_messag
 | KEEP message, unmapped_message, renamed
 | SORT message
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; use that setting inside the view definition if you wish to change the view behaviour
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 message:keyword        | unmapped_message:keyword | renamed:keyword
 42                     | null                     | null
@@ -4087,7 +4087,7 @@ FROM (FROM partial_mapping_view | WHERE unmapped_message == "43" | DROP unmapped
 | KEEP message, unmapped_message
 | SORT message
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; use that setting inside the view definition if you wish to change the view behaviour
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 message:keyword        | unmapped_message:keyword
 Connected to 10.1.0.1! | null
@@ -4107,7 +4107,7 @@ FROM (FROM partial_mapping_view | WHERE message == "42" | EVAL tag = unmapped_me
 | KEEP message, unmapped_message, tag
 | SORT message
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; use that setting inside the view definition if you wish to change the view behaviour
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 message:keyword        | unmapped_message:keyword | tag:keyword
 42                     | null                     | null
@@ -4129,7 +4129,7 @@ FROM (FROM partial_mapping_view | WHERE message == "42" | KEEP message, unmapped
 | KEEP message, unmapped_message, has
 | SORT message
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; use that setting inside the view definition if you wish to change the view behaviour
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 message:keyword        | unmapped_message:keyword | has:boolean
 42                     | null                     | false
@@ -4150,7 +4150,7 @@ FROM (FROM partial_mapping_view | WHERE message == "42" | RENAME unmapped_messag
 | KEEP message, renamed
 | SORT message
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; use that setting inside the view definition if you wish to change the view behaviour
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 message:keyword        | renamed:keyword
 42                     | null
@@ -4171,7 +4171,7 @@ FROM (FROM partial_mapping_view | WHERE message == "42"),
 | KEEP message, unmapped_message
 | SORT message
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; use that setting inside the view definition if you wish to change the view behaviour
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 message:keyword        | unmapped_message:keyword
 42                     | null
@@ -4209,7 +4209,7 @@ FROM partial_mapping_view
 | EVAL upper = TO_UPPER(unmapped_message), len = LENGTH(unmapped_message)
 | KEEP message, upper, len
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; use that setting inside the view definition if you wish to change the view behaviour
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 message:keyword        | upper:keyword | len:integer
 Connected to 10.1.0.3! | null          | null
@@ -4231,7 +4231,7 @@ FROM (FROM partial_mapping_view | WHERE message == "42" | KEEP message, unmapped
 | KEEP message, unmapped_message
 | SORT message
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; use that setting inside the view definition if you wish to change the view behaviour
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 message:keyword | unmapped_message:keyword
 ;

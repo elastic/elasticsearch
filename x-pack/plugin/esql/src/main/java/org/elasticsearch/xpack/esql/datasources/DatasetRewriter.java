@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.view.ViewBoundaryPreservation;
 import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
+import org.elasticsearch.xpack.esql.view.ViewQuerySettings.WildcardsStop;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -260,7 +261,7 @@ public final class DatasetRewriter {
         Map<String, ViewQuerySettings> viewSettings,
         BiConsumer<UnresolvedRelation, Boolean> action
     ) {
-        forEachRelation(plan, wildcardsMatchDatasets, null, viewSettings, (relation, wildcards, stoppedAtView) -> {
+        forEachRelation(plan, wildcardsMatchDatasets, null, null, viewSettings, (relation, wildcards, stop) -> {
             action.accept(relation, wildcards);
         });
     }
@@ -270,36 +271,39 @@ public final class DatasetRewriter {
     interface ScopedRelationVisitor {
         /**
          * @param wildcardsMatchDatasets the relation's effective {@code wildcards_match_datasets}
-         * @param stoppedAtView the view whose definition turned off the enclosing scope's {@code true} for this relation,
-         *                      or {@code null} if the enclosing scope's setting was not stopped
+         * @param stop where the enclosing scope's {@code true} stopped for this relation, or {@code null} if it was not stopped
          */
-        void accept(UnresolvedRelation relation, boolean wildcardsMatchDatasets, @Nullable String stoppedAtView);
+        void accept(UnresolvedRelation relation, boolean wildcardsMatchDatasets, @Nullable WildcardsStop stop);
     }
 
     /**
-     * Like {@link #forEachRelation(LogicalPlan, boolean, Map, BiConsumer)}, also telling the visitor which view, if any,
-     * kept the enclosing scope's {@code wildcards_match_datasets=true} from applying to the relation.
+     * Like {@link #forEachRelation(LogicalPlan, boolean, Map, BiConsumer)}, also telling the visitor where, if anywhere, the
+     * enclosing scope's {@code wildcards_match_datasets=true} stopped before reaching the relation. {@code settingView} is the
+     * view whose definition {@code SET} {@code wildcardsMatchDatasets}, or {@code null} for the caller's query.
      */
     static void forEachRelation(
         LogicalPlan plan,
         boolean wildcardsMatchDatasets,
-        @Nullable String stoppedAtView,
+        @Nullable String settingView,
+        @Nullable WildcardsStop stop,
         Map<String, ViewQuerySettings> viewSettings,
         ScopedRelationVisitor visitor
     ) {
         if (plan instanceof UnresolvedRelation relation) {
-            visitor.accept(relation, wildcardsMatchDatasets, stoppedAtView);
+            visitor.accept(relation, wildcardsMatchDatasets, stop);
         }
         List<LogicalPlan> children = plan.children();
         for (int i = 0; i < children.size(); i++) {
             boolean effective = wildcardsMatchDatasets;
-            String stopped = stoppedAtView;
+            String childSettingView = settingView;
+            WildcardsStop childStop = stop;
             if (plan instanceof BranchPlan branchPlan && branchPlan.isViewBranch(i)) {
                 String viewName = branchPlan.branchIdentity(i).settingsViewName();
                 effective = ViewQuerySettings.forView(viewName, viewSettings).wildcardsMatchDatasets();
-                stopped = wildcardsMatchDatasets && effective == false ? viewName : null;
+                childSettingView = effective ? viewName : null;
+                childStop = wildcardsMatchDatasets && effective == false ? new WildcardsStop(settingView, viewName) : null;
             }
-            forEachRelation(children.get(i), effective, stopped, viewSettings, visitor);
+            forEachRelation(children.get(i), effective, childSettingView, childStop, viewSettings, visitor);
         }
     }
 

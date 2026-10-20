@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.ESTestCase;
@@ -709,7 +710,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         // a_view opts in. b* now matches b_view, whose own body (no SET) matches c* and not c_view.
         addView("a_view", "SET wildcards_match_views=true; FROM b*");
         assertThat(relationPatterns(replaceViews(query("FROM a*"), true)), equalTo(Set.of("a*", "b*", "c*")));
-        assertWarnings(wildcardsStoppedWarning("b_view", "view [c_view]"));
+        assertWarnings(wildcardsStoppedWarning("a_view", "b_view", "view [c_view]"));
         // The outer SET is what opened a_view. Turning it off hides a_view again, even though a_view itself opted in.
         assertThat(relationPatterns(replaceViews(query("FROM a*"), false)), equalTo(Set.of("a*")));
 
@@ -718,8 +719,28 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(relationPatterns(replaceViews(query("FROM a*"), true)), equalTo(Set.of("a*", "b*", "c*", "c_only")));
     }
 
+    public void testWildcardsStoppedWarningReportsViewCircularOnAnyPathOnlyAsCircular() {
+        addIndex("cy_data");
+        addView("cy_other", "FROM cy_data");
+        addView("s_inner", "FROM cy_*");
+        addView("t_outer", "SET wildcards_match_views=true; FROM s_inner");
+        addView("cy_u", "FROM t_outer");
+        // s_inner is reached both directly through t_outer and through cy_u, which encloses it on the second path.
+        replaceViews(query("FROM t_outer, cy_u"), true);
+        assertWarnings(
+            wildcardsStoppedWarning("t_outer", "s_inner", "view [cy_other]")
+                + ", excluding view [cy_u] from its wildcards since matching it would be a circular reference"
+        );
+    }
+
     private static String wildcardsStoppedWarning(String viewName, String matched) {
-        return "SET wildcards_match_views=true does not affect the contents of view ["
+        return wildcardsStoppedWarning(null, viewName, matched);
+    }
+
+    private static String wildcardsStoppedWarning(@Nullable String settingView, String viewName, String matched) {
+        return "SET wildcards_match_views=true"
+            + (settingView == null ? "" : " in view [" + settingView + "]")
+            + " does not affect the contents of view ["
             + viewName
             + "], so its wildcards did not match "
             + matched

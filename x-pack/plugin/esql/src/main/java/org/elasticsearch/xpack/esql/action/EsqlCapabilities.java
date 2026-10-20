@@ -1706,13 +1706,15 @@ public class EsqlCapabilities {
          */
         SET_IN_VIEW_DEFINITIONS,
         /**
-         * A warning when an outer reference is null at a view's output because the caller's loading
-         * {@code unmapped_fields} mode does not reach inside the view, but would have loaded it there.
+         * A warning when an outer reference is null at a view's output because the loading {@code unmapped_fields}
+         * mode of the caller, or of an enclosing view's definition, does not reach inside the view, but would have
+         * loaded it there.
          */
         WARN_UNMAPPED_FIELDS_STOPPED_AT_VIEW,
         /**
-         * A warning when the caller's {@code wildcards_match_views=true} or {@code wildcards_match_datasets=true} does
-         * not reach inside a view whose wildcards would have matched more views or datasets with it.
+         * A warning when {@code wildcards_match_views=true} or {@code wildcards_match_datasets=true}, set by the caller
+         * or by an enclosing view's definition, does not reach inside a view whose wildcards would have matched more
+         * views or datasets with it.
          */
         WARN_WILDCARDS_STOPPED_AT_VIEW,
         /**

@@ -17,7 +17,6 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -397,37 +396,31 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     /**
-     * One warning per view whose output null-filled outer references because the referencing scope's {@code unmapped_fields}
-     * mode does not apply inside it.
+     * One warning per view boundary whose output null-filled outer references because the referencing scope's
+     * {@code unmapped_fields} mode does not apply inside it.
      */
     static List<String> viewBoundaryNullFillWarnings(Set<AnalyzerContext.ViewBoundaryNullFill> nullFills) {
-        Map<Tuple<UnmappedResolution, String>, List<String>> fieldsByView = new LinkedHashMap<>();
+        Map<AnalyzerContext.ViewBoundary, List<String>> fieldsByBoundary = new LinkedHashMap<>();
         for (AnalyzerContext.ViewBoundaryNullFill fill : nullFills) {
-            fieldsByView.computeIfAbsent(new Tuple<>(fill.resolution(), fill.viewName()), k -> new ArrayList<>()).add(fill.fieldName());
+            fieldsByBoundary.computeIfAbsent(fill.boundary(), k -> new ArrayList<>()).add(fill.fieldName());
         }
-        List<String> warnings = new ArrayList<>(fieldsByView.size());
-        fieldsByView.forEach((key, fields) -> warnings.add(viewBoundaryNullFillWarning(key.v1(), key.v2(), fields)));
+        List<String> warnings = new ArrayList<>(fieldsByBoundary.size());
+        fieldsByBoundary.forEach((boundary, fields) -> warnings.add(viewBoundaryNullFillWarning(boundary, fields)));
         return warnings;
     }
 
-    static String viewBoundaryNullFillWarning(UnmappedResolution resolution, String viewName, List<String> fieldNames) {
+    static String viewBoundaryNullFillWarning(AnalyzerContext.ViewBoundary boundary, List<String> fieldNames) {
         assert fieldNames.isEmpty() == false : "no fields to warn about";
-        int listed = Math.min(fieldNames.size(), MAX_LISTED_NON_LOADABLE_PUNKS);
-        StringBuilder fields = new StringBuilder();
-        for (int i = 0; i < listed; i++) {
-            fields.append(i == 0 ? "[" : ", [").append(fieldNames.get(i)).append("]");
-        }
-        if (fieldNames.size() > listed) {
-            fields.append(" and [").append(fieldNames.size() - listed).append("] more");
-        }
         boolean one = fieldNames.size() == 1;
         return Strings.format(
-            "SET unmapped_fields=\"%s\" does not affect the contents of view [%s], so field%s %s %s null in its rows; "
-                + "use that setting inside the view definition if you wish to change the view behaviour",
-            resolution.settingValue(),
-            viewName,
+            "SET unmapped_fields=\"%s\"%s does not affect the contents of view [%s]%s, so field%s %s %s null in its rows; "
+                + "to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself",
+            boundary.resolution().settingValue(),
+            boundary.settingView() == null ? "" : " in view [" + boundary.settingView() + "]",
+            boundary.viewName(),
+            boundary.enclosingView() == null ? "" : " nested in view [" + boundary.enclosingView() + "]",
             one ? "" : "s",
-            fields,
+            ViewQuerySettings.bracketedList(fieldNames),
             one ? "is" : "are"
         );
     }

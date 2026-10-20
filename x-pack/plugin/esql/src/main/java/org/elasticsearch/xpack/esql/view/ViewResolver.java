@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
@@ -57,6 +58,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.view.ViewQuerySettings.WildcardsStop;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -271,8 +273,9 @@ public class ViewResolver {
         Holder<Boolean> hasInSubquery = new Holder<>(false);
         // Running total of plan nodes: starts with the unexpanded query and grows with every view body expanded into it.
         PlanSize planSize = new PlanSize(PlanSize.countNodes(plan), maxPlanNodesCount);
-        // Views a body's wildcards would have matched had the caller's wildcards_match_views reached it, keyed by that view.
-        Map<String, Set<String>> stoppedWildcardMatches = new LinkedHashMap<>();
+        // Views a body's wildcards would have matched had an enclosing scope's wildcards_match_views reached it, keyed by where it
+        // stopped.
+        Map<WildcardsStop, StoppedMatches> stoppedWildcardMatches = new LinkedHashMap<>();
         boolean noViews = viewsFeatureEnabled() == false || getMetadata().views().isEmpty();
         if (noViews && InSubqueryResolver.hasInSubquery(plan) == false) {
             listener.onResponse(new ViewResolutionResult(plan, viewQueries, Map.of(), false, IndexViewOrigins.EMPTY));
@@ -287,7 +290,7 @@ public class ViewResolver {
         replaceViews(
             plan,
             projectRouting,
-            new ViewsScope(wildcardsMatchViews, null, stoppedWildcardMatches),
+            new ViewsScope(wildcardsMatchViews, null, null, stoppedWildcardMatches),
             wildcardsMatchDatasets && federationAvailable,
             parser,
             new LinkedHashSet<>(),
@@ -299,31 +302,58 @@ public class ViewResolver {
             boundaryPreservation,
             planSize,
             listener.delegateFailureAndWrap((l, rewritten) -> {
-                stoppedWildcardMatches.forEach(
-                    (viewName, matched) -> HeaderWarning.addWarning(
-                        "{}",
-                        ViewQuerySettings.wildcardsStoppedAtViewWarning(
-                            QuerySettings.WILDCARDS_MATCH_VIEWS.name(),
-                            viewName,
-                            "view",
-                            List.copyOf(matched)
-                        )
-                    )
-                );
+                stoppedWildcardMatches.forEach((stop, matches) -> {
+                    // A view the body is reached through on one path would be circular there, so it is not reported as missed.
+                    matches.missed().removeAll(matches.circular());
+                    if (matches.missed().isEmpty() == false) {
+                        HeaderWarning.addWarning(
+                            "{}",
+                            ViewQuerySettings.wildcardsStoppedAtViewWarning(
+                                QuerySettings.WILDCARDS_MATCH_VIEWS.name(),
+                                stop,
+                                "view",
+                                List.copyOf(matches.missed()),
+                                List.copyOf(matches.circular())
+                            )
+                        );
+                    }
+                });
                 l.onResponse(new ViewResolutionResult(rewritten, viewQueries, viewSettings, hasInSubquery.get(), indexViewOrigins.build()));
             })
         );
     }
 
     /**
-     * The {@code wildcards_match_views} of the scope being resolved: the caller's query or one view body. {@code stoppedAtView}
-     * names the view whose boundary stopped the enclosing scope's {@code true}; the views the body's wildcards would then have
-     * matched are added to {@code stoppedMatches} under that name, so the caller can be told.
+     * The {@code wildcards_match_views} of the scope being resolved: the caller's query or one view body. {@code settingView} is the
+     * view whose definition {@code SET} the scope's {@code true}, or {@code null} for the caller's query. {@code stop} says where the
+     * enclosing scope's {@code true} stopped, at this body's view; the views the body's wildcards would then have matched are added
+     * to {@code stoppedMatches} under it, so the user can be told.
      */
-    private record ViewsScope(boolean wildcardsMatchViews, @Nullable String stoppedAtView, Map<String, Set<String>> stoppedMatches) {
+    private record ViewsScope(
+        boolean wildcardsMatchViews,
+        @Nullable String settingView,
+        @Nullable WildcardsStop stop,
+        Map<WildcardsStop, StoppedMatches> stoppedMatches
+    ) {
         ViewsScope forBody(String viewName, boolean bodyWildcardsMatchViews) {
             boolean stopped = wildcardsMatchViews && bodyWildcardsMatchViews == false;
-            return new ViewsScope(bodyWildcardsMatchViews, stopped ? viewName : null, stoppedMatches);
+            return new ViewsScope(
+                bodyWildcardsMatchViews,
+                bodyWildcardsMatchViews ? viewName : null,
+                stopped ? new WildcardsStop(settingView, viewName) : null,
+                stoppedMatches
+            );
+        }
+    }
+
+    /**
+     * The views a stopped body's wildcards would have matched, not named exactly. {@code circular} are those that enclose the body,
+     * the body's own view included: those are not missed rows, but the view definition must exclude them to follow the advice. A
+     * view that encloses the body on one of the paths reaching it is only reported as circular.
+     */
+    private record StoppedMatches(Set<String> missed, Set<String> circular) {
+        StoppedMatches() {
+            this(new TreeSet<>(), new TreeSet<>());
         }
     }
 
@@ -686,9 +716,9 @@ public class ViewResolver {
             }
         }
         // TS never expands wildcard-matched views, so the view's setting changes nothing there.
-        ActionListener<LogicalPlan> listener = viewsScope.stoppedAtView() != null
+        ActionListener<LogicalPlan> listener = viewsScope.stop() != null
             && unresolvedRelation.indexMode() != IndexMode.TIME_SERIES
-            && Arrays.stream(patterns).anyMatch(ViewResolver::isLocalWildcard)
+            && wildcardCouldMatchUnnamedView(patterns)
                 ? reportStoppedWildcardMatches(patterns, projectRouting, resolveDatasets, seenViews, viewsScope, relationListener)
                 : relationListener;
 
@@ -887,10 +917,42 @@ public class ViewResolver {
     }
 
     /**
+     * Whether a local wildcard in {@code patterns} matches a view they do not name exactly. The lookup in
+     * {@link #reportStoppedWildcardMatches} only returns this project's views, so when none could match it is skipped.
+     */
+    private boolean wildcardCouldMatchUnnamedView(String[] patterns) {
+        Set<String> named = exactNames(patterns);
+        Set<String> viewNames = getMetadata().views().keySet();
+        for (String pattern : patterns) {
+            if (isLocalWildcard(pattern) == false) {
+                continue;
+            }
+            String expression = IndexNameExpressionResolver.resolveDateMathExpression(
+                RemoteClusterAware.splitIndexName(pattern).indexExpression()
+            );
+            for (String view : viewNames) {
+                if (named.contains(view) == false && Regex.simpleMatch(expression, view)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** {@code patterns} with date math evaluated, so a view named through date math counts as named exactly. */
+    private static Set<String> exactNames(String[] patterns) {
+        Set<String> named = new HashSet<>(patterns.length);
+        for (String pattern : patterns) {
+            named.add(IndexNameExpressionResolver.resolveDateMathExpression(pattern));
+        }
+        return named;
+    }
+
+    /**
      * Once {@code listener}'s relation is resolved, asks which views {@code patterns} would match were wildcards allowed to
-     * match views, and records those not named exactly under {@code scope}'s stopped view. The request goes through the same
-     * authorization as resolution, so only views the user may see are reported. Views enclosing this body are left out: matching
-     * one would be a circular reference rather than a wider result. A failed lookup only loses the warning.
+     * match views, and records those not named exactly under {@code scope}'s stop. The request goes through the same
+     * authorization as resolution, so only views the user may see are reported. Views enclosing this body are recorded apart:
+     * matching one would be a circular reference rather than a wider result. A failed lookup only loses the warning.
      */
     private ActionListener<LogicalPlan> reportStoppedWildcardMatches(
         String[] patterns,
@@ -908,16 +970,17 @@ public class ViewResolver {
             );
             req.setProjectRouting(projectRouting);
             req.indices(patterns);
-            Set<String> named = new HashSet<>(Arrays.asList(patterns));
+            Set<String> named = exactNames(patterns);
             doEsqlResolveViewsRequest(req, ActionListener.wrap(response -> {
                 for (View view : response.views()) {
-                    if (named.contains(view.name()) == false && enclosingViews.contains(view.name()) == false) {
-                        scope.stoppedMatches().computeIfAbsent(scope.stoppedAtView(), k -> new TreeSet<>()).add(view.name());
+                    if (named.contains(view.name()) == false) {
+                        StoppedMatches matches = scope.stoppedMatches().computeIfAbsent(scope.stop(), k -> new StoppedMatches());
+                        (enclosingViews.contains(view.name()) ? matches.circular() : matches.missed()).add(view.name());
                     }
                 }
                 l.onResponse(resolved);
             }, e -> {
-                log.debug(() -> Strings.format("could not look up views matched by wildcards in view [%s]", scope.stoppedAtView()), e);
+                log.debug(() -> Strings.format("could not look up views matched by wildcards in view [%s]", scope.stop().viewName()), e);
                 l.onResponse(resolved);
             }));
         });

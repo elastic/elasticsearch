@@ -1464,8 +1464,14 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     /** Under LOAD and LOAD_ALL, but not NULLIFY, the caller is told its mode stopped at the view. */
     private void assertViewBoundaryWarnings(String viewName, String field) {
         assertWarnings(
-            Analyzer.viewBoundaryNullFillWarning(UnmappedResolution.LOAD, viewName, List.of(field)),
-            Analyzer.viewBoundaryNullFillWarning(UnmappedResolution.LOAD_ALL, viewName, List.of(field))
+            Analyzer.viewBoundaryNullFillWarning(
+                new AnalyzerContext.ViewBoundary(UnmappedResolution.LOAD, null, viewName, null),
+                List.of(field)
+            ),
+            Analyzer.viewBoundaryNullFillWarning(
+                new AnalyzerContext.ViewBoundary(UnmappedResolution.LOAD_ALL, null, viewName, null),
+                List.of(field)
+            )
         );
     }
 

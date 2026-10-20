@@ -90,12 +90,12 @@ setup:
   # index the view presents has no _source to load from, so the view answers the reference with null at its output —
   # unlike a plain multi-index pattern (FROM idx1, idx2), which would load it from _source.
   - requires:
-      test_runner_features: [ capabilities, warnings ]
+      test_runner_features: [ capabilities, allowed_warnings ]
       capabilities:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ settings_scoped_at_view_boundaries, warn_unmapped_fields_stopped_at_view ]
+          capabilities: [ settings_scoped_at_view_boundaries ]
       reason: "the caller's query settings no longer reach inside view bodies"
   - do:
       esql.put_view:
@@ -103,8 +103,8 @@ setup:
         body:
           query: 'FROM idx1, (FROM idx2)'
   - do:
-      warnings:
-        - 'SET unmapped_fields="load" does not affect the contents of view [v_union], so field [note] is null in its rows; use that setting inside the view definition if you wish to change the view behaviour'
+      allowed_warnings:
+        - 'SET unmapped_fields="load" does not affect the contents of view [v_union], so field [note] is null in its rows; to load such fields, the view definition must SET unmapped_fields="load" and reference them itself'
       esql.query:
         body:
           query: 'SET unmapped_fields="load"; FROM v_union | KEEP id, color, note | SORT id | LIMIT 10'
@@ -137,7 +137,7 @@ setup:
           query: 'FROM idx1'
   - do:
       warnings:
-        - 'SET unmapped_fields="load" does not affect the contents of view [v_pass_through], so field [note] is null in its rows; use that setting inside the view definition if you wish to change the view behaviour'
+        - 'SET unmapped_fields="load" does not affect the contents of view [v_pass_through], so field [note] is null in its rows; to load such fields, the view definition must SET unmapped_fields="load" and reference them itself'
       esql.query:
         body:
           query: 'SET unmapped_fields="load"; FROM v_pass_through | KEEP id, note | SORT id | LIMIT 10'

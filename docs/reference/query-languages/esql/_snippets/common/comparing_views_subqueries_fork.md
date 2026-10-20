@@ -13,7 +13,7 @@
 * **Nested branching.** Support depends on the version.
 
 ::::{applies-switch}
-:::{applies-item} { "stack": "ga 9.6+", "serverless": "ga" }
+:::{applies-item} { "stack": "preview 9.6+", "serverless": "preview" }
 Views, `FROM` subqueries, and `FORK` can be nested. The complete query
 remains subject to the branch and command limits.
 :::
@@ -24,19 +24,21 @@ when the nested branches can be flattened into one branch point.
 :::
 ::::
 
-* **Maximum branch count.**
+* **Maximum branch count.** The limits depend on the branching mechanism and
+  version:
 
-::::{applies-switch}
-
-:::{applies-item} { "stack": "ga 9.6+", "serverless": "ga" }
-A single `FORK` or one dataset pattern expansion is capped at 8 branches by default (`esql.query.max_branch_count_per_merge`). View [query compaction](/reference/query-languages/esql/esql-views.md#query-compaction) flattens nested view unions only when the flat width is within `esql.query.max_branch_count` (20 by default), which also caps nested leaves across the whole query.
-:::
-
-:::{applies-item} stack: preview 9.1-9.3, ga 9.4-9.5
-`FORK` is capped at 8 branches. Views use the same limit in 9.4 and 9.5.
-:::
-
-::::
+  * {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` A single `FORK`
+    is capped at 8 branches by default (`esql.query.max_branch_count_per_merge`).
+  * {applies_to}`stack: experimental 9.6+` One dataset pattern expansion is
+    capped by `esql.query.max_branch_count_per_merge`, which defaults to 8.
+  * {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview` View
+    [query compaction](/reference/query-languages/esql/esql-views.md#query-compaction)
+    flattens nested view unions only when the flat width is within
+    `esql.query.max_branch_count` (20 by default). The same setting caps nested
+    leaves across the whole query.
+  * {applies_to}`stack: preview 9.1-9.3, ga 9.4-9.5` `FORK` is capped at 8
+    branches.
+  * {applies_to}`stack: preview 9.4-9.5` Views are capped at 8 branches.
 
 ### How FORK differs
 
@@ -49,10 +51,8 @@ Two user-written `FORK` commands are not allowed along the same uninterrupted
 pipeline. A merge created by a view or `FROM` subquery separates pipelines, so
 separate branches can contain their own `FORK` commands.
 :::
-:::{applies-item} stack: preview 9.4-9.5
+:::{applies-item} stack: preview 9.1-9.3, ga 9.4-9.5
 Only one `FORK` command is allowed per query, so nested branches aren't possible.
-`FROM` subqueries and views have similar restrictions, but views can partially
-work around them through query compaction.
 :::
 ::::
 
@@ -63,7 +63,7 @@ work around them through query compaction.
 * Views can be nested up to a depth of 10. Cyclic references are not allowed. For example, if `viewA` references `viewB` and `viewB` references `viewC`, then `viewC` cannot reference `viewA`. Cycles are detected at query time.
 
 ::::{applies-switch}
-:::{applies-item} { "stack": "ga 9.6+", "serverless": "ga" }
+:::{applies-item} { "stack": "preview 9.6+", "serverless": "preview" }
 `FROM` subqueries and views can contain further `FROM` subqueries and `FORK`
 commands, subject to the branching limits.
 :::

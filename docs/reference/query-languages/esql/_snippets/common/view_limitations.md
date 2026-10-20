@@ -26,7 +26,7 @@ be flattened through
 Views can reference remote indices in [cross-cluster search](/reference/query-languages/esql/esql-cross-clusters.md), but you can't query a view that is defined on a remote cluster.
 
 ::::{applies-switch}
-:::{applies-item} { "stack": "preview 9.6+", "serverless": "preview" }
+:::{applies-item} stack: preview 9.6+
 Remote views are invisible to source resolution. An exact reference such as `FROM cluster:view` returns an `Unknown index` error, and wildcard expressions don't match remote views.
 :::
 :::{applies-item} stack: preview 9.4-9.5
@@ -59,29 +59,32 @@ An [{{es}} transform](docs-content://explore-analyze/transforms.md) is not an
 destination index as the source in the view definition.
 
 #### Datasets
-
 ```yaml {applies_to}
 stack: experimental 9.5+
 serverless: unavailable
 ```
 
 A view definition can read from a dataset. An exact dataset name is resolved
-regardless of the `wildcards_match_datasets` setting. A wildcard in the view
-definition matches datasets only when the view definition sets
-`wildcards_match_datasets` to `true`.
+regardless of the `wildcards_match_datasets` setting.
+
+{applies_to}`stack: experimental 9.6+` A wildcard in the view definition
+matches datasets only when the view definition sets `wildcards_match_datasets`
+to `true`.
 
 #### Query settings
 
 View definitions handle `SET` differently across versions:
 
-::::{applies-switch}
-:::{applies-item} { "stack": "preview 9.6+", "serverless": "preview" }
-A view definition can set `unmapped_fields`, `wildcards_match_views`, and `wildcards_match_datasets`. Each setting applies only to that view's body and doesn't enter a nested view. `unmapped_fields` doesn't support `LOAD_ALL`. Every other setting, including `time_zone`, is rejected in a view definition.
-:::
-:::{applies-item} stack: preview 9.4-9.5
-A view definition can't contain a `SET` directive.
-:::
-::::
+* {applies_to}`{"stack": "preview 9.6+", "serverless": "preview"}` A view
+  definition can set `unmapped_fields`, except for `LOAD_ALL`. Settings that
+  aren't supported in view definitions, including `time_zone`, are rejected.
+* {applies_to}`stack: experimental 9.6+` A view definition can also set
+  `wildcards_match_views` and `wildcards_match_datasets`.
+* {applies_to}`stack: preview 9.4-9.5` A view definition can't contain a `SET`
+  directive.
+
+Each supported setting applies only to that view's body and doesn't enter a
+nested view.
 
 ##### Settings from the calling query
 ```yaml {applies_to}
@@ -89,12 +92,18 @@ stack: preview 9.6+
 serverless: preview
 ```
 
-The calling query's values for `unmapped_fields`, `wildcards_match_views`, and `wildcards_match_datasets` stop at the view boundary. If the view definition doesn't set one of these values, its default applies inside the view body, regardless of the caller's value or the cluster default.
+The following query settings stop at the view boundary:
 
-* The caller's `unmapped_fields` setting doesn't change field resolution inside the view body.
+* The caller's `unmapped_fields` setting doesn't change field resolution inside
+  the view body. If the view definition doesn't set it, its default applies
+  inside the view body, regardless of the caller's value or the cluster default.
   This includes `LOAD_ALL`: fields loaded by the caller are `null` for rows from
   a view unless the view produces those fields itself.
-* The caller's `wildcards_match_views` and `wildcards_match_datasets` settings don't change wildcard resolution inside the view body. A wildcard in a view body matches views or datasets only when the view definition enables the corresponding setting. Exact names work regardless of these settings.
+* {applies_to}`stack: experimental 9.6+` The caller's
+  `wildcards_match_views` and `wildcards_match_datasets` settings don't change
+  wildcard resolution inside the view body. A wildcard in a view body matches
+  views or datasets only when the view definition enables the corresponding
+  setting. Exact names work regardless of these settings.
 
 Other settings from the calling query that control the query execution context, such as `time_zone`, can apply inside a view.
 
@@ -105,10 +114,9 @@ can still use parameters in commands after `FROM view_name`, but those parameter
 are not substituted into the view body.
 
 #### Time series data in views
-
 ```{applies_to}
-stack: ga 9.6+
-serverless: ga
+stack: preview 9.6+
+serverless: preview
 ```
 
 A view that starts with [`TS`](/reference/query-languages/esql/commands/ts.md)

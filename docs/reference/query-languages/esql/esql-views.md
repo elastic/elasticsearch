@@ -2,7 +2,7 @@
 navigation_title: "Views"
 applies_to:
   serverless: preview
-  stack: preview 9.4.0
+  stack: ga 9.6+, preview 9.4-9.5
 products:
   - id: elasticsearch
 ---
@@ -89,10 +89,13 @@ Use views as if they were ordinary indices:
 FROM index_pattern
 ```
 
-Where `index_pattern` is a comma-separated list of index or view names, including
-wildcards and date-math.
+Where `index_pattern` is a comma-separated list of index or view names. Index
+expressions can include wildcards and date math. Whether a wildcard also matches
+views depends on the version and deployment type.
 
 ### Wildcard patterns and views [esql-views-wildcards]
+::::{applies-switch}
+:::{applies-item} stack: experimental 9.6+
 By default, a wildcard pattern in `FROM` does not match views. `FROM my_view` reads the view by exact name, while `FROM my-view-*` resolves to indices, data streams, and aliases only — registered views are excluded.
 
 To include views in wildcard resolution, enable the `wildcards_match_views` setting:
@@ -103,6 +106,14 @@ FROM my-view-*
 ```
 
 You can also send it in the `_query` request body as `"settings": {"wildcards_match_views": true}`, or change the cluster-wide default by setting `esql.query.settings.wildcards_match_views` in `elasticsearch.yml` or via the cluster settings API. A value set in the query overrides the request body, which overrides the cluster default.
+:::
+:::{applies-item} serverless: preview
+Wildcard patterns don't match views. Query a view by its exact name.
+:::
+:::{applies-item} stack: preview 9.4-9.5
+Wildcard patterns in `FROM` match registered views automatically.
+:::
+::::
 
 ## Privileges [esql-views-privileges]
 
@@ -168,8 +179,13 @@ The same country might appear in multiple views, producing multiple rows.
 We could combine these with a `STATS` command, using `SUM(count) BY country`.
 
 ### Use wildcards
+```{applies_to}
+stack: experimental 9.6+, preview 9.4-9.5
+serverless: unavailable
+```
 
 :::{note}
+:applies_to: stack: experimental 9.6+
 This example requires `wildcards_match_views = true`. By default, wildcards do not match views. Refer to [wildcard patterns and views](#esql-views-wildcards).
 :::
 

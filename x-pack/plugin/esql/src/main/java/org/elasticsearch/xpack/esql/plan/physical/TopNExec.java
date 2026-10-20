@@ -285,7 +285,7 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
             case GEO_POINT, CARTESIAN_POINT, GEO_SHAPE, CARTESIAN_SHAPE, COUNTER_LONG, COUNTER_INTEGER, COUNTER_DOUBLE, SOURCE,
                 AGGREGATE_METRIC_DOUBLE, DENSE_VECTOR, GEOHASH, GEOTILE, GEOHEX, EXPONENTIAL_HISTOGRAM, TDIGEST, HISTOGRAM, TSID_DATA_TYPE,
                 DATE_RANGE, DOUBLE_RANGE, PARTIAL_AGG, FLATTENED -> TopNEncoder.DEFAULT_UNSORTABLE;
-            case UNSUPPORTED -> TopNEncoder.UNSUPPORTED;
+            case UNSUPPORTED, LAMBDA -> TopNEncoder.UNSUPPORTED;
         };
         if (Assertions.ENABLED) {
             TopNEncoder keyEncoder = keyEncoder(type);

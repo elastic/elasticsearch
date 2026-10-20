@@ -2127,7 +2127,10 @@ public class InternalEngine extends Engine {
             if (opVsLucene == OpVsLuceneDocStatus.OP_STALE_OR_EQUAL) {
                 plan = IndexingStrategy.processAsStaleOp(index.version(), 0);
             } else {
-                plan = IndexingStrategy.processNormally(opVsLucene == OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND, index.version(), 0, false);
+                // enforceSafeAccess() was called above, so record the version even if the map has turned unsafe since then.
+                // In stateless, translog replay advances maxSeqNoOfUpdatesOrDeletes for every op, so replayed ops always take
+                // this branch rather than the optimized append-only one above.
+                plan = IndexingStrategy.processNormally(opVsLucene == OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND, index.version(), 0, true);
             }
         }
         return plan;

@@ -66,6 +66,7 @@ public final class SimdJsonDirectWalker {
     private final DoubleParser doubleParser = new DoubleParser();
     private final int maxDepth;
     private byte[] stringBuf = new byte[4096];
+    private int unescapedLength;
     private int currentDepth;
     private int docCount;
     /** Number of field names resolved so far in the current document; the key into {@link #namePredictor}. */
@@ -220,9 +221,8 @@ public final class SimdJsonDirectWalker {
                         if (len >= 0) {
                             handler.stringField(fieldName, buffer, valIdx + 1, len);
                         } else {
-                            int rawLen = scalarStringLength(buffer, valIdx + 1);
-                            byte[] unescaped = new byte[rawLen + StringParser.DESTINATION_PADDING];
-                            int parsed = stringParser.parseString(buffer, valIdx, unescaped);
+                            byte[] unescaped = unescapeValue(buffer, valIdx);
+                            int parsed = unescapedLength;
                             handler.stringField(fieldName, unescaped, 0, parsed);
                         }
                     }
@@ -270,9 +270,8 @@ public final class SimdJsonDirectWalker {
                     if (len >= 0) {
                         handler.arrayElemString(buffer, idx + 1, len);
                     } else {
-                        int rawLen = scalarStringLength(buffer, idx + 1);
-                        byte[] unescaped = new byte[rawLen + StringParser.DESTINATION_PADDING];
-                        int parsed = stringParser.parseString(buffer, idx, unescaped);
+                        byte[] unescaped = unescapeValue(buffer, idx);
+                        int parsed = unescapedLength;
                         handler.arrayElemString(unescaped, 0, parsed);
                     }
                 }
@@ -353,9 +352,8 @@ public final class SimdJsonDirectWalker {
                     if (len >= 0) {
                         handler.stringField(fieldName, buffer, valIdx + 1, len);
                     } else {
-                        int rawLen = scalarStringLength(buffer, valIdx + 1);
-                        byte[] unescaped = new byte[rawLen + StringParser.DESTINATION_PADDING];
-                        int parsed = stringParser.parseString(buffer, valIdx, unescaped);
+                        byte[] unescaped = unescapeValue(buffer, valIdx);
+                        int parsed = unescapedLength;
                         handler.stringField(fieldName, unescaped, 0, parsed);
                     }
                 }
@@ -1076,6 +1074,17 @@ public final class SimdJsonDirectWalker {
     /**
      * A scratch buffer for unescaping values whose consumer copies the bytes out before the next call.
      */
+    /**
+     * Unescapes the string opening at {@code quoteIdx} into a new array, leaving its length in {@link #unescapedLength}.
+     * The array is never reused: handlers may keep a reference until the row is committed.
+     */
+    private byte[] unescapeValue(byte[] buffer, int quoteIdx) {
+        int rawLen = stringParser.rawLength(buffer, quoteIdx);
+        byte[] unescaped = new byte[rawLen + StringParser.DESTINATION_PADDING];
+        unescapedLength = stringParser.unescape(buffer, quoteIdx, unescaped);
+        return unescaped;
+    }
+
     private byte[] ensureStringBuf(int minLen) {
         if (stringBuf.length < minLen + StringParser.DESTINATION_PADDING) {
             stringBuf = new byte[minLen + StringParser.DESTINATION_PADDING];

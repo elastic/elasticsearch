@@ -225,6 +225,41 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
         assertEquals(List.of("x\ny", "p\nq", "r\ns"), decoded);
     }
 
+    /**
+     * Strings written with escaped slashes, as ClickBench's URL and Referer are, reach the handler unescaped whether
+     * they are object fields, array elements or fields of an object inside an array, and whatever their length.
+     */
+    public void testEscapedSlashStringsInEveryPosition() {
+        for (int length = 0; length <= 40; length++) {
+            String path = ("seg" + "x".repeat(length) + "/").repeat(randomIntBetween(1, 6));
+            String written = path.replace("/", "\\/");
+            String json = "{\"url\":\"http:\\/\\/"
+                + written
+                + "\",\"list\":[\""
+                + written
+                + "\",\"plain\"],\"in\":[{\"ref\":\""
+                + written
+                + "\"}],\"n\":1}";
+            assertEquals(
+                "length=" + length,
+                List.of(
+                    "string(url=http://" + path + ")",
+                    "startArray(list)",
+                    "arrayElemString(" + path + ")",
+                    "arrayElemString(plain)",
+                    "endArray()",
+                    "startArray(in)",
+                    "arrayElemStartObject()",
+                    "string(ref=" + path + ")",
+                    "arrayElemEndObject()",
+                    "endArray()",
+                    "long(n=1,fitsInt=true)"
+                ),
+                walkJson(json)
+            );
+        }
+    }
+
     // Root must be an object; top-level arrays are rejected.
     public void testDocumentStartingWithArray() {
         expectThrows(JsonParsingException.class, () -> walkJson("[1,2]"));

@@ -562,6 +562,36 @@ public class FakeStatelessNode implements Closeable {
         return generateIndexCommits(commitsNumber, false, DEFAULT_ID_GENERATOR_FOR_DELETES, generation -> {}, false);
     }
 
+    public List<StatelessCommitRef> generateCommitsWithGenerationalFiles(int count) throws IOException {
+        var indexWriterConfig = new IndexWriterConfig(new KeywordAnalyzer());
+        indexWriterConfig.setIndexDeletionPolicy(NoDeletionPolicy.INSTANCE);
+        indexWriterConfig.setUseCompoundFile(false);
+
+        var committedDocumentIds = new ArrayList<String>();
+
+        return generateIndexCommits(count, false, commitIndex -> {
+            // We need commited segments to produce generational files.
+            if (commitIndex == 0) {
+                return null;
+            }
+
+            if (committedDocumentIds.isEmpty()) {
+                return null;
+            }
+
+            int idToDelete = ESTestCase.randomIntBetween(0, committedDocumentIds.size() - 1);
+            return committedDocumentIds.remove(idToDelete);
+        }, generation -> {}, commitIndex -> {
+            String id = ESTestCase.randomAlphaOfLength(10);
+            committedDocumentIds.add(id);
+
+            LuceneDocument document = new LuceneDocument();
+            document.add(new KeywordField("field0", "term", Field.Store.YES));
+            document.add(new StringField(IdFieldMapper.NAME, Uid.encodeId(id), Field.Store.NO));
+            return List.of(document);
+        }, indexWriterConfig);
+    }
+
     public List<StatelessCommitRef> generateIndexCommits(
         int commitsNumber,
         boolean merge,

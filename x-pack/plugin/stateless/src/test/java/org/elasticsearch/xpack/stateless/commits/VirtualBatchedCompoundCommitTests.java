@@ -7,14 +7,8 @@
 
 package org.elasticsearch.xpack.stateless.commits;
 
-import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.document.Field;
-import org.apache.lucene.document.KeywordField;
-import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.NoDeletionPolicy;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ResourceNotFoundException;
@@ -23,9 +17,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.FilterStreamInput;
 import org.elasticsearch.common.lucene.store.BytesReferenceIndexInput;
 import org.elasticsearch.core.Streams;
-import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.LuceneDocument;
-import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
@@ -667,10 +658,12 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
             // Since there are no deletions and therefore no generational files, the sizes match.
             assertEquals(noDeletionsVbcc.getTotalSizeInBytes(), noDeletionsVbcc.sizeInBytesExcludingCopiedGenerationalFiles());
 
-            var commitsWithDeletions = generateCommitsWithGenerationalFiles(randomIntBetween(3, 8), fakeNode);
+            var commitsWithDeletions = fakeNode.generateCommitsWithGenerationalFiles(randomIntBetween(3, 8));
 
-            // We add some commits to a new VBCC so that one of them clears `isFirstCommit` check
+            // We add some commits to a new VBCC so that the first of them clears `isFirstCommit` check
             // and forces a copy of generational files.
+            // Commits beyond the first one help to validate that we only consider the first commit.
+
             // We need at least 2 commits to be able to produce generational files.
             int intoNewVbcc = 2;
 
@@ -687,6 +680,9 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
             for (int i = 0; i < intoNewVbcc; i++) {
                 assertTrue(intermediaryVbcc.appendCommit(commitsWithDeletions.get(i), randomBoolean(), null));
             }
+
+            // Since there are no deletions and therefore no generational files, the sizes match.
+            assertEquals(intermediaryVbcc.getTotalSizeInBytes(), intermediaryVbcc.sizeInBytesExcludingCopiedGenerationalFiles());
 
             var vbccWithCopiedGenerationalFiles = new VirtualBatchedCompoundCommit(
                 fakeNode.shardId,
@@ -710,9 +706,11 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
 
             // Only the first commit in the VBCC has copied generational files.
             StatelessCommitRef firstCommit = commitsWithDeletions.get(intoNewVbcc);
+            StatelessCommitRef previousCommit = commitsWithDeletions.get(intoNewVbcc - 1);
             long generationalFilesSize = 0;
             for (String commitFile : firstCommit.getCommitFiles()) {
-                if (StatelessCompoundCommit.isGenerationalFile(commitFile)) {
+                // And we are only interested in _copied_ generational files.
+                if (StatelessCompoundCommit.isGenerationalFile(commitFile) && previousCommit.getCommitFiles().contains(commitFile)) {
                     generationalFilesSize += firstCommit.getDirectory().fileLength(commitFile);
                 }
             }
@@ -722,36 +720,6 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                 vbccWithCopiedGenerationalFiles.sizeInBytesExcludingCopiedGenerationalFiles()
             );
         }
-    }
-
-    private List<StatelessCommitRef> generateCommitsWithGenerationalFiles(int count, FakeStatelessNode fakeNode) throws IOException {
-        var indexWriterConfig = new IndexWriterConfig(new KeywordAnalyzer());
-        indexWriterConfig.setIndexDeletionPolicy(NoDeletionPolicy.INSTANCE);
-        indexWriterConfig.setUseCompoundFile(false);
-
-        var committedDocumentIds = new ArrayList<String>();
-
-        return fakeNode.generateIndexCommits(count, false, commitIndex -> {
-            // We need commited segments to produce generational files.
-            if (commitIndex == 0) {
-                return null;
-            }
-
-            if (committedDocumentIds.isEmpty()) {
-                return null;
-            }
-
-            int idToDelete = randomIntBetween(0, committedDocumentIds.size() - 1);
-            return committedDocumentIds.remove(idToDelete);
-        }, generation -> {}, commitIndex -> {
-            String id = ESTestCase.randomAlphaOfLength(10);
-            committedDocumentIds.add(id);
-
-            LuceneDocument document = new LuceneDocument();
-            document.add(new KeywordField("field0", "term", Field.Store.YES));
-            document.add(new StringField(IdFieldMapper.NAME, Uid.encodeId(id), Field.Store.NO));
-            return List.of(document);
-        }, indexWriterConfig);
     }
 
     public static BatchedCompoundCommit deserializeBatchedCompoundCommit(String blobName, BytesStreamOutput output) throws IOException {

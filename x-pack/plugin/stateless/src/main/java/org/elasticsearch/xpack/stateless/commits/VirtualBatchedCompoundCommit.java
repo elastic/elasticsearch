@@ -312,6 +312,8 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         final var ccTermAndGen = new PrimaryTermAndGeneration(reference.getPrimaryTerm(), reference.getGeneration());
         final boolean isFirstCommit = ccTermAndGen.equals(primaryTermAndGeneration);
 
+        long initialOffset = currentOffset.get();
+
         // Ordered set of compound commit (CC) internal files
         var internalFiles = new TreeSet<InternalFile>();
 
@@ -319,7 +321,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         var referencedFiles = new HashMap<String, BlobLocation>();
 
         var internalFilesSize = 0L;
-        var generationalFilesSize = 0L;
+        var copiedGenerationalFilesSize = 0L;
         for (String commitFile : reference.getCommitFiles()) {
             boolean isAdditionalFile = reference.getAdditionalFiles().contains(commitFile);
             boolean shouldCopyGenerationalFile = isFirstCommit && isGenerationalFile(commitFile);
@@ -329,8 +331,9 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
                 internalFiles.add(new InternalFile(commitFile, fileLength));
                 internalFilesSize += fileLength;
 
-                if (shouldCopyGenerationalFile) {
-                    generationalFilesSize += fileLength;
+                if (isAdditionalFile == false && shouldCopyGenerationalFile) {
+                    // We are only interested in copies of generational files.
+                    copiedGenerationalFilesSize += fileLength;
                 }
             } else {
                 var blobLocation = internalLocations.get(commitFile);
@@ -393,12 +396,11 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         }
 
         // Add padding to the previous CC if it exists
-        int padding = 0;
         if (pendingCompoundCommits.isEmpty() == false) {
             var lastCompoundCommit = pendingCompoundCommits.last();
             long lastCompoundCommitSize = lastCompoundCommit.getSizeInBytes();
             long lastCompoundCommitSizePageAligned = BlobCacheUtils.toPageAlignedSize(lastCompoundCommitSize);
-            padding = Math.toIntExact(lastCompoundCommitSizePageAligned - lastCompoundCommitSize);
+            int padding = Math.toIntExact(lastCompoundCommitSizePageAligned - lastCompoundCommitSize);
             if (padding > 0) {
                 lastCompoundCommit.setPadding(padding);
                 long paddingOffset = currentOffset.get();
@@ -464,7 +466,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             fileOffset += fileLength;
         }
         currentOffset.set(fileOffset);
-        logicalSize.addAndGet(padding + sizeInBytes - generationalFilesSize);
+        logicalSize.addAndGet(currentOffset.get() - initialOffset - copiedGenerationalFilesSize);
 
         var pendingCompoundCommit = new PendingCompoundCommit(
             headerLength,

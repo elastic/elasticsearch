@@ -379,8 +379,10 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         if (filesToRetain.containsAll(current.keySet()) == false) {
             assert assertCompareAndSetUpdatingCommitThread(null, Thread.currentThread());
             try {
+                final var currentLengths = blobLengths;
+                final var termGensRetained = new HashSet<PrimaryTermAndGeneration>(currentLengths.size());
                 final var updated = new HashMap<String, BlobFileRanges>(current.size());
-                final var termGensRetained = new HashSet<PrimaryTermAndGeneration>();
+
                 for (var entry : current.entrySet()) {
                     if (filesToRetain.contains(entry.getKey())) {
                         updated.put(entry.getKey(), entry.getValue());
@@ -393,7 +395,6 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                 assert filesRemoved;
 
                 // A removed file does not drop its blob while another retained file still references it.
-                final var currentLengths = blobLengths;
                 if (termGensRetained.size() != currentLengths.size()) {
                     final var lengths = new HashMap<>(currentLengths);
                     lengths.keySet().retainAll(termGensRetained);

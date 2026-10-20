@@ -38,8 +38,7 @@ public class AllocationActionListener<T> {
     }
 
     public AllocationActionListener(ActionListener<T> delegate, ThreadContext context) {
-        // both the cluster state update and the reroute may fail, e.g. when the master steps down before publishing
-        this.delegate = ActionListener.notifyOnce(delegate);
+        this.delegate = delegate;
         this.context = context;
         this.original = context.newRestorableContext(false);
     }
@@ -51,7 +50,9 @@ public class AllocationActionListener<T> {
     }
 
     private void notifyListenerFailed(Exception e) {
-        executeInContext(() -> delegate.onFailure(e));
+        if (listenersExecuted.getAndSet(0) != 0) {
+            executeInContext(() -> delegate.onFailure(e));
+        }
     }
 
     private void executeInContext(Runnable action) {

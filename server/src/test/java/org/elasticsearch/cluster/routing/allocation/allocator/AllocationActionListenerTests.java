@@ -93,6 +93,32 @@ public class AllocationActionListenerTests extends ESTestCase {
         assertThat(failures.get(), equalTo(1));
     }
 
+    public void testShouldDelegateFailureOnceWhenOneFailsAndOtherSucceeds() {
+        var failures = new AtomicInteger();
+        var listener = new AllocationActionListener<AcknowledgedResponse>(ActionListener.wrap(ignore -> {
+            throw new AssertionError("Should not complete in test");
+        }, exception -> failures.incrementAndGet()), createEmptyThreadContext());
+
+        var clusterStateUpdateFails = randomBoolean();
+        for (var action : shuffledList(List.<Runnable>of(() -> {
+            if (clusterStateUpdateFails) {
+                listener.clusterStateUpdate().onFailure(new RuntimeException("cluster-state-update-failed"));
+            } else {
+                listener.clusterStateUpdate().onResponse(AcknowledgedResponse.TRUE);
+            }
+        }, () -> {
+            if (clusterStateUpdateFails) {
+                listener.reroute().onResponse(null);
+            } else {
+                listener.reroute().onFailure(new RuntimeException("reroute-failed"));
+            }
+        }))) {
+            action.run();
+        }
+
+        assertThat(failures.get(), equalTo(1));
+    }
+
     public void testShouldExecuteWithCorrectContext() {
 
         var context = new ThreadContext(Settings.EMPTY);

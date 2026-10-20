@@ -170,7 +170,7 @@ public class MatchOnlyTextFieldMapperColumnarCompatibilityTests extends Abstract
         // One string value, one absent doc, and an empty string.
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "match_only_text");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -188,7 +188,7 @@ public class MatchOnlyTextFieldMapperColumnarCompatibilityTests extends Abstract
         // Present value, absent doc ({}), and explicit JSON null -> absent (no null_value).
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "match_only_text");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -206,7 +206,7 @@ public class MatchOnlyTextFieldMapperColumnarCompatibilityTests extends Abstract
         // Default index:true — both a terms column and a binary DV column are emitted.
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "match_only_text");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -244,7 +244,7 @@ public class MatchOnlyTextFieldMapperColumnarCompatibilityTests extends Abstract
         // on_failure=FAIL document-level error instead.
         final var mapperService = createMapperService(columnarSettings(), mapping(b -> {
             b.startObject(FIELD).field("type", "match_only_text");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }));
         expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":[\"a\",\"b\"]}"));
@@ -256,7 +256,7 @@ public class MatchOnlyTextFieldMapperColumnarCompatibilityTests extends Abstract
         // on_failure=FAIL document-level error instead.
         final var mapperService = createMapperService(columnarSettings(), mapping(b -> {
             b.startObject(FIELD).field("type", "match_only_text");
-            b.startObject("doc_values").field("nullability", false).endObject();
+            b.field("nullability", false);
             b.endObject();
         }));
         expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":\"value\"}", "{\"f\":null}"));
@@ -267,7 +267,7 @@ public class MatchOnlyTextFieldMapperColumnarCompatibilityTests extends Abstract
         // the fast path.
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "match_only_text");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),

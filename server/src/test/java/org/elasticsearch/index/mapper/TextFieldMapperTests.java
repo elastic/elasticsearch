@@ -204,6 +204,9 @@ public class TextFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", true));
+        checker.registerIgnoredParameter("multi_value");
+        checker.registerIgnoredParameter("nullability");
+        checker.registerIgnoredParameter("on_failure");
         checker.registerConflictCheck("index_phrases", b -> b.field("index_phrases", true));
         checker.registerConflictCheck("index_prefixes", b -> b.startObject("index_prefixes").endObject());
         checker.registerConflictCheck("index_options", b -> b.field("index_options", "docs"));
@@ -800,10 +803,7 @@ public class TextFieldMapperTests extends MapperTestCase {
 
     public void testColumnarSingleValueFormatViaColumnBatch() throws Exception {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
-        MapperService mapperService = createMapperService(
-            settings,
-            fieldMapping(b -> b.field("type", "text").startObject("doc_values").field("multi_value", false).endObject())
-        );
+        MapperService mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "text").field("multi_value", false)));
 
         withColumnBatch(mapperService, "{\"field\":\"hello\"}", batch -> {
             // Collect all columns emitted for "field" and "field.counts".
@@ -3063,9 +3063,7 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     public void testSingleFallbackValueIsAcceptedWhenMultiValueFalse() throws IOException {
-        DocumentMapper mapper = createColumnarModeDocumentMapper(
-            fieldMapping(b -> b.field("type", "text").startObject("doc_values").field("multi_value", false).endObject())
-        );
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> b.field("type", "text").field("multi_value", false)));
         String longValue = randomAlphanumericOfLength(IndexWriter.MAX_TERM_LENGTH + 1);
         mapper.parse(source(b -> b.field("field", longValue)));
     }
@@ -3077,9 +3075,7 @@ public class TextFieldMapperTests extends MapperTestCase {
      * While these are technically two separate fields, single values are enforced on a document-level, so the second value is rejected.
      */
     public void testSecondValueInFallbackFieldIsRejectedWhenMultiValueFalseAndFirstValueInRegularField() throws IOException {
-        DocumentMapper mapper = createColumnarModeDocumentMapper(
-            fieldMapping(b -> b.field("type", "text").startObject("doc_values").field("multi_value", false).endObject())
-        );
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> b.field("type", "text").field("multi_value", false)));
         String shortValue = randomAlphanumericOfLength(5);
         String longValue = randomAlphanumericOfLength(IndexWriter.MAX_TERM_LENGTH + 1);
         DocumentParsingException e = expectThrows(
@@ -3096,9 +3092,7 @@ public class TextFieldMapperTests extends MapperTestCase {
      * Mirror of {@link #testSecondValueInFallbackFieldIsRejectedWhenMultiValueFalseAndFirstValueInRegularField} with the order reversed.
      */
     public void testSecondValueInRegularFieldIsRejectedWhenMultiValueFalseAndFirstValueInFallbackField() throws IOException {
-        DocumentMapper mapper = createColumnarModeDocumentMapper(
-            fieldMapping(b -> b.field("type", "text").startObject("doc_values").field("multi_value", false).endObject())
-        );
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> b.field("type", "text").field("multi_value", false)));
         String longValue = randomAlphanumericOfLength(IndexWriter.MAX_TERM_LENGTH + 1);
         String shortValue = randomAlphanumericOfLength(5);
         DocumentParsingException e = expectThrows(
@@ -3115,9 +3109,7 @@ public class TextFieldMapperTests extends MapperTestCase {
      * We have two values for a field, both of which exceed MAX_TERM_LENGTH and would route to the {@code ._original} fallback field.
      */
     public void testSecondValueInFallbackFieldIsRejectedWhenMultiValueFalse() throws IOException {
-        DocumentMapper mapper = createColumnarModeDocumentMapper(
-            fieldMapping(b -> b.field("type", "text").startObject("doc_values").field("multi_value", false).endObject())
-        );
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> b.field("type", "text").field("multi_value", false)));
         String longValue1 = randomAlphanumericOfLength(IndexWriter.MAX_TERM_LENGTH + 1);
         String longValue2 = randomAlphanumericOfLength(IndexWriter.MAX_TERM_LENGTH + 1);
         DocumentParsingException e = expectThrows(

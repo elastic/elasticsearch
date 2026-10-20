@@ -702,7 +702,7 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
                   },
                   "host.name": {
                     "type": "keyword",
-                    "doc_values": { "multi_value": false }
+                    "multi_value": false
                   },
                   "test_id": {
                     "type": "text"

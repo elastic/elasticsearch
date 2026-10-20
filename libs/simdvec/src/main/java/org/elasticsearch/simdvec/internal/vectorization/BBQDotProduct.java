@@ -12,6 +12,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitUtil;
 import org.elasticsearch.lucene.store.SegmentBufferScratch;
 import org.elasticsearch.simdvec.BBQEncoding;
+import org.elasticsearch.simdvec.BulkMask;
 import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.simdvec.internal.HeapBufferScratch;
 
@@ -123,17 +124,14 @@ public class BBQDotProduct {
     /**
      * Scores a subset of the next {@code count} data vectors, advancing the input past all of them
      * so a block can be consumed whole even when most of it is filtered out.
-     * Positions not listed in {@code offsets} are left untouched.
+     * The scores at the positions not selected in {@code mask} are unspecified and must not be read.
      *
-     * @param offsets      positions within the block to score, strictly ascending and all less than {@code count}
-     * @param offsetsCount number of valid entries in {@code offsets}
-     * @param scores       receives the score at each listed position
+     * @param mask   bit {@code i} selects the vector at position {@code i}; no bit at or above {@code count} is set
+     * @param scores receives the score at each selected position
      */
-    public void dotProductBulkOffsets(byte[] query, int[] offsets, int offsetsCount, float[] scores, int count) throws IOException {
-        int next = 0;
+    public void dotProductBulkMasked(byte[] query, int mask, float[] scores, int count) throws IOException {
         for (int i = 0; i < count; i++) {
-            if (next < offsetsCount && offsets[next] == i) {
-                next++;
+            if (BulkMask.isSelected(mask, i)) {
                 scores[i] = dotProduct(query);
             } else {
                 in.skipBytes(docBytes);

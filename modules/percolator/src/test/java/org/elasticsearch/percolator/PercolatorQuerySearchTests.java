@@ -11,6 +11,7 @@ package org.elasticsearch.percolator;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -313,7 +314,7 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
             .get();
         indicesAdmin().prepareRefresh().get();
 
-        try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
+        try (Engine.Searcher searcher = indexService.getShard(0).acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             long[] currentTime = new long[] { System.currentTimeMillis() };
             SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(
                 0,

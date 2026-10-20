@@ -30,6 +30,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
@@ -496,7 +497,7 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
 
     private int segmentCount(Index backingIndex) {
         final IndexService indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(backingIndex);
-        try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
+        try (Engine.Searcher searcher = indexService.getShard(0).acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             return searcher.getLeafContexts().size();
         }
     }
@@ -831,7 +832,7 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
         IndexService indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(backingIndex);
         assertThat(indexService.numberOfShards(), equalTo(1));
         IndexShard shard = indexService.getShard(0);
-        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             DirectoryReader directoryReader = searcher.getDirectoryReader();
 
             assertThat(directoryReader.numDocs(), equalTo(orderedDocs.length));
@@ -867,7 +868,7 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
         IndexService indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(backingIndex);
         assertThat(indexService.numberOfShards(), equalTo(1));
         IndexShard shard = indexService.getShard(0);
-        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
 
             MappedFieldType timestampField = shard.mapperService().fieldType("@timestamp");
             SortField sf = timestampField.fielddataBuilder(FieldDataContext.noRuntimeFields("test", "test"))

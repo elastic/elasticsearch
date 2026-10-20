@@ -344,7 +344,9 @@ public class SearchEngine extends Engine {
 
             this.setSequenceNumbers(segmentInfosAndCommit.segmentInfos());
             this.readerManager = wrapForAssertions(readerManager, config);
-            this.completionStatsCache = new CompletionStatsCache(() -> acquireSearcher("completion_stats"));
+            this.completionStatsCache = new CompletionStatsCache(
+                () -> acquireSearcher("completion_stats", SplitShardCountSummary.IRRELEVANT)
+            );
             this.readerManager.addListener(completionStatsCache);
             for (ReferenceManager.RefreshListener refreshListener : config.getExternalRefreshListener()) {
                 readerManager.addListener(refreshListener);
@@ -1208,7 +1210,7 @@ public class SearchEngine extends Engine {
             engineConfig.getIndexSettings().getIndexMetadata(),
             engineConfig.getMapperService(),
             engineConfig.getThreadPool().executor(ThreadPool.Names.WARMER),
-            () -> acquireSearcher("reshard_unowned_bitset_warming", SearcherScope.INTERNAL)
+            () -> acquireSearcher("reshard_unowned_bitset_warming", SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT)
         );
     }
 
@@ -1375,7 +1377,7 @@ public class SearchEngine extends Engine {
             // there might be uncommitted changes on the indexing nodes.
             throw new IllegalArgumentException("Search engine does not support acquiring last index commit with flush_first");
         }
-        Searcher searcher = acquireSearcher("acquire_last_commit");
+        Searcher searcher = acquireSearcher("acquire_last_commit", SplitShardCountSummary.IRRELEVANT);
         try {
             final IndexCommit indexCommit;
             try {

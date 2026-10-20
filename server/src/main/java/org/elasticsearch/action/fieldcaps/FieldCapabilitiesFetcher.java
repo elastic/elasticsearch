@@ -84,7 +84,7 @@ class FieldCapabilitiesFetcher {
             indexShard.readAllowed();
             searcher = null;
         } else {
-            searcher = indexShard.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE);
+            searcher = indexShard.acquireExternalSearcher(Engine.CAN_MATCH_SEARCH_SOURCE, SplitShardCountSummary.IRRELEVANT);
         }
         try (searcher) {
             return doFetch(

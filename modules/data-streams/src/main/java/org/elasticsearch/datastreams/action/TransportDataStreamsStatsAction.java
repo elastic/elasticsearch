@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -135,7 +136,12 @@ public class TransportDataStreamsStatsAction extends TransportBroadcastByNodeAct
     }
 
     private static long getMaxTimestamp(IndexShard indexShard) throws IOException {
-        try (Engine.Searcher searcher = indexShard.acquireSearcher(ReadOnlyEngine.FIELD_RANGE_SEARCH_SOURCE)) {
+        try (
+            Engine.Searcher searcher = indexShard.acquireExternalSearcher(
+                ReadOnlyEngine.FIELD_RANGE_SEARCH_SOURCE,
+                SplitShardCountSummary.IRRELEVANT
+            )
+        ) {
             IndexReader indexReader = searcher.getIndexReader();
             byte[] maxPackedValue = PointValues.getMaxPackedValue(indexReader, DataStream.TIMESTAMP_FIELD_NAME);
             if (maxPackedValue != null) {

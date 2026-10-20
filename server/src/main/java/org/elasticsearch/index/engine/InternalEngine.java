@@ -343,7 +343,13 @@ public class InternalEngine extends Engine {
             maxSeqNoOfUpdatesOrDeletes = new AtomicLong(SequenceNumbers.max(localCheckpointTracker.getMaxSeqNo(), translog.getMaxSeqNo()));
             if (localCheckpointTracker.getPersistedCheckpoint() < localCheckpointTracker.getMaxSeqNo()) {
                 IdLoader idLoader = IdLoader.create(engineConfig.getIndexSettings(), engineConfig.getMapperService().mappingLookup());
-                try (Searcher searcher = acquireSearcher("restore_version_map_and_checkpoint_tracker", SearcherScope.INTERNAL)) {
+                try (
+                    Searcher searcher = acquireSearcher(
+                        "restore_version_map_and_checkpoint_tracker",
+                        SearcherScope.INTERNAL,
+                        SplitShardCountSummary.IRRELEVANT
+                    )
+                ) {
                     restoreVersionMapAndCheckpointTracker(
                         Lucene.wrapAllDocsLive(searcher.getDirectoryReader()),
                         engineConfig.getIndexSettings().getIndexVersionCreated(),
@@ -357,7 +363,7 @@ public class InternalEngine extends Engine {
                     );
                 }
             }
-            completionStatsCache = new CompletionStatsCache(() -> acquireSearcher("completion_stats"));
+            completionStatsCache = new CompletionStatsCache(() -> acquireSearcher("completion_stats", SplitShardCountSummary.IRRELEVANT));
             this.externalReaderManager.addListener(completionStatsCache);
             this.flushListener = new FlushListeners(logger, engineConfig.getThreadPool().getThreadContext());
             this.translogSyncProcessor = createTranslogSyncProcessor(logger, engineConfig.getThreadPool().getThreadContext());
@@ -1071,7 +1077,11 @@ public class InternalEngine extends Engine {
                 refreshIfNeeded(refreshSource, versionValue.seqNo);
             }
             if (getFromSearcherIfNotInTranslog) {
-                return getFromSearcher(get, acquireSearcher("realtime_get", SearcherScope.INTERNAL, searcherWrapper), false);
+                return getFromSearcher(
+                    get,
+                    acquireSearcher("realtime_get", SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT, searcherWrapper),
+                    false
+                );
             }
             return null;
         } finally {
@@ -1128,7 +1138,7 @@ public class InternalEngine extends Engine {
             // OP_NEWER. A retained _seq_no (a document that is not yet fully replicated) is still read and compared, so out-of-order
             // stale writes are correctly rejected instead of overwriting a newer document.
             final boolean allowMissingSeqNo = engineConfig.getIndexSettings().sequenceNumbersDisabled();
-            try (Searcher searcher = acquireSearcher("load_seq_no", SearcherScope.INTERNAL)) {
+            try (Searcher searcher = acquireSearcher("load_seq_no", SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT)) {
                 final DocIdAndSeqNo docAndSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(
                     searcher.getIndexReader(),
                     op.uid(),
@@ -2304,7 +2314,9 @@ public class InternalEngine extends Engine {
                 throw new AssertionError("doc [" + index.id() + "] exists in version map (version " + versionValue + ")");
             }
         } else {
-            try (Searcher searcher = acquireSearcher("assert doc doesn't exist", SearcherScope.INTERNAL)) {
+            try (
+                Searcher searcher = acquireSearcher("assert doc doesn't exist", SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT)
+            ) {
                 searcher.setQueryCache(null); // so that it does not interfere with tests that check caching behavior
                 final long docsWithId = searcher.count(new TermQuery(new Term(IdFieldMapper.NAME, index.uid())));
                 if (docsWithId > 0) {
@@ -4048,7 +4060,7 @@ public class InternalEngine extends Engine {
     public int countChanges(String source, long fromSeqNo, long toSeqNo) throws IOException {
         ensureOpen();
         refreshIfNeeded(source, toSeqNo);
-        try (Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL)) {
+        try (Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT)) {
             return LuceneChangesSnapshot.countOperations(searcher, engineConfig.getIndexSettings(), fromSeqNo, toSeqNo);
         } catch (Exception e) {
             try {
@@ -4079,7 +4091,7 @@ public class InternalEngine extends Engine {
         }
         ensureOpen();
         refreshIfNeeded(source, toSeqNo);
-        Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL);
+        Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT);
         try {
             final Translog.Snapshot snapshot;
             if (engineConfig.getIndexSettings().isRecoverySourceSyntheticEnabled()) {
@@ -4480,7 +4492,7 @@ public class InternalEngine extends Engine {
     }
 
     protected long estimateMergeBytes(MergePolicy.OneMerge merge) {
-        try (Searcher searcher = acquireSearcher("merge_memory_estimation", SearcherScope.INTERNAL)) {
+        try (Searcher searcher = acquireSearcher("merge_memory_estimation", SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT)) {
             return MergeMemoryEstimator.estimateMergeMemory(merge, searcher.getIndexReader());
         } catch (AlreadyClosedException e) {
             // Can't estimate if the searcher is closed

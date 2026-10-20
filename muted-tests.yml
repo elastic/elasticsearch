@@ -524,3 +524,5 @@ tests:
 - class: org.elasticsearch.search.basic.TransportSearchFailuresIT
   method: testFailedSearchWithWrongQuery
   issue: https://github.com/elastic/elasticsearch/issues/162738
+- class: org.elasticsearch.xpack.esql.CsvColumnarCodecIT
+  issue: https://github.com/elastic/elasticsearch/issues/162749

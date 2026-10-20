@@ -34,6 +34,9 @@ import java.util.Locale;
  * @param lastUpdated When this status was generated.
  * @param cpuNanos Thread CPU nanos this {@link Driver} has used. Does not include async or waiting time, time spent
  *                 waiting for a core, or time blocked inside an operator. 0 if the JVM can't measure thread CPU time.
+ *                 Includes the thread CPU time its operators used on other threads
+ *                 ({@link DriverContext#meteredCpu}) and the driver's own work just outside the span
+ *                 {@code driverNanos} covers, such as finishing after its loop, so it can exceed {@code driverNanos}.
  * @param driverNanos Nanos this {@link Driver} has held a thread. Unlike {@code cpuNanos} this includes time the thread
  *                    waited for a core, GC pauses and time blocked inside an operator. Does not include async or
  *                    waiting time.

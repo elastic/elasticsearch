@@ -1003,6 +1003,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         BlobFile blobFile,
         long maxBlobLength
     ) {
+        assert blobFile instanceof BccBlobFile : "only BCC blob files are supported for now, got " + blobFile;
         var blobReader = getBlobReader(directory, context, blobFile.termAndGeneration(), maxBlobLength);
         return BatchedCompoundCommit.readFromStoreIncrementally(blobFile.blobName(), maxBlobLength, blobReader, false);
     }

@@ -1213,14 +1213,22 @@ public class InternalEngine extends Engine {
         // may still hold a stale version, which getUnderLock() would return. So we don't trust the archive when unsafe.
         VersionValue v = versionMap.getUnderLockOrUnsafe(id);
         if (v == LiveVersionMap.VERSION_MAP_UNSAFE) {
-            // The doc is not in current or old, so a refresh moved it out. That refresh may have been local only, so the doc
-            // may not be in any commit yet. Unless this call already flushed, flush now and advance
-            // lastUnsafeSegmentGenerationForGets, then resolve the version from Lucene / the search tier by returning null.
-            // Force the flush: the map may have turned safe again since the lookup, but the doc may still be uncommitted.
-            if (flushed == false) {
+            // We do not trust the archive, so resolve the version from Lucene / the search tier by returning null. The search tier
+            // then waits for lastUnsafeSegmentGenerationForGets, which must point at a commit that contains the doc.
+            if (flushed) {
+                // This call flushed after taking the doc's lock. That commit contains the doc's latest write, and the lock
+                // keeps the doc from changing until we return.
+                return null;
+            } else {
+                // The doc is not in current or old, so a refresh moved it out. That refresh may have been local only, so the doc
+                // may not be in any commit yet. Its archive entry may well be correct: the archive is unsafe for all docs when
+                // any doc's write was not recorded. Flush so that the doc is committed, and advance the generation.
+                // Force the flush rather than re-check whether the map is still unsafe. It may have turned safe since the lookup,
+                // e.g. the search shards acked the generation that makes the archive safe, while the doc, archived under a later
+                // generation, is still in no commit. Skipping the flush then would send the search tier to a commit without it.
                 recoverForGets(true);
+                return null;
             }
-            return null;
         }
         return v;
     }

@@ -36,6 +36,7 @@ import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -53,7 +54,7 @@ public class LongBytesRefBlockHashTests extends BlockHashTestCase {
                     bytes = randomBytes(positionCount);
                 }
                 try (bytes; LongBlock longs = randomLongs(positionCount)) {
-                    add(hash, hasDenseOrdinals(bytes), ordsAndKeys -> assertGroupIdsMatchKeys(ordsAndKeys, longs, bytes), longs, bytes);
+                    addAndAssertGroupIds(hash, longs, bytes);
                 }
             }
         }
@@ -71,19 +72,11 @@ public class LongBytesRefBlockHashTests extends BlockHashTestCase {
                     bytes = randomBytes(positionCount);
                 }
                 try (bytes; LongBlock longs = randomLongs(positionCount)) {
-                    add(hash, hasDenseOrdinals(bytes), ordsAndKeys -> assertGroupIdsMatchKeys(ordsAndKeys, longs, bytes), longs, bytes);
+                    addAndAssertGroupIds(hash, longs, bytes);
                 }
             }
             final int numKeys = hash.numKeys();
-            final Map<Key, Integer> groups;
-            try (IntVector nonEmpty = hash.nonEmpty()) {
-                Block[] keys = hash.getKeys(nonEmpty);
-                try {
-                    groups = groupsByKey(nonEmpty, keys);
-                } finally {
-                    Releasables.close(keys);
-                }
-            }
+            final Map<Key, Integer> groups = groupsByKey(hash);
             int numLookups = between(1, 10);
             for (int i = 0; i < numLookups; i++) {
                 int positionCount = between(1, 20);
@@ -119,6 +112,30 @@ public class LongBytesRefBlockHashTests extends BlockHashTestCase {
                 }
             }
             assertThat(hash.numKeys(), equalTo(numKeys));
+        }
+    }
+
+    public void testAddSplitsMultivaluedPositionAcrossChunks() {
+        // 9 combinations per position across 40 positions exceeds the emit batch of 256, so position 28 is split
+        int positionCount = 40;
+        try (
+            LongBytesRefBlockHash hash = newHash(256);
+            LongBlock.Builder longsBuilder = blockFactory.newLongBlockBuilder(positionCount);
+            BytesRefBlock.Builder bytesBuilder = blockFactory.newBytesRefBlockBuilder(positionCount)
+        ) {
+            for (int p = 0; p < positionCount; p++) {
+                longsBuilder.beginPositionEntry().appendLong(1).appendLong(2).appendLong(3).endPositionEntry();
+                bytesBuilder.beginPositionEntry()
+                    .appendBytesRef(new BytesRef("a"))
+                    .appendBytesRef(new BytesRef("b"))
+                    .appendBytesRef(new BytesRef("c"))
+                    .endPositionEntry();
+            }
+            try (LongBlock longs = longsBuilder.build(); BytesRefBlock bytes = bytesBuilder.build()) {
+                int chunks = addAndAssertGroupIds(hash, longs, bytes);
+                assertThat(chunks, greaterThan(1));
+                assertThat(hash.numKeys(), equalTo(9));
+            }
         }
     }
 
@@ -181,38 +198,70 @@ public class LongBytesRefBlockHashTests extends BlockHashTestCase {
         return groupIds;
     }
 
-    private static Map<Key, Integer> groupsByKey(IntVector nonEmpty, Block[] keys) {
-        LongBlock keyLongs = (LongBlock) keys[0];
-        BytesRefBlock keyBytes = (BytesRefBlock) keys[1];
-        Map<Key, Integer> groups = new HashMap<>();
-        for (int i = 0; i < nonEmpty.getPositionCount(); i++) {
-            Set<Key> key = keysAt(keyLongs, keyBytes, i);
-            assertThat(key, hasSize(1));
-            groups.put(key.iterator().next(), nonEmpty.getInt(i));
+    private static Map<Key, Integer> groupsByKey(LongBytesRefBlockHash hash) {
+        try (IntVector nonEmpty = hash.nonEmpty()) {
+            Block[] keys = hash.getKeys(nonEmpty);
+            try {
+                LongBlock keyLongs = (LongBlock) keys[0];
+                BytesRefBlock keyBytes = (BytesRefBlock) keys[1];
+                Map<Key, Integer> groups = new HashMap<>();
+                for (int i = 0; i < nonEmpty.getPositionCount(); i++) {
+                    Set<Key> key = keysAt(keyLongs, keyBytes, i);
+                    assertThat(key, hasSize(1));
+                    groups.put(key.iterator().next(), nonEmpty.getInt(i));
+                }
+                return groups;
+            } finally {
+                Releasables.close(keys);
+            }
         }
-        return groups;
     }
 
-    private static void assertGroupIdsMatchKeys(OrdsAndKeys ordsAndKeys, LongBlock longs, BytesRefBlock bytes) {
-        Map<Key, Integer> groups = groupsByKey(ordsAndKeys.nonEmpty(), ordsAndKeys.keys());
-        IntBlock ords = ordsAndKeys.ords();
-        for (int p = 0; p < ords.getPositionCount(); p++) {
-            int position = ordsAndKeys.positionOffset() + p;
+    /**
+     * Adds the page and checks that every position was collected into exactly the groups of its key combinations.
+     * The hash may split a multivalued position across emitted chunks, so group ids are collected per position across
+     * all chunks and only checked once the whole page has been added. A group id must not be emitted twice for the
+     * same position, since aggregations would count it twice.
+     * @return the number of emitted chunks
+     */
+    private static int addAndAssertGroupIds(LongBytesRefBlockHash hash, LongBlock longs, BytesRefBlock bytes) {
+        Map<Integer, Set<Integer>> emitted = new HashMap<>();
+        int[] chunks = new int[1];
+        add(hash, hasDenseOrdinals(bytes), ordsAndKeys -> {
+            chunks[0]++;
+            IntBlock ords = ordsAndKeys.ords();
+            for (int p = 0; p < ords.getPositionCount(); p++) {
+                int position = ordsAndKeys.positionOffset() + p;
+                Set<Integer> groupIds = emitted.computeIfAbsent(position, k -> new HashSet<>());
+                int start = ords.getFirstValueIndex(p);
+                for (int v = start; v < start + ords.getValueCount(p); v++) {
+                    int groupId = ords.getInt(v);
+                    assertTrue("group " + groupId + " emitted twice for position " + position, groupIds.add(groupId));
+                }
+            }
+        }, longs, bytes);
+        Map<Key, Integer> groups = groupsByKey(hash);
+        for (int position = 0; position < longs.getPositionCount(); position++) {
             Set<Integer> expected = new HashSet<>();
             for (Key key : keysAt(longs, bytes, position)) {
                 Integer groupId = groups.get(key);
                 assertNotNull("missing group for " + key, groupId);
                 expected.add(groupId);
             }
-            assertThat("position " + position, groupIdsAt(ords, p), equalTo(expected));
+            assertThat("position " + position, emitted.getOrDefault(position, Set.of()), equalTo(expected));
         }
+        return chunks[0];
     }
 
     private LongBytesRefBlockHash newHash() {
+        return newHash(between(128, 16 * 1024));
+    }
+
+    private LongBytesRefBlockHash newHash(int emitBatchSize) {
         return new LongBytesRefBlockHash(
             List.of(new BlockHash.GroupSpec(0, ElementType.LONG), new BlockHash.GroupSpec(1, ElementType.BYTES_REF)),
             blockFactory,
-            between(128, 16 * 1024),
+            emitBatchSize,
             false
         );
     }

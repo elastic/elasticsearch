@@ -91,7 +91,7 @@ final class ColumnarOrdinalTermsCollector extends LeafBucketCollectorBase {
             return null;
         }
         final StringColumnReader reader = source.reader();
-        // A column of several slots a document has no ordinal a document, and a rank is not its address.
+        // Multi-valued columns are not supported. Value addresses mean a document can hold any number of slots.
         if (reader instanceof DictionaryStringColumnReader dictionary
             && dictionary.hasValueAddresses() == false
             && dictionary.dictionarySize() <= MAX_DICTIONARY_SIZE) {

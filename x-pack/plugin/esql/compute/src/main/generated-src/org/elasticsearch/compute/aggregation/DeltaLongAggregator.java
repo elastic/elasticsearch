@@ -114,15 +114,18 @@ public class DeltaLongAggregator {
                 states.set(groupId, state);
                 adjustBreaker(state.bytesUsed());
             } else {
-                if (timestamp >= state.lastTimestamp) {
+                // Raw values and partial states can arrive in any order, so every value is counted and ties on a
+                // timestamp (multi-valued samples) go to the larger value; otherwise the extrapolation would depend
+                // on that order.
+                if (timestamp > state.lastTimestamp || (timestamp == state.lastTimestamp && value > state.lastValue)) {
                     state.lastTimestamp = timestamp;
                     state.lastValue = value;
-                    state.valuesSeen++;
-                } else if (timestamp <= state.firstTimestamp) {
+                }
+                if (timestamp < state.firstTimestamp || (timestamp == state.firstTimestamp && value > state.firstValue)) {
                     state.firstTimestamp = timestamp;
                     state.firstValue = value;
-                    state.valuesSeen++;
-                } // else: ignore, too old
+                }
+                state.valuesSeen++;
             }
         }
 
@@ -139,9 +142,8 @@ public class DeltaLongAggregator {
             if (valueCount > 1) {
                 append(groupId, timestamps.getLong(firstTs + 1), values.getLong(firstIndex + 1));
             }
-            // We are merging the state from upstream, which means we have seen
-            // `valuesSeen` values, but we have already counted one or two of them,
-            // which is represented by `valueCount - 1`.
+            // The upstream state has seen `valuesSeen` values, `valueCount` of which were already counted by the
+            // appends above.
             states.get(groupId).valuesSeen += valuesSeen - valueCount;
         }
 

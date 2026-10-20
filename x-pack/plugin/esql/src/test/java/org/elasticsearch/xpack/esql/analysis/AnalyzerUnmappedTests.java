@@ -1876,11 +1876,13 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
      * The MVP allow-list of {@link Verifier#checkLoadAllModeSupportedCommands} rejects commands not yet supported, naming the one it found.
      */
     public void testLoadAllModeRejectsUnsupportedCommands() {
-        for (var commandAndLabel : List.of(Tuple.tuple("| CHANGE_POINT salary ON emp_no", "ChangePoint"))) {
-            test().statementError(
-                setUnmappedLoadAll("FROM test " + commandAndLabel.v1()),
-                containsString(loadAllUnsupportedCommandMessage(commandAndLabel.v2()))
-            );
+        for (var commandAndLabel : List.of(
+            Tuple.tuple("| RERANK \"food\" ON first_name WITH { \"inference_id\" : \"reranking-inference-id\" }", "RERANK")
+        )) {
+            test().addAnalysisTestsInferenceResolution()
+                .statementError(
+                    setUnmappedLoadAll("FROM test METADATA _score " + commandAndLabel.v1()),                    containsString(loadAllUnsupportedCommandMessage(commandAndLabel.v2()))
+                );
         }
     }
 
@@ -2171,7 +2173,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     private static String loadAllUnsupportedCommandMessage(String command) {
         return "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, "
             + (EsqlCapabilities.Cap.FILLNULL.isEnabled() ? "FILLNULL, " : "")
-            + "GROK, DISSECT, MV_EXPAND, SAMPLE, WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and "
+            + "GROK, DISSECT, MV_EXPAND, SAMPLE, CHANGE_POINT, WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and "
             + "subquery commands; ["
             + command
             + "] is not supported yet";

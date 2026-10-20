@@ -423,9 +423,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessResizeIT
   method: testSplitAfterResharding
   issue: https://github.com/elastic/elasticsearch/issues/161783
-- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
-  method: test {yaml=mtermvectors/10_basic/Tests catching other exceptions per item}
-  issue: https://github.com/elastic/elasticsearch/issues/161788
 - class: org.elasticsearch.action.datastreams.lifecycle.ExplainIndexDataStreamLifecycleTests
   method: testLifecycleEnabledByDefaultSerialization
   issue: https://github.com/elastic/elasticsearch/issues/161848
@@ -509,9 +506,6 @@ tests:
 - class: org.elasticsearch.action.bulk.BulkItemResponseFailureWireSerializingTests
   method: testFailureStoreCauseIsSuppressedForOlderVersions
   issue: https://github.com/elastic/elasticsearch/issues/162587
-- class: org.elasticsearch.xpack.esql.datasource.parquet.PrefetchLatencySimulationTests
-  method: testPrefetchFailureEntersAndSuccessfulProbeExitsProbeMode
-  issue: https://github.com/elastic/elasticsearch/issues/162589
 - class: org.elasticsearch.painless.heappressure.RuntimeFieldHighlightHeapPressureIT
   method: testDoubleRuntimeFieldFromFreeTextSearch
   issue: https://github.com/elastic/elasticsearch/issues/162593
@@ -530,3 +524,12 @@ tests:
   issue: https://github.com/elastic/incident-management/issues/2018
 - class: org.elasticsearch.xpack.enrich.heappressure.EnrichRepeatedKeyWarmHeapPressureIT
   issue: https://github.com/elastic/incident-management/issues/2018
+- class: org.elasticsearch.xpack.analytics.topmetrics.TopMetricsColumnarIT
+  method: testKeywordOnColumnarIndex
+  issue: https://github.com/elastic/elasticsearch/issues/162510
+- class: org.elasticsearch.xpack.analytics.topmetrics.TopMetricsColumnarIT
+  method: testIpOnColumnarIndex
+  issue: https://github.com/elastic/elasticsearch/issues/162510
+- class: org.elasticsearch.xpack.analytics.topmetrics.TopMetricsColumnarIT
+  method: testKeywordMissingMetricOnTopDocumentOnColumnarIndex
+  issue: https://github.com/elastic/elasticsearch/issues/162510

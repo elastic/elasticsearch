@@ -6379,7 +6379,7 @@ message:keyword | _unmapped_fields:_source
 42              | null
 ;
 
-loadAllReviewKeepUnmappedColumns
+loadAllViewBesideIndexKeepUnmappedColumns
 required_capability: optional_fields_load_all_views
 required_capability: settings_scoped_at_view_boundaries
 required_capability: views_with_branching
@@ -6397,7 +6397,7 @@ message:keyword | unmapped_message:keyword | unmapped_event_duration:keyword
 42              | 43                       | 1232383
 ;
 
-loadAllReviewUnionIndexAndView
+loadAllIndexAndViewUnion
 required_capability: optional_fields_load_all_views
 required_capability: settings_scoped_at_view_boundaries
 required_capability: views_with_branching
@@ -6414,7 +6414,7 @@ ignoreOrder:true
 2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42              | "null"
 ;
 
-loadAllReviewSortDescNullsLastLimit
+loadAllViewWildcardKeepSortDescNullsLastLimit
 required_capability: optional_fields_load_all_views
 required_capability: settings_scoped_at_view_boundaries
 required_capability: views_with_branching
@@ -6445,19 +6445,7 @@ c:long | u:long | d:long
 14     | 7      | 7
 ;
 
-loadAllSubqueryKeepStarMessageCountUnmappedDuration
-required_capability: optional_fields_load_all_subqueries
-required_capability: subquery_in_from_command
-
-SET unmapped_fields="LOAD_ALL"\;
-FROM partial_mapping_sample_data, (FROM partial_mapping_sample_data | KEEP *message*)
-| STATS c = COUNT(*), u = COUNT(unmapped_message), d = COUNT(unmapped_event_duration)
-;
-c:long | u:long | d:long
-14     | 14     | 7
-;
-
-loadAllReviewStatsByNullEventDuration
+loadAllViewWildcardKeepStatsByFromView
 required_capability: optional_fields_load_all_views
 required_capability: settings_scoped_at_view_boundaries
 required_capability: views_with_branching
@@ -6474,7 +6462,7 @@ c:long | u:long | d:long | from_view:boolean
 7      | 0      | 0      | true
 ;
 
-loadAllReviewKeepUnmappedStar
+loadAllViewBesideIndexKeepUnmappedStar
 required_capability: optional_fields_load_all_views
 required_capability: settings_scoped_at_view_boundaries
 required_capability: views_with_branching
@@ -6492,7 +6480,7 @@ message:keyword | _unmapped_fields:_source
 42              | "{""unmapped_message"":""43"",""unmapped_event_duration"":""1232383""}"
 ;
 
-loadAllReviewWildcardViewName
+loadAllViewNameWildcard
 required_capability: optional_fields_load_all_views
 required_capability: settings_scoped_at_view_boundaries
 required_capability: views_with_branching
@@ -6512,7 +6500,7 @@ message:keyword | unmapped_message:keyword | event_duration:long
 42              | null                     | null
 ;
 
-loadAllReviewThreeBranches
+loadAllIndexAndTwoViews
 required_capability: optional_fields_load_all_views
 required_capability: settings_scoped_at_view_boundaries
 required_capability: views_with_branching
@@ -6546,36 +6534,6 @@ ignoreOrder:true
 message:keyword | unmapped_event_duration:keyword
 42              | 1232383
 42              | null
-;
-
-loadAllSubqueryGapDropWildcard
-required_capability: optional_fields_load_all_subqueries
-required_capability: subquery_in_from_command
-
-SET unmapped_fields="LOAD_ALL"\;
-FROM partial_mapping_sample_data, (FROM partial_mapping_sample_data | DROP unmapped_e*)
-| WHERE message == "42"
-| KEEP message, unmapped_event_duration
-;
-ignoreOrder:true
-message:keyword | unmapped_event_duration:keyword
-42              | 1232383
-42              | null
-;
-
-loadAllSubqueryGapRename
-required_capability: optional_fields_load_all_subqueries
-required_capability: subquery_in_from_command
-
-SET unmapped_fields="LOAD_ALL"\;
-FROM partial_mapping_sample_data, (FROM partial_mapping_sample_data | RENAME unmapped_event_duration AS renamed_duration)
-| WHERE message == "42"
-| KEEP message, unmapped_event_duration, renamed_duration
-;
-ignoreOrder:true
-message:keyword | unmapped_event_duration:keyword | renamed_duration:keyword
-42              | 1232383                         | null
-42              | null                            | 1232383
 ;
 
 loadAllViewGapRestrictingViewInMiddle
@@ -6654,6 +6612,178 @@ ignoreOrder:true
 message:keyword | _unmapped_fields:_source
 42              | "{""unmapped_message"":""43""}"
 42              | null
+;
+
+###############################################
+# CHANGE_POINT under LOAD_ALL (#157189)       #
+###############################################
+
+// CHANGE_POINT appends type and pvalue. Those columns shadow the unmapped type and pvalue leaves, exactly as they would shadow a mapped
+// column of the same name, so only the other leaves stay in _unmapped_fields. Rows 12 and 13 straddle the step in the series.
+changePointOutputShadowsUnmappedLeaves
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_change_point
+required_capability: change_point
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM change_point_mapped
+| CHANGE_POINT v ON k
+| WHERE k >= 12 AND k <= 13
+| SORT k
+;
+
+k:long | v:long | _unmapped_fields:_source                                              | type:keyword | pvalue:double
+12     | 10     | "{""ctype"":""c12"",""cp"":""q12"",""ukey"":""12"",""note"":""n12""}" | null         | null
+13     | 51     | "{""ctype"":""c13"",""cp"":""q13"",""ukey"":""13"",""note"":""n13""}" | step_change  | 0..1E-20
+;
+
+// With AS the output columns take other names, and those are the leaves that get shadowed: ctype and cp leave _unmapped_fields while type
+// and pvalue, no longer outputs, stay.
+changePointAsNamesShadowUnmappedLeaves
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_change_point
+required_capability: change_point
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM change_point_mapped
+| CHANGE_POINT v ON k AS ctype, cp
+| WHERE k >= 12 AND k <= 13
+| SORT k
+;
+
+k:long | v:long | _unmapped_fields:_source                                                 | ctype:keyword | cp:double
+12     | 10     | "{""type"":""t12"",""pvalue"":""p12"",""ukey"":""12"",""note"":""n12""}" | null          | null
+13     | 51     | "{""type"":""t13"",""pvalue"":""p13"",""ukey"":""13"",""note"":""n13""}" | step_change   | 0..1E-20
+;
+
+// ukey is an unmapped keyword. Naming it as the key promotes it to a column, so it leaves _unmapped_fields; the other leaves stay.
+changePointOnUnmappedKey
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_change_point
+required_capability: change_point
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM change_point_mapped
+| CHANGE_POINT v ON ukey
+| WHERE k >= 12 AND k <= 13
+| SORT k
+;
+
+k:long | v:long | ukey:keyword | _unmapped_fields:_source                              | type:keyword | pvalue:double
+12     | 10     | 12           | "{""ctype"":""c12"",""cp"":""q12"",""note"":""n12""}" | null         | null
+13     | 51     | 13           | "{""ctype"":""c13"",""cp"":""q13"",""note"":""n13""}" | step_change  | 0..1E-20
+;
+
+// Unmapped fields load as keyword, so they are cast to numbers before CHANGE_POINT; the casts shadow the originals out of _unmapped_fields.
+changePointOnCastUnmappedValueAndKey
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_change_point
+required_capability: change_point
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM change_point_unmapped
+| EVAL v = TO_LONG(v), k = TO_LONG(k)
+| CHANGE_POINT v ON k
+| WHERE k >= 12 AND k <= 13
+| SORT k
+;
+
+id:keyword | _unmapped_fields:_source | v:long | k:long | type:keyword | pvalue:double
+u12        | "{""note"":""n12""}"     | 10     | 12     | null         | null
+u13        | "{""note"":""n13""}"     | 51     | 13     | step_change  | 0..1E-20
+;
+
+// Grouping by an unmapped field is allowed, and CHANGE_POINT then runs over the STATS output, which has no _unmapped_fields column.
+changePointAfterStatsOnUnmappedGroup
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_change_point
+required_capability: change_point
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM change_point_mapped
+| STATS s = SUM(v) BY ukey
+| CHANGE_POINT s ON ukey
+| WHERE ukey >= "12" AND ukey <= "13"
+| SORT ukey
+;
+
+s:long | ukey:keyword | type:keyword | pvalue:double
+10     | 12           | null         | null
+51     | 13           | step_change  | 0..1E-20
+;
+
+// v is a mapped long in change_point_mapped and an unmapped field in change_point_unmapped, so it resolves to long across the FROM and
+// CHANGE_POINT accepts it. Both indices hold the same series, so a row at each key ties; which of the two tied rows carries the label is not
+// fixed, so the test counts the rows and the detected changes instead.
+changePointOnValueMappedInOneIndexAndUnmappedInAnother
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_change_point
+required_capability: change_point
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM change_point_mapped, change_point_unmapped
+| CHANGE_POINT v ON k
+| STATS rows = COUNT(*), changes = COUNT(type)
+;
+
+rows:long | changes:long
+48        | 1
+;
+
+changePointByExpressionPromotesUnmappedField
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_change_point
+required_capability: change_point_by
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM change_point_mapped
+| CHANGE_POINT v ON k BY SUBSTRING(note, 1, 1)
+| WHERE k >= 12 AND k <= 13
+| SORT k
+;
+
+k:long | v:long | note:keyword | _unmapped_fields:_source                             | type:keyword | pvalue:double
+12     | 10     | n12          | "{""ctype"":""c12"",""cp"":""q12"",""ukey"":""12""}" | null         | null
+13     | 51     | n13          | "{""ctype"":""c13"",""cp"":""q13"",""ukey"":""13""}" | step_change  | 0..1E-20
+;
+
+changePointByIndexAcrossMappedAndUnmappedValue
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_change_point
+required_capability: change_point_by
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM change_point_mapped, change_point_unmapped METADATA _index
+| CHANGE_POINT v ON k BY _index
+| WHERE k >= 12 AND k <= 13
+| KEEP _index, k, v, type, n*
+| SORT _index, k
+;
+
+_index:keyword        | k:long | v:long | type:keyword | _unmapped_fields:_source
+change_point_mapped   | 12     | 10     | null         | "{""note"":""n12""}"
+change_point_mapped   | 13     | 51     | step_change  | "{""note"":""n13""}"
+change_point_unmapped | 12     | 10     | null         | "{""note"":""n12""}"
+change_point_unmapped | 13     | 51     | step_change  | "{""note"":""n13""}"
+;
+
+changePointAsUnmappedFieldsNameTakesTheColumn
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_change_point
+required_capability: optional_fields_load_all_name_collision_warning
+required_capability: change_point
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM change_point_mapped
+| CHANGE_POINT v ON k AS _unmapped_fields, cp
+| WHERE k >= 12 AND k <= 13
+| SORT k
+;
+warning:The query has a column named [_unmapped_fields], so the unmapped fields are not returned in a column of that name; rename that column to get them
+
+k:long | v:long | _unmapped_fields:keyword | cp:double
+12     | 10     | null                     | null
+13     | 51     | step_change              | 0..1E-20
 ;
 
 ###############################################

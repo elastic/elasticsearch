@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Esq
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
+import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -716,10 +717,10 @@ public class Verifier {
                 failures.add(
                     fail(
                         p,
-                        "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, "
+                        "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, "
                             + (EsqlCapabilities.Cap.FILLNULL.isEnabled() ? "FILLNULL, " : "")
-                            + "GROK, DISSECT, MV_EXPAND, SAMPLE, WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and "
-                            + "subquery commands; [{}] is not supported yet",
+                            + "MV_EXPAND, SAMPLE, CHANGE_POINT, WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, "
+                            + "FORK and subquery commands; [{}] is not supported yet",
                         p instanceof EsRelation esr && esr.indexMode().isTsdb() ? "TS"
                             : p instanceof BranchPlan ? "BranchPlan"
                             : p instanceof NamedSubquery ? "NamedSubquery"
@@ -743,6 +744,7 @@ public class Verifier {
             || plan instanceof Dissect
             || plan instanceof MvExpand
             || plan instanceof Sample
+            || plan instanceof ChangePoint
             || plan instanceof Filter
             || plan instanceof OrderBy
             || plan instanceof Limit
@@ -755,7 +757,7 @@ public class Verifier {
             || plan instanceof Enrich
             || plan instanceof Fork
             // Every subquery union is a BranchPlan, view branches included: a view is a boundary the setting does not reach into,
-            // so nothing is loaded from _source inside it and its _unmapped_fields is null.
+            // so nothing is loaded from _source inside it. It has no _unmapped_fields column; unions null-fill it where a sibling has one.
             || plan instanceof BranchPlan
             || (plan instanceof UnionAll && plan instanceof BranchPlan == false)
             || (plan instanceof Subquery && plan instanceof NamedSubquery == false)

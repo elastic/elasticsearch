@@ -1465,11 +1465,11 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     private void assertViewBoundaryWarnings(String viewName, String field) {
         assertWarnings(
             Analyzer.viewBoundaryNullFillWarning(
-                new AnalyzerContext.ViewBoundary(UnmappedResolution.LOAD, null, viewName, null),
+                new AnalyzerContext.ViewBoundary(UnmappedResolution.LOAD, null, viewName, null, false),
                 List.of(field)
             ),
             Analyzer.viewBoundaryNullFillWarning(
-                new AnalyzerContext.ViewBoundary(UnmappedResolution.LOAD_ALL, null, viewName, null),
+                new AnalyzerContext.ViewBoundary(UnmappedResolution.LOAD_ALL, null, viewName, null, false),
                 List.of(field)
             )
         );

@@ -3232,6 +3232,23 @@ rows:long | loaded:long
 14        | 0
 ;
 
+// The view SETs load itself but references only unmapped_event_duration, so the warning asks it to reference unmapped_message too.
+viewSettingLoadWarnsAboutFieldItDoesNotReference
+required_capability: views_crud_as_index_actions
+required_capability: set_in_view_definitions
+required_capability: settings_scoped_at_view_boundaries
+required_capability: warn_unmapped_fields_stopped_at_view
+
+SET unmapped_fields="load"\;
+FROM view_partial_mapping_loads_event_duration
+| STATS rows = COUNT(*), loaded = COUNT(unmapped_message), durations = COUNT(unmapped_event_duration)
+;
+warning:SET unmapped_fields=\"load\" does not affect the contents of view [view_partial_mapping_loads_event_duration], so field [unmapped_message] is null in its rows; to load such fields, the view definition must reference them itself
+
+rows:long | loaded:long | durations:long
+7         | 0           | 7
+;
+
 // A view is resolved as if unmapped_fields were "default": a field that is mapped in only some of the view's indices is null
 // where it is unmapped, rather than loaded from _source. The view here is FROM sample_data, no_mapping_sample_data, whose
 // date, ip, long and keyword fields are mapped in sample_data only; the same fields are all present in the source of

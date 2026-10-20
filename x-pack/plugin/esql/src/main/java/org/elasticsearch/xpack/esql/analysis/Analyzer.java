@@ -415,14 +415,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         boolean one = fieldNames.size() == 1;
         return Strings.format(
             "SET unmapped_fields=\"%s\"%s does not affect the contents of view [%s]%s, so field%s %s %s null in its rows; "
-                + "to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself",
+                + "to load such fields, the view definition must %s them itself",
             boundary.resolution().settingValue(),
             boundary.settingView() == null ? "" : " in view [" + boundary.settingView() + "]",
             boundary.viewName(),
             boundary.enclosingView() == null ? "" : " nested in view [" + boundary.enclosingView() + "]",
             one ? "" : "s",
             ViewQuerySettings.bracketedList(fieldNames),
-            one ? "is" : "are"
+            one ? "is" : "are",
+            // A view that already SETs load loads only the fields its own body references.
+            boundary.viewLoadsUnmappedFields() ? "reference" : "SET unmapped_fields=\"load\" and reference"
         );
     }
 

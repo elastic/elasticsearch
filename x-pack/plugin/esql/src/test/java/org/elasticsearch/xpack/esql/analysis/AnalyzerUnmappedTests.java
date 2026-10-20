@@ -1814,8 +1814,8 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
      * One warning per view boundary, in the order the fills were recorded, each naming a bounded list of fields.
      */
     public void testViewBoundaryNullFillWarnings() {
-        var v1 = new AnalyzerContext.ViewBoundary(UnmappedResolution.LOAD, null, "v1", null);
-        var v2 = new AnalyzerContext.ViewBoundary(UnmappedResolution.LOAD, "outer", "v2", "v3");
+        var v1 = new AnalyzerContext.ViewBoundary(UnmappedResolution.LOAD, null, "v1", null, false);
+        var v2 = new AnalyzerContext.ViewBoundary(UnmappedResolution.LOAD, "outer", "v2", "v3", false);
         Set<AnalyzerContext.ViewBoundaryNullFill> fills = new LinkedHashSet<>();
         fills.add(new AnalyzerContext.ViewBoundaryNullFill(v1, "a"));
         fills.add(new AnalyzerContext.ViewBoundaryNullFill(v2, "c"));
@@ -1840,7 +1840,10 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             names.add("f" + i);
         }
         assertThat(
-            Analyzer.viewBoundaryNullFillWarning(new AnalyzerContext.ViewBoundary(UnmappedResolution.LOAD_ALL, null, "v", null), names),
+            Analyzer.viewBoundaryNullFillWarning(
+                new AnalyzerContext.ViewBoundary(UnmappedResolution.LOAD_ALL, null, "v", null, false),
+                names
+            ),
             containsString(
                 "[f" + (ViewQuerySettings.MAX_LISTED_NAMES_IN_VIEW_WARNINGS - 1) + "] and [" + extra + "] more are null in its rows"
             )

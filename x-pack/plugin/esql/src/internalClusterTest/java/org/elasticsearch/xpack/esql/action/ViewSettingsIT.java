@@ -780,6 +780,11 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
             warningHeaders("FROM outer_load"),
             hasItem(viewBoundaryWarning("load", "outer_load", "inner_plain", null, "field [extra] is"))
         );
+        // The view already SETs load, so it only has to reference the field.
+        assertThat(
+            warningHeaders("SET unmapped_fields=\"load\"; FROM load_view | KEEP id, extra"),
+            hasItem(loadingViewBoundaryWarning("load_view", "field [extra] is"))
+        );
         // A nested view keeps its own name only while its rows stay apart from the enclosing view's: the rows of a pass-through
         // view merge into the enclosing view's, so those are reported under the enclosing view.
         List<String> nested = warningHeaders("SET unmapped_fields=\"load\"; FROM multi_plain | KEEP id, extra");
@@ -794,8 +799,6 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
         for (String query : List.of(
             // No loading mode at the caller: nothing would have been loaded.
             "SET unmapped_fields=\"nullify\"; FROM filtered_view | KEEP id, extra",
-            // The view already SETs load; its body does not reference extra, so adding the SET would change nothing.
-            "SET unmapped_fields=\"load\"; FROM load_view | KEEP id, extra",
             // The view aggregates the field away, so it would be null whatever the mode inside.
             "SET unmapped_fields=\"load\"; FROM stats_view | KEEP id, extra",
             // The view's KEEP hides the field, whether alone or under the alignment of a union with the caller's index.
@@ -824,6 +827,21 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
         @Nullable String enclosingView,
         String fields
     ) {
+        return viewBoundaryWarning(mode, settingView, viewName, enclosingView, fields, "SET unmapped_fields=\"load\" and reference");
+    }
+
+    private static Matcher<String> loadingViewBoundaryWarning(String viewName, String fields) {
+        return viewBoundaryWarning("load", null, viewName, null, fields, "reference");
+    }
+
+    private static Matcher<String> viewBoundaryWarning(
+        String mode,
+        @Nullable String settingView,
+        String viewName,
+        @Nullable String enclosingView,
+        String fields,
+        String remedy
+    ) {
         return equalTo(
             "SET unmapped_fields=\""
                 + mode
@@ -835,7 +853,9 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
                 + (enclosingView == null ? "" : " nested in view [" + enclosingView + "]")
                 + ", so "
                 + fields
-                + " null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself"
+                + " null in its rows; to load such fields, the view definition must "
+                + remedy
+                + " them itself"
         );
     }
 

@@ -125,13 +125,11 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
         });
         BiConsumer<BranchIdentity, String> onViewNullFill = (identity, fieldName) -> {
             String viewName = identity.settingsViewName();
-            // A view that already loads only loads what its own body references; adding the SET to it would change nothing.
-            if (ViewQuerySettings.forView(viewName, context.viewSettings()).unmappedFields().loadsUnmappedFields() == false) {
-                List<String> lineage = identity.lineage();
-                String enclosingView = lineage.size() < 2 ? null : lineage.get(lineage.size() - 2);
-                var boundary = new AnalyzerContext.ViewBoundary(resolution, settingView, viewName, enclosingView);
-                context.viewBoundaryNullFills().add(new AnalyzerContext.ViewBoundaryNullFill(boundary, fieldName));
-            }
+            boolean viewLoads = ViewQuerySettings.forView(viewName, context.viewSettings()).unmappedFields().loadsUnmappedFields();
+            List<String> lineage = identity.lineage();
+            String enclosingView = lineage.size() < 2 ? null : lineage.get(lineage.size() - 2);
+            var boundary = new AnalyzerContext.ViewBoundary(resolution, settingView, viewName, enclosingView, viewLoads);
+            context.viewBoundaryNullFills().add(new AnalyzerContext.ViewBoundaryNullFill(boundary, fieldName));
         };
         return switch (resolution) {
             case UnmappedResolution.DEFAULT -> withInnerScopes;

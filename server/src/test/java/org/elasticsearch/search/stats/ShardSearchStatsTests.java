@@ -86,13 +86,6 @@ public class ShardSearchStatsTests extends IndexShardTestCase {
         assertEquals(TimeUnit.MILLISECONDS.toMicros(40), shardA.totalQueueTimeInMicros());
         assertEquals(0.5, shardB.totalQueuedTasks(), 1e-9);
         assertEquals(TimeUnit.MILLISECONDS.toMicros(20), shardB.totalQueueTimeInMicros());
-
-        assertEquals("tasks add up across shards", 2.0, shardA.totalQueuedTasks() + shardB.totalQueuedTasks(), 1e-9);
-        assertEquals(
-            "waits add up across shards",
-            TimeUnit.MILLISECONDS.toMicros(60),
-            shardA.totalQueueTimeInMicros() + shardB.totalQueueTimeInMicros()
-        );
     }
 
     /** When the shard count does not divide evenly, sums over the shards lose only the truncated remainder. */

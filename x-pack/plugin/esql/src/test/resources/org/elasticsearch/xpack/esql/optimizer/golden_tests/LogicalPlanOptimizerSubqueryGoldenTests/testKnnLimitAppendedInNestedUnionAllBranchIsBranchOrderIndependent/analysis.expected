@@ -1,7 +1,7 @@
 Limit[10000[INTEGER],false,false]
 \_Limit[5[INTEGER],false,false]
   \_BranchPlan[[unnamed_view_1=SUBQUERY, unnamed_view_2=SUBQUERY]]
-    |_Project[[color{r}#0, hex_code{r}#1, id{r}#2, primary{r}#3, rgb_byte_vector{r}#4, rgb_vector{r}#5, _score{r}#6]]
+    |_Project[[color{r}#0, hex_code{r}#1, id{r}#2, primary{r}#3, rgb_byte_vector{r}#4, rgb_vector{r}#5, _score{m}#6]]
     | \_BranchPlan[[unnamed_view_1=SUBQUERY, unnamed_view_2=SUBQUERY]]
     |   |_Project[[color{f}#7, hex_code{f}#8, id{f}#9, primary{f}#10, rgb_byte_vector{f}#11, rgb_vector{f}#12, _score{r}#13]]
     |   | \_Eval[[null[DOUBLE] AS _score#13]]

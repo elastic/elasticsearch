@@ -17,12 +17,11 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.SimpleCollector;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -31,6 +30,7 @@ import org.elasticsearch.columnar.numeric.NumericBinaryPayload;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Collection;
 
 import static org.elasticsearch.columnar.ColumnarTestUtils.columnarBinaryFieldType;
 import static org.elasticsearch.columnar.ColumnarTestUtils.columnarCodec;
@@ -179,24 +179,34 @@ public class ColumnarNumericRangeQueryTests extends ESTestCase {
 
     private static FixedBitSet collect(IndexSearcher searcher, Query query, int maxDoc) throws IOException {
         final FixedBitSet matches = new FixedBitSet(maxDoc);
-        searcher.search(query, new Collector() {
+        searcher.search(query, new CollectorManager<SimpleCollector, Void>() {
             @Override
-            public ScoreMode scoreMode() {
-                return ScoreMode.COMPLETE_NO_SCORES;
-            }
+            public SimpleCollector newCollector() {
+                return new SimpleCollector() {
+                    private int docBase;
 
-            @Override
-            public LeafCollector getLeafCollector(LeafReaderContext context) {
-                final int base = context.docBase;
-                return new LeafCollector() {
                     @Override
-                    public void setScorer(Scorable scorer) {}
+                    protected void doSetNextReader(LeafReaderContext context) {
+                        docBase = context.docBase;
+                    }
 
                     @Override
                     public void collect(int doc) {
-                        matches.set(base + doc);
+                        synchronized (matches) {
+                            matches.set(docBase + doc);
+                        }
+                    }
+
+                    @Override
+                    public ScoreMode scoreMode() {
+                        return ScoreMode.COMPLETE_NO_SCORES;
                     }
                 };
+            }
+
+            @Override
+            public Void reduce(Collection<SimpleCollector> collectors) {
+                return null;
             }
         });
         return matches;

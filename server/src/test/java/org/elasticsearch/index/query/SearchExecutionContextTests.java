@@ -1277,7 +1277,7 @@ public class SearchExecutionContextTests extends ESTestCase {
     }
 
     private static List<String> collect(String field, SearchExecutionContext searchExecutionContext, Query query) throws IOException {
-        List<String> result = new ArrayList<>();
+        List<String> result = Collections.synchronizedList(new ArrayList<>());
         try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
             indexWriter.addDocument(List.of(new KeywordField("indexed_field", "first", Field.Store.YES)));
             indexWriter.addDocument(List.of(new KeywordField("indexed_field", "second", Field.Store.YES)));
@@ -1290,7 +1290,8 @@ public class SearchExecutionContextTests extends ESTestCase {
                 } else {
                     indexFieldData = searchExecutionContext.lookup().getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
                 }
-                searcher.search(query, new Collector() {
+                boolean useDocLookup = randomBoolean();
+                searcher.search(query, collectorManager(() -> new Collector() {
                     @Override
                     public ScoreMode scoreMode() {
                         return ScoreMode.COMPLETE_NO_SCORES;
@@ -1304,23 +1305,24 @@ public class SearchExecutionContextTests extends ESTestCase {
 
                             @Override
                             public void collect(int doc) throws IOException {
-                                ScriptDocValues<?> scriptDocValues;
-                                if (randomBoolean()) {
-                                    LeafDocLookup leafDocLookup = searchExecutionContext.lookup().getLeafSearchLookup(context).doc();
-                                    leafDocLookup.setDocument(doc);
-                                    scriptDocValues = leafDocLookup.get(field);
-                                } else {
-                                    scriptDocValues = indexFieldData.load(context).getScriptFieldFactory("test").toScriptDocValues();
-                                    ;
-                                }
-                                scriptDocValues.getSupplier().setNextDocId(doc);
-                                for (int i = 0; i < scriptDocValues.size(); i++) {
-                                    result.add(scriptDocValues.get(i).toString());
+                                synchronized (searchExecutionContext) {
+                                    ScriptDocValues<?> scriptDocValues;
+                                    if (useDocLookup) {
+                                        LeafDocLookup leafDocLookup = searchExecutionContext.lookup().getLeafSearchLookup(context).doc();
+                                        leafDocLookup.setDocument(doc);
+                                        scriptDocValues = leafDocLookup.get(field);
+                                    } else {
+                                        scriptDocValues = indexFieldData.load(context).getScriptFieldFactory("test").toScriptDocValues();
+                                    }
+                                    scriptDocValues.getSupplier().setNextDocId(doc);
+                                    for (int i = 0; i < scriptDocValues.size(); i++) {
+                                        result.add(scriptDocValues.get(i).toString());
+                                    }
                                 }
                             }
                         };
                     }
-                });
+                }));
             }
             return result;
         }

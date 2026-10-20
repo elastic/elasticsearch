@@ -15,6 +15,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.IOException;
@@ -149,6 +150,15 @@ public class ColumnarIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTes
         assertEsqlText(mixedBackingIndex, firstMixedDoc);
         assertEsqlText(newBackingIndex, docs);
         assertEsqlText(DATA_STREAM, 0);
+        addReplicasAndVerify(backingIndices, totalDocs);
+    }
+
+    private void addReplicasAndVerify(List<String> indices, int docs) throws IOException {
+        for (String index : indices) {
+            updateIndexSettings(index, Settings.builder().put("index.number_of_replicas", 1));
+        }
+        ensureGreen(DATA_STREAM);
+        verify(DATA_STREAM, 0, docs);
     }
 
     private static void rollover() throws IOException {

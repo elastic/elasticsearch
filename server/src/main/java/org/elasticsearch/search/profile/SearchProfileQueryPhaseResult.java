@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.profile;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -26,19 +27,35 @@ import java.util.Objects;
  */
 public class SearchProfileQueryPhaseResult implements Writeable {
 
+    private static final TransportVersion RESCORE_PROFILE = TransportVersion.fromName("rescore_profile");
+
     private SearchProfileDfsPhaseResult searchProfileDfsPhaseResult;
 
     private final List<QueryProfileShardResult> queryProfileResults;
 
     private final AggregationProfileShardResult aggProfileShardResult;
 
+    private final List<ProfileResult> rescoreProfileResults;
+
     public SearchProfileQueryPhaseResult(
         List<QueryProfileShardResult> queryProfileResults,
         AggregationProfileShardResult aggProfileShardResult
     ) {
+        this(queryProfileResults, aggProfileShardResult, List.of());
+    }
+
+    /**
+     * @param rescoreProfileResults one result per rescorer, in the order the rescorers were run
+     */
+    public SearchProfileQueryPhaseResult(
+        List<QueryProfileShardResult> queryProfileResults,
+        AggregationProfileShardResult aggProfileShardResult,
+        List<ProfileResult> rescoreProfileResults
+    ) {
         this.searchProfileDfsPhaseResult = null;
         this.aggProfileShardResult = aggProfileShardResult;
         this.queryProfileResults = Collections.unmodifiableList(queryProfileResults);
+        this.rescoreProfileResults = Collections.unmodifiableList(rescoreProfileResults);
     }
 
     public SearchProfileQueryPhaseResult(StreamInput in) throws IOException {
@@ -51,6 +68,11 @@ public class SearchProfileQueryPhaseResult implements Writeable {
         }
         this.queryProfileResults = Collections.unmodifiableList(queryProfileResults);
         this.aggProfileShardResult = new AggregationProfileShardResult(in);
+        if (in.getTransportVersion().supports(RESCORE_PROFILE)) {
+            this.rescoreProfileResults = in.readCollectionAsImmutableList(ProfileResult::new);
+        } else {
+            this.rescoreProfileResults = List.of();
+        }
     }
 
     @Override
@@ -61,6 +83,9 @@ public class SearchProfileQueryPhaseResult implements Writeable {
             queryShardResult.writeTo(out);
         }
         aggProfileShardResult.writeTo(out);
+        if (out.getTransportVersion().supports(RESCORE_PROFILE)) {
+            out.writeCollection(rescoreProfileResults);
+        }
     }
 
     public void setSearchProfileDfsPhaseResult(SearchProfileDfsPhaseResult searchProfileDfsPhaseResult) {
@@ -79,6 +104,13 @@ public class SearchProfileQueryPhaseResult implements Writeable {
         return aggProfileShardResult;
     }
 
+    /**
+     * Profile results of the rescorers that ran on the shard, in execution order. Empty if there was no rescorer.
+     */
+    public List<ProfileResult> getRescoreProfileResults() {
+        return rescoreProfileResults;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -86,11 +118,12 @@ public class SearchProfileQueryPhaseResult implements Writeable {
         SearchProfileQueryPhaseResult that = (SearchProfileQueryPhaseResult) o;
         return Objects.equals(searchProfileDfsPhaseResult, that.searchProfileDfsPhaseResult)
             && Objects.equals(queryProfileResults, that.queryProfileResults)
-            && Objects.equals(aggProfileShardResult, that.aggProfileShardResult);
+            && Objects.equals(aggProfileShardResult, that.aggProfileShardResult)
+            && Objects.equals(rescoreProfileResults, that.rescoreProfileResults);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(searchProfileDfsPhaseResult, queryProfileResults, aggProfileShardResult);
+        return Objects.hash(searchProfileDfsPhaseResult, queryProfileResults, aggProfileShardResult, rescoreProfileResults);
     }
 }

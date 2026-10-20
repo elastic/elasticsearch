@@ -2274,19 +2274,26 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     }
                 }
 
-                boolean doPrecondition = XContentMapValues.nodeBooleanValue(indexOptionsMap.remove("precondition"), false);
-                DenseVectorAutoCalibrate autoCalibrate = DenseVectorAutoCalibrate.parse(
-                    indexOptionsMap.remove(DenseVectorAutoCalibrate.NAME),
-                    indexVersion,
-                    context::clusterHasFeature,
-                    fieldName
-                );
+                Object autoCalibrateMapValue = indexOptionsMap.remove(DenseVectorAutoCalibrate.NAME);
+                DenseVectorAutoCalibrate autoCalibrate;
+                if (autoCalibrateMapValue == null && isAsh) {
+                    // Disable autocalibration by default when using ASH
+                    autoCalibrate = DenseVectorAutoCalibrate.DEFAULT_DISABLED;
+                } else {
+                    autoCalibrate = DenseVectorAutoCalibrate.parse(
+                        autoCalibrateMapValue,
+                        indexVersion,
+                        context::clusterHasFeature,
+                        fieldName
+                    );
+                }
                 if (isAsh && autoCalibrate.enabled()) {
                     throw new IllegalArgumentException(
                         "'auto_calibrate' is not supported with 'quantization_type' 'ash' for field [" + fieldName + "]"
                     );
                 }
 
+                boolean doPrecondition = XContentMapValues.nodeBooleanValue(indexOptionsMap.remove("precondition"), false);
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
                 return new BBQIVFIndexOptions(
                     clusterSize,

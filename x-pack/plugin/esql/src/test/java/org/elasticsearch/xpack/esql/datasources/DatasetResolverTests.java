@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.compute.operator.ThreadCpuTimer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
@@ -35,8 +36,9 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
-import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
+import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
@@ -47,6 +49,7 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -130,6 +133,25 @@ public class DatasetResolverTests extends ESTestCase {
         );
     }
 
+    public void testWildcardInViewBranchIsNotDispatchedWhenWildcardsMatchDatasets() {
+        AtomicInteger localCalls = new AtomicInteger();
+        DatasetResolver resolver = resolver(crossProjectEnabled(false), localCalls);
+
+        // The caller's wildcard and the view body's are the same pattern. Only the caller's can match the dataset, so it is the only
+        // relation the resolver spends a round-trip on, and the view body's relation is left as it is.
+        UnresolvedRelation callers = relationOf("log*");
+        UnresolvedRelation inView = relationOf("log*");
+        LinkedHashMap<String, LogicalPlan> branches = new LinkedHashMap<>();
+        branches.put("main", callers);
+        branches.put("logs_view", inView);
+        BranchPlan plan = new BranchPlan(Source.EMPTY, branches, Map.of("logs_view", BranchIdentity.view("logs_view")), List.of());
+
+        LogicalPlan rewritten = replaceDatasets(resolver, plan, project(), true);
+        assertThat(rewritten.children().get(0), instanceOf(UnresolvedExternalRelation.class));
+        assertSame(inView, rewritten.children().get(1));
+        assertEquals("only the caller's wildcard is dispatched", 1, localCalls.get());
+    }
+
     public void testNoDatasetsRegisteredLeavesPlanUnchanged() {
         AtomicInteger localCalls = new AtomicInteger();
         DatasetResolver resolver = resolver(crossProjectEnabled(true), localCalls);
@@ -164,6 +186,7 @@ public class DatasetResolverTests extends ESTestCase {
             relationOf("logs_*"),
             project,
             true,
+            Map.of(),
             QueryPragmas.EMPTY,
             EsqlFlags.withMaxBranchCountPerMerge(cap),
             future
@@ -245,6 +268,7 @@ public class DatasetResolverTests extends ESTestCase {
                 relationOf(DATASET_NAME),
                 project(),
                 false,
+                Map.of(),
                 QueryPragmas.EMPTY,
                 EsqlFlags.DEFAULTS,
                 meteredAtCompletion.map(rewritten -> tracker.isMeteringCurrentThread())
@@ -266,12 +290,12 @@ public class DatasetResolverTests extends ESTestCase {
 
     private LogicalPlan replaceDatasets(
         DatasetResolver resolver,
-        UnresolvedRelation relation,
+        LogicalPlan plan,
         ProjectMetadata project,
         boolean wildcardsMatchDatasets
     ) {
         PlainActionFuture<LogicalPlan> future = new PlainActionFuture<>();
-        resolver.replaceDatasets(relation, project, wildcardsMatchDatasets, QueryPragmas.EMPTY, EsqlFlags.DEFAULTS, future);
+        resolver.replaceDatasets(plan, project, wildcardsMatchDatasets, Map.of(), QueryPragmas.EMPTY, EsqlFlags.DEFAULTS, future);
         return future.actionGet();
     }
 

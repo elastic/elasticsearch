@@ -200,4 +200,8 @@ public class AllocationActionListenerTests extends ESTestCase {
     private static ThreadContext createEmptyThreadContext() {
         return new ThreadContext(Settings.EMPTY);
     }
+
+    private static void startInParallel(Runnable... tasks) {
+        startInParallel(tasks.length, i -> tasks[i].run());
+    }
 }

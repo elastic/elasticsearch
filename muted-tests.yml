@@ -500,9 +500,6 @@ tests:
 - class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS1MissingIndicesIT
   method: testSearchesAgainstNonMatchingIndices
   issue: https://github.com/elastic/elasticsearch/issues/162565
-- class: org.elasticsearch.action.bulk.BulkItemResponseFailureWireSerializingTests
-  method: testFailureStoreCauseIsSuppressedForOlderVersions
-  issue: https://github.com/elastic/elasticsearch/issues/162587
 - class: org.elasticsearch.painless.heappressure.RuntimeFieldHighlightHeapPressureIT
   method: testDoubleRuntimeFieldFromFreeTextSearch
   issue: https://github.com/elastic/elasticsearch/issues/162593

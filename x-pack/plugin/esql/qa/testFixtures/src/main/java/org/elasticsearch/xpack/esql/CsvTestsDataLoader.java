@@ -582,6 +582,10 @@ public class CsvTestsDataLoader {
         ),
         new ViewConfig("view_with_fork", List.of(EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND_WITH_VIEW_FORK_DATASET)),
         new ViewConfig("view_with_unionall", List.of(EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND_WITH_VIEW_FORK_DATASET)),
+        new ViewConfig(
+            "view_partial_mapping_retained_union",
+            List.of(EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND_WITH_VIEW_FORK_DATASET)
+        ),
         new ViewConfig("fork_over_union_view", List.of(EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_FORK_NULL_FILL_DATE_NANOS)),
         new ViewConfig("view_with_let", List.of(EsqlCapabilities.Cap.NAMED_SUBQUERY_LET))
     ).collect(toMap(ViewConfig::name, Function.identity()));

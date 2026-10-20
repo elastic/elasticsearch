@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.regex.Regex;
@@ -304,15 +305,19 @@ public class DatasetResolver {
         return pattern.isEmpty() == false && pattern.charAt(0) != '-' && Regex.isSimpleMatchPattern(pattern);
     }
 
-    /** Whether a wildcard in {@code patterns} matches a registered dataset that the patterns do not also name exactly. */
+    /**
+     * Whether a wildcard in {@code patterns} matches a registered dataset that the patterns do not also name exactly. Date math is
+     * evaluated first, as resolution does before expanding a wildcard.
+     */
     private static boolean wildcardCouldMatchUnnamedDataset(List<String> patterns, Set<String> datasetNames) {
         Set<String> named = DatasetRewriter.exactNames(patterns);
         for (String pattern : patterns) {
             if (isPositiveWildcard(pattern) == false) {
                 continue;
             }
+            String expression = IndexNameExpressionResolver.resolveDateMathExpression(pattern);
             for (String dataset : datasetNames) {
-                if (named.contains(dataset) == false && Regex.simpleMatch(pattern, dataset)) {
+                if (named.contains(dataset) == false && Regex.simpleMatch(expression, dataset)) {
                     return true;
                 }
             }

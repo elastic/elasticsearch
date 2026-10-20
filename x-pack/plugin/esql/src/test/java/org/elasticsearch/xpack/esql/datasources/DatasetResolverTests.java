@@ -159,6 +159,25 @@ public class DatasetResolverTests extends ESTestCase {
         );
     }
 
+    /** Normal resolution evaluates date math before expanding wildcards, so the lookup does too. */
+    public void testDateMathWildcardInViewBranchIsLookedUp() {
+        AtomicInteger localCalls = new AtomicInteger();
+        DatasetResolver resolver = resolver(crossProjectEnabled(false), localCalls);
+
+        LinkedHashMap<String, LogicalPlan> branches = new LinkedHashMap<>();
+        branches.put("main", relationOf("other"));
+        branches.put("logs_view", relationOf("<log*>"));
+        BranchPlan plan = new BranchPlan(Source.EMPTY, branches, Map.of("logs_view", BranchIdentity.view("logs_view")), List.of());
+
+        IndexViewOrigins origins = new IndexViewOrigins(Map.of("<log*>", Set.of(List.of("logs_view"))));
+        replaceDatasets(resolver, plan, project(), true, origins);
+        assertEquals(1, localCalls.get());
+        assertWarnings(
+            "SET wildcards_match_datasets=true does not affect the contents of view [logs_view], so its wildcards did not match "
+                + "dataset [logs]; use that setting inside the view definition if you wish to change the view behaviour"
+        );
+    }
+
     public void testWildcardInViewBranchIsNotLookedUpWhenCallerDoesNotMatchDatasets() {
         AtomicInteger localCalls = new AtomicInteger();
         DatasetResolver resolver = resolver(crossProjectEnabled(false), localCalls);

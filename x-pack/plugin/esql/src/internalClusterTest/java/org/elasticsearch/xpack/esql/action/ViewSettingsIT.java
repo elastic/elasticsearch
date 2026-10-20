@@ -751,6 +751,7 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
             """));
         assertAcked(createView("multi_plain", "FROM pass_through_view, filtered_view"));
         assertAcked(createView("top_plain", "FROM multi_plain, caller_idx"));
+        assertAcked(createView("union_keep_view", "FROM (FROM caller_idx | KEEP id), (FROM view_source | KEEP id) | WHERE id > 0"));
 
         assertThat(
             warningHeaders("SET unmapped_fields=\"load\"; FROM pass_through_view | KEEP id, extra"),
@@ -801,6 +802,8 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
             "SET unmapped_fields=\"load\"; FROM keep_view | KEEP id, extra",
             "SET unmapped_fields=\"load\"; FROM caller_idx, keep_view | KEEP id, extra",
             "SET unmapped_fields=\"load\"; FROM caller_idx, keep_view | EVAL a = extra | KEEP id, a, other",
+            // Every branch of the view's union hides the field.
+            "SET unmapped_fields=\"load\"; FROM union_keep_view | KEEP id, extra",
             // The caller references nothing the view lacks.
             "SET unmapped_fields=\"load\"; FROM filtered_view | KEEP id",
             // The caller drops the field, so it is not in the result either way.

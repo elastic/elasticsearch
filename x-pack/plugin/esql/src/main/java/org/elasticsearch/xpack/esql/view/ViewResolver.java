@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.view;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResolvedIndexExpression;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
@@ -25,6 +26,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.LogManager;
@@ -927,9 +929,10 @@ public class ViewResolver {
             if (isLocalWildcard(pattern) == false) {
                 continue;
             }
-            String expression = IndexNameExpressionResolver.resolveDateMathExpression(
-                RemoteClusterAware.splitIndexName(pattern).indexExpression()
-            );
+            String expression = viewExpression(RemoteClusterAware.splitIndexName(pattern).indexExpression());
+            if (expression == null) {
+                continue;
+            }
             for (String view : viewNames) {
                 if (named.contains(view) == false && Regex.simpleMatch(expression, view)) {
                     return true;
@@ -939,13 +942,30 @@ public class ViewResolver {
         return false;
     }
 
-    /** {@code patterns} with date math evaluated, so a view named through date math counts as named exactly. */
+    /** The views {@code patterns} name exactly, as view resolution reads them; see {@link #viewExpression}. */
     private static Set<String> exactNames(String[] patterns) {
         Set<String> named = new HashSet<>(patterns.length);
         for (String pattern : patterns) {
-            named.add(IndexNameExpressionResolver.resolveDateMathExpression(pattern));
+            String expression = viewExpression(pattern);
+            if (expression != null) {
+                named.add(expression);
+            }
         }
         return named;
+    }
+
+    /**
+     * {@code pattern} as view resolution matches it against view names: a {@code ::data} selector reads the view itself, so it is
+     * removed, and date math is evaluated, so a view named through date math counts as named. {@code null} for a {@code ::failures}
+     * selector, which reads no view.
+     */
+    @Nullable
+    private static String viewExpression(String pattern) {
+        Tuple<String, String> split = IndexNameExpressionResolver.splitSelectorExpression(pattern);
+        if (split.v2() != null && IndexComponentSelector.DATA.getKey().equals(split.v2()) == false) {
+            return null;
+        }
+        return IndexNameExpressionResolver.resolveDateMathExpression(split.v1());
     }
 
     /**

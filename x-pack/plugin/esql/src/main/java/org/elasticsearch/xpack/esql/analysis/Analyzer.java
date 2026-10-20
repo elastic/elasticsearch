@@ -2158,7 +2158,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // output, so MergePlan.outputUnion misses it. Surface it as a FORK column when a sibling branch can surface it (the dropping
             // branch then null-fills it). Skip it when no branch can surface it (e.g. dropped in every branch), else it would be null
             // everywhere and isn't a real column.
-            if (alignUnmappedAcrossBranches && fork.children().stream().anyMatch(plan -> canSurfaceFromSource(plan, null, false))) {
+            if (alignUnmappedAcrossBranches && fork.children().stream().anyMatch(plan -> canSurfaceFromSource(plan, null, false, null))) {
                 addDroppedUnmappedFieldsMissingFromMerge(outputUnion, unmappedFieldsDroppedByProjection(fork));
             }
             List<String> mergeColumns = outputUnion.stream().map(Attribute::name).toList();
@@ -2484,23 +2484,43 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * aggregate's input.
          */
         public static boolean branchCanSurfaceLoadedField(LogicalPlan plan, String name) {
-            return canSurfaceFromSource(plan, name, true);
+            return canSurfaceFromSource(plan, name, true, null);
         }
 
-        private static boolean canSurfaceFromSource(LogicalPlan plan, String name, boolean consultResolvingProject) {
+        /**
+         * Like {@link #branchCanSurfaceLoadedField(LogicalPlan, String)}, but a {@link MergePlan} reached in {@code plan} is answered by
+         * {@code mergeCanSurface} rather than treated as hiding the field.
+         */
+        public static boolean branchCanSurfaceLoadedField(LogicalPlan plan, String name, Predicate<MergePlan> mergeCanSurface) {
+            return canSurfaceFromSource(plan, name, true, mergeCanSurface);
+        }
+
+        private static boolean canSurfaceFromSource(
+            LogicalPlan plan,
+            String name,
+            boolean consultResolvingProject,
+            @Nullable Predicate<MergePlan> mergeCanSurface
+        ) {
             return switch (plan) {
                 case EsRelation esRelation -> esRelation.indexMode() != IndexMode.LOOKUP;
                 case ResolvingProject resolvingProject when consultResolvingProject -> resolvingProject.admitsLateUnmappedField(name)
-                    && canSurfaceFromSource(resolvingProject.child(), name, true);
+                    && canSurfaceFromSource(resolvingProject.child(), name, true, mergeCanSurface);
                 case Project unused -> false;
-                case InlineStats inlineStats -> canSurfaceFromSource(inlineStats.aggregate().child(), name, consultResolvingProject);
+                case InlineStats inlineStats -> canSurfaceFromSource(
+                    inlineStats.aggregate().child(),
+                    name,
+                    consultResolvingProject,
+                    mergeCanSurface
+                );
                 case Aggregate unused -> false;
                 case Join join when join.config().type() == JoinTypes.LEFT -> canSurfaceFromSource(
                     join.left(),
                     name,
-                    consultResolvingProject
+                    consultResolvingProject,
+                    mergeCanSurface
                 );
-                case UnaryPlan unaryPlan -> canSurfaceFromSource(unaryPlan.child(), name, consultResolvingProject);
+                case UnaryPlan unaryPlan -> canSurfaceFromSource(unaryPlan.child(), name, consultResolvingProject, mergeCanSurface);
+                case MergePlan mergePlan when mergeCanSurface != null -> mergeCanSurface.test(mergePlan);
                 case null, default -> false;
             };
         }

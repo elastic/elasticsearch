@@ -354,13 +354,30 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
         for (UnresolvedAttribute ua : unresolved) {
             if (outputNames.contains(ua.name()) == false) {
                 aliases.add(load ? new Alias(ua.source(), ua.name(), new Literal(ua.source(), null, DataType.KEYWORD)) : nullAlias(ua));
-                if (load && branchCanSurfaceLoadedField(body, ua.name())) {
+                if (load && viewBodyCanSurfaceLoadedField(body, ua.name())) {
                     onViewNullFill.accept(identity, ua.name());
                 }
             }
         }
         // Always a new Eval, never appended to the branch's top one: that may be the view body's own.
         return aliases.isEmpty() ? viewBranch : new Eval(viewBranch.source(), viewBranch, aliases);
+    }
+
+    /**
+     * Whether the view body {@code body} would surface a field {@code name} loaded at its sources. A merge retained in the body
+     * surfaces it when any branch does, judged below that branch's alignment layers. A view branch of a nested {@link BranchPlan}
+     * is skipped: that view's own boundary stops the mode whether or not the enclosing view applies it.
+     */
+    private static boolean viewBodyCanSurfaceLoadedField(LogicalPlan body, String name) {
+        return branchCanSurfaceLoadedField(body, name, merge -> {
+            for (int i = 0; i < merge.children().size(); i++) {
+                if (ViewUtils.isViewBody(merge, i) == false
+                    && viewBodyCanSurfaceLoadedField(withoutMergeAlignment(merge.children().get(i)), name)) {
+                    return true;
+                }
+            }
+            return false;
+        });
     }
 
     /**

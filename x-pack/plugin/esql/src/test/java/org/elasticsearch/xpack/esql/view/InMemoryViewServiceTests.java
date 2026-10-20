@@ -16,6 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.ConfigurationTestUtils;
@@ -80,6 +81,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiPredicate;
+import java.util.function.Consumer;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
@@ -731,6 +733,37 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
             wildcardsStoppedWarning("t_outer", "s_inner", "view [cy_other]")
                 + ", excluding view [cy_u] from its wildcards since matching it would be a circular reference"
         );
+    }
+
+    /**
+     * A {@code ::data} selector reads a view as its bare name does, while a {@code ::failures} selector reads no view, so a body
+     * wildcard with a selector is reported with what normal resolution with the setting would read.
+     */
+    public void testWildcardsStoppedWarningMatchesWildcardWithSelector() {
+        addIndex("sel_data");
+        addView("sel_one", "FROM sel_data");
+        addView("sel_two", "FROM sel_data");
+        addView("data_body", "FROM sel_*::data");
+        addView("failures_body", "FROM sel_*::failures");
+
+        replaceViews(query("FROM data_body"), true);
+        assertWarnings(wildcardsStoppedWarning("data_body", "views [sel_one], [sel_two]"));
+        replaceViews(query("FROM failures_body"), true);
+        ensureNoWarnings();
+    }
+
+    /** A view named exactly with {@code ::data} is read, so it is not missed; with {@code ::failures} its data is not read. */
+    public void testWildcardsStoppedWarningCountsViewNamedWithDataSelectorAsRead() {
+        addIndex("sel_data");
+        addView("sel_one", "FROM sel_data");
+        addView("sel_two", "FROM sel_data");
+        addView("named_body", "FROM sel_one::data, sel_*");
+        addView("failures_named_body", "FROM sel_one::failures, sel_*");
+
+        replaceViews(query("FROM named_body"), true);
+        assertWarnings(wildcardsStoppedWarning("named_body", "view [sel_two]"));
+        replaceViews(query("FROM failures_named_body"), true);
+        assertWarnings(wildcardsStoppedWarning("failures_named_body", "views [sel_one], [sel_two]"));
     }
 
     private static String wildcardsStoppedWarning(String viewName, String matched) {
@@ -3322,9 +3355,19 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     private LogicalPlan replaceViewsWithMaxPlanNodesCount(LogicalPlan plan, int maxPlanNodesCount) {
-        PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-        viewResolver.replaceViews(plan, null, true, false, this::parse, ViewBoundaryPreservation.NONE, maxPlanNodesCount, future);
-        return COMPACTION.apply(future.actionGet().plan());
+        var result = resolve(
+            listener -> viewResolver.replaceViews(
+                plan,
+                null,
+                true,
+                false,
+                this::parse,
+                ViewBoundaryPreservation.NONE,
+                maxPlanNodesCount,
+                listener
+            )
+        );
+        return COMPACTION.apply(result.plan());
     }
 
     private LogicalPlan replaceViews(LogicalPlan plan, boolean wildcardsMatchViews) {
@@ -3332,17 +3375,35 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     private LogicalPlan replaceViews(LogicalPlan plan, boolean wildcardsMatchViews, boolean wildcardsMatchDatasets) {
-        PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-        viewResolver.replaceViews(
-            plan,
-            null,
-            wildcardsMatchViews,
-            wildcardsMatchDatasets,
-            this::parse,
-            ViewBoundaryPreservation.NONE,
-            future
+        var result = resolve(
+            listener -> viewResolver.replaceViews(
+                plan,
+                null,
+                wildcardsMatchViews,
+                wildcardsMatchDatasets,
+                this::parse,
+                ViewBoundaryPreservation.NONE,
+                listener
+            )
         );
-        return COMPACTION.apply(future.actionGet().plan());
+        return COMPACTION.apply(result.plan());
+    }
+
+    /**
+     * Runs {@code resolution} and returns its result. {@link InMemoryViewResolver} completes view lookups on a SEARCH thread, so
+     * the warnings the resolver adds before completing land in that thread's context; they are moved to the test thread, where
+     * {@link #assertWarnings} and the end-of-test check read them.
+     */
+    private ViewResolver.ViewResolutionResult resolve(Consumer<ActionListener<ViewResolver.ViewResolutionResult>> resolution) {
+        PlainActionFuture<Tuple<ViewResolver.ViewResolutionResult, List<String>>> future = new PlainActionFuture<>();
+        resolution.accept(future.map(result -> {
+            List<String> warnings = threadContext.getResponseHeaders().getOrDefault("Warning", List.of());
+            threadContext.stashContext();
+            return Tuple.tuple(result, warnings);
+        }));
+        var resolved = future.actionGet();
+        resolved.v2().forEach(warning -> threadContext.addResponseHeader("Warning", warning));
+        return resolved.v1();
     }
 
     /**
@@ -3365,15 +3426,14 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     private LogicalPlan replaceViewsWithoutCompaction(LogicalPlan plan, ViewResolver resolver) {
-        PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-        resolver.replaceViews(plan, null, true, false, this::parse, ViewBoundaryPreservation.NONE, future);
-        return future.actionGet().plan();
+        return resolve(listener -> resolver.replaceViews(plan, null, true, false, this::parse, ViewBoundaryPreservation.NONE, listener))
+            .plan();
     }
 
     private IndexViewOrigins indexViewOrigins(String query) {
-        PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-        viewResolver.replaceViews(query(query), null, true, false, this::parse, ViewBoundaryPreservation.NONE, future);
-        return future.actionGet().indexViewOrigins();
+        return resolve(
+            listener -> viewResolver.replaceViews(query(query), null, true, false, this::parse, ViewBoundaryPreservation.NONE, listener)
+        ).indexViewOrigins();
     }
 
     private Set<List<String>> viewChains(String query, String index) {

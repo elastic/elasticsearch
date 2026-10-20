@@ -14,6 +14,7 @@ import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.LicenseAware;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.analysis.rules.ViewUtils;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
@@ -761,24 +762,26 @@ public class Verifier {
             || plan instanceof AbstractSubqueryJoin;
     }
 
-    // resolveMergePlan casts, by id, a loader it injects below a branch's FILLNULL; ON * would re-alias the loader and orphan the cast.
+    // Temporary: resolveMergePlan casts, by id, a loader it injects below a branch's FILLNULL; ON * would re-alias the loader and
+    // orphan the cast. View bodies are skipped, as the setting does not reach into a view and nothing is loaded there.
     private static void checkLoadAllFillNullAllColumnsInSubqueries(LogicalPlan plan, Failures failures) {
-        plan.forEachDown(UnionAll.class, union -> {
-            if (union instanceof BranchPlan branchPlan && branchPlan.viewBranchKeys().isEmpty() == false) {
-                return;
-            }
-            for (LogicalPlan branch : union.children()) {
-                branch.forEachDown(FillNull.class, fillNull -> {
-                    if (fillNull.allColumns() || fillNull.targetFields().isEmpty()) {
-                        failures.add(
-                            fail(
-                                fillNull,
-                                "unmapped_fields=\"LOAD_ALL\" does not support [{}] in a subquery yet; name the columns to fill",
-                                fillNull.sourceText()
-                            )
-                        );
+        ViewUtils.forEachOutsideViews(plan, p -> {
+            if (p instanceof UnionAll union) {
+                for (int i = 0; i < union.children().size(); i++) {
+                    if (ViewUtils.isViewBody(union, i) == false) {
+                        ViewUtils.forEachOutsideViews(union.children().get(i), node -> {
+                            if (node instanceof FillNull fillNull && (fillNull.allColumns() || fillNull.targetFields().isEmpty())) {
+                                failures.add(
+                                    fail(
+                                        fillNull,
+                                        "unmapped_fields=\"LOAD_ALL\" does not support [{}] in a subquery yet; name the columns to fill",
+                                        fillNull.sourceText()
+                                    )
+                                );
+                            }
+                        });
                     }
-                });
+                }
             }
         });
     }

@@ -7,6 +7,7 @@ import { analyzeReports } from "../analyzer/junit-reports-analyzer.ts";
 import { deriveOutcome } from "../analyzer/outcome.ts";
 import { renderMarkdown, severity } from "../analyzer/render.ts";
 import {
+  BLOCK_ALL_PRS,
   COMPILE_FAILED_ENV,
   DEFAULT_AGENT_CONFIG,
   FLAKINESS_PROVEN_EXIT_CODE,
@@ -389,15 +390,52 @@ export function provenFlakinessJobs<T extends { outcome: string }>(payloads: T[]
 }
 
 /**
- * Whether this step must fail the build: flakiness was proven AND the PR opted in.
+ * Reads `BUILDKITE_PULL_REQUEST`. Both `"false"` and unset mean not a PR, so on a build where the variable
+ * is missing, proven flakiness fails the build.
+ */
+export function isPullRequestBuild(pullRequest: string): boolean {
+  const value = pullRequest.trim();
+  return value !== "" && value !== "false";
+}
+
+export interface BlockingContext {
+  pullRequest: string;
+  labels: string;
+  // Defaults to BLOCK_ALL_PRS; tests set it to cover both values.
+  blockAllPrs?: boolean;
+}
+
+export interface BlockingVerdict {
+  block: boolean;
+  reason: string;
+}
+
+/**
+ * Whether this step must fail the build. Only proven flakiness can fail it, and then only if the build is
+ * not a PR, blocking is enabled for all PRs, or the PR carries a blocking label. The rules are checked in
+ * that order and `reason` names the first one that matched.
  *
  * The single definition of what blocks, kept out of run()'s control flow so the rule is unit-testable and
- * so both the exit code and the message it prints derive from one expression. `labels` is the raw
- * `GITHUB_PR_LABELS` value; every other build - unlabelled PRs, and the manual pipeline, which has no PR -
- * reports exactly as before.
+ * so both the exit code and the message it prints derive from one expression.
  */
-export function shouldBlock(payloads: { outcome: string }[], labels: string): boolean {
-  return provenFlakinessJobs(payloads).length > 0 && matchedBlockingLabels(labels).length > 0;
+export function shouldBlock(
+  payloads: { outcome: string }[],
+  { pullRequest, labels, blockAllPrs = BLOCK_ALL_PRS }: BlockingContext
+): BlockingVerdict {
+  if (provenFlakinessJobs(payloads).length === 0) {
+    return { block: false, reason: "no job proved flakiness" };
+  }
+  if (!isPullRequestBuild(pullRequest)) {
+    return { block: true, reason: `this is not a PR build (BUILDKITE_PULL_REQUEST="${pullRequest}")` };
+  }
+  if (blockAllPrs) {
+    return { block: true, reason: "blocking is enabled for all PRs" };
+  }
+  const matched = matchedBlockingLabels(labels);
+  if (matched.length > 0) {
+    return { block: true, reason: `PR labelled ${matched.join(", ")}` };
+  }
+  return { block: false, reason: "this PR carries no blocking label" };
 }
 
 function annotate(context: string, style: string, body: string): void {
@@ -474,24 +512,24 @@ async function run(): Promise<void> {
   }
 
   // The verdict, last, so the outcomes artifact and the annotation that explains a red step have already
-  // landed. Only the exit code is gated on the labels: the artifact and the annotation say the same thing
-  // on every PR, so the observability data does not depend on who opted in.
+  // landed. Only the exit code depends on `shouldBlock`: the artifact and the annotation say the same thing
+  // on every build, so the observability data does not depend on who opted in.
   //
   // `exitCode` rather than `exit()`: the step's stdout is a pipe, and `exit()` abandons writes still
   // queued on it - which would truncate the report just printed above, the one thing a blocked developer
   // needs to read. Nothing runs after this, so the process exits with this code once the loop drains.
-  const labels = process.env.GITHUB_PR_LABELS ?? "";
   const proven = provenFlakinessJobs(payloads);
-  // One boolean drives both the message and the exit code, so the log cannot claim one thing while the
+  // One verdict drives both the message and the exit code, so the log cannot claim one thing while the
   // step does another.
-  const blocking = shouldBlock(payloads, labels);
+  const verdict = shouldBlock(payloads, {
+    pullRequest: process.env.BUILDKITE_PULL_REQUEST ?? "",
+    labels: process.env.GITHUB_PR_LABELS ?? "",
+  });
   if (proven.length > 0) {
-    const verdict = blocking
-      ? `failing this step, PR labelled ${matchedBlockingLabels(labels).join(", ")}`
-      : "reported only, this PR carries no blocking label";
-    console.log(`${proven.length} job(s) proved flakiness; ${verdict}.`);
+    const action = verdict.block ? "failing this step" : "reported only";
+    console.log(`${proven.length} job(s) proved flakiness; ${action}, ${verdict.reason}.`);
   }
-  if (blocking) {
+  if (verdict.block) {
     process.exitCode = FLAKINESS_PROVEN_EXIT_CODE;
   }
 }

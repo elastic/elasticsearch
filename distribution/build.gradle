@@ -15,6 +15,7 @@ import org.elasticsearch.gradle.internal.ConcatFilesTask
 import org.elasticsearch.gradle.internal.DependenciesInfoPlugin
 import org.elasticsearch.gradle.internal.NoticeTask
 import org.elasticsearch.gradle.internal.distribution.BundledJdkPlatforms
+import org.elasticsearch.gradle.internal.distribution.ModulePlatforms
 import org.elasticsearch.gradle.internal.distribution.TokenExpansions
 import org.elasticsearch.gradle.internal.test.ClusterFeaturesMetadataPlugin
 import org.elasticsearch.gradle.transform.FilteringJarTransform
@@ -434,7 +435,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
             it.permissions.unix(0644)
           }
         }
-        List<String> excludePlatforms = BundledJdkPlatforms.excludedModulePlatformDirectories(os, architecture)
+        List<String> excludePlatforms = ModulePlatforms.excludedDirectories(os, architecture)
         from(defaultModulesFiles) {
           // geo registers the geo_shape mapper that is overridden by
           // the geo_shape mapper registered in the x-pack-spatial plugin

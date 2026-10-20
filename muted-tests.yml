@@ -245,9 +245,6 @@ tests:
 - class: org.elasticsearch.cluster.routing.allocation.decider.MockDiskUsagesIT
   method: testAutomaticReleaseOfIndexBlock
   issue: https://github.com/elastic/elasticsearch/issues/162420
-- class: org.elasticsearch.action.bulk.BulkItemResponseFailureWireSerializingTests
-  method: testFailureStoreCauseIsSuppressedForOlderVersions
-  issue: https://github.com/elastic/elasticsearch/issues/162937
 - class: org.elasticsearch.xpack.ml.qa.MlYamlRestIT
   method: test {yaml=ml/delete_expired_data/Test delete expired data with path parameters}
   issue: https://github.com/elastic/elasticsearch/issues/162939

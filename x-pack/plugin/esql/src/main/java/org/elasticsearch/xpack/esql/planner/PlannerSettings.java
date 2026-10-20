@@ -19,9 +19,7 @@ import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.monitor.jvm.JvmInfo;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -222,27 +220,6 @@ public class PlannerSettings {
     );
 
     /**
-     * Maximum number of fields {@code SET unmapped_fields="LOAD_ALL"} expands {@code _source} into. Every distinct leaf of the result
-     * rows would otherwise become a column, and merely collecting the names of a wide or heterogeneous index can exhaust the
-     * coordinator's heap. The alphabetically first fields are kept and a warning is added when there were more. The default matches the
-     * default of {@code index.mapping.total_fields.limit}, but the two are deliberately not tied: that setting is per index, and it is
-     * ambiguous which index's limit would apply to a query over several.
-     * <p>
-     * {@code 0} discovers nothing, which makes {@code LOAD_ALL} behave exactly like {@code LOAD}: such a query is analyzed as a
-     * {@code LOAD} one. More than 100k fields is no sensible limit and must be a misconfiguration.
-     * <p>
-     * Registered only where the capability for it is enabled, so that a setting without effect is not exposed.
-     */
-    public static final Setting<Integer> LOAD_ALL_MAX_FIELDS = Setting.intSetting(
-        "esql.query.unmapped_fields.load_all_max_fields",
-        1000,
-        0,
-        100_000,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    /**
      * Multiplier applied to {@code lastKnownSourceSize} to pre-reserve memory on the circuit breaker
      * before loading {@code _source}. The source loading path creates large untracked allocations:
      * scratch, SourceFilter.filterBytes() and JSON parsing creates, heap dump has shown about 8x
@@ -372,39 +349,33 @@ public class PlannerSettings {
     );
 
     public static List<Setting<?>> settings() {
-        List<Setting<?>> settings = new ArrayList<>(
-            List.of(
-                DEFAULT_DATA_PARTITIONING,
-                DOC_THRESHOLD_AUTO_PARTITIONING,
-                VALUES_LOADING_JUMBO_SIZE,
-                LUCENE_TOPN_LIMIT,
-                INTERMEDIATE_LOCAL_RELATION_MAX_SIZE,
-                REDUCTION_LATE_MATERIALIZATION,
-                PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD,
-                PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD,
-                TIME_SERIES_TARGET_CHUNK_ROWS,
-                REUSE_COLUMN_LOADERS_THRESHOLD,
-                BLOCK_LOADER_SIZE_ORDINALS,
-                BLOCK_LOADER_SIZE_SCRIPT,
-                MAX_KEYWORD_SORT_FIELDS,
-                SOURCE_RESERVATION_FACTOR,
-                BYTES_REF_RAM_OVERESTIMATE_THRESHOLD,
-                BYTES_REF_RAM_OVERESTIMATE_FACTOR,
-                DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD,
-                PARALLEL_OPERATOR_PROMOTION_THRESHOLD_ROWS,
-                PARALLEL_OPERATOR_MAX_WORKERS,
-                IN_SUBQUERY_HASH_JOIN_THRESHOLD,
-                MIN_COMPETITIVE_TIMESTAMP_OPTIMIZATION_ENABLED,
-                MIN_COMPETITIVE_GLOBAL_MERGE_BATCH_PAGES,
-                MIN_COMPETITIVE_GLOBAL_MERGE_MAX_PENDING_KEYS,
-                AGG_PARTITIONING_COUNT_THRESHOLD,
-                AGG_PARTITIONING_MEMORY_THRESHOLD
-            )
+        return List.of(
+            DEFAULT_DATA_PARTITIONING,
+            DOC_THRESHOLD_AUTO_PARTITIONING,
+            VALUES_LOADING_JUMBO_SIZE,
+            LUCENE_TOPN_LIMIT,
+            INTERMEDIATE_LOCAL_RELATION_MAX_SIZE,
+            REDUCTION_LATE_MATERIALIZATION,
+            PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD,
+            PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD,
+            TIME_SERIES_TARGET_CHUNK_ROWS,
+            REUSE_COLUMN_LOADERS_THRESHOLD,
+            BLOCK_LOADER_SIZE_ORDINALS,
+            BLOCK_LOADER_SIZE_SCRIPT,
+            MAX_KEYWORD_SORT_FIELDS,
+            SOURCE_RESERVATION_FACTOR,
+            BYTES_REF_RAM_OVERESTIMATE_THRESHOLD,
+            BYTES_REF_RAM_OVERESTIMATE_FACTOR,
+            DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD,
+            PARALLEL_OPERATOR_PROMOTION_THRESHOLD_ROWS,
+            PARALLEL_OPERATOR_MAX_WORKERS,
+            IN_SUBQUERY_HASH_JOIN_THRESHOLD,
+            MIN_COMPETITIVE_TIMESTAMP_OPTIMIZATION_ENABLED,
+            MIN_COMPETITIVE_GLOBAL_MERGE_BATCH_PAGES,
+            MIN_COMPETITIVE_GLOBAL_MERGE_MAX_PENDING_KEYS,
+            AGG_PARTITIONING_COUNT_THRESHOLD,
+            AGG_PARTITIONING_MEMORY_THRESHOLD
         );
-        if (EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS_SETTING.isEnabled()) {
-            settings.add(LOAD_ALL_MAX_FIELDS);
-        }
-        return settings;
     }
 
     public static class Holder {
@@ -442,9 +413,6 @@ public class PlannerSettings {
             clusterSettings.initializeAndWatch(BLOCK_LOADER_SIZE_ORDINALS, v -> settings.updateAndGet(s -> s.blockLoaderSizeOrdinals(v)));
             clusterSettings.initializeAndWatch(BLOCK_LOADER_SIZE_SCRIPT, v -> settings.updateAndGet(s -> s.blockLoaderSizeOrdinals(v)));
             clusterSettings.initializeAndWatch(MAX_KEYWORD_SORT_FIELDS, v -> settings.updateAndGet(s -> s.maxKeywordSortFields(v)));
-            if (EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS_SETTING.isEnabled()) {
-                clusterSettings.initializeAndWatch(LOAD_ALL_MAX_FIELDS, v -> settings.updateAndGet(s -> s.loadAllMaxFields(v)));
-            }
             clusterSettings.initializeAndWatch(SOURCE_RESERVATION_FACTOR, v -> settings.updateAndGet(s -> s.sourceReservationFactor(v)));
             clusterSettings.initializeAndWatch(
                 BYTES_REF_RAM_OVERESTIMATE_THRESHOLD,
@@ -506,7 +474,6 @@ public class PlannerSettings {
     private final ByteSizeValue blockLoaderSizeOrdinals;
     private final ByteSizeValue blockLoaderSizeScript;
     private final int maxKeywordSortFields;
-    private final int loadAllMaxFields;
     private final double sourceReservationFactor;
     private final ByteSizeValue bytesRefRamOverestimateThreshold;
     private final double bytesRefRamOverestimateFactor;
@@ -536,7 +503,6 @@ public class PlannerSettings {
         BLOCK_LOADER_SIZE_ORDINALS.getDefault(Settings.EMPTY),
         BLOCK_LOADER_SIZE_SCRIPT.getDefault(Settings.EMPTY),
         MAX_KEYWORD_SORT_FIELDS.getDefault(Settings.EMPTY),
-        LOAD_ALL_MAX_FIELDS.getDefault(Settings.EMPTY),
         SOURCE_RESERVATION_FACTOR.getDefault(Settings.EMPTY),
         BYTES_REF_RAM_OVERESTIMATE_THRESHOLD.getDefault(Settings.EMPTY),
         BYTES_REF_RAM_OVERESTIMATE_FACTOR.getDefault(Settings.EMPTY),
@@ -567,7 +533,6 @@ public class PlannerSettings {
         ByteSizeValue blockLoaderSizeOrdinals,
         ByteSizeValue blockLoaderSizeScript,
         int maxKeywordSortFields,
-        int loadAllMaxFields,
         double sourceReservationFactor,
         ByteSizeValue bytesRefRamOverestimateThreshold,
         double bytesRefRamOverestimateFactor,
@@ -593,7 +558,6 @@ public class PlannerSettings {
         this.blockLoaderSizeOrdinals = blockLoaderSizeOrdinals;
         this.blockLoaderSizeScript = blockLoaderSizeScript;
         this.maxKeywordSortFields = maxKeywordSortFields;
-        this.loadAllMaxFields = loadAllMaxFields;
         this.sourceReservationFactor = sourceReservationFactor;
         this.bytesRefRamOverestimateThreshold = bytesRefRamOverestimateThreshold;
         this.bytesRefRamOverestimateFactor = bytesRefRamOverestimateFactor;
@@ -622,7 +586,6 @@ public class PlannerSettings {
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
             maxKeywordSortFields,
-            loadAllMaxFields,
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
@@ -656,7 +619,6 @@ public class PlannerSettings {
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
             maxKeywordSortFields,
-            loadAllMaxFields,
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
@@ -690,7 +652,6 @@ public class PlannerSettings {
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
             maxKeywordSortFields,
-            loadAllMaxFields,
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
@@ -738,7 +699,6 @@ public class PlannerSettings {
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
             maxKeywordSortFields,
-            loadAllMaxFields,
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
@@ -772,7 +732,6 @@ public class PlannerSettings {
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
             maxKeywordSortFields,
-            loadAllMaxFields,
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
@@ -806,7 +765,6 @@ public class PlannerSettings {
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
             maxKeywordSortFields,
-            loadAllMaxFields,
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
@@ -840,7 +798,6 @@ public class PlannerSettings {
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
             maxKeywordSortFields,
-            loadAllMaxFields,
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
@@ -874,7 +831,6 @@ public class PlannerSettings {
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
             maxKeywordSortFields,
-            loadAllMaxFields,
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
@@ -915,7 +871,6 @@ public class PlannerSettings {
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
             maxKeywordSortFields,
-            loadAllMaxFields,
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
@@ -952,7 +907,6 @@ public class PlannerSettings {
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
             maxKeywordSortFields,
-            loadAllMaxFields,
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
@@ -989,7 +943,6 @@ public class PlannerSettings {
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
             maxKeywordSortFields,
-            loadAllMaxFields,
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
@@ -1009,40 +962,6 @@ public class PlannerSettings {
         return maxKeywordSortFields;
     }
 
-    public PlannerSettings loadAllMaxFields(int loadAllMaxFields) {
-        return new PlannerSettings(
-            defaultDataPartitioning,
-            docsThresholdForAutoPartitioning,
-            valuesLoadingJumboSize,
-            luceneTopNLimit,
-            intermediateLocalRelationMaxSize,
-            partialEmitKeysThreshold,
-            partialEmitUniquenessThreshold,
-            timeSeriesTargetChunkRows,
-            reuseColumnLoadersThreshold,
-            blockLoaderSizeOrdinals,
-            blockLoaderSizeScript,
-            maxKeywordSortFields,
-            loadAllMaxFields,
-            sourceReservationFactor,
-            bytesRefRamOverestimateThreshold,
-            bytesRefRamOverestimateFactor,
-            docSequenceBytesRefFieldThreshold,
-            parallelTopNPromotionThresholdRows,
-            parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold,
-            minCompetitiveTimestampOptimizationEnabled,
-            minCompetitiveGlobalMergeBatchPages,
-            minCompetitiveGlobalMergeMaxPendingKeys,
-            aggregationPartitioningCountThreshold,
-            aggregationPartitioningMemoryThreshold
-        );
-    }
-
-    public int loadAllMaxFields() {
-        return loadAllMaxFields;
-    }
-
     public PlannerSettings sourceReservationFactor(double sourceReservationFactor) {
         return new PlannerSettings(
             defaultDataPartitioning,
@@ -1057,7 +976,6 @@ public class PlannerSettings {
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
             maxKeywordSortFields,
-            loadAllMaxFields,
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
@@ -1091,7 +1009,6 @@ public class PlannerSettings {
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
             maxKeywordSortFields,
-            loadAllMaxFields,
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
@@ -1125,7 +1042,6 @@ public class PlannerSettings {
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
             maxKeywordSortFields,
-            loadAllMaxFields,
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
@@ -1159,7 +1075,6 @@ public class PlannerSettings {
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
             maxKeywordSortFields,
-            loadAllMaxFields,
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
@@ -1193,7 +1108,6 @@ public class PlannerSettings {
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
             maxKeywordSortFields,
-            loadAllMaxFields,
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
@@ -1227,7 +1141,6 @@ public class PlannerSettings {
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
             maxKeywordSortFields,
-            loadAllMaxFields,
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
@@ -1261,7 +1174,6 @@ public class PlannerSettings {
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
             maxKeywordSortFields,
-            loadAllMaxFields,
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
@@ -1295,7 +1207,6 @@ public class PlannerSettings {
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
             maxKeywordSortFields,
-            loadAllMaxFields,
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
@@ -1329,7 +1240,6 @@ public class PlannerSettings {
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
             maxKeywordSortFields,
-            loadAllMaxFields,
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
@@ -1363,7 +1273,6 @@ public class PlannerSettings {
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
             maxKeywordSortFields,
-            loadAllMaxFields,
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
@@ -1397,7 +1306,6 @@ public class PlannerSettings {
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
             maxKeywordSortFields,
-            loadAllMaxFields,
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
@@ -1431,7 +1339,6 @@ public class PlannerSettings {
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
             maxKeywordSortFields,
-            loadAllMaxFields,
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
@@ -1469,7 +1376,6 @@ public class PlannerSettings {
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
             maxKeywordSortFields,
-            loadAllMaxFields,
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,

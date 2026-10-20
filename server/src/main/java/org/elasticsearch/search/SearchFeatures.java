@@ -104,6 +104,14 @@ public final class SearchFeatures implements FeatureSpecification {
      * which collected nothing and reported success.
      */
     public static final NodeFeature COMPOSITE_AGG_DOC_VALUES_SKIPPER_FIX = new NodeFeature("search.aggs.composite.doc_values_skipper_fix");
+    /**
+     * Test-only gate for REST tests asserting that a kNN query inside a {@code nested} query applies a filtered alias
+     * to root documents. Older nodes built the alias filter in the kNN query's nested scope, so it failed to match if the alias filter
+     * used a nested query.
+     */
+    public static final NodeFeature KNN_NESTED_ALIAS_FILTER_ROOT_SCOPE = new NodeFeature(
+        "search.vectors.knn_nested_alias_filter_root_scope"
+    );
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -139,7 +147,8 @@ public final class SearchFeatures implements FeatureSpecification {
             COUNT_STATS_PARAMETER,
             FETCH_FIELDS_EXCLUDES_NON_METADATA_TYPE,
             NESTED_KNN_INNER_HITS_MATCH_QUERY_PHASE_SCORING,
-            COMPOSITE_AGG_DOC_VALUES_SKIPPER_FIX
+            COMPOSITE_AGG_DOC_VALUES_SKIPPER_FIX,
+            KNN_NESTED_ALIAS_FILTER_ROOT_SCOPE
         );
     }
 }

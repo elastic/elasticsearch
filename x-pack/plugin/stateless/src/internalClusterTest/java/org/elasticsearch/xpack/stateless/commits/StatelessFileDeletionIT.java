@@ -1874,13 +1874,11 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         // created while the target search shard was still recovering (e.g. the flush and force-merge above) are not pinned by any PIT, but
         // the target pessimistically registered them for its recovery under its node id. Those registrations are only released once the
         // target, now started, replies to a "new commit notification". Rather than waiting for the periodic shard inactivity monitor to
-        // emit that notification, we drive the monitor's poll directly on the indexing node.
-        StatelessCommitServiceTestUtils.updateCommitUseTrackingForInactiveShards(commitService, () -> Long.MAX_VALUE);
-        assertBusy(
-            () -> assertThat(shardCommitsContainer.listBlobs(operationPurpose).keySet(), is(equalTo(Set.of(latestUploadedBlob)))),
-            30,
-            TimeUnit.SECONDS
-        );
+        // emit that notification, we drive the monitor's poll directly on the indexing node on every assertBusy iteration.
+        assertBusy(() -> {
+            StatelessCommitServiceTestUtils.updateCommitUseTrackingForInactiveShards(commitService, () -> Long.MAX_VALUE);
+            assertThat(shardCommitsContainer.listBlobs(operationPurpose).keySet(), is(equalTo(Set.of(latestUploadedBlob))));
+        }, 30, TimeUnit.SECONDS);
     }
 
     private static void failSearchShard(String indexName, String searchNode) {

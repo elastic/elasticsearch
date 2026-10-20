@@ -34,8 +34,9 @@ import static org.hamcrest.Matchers.is;
  * default mapping and validations, so the {@code logsdb_columnar} test does not cover it.
  *
  * <p>The old cluster writes a data stream and every later phase adds one bulk of documents to it, so the document counts follow from
- * the phase. Once every node is upgraded the old backing index is force merged, the data stream is rolled over, and the backing index
- * created by the upgraded cluster is written to and force merged.
+ * the phase. The data stream is rolled over in the first mixed phase and again once every node is upgraded, and each backing index is
+ * force merged after the upgrade. An index created before the upgrade must keep the format of the old cluster, and the one created
+ * after it must be written like any new index of the mode.
  */
 public class ColumnarIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
 
@@ -89,13 +90,15 @@ public class ColumnarIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTes
 
         int docs = (OLD_CLUSTER_BULKS + upgradedNodes - 1) * DOCS_PER_BULK;
         ensureGreen(DATA_STREAM);
-        final String oldBackingIndex = getDataStreamBackingIndexNames(DATA_STREAM).getFirst();
         verify(DATA_STREAM, 0, docs);
-        assertThat(bulkIndex(DATA_STREAM, docs, DOCS_PER_BULK), equalTo(oldBackingIndex));
+        if (isFirstMixedCluster()) {
+            rollover();
+        }
+        assertThat(bulkIndex(DATA_STREAM, docs, DOCS_PER_BULK), equalTo(getDataStreamBackingIndexNames(DATA_STREAM).getLast()));
         docs += DOCS_PER_BULK;
         verify(DATA_STREAM, 0, docs);
         if (isUpgradedCluster()) {
-            mergeRolloverAndVerify(oldBackingIndex, docs);
+            mergeRolloverAndVerify(docs);
         }
     }
 
@@ -110,19 +113,23 @@ public class ColumnarIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTes
         oldBackingIndexHasColumnarFiles = hasColumnarFiles(getDataStreamBackingIndexNames(DATA_STREAM).getFirst());
     }
 
-    private void mergeRolloverAndVerify(String oldBackingIndex, int docs) throws IOException {
+    private void mergeRolloverAndVerify(int docs) throws IOException {
+        final List<String> existingIndices = getDataStreamBackingIndexNames(DATA_STREAM);
+        assertThat(existingIndices, hasSize(2));
+        final String oldBackingIndex = existingIndices.getFirst();
+        final String mixedBackingIndex = existingIndices.getLast();
+        final int firstMixedDoc = OLD_CLUSTER_BULKS * DOCS_PER_BULK;
         assertEsqlText(DATA_STREAM, 0);
         forceMerge(oldBackingIndex);
-        verify(oldBackingIndex, 0, docs);
-        assertThat(
-            "ColumNAR files in [" + oldBackingIndex + "]",
-            hasColumnarFiles(oldBackingIndex),
-            equalTo(oldBackingIndexHasColumnarFiles)
-        );
+        forceMerge(mixedBackingIndex);
+        verify(oldBackingIndex, 0, firstMixedDoc);
+        verify(mixedBackingIndex, firstMixedDoc, docs);
+        assertColumnarFiles(oldBackingIndex, oldBackingIndexHasColumnarFiles);
+        assertColumnarFiles(mixedBackingIndex, oldBackingIndexHasColumnarFiles);
 
-        assertOK(client().performRequest(new Request("POST", "/" + DATA_STREAM + "/_rollover")));
+        rollover();
         final List<String> backingIndices = getDataStreamBackingIndexNames(DATA_STREAM);
-        assertThat(backingIndices, hasSize(2));
+        assertThat(backingIndices, hasSize(3));
         final String newBackingIndex = backingIndices.getLast();
         assertThat(getIndexSettingsAsMap(newBackingIndex).get("index.mode"), equalTo("columnar"));
         for (int bulk = 0; bulk < NEW_INDEX_BULKS; bulk++) {
@@ -133,17 +140,23 @@ public class ColumnarIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTes
         verify(newBackingIndex, docs, totalDocs);
 
         forceMerge(newBackingIndex);
-        assertThat(
-            "ColumNAR files in [" + newBackingIndex + "]",
-            hasColumnarFiles(newBackingIndex),
-            equalTo(controlIndexHasColumnarFiles())
-        );
-        verify(oldBackingIndex, 0, docs);
+        assertColumnarFiles(newBackingIndex, controlIndexHasColumnarFiles());
+        verify(oldBackingIndex, 0, firstMixedDoc);
+        verify(mixedBackingIndex, firstMixedDoc, docs);
         verify(newBackingIndex, docs, totalDocs);
         verify(DATA_STREAM, 0, totalDocs);
         assertEsqlText(oldBackingIndex, 0);
+        assertEsqlText(mixedBackingIndex, firstMixedDoc);
         assertEsqlText(newBackingIndex, docs);
         assertEsqlText(DATA_STREAM, 0);
+    }
+
+    private static void rollover() throws IOException {
+        assertOK(client().performRequest(new Request("POST", "/" + DATA_STREAM + "/_rollover")));
+    }
+
+    private static void assertColumnarFiles(String index, boolean expected) throws IOException {
+        assertThat("ColumNAR files in [" + index + "]", hasColumnarFiles(index), equalTo(expected));
     }
 
     private static void putTemplate() throws IOException {

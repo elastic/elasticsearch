@@ -7,7 +7,7 @@ mapped_pages:
 # Connector sync rules [es-sync-rules]
 
 
-Use connector sync rules to help control which documents are synced between the third-party data source and Elasticsearch. Define sync rules in the Kibana UI for each connector index, under the `Sync rules` tab for the index.
+Use connector sync rules to help control which documents are synced between the third-party data source and Elasticsearch. On Elastic Stack, define sync rules in the Kibana UI for each connector index, under the **Sync rules** tab. On Serverless Elasticsearch, use the [connector APIs]({{es-apis}}group/endpoint-connector).
 
 ## Availability and prerequisites [es-sync-rules-availability-prerequisites]
 

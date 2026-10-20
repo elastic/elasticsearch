@@ -13,6 +13,10 @@ This document describes operations available to connectors using the UI.
 
 In the Kibana or Serverless UI, find **{{connectors-app}}** using the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects). Here, you can view a summary of all your connectors and sync jobs, and to create new connectors.
 
+::::{note}
+On Serverless Elasticsearch, the Connectors UI does not include the **Documents**, **Mappings**, or **Sync rules** tabs. Those tabs are available in Kibana on Elastic Stack. On Serverless, use the [connector APIs]({{es-apis}}group/endpoint-connector) to manage sync rules.
+::::
+
 ::::{tip}
 In 8.12 we introduced a set of [connector APIs]({{es-apis}}group/endpoint-connector) to create and manage Elastic connectors and sync jobs, along with a [CLI tool](https://github.com/elastic/connectors/blob/main/docs/CLI.md). Use these tools if you’d like to work with connectors and sync jobs programmatically, without using the UI.
 

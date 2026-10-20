@@ -30,15 +30,6 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
-/**
- * Rolling upgrade coverage for the {@code columnar} index mode, which differs from {@code logsdb_columnar} in default index sort,
- * default mapping and validations, so the {@code logsdb_columnar} test does not cover it.
- *
- * <p>The old cluster writes a data stream and every later phase adds one bulk of documents to it, so the document counts follow from
- * the phase. The data stream is rolled over in the first mixed phase and again once every node is upgraded, and each backing index is
- * force merged after the upgrade. An index created before the upgrade must keep the format of the old cluster, and the one created
- * after it must be written like any new index of the mode.
- */
 public class ColumnarIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
 
     private static final String DATA_STREAM = "rolling-columnar";

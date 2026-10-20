@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 162675
+summary: Warn when `unmapped_fields` stops at a view
+type: enhancement

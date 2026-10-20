@@ -77,43 +77,36 @@ public class AllocationActionListenerTests extends ESTestCase {
      */
     public void testShouldDelegateFailureOnceWhenBothFail() {
         var failures = new AtomicInteger();
-        var listener = new AllocationActionListener<AcknowledgedResponse>(ActionListener.wrap(ignore -> {
-            throw new AssertionError("Should not complete in test");
-        }, exception -> failures.incrementAndGet()), createEmptyThreadContext());
+        var listener = new AllocationActionListener<AcknowledgedResponse>(
+            ActionListener.assertOnce(ActionTestUtils.assertNoSuccessListener(exception -> failures.incrementAndGet())),
+            createEmptyThreadContext()
+        );
 
-        for (var action : shuffledList(
-            List.<Runnable>of(
-                () -> listener.clusterStateUpdate().onFailure(new RuntimeException("cluster-state-update-failed")),
-                () -> listener.reroute().onFailure(new RuntimeException("reroute-failed"))
-            )
-        )) {
-            action.run();
-        }
+        startInParallel(
+            () -> listener.clusterStateUpdate().onFailure(new RuntimeException("cluster-state-update-failed")),
+            () -> listener.reroute().onFailure(new RuntimeException("reroute-failed"))
+        );
 
         assertThat(failures.get(), equalTo(1));
     }
 
     public void testShouldDelegateFailureOnceWhenOneFailsAndOtherSucceeds() {
         var failures = new AtomicInteger();
-        var listener = new AllocationActionListener<AcknowledgedResponse>(ActionListener.wrap(ignore -> {
-            throw new AssertionError("Should not complete in test");
-        }, exception -> failures.incrementAndGet()), createEmptyThreadContext());
+        var listener = new AllocationActionListener<AcknowledgedResponse>(
+            ActionListener.assertOnce(ActionTestUtils.assertNoSuccessListener(exception -> failures.incrementAndGet())),
+            createEmptyThreadContext()
+        );
 
-        var clusterStateUpdateFails = randomBoolean();
-        for (var action : shuffledList(List.<Runnable>of(() -> {
-            if (clusterStateUpdateFails) {
-                listener.clusterStateUpdate().onFailure(new RuntimeException("cluster-state-update-failed"));
-            } else {
-                listener.clusterStateUpdate().onResponse(AcknowledgedResponse.TRUE);
-            }
-        }, () -> {
-            if (clusterStateUpdateFails) {
-                listener.reroute().onResponse(null);
-            } else {
-                listener.reroute().onFailure(new RuntimeException("reroute-failed"));
-            }
-        }))) {
-            action.run();
+        if (randomBoolean()) {
+            startInParallel(
+                () -> listener.clusterStateUpdate().onFailure(new RuntimeException("cluster-state-update-failed")),
+                () -> listener.reroute().onResponse(null)
+            );
+        } else {
+            startInParallel(
+                () -> listener.clusterStateUpdate().onResponse(AcknowledgedResponse.TRUE),
+                () -> listener.reroute().onFailure(new RuntimeException("reroute-failed"))
+            );
         }
 
         assertThat(failures.get(), equalTo(1));

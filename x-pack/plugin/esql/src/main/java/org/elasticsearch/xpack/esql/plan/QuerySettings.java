@@ -206,7 +206,7 @@ public final class QuerySettings {
     @Param(
         name = "wildcards_match_views",
         type = { "boolean" },
-        applies_to = "serverless: unavailable\nstack: experimental 9.6+",
+        applies_to = "serverless: ga\nstack: experimental 9.6+",
         description = "When enabled, a wildcard in `FROM` also matches registered views."
             + " Defaults to `false`, so a wildcard does not match a view and a view is reached by its"
             + " exact name. Other abstractions a wildcard matches are unaffected.\n\n"

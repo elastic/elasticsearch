@@ -316,10 +316,10 @@ public class ReservedRolesStoreTests extends ESTestCase {
                     Set.of("index", "maintenance", "read", "view_index_metadata")
                 ),
                 Map.entry(".ai-index-idx-elastic-index", Set.of("view_index_metadata")),
-                Map.entry(".alerts-security.alerts-sample", Set.of("read", "view_index_metadata")),
+                Map.entry(".alerts-security.alerts-sample", Set.of("index", "maintenance", "read", "view_index_metadata")),
                 Map.entry(".alerts-security.attack.discovery.alerts-sample", Set.of("index", "maintenance", "read", "view_index_metadata")),
                 Map.entry(".internal.adhoc.alerts-security.attack.discovery.alerts-sample", Set.of("index", "maintenance")),
-                Map.entry(".internal.alerts-security.alerts-sample", Set.of()),
+                Map.entry(".internal.alerts-security.alerts-sample", Set.of("index", "maintenance")),
                 Map.entry(".internal.alerts-security.attack.discovery.alerts-sample", Set.of("index", "maintenance")),
                 Map.entry(".internal.preview.alerts-security.alerts-sample", Set.of()),
                 Map.entry(".kibana-elastic-ai-assistant-anonymization-fields-sample", Set.of("read")),

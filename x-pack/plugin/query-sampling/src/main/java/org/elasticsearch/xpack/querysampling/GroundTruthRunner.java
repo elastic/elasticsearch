@@ -66,7 +66,7 @@ public final class GroundTruthRunner {
             store.accept(query, groundTruth);
             next(queries, queryOf, store, index + 1, computed + 1, failed, listener);
         }, e -> {
-            logger.debug("failed to compute the ground truth of a sampled kNN search", e);
+            logger.warn("failed to compute the ground truth of a sampled kNN search", e);
             next(queries, queryOf, store, index + 1, computed, failed + 1, listener);
         }));
         try {

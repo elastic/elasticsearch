@@ -1153,6 +1153,38 @@ public class IndexEngineTests extends AbstractEngineTestCase {
     }
 
     /**
+     * A write that the version map skipped is recorded nowhere, so the engine cannot tell whether the doc is on the search shards
+     * yet. {@link IndexEngine#isDocumentInLiveVersionMap} must then report the doc as present, so that ensure-docs-searchable
+     * refreshes the search shards before term vectors run on them.
+     */
+    public void testDocSkippedByVersionMapIsReportedInLiveVersionMap() throws Exception {
+        final EngineConfig config = indexConfig(
+            Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build(),
+            Settings.builder().put(StatelessPlugin.STATELESS_ENABLED.getKey(), true).build(),
+            () -> 1L,
+            NoMergePolicy.INSTANCE
+        );
+        try (var engine = newIndexEngine(config)) {
+            final LiveVersionMap map = engine.getLiveVersionMap();
+            assertFalse(isUnsafeForGets(map));
+            assertFalse("a doc that was never indexed is not in the map", engine.isDocumentInLiveVersionMap(Uid.encodeId("missing")));
+
+            // The map is not in safe access mode, so the append-only write is not recorded and marks the map unsafe.
+            final Engine.Index doc = appendOnlyDoc();
+            engine.index(doc);
+            assertNull("the append-only write should not be recorded", get(map, doc.id()));
+            if (randomBoolean()) {
+                // A local refresh archives the unsafe map, so the map is then unsafe for gets only because of the archive.
+                engine.refresh("test");
+            }
+            assertTrue(isUnsafeForGets(map));
+
+            assertTrue("a doc that may not be on the search shards yet must be reported", engine.isDocumentInLiveVersionMap(doc.uid()));
+            assertTrue("later writes should be recorded again", isSafeAccessRequired(map));
+        }
+    }
+
+    /**
      * Like {@link #testRealtimeGetAfterConcurrentUnsafeFlipPointsAtCommitContainingDoc}, but the get's pre-check does see the map
      * as unsafe for gets. By the time it re-checks under the lock, the search shards have acked the generation that makes the
      * archive safe again, so the pre-check does not flush. Then the map flips unsafe before the archive lookup. The get must

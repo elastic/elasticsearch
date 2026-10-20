@@ -919,10 +919,14 @@ public class InternalEngine extends Engine {
     public boolean isDocumentInLiveVersionMap(BytesRef uid) {
         try (Releasable ignore = versionMap.acquireLock(uid)) {
             if (versionMap.isUnsafeForGets()) {
-                recoverForGets(false);
+                // A write may have been skipped and recorded nowhere, so we cannot tell whether the doc is on the search shards
+                // yet. Answer true so that the caller refreshes them. Enforce safe access, as realtime gets do, so that later
+                // writes are recorded and the map can turn safe again.
+                versionMap.enforceSafeAccess();
+                return true;
             }
-            // Only presence matters here, so an archived entry counts even if its version may be stale: the caller then
-            // refreshes the search shards. Do not use getUnderLockOrUnsafe, which would report such an entry as absent.
+            // The map is safe for gets, so every recent write is recorded. Only presence matters here, so an archived entry counts
+            // even if its version may be stale. Do not use getUnderLockOrUnsafe, which would report such an entry as absent.
             return versionMap.getUnderLock(uid) != null;
         }
     }

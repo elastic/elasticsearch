@@ -167,7 +167,8 @@ public class TransportEnsureDocsSearchableAction extends TransportSingleShardAct
                 // Notice that there cannot be a race between the document(s) being evicted from the live version map due to an
                 // ongoing refresh and before the search shards being updated with the new commit, because the documents are
                 // guaranteed to be the in the live version map archive until search shards are updated with the new commit.
-                // Thus, we can safely respond immediately as a no-op.
+                // Writes that the live version map did not record are covered too: while there may be any, the engine reports
+                // every document as present. Thus, we can safely respond immediately as a no-op.
                 logger.debug("eds does not require refresh of index shard [{}]", shardId);
                 l.onResponse(ActionResponse.Empty.INSTANCE);
             }

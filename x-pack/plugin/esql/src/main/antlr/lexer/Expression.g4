@@ -135,9 +135,6 @@ RIGHT_BRACES : '}';
 
 ARROW : '->';
 
-// The lenient cast operator. Unconditional like ARROW: the dev-version check is on the parser rule (see EsqlBaseLexer.g4).
-LENIENT_CAST_OP : '::~';
-
 DOUBLE_PARAMS: '??';
 
 NESTED_WHERE : WHERE -> type(WHERE);

@@ -1796,8 +1796,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testLikeRLikeConstantExpressionParseErrors() {
         assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
         // Binary operators are not part of primaryExpression, so they are not accepted on the RHS without parentheses.
-        // Dev builds also expect the lenient cast operator '::~'.
-        expectError("from a | where foo like \"a\" + \"b\"", "mismatched input '+' expecting {<EOF>, '|', 'and', '::', 'or'");
+        expectError("from a | where foo like \"a\" + \"b\"", "mismatched input '+' expecting {<EOF>, '|', 'and', '::', 'or'}");
         // Missing RHS.
         expectError("from a | where foo like", "no viable alternative at input 'foo like'");
         // A bare wildcard token is not a valid expression.

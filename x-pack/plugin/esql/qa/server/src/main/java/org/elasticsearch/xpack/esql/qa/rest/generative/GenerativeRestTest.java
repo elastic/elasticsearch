@@ -17,7 +17,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.datasources.BackendFixture;
 import org.elasticsearch.xpack.esql.datasources.DatasetRegistry;
@@ -79,7 +78,6 @@ import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.COLUMN_T
 import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.unquote;
 import static org.elasticsearch.xpack.esql.generator.command.pipe.KeepGenerator.UNMAPPED_FIELD_NAMES;
 import static org.elasticsearch.xpack.esql.generator.command.source.FromGenerator.SET_UNMAPPED_FIELDS_PREFIX;
-import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 
 public abstract class GenerativeRestTest extends ESRestTestCase implements QueryExecutor {
 
@@ -501,12 +499,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     }
 
     public void test() throws IOException {
-        if (isFeatureEnabled(GenerativeFeature.LENIENT_CASTS)) {
-            assumeTrue(
-                "Cluster needs to support the lenient cast operator",
-                hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.LENIENT_CAST_OPERATOR.capabilityName()))
-            );
-        }
         List<String> indices = availableIndices();
         List<LookupIdx> lookupIndices = lookupIndices();
         Collection<CsvTestsDataLoader.EnrichConfig> policies = ENRICH_POLICIES.values();

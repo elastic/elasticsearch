@@ -34,12 +34,6 @@ public class GrammarInDevelopmentParsingTests extends ESTestCase {
         expectThrows(ParsingException.class, () -> parser().parseQuery("row a = 1 | eval b = invoke(a, x -> x)"));
     }
 
-    public void testDevelopmentLenientCast() throws Exception {
-        // outside of dev mode, `::~` lexes as LENIENT_CAST_OP but the parser rule is predicate-guarded
-        ParsingException pe = expectThrows(ParsingException.class, () -> parser().parseQuery("row a = 1 | eval b = a::~long"));
-        assertThat(pe.getMessage(), containsString("'::~'"));
-    }
-
     void parse(String query, String errorMessage) {
         ParsingException pe = expectThrows(ParsingException.class, () -> parser().parseQuery(query));
         assertThat(pe.getMessage(), containsString("mismatched input '" + errorMessage + "'"));

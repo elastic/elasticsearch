@@ -130,7 +130,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractC
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FoldablesConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggregateMetricDouble;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.LenientCast;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToAggregateMetricDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
@@ -3931,22 +3930,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             if (state.isAfterAggregate) {
-                // Aggregate output holds no union fields, so a lenient cast above it is a plain cast.
-                return plan.transformExpressionsOnly(
-                    LenientCast.class,
-                    lenientCast -> lenientCast.convert().field().resolved() ? lenientCast.child() : lenientCast
-                );
+                return plan;
             }
 
             int alreadyAddedUnionFieldAttributes = state.unionFieldAttributes.size();
             // See if the eval function has an unresolved UnionTypeEsField field
             // Replace the entire convert function with a new FieldAttribute (containing type conversion knowledge)
             plan = plan.transformExpressionsOnly(e -> {
-                if (e instanceof LenientCast lenientCast) {
-                    return resolveLenientCast(lenientCast, state.unionFieldAttributes, context);
-                }
                 if (e instanceof ConvertFunction convert) {
-                    return resolveConvertFunction(convert, state.unionFieldAttributes, context, false);
+                    return resolveConvertFunction(convert, state.unionFieldAttributes, context);
                 }
                 return e;
             });
@@ -4019,18 +4011,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          *   <li>If the convert's input is itself a convert, e.g.: {@code foo::long::double}, recurse and resolve the inner one first.</li>
          * </ol>
          *
-         * @param lenientCast whether the cast was written with the lenient cast operator {@code ::~}. Then the index branches
-         *                    whose type cannot convert load as null, provided every node supports it
          * @return The resolved expression
          */
         private static Expression resolveConvertFunction(
             ConvertFunction convert,
             List<Attribute.IdIgnoringWrapper> unionFieldAttributes,
-            AnalyzerContext context,
-            boolean lenientCast
+            AnalyzerContext context
         ) {
             Expression convertExpression = (Expression) convert;
-            boolean lenient = lenientCast && context.minimumVersion().supports(ESQL_LENIENT_UNION_CAST);
             if (convert.field() instanceof FieldAttribute fa && fa.field() instanceof TypeConflictedField tcf) {
                 if (convert instanceof ToText toText && toText.valuesAnalyzer() != null) {
                     // For to_text on a type-conflicted field, the analyzer option is rejected here in the same way the
@@ -4062,6 +4050,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     }
                 });
 
+                boolean lenient = context.minimumVersion().supports(ESQL_LENIENT_UNION_CAST);
                 boolean allResolved = typeResolutions.size() == tcf.getTypesToIndices().size();
                 boolean unmappedKeywordSupported = tcf.isPotentiallyUnmapped() && supportedTypes.contains(KEYWORD);
                 // Lenient casts succeed when at least one mapped type converts, or the unmapped keyword leg does.
@@ -4072,7 +4061,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         return convertExpression;
                     }
 
-                    Expression potentiallyUnmappedConversion = tcf.isPotentiallyUnmapped() && (lenient == false || unmappedKeywordSupported)
+                    Expression potentiallyUnmappedConversion = unmappedKeywordSupported
                         ? ResolveUnionTypes.typeSpecificConvert(convert, fa.source(), KEYWORD, tcf)
                         : null;
                     if (lenient) {
@@ -4107,6 +4096,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     Set<DataType> supportedTypes = convert.supportedTypes();
                     UnionTypeEsField castField = unionTypeEsField;
                     if (areMappedTypesSupported(unionTypeEsField, supportedTypes) == false) {
+                        boolean lenient = context.minimumVersion().supports(ESQL_LENIENT_UNION_CAST);
                         boolean anyMapped = anyMappedTypeSupported(unionTypeEsField, supportedTypes);
                         Expression unmappedExprForSupport = unionTypeEsField.getUnmappedConversionExpression();
                         boolean unmappedKeywordSupported = unmappedExprForSupport instanceof AbstractConvertFunction
@@ -4144,31 +4134,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
                     return createIfDoesNotAlreadyExist(fa, rewrapped, unionFieldAttributes);
                 } else if (convert.field() instanceof AbstractConvertFunction subConvert) {
-                    // Only the cast written with ::~ is lenient, so the inner one of x::long::~double is strict.
                     return convertExpression.replaceChildren(
-                        singletonList(resolveConvertFunction(subConvert, unionFieldAttributes, context, false))
-                    );
-                } else if (convert.field() instanceof LenientCast subLenientCast) {
-                    return convertExpression.replaceChildren(
-                        singletonList(resolveLenientCast(subLenientCast, unionFieldAttributes, context))
+                        singletonList(resolveConvertFunction(subConvert, unionFieldAttributes, context))
                     );
                 }
             return convertExpression;
-        }
-
-        /**
-         * Resolves a lenient cast like {@link #resolveConvertFunction} does a plain one, dropping the {@link LenientCast} wrapper.
-         * The wrapper stays until the cast's input is resolved, so the leniency is not lost before the union field is known.
-         */
-        private static Expression resolveLenientCast(
-            LenientCast lenientCast,
-            List<Attribute.IdIgnoringWrapper> unionFieldAttributes,
-            AnalyzerContext context
-        ) {
-            if (lenientCast.convert().field().resolved() == false) {
-                return lenientCast;
-            }
-            return resolveConvertFunction(lenientCast.convert(), unionFieldAttributes, context, true);
         }
 
         private static boolean skipMultiTypeForPotentiallyUnmappedKeyword(
@@ -5253,8 +5223,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             Expression resolved = ResolveUnionTypes.resolveConvertFunction(
                                 (ConvertFunction) pushedDownConvert,
                                 branchUnionFieldAttributes,
-                                context,
-                                false
+                                context
                             );
                             if (resolved instanceof FieldAttribute resolvedField && resolvedField.synthetic()) {
                                 newChildOutput.add(resolvedField);

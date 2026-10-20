@@ -47,7 +47,7 @@ primaryExpression
     | qualifiedName                                                                     #dereference
     | functionExpression                                                                #function
     | LP booleanExpression RP                                                           #parenthesizedExpression
-    | primaryExpression (CAST_OP | {this.isDevVersion()}? lenient=LENIENT_CAST_OP) dataType #inlineCast
+    | primaryExpression CAST_OP dataType                                                #inlineCast
     ;
 
 functionExpression

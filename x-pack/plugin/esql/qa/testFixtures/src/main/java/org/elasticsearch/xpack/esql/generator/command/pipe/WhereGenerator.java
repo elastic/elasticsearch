@@ -10,10 +10,8 @@ package org.elasticsearch.xpack.esql.generator.command.pipe;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
 import org.elasticsearch.xpack.esql.generator.GenerationContext;
-import org.elasticsearch.xpack.esql.generator.GenerativeFeature;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
-import org.elasticsearch.xpack.esql.generator.function.CastGenerator;
 
 import java.util.List;
 import java.util.Map;
@@ -59,12 +57,6 @@ public class WhereGenerator implements CommandGenerator {
         String expression = randomExpression(randomIntBetween(1, 5), previousOutput, previousCommands);
         if (expression == null) {
             return EMPTY_DESCRIPTION;
-        }
-        if (randomIntBetween(0, 100) < 15) {
-            CastGenerator.Cast cast = CastGenerator.randomCast(previousOutput, context.isFeatureEnabled(GenerativeFeature.LENIENT_CASTS));
-            if (cast != null) {
-                expression = "(" + expression + ") AND " + cast.expression() + " IS NOT NULL";
-            }
         }
         return new CommandDescription(WHERE, this, " | where " + expression, Map.of());
     }

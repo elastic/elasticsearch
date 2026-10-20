@@ -109,8 +109,23 @@ public class ViewIT extends AbstractEsqlIntegTestCase {
     public void testSetIsRejected() {
         expectThrows(
             ElasticsearchException.class,
-            containsString("SET statements are not allowed in views"),
+            containsString("SET [time_zone] is not allowed in views"),
             () -> createView("my_view", "SET time_zone=\"Europe/Berlin\"; FROM index")
+        );
+    }
+
+    public void testBoundaryScopedSettingsAreAccepted() {
+        assertAcked(createView("load_view", "SET unmapped_fields=\"load\"; FROM index"));
+        assertAcked(createView("null_view", "SET unmapped_fields=\"nullify\"; FROM index"));
+        assertAcked(createView("views_view", "SET wildcards_match_views=true; FROM index"));
+        assertAcked(createView("datasets_view", "SET wildcards_match_datasets=false; FROM index"));
+    }
+
+    public void testLoadAllInsideViewIsRejected() {
+        expectThrows(
+            ElasticsearchException.class,
+            containsString("SET unmapped_fields=\"LOAD_ALL\" is not supported in views"),
+            () -> createView("my_view", "SET unmapped_fields=\"LOAD_ALL\"; FROM index")
         );
     }
 

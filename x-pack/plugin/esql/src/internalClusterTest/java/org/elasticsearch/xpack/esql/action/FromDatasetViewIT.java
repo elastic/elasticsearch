@@ -717,6 +717,40 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
         }
     }
 
+    /**
+     * A view's own {@code SET wildcards_match_datasets} opens wildcards in that definition only. It does not leak into
+     * a nested view, and a nested view that SETs the flag does not need the enclosing view to.
+     */
+    public void testWildcardMatchDatasetsSetInsideViewAppliesToThatBodyOnly() {
+        registerEmployees();
+        registerEmployeesAlt();
+        createView("emp_star_on", """
+            SET wildcards_match_datasets = true;
+            FROM employees*
+            """);
+        try (var response = run(syncEsqlQueryRequest("FROM emp_star_on | KEEP emp_no | SORT emp_no"))) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(1), List.of(2), List.of(3), List.of(10), List.of(11))));
+        }
+
+        createView("inner_plain", "FROM employees*");
+        createView("outer_on", """
+            SET wildcards_match_datasets = true;
+            FROM inner_plain
+            """);
+        try (var response = run(syncEsqlQueryRequest("FROM outer_on | STATS c = COUNT(*)"))) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(0L))));
+        }
+
+        createView("inner_on", """
+            SET wildcards_match_datasets = true;
+            FROM employees*
+            """);
+        createView("outer_plain", "FROM inner_on");
+        try (var response = run(syncEsqlQueryRequest("FROM outer_plain | KEEP emp_no | SORT emp_no"))) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(1), List.of(2), List.of(3), List.of(10), List.of(11))));
+        }
+    }
+
     public void testWildcardInNestedViewBodyDoesNotMatchDatasets() {
         registerEmployees();
         registerEmployeesAlt();

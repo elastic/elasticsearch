@@ -12,6 +12,7 @@ package org.elasticsearch.indices.recovery;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.indices.recovery.ThrottlingRecoveryService.BlockedState;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
@@ -116,6 +117,7 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
     public void testIncomingRecoveryLimitsMetrics() {
         final var telemetryPlugin = new TestTelemetryPlugin();
         final var clusterSettings = new ClusterSettings(Settings.EMPTY, Set.copyOf(DataNodeRecoveryThrottlingSettings.settings()));
+        final int heapGb = between(1, 64);
         try (
             var collector = new RecoveryMetricsCollector(
                 telemetryPlugin.getTelemetryProvider(Settings.EMPTY),
@@ -123,7 +125,7 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
                 () -> 0L,
                 () -> 0L,
                 clusterSettings,
-                ByteSizeValue.ofGb(between(1, 64))
+                ByteSizeValue.ofGb(heapGb)
             )
         ) {
             collector.doStart();
@@ -131,13 +133,19 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
 
             final int iterations = between(1, 5);
             for (int i = 0; i < iterations; i++) {
-                final int maxConcurrentRecoveries = between(1, 100);
+                final int maxConcurrent = between(1, 100);
+                final int perHeapGb = between(1, 10);
                 final int relocationPercent = between(1, 100);
                 clusterSettings.applySettings(
                     Settings.builder()
                         .put(
                             DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
-                            maxConcurrentRecoveries
+                            maxConcurrent
+                        )
+                        .put(
+                            DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING
+                                .getKey(),
+                            perHeapGb
                         )
                         .put(
                             DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING
@@ -146,10 +154,11 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
                         )
                         .build()
                 );
+                final int expectedMaxConcurrentRecoveries = Math.min(maxConcurrent, heapGb * perHeapGb);
                 assertIncomingRecoveryLimitsMetrics(
                     telemetryPlugin,
-                    maxConcurrentRecoveries,
-                    (long) Math.ceil(maxConcurrentRecoveries * relocationPercent / 100.0)
+                    expectedMaxConcurrentRecoveries,
+                    (long) Math.ceil(expectedMaxConcurrentRecoveries * RatioValue.ofPercent(relocationPercent).getAsRatio())
                 );
             }
         }

@@ -613,32 +613,48 @@ public class SubqueryTests extends AbstractStatementParserTests {
      * \_Drop[[?f]]
      *   \_Limit[10[INTEGER],false]
      *     \_OrderBy[[Order[?cnt,DESC,FIRST]]]
-     *       \_Aggregate[[?e],[?COUNT[*] AS cnt#19, ?e]]
+     *       \_Aggregate[[?e],[?COUNT[*] AS cnt#23, ?e]]
      *         \_Fork[[]]
-     *           |_Eval[[fork1[KEYWORD] AS _fork#15]]
+     *           |_Eval[[fork1[KEYWORD] AS _fork#19]]
      *           | \_Filter[?c &lt; 100[INTEGER]]
-     *           |   \_Eval[[?a * 2[INTEGER] AS b#13]]
+     *           |   \_Eval[[?a * 2[INTEGER] AS b#17]]
      *           |     \_Filter[?a &gt; 10[INTEGER]]
      *           |       \_Keep[[?g]]
      *           |         \_Drop[[?f]]
      *           |           \_Limit[10[INTEGER],false]
      *           |             \_OrderBy[[Order[?cnt,DESC,FIRST]]]
-     *           |               \_Aggregate[[?e],[?COUNT[*] AS cnt#5, ?e]]
-     *           |                 \_Eval[[?a * 2[INTEGER] AS b#3]]
-     *           |                   \_Filter[?a &gt; 10[INTEGER]]
-     *           |                     \_UnresolvedRelation[]
-     *           \_Eval[[fork2[KEYWORD] AS _fork#15]]
+     *           |               \_Aggregate[[?e],[?COUNT[*] AS cnt#7, ?e]]
+     *           |                 \_Fork[[]]
+     *           |                   |_Eval[[fork1[KEYWORD] AS _fork#3]]
+     *           |                   | \_Filter[?c &lt; 100[INTEGER]]
+     *           |                   |   \_Eval[[?a * 2[INTEGER] AS b#13]]
+     *           |                   |     \_Filter[?a &gt; 10[INTEGER]]
+     *           |                   |       \_UnresolvedRelation[]
+     *           |                   \_Eval[[fork2[KEYWORD] AS _fork#3]]
+     *           |                     \_Filter[?d &gt; 200[INTEGER]]
+     *           |                       \_Eval[[?a * 2[INTEGER] AS b#13]]
+     *           |                         \_Filter[?a &gt; 10[INTEGER]]
+     *           |                           \_UnresolvedRelation[]
+     *           \_Eval[[fork2[KEYWORD] AS _fork#19]]
      *             \_Filter[?d &gt; 200[INTEGER]]
-     *               \_Eval[[?a * 2[INTEGER] AS b#13]]
+     *               \_Eval[[?a * 2[INTEGER] AS b#17]]
      *                 \_Filter[?a &gt; 10[INTEGER]]
      *                   \_Keep[[?g]]
      *                     \_Drop[[?f]]
      *                       \_Limit[10[INTEGER],false]
      *                         \_OrderBy[[Order[?cnt,DESC,FIRST]]]
-     *                           \_Aggregate[[?e],[?COUNT[*] AS cnt#5, ?e]]
-     *                             \_Eval[[?a * 2[INTEGER] AS b#3]]
-     *                               \_Filter[?a &gt; 10[INTEGER]]
-     *                                 \_UnresolvedRelation[]
+     *                           \_Aggregate[[?e],[?COUNT[*] AS cnt#7, ?e]]
+     *                             \_Fork[[]]
+     *                               |_Eval[[fork1[KEYWORD] AS _fork#3]]
+     *                               | \_Filter[?c &lt; 100[INTEGER]]
+     *                               |   \_Eval[[?a * 2[INTEGER] AS b#13]]
+     *                               |     \_Filter[?a &gt; 10[INTEGER]]
+     *                               |       \_UnresolvedRelation[]
+     *                               \_Eval[[fork2[KEYWORD] AS _fork#3]]
+     *                                 \_Filter[?d &gt; 200[INTEGER]]
+     *                                   \_Eval[[?a * 2[INTEGER] AS b#13]]
+     *                                     \_Filter[?a &gt; 10[INTEGER]]
+     *                                       \_UnresolvedRelation[]
      */
     public void testSubqueryOnlyWithProcessingCommandsInSubqueryAndMainquery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
@@ -647,6 +663,7 @@ public class SubqueryTests extends AbstractStatementParserTests {
              FROM (FROM {}
                          | WHERE a > 10
                          | EVAL b = a * 2
+                         | FORK (WHERE c < 100) (WHERE d > 200)
                          | STATS cnt = COUNT(*) BY e
                          | SORT cnt desc
                          | LIMIT 10
@@ -680,10 +697,19 @@ public class SubqueryTests extends AbstractStatementParserTests {
             Limit subqueryLimit = as(subqueryDrop.child(), Limit.class);
             OrderBy subqueryOrderby = as(subqueryLimit.child(), OrderBy.class);
             Aggregate subqueryAggregate = as(subqueryOrderby.child(), Aggregate.class);
-            Eval subqueryEval = as(subqueryAggregate.child(), Eval.class);
-            Filter subqueryFilter = as(subqueryEval.child(), Filter.class);
-            UnresolvedRelation subqueryRelation = as(subqueryFilter.child(), UnresolvedRelation.class);
-            assertEquals(unquoteIndexPattern(subqueryIndexPattern), subqueryRelation.indexPattern().indexPattern());
+            Fork subqueryFork = as(subqueryAggregate.child(), Fork.class);
+            List<LogicalPlan> subqueryForkChildren = subqueryFork.children();
+            assertEquals(2, forkChildren.size());
+            for (Eval subqueryForkEval : List.of(
+                as(subqueryForkChildren.get(0), Eval.class),
+                as(subqueryForkChildren.get(1), Eval.class)
+            )) {
+                Filter subqueryForkFilter = as(subqueryForkEval.child(), Filter.class);
+                Eval subqueryEval = as(subqueryForkFilter.child(), Eval.class);
+                Filter subqueryFilter = as(subqueryEval.child(), Filter.class);
+                UnresolvedRelation subqueryRelation = as(subqueryFilter.child(), UnresolvedRelation.class);
+                assertEquals(unquoteIndexPattern(subqueryIndexPattern), subqueryRelation.indexPattern().indexPattern());
+            }
         }
     }
 

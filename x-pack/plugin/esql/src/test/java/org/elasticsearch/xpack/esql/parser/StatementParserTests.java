@@ -19,6 +19,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
@@ -4191,22 +4192,30 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     /**
-     * The single-FORK rule is applied as soon as the plan is built, so that a second FORK on one pipeline never reaches view
-     * resolution or analysis, where it would multiply the plan below it by its branch count first. A UNION ALL from several
-     * subqueries starts a new pipeline per branch; a single subquery does not.
+     * The single-FORK rule is applied while the parse tree is visited, so that a second FORK on one pipeline never reaches view
+     * resolution or analysis, where it would multiply the plan below it by its branch count first. Every subquery, whether in FROM,
+     * in an IN condition or in a LET binding, is a FORK scope of its own; FORK branches share the scope of their pipeline.
      */
     public void testSecondForkOnOnePipelineRejectedAfterParsing() {
         String error = "Only a single FORK command is supported, but found multiple";
-        expectVerificationError("FROM a | FORK (WHERE x > 0) (WHERE x < 0) | FORK (WHERE y > 0) (WHERE y < 0)", error);
-        expectVerificationError("FROM a | FORK (FORK (WHERE x > 0) (WHERE x < 0)) (WHERE y > 0)", error);
-        expectVerificationError("FROM (FROM a | FORK (WHERE x > 0) (WHERE x < 0)) | FORK (WHERE y > 0) (WHERE y < 0)", error);
+        expectVerificationError(
+            "FROM a | FORK (WHERE x > 0) (WHERE x < 0) | FORK (WHERE y > 0) (WHERE y < 0)",
+            "Found 1 problem\nline 1:45: " + error
+        );
+        expectVerificationError("FROM a | FORK (FORK (WHERE x > 0) (WHERE x < 0)) (WHERE y > 0)", "line 1:16: " + error);
         expectVerificationError(
             "FROM a | WHERE x IN (FROM b | FORK (WHERE x > 0) (WHERE x < 0) | FORK (WHERE y > 0) (WHERE y < 0))",
             error
         );
+        expectVerificationError(
+            "FROM a | WHERE (x, y) IN (FROM b | FORK (WHERE x > 0) (WHERE x < 0) | FORK (WHERE y > 0) (WHERE y < 0))",
+            error
+        );
         expectVerificationError("FROM a | WHERE x IN (FROM b | FORK (FORK (WHERE x > 0) (WHERE x < 0)) (WHERE y > 0))", error);
         expectVerificationError("FROM (FROM a | FORK (FORK (WHERE x > 0) (WHERE x < 0)) (WHERE y > 0)) | WHERE x > 0", error);
+        expectVerificationError("FROM a" + " | FORK (WHERE x > 0) (WHERE x < 0)".repeat(60), error);
 
+        query("FROM (FROM a | FORK (WHERE x > 0) (WHERE x < 0)) | FORK (WHERE y > 0) (WHERE y < 0)");
         query("FROM (FROM a | FORK (WHERE x > 0) (WHERE x < 0)), (FROM b) | FORK (WHERE y > 0) (WHERE y < 0)");
         query("FROM (FROM a | FORK (WHERE x > 0) (WHERE x < 0)), (FROM b | FORK (WHERE x > 1) (WHERE x < 1))");
         query("""
@@ -4214,6 +4223,35 @@ public class StatementParserTests extends AbstractStatementParserTests {
             | FORK (WHERE z > 0) (WHERE z < 0)
             """);
         query("FROM a | WHERE x IN (FROM b | FORK (WHERE x > 0) (WHERE x < 0)) | FORK (WHERE y > 0) (WHERE y < 0)");
+        query("FROM a | FORK (WHERE x IN (FROM b | FORK (WHERE x > 0) (WHERE x < 0))) (WHERE y > 0)");
+    }
+
+    public void testSecondForkOnOnePipelineInExplainRejectedAfterParsing() {
+        assumeTrue("Requires EXPLAIN capability", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
+        String error = "Only a single FORK command is supported, but found multiple";
+        expectVerificationError("EXPLAIN (FROM a | FORK (WHERE x > 0) (WHERE x < 0) | FORK (WHERE y > 0) (WHERE y < 0))", error);
+        assertThat(query("EXPLAIN (FROM a | FORK (WHERE x > 0) (WHERE x < 0))"), instanceOf(Explain.class));
+    }
+
+    /**
+     * A LET binding body is a FORK scope of its own. Two FORKs that only meet once the binding is substituted are left to the
+     * post-analysis verifier.
+     */
+    public void testSecondForkOnOnePipelineInLetBindingRejectedAfterParsing() {
+        assumeTrue("requires NAMED_SUBQUERY_LET capability", EsqlCapabilities.Cap.NAMED_SUBQUERY_LET.isEnabled());
+        String error = "Only a single FORK command is supported, but found multiple";
+        expectThrows(
+            VerificationException.class,
+            containsString(error),
+            () -> statement("LET q = (FROM a | FORK (WHERE x > 0) (WHERE x < 0) | FORK (WHERE y > 0) (WHERE y < 0)); FROM q")
+        );
+        expectThrows(
+            VerificationException.class,
+            containsString(error),
+            () -> statement("LET q = (FROM a); FROM q | FORK (WHERE x > 0) (WHERE x < 0) | FORK (WHERE y > 0) (WHERE y < 0)")
+        );
+
+        statement("LET q = (FROM a | FORK (WHERE x > 0) (WHERE x < 0)); FROM q | FORK (WHERE y > 0) (WHERE y < 0)");
     }
 
     public void testForkWithBareFillNull() {

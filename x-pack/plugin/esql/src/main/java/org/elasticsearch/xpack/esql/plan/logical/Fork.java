@@ -165,10 +165,6 @@ public final class Fork extends MergePlan implements TelemetryAware {
      * came from user subqueries, a view, an external dataset, or federation, so each of its branches starts a new FORK segment. The right
      * side of an {@link AbstractSubqueryJoin} is an independently executed query scope and is verified by its own FORK node.
      */
-    public static void checkForUnseparatedFork(LogicalPlan plan, Failures failures) {
-        checkForUnseparatedFork(plan, false, failures);
-    }
-
     private static void checkForUnseparatedFork(LogicalPlan plan, boolean forkSeen, Failures failures) {
         if (plan instanceof UnionAll unionAll) {
             for (LogicalPlan child : unionAll.children()) {

@@ -26,6 +26,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.junit.After;
 import org.junit.Before;
 
@@ -228,6 +229,19 @@ public class ViewServiceTests extends ESTestCase {
 
         assertThat(future.actionGet(10, TimeUnit.SECONDS).isAcknowledged(), is(true));
         assertThat(viewService.get(ProjectId.DEFAULT, "reserved-view").query(), equalTo("FROM other-index"));
+    }
+
+    public void testPutViewRejectsSecondForkOnOnePipeline() {
+        var view = new View("fork-view", "FROM a | FORK (WHERE x > 0) (WHERE x < 0) | FORK (WHERE y > 0) (WHERE y < 0)", null, false);
+        var future = new PlainActionFuture<AcknowledgedResponse>();
+        viewService.putView(ProjectId.DEFAULT, new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, view), future);
+
+        expectThrows(
+            VerificationException.class,
+            containsString("Only a single FORK command is supported, but found multiple"),
+            () -> future.actionGet(10, TimeUnit.SECONDS)
+        );
+        assertThat(viewService.get(ProjectId.DEFAULT, "fork-view"), nullValue());
     }
 
     private PlainActionFuture<AcknowledgedResponse> ensureReservedViewExists(String name, String query, String description) {

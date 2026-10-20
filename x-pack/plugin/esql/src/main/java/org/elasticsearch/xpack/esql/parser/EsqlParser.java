@@ -20,17 +20,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
-import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.BitSet;
@@ -119,9 +114,7 @@ public class EsqlParser {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", query);
         }
-        LogicalPlan plan = invokeParser(query, params, inferenceSettings, null, EsqlBaseParser::singleStatement, AstBuilder::plan);
-        verifyStructure(plan);
-        return plan;
+        return invokeParser(query, params, inferenceSettings, null, EsqlBaseParser::singleStatement, AstBuilder::plan);
     }
 
     // testing utility
@@ -176,41 +169,7 @@ public class EsqlParser {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", query);
         }
-        EsqlStatement statement = invokeParser(
-            query,
-            params,
-            inferenceSettings,
-            viewName,
-            EsqlBaseParser::statements,
-            AstBuilder::statement
-        );
-        verifyStructure(statement.plan());
-        return statement;
-    }
-
-    /**
-     * Rejects plan shapes that no later phase can repair, as soon as the plan is built. The post-analysis verifier repeats the same
-     * checks on the expanded plan, but by then every view has been resolved and the plan analyzed: a second {@code FORK} on one
-     * pipeline multiplies the plan below it by its branch count before being rejected.
-     */
-    private static void verifyStructure(LogicalPlan plan) {
-        Failures failures = new Failures();
-        verifyStructure(plan, failures);
-        if (failures.hasFailures()) {
-            throw new VerificationException(failures);
-        }
-    }
-
-    // An IN subquery is still an expression at this point, and a query scope of its own, so it is checked on its own.
-    private static void verifyStructure(LogicalPlan plan, Failures failures) {
-        Fork.checkForUnseparatedFork(plan, failures);
-        plan.forEachDown(p -> p.forEachExpression(e -> {
-            if (e instanceof InSubquery in) {
-                verifyStructure(in.subquery(), failures);
-            } else if (e instanceof MultiColumnInSubquery in) {
-                verifyStructure(in.subquery(), failures);
-            }
-        }));
+        return invokeParser(query, params, inferenceSettings, viewName, EsqlBaseParser::statements, AstBuilder::statement);
     }
 
     private record ParserPipeline(CommonTokenStream tokenStream, EsqlBaseParser parser) {}

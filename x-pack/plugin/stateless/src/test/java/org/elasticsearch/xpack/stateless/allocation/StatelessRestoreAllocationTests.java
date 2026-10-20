@@ -141,7 +141,7 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
     }
 
     private static Map<ShardId, Long> unplaceableRestoreShards(AllocationService service) {
-        return service.getDesiredBalance().snapshotRestoreAllocationResult().unplaceableShardSizes();
+        return service.getDesiredBalance().unplaceableSnapshotRestoreShardSizes();
     }
 
     private static ShardRouting primary(ClusterState state, String index) {

@@ -556,7 +556,7 @@ public class DesiredBalanceComputer {
             assignments,
             routingNodes.getBalanceWeightStatsPerNode(),
             finishReason,
-            routingAllocation.snapshotRestoreAllocationResult(unassignedShardIds)
+            routingAllocation.unplaceableSnapshotRestoreShardSizes(unassignedShardIds)
         );
     }
 

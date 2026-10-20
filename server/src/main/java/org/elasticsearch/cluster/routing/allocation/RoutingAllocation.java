@@ -431,10 +431,10 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
         }
     }
 
-    /** Returns the snapshot restore disk result accumulated during this allocation walk. */
-    public SnapshotRestoreAllocationResult snapshotRestoreAllocationResult(Set<ShardId> unassignedShards) {
+    /** Returns the unplaceable snapshot restore shard sizes accumulated during this allocation walk. */
+    public Map<ShardId, Long> unplaceableSnapshotRestoreShardSizes(Set<ShardId> unassignedShards) {
         if (unplaceableSnapshotRestoreShardSizes.isEmpty()) {
-            return SnapshotRestoreAllocationResult.EMPTY;
+            return Map.of();
         }
         final Map<ShardId, Long> result = new HashMap<>();
         for (var entry : unplaceableSnapshotRestoreShardSizes.entrySet()) {
@@ -442,7 +442,7 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
                 result.put(entry.getKey(), entry.getValue());
             }
         }
-        return result.isEmpty() ? SnapshotRestoreAllocationResult.EMPTY : new SnapshotRestoreAllocationResult(result);
+        return Map.copyOf(result);
     }
 
     public RoutingAllocation immutableClone() {

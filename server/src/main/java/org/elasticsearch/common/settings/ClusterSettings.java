@@ -138,6 +138,7 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.BoostProfileEnabled;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -592,6 +593,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         SearchService.FETCH_PHASE_MAX_IN_FLIGHT_CHUNKS,
         SearchService.FETCH_PHASE_CHUNKED_TARGET_CHUNK_BYTES,
         SearchService.MEMORY_ACCOUNTING_BUFFER_SIZE,
+        BoostProfileEnabled.BOOST_PROFILE_ENABLED_SETTING,
         ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING,
         ThreadPool.LATE_TIME_INTERVAL_WARN_THRESHOLD_SETTING,
         ThreadPool.SLOW_SCHEDULER_TASK_WARN_THRESHOLD_SETTING,

@@ -174,6 +174,10 @@ public class CsvColumnarIT extends CsvIT {
         // columnar drops at ingest; mv_expand_mapped only exists to be read alongside it.
         "mv_expand_mapped",
         "mv_expand_unmapped",
+        // change_point_mapped carries unmapped leaves (type, pvalue, ...) and change_point_unmapped maps only id, so strict columnar drops
+        // what the tests read at ingest.
+        "change_point_mapped",
+        "change_point_unmapped",
         // Both are dynamic:false and are read for the fields their mapping does not declare, which strict columnar drops at ingest.
         "flattened_paths_mapped",
         "flattened_paths_unmapped",

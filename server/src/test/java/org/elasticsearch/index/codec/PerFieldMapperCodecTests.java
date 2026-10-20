@@ -769,7 +769,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
             {
                 "properties": {
                     "category": { "type": "keyword" },
-                    "host": { "type": "keyword", "doc_values": { "multi_value": false } },
+                    "host": { "type": "keyword", "multi_value": false },
                     "body": { "type": "text" }
                 }
             }

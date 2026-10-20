@@ -212,7 +212,7 @@ public class TextFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
     public void testSingleValueMultiValueFalse() throws IOException {
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "text");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -229,7 +229,7 @@ public class TextFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
     public void testAbsentAndNullMultiValueFalse() throws IOException {
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "text");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -246,7 +246,7 @@ public class TextFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
     public void testIndexedAndDocValuesMultiValueFalse() throws IOException {
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "text");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -263,7 +263,7 @@ public class TextFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
     public void testScalarCoercionsMultiValueFalse() throws IOException {
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "text");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -280,7 +280,7 @@ public class TextFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
     public void testAllPresentDenseMultiValueFalse() throws IOException {
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "text");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -297,7 +297,7 @@ public class TextFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
     public void testManyMixedPresentAbsentMultiValueFalse() throws IOException {
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "text");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -318,7 +318,7 @@ public class TextFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
     public void testSingleElementArrayMultiValueFalse() throws IOException {
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "text");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -448,7 +448,7 @@ public class TextFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
     public void testMultiValueFalseBailsOutOnMultipleValues() throws IOException {
         MapperService ms = createMapperService(columnarSettings(), mapping(b -> {
             b.startObject(FIELD).field("type", "text");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }));
         expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(ms, FIELD, "{\"f\":[\"a\",\"b\"]}"));

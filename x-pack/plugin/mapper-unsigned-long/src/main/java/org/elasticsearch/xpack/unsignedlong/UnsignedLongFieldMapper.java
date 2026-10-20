@@ -121,7 +121,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                     IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS
                 ),
                 m -> toType(m).docValuesParameters(),
-                indexSettings.getMode().isStrictColumnar()
+                indexSettings
             );
             this.ignoreMalformed = Parameter.explicitBoolParam(
                 "ignore_malformed",
@@ -197,7 +197,18 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[] { indexed, docValuesParameters, stored, ignoreMalformed, nullValue, meta, dimension, metric };
+            return new Parameter<?>[] {
+                indexed,
+                docValuesParameters,
+                docValuesParameters.multiValue(),
+                docValuesParameters.nullability(),
+                docValuesParameters.onFailure(),
+                stored,
+                ignoreMalformed,
+                nullValue,
+                meta,
+                dimension,
+                metric };
         }
 
         Number parsedNullValue() {
@@ -407,7 +418,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             } else {
                 query = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
             }
-            if (hasDocValues() && context.indexSortedOnField(name())) {
+            if (hasDocValues() && context.canUseIndexSortRangeQuery(name())) {
                 query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
             }
             return query;

@@ -68,7 +68,8 @@ public class UpgradeXpackClusterClientYamlTestSuiteIT extends ParameterizedYamlR
             .setting("repositories.url.allowed_urls", "http://snapshot.test*")
             .setting("xpack.license.self_generated.type", "trial")
             .setting("xpack.security.enabled", "true")
-            .setting("xpack.security.autoconfiguration.enabled", "false")
+            // this setting only exists in 8.0 and later, older nodes fail to start with it
+            .setting("xpack.security.autoconfiguration.enabled", () -> "false", node -> node.getVersion().onOrAfter("8.0.0"))
             .setting("xpack.security.transport.ssl.enabled", "true")
             .setting("xpack.security.transport.ssl.key", "testnode.pem")
             .setting("xpack.security.transport.ssl.certificate", "testnode.crt")

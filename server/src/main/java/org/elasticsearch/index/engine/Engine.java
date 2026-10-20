@@ -270,7 +270,7 @@ public abstract class Engine implements Closeable {
             numDocs += readerContext.reader().numDocs();
             numDeletedDocs += readerContext.reader().numDeletedDocs();
             try {
-                sizeInBytes += info.sizeInBytes();
+                sizeInBytes += Lucene.bestEffortSizeInBytes(info);
             } catch (IOException e) {
                 logger.trace(() -> "failed to get size for [" + info.info.name + "]", e);
             }
@@ -1448,7 +1448,7 @@ public abstract class Engine implements Closeable {
         segment.version = info.info.getVersion();
         segment.compound = info.info.getUseCompoundFile();
         try {
-            segment.sizeInBytes = info.sizeInBytes();
+            segment.sizeInBytes = Lucene.bestEffortSizeInBytes(info);
         } catch (IOException e) {
             logger.trace(() -> "failed to get size for [" + info.info.name + "]", e);
         }

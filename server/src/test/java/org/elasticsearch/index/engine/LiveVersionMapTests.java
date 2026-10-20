@@ -520,9 +520,9 @@ public class LiveVersionMapTests extends ESTestCase {
     /**
      * A concurrent indexing op can flip the map from safe to unsafe after a caller has already observed it as safe.
      * The archived version for an unrelated id is still the correct one, but {@link LiveVersionMap#getUnderLockOrUnsafe}
-     * returns {@link LiveVersionMap#VERSION_MAP_UNSAFE} instead of that entry. On the sentinel, the engine recovers rather than
-     * trusting the archive: it refreshes (a flush in stateless), advances {@code lastUnsafeSegmentGenerationForGets} to the
-     * resulting commit, and resolves the version from Lucene.
+     * returns {@link LiveVersionMap#VERSION_MAP_UNSAFE} instead of that entry. On the sentinel, the engine resolves the version
+     * from Lucene rather than trusting the archive. For realtime gets it also flushes and advances
+     * {@code lastUnsafeSegmentGenerationForGets} to the resulting commit, unless it already flushed for this get.
      */
     public void testArchiveUnsafeGateDropsValidEntryAfterConcurrentFlip() throws IOException {
         final TestArchive archive = new TestArchive();
@@ -532,7 +532,7 @@ public class LiveVersionMapTests extends ESTestCase {
         final IndexVersionValue version = randomIndexVersionValue();
 
         // Put the document and move it into the archive via a refresh. The map does not need safe access, and nothing
-        // is unsafe yet, which is the state getVersionFromMap observes when it decides not to refresh.
+        // is unsafe yet, which is the state the engine's pre-check observes when it decides not to refresh.
         try (Releasable ignored = map.acquireLock(id)) {
             map.putIndexUnderLock(id, version);
         }
@@ -546,7 +546,7 @@ public class LiveVersionMapTests extends ESTestCase {
         }
 
         // An indexing op for an unrelated id is skipped and marks the current map unsafe. This is the flip that can
-        // land after getVersionFromMap's isUnsafe() check and before the archive lookup.
+        // land after the engine's unsafe pre-check and before the archive lookup.
         final BytesRef unrelated = uid("unrelated-doc");
         try (Releasable ignored = map.acquireLock(unrelated)) {
             map.maybePutIndexUnderLock(unrelated, randomIndexVersionValue());

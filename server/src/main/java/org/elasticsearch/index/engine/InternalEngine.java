@@ -918,8 +918,12 @@ public class InternalEngine extends Engine {
     @Override
     public boolean isDocumentInLiveVersionMap(BytesRef uid) {
         try (Releasable ignore = versionMap.acquireLock(uid)) {
-            final var versionValue = getVersionFromMap(uid);
-            return versionValue != null;
+            if (versionMap.isUnsafeForGets()) {
+                recoverForGets(false);
+            }
+            // Only presence matters here, so an archived entry counts even if its version may be stale: the caller then
+            // refreshes the search shards. Do not use getUnderLockOrUnsafe, which would report such an entry as absent.
+            return versionMap.getUnderLock(uid) != null;
         }
     }
 
@@ -933,7 +937,20 @@ public class InternalEngine extends Engine {
     ) {
         try (var ignored = acquireEnsureOpenRef()) {
             if (get.realtime()) {
-                var result = realtimeGetUnderLock(get, mappingLookup, documentParser, searcherWrapper, REAL_TIME_GET_REFRESH_SOURCE, true);
+                VersionValue version;
+                try (Releasable ignore = versionMap.acquireLock(get.uid())) {
+                    version = getVersionForRead(get.uid());
+                }
+
+                var result = realtimeGetUnderLock(
+                    get,
+                    version,
+                    mappingLookup,
+                    documentParser,
+                    searcherWrapper,
+                    REAL_TIME_GET_REFRESH_SOURCE,
+                    true
+                );
                 assert result != null : "real-time get result must not be null";
                 return result;
             } else {
@@ -951,7 +968,20 @@ public class InternalEngine extends Engine {
         Function<Searcher, Searcher> searcherWrapper
     ) {
         try (var ignored = acquireEnsureOpenRef()) {
-            return realtimeGetUnderLock(get, mappingLookup, documentParser, searcherWrapper, REAL_TIME_GET_FOR_UPDATE_REFRESH_SOURCE, true);
+            VersionValue version;
+            try (Releasable ignore = versionMap.acquireLock(get.uid())) {
+                version = getVersionForWrite(get.uid());
+            }
+
+            return realtimeGetUnderLock(
+                get,
+                version,
+                mappingLookup,
+                documentParser,
+                searcherWrapper,
+                REAL_TIME_GET_FOR_UPDATE_REFRESH_SOURCE,
+                true
+            );
         }
     }
 
@@ -963,7 +993,12 @@ public class InternalEngine extends Engine {
         Function<Searcher, Searcher> searcherWrapper
     ) {
         try (var ignored = acquireEnsureOpenRef()) {
-            return realtimeGetUnderLock(get, mappingLookup, documentParser, searcherWrapper, REAL_TIME_GET_REFRESH_SOURCE, false);
+            VersionValue version;
+            try (Releasable ignore = versionMap.acquireLock(get.uid())) {
+                version = getVersionForRead(get.uid());
+            }
+
+            return realtimeGetUnderLock(get, version, mappingLookup, documentParser, searcherWrapper, REAL_TIME_GET_REFRESH_SOURCE, false);
         }
     }
 
@@ -973,6 +1008,7 @@ public class InternalEngine extends Engine {
      */
     protected GetResult realtimeGetUnderLock(
         Get get,
+        VersionValue versionValue,
         MappingLookup mappingLookup,
         DocumentParser documentParser,
         Function<Searcher, Searcher> searcherWrapper,
@@ -981,11 +1017,6 @@ public class InternalEngine extends Engine {
     ) {
         assert isDrainedForClose() == false;
         assert get.realtime();
-        final VersionValue versionValue;
-        try (Releasable ignore = versionMap.acquireLock(get.uid())) {
-            // we need to lock here to access the version map to do this truly in RT
-            versionValue = getVersionFromMap(get.uid());
-        }
         try {
             boolean getFromSearcherIfNotInTranslog = getFromSearcher;
             if (versionValue != null) {
@@ -1088,7 +1119,7 @@ public class InternalEngine extends Engine {
     private OpVsLuceneDocStatus compareOpToLuceneDocBasedOnSeqNo(final Operation op) throws IOException {
         assert op.seqNo() != UNASSIGNED_SEQ_NO : "resolving ops based on seq# but no seqNo is found";
         final OpVsLuceneDocStatus status;
-        VersionValue versionValue = getVersionFromMap(op.uid());
+        VersionValue versionValue = getVersionForWrite(op.uid());
         assert incrementVersionLookup();
         if (versionValue != null) {
             status = compareOpToVersionMapOnSeqNo(op.id(), op.seqNo(), op.primaryTerm(), versionValue);
@@ -1127,7 +1158,7 @@ public class InternalEngine extends Engine {
     private VersionValue resolveDocVersion(final Operation op, boolean loadSeqNo) throws IOException {
         assert incrementVersionLookup(); // used for asserting in tests
         notifyLastDocIdAndVersionLookup();
-        VersionValue versionValue = getVersionFromMap(op.uid());
+        VersionValue versionValue = getVersionForWrite(op.uid());
         if (versionValue == null) {
             assert incrementIndexVersionLookup(); // used for asserting in tests
             final DocIdAndVersion docIdAndVersion = performActionWithDirectoryReader(SearcherScope.INTERNAL, directoryReader -> {
@@ -1155,52 +1186,87 @@ public class InternalEngine extends Engine {
         return versionValue;
     }
 
-    private VersionValue getVersionFromMap(BytesRef id) {
-        boolean recovered = false;
-        if (versionMap.isUnsafe()) {
-            recoverFromUnsafe();
-            recovered = true;
+    private VersionValue getVersionForRead(BytesRef id) {
+        boolean flushed = false;
+        if (versionMap.isUnsafeForGets()) {
+            flushed = recoverForGets(false);
+            // Below details are stateless specific.
+            // The versionMap can still be unsafe (intentionally) for gets at this point due to the archive being unsafe.
+            // There is a gap between the flush and `enforceSafeAccess()` in `recoverForGets`.
+            // Writes that land between these two points will not be in the versionMap since it doesn't enforce safe access yet.
+            // But they happened after the flush so they are not in the commit captured by `lastUnsafeSegmentGenerationForGets` either!
+            // If there are internal refreshes happening for any reason, they can clear the versionMap
+            // and also clear the versionMap unsafe flag.
+            // If `getFromTranslog` arrives at this point, it will see the empty map and decide that the get can be served by
+            // the search shard. However, this is wrong as established above since `lastUnsafeSegmentGenerationForGets` does not
+            // include the needed write.
+            // Normally this is resolved by keeping the version in the archive until we know that the search shard
+            // is aware of the appropriate generation (and as such it's found in the map).
+            // But in this case since the version map was unsafe and there is nothing to be stored in the archive.
         }
-        // Note: the internal refresh above only makes docs visible in the local Lucene searcher. In stateless,
-        // the version map also uses a LiveVersionMapArchive that retains entries from previous refreshes, and
-        // this archive is NOT cleared by an internal refresh. If the map became unsafe and a put was skipped
-        // (due to the race between beforeRefresh() and enforceSafeAccess()), the archive may still hold a stale
-        // version. Regular getUnderLock() will find the stale entry in the archive before falling through to Lucene.
-        // Just the above recovery path is therefore insufficient for stateless — so we don't trust the archive when unsafe.
+        // In stateless, the archive retains entries from previous refreshes until the search shards have them. If the map
+        // became unsafe and a put was skipped (due to the race between beforeRefresh() and enforceSafeAccess()), the archive
+        // may still hold a stale version, which getUnderLock() would return. So we don't trust the archive when unsafe.
         VersionValue v = versionMap.getUnderLockOrUnsafe(id);
         if (v == LiveVersionMap.VERSION_MAP_UNSAFE) {
-            // The map became (or stayed) unsafe, so we could not trust the archive. Recover (internal refresh + advance
-            // lastUnsafeSegmentGenerationForGets) unless the pre-check already did it for this call, then force resolving the version
-            // from Lucene / the search tier by returning null.
-            if (recovered) {
-                return null;
-            } else {
-                recoverFromUnsafe();
-                return null;
+            // The doc is not in current or old, so a refresh moved it out. That refresh may have been local only, so the doc
+            // may not be in any commit yet. Unless this call already flushed, flush now and advance
+            // lastUnsafeSegmentGenerationForGets, then resolve the version from Lucene / the search tier by returning null.
+            // Force the flush: the map may have turned safe again since the lookup, but the doc may still be uncommitted.
+            if (flushed == false) {
+                recoverForGets(true);
             }
+            return null;
         }
         return v;
     }
 
-    private void recoverFromUnsafe() {
+    /**
+     * Flush (in stateless, a {@link #REAL_TIME_GET_REFRESH_SOURCE} refresh is a flush) and point realtime gets at the resulting
+     * commit, then switch later indexing back to recording versions.
+     *
+     * @param force flush even if the map is no longer unsafe for gets. Otherwise this flushes only if it still is, since
+     *              another thread may have already recovered.
+     * @return whether this call flushed
+     */
+    private boolean recoverForGets(boolean force) {
         synchronized (versionMap) {
-            // we are switching from an unsafe map to a safe map. This might happen concurrently
-            // but we only need to do this once since the last operation per ID is to add to the version
-            // map so once we pass this point we can safely lookup from the version map.
-            if (versionMap.isUnsafe()) {
-                refreshInternalSearcher(UNSAFE_VERSION_MAP_REFRESH_SOURCE, true);
+            final boolean flush = force || versionMap.isUnsafeForGets();
+            if (flush) {
+                refreshInternalSearcher(REAL_TIME_GET_REFRESH_SOURCE, true);
                 // After the refresh, the doc that triggered it must now be part of the last commit.
                 // In rare cases, there could be other flush cycles completed in between the above line
                 // and the line below which push the last commit generation further. But that's OK.
                 // The invariant here is that doc is available within the generations of commits upto
-                // lastUnsafeSegmentGenerationForGets (inclusive). Therefore it is ok for it be larger
+                // lastUnsafeSegmentGenerationForGets (inclusive). Therefore, it is ok for it be larger
                 // which means the search shard needs to wait for extra generations and these generations
                 // are guaranteed to happen since they are all committed.
                 lastUnsafeSegmentGenerationForGets.set(lastCommittedSegmentInfos.getGeneration());
             }
             versionMap.enforceSafeAccess();
+            return flush;
         }
-        // The versionMap can still be unsafe at this point due to archive being unsafe
+    }
+
+    private VersionValue getVersionForWrite(BytesRef id) {
+        if (versionMap.isUnsafe()) {
+            synchronized (versionMap) {
+                // We are switching from an unsafe map to a safe map. This might happen concurrently
+                // but we only need to do this once since the last operation per ID is to add to the version
+                // map so once we pass this point we can safely lookup from the version map.
+                if (versionMap.isUnsafe()) {
+                    refreshInternalSearcher(UNSAFE_VERSION_MAP_REFRESH_SOURCE, true);
+                }
+                versionMap.enforceSafeAccess();
+            }
+        }
+        VersionValue v = versionMap.getUnderLockOrUnsafe(id);
+        if (v == LiveVersionMap.VERSION_MAP_UNSAFE) {
+            // The archive may hold a stale version (see getVersionForRead). The doc is not in current or old, so a refresh
+            // already moved it into the internal searcher. Resolve the version from Lucene without another refresh.
+            return null;
+        }
+        return v;
     }
 
     private boolean canOptimizeAddDocument(Index index) {
@@ -1856,7 +1922,7 @@ public class InternalEngine extends Engine {
             anyNeedsVersionLookup = true;
             assert incrementVersionLookup();
             notifyLastDocIdAndVersionLookup();
-            VersionValue v = getVersionFromMap(subBatch.uid(i));
+            VersionValue v = getVersionForWrite(subBatch.uid(i));
             if (v == null) {
                 // genuine versionMap miss: must go to Lucene
                 assert incrementIndexVersionLookup();

@@ -200,18 +200,6 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
     }
 
     @Override
-    protected void validateRerankParameters(Boolean returnDocuments, Integer topN, ValidationException validationException) {
-        if (returnDocuments != null) {
-            validationException.addValidationError(
-                org.elasticsearch.core.Strings.format(
-                    "Invalid return_documents [%s]. The return_documents option is not supported by this service",
-                    returnDocuments
-                )
-            );
-        }
-    }
-
-    @Override
     public Set<TaskType> supportedStreamingTasks() {
         return EnumSet.of(COMPLETION, CHAT_COMPLETION);
     }
@@ -279,7 +267,8 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
                     inputs.getRequest().topP(),
                     mergedReasoning,
                     inputs.getRequest().cacheControl(),
-                    inputs.getRequest().sessionId()
+                    inputs.getRequest().sessionId(),
+                    inputs.getRequest().template()
                 ),
                 inputs.stream()
             );
@@ -300,6 +289,11 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
 
     @Override
     protected boolean supportsChatCompletionSessionId() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsChatCompletionTemplates() {
         return true;
     }
 

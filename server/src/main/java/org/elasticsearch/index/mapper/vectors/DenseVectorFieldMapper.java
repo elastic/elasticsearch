@@ -54,6 +54,7 @@ import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.SliceSelection;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibrationProfile;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
@@ -78,9 +79,11 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.MapperFeatures;
+import org.elasticsearch.index.mapper.MapperMergeContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MappingParser;
-import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -138,7 +141,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
@@ -430,7 +432,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 "index_options",
                 true,
                 () -> defaultIndexOptions(defaultInt8Hnsw, defaultBBQHnsw, defaultBBQDisk),
-                (n, c, o) -> o == null ? null : parseIndexOptions(n, o, indexVersionCreated, experimentalFeaturesEnabled),
+                (n, c, o) -> o == null ? null : parseIndexOptions(n, o, c, experimentalFeaturesEnabled),
                 m -> toType(m).indexOptions,
                 (b, n, v) -> {
                     if (v != null) {
@@ -519,7 +521,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     false,
                     bits,
                     experimentalFeaturesEnabled,
-                    false,
+                    null,
                     BBQIVFIndexOptions.QuantizationType.OSQ,
                     false
                 );
@@ -560,6 +562,18 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] { elementType, dims, indexed, similarity, indexOptions, meta };
+        }
+
+        @Override
+        protected void mergeFromBuilder(FieldMapper.Builder incoming, Conflicts conflicts, MapperMergeContext mergeContext) {
+            // Must read both values before super, which overwrites indexOptions with the incoming value
+            if (mergeContext.clusterHasFeature(MapperFeatures.BBQ_DISK_UPDATABLE_AUTO_CALIBRATE) == false
+                && indexOptions.getValue() instanceof BBQIVFIndexOptions previous
+                && ((Builder) incoming).indexOptions.getValue() instanceof BBQIVFIndexOptions current
+                && previous.autoCalibrationProfile() != current.autoCalibrationProfile()) {
+                conflicts.addConflict("index_options", "cannot update [auto_calibrate] until all nodes in the cluster support it");
+            }
+            super.mergeFromBuilder(incoming, conflicts, mergeContext);
         }
 
         public Builder similarity(VectorSimilarity vectorSimilarity) {
@@ -1738,15 +1752,21 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return onDiskMerge;
         }
 
-        abstract KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers);
+        abstract KnnVectorsFormat getVectorsFormat(
+            ElementType elementType,
+            ExecutorService mergingExecutorService,
+            int numMergeWorkers,
+            ExecutorService quantizerExecutorService
+        );
 
         KnnVectorsFormat getVectorsFormat(
             ElementType elementType,
             ExecutorService mergingExecutorService,
             int numMergeWorkers,
+            ExecutorService quantizerExecutorService,
             @Nullable String sliceField
         ) {
-            return getVectorsFormat(elementType, mergingExecutorService, numMergeWorkers);
+            return getVectorsFormat(elementType, mergingExecutorService, numMergeWorkers, quantizerExecutorService);
         }
 
         public boolean validate(ElementType elementType, int dim, boolean throwOnError) {
@@ -1858,7 +1878,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public DenseVectorIndexOptions parseIndexOptions(
                 String fieldName,
                 Map<String, ?> indexOptionsMap,
-                IndexVersion indexVersion,
+                MappingParserContext context,
                 boolean experimentalFeaturesEnabled
             ) {
                 boolean onDiskMerge = parseOnDiskMerge(indexOptionsMap);
@@ -1894,9 +1914,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public DenseVectorIndexOptions parseIndexOptions(
                 String fieldName,
                 Map<String, ?> indexOptionsMap,
-                IndexVersion indexVersion,
+                MappingParserContext context,
                 boolean experimentalFeaturesEnabled
             ) {
+                IndexVersion indexVersion = context.indexVersionCreated();
                 boolean onDiskMerge = parseOnDiskMerge(indexOptionsMap);
                 Object mNode = indexOptionsMap.remove("m");
                 Object efConstructionNode = indexOptionsMap.remove("ef_construction");
@@ -1939,9 +1960,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public DenseVectorIndexOptions parseIndexOptions(
                 String fieldName,
                 Map<String, ?> indexOptionsMap,
-                IndexVersion indexVersion,
+                MappingParserContext context,
                 boolean experimentalFeaturesEnabled
             ) {
+                IndexVersion indexVersion = context.indexVersionCreated();
                 boolean onDiskMerge = parseOnDiskMerge(indexOptionsMap);
                 Object mNode = indexOptionsMap.remove("m");
                 Object efConstructionNode = indexOptionsMap.remove("ef_construction");
@@ -1986,7 +2008,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public DenseVectorIndexOptions parseIndexOptions(
                 String fieldName,
                 Map<String, ?> indexOptionsMap,
-                IndexVersion indexVersion,
+                MappingParserContext context,
                 boolean experimentalFeaturesEnabled
             ) {
                 boolean onDiskMerge = parseOnDiskMerge(indexOptionsMap);
@@ -2014,9 +2036,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public DenseVectorIndexOptions parseIndexOptions(
                 String fieldName,
                 Map<String, ?> indexOptionsMap,
-                IndexVersion indexVersion,
+                MappingParserContext context,
                 boolean experimentalFeaturesEnabled
             ) {
+                IndexVersion indexVersion = context.indexVersionCreated();
                 boolean onDiskMerge = parseOnDiskMerge(indexOptionsMap);
                 Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
                 Float confidenceInterval = parseConfidenceInterval(fieldName, indexOptionsMap, indexVersion);
@@ -2047,9 +2070,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public DenseVectorIndexOptions parseIndexOptions(
                 String fieldName,
                 Map<String, ?> indexOptionsMap,
-                IndexVersion indexVersion,
+                MappingParserContext context,
                 boolean experimentalFeaturesEnabled
             ) {
+                IndexVersion indexVersion = context.indexVersionCreated();
                 boolean onDiskMerge = parseOnDiskMerge(indexOptionsMap);
                 Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
                 Float confidenceInterval = parseConfidenceInterval(fieldName, indexOptionsMap, indexVersion);
@@ -2080,9 +2104,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public DenseVectorIndexOptions parseIndexOptions(
                 String fieldName,
                 Map<String, ?> indexOptionsMap,
-                IndexVersion indexVersion,
+                MappingParserContext context,
                 boolean experimentalFeaturesEnabled
             ) {
+                IndexVersion indexVersion = context.indexVersionCreated();
                 boolean onDiskMerge = parseOnDiskMerge(indexOptionsMap);
                 Object mNode = indexOptionsMap.remove("m");
                 Object efConstructionNode = indexOptionsMap.remove("ef_construction");
@@ -2121,9 +2146,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public DenseVectorIndexOptions parseIndexOptions(
                 String fieldName,
                 Map<String, ?> indexOptionsMap,
-                IndexVersion indexVersion,
+                MappingParserContext context,
                 boolean experimentalFeaturesEnabled
             ) {
+                IndexVersion indexVersion = context.indexVersionCreated();
                 RescoreVector rescoreVector = null;
                 boolean onDiskMerge = parseOnDiskMerge(indexOptionsMap);
                 Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
@@ -2156,9 +2182,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public DenseVectorIndexOptions parseIndexOptions(
                 String fieldName,
                 Map<String, ?> indexOptionsMap,
-                IndexVersion indexVersion,
+                MappingParserContext context,
                 boolean experimentalFeaturesEnabled
             ) {
+                IndexVersion indexVersion = context.indexVersionCreated();
                 boolean onDiskMerge = parseOnDiskMerge(indexOptionsMap);
                 Object clusterSizeNode = indexOptionsMap.remove("cluster_size");
                 int clusterSize = ES940DiskBBQVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER;
@@ -2247,14 +2274,26 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     }
                 }
 
-                boolean doPrecondition = XContentMapValues.nodeBooleanValue(indexOptionsMap.remove("precondition"), false);
-                boolean autoCalibrate = XContentMapValues.nodeBooleanValue(indexOptionsMap.remove("auto_calibrate"), false);
-                if (isAsh && autoCalibrate) {
+                Object autoCalibrateMapValue = indexOptionsMap.remove(DenseVectorAutoCalibrate.NAME);
+                DenseVectorAutoCalibrate autoCalibrate;
+                if (autoCalibrateMapValue == null && isAsh) {
+                    // Disable autocalibration by default when using ASH
+                    autoCalibrate = DenseVectorAutoCalibrate.DEFAULT_DISABLED;
+                } else {
+                    autoCalibrate = DenseVectorAutoCalibrate.parse(
+                        autoCalibrateMapValue,
+                        indexVersion,
+                        context::clusterHasFeature,
+                        fieldName
+                    );
+                }
+                if (isAsh && autoCalibrate.enabled()) {
                     throw new IllegalArgumentException(
                         "'auto_calibrate' is not supported with 'quantization_type' 'ash' for field [" + fieldName + "]"
                     );
                 }
 
+                boolean doPrecondition = XContentMapValues.nodeBooleanValue(indexOptionsMap.remove("precondition"), false);
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
                 return new BBQIVFIndexOptions(
                     clusterSize,
@@ -2300,7 +2339,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public abstract DenseVectorIndexOptions parseIndexOptions(
             String fieldName,
             Map<String, ?> indexOptionsMap,
-            IndexVersion indexVersion,
+            MappingParserContext context,
             boolean experimentalFeaturesEnabled
         );
 
@@ -2343,7 +2382,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
+        KnnVectorsFormat getVectorsFormat(
+            ElementType elementType,
+            ExecutorService mergingExecutorService,
+            int numMergeWorkers,
+            ExecutorService quantizerExecutorService
+        ) {
             assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
             return new ES94ScalarQuantizedVectorsFormat(elementType, 7, false, onDiskMerge);
         }
@@ -2388,7 +2432,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
+        KnnVectorsFormat getVectorsFormat(
+            ElementType elementType,
+            ExecutorService mergingExecutorService,
+            int numMergeWorkers,
+            ExecutorService quantizerExecutorService
+        ) {
             return new ES93FlatVectorFormat(elementType, onDiskMerge);
         }
 
@@ -2447,7 +2496,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
+        public KnnVectorsFormat getVectorsFormat(
+            ElementType elementType,
+            ExecutorService mergingExecutorService,
+            int numMergeWorkers,
+            ExecutorService quantizerExecutorService
+        ) {
             assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
             return new ES94HnswScalarQuantizedVectorsFormat(
                 m,
@@ -2549,7 +2603,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
+        public KnnVectorsFormat getVectorsFormat(
+            ElementType elementType,
+            ExecutorService mergingExecutorService,
+            int numMergeWorkers,
+            ExecutorService quantizerExecutorService
+        ) {
             assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
             return new ES94ScalarQuantizedVectorsFormat(elementType, 4, false, onDiskMerge);
         }
@@ -2634,7 +2693,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
+        public KnnVectorsFormat getVectorsFormat(
+            ElementType elementType,
+            ExecutorService mergingExecutorService,
+            int numMergeWorkers,
+            ExecutorService quantizerExecutorService
+        ) {
             assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
             return new ES94HnswScalarQuantizedVectorsFormat(
                 m,
@@ -2754,7 +2818,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
+        public KnnVectorsFormat getVectorsFormat(
+            ElementType elementType,
+            ExecutorService mergingExecutorService,
+            int numMergeWorkers,
+            ExecutorService quantizerExecutorService
+        ) {
             return new ES93HnswVectorsFormat(
                 m,
                 efConstruction,
@@ -2858,7 +2927,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
+        KnnVectorsFormat getVectorsFormat(
+            ElementType elementType,
+            ExecutorService mergingExecutorService,
+            int numMergeWorkers,
+            ExecutorService quantizerExecutorService
+        ) {
             assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
             return new ES93HnswBinaryQuantizedVectorsFormat(
                 m,
@@ -2937,7 +3011,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
+        KnnVectorsFormat getVectorsFormat(
+            ElementType elementType,
+            ExecutorService mergingExecutorService,
+            int numMergeWorkers,
+            ExecutorService quantizerExecutorService
+        ) {
             assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
             return new ES93BinaryQuantizedVectorsFormat(elementType, false, onDiskMerge);
         }
@@ -2992,7 +3071,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         final int bits;
         final boolean doPrecondition;
         final boolean experimentalFeaturesEnabled;
-        final boolean autoCalibrate;
+        final DenseVectorAutoCalibrate autoCalibrate;
         final QuantizationType quantizationType;
 
         public enum QuantizationType {
@@ -3032,7 +3111,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             boolean doPrecondition,
             int bits,
             boolean experimentalFeaturesEnabled,
-            boolean autoCalibrate,
+            @Nullable DenseVectorAutoCalibrate autoCalibrate,
             QuantizationType quantizationType,
             boolean onDiskMerge
         ) {
@@ -3045,13 +3124,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.bits = bits;
             this.doPrecondition = doPrecondition;
             this.experimentalFeaturesEnabled = experimentalFeaturesEnabled;
-            this.autoCalibrate = autoCalibrate;
+            this.autoCalibrate = autoCalibrate == null ? DenseVectorAutoCalibrate.defaultAutoCalibrate(indexVersionCreated) : autoCalibrate;
             this.quantizationType = quantizationType;
-        }
-
-        @Override
-        KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
-            return getVectorsFormat(elementType, mergingExecutorService, numMergeWorkers, null);
         }
 
         @Override
@@ -3059,6 +3133,17 @@ public class DenseVectorFieldMapper extends FieldMapper {
             ElementType elementType,
             ExecutorService mergingExecutorService,
             int numMergeWorkers,
+            ExecutorService quantizerExecutorService
+        ) {
+            return getVectorsFormat(elementType, mergingExecutorService, numMergeWorkers, quantizerExecutorService, null);
+        }
+
+        @Override
+        KnnVectorsFormat getVectorsFormat(
+            ElementType elementType,
+            ExecutorService mergingExecutorService,
+            int numMergeWorkers,
+            ExecutorService quantizerExecutorService,
             @Nullable String sliceField
         ) {
             assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
@@ -3088,6 +3173,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         onDiskRescore,
                         mergingExecutorService,
                         numMergeWorkers,
+                        quantizerExecutorService,
                         flatIndexThreshold,
                         sliceField,
                         IvfFlushConfigSource.empty(),
@@ -3095,8 +3181,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         onDiskMerge
                     );
                 } else {
-                    IvfMergeConfigResolver mergeConfigResolver = autoCalibrate
-                        ? IvfAutoCalibration.mergeConfigResolver(clusterSize)
+                    IvfMergeConfigResolver mergeConfigResolver = autoCalibrate()
+                        ? IvfAutoCalibration.mergeConfigResolver(clusterSize, autoCalibrationProfile())
                         : IvfMergeConfigResolver.useCodecDefault();
                     return new ESNextDiskBBQVectorsFormat(
                         QuantEncoding.fromBits((byte) bits),
@@ -3116,8 +3202,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     );
                 }
             } else if (indexVersionCreated.onOrAfter(IndexVersions.DISK_BBQ_ES950_AUTO_CALIBRATE)) {
-                IvfMergeConfigResolver mergeConfigResolver = autoCalibrate
-                    ? IvfAutoCalibration.mergeConfigResolver(clusterSize)
+                IvfMergeConfigResolver mergeConfigResolver = autoCalibrate()
+                    ? IvfAutoCalibration.mergeConfigResolver(clusterSize, autoCalibrationProfile())
                     : IvfMergeConfigResolver.useCodecDefault();
                 return new ES950DiskBBQVectorsFormat(
                     QuantEncoding.fromBits((byte) bits),
@@ -3158,9 +3244,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return false;
             }
             BBQIVFIndexOptions that = (BBQIVFIndexOptions) update;
-            return this.doPrecondition == that.doPrecondition
-                && this.autoCalibrate == that.autoCalibrate
-                && Objects.equals(this.quantizationType, that.quantizationType);
+            return this.doPrecondition == that.doPrecondition && Objects.equals(this.quantizationType, that.quantizationType);
         }
 
         @Override
@@ -3172,7 +3256,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 && onDiskRescore == that.onDiskRescore
                 && bits == that.bits
                 && doPrecondition == that.doPrecondition
-                && autoCalibrate == that.autoCalibrate
+                && Objects.equals(autoCalibrate, that.autoCalibrate)
                 && Objects.equals(quantizationType, that.quantizationType)
                 && Objects.equals(rescoreVector, that.rescoreVector);
         }
@@ -3213,9 +3297,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (doPrecondition) {
                 builder.field("precondition", doPrecondition);
             }
-            if (autoCalibrate) {
-                builder.field("auto_calibrate", true);
-            }
+            autoCalibrate.toXContent(builder, params);
             if (quantizationType == QuantizationType.ASH) {
                 builder.field("quantization_type", quantizationType);
             }
@@ -3242,7 +3324,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         public boolean autoCalibrate() {
-            return autoCalibrate;
+            return autoCalibrate.enabled();
+        }
+
+        public IvfAutoCalibrationProfile autoCalibrationProfile() {
+            return autoCalibrate.profile();
         }
 
         public int getBits() {
@@ -3805,7 +3891,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             } else if (indexOptions instanceof BBQIVFIndexOptions bbqIndexOptions) {
                 float defaultVisitRatio = (float) (bbqIndexOptions.defaultVisitPercentage / 100d);
                 float visitRatio = visitPercentage == null ? defaultVisitRatio : (float) (visitPercentage / 100d);
-                if (bbqIndexOptions.autoCalibrate) {
+                if (bbqIndexOptions.autoCalibrate()) {
                     // Rescoring happens inside the IVF query itself (AbstractIVFKnnVectorQuery#rewrite ->
                     // #getAutoRescoreQuery), or, when post-filtering, after the filter via #finalizeTopK.
                     rescore = false;
@@ -3814,7 +3900,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     ? bbqIndexOptions.rescoreVector.oversample
                     : DEFAULT_OVERSAMPLE;
                 var ivfQueryConfigResolver = IvfQueryConfigResolver.from(
-                    bbqIndexOptions.autoCalibrate,
+                    bbqIndexOptions.autoCalibrate(),
                     bbqIndexOptions.doPrecondition,
                     bbqIndexOptions.bits,
                     mappingOversample,
@@ -3831,7 +3917,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                             parentFilter,
                             visitRatio,
                             ivfQueryConfigResolver,
-                            RoutingFieldMapper.NAME,
+                            SliceIndexing.SLICE_KEY_FIELD_NAME,
                             sliceIds
                         )
                         : new IVFKnnByteSlicedVectorQuery(
@@ -3842,7 +3928,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                             cachedFilter,
                             visitRatio,
                             ivfQueryConfigResolver,
-                            RoutingFieldMapper.NAME,
+                            SliceIndexing.SLICE_KEY_FIELD_NAME,
                             sliceIds
                         );
                 } else {
@@ -3929,7 +4015,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             } else if (indexOptions instanceof BBQIVFIndexOptions bbqIndexOptions) {
                 float defaultVisitRatio = (float) (bbqIndexOptions.defaultVisitPercentage / 100d);
                 float visitRatio = visitPercentage == null ? defaultVisitRatio : (float) (visitPercentage / 100d);
-                if (bbqIndexOptions.autoCalibrate) {
+                if (bbqIndexOptions.autoCalibrate()) {
                     // Rescoring happens inside the IVF query itself (AbstractIVFKnnVectorQuery#rewrite ->
                     // #getAutoRescoreQuery), or, when post-filtering, after the filter via #finalizeTopK.
                     rescore = false;
@@ -3938,7 +4024,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     ? bbqIndexOptions.rescoreVector.oversample
                     : DEFAULT_OVERSAMPLE;
                 var ivfQueryConfigResolver = IvfQueryConfigResolver.from(
-                    bbqIndexOptions.autoCalibrate,
+                    bbqIndexOptions.autoCalibrate(),
                     bbqIndexOptions.doPrecondition,
                     bbqIndexOptions.bits,
                     mappingOversample,
@@ -3955,7 +4041,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                             parentFilter,
                             visitRatio,
                             ivfQueryConfigResolver,
-                            RoutingFieldMapper.NAME,
+                            SliceIndexing.SLICE_KEY_FIELD_NAME,
                             sliceIds
                         )
                         : new IVFKnnFloatSlicedVectorQuery(
@@ -3966,7 +4052,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                             cachedFilter,
                             visitRatio,
                             ivfQueryConfigResolver,
-                            RoutingFieldMapper.NAME,
+                            SliceIndexing.SLICE_KEY_FIELD_NAME,
                             sliceIds
                         );
                 } else {
@@ -4302,7 +4388,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     private static DenseVectorIndexOptions parseIndexOptions(
         String fieldName,
         Object propNode,
-        IndexVersion indexVersion,
+        MappingParserContext context,
         boolean experimentalFeaturesEnabled
     ) {
         @SuppressWarnings("unchecked")
@@ -4317,7 +4403,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             throw new MapperParsingException("Unknown vector index options type [" + type + "] for field [" + fieldName + "]");
         }
         VectorIndexType parsedType = vectorIndexType.get();
-        return parsedType.parseIndexOptions(fieldName, indexOptionsMap, indexVersion, experimentalFeaturesEnabled);
+        return parsedType.parseIndexOptions(fieldName, indexOptionsMap, context, experimentalFeaturesEnabled);
     }
 
     private static boolean parseOnDiskMerge(Map<String, ?> indexOptionsMap) {
@@ -4362,10 +4448,18 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 mergingExecutorService = threadPool.executor(ThreadPool.Names.MERGE);
             }
         }
+        ExecutorService quantizerExecutorService = null;
+        if (threadPool != null) {
+            // use the MERGE pool as a CPU-bound writing-time threadpool
+            // that scales with the number of cores
+            // FLUSH only has 5 threads, and is targetted at IO operations
+            quantizerExecutorService = threadPool.executor(ThreadPool.Names.MERGE);
+        }
+
         final KnnVectorsFormat format;
         ElementType elementType = fieldType().element.elementType();
         final String sliceField = SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() && indexSettings.isSliceEnabled()
-            ? RoutingFieldMapper.NAME
+            ? SliceIndexing.SLICE_KEY_FIELD_NAME
             : null;
         if (indexOptions == null) {
             format = switch (elementType) {
@@ -4390,7 +4484,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     fieldType().similarity(),
                     elementType,
                     mergingExecutorService,
-                    maxMergingWorkers
+                    maxMergingWorkers,
+                    quantizerExecutorService
                 );
                 if (extraKnnFormat != null) {
                     break;
@@ -4398,7 +4493,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             format = extraKnnFormat != null
                 ? extraKnnFormat
-                : indexOptions.getVectorsFormat(elementType, mergingExecutorService, maxMergingWorkers, sliceField);
+                : indexOptions.getVectorsFormat(
+                    elementType,
+                    mergingExecutorService,
+                    maxMergingWorkers,
+                    quantizerExecutorService,
+                    sliceField
+                );
         }
         // It's legal to reuse the same format name as this is the same on-disk format.
         return new KnnVectorsFormat(format.getName()) {

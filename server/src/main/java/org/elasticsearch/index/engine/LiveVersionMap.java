@@ -346,8 +346,9 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
     /**
      * Like {@link #getUnderLock(BytesRef)} but, while the version map or its archive is unsafe, returns the
      * {@link #VERSION_MAP_UNSAFE} sentinel instead of consulting the archive (which may hold a stale version). Callers must
-     * compare the result against {@link #VERSION_MAP_UNSAFE} by identity and recover (refresh + resolve from Lucene) rather
-     * than trusting it. Used by the engine version-resolution path.
+     * compare the result against {@link #VERSION_MAP_UNSAFE} by identity and resolve the version from Lucene rather than
+     * trusting it. Realtime gets must also make sure the doc is in the commit the search shards are told to wait for. Used
+     * by the engine version-resolution paths.
      */
     VersionValue getUnderLockOrUnsafe(final BytesRef uid) {
         return getUnderLock(uid, maps, true);
@@ -390,6 +391,14 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
     }
 
     boolean isUnsafe() {
+        // Archive is only relevant for realtime gets in stateless and so for writes the map can be marked safe
+        // after an internal refresh.
+        return maps.current.isUnsafe() || maps.old.isUnsafe();
+    }
+
+    /// Returns if the map is unsafe specifically in the context of executing a realtime get.
+    /// See `StatelessLiveVersionMap`, [InternalEngine#getVersionForRead], [org.elasticsearch.action.get.TransportGetFromTranslogAction].
+    boolean isUnsafeForGets() {
         return maps.current.isUnsafe() || maps.old.isUnsafe() || archive.isUnsafe();
     }
 

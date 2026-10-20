@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.stateless.cache;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.telemetry.TelemetryProvider;
@@ -38,10 +39,15 @@ public final class SharedBlobCacheWarmingServiceTestHelper {
         ThreadPool threadPool,
         TelemetryProvider telemetryProvider,
         ClusterSettings clusterSettings,
-        WarmingRatioProvider warmingRatioProvider,
         Map<String, WarmTaskInfo> warmTasksForBCCs
     ) {
-        return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, clusterSettings, warmingRatioProvider) {
+        return new SharedBlobCacheWarmingService(
+            cacheService,
+            threadPool,
+            telemetryProvider,
+            clusterSettings,
+            new SearchRecoveryTimeoutCalculationService(cacheService, threadPool, clusterSettings, ByteSizeValue.ZERO)
+        ) {
             @Override
             protected void scheduleWarmingTask(AbstractWarmingTask task) {
                 if (task instanceof AbstractWarmer.WarmBlobByteRangeTask warmTask) {
@@ -60,6 +66,7 @@ public final class SharedBlobCacheWarmingServiceTestHelper {
      */
     public static void warmCache(
         SharedBlobCacheWarmingService warmingService,
+        WarmingRatioProvider warmingRatioProvider,
         SharedBlobCacheWarmingService.Type type,
         IndexShard indexShard,
         StatelessCompoundCommit commit,
@@ -68,6 +75,6 @@ public final class SharedBlobCacheWarmingServiceTestHelper {
         boolean preWarmForIdLookup,
         ActionListener<Void> listener
     ) {
-        warmingService.warmCache(type, indexShard, commit, directory, endTargetsToWarm, preWarmForIdLookup, listener);
+        warmingService.warmCache(type, indexShard, commit, directory, warmingRatioProvider, endTargetsToWarm, preWarmForIdLookup, listener);
     }
 }

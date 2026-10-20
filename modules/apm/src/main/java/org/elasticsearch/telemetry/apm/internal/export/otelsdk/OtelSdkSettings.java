@@ -149,7 +149,7 @@ public final class OtelSdkSettings {
     /** Buffered entries older than this are dropped. */
     public static final Setting<TimeValue> TELEMETRY_METRICS_BUFFER_TTL = Setting.timeSetting(
         "telemetry.metrics.buffer.ttl",
-        TimeValue.timeValueHours(12),
+        TimeValue.timeValueHours(48),
         NodeScope
     );
 
@@ -182,6 +182,18 @@ public final class OtelSdkSettings {
         "telemetry.tracing.max_depth",
         0,
         0,
+        OperatorDynamic,
+        NodeScope
+    );
+
+    /** Maximum number of spans recorded under a local root span, not counting the root. Spans beyond it, and their
+     * children, are not recorded. Defaults to the legacy {@code telemetry.agent.transaction_max_spans} when set,
+     * otherwise 500. */
+    public static final Setting<Integer> TELEMETRY_TRACING_MAX_SPANS = Setting.intSetting(
+        "telemetry.tracing.max_spans",
+        settings -> String.valueOf(Math.max(0, settings.getAsInt("telemetry.agent.transaction_max_spans", 500))),
+        0,
+        Integer.MAX_VALUE,
         OperatorDynamic,
         NodeScope
     );

@@ -48,7 +48,6 @@ import static org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT.fixTypesOnP
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -275,7 +274,7 @@ public class PushQueriesStringIT extends ESRestTestCase {
     }
 
     public void testCaseInsensitiveEquality() throws IOException {
-        String value = "a".repeat(between(1, 256));
+        String value = "a".repeat(between(0, 256));
         String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.isEmpty() ? 1 : value.length()));
         String esqlQuery = """
             FROM test
@@ -285,9 +284,7 @@ public class PushQueriesStringIT extends ESRestTestCase {
             case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> "*:*";
             case KEYWORD -> "".equals(value) ? "test:" : "CaseInsensitiveTermQuery{test:%value}";
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
-            case WILDCARD -> "".equals(value)
-                ? ":PatternAutomatonProvider[matchPattern=, caseInsensitive=true]"
-                : ":PatternAutomatonProvider[matchPattern=%value, caseInsensitive=true]";
+            case WILDCARD -> "".equals(value) ? ": []" : ":PatternAutomatonProvider[matchPattern=%value, caseInsensitive=true]";
         };
         ComputeSignature dataNodeSignature = switch (type) {
             case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
@@ -816,25 +813,7 @@ public class PushQueriesStringIT extends ESRestTestCase {
         Map<String, Object> result = runEsql(builder, new AssertWarnings.NoWarnings(), profileLogger, RestEsqlTestCase.Mode.SYNC);
         assertResultMap(
             result,
-            getResultMatcher(result).entry(
-                "profile",
-                matchesMap() //
-                    .entry("drivers", instanceOf(List.class))
-                    .entry("plans", instanceOf(List.class))
-                    .entry("planning", matchesMap().extraOk())
-                    .entry("parsing", matchesMap().extraOk())
-                    .entry("view_resolution", matchesMap().extraOk())
-                    .entry("dataset_resolution", matchesMap().extraOk())
-                    .entry("preanalysis", matchesMap().extraOk())
-                    .entry("indices_resolution", matchesMap().extraOk())
-                    .entry("enrich_resolution", matchesMap().extraOk())
-                    .entry("inference_resolution", matchesMap().extraOk())
-                    .entry("analysis", matchesMap().extraOk())
-                    .entry("query", matchesMap().extraOk())
-                    .entry("field_caps_calls", instanceOf(Integer.class))
-                    .entry("unmapped_fields", instanceOf(String.class))
-                    .entry("minimumTransportVersion", instanceOf(Integer.class))
-            ),
+            getResultMatcher(result).entry("profile", getProfileMatcher()),
             matchesList().item(matchesMap().entry("name", "test").entry("type", anyOf(equalTo("text"), equalTo("keyword")))),
             resultMatcher
         );

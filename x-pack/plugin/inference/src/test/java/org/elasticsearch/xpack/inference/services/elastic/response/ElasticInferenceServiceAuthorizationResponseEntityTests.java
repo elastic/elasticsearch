@@ -93,6 +93,9 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
     public static final String RERANK_V1_MODEL_NAME = "jina-reranker-v2";
     public static final String EIS_RERANK_PATH = "rerank";
 
+    // document extraction
+    public static final String EIS_DOCUMENT_EXTRACTION_PATH = "document_extraction";
+
     public record EisAuthorizationResponse(
         String responseJson,
         ElasticInferenceServiceAuthorizationResponseEntity responseEntity,
@@ -1413,6 +1416,50 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
         assertThat(capabilities.reasoning().defaultEffortLevel(), is(ReasoningEffort.MEDIUM));
         assertThat(capabilities.contextWindow().maxInputTokens(), is(1050000));
         assertThat(capabilities.contextWindow().maxOutputTokens(), is(128000));
+    }
+
+    public void testParse_ParsesTemplatesCapability() throws IOException {
+        var json = Strings.format("""
+            {
+              "inference_endpoints": [
+                {
+                  "id": "template-required-model",
+                  "model_name": "template-required-model",
+                  "task_types": { "eis": "%s", "elasticsearch": "chat_completion" },
+                  "status": "ga",
+                  "release_date": "2025-01-01",
+                  "regions": [],
+                  "capabilities": {
+                    "templates": { "policy": "required" }
+                  }
+                },
+                {
+                  "id": "future-model",
+                  "model_name": "future-model",
+                  "task_types": { "eis": "%s", "elasticsearch": "chat_completion" },
+                  "status": "ga",
+                  "release_date": "2025-01-01",
+                  "regions": [],
+                  "capabilities": {
+                    "templates": { "policy": "optional" }
+                  }
+                }
+              ]
+            }
+            """, EIS_CHAT_PATH, EIS_CHAT_PATH);
+
+        var response = parse(json);
+        assertThat(response.authorizedEndpoints().size(), is(2));
+
+        var templateRequiredCapabilities = response.authorizedEndpoints().get(0).capabilities();
+        assertThat(
+            templateRequiredCapabilities.templates(),
+            is(new EndpointMetadata.TemplatesCapability(EndpointMetadata.TemplatePolicy.REQUIRED))
+        );
+        assertThat(templateRequiredCapabilities.reasoning(), nullValue());
+
+        // A policy this node does not know about is dropped rather than failing the response
+        assertThat(response.authorizedEndpoints().get(1).capabilities(), is(EndpointMetadata.Capabilities.EMPTY_INSTANCE));
     }
 
     public void testParse_CapabilitiesWithUnknownEffortLevel_FiltersUnknownValues() throws IOException {

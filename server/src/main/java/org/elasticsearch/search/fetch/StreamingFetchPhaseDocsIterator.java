@@ -189,6 +189,7 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
         return (releasable, chunk) -> {
             try {
                 if (chunk.isLast) {
+                    chunk.bytes = chunkWriter.holdLastChunk(chunk.bytes);
                     lastChunkHolder.set(chunk);
                     releasable.close();
                     return;

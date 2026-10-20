@@ -4567,6 +4567,15 @@ public class EsqlCapabilities {
          */
         FIX_ROUND_TO_PUSHDOWN_SINGLE_POINT_NULL_BUCKET,
 
+        /**
+         * Fold null-propagating functions over a {@code NULL}-typed {@code COALESCE} or {@code CASE} to null, so e.g.
+         * {@code TO_GEOSHAPE(COALESCE(null_field))} no longer fails with "illegal data type [null]". Also fold them when a
+         * null input sits next to an input that treats null as data, so e.g. {@code DATE_DIFF("day", COALESCE(d), null)}
+         * no longer fails with "Invalid types [DATETIME, NULL]".
+         * https://github.com/elastic/elasticsearch/issues/156415
+         */
+        FOLD_NULL_TYPED_EXPRESSIONS,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

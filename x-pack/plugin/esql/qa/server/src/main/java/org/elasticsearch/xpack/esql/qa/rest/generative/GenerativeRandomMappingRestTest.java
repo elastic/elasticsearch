@@ -131,7 +131,7 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
                         currentSchema = List.of();
                     } else {
                         continueExecuting = true;
-                        currentSchema = result.outputSchema();
+                        currentSchema = updateIndexMapped(result.outputSchema(), currentSchema, current);
                     }
 
                     previousCommands.add(current);

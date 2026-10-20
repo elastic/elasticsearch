@@ -851,6 +851,36 @@ x:null | append_coalesce:keyword
 null   | [2, 1]
 ;
 
+foldNullTypedCoalesceInConversion
+required_capability: fold_null_typed_expressions
+ROW x = null | EVAL shape = TO_GEOSHAPE(COALESCE(x)), str = TO_STRING(COALESCE(x))
+;
+
+x:null | shape:geo_shape | str:keyword
+null   | null            | null
+;
+
+foldNullTypedCoalesceAndCaseInMath
+required_capability: fold_null_typed_expressions
+ROW x = null, y = 1 | EVAL a = ABS(COALESCE(x)), b = ABS(CASE(y == 1, x))
+;
+
+x:null | y:integer | a:null | b:null
+null   | 1         | null   | null
+;
+
+foldNullNextToCoalesce
+required_capability: fold_null_typed_expressions
+FROM employees
+| WHERE emp_no == 10001
+| EVAL u = "day", x = null, d = DATE_DIFF(u, COALESCE(hire_date), null), n = DATE_DIFF(u, COALESCE(hire_date), COALESCE(x))
+| KEEP d, n;
+warning:Line 3:33: Expression [DATE_DIFF(u, COALESCE(hire_date), null)] always evaluates to NULL.
+
+d:integer | n:integer
+null      | null
+;
+
 implicitCastingOfIPWithMultipleEvalsInterleaved
 required_capability: fix_missed_implicit_casting_inside_interleaved_evals
 

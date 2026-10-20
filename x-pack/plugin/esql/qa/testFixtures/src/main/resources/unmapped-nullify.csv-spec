@@ -654,6 +654,41 @@ emp_no:integer | x:null         | _fork:keyword
 10002          | null           | fork2
 ;
 
+// https://github.com/elastic/elasticsearch/issues/156415
+coalesceOfNullTypedColumnInConversionAfterFork
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fork_v9
+required_capability: fold_null_typed_expressions
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| FORK (WHERE emp_no == 10001 | EVAL x = does_not_exist)
+       (WHERE emp_no == 10002)
+| EVAL shape = TO_GEOSHAPE(COALESCE(x)), a = ABS(COALESCE(does_not_exist))
+| KEEP emp_no, shape, a
+| SORT emp_no
+;
+
+emp_no:integer | shape:geo_shape | a:null
+10001          | null            | null
+10002          | null            | null
+;
+
+coalesceOfUnmappedFieldInConversion
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fold_null_typed_expressions
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| WHERE emp_no == 10001
+| EVAL str = TO_STRING(CASE(emp_no > 0, does_not_exist)), shape = TO_GEOSHAPE(COALESCE(does_not_exist))
+| KEEP emp_no, str, shape
+;
+
+emp_no:integer | str:keyword | shape:geo_shape
+10001          | null        | null
+;
+
 inlinestatsCount
 required_capability: optional_fields_nullify_tech_preview
 required_capability: fix_sum_of_null_optimization

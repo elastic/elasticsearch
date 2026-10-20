@@ -9,7 +9,7 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq.next;
 
-import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
+import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.SegmentReadState;
@@ -67,10 +67,10 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         VectorPreconditioner,
         CalibrationAwareReader {
 
-    public ESNextDiskBBQVectorsReader(SegmentReadState state, IOFunction<String, FlatVectorsReader> getFormatReader) throws IOException {
+    public ESNextDiskBBQVectorsReader(SegmentReadState state, IOFunction<String, FlatVectorsFormat> rawFormats) throws IOException {
         super(
             state,
-            getFormatReader,
+            rawFormats,
             ESNextDiskBBQVectorsFormat.NAME,
             ESNextDiskBBQVectorsFormat.CENTROID_EXTENSION,
             ESNextDiskBBQVectorsFormat.CLUSTER_EXTENSION,
@@ -626,7 +626,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
     PostingVisitor getPostingVisitorForTest(String field, float[] query, ESAcceptDocs acceptDocs) throws IOException {
         FieldInfo fieldInfo = fieldInfos.fieldInfo(field);
         NextFieldEntry entry = fields.get(fieldInfo.number);
-        KnnVectorValues values = getFloatVectorValues(field);
+        KnnVectorValues values = rawFloatVectorValues(field);
         return getPostingVisitor(
             fieldInfo,
             values,

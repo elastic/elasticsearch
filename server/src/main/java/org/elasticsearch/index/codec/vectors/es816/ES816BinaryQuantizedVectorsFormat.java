@@ -28,6 +28,7 @@ import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsFormat;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.index.codec.vectors.AbstractFlatVectorsFormat;
+import org.elasticsearch.index.codec.vectors.SequentialRawVectors;
 import org.elasticsearch.index.codec.vectors.VectorReadHints;
 
 import java.io.IOException;
@@ -73,6 +74,12 @@ public class ES816BinaryQuantizedVectorsFormat extends AbstractFlatVectorsFormat
 
     @Override
     public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new ES816BinaryQuantizedVectorsReader(state, rawVectorFormat.fieldsReader(VectorReadHints.readToRescore(state)), scorer);
+        SegmentReadState rawState = VectorReadHints.readToRescore(state);
+        return new ES816BinaryQuantizedVectorsReader(
+            state,
+            rawVectorFormat.fieldsReader(rawState),
+            new SequentialRawVectors(rawVectorFormat, rawState),
+            scorer
+        );
     }
 }

@@ -65,12 +65,9 @@ public class SequentialVectorValuesTests extends MapperServiceTestCase {
         return VectorReadHintsTests.cases().stream().map(c -> new Object[] { c }).toList();
     }
 
-    /** Formats that keep raw vectors to rescore but read them only at random: disk BBQ, and formats older segments are read with. */
-    private static final List<String> RANDOM_ONLY = List.of("Disk", "ES813", "ES814", "ES816");
-
-    /** Whether {@code each} reads the raw vectors in doc order through a mapping of their own. */
+    /** Whether {@code each} reads the raw vectors in doc order through a mapping of their own: every format that rescores from them. */
     public static boolean readsSequentially(Case each) {
-        return each.rescoresFromRaw() && RANDOM_ONLY.stream().noneMatch(each.name()::contains);
+        return each.rescoresFromRaw();
     }
 
     private boolean readsSequentially() {

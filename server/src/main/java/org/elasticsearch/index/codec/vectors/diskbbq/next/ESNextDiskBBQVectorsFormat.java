@@ -19,7 +19,6 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TaskExecutor;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
-import org.elasticsearch.index.codec.vectors.VectorReadHints;
 import org.elasticsearch.index.codec.vectors.VectorWriteHints;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIndexFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
@@ -297,11 +296,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     @Override
     public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
         validateSliceSort(sliceField, state.segmentInfo.getIndexSort());
-        return new ESNextDiskBBQVectorsReader(state, f -> {
-            var format = supportedFormats.get(f);
-            if (format == null) return null;
-            return format.fieldsReader(VectorReadHints.readToRescore(state));
-        });
+        return new ESNextDiskBBQVectorsReader(state, supportedFormats::get);
     }
 
     @Override

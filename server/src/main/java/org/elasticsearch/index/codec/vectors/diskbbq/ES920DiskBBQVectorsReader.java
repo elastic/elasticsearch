@@ -9,7 +9,7 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
-import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
+import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.SegmentReadState;
@@ -46,10 +46,10 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader<IVFVectorsReader
     // QUERY_BITS value copied from Lucene102BinaryQuantizedVectorsFormat where it became package private
     private static final byte QUERY_BITS = 4;
 
-    ES920DiskBBQVectorsReader(SegmentReadState state, IOFunction<String, FlatVectorsReader> getFormatReader) throws IOException {
+    ES920DiskBBQVectorsReader(SegmentReadState state, IOFunction<String, FlatVectorsFormat> rawFormats) throws IOException {
         super(
             state,
-            getFormatReader,
+            rawFormats,
             ES920DiskBBQVectorsFormat.NAME,
             ES920DiskBBQVectorsFormat.CENTROID_EXTENSION,
             ES920DiskBBQVectorsFormat.CLUSTER_EXTENSION,

@@ -17,9 +17,11 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.NoReuseHint;
+import org.apache.lucene.util.IOSupplier;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.search.internal.FilterFloatVectorValues;
 
 import java.io.Closeable;
 import java.io.FileNotFoundException;
@@ -82,6 +84,11 @@ public final class SequentialRawVectors implements Closeable {
         return reader;
     }
 
+    /** {@code values}, the raw vectors of {@code field} as searches read them, which can be read sequentially through this. */
+    public FloatVectorValues forSearches(FloatVectorValues values, String field) {
+        return values == null ? null : new RawFloatVectorValues(values, () -> getFloatVectorValues(field));
+    }
+
     @Override
     public synchronized void close() throws IOException {
         closed = true;
@@ -89,6 +96,27 @@ public final class SequentialRawVectors implements Closeable {
             FlatVectorsReader toClose = reader;
             reader = null;
             toClose.close();
+        }
+    }
+
+    /** Raw vectors as searches read them, read sequentially through the sequential reader. */
+    private static final class RawFloatVectorValues extends FilterFloatVectorValues implements SequentialVectorValues {
+        private final IOSupplier<FloatVectorValues> sequentialValues;
+
+        RawFloatVectorValues(FloatVectorValues in, IOSupplier<FloatVectorValues> sequentialValues) {
+            super(in);
+            this.sequentialValues = sequentialValues;
+        }
+
+        @Override
+        public FloatVectorValues copy() throws IOException {
+            return new RawFloatVectorValues(in.copy(), sequentialValues);
+        }
+
+        @Override
+        public FloatVectorValues sequential() throws IOException {
+            FloatVectorValues sequential = sequentialValues.get();
+            return sequential == null ? this : sequential;
         }
     }
 }

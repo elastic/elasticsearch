@@ -11,6 +11,7 @@ package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.KnnVectorsReader;
+import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.CorruptIndexException;
@@ -33,6 +34,8 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
+import org.elasticsearch.index.codec.vectors.SequentialRawVectors;
+import org.elasticsearch.index.codec.vectors.VectorReadHints;
 import org.elasticsearch.index.codec.vectors.cluster.ClusteringFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.ClusteringVectorValues;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
@@ -42,6 +45,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -111,6 +115,9 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
     protected final FieldInfos fieldInfos;
     protected final IntObjectHashMap<E> fields;
     private final GenericFlatVectorReaders genericReaders;
+    // the raw vectors of each field read sequentially; none on a merge instance
+    private final Map<Integer, SequentialRawVectors> sequentialRawForFields;
+    private final List<SequentialRawVectors> sequentialRaw;
     private final String centroidExtension;
     private final String clusterExtension;
     private final int versionDirectIo;
@@ -122,7 +129,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
     @SuppressWarnings("this-escape")
     protected IVFVectorsReader(
         SegmentReadState state,
-        IOFunction<String, FlatVectorsReader> loadReader,
+        IOFunction<String, FlatVectorsFormat> rawFormats,
         String codecName,
         String centroidExtension,
         String clusterExtension,
@@ -138,6 +145,8 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         this.fieldInfos = state.fieldInfos;
         this.fields = new IntObjectHashMap<>();
         this.genericReaders = new GenericFlatVectorReaders();
+        this.sequentialRawForFields = new HashMap<>();
+        this.sequentialRaw = new ArrayList<>();
         this.centroidExtension = centroidExtension;
         this.clusterExtension = clusterExtension;
         this.versionDirectIo = versionDirectIo;
@@ -159,7 +168,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
                     state.segmentSuffix
                 );
                 this.versionMeta = versionMeta;
-                readFields(ivfMeta, versionMeta, genericReaders, loadReader);
+                readFields(ivfMeta, versionMeta, rawFormats);
             } catch (Throwable exception) {
                 priorE = exception;
             } finally {
@@ -182,6 +191,8 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         this.fieldInfos = other.fieldInfos;
         this.fields = other.fields;
         this.genericReaders = genericReaders;
+        this.sequentialRawForFields = Map.of();
+        this.sequentialRaw = List.of();
         this.centroidExtension = other.centroidExtension;
         this.clusterExtension = other.clusterExtension;
         this.versionDirectIo = other.versionDirectIo;
@@ -246,12 +257,10 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         }
     }
 
-    private void readFields(
-        ChecksumIndexInput meta,
-        int versionMeta,
-        GenericFlatVectorReaders genericFields,
-        IOFunction<String, FlatVectorsReader> loadReader
-    ) throws IOException {
+    /** Reads the fields, opening their raw vectors to rescore, and to read sequentially, see {@link SequentialRawVectors}. */
+    private void readFields(ChecksumIndexInput meta, int versionMeta, IOFunction<String, FlatVectorsFormat> rawFormats) throws IOException {
+        SegmentReadState rawState = VectorReadHints.readToRescore(state);
+        Map<String, SequentialRawVectors> sequentialRawForFormats = new HashMap<>();
         for (int fieldNumber = meta.readInt(); fieldNumber != -1; fieldNumber = meta.readInt()) {
             final FieldInfo info = fieldInfos.fieldInfo(fieldNumber);
             if (info == null) {
@@ -261,7 +270,16 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             final String rawVectorFormat = meta.readString();
             skipDirectIOFlags(meta, versionMeta);
             E fieldEntry = readField(meta, info, rawVectorFormat);
-            genericFields.loadField(fieldNumber, fieldEntry.rawVectorFormatName(), loadReader);
+            String formatName = fieldEntry.rawVectorFormatName();
+            FlatVectorsFormat format = rawFormats.apply(formatName);
+            genericReaders.loadField(fieldNumber, formatName, name -> format == null ? null : format.fieldsReader(rawState));
+            SequentialRawVectors sequential = sequentialRawForFormats.get(formatName);
+            if (sequential == null) {
+                sequential = new SequentialRawVectors(format, rawState);
+                sequentialRawForFormats.put(formatName, sequential);
+                sequentialRaw.add(sequential);
+            }
+            sequentialRawForFields.put(fieldNumber, sequential);
 
             fields.put(info.number, fieldEntry);
         }
@@ -383,6 +401,13 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
 
     @Override
     public final FloatVectorValues getFloatVectorValues(String field) throws IOException {
+        FloatVectorValues values = rawFloatVectorValues(field);
+        SequentialRawVectors sequential = sequentialRawForFields.get(fieldInfos.fieldInfo(field).number);
+        return sequential == null ? values : sequential.forSearches(values, field);
+    }
+
+    /** The raw vectors of {@code field}, as this reader's own search reads them. */
+    protected final FloatVectorValues rawFloatVectorValues(String field) throws IOException {
         return getReaderForField(field).getFloatVectorValues(field);
     }
 
@@ -460,7 +485,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         if (fieldInfo.getVectorEncoding().equals(VectorEncoding.BYTE)) {
             values = getByteVectorValues(field);
         } else {
-            values = getFloatVectorValues(field);
+            values = rawFloatVectorValues(field);
         }
         if (values == null) {
             return;
@@ -636,7 +661,8 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
 
     @Override
     public void close() throws IOException {
-        List<Closeable> closeables = new ArrayList<>(genericReaders.allReaders());
+        List<Closeable> closeables = new ArrayList<>(sequentialRaw);
+        closeables.addAll(genericReaders.allReaders());
         Collections.addAll(closeables, ivfCentroids, ivfClusters);
         IOUtils.close(closeables);
     }

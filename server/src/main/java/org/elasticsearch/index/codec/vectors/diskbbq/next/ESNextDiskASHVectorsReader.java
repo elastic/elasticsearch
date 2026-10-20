@@ -9,7 +9,7 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq.next;
 
-import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
+import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.SegmentReadState;
@@ -52,15 +52,15 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
 
     private final int queryBitsPerDim;
 
-    public ESNextDiskASHVectorsReader(SegmentReadState state, IOFunction<String, FlatVectorsReader> getFormatReader) throws IOException {
-        this(state, getFormatReader, IvfSegmentConfig.AshConfig.DEFAULT_QUERY_BITS_PER_DIM);
+    public ESNextDiskASHVectorsReader(SegmentReadState state, IOFunction<String, FlatVectorsFormat> rawFormats) throws IOException {
+        this(state, rawFormats, IvfSegmentConfig.AshConfig.DEFAULT_QUERY_BITS_PER_DIM);
     }
 
-    public ESNextDiskASHVectorsReader(SegmentReadState state, IOFunction<String, FlatVectorsReader> getFormatReader, int queryBitsPerDim)
+    public ESNextDiskASHVectorsReader(SegmentReadState state, IOFunction<String, FlatVectorsFormat> rawFormats, int queryBitsPerDim)
         throws IOException {
         super(
             state,
-            getFormatReader,
+            rawFormats,
             ESNextDiskASHVectorsFormat.NAME,
             ESNextDiskASHVectorsFormat.CENTROID_EXTENSION,
             ESNextDiskASHVectorsFormat.CLUSTER_EXTENSION,
@@ -402,7 +402,7 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
     PostingVisitor getPostingVisitorForTest(String field, float[] query, ESAcceptDocs acceptDocs) throws IOException {
         FieldInfo fieldInfo = fieldInfos.fieldInfo(field);
         ASHFieldEntry entry = fields.get(fieldInfo.number);
-        KnnVectorValues values = getFloatVectorValues(field);
+        KnnVectorValues values = rawFloatVectorValues(field);
         return getPostingVisitor(
             fieldInfo,
             values,

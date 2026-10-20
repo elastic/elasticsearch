@@ -16,7 +16,6 @@ import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.search.TaskExecutor;
-import org.elasticsearch.index.codec.vectors.VectorReadHints;
 import org.elasticsearch.index.codec.vectors.VectorWriteHints;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
@@ -286,11 +285,7 @@ public class ES950DiskBBQVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new ES950DiskBBQVectorsReader(state, f -> {
-            var format = supportedFormats.get(f);
-            if (format == null) return null;
-            return format.fieldsReader(VectorReadHints.readToRescore(state));
-        });
+        return new ES950DiskBBQVectorsReader(state, supportedFormats::get);
     }
 
     @Override

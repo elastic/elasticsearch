@@ -1773,11 +1773,10 @@ final class PageColumnReader implements Releasable {
         switch (decode) {
             case INT64_EPOCH_MILLIS -> {
                 readLongsDispatch(values, offset, count);
-                // A bare INT64 already holds epoch millis, and so does any annotation this arm does not scale --
-                // TIME renders a temporal type now, so TIMESTAMP is the only one left that needs normalizing. The
-                // test is hoisted out of the loop deliberately: calling through a helper that re-tests it per value
-                // turns a skipped loop into a per-row no-op for, say, an INT64 carrying intType(64, true).
-                if (logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation) {
+                // TIME reaches this arm too, `date` over a sub-millisecond column being a fused pair. Hoisted so an
+                // unannotated INT64 skips the test instead of paying it per value.
+                if (logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation
+                    || logicalType instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation) {
                     for (int i = 0; i < count; i++) {
                         values[offset + i] = ParquetColumnDecoding.convertTimestampToMillis(values[offset + i], logicalType);
                     }

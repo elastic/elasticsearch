@@ -375,6 +375,11 @@ public final class ParquetFixtureGenerator {
                 .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MILLIS));
             case "date_nanos" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT64)
                 .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS));
+            // The microsecond timestamp unit, which Arrow and Spark write by default. It has no ESQL type of its
+            // own -- it renders date_nanos, as the nanosecond unit does -- so the header name says the unit rather
+            // than the rendered type, and its values are epoch microseconds.
+            case "date_micros" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT64)
+                .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS));
             // TIME, the time-of-day annotation: MILLIS is physically an INT32, MICROS and NANOS INT64, which is
             // the Parquet spec's own pairing and what Arrow's time32/time64 produce.
             case "time_millis" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT32)
@@ -449,7 +454,7 @@ public final class ParquetFixtureGenerator {
                 case "double", "scaled_float" -> g.add(leafName, ((Number) value).doubleValue());
                 case "float", "half_float" -> g.add(leafName, ((Number) value).floatValue());
                 case "boolean" -> g.add(leafName, Boolean.TRUE.equals(value));
-                case "date", "date_nanos", "time_micros", "time_nanos" -> g.add(leafName, ((Number) value).longValue());
+                case "date", "date_nanos", "date_micros", "time_micros", "time_nanos" -> g.add(leafName, ((Number) value).longValue());
                 // TIME(MILLIS) is the one temporal annotation on a 32-bit physical column.
                 case "time_millis" -> g.add(leafName, ((Number) value).intValue());
                 case "ip" -> g.add(leafName, value.toString());

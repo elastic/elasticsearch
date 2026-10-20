@@ -1517,8 +1517,10 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
      * temporal read at its range edge, or a format parse failure) makes the decoded null-set larger than the physical
      * one, so {@code eq(col, null)} would prune a row group whose {@code nullCount == 0}. What declines is narrower
      * than "anything that rescales": a narrowing is total, so only a read that can leave a value with no
-     * representation at all declines -- {@code TIMESTAMP(MICROS)}, whose out-of-nanos-range values the decode nulls,
-     * the millis-to-nanos widen of a bare {@code INT64}, and any format parse. Mutating {@code decodeCanNull} to
+     * representation at all declines -- the millis-to-nanos widen of a bare {@code INT64} and any format parse.
+     * {@code TIMESTAMP(MICROS)} declines too, but conservatively rather than necessarily: its declared-{@code date}
+     * decode is a fused pair now and cannot null, and the arm is keyed on the declared type rather than the file's,
+     * which is what a relaxation would have to change first. Mutating {@code decodeCanNull} to
      * {@code declaredFormat != null} reds this.
      */
     public void testIsNullPushdownGateMatchesDecodeCanNullTruthTable() {
@@ -1528,8 +1530,7 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         record Case(String name, MessageType schema, DataType declared, String format, boolean pushes) {}
         List<Case> cases = List.of(
             // DATETIME: the identity reads over bare / MILLIS push, and so does the NANOS narrowing -- floorDiv is
-            // total over the whole long domain. MICROS is the one decline: its out-of-nanos-range values are nulled in
-            // the decode, before any narrowing.
+            // total over the whole long domain. MICROS is the one decline, and a conservative one: see the javadoc.
             new Case("datetime / bare INT64", int64Ts(null), DataType.DATETIME, null, true),
             new Case("datetime / TIMESTAMP(MILLIS)", int64Ts(timestampType(true, millis)), DataType.DATETIME, null, true),
             new Case("datetime / TIMESTAMP(MICROS)", int64Ts(timestampType(true, micros)), DataType.DATETIME, null, false),

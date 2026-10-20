@@ -1,0 +1,70 @@
+// A Parquet TIMESTAMP(MICROS) column renders date_nanos. Declared `date`, it used to read through date_nanos and
+// null anything outside 1677-09-21 .. 2262-04-11; it scales straight to millis now.
+//
+// {{micros_timestamp}} carries ts over seven rows: 1500-01-01 and the year 3000, outside that window; half a
+// microsecond before 1500-01-01 and one microsecond before the epoch, which separate flooring from truncation; the
+// epoch; a 2024 instant with sub-millisecond digits; and a null.
+
+// The whole microsecond domain, read as the declared type.
+declaredDateOverMicrosTimestampReadsOutsideTheNanosecondDomain
+required_capability: dataset_in_from_command
+required_capability: parquet_declared_date_reads_micros_in_one_step
+dataset: micros_declared: "{{micros_timestamp}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "integer"}, "ts": {"type": "date"}}}}
+
+FROM micros_declared
+| SORT id
+| KEEP id, ts
+;
+
+id:integer | ts:date
+1          | 1500-01-01T00:00:00.000Z
+2          | 1500-01-01T00:00:00.000Z
+3          | 1969-12-31T23:59:59.999Z
+4          | 1970-01-01T00:00:00.000Z
+5          | 2024-01-01T00:00:00.123Z
+6          | 3000-01-01T00:00:00.000Z
+7          | null
+;
+
+// The exact millisecond each row floors to, so one number per row says which arithmetic ran. We floor; clickhouse
+// local truncates toward zero, so rows 2 and 3 land 1ms off it (-14831769600000 and -1 here, ...599999 and 0 there).
+// We floor because the pushdown relation is derived from decoded == floorDiv(raw, d).
+declaredDateOverMicrosTimestampFloorsTowardsNegativeInfinity
+required_capability: dataset_in_from_command
+required_capability: parquet_declared_date_reads_micros_in_one_step
+dataset: micros_declared_millis: "{{micros_timestamp}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "integer"}, "ts": {"type": "date"}}}}
+
+FROM micros_declared_millis
+| SORT id
+| EVAL millis = TO_LONG(ts)
+| KEEP id, millis
+;
+
+id:integer | millis:long
+1          | -14831769600000
+2          | -14831769600000
+3          | -1
+4          | 0
+5          | 1704067200123
+6          | 32503680000000
+7          | null
+;
+
+// Sorting on id and keeping four more columns makes this query eligible for deferred extraction, which decodes the
+// pair in its own loop.
+declaredDateOverMicrosTimestampAgreesOnTheDeferredPath
+required_capability: dataset_in_from_command
+required_capability: parquet_declared_date_reads_micros_in_one_step
+dataset: micros_declared_deferred: "{{micros_timestamp}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "integer"}, "ts": {"type": "date"}, "note": {"type": "keyword"}, "qty": {"type": "integer"}, "ratio": {"type": "double"}}}}
+
+FROM micros_declared_deferred
+| SORT id
+| LIMIT 3
+| KEEP id, ts, note, qty, ratio
+;
+
+id:integer | ts:date                  | note:keyword                             | qty:integer | ratio:double
+1          | 1500-01-01T00:00:00.000Z | fifteen hundred                          | 10          | 1.5
+2          | 1500-01-01T00:00:00.000Z | half a microsecond before fifteen hundred | 20         | 2.5
+3          | 1969-12-31T23:59:59.999Z | one microsecond before the epoch         | 30          | 3.5
+;

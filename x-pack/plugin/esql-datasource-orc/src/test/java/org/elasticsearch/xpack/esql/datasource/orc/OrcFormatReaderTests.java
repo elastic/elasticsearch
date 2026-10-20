@@ -2894,6 +2894,11 @@ public class OrcFormatReaderTests extends ESTestCase {
                 if (from == DataType.TEXT) {
                     continue; // no ORC leaf type maps to TEXT; the pair is unreachable from a file
                 }
+                if (from == DataType.DATE_NANOS) {
+                    // convertOrcTypeToEsql has no arm producing DATE_NANOS, so no ORC column can arrive as that
+                    // source type. Remove this skip if one ever does.
+                    continue;
+                }
                 TypeDescription schema = TypeDescription.createStruct();
                 BatchPopulator populator;
                 switch (from) {

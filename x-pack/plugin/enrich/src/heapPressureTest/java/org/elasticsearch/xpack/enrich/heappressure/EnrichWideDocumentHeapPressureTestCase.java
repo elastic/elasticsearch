@@ -194,7 +194,7 @@ public abstract class EnrichWideDocumentHeapPressureTestCase extends ESRestTestC
         if (metricsJson != null) {
             return;
         }
-        StringBuilder json = new StringBuilder(FIELD_COUNT * 32);
+        StringBuilder json = new StringBuilder();
         try (XContentBuilder smile = XContentFactory.smileBuilder()) {
             smile.startObject();
             smile.field("key", key(0));
@@ -228,7 +228,7 @@ public abstract class EnrichWideDocumentHeapPressureTestCase extends ESRestTestC
         assertOK(client().performRequest(createSource));
 
         for (int from = 0; from < DOC_COUNT; from += UPLOAD_BULK_SIZE) {
-            StringBuilder bulk = new StringBuilder(UPLOAD_BULK_SIZE * (metricsJson.length() + 64));
+            StringBuilder bulk = new StringBuilder();
             for (int i = from; i < Math.min(from + UPLOAD_BULK_SIZE, DOC_COUNT); i++) {
                 bulk.append("{\"index\":{\"_id\":\"").append(key(i)).append("\"}}\n");
                 bulk.append("{\"key\":\"").append(key(i)).append('"').append(metricsJson).append("}\n");
@@ -240,7 +240,7 @@ public abstract class EnrichWideDocumentHeapPressureTestCase extends ESRestTestC
         }
         assertOK(client().performRequest(new Request("POST", "/" + SOURCE_INDEX + "/_refresh")));
 
-        StringBuilder policy = new StringBuilder(FIELD_COUNT * 20);
+        StringBuilder policy = new StringBuilder();
         policy.append("{\"match\":{\"indices\":\"").append(SOURCE_INDEX).append("\",\"match_field\":\"key\",\"enrich_fields\":[");
         for (int f = 1; f <= FIELD_COUNT; f++) {
             if (f > 1) {
@@ -278,7 +278,7 @@ public abstract class EnrichWideDocumentHeapPressureTestCase extends ESRestTestC
     protected record BulkOutcome(Map<Integer, Integer> statusCounts, Map<String, String> rejectionBodies, String transportFailure) {}
 
     private BulkOutcome sendBulk() {
-        StringBuilder bulk = new StringBuilder(DOC_COUNT * 48);
+        StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < DOC_COUNT; i++) {
             bulk.append("{\"index\":{}}\n{\"key\":\"").append(key(keyIndexForBulkDocument(i))).append("\"}\n");
         }

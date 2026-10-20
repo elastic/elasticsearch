@@ -38,6 +38,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -47,18 +48,28 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 final class ColumnarSourceWriter {
 
     static final int DOC_ID = 0;
     static final int[] DOC_IDS = new int[] { DOC_ID };
 
+    /**
+     * How many distinct batch-column-name sets each thread keeps pruned loaders for. Bulk pipelines send homogeneous batches, so one
+     * entry is typically enough; a few more absorb alternating pipelines without letting varying column sets (e.g. under dynamic
+     * mappings) accumulate loaders without bound.
+     */
+    private static final int MAX_PRUNED_LOADERS_PER_THREAD = 4;
+
     private final SourceFilter sourceFilter;
-    private final ThreadLocal<PerThreadResources> cachedColumnarPerThread;
+    private final ThreadLocal<PerThreadCache> cachedColumnarPerThread;
 
     ColumnarSourceWriter(SourceFilter sourceFilter) {
         this.sourceFilter = sourceFilter;
@@ -76,29 +87,25 @@ final class ColumnarSourceWriter {
      *                fields it is just {@code [doc]} and nothing downstream looks at it.
      */
     void write(MappingLookup mappingLookup, List<LuceneDocument> allDocs, LuceneDocument doc, XContentBuilder builder) throws IOException {
-        // It is safe to reuse synthetic loader and leaf loader for each thread per index.
-        // Because a new mapping will result into a new instance of this class and otherwise materialized mappings stay immutable.
-        PerThreadResources perThread = cachedColumnarPerThread.get();
-        if (perThread == null) {
-            final Mapping mapping = mappingLookup.getMapping();
-            final SourceFilter blobFilter = blobSourceFilter(mappingLookup);
-            SourceLoader.SyntheticFieldLoader fieldLoader = mapping.syntheticFieldLoader(blobFilter);
-            final SourceLoader.Synthetic sourceLoader = new SourceLoader.Synthetic(blobFilter, () -> {
-                fieldLoader.reset();
-                return fieldLoader;
-            }, SourceFieldMetrics.NOOP, mapping.ignoredSourceFormat());
+        write(mappingLookup, allDocs, doc, builder, null);
+    }
 
-            ReusableColumnarStoredLeafReader leafReader = new ReusableColumnarStoredLeafReader();
-            SourceLoader.Leaf leaf = sourceLoader.leaf(leafReader.getContext(), DOC_IDS);
-            // The required stored fields only depend on the mapping, so the factory is built once. Columnar_stored documents
-            // normally need none, and then nothing has to be visited at all.
-            final Set<String> requiredStoredFields = sourceLoader.requiredStoredFields();
-            final StoredFieldLoader storedFieldLoader = requiredStoredFields.isEmpty()
-                ? StoredFieldLoader.empty()
-                : StoredFieldLoader.create(false, requiredStoredFields);
-            perThread = new PerThreadResources(sourceLoader, fieldLoader, leaf, leafReader, storedFieldLoader);
-            cachedColumnarPerThread.set(perThread);
-        }
+    /**
+     * Like {@link #write(MappingLookup, List, LuceneDocument, XContentBuilder)}, but when {@code batchColumnNames} is non-null the
+     * synthetic field loaders are pruned to the field mappers that can read one of those Lucene columns. The columnar batch path
+     * passes the names of the columns its row cursor reads: that set is fixed for a whole batch, so a field loader without a column
+     * can never load a value, and leaving it out skips the per-document {@code advanceToDoc}/{@code prepare}/{@code write} walk over
+     * it. The caller must pass the names of exactly the columns whose fields {@code doc} was assembled from, and must not mutate the
+     * set afterwards, as it is kept as a cache key.
+     */
+    void write(
+        MappingLookup mappingLookup,
+        List<LuceneDocument> allDocs,
+        LuceneDocument doc,
+        XContentBuilder builder,
+        @Nullable Set<String> batchColumnNames
+    ) throws IOException {
+        PerThreadResources perThread = perThreadResources(mappingLookup, batchColumnNames);
 
         perThread.leafReader().setAllDocs(allDocs);
         perThread.leafReader().repopulate(doc);
@@ -111,6 +118,85 @@ final class ColumnarSourceWriter {
         var storedFieldLoader = perThread.storedFieldLoader().getLoader(leafCtx, DOC_IDS);
         storedFieldLoader.advanceTo(DOC_ID);
         leaf.write(storedFieldLoader, DOC_ID, builder);
+    }
+
+    /**
+     * Returns this thread's loader resources for {@code batchColumnNames}: the unpruned loader when {@code null} (the row path), or a
+     * loader pruned to the fields readable from those columns. It is safe to reuse the loaders for each thread per index, because a
+     * new mapping results in a new instance of this class and otherwise materialized mappings stay immutable. Pruned loaders are kept
+     * per distinct column-name set (bounded, LRU), as every batch of the same pipeline carries the same columns.
+     */
+    private PerThreadResources perThreadResources(MappingLookup mappingLookup, @Nullable Set<String> batchColumnNames) throws IOException {
+        PerThreadCache cache = cachedColumnarPerThread.get();
+        if (cache == null) {
+            cache = new PerThreadCache();
+            cachedColumnarPerThread.set(cache);
+        }
+        if (batchColumnNames == null) {
+            if (cache.unpruned == null) {
+                cache.unpruned = buildPerThreadResources(mappingLookup, null);
+            }
+            return cache.unpruned;
+        }
+        PerThreadResources resources = cache.pruned.get(batchColumnNames);
+        if (resources == null) {
+            resources = buildPerThreadResources(mappingLookup, leafFieldPredicate(batchColumnNames));
+            cache.pruned.put(batchColumnNames, resources);
+        }
+        return resources;
+    }
+
+    private PerThreadResources buildPerThreadResources(MappingLookup mappingLookup, @Nullable Predicate<String> leafFieldPredicate)
+        throws IOException {
+        final Mapping mapping = mappingLookup.getMapping();
+        final SourceFilter blobFilter = blobSourceFilter(mappingLookup);
+        SourceLoader.SyntheticFieldLoader fieldLoader = mapping.syntheticFieldLoader(blobFilter, false, leafFieldPredicate);
+        final SourceLoader.Synthetic sourceLoader = new SourceLoader.Synthetic(blobFilter, () -> {
+            fieldLoader.reset();
+            return fieldLoader;
+        }, SourceFieldMetrics.NOOP, mapping.ignoredSourceFormat());
+
+        ReusableColumnarStoredLeafReader leafReader = new ReusableColumnarStoredLeafReader();
+        SourceLoader.Leaf leaf = sourceLoader.leaf(leafReader.getContext(), DOC_IDS);
+        // The required stored fields only depend on the mapping, so the factory is built once. Columnar_stored documents
+        // normally need none, and then nothing has to be visited at all.
+        final Set<String> requiredStoredFields = sourceLoader.requiredStoredFields();
+        final StoredFieldLoader storedFieldLoader = requiredStoredFields.isEmpty()
+            ? StoredFieldLoader.empty()
+            : StoredFieldLoader.create(false, requiredStoredFields);
+        return new PerThreadResources(sourceLoader, fieldLoader, leaf, leafReader, storedFieldLoader);
+    }
+
+    /**
+     * The loader-pruning predicate for a batch: a field mapper is kept if and only if its path is a dot-boundary prefix of (or equal
+     * to) one of the batch's column names. A mapper's own column, its companion columns ({@code .counts}, {@code ._original},
+     * {@code ._ignore_malformed}, ...) and its multi-field columns (e.g. {@code title.keyword}, which text fields may delegate
+     * synthetic source to) all carry the mapper's path as such a prefix, so one column of any of these kinds keeps the mapper. A path
+     * that is a prefix of an unrelated column can only arise for an object (never pruned) or over-keeps a leaf, which costs a little
+     * speed but never correctness.
+     */
+    private static Predicate<String> leafFieldPredicate(Set<String> batchColumnNames) {
+        final Set<String> prefixes = new HashSet<>(batchColumnNames.size() * 2);
+        for (String name : batchColumnNames) {
+            prefixes.add(name);
+            for (int dot = name.indexOf('.'); dot != -1; dot = name.indexOf('.', dot + 1)) {
+                prefixes.add(name.substring(0, dot));
+            }
+        }
+        return prefixes::contains;
+    }
+
+    /**
+     * One thread's reusable loaders: the unpruned one the row path uses, plus a small LRU of loaders pruned per batch-column set.
+     */
+    private static final class PerThreadCache {
+        PerThreadResources unpruned;
+        final Map<Set<String>, PerThreadResources> pruned = new LinkedHashMap<>(16, 0.75f, true) {
+            @Override
+            protected boolean removeEldestEntry(Map.Entry<Set<String>, PerThreadResources> eldest) {
+                return size() > MAX_PRUNED_LOADERS_PER_THREAD;
+            }
+        };
     }
 
     /**

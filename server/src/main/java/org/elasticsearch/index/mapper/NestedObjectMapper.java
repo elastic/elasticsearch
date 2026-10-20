@@ -20,6 +20,7 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -35,6 +36,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.index.mapper.SourceFieldMetrics.NOOP;
@@ -445,8 +447,11 @@ public class NestedObjectMapper extends ObjectMapper {
         SourceFilter filter,
         Collection<Mapper> mappers,
         boolean isFragment,
-        boolean columnarStored
+        boolean columnarStored,
+        @Nullable Predicate<String> leafFieldPredicate
     ) {
+        // leafFieldPredicate is intentionally not propagated: pruning only serves the columnar batch path, which does not support
+        // nested fields, and the loaders below read nested child documents rather than batch columns.
         // IgnoredSourceFieldMapper integration takes care of writing the source for nested objects that enabled store_array_source.
         if (sourceKeepMode.orElse(SourceKeepMode.NONE) == SourceKeepMode.ALL) {
             // IgnoredSourceFieldMapper integration takes care of writing the source for the nested object.
@@ -455,7 +460,8 @@ public class NestedObjectMapper extends ObjectMapper {
 
         SourceLoader sourceLoader = new SourceLoader.Synthetic(
             filter,
-            () -> super.syntheticFieldLoader(filter, mappers, true, columnarStored),
+            // The 5-argument super variant must be named explicitly: the 4-argument one would dispatch back to this override.
+            () -> super.syntheticFieldLoader(filter, mappers, true, columnarStored, null),
             NOOP,
             IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings)
         );

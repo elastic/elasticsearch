@@ -728,6 +728,10 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         blobs.lockScalar(EscfColumnKind.BINARY);
         try (blobs) {
             final MappedColumns.RowCursor rows = context.rowCursor(SourceFieldMapper::isReadByColumnarSourceWriter);
+            // The names of the columns the cursor reads, collected once per batch: no document of this batch can carry a field of any
+            // other column, which lets the writer prune the synthetic loaders of the rest of the mapping instead of walking them
+            // once per document.
+            final Set<String> batchColumnNames = context.columnNames(SourceFieldMapper::isReadByColumnarSourceWriter);
             // Every blob of the batch is built in this one buffer: the constant entry prefix is written first, the JSON streams in
             // behind it, and the finished bytes are exposed in place (BytesRefStreamOutput.get) and handed to the column builder,
             // which copies them before the next document overwrites the buffer. This collapses the two intermediate copies that
@@ -743,7 +747,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 blobBuffer.reset();
                 blobBuffer.writeBytes(blobPrefix, 0, blobPrefix.length);
                 try (var builder = new XContentBuilder(XContentType.JSON.xContent(), blobBuffer)) {
-                    columnarSourceWriter.write(context.mappingLookup(), List.of(doc), doc, builder);
+                    columnarSourceWriter.write(context.mappingLookup(), List.of(doc), doc, builder, batchColumnNames);
                 }
                 blobs.setBinary(d, blobBuffer.get());
             }

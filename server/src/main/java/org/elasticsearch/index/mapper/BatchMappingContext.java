@@ -24,7 +24,9 @@ import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Predicate;
 
 /**
@@ -168,6 +170,21 @@ public final class BatchMappingContext implements Releasable {
      */
     public MappedColumns.RowCursor rowCursor(Predicate<? super LuceneColumn> include) {
         return mappedColumns().rowCursor(include);
+    }
+
+    /**
+     * Returns the Lucene field names of the columns attached so far that {@code include} accepts — the companion of
+     * {@link #rowCursor(Predicate)}, for callers that need to know up front which fields the cursor's rows can contain
+     * (e.g. to prune per-document work down to those fields).
+     */
+    public Set<String> columnNames(Predicate<? super LuceneColumn> include) {
+        final Set<String> names = new HashSet<>(columns.size());
+        for (LuceneColumn column : columns) {
+            if (include.test(column)) {
+                names.add(column.toLuceneColumn().name());
+            }
+        }
+        return names;
     }
 
     /**

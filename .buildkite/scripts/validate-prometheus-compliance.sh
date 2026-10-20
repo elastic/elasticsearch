@@ -56,10 +56,12 @@ configure() {
   # Changed queries listed per section; the full list is the changes artifact.
   declare -gr MAX_ROWS=50
   declare -gr MAX_QUERY_CHARS=200
-  # Size the node for the agent. promcheck keeps one case in flight per CPU, which gives the same results as a
-  # sequential run, only sooner, and the node gets every CPU: test clusters default to node.processors=2, which also
-  # caps the JVM at two. The heap gets a quarter of the memory; the rest is for the Gradle daemon, promcheck's
-  # in-process Prometheus, the page cache, and the checkouts on the ramdisk.
+  # Size the node for the agent: every CPU (test clusters default to node.processors=2, which also caps the JVM at
+  # two) and a quarter of the memory as heap; the rest is for the Gradle daemon, promcheck's in-process Prometheus,
+  # the page cache, and the checkouts on the ramdisk. promcheck keeps many cases and seeding writes in flight at once,
+  # more than the CPUs, since each spends part of its time waiting on I/O and the network; results are the same as a
+  # sequential run, only sooner.
+  declare -gr PROMCHECK_CONCURRENCY=100
   local cpus pages page_size
   cpus=$(getconf _NPROCESSORS_ONLN)
   pages=$(getconf _PHYS_PAGES)
@@ -176,7 +178,7 @@ run_promcheck() {
     --elasticsearch "$workspace" \
     --elasticsearch-timeout "${PROMCHECK_TEST_INSTANCE_TIMEOUT}s" \
     --output json \
-    --concurrency "$AGENT_CPUS" \
+    --concurrency "$PROMCHECK_CONCURRENCY" \
     -- "${gradle_args[@]}" \
     < "$BUNDLE" 2> "$fifo" | tee -- "$log_file"
   statuses=("${PIPESTATUS[@]}")
@@ -184,6 +186,11 @@ run_promcheck() {
   rm -f -- "$fifo"
   # The node log times the build, startup, and seeding of each run; the merge-base worktree is gone after the job.
   cp -- "$workspace/build/testclusters/runTask-0/logs/runTask.log" "${log_file%.log}.elasticsearch.log" 2>/dev/null || true
+  # promcheck discards Gradle's output; the daemon logs keep it, task outcomes and timings included.
+  local daemon_log
+  for daemon_log in "${GRADLE_USER_HOME:-$HOME/.gradle}"/daemon/*/daemon-*.out.log; do
+    [[ -f "$daemon_log" ]] && cp -- "$daemon_log" "$OUTPUT_DIR/gradle-${daemon_log##*/}"
+  done
   (( (statuses[0] == 0 || statuses[0] == 1) && statuses[1] == 0 && stderr_status == 0 ))
 }
 

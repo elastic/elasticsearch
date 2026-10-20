@@ -237,7 +237,7 @@ esac
       expect(args).toContain("--elasticsearch ");
       expect(args).toContain("--elasticsearch-timeout 900s");
       expect(args).toContain("--output json");
-      expect(args).toContain(`--concurrency ${cpus} --`);
+      expect(args).toContain("--concurrency 100 --");
       expect(args).toMatch(
         / -- --build-cache --scan --configuration-cache -I \S+\/\.ci\/init\.gradle -Dorg\.elasticsearch\.build\.cache\.url=https:\/\/gradle-enterprise\.elastic\.co\/cache\/ /,
       );

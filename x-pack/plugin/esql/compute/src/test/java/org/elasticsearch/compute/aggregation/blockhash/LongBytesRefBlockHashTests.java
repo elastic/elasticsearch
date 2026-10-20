@@ -116,7 +116,8 @@ public class LongBytesRefBlockHashTests extends BlockHashTestCase {
     }
 
     public void testAddSplitsMultivaluedPositionAcrossChunks() {
-        // 9 combinations per position across 40 positions exceeds the emit batch of 256, so position 28 is split
+        // each position has 3 longs x 3 bytes = 9 group ids; 256 = 28 * 9 + 4, so the first chunk ends after 4 of
+        // position 28's group ids and the other 5 arrive in the next chunk
         int positionCount = 40;
         try (
             LongBytesRefBlockHash hash = newHash(256);
@@ -219,15 +220,25 @@ public class LongBytesRefBlockHashTests extends BlockHashTestCase {
 
     /**
      * Adds the page and checks that every position was collected into exactly the groups of its key combinations.
-     * The hash may split a multivalued position across emitted chunks, so group ids are collected per position across
-     * all chunks and only checked once the whole page has been added. A group id must not be emitted twice for the
-     * same position, since aggregations would count it twice.
+     * <p>
+     *     A multivalued position fans out to one group id per long and bytes combination. The hash emits group ids in
+     *     chunks of {@code emitBatchSize} and may emit a chunk partway through a position, sending the rest of that
+     *     position's group ids in the next chunk, as
+     *     {@link org.elasticsearch.compute.aggregation.GroupingAggregatorFunction.AddInput} allows. So a chunk can hold
+     *     only some of a position's group ids, and the remaining combinations may not be in the hash yet.
+     *     Checking each chunk as it arrives would report those combinations as missing. Instead, group ids are
+     *     collected per position across all chunks and checked only after the whole page has been added.
+     * </p>
+     * <p>
+     *     A group id must not be emitted twice for the same position, since aggregations would count it twice.
+     * </p>
      * @return the number of emitted chunks
      */
     private static int addAndAssertGroupIds(LongBytesRefBlockHash hash, LongBlock longs, BytesRefBlock bytes) {
         Map<Integer, Set<Integer>> emitted = new HashMap<>();
         int[] chunks = new int[1];
         add(hash, hasDenseOrdinals(bytes), ordsAndKeys -> {
+            // only collect here: this chunk may end partway through a position
             chunks[0]++;
             IntBlock ords = ordsAndKeys.ords();
             for (int p = 0; p < ords.getPositionCount(); p++) {
@@ -240,6 +251,7 @@ public class LongBytesRefBlockHashTests extends BlockHashTestCase {
                 }
             }
         }, longs, bytes);
+        // every chunk has arrived, so each position now has all of its group ids
         Map<Key, Integer> groups = groupsByKey(hash);
         for (int position = 0; position < longs.getPositionCount(); position++) {
             Set<Integer> expected = new HashSet<>();

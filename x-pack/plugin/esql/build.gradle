@@ -106,6 +106,9 @@ dependencies {
   internalClusterTestImplementation project(":plugins:mapper-size")
   internalClusterTestImplementation project(xpackModule('inference:qa:test-service-plugin'))
   internalClusterTestImplementation(testArtifact(project(xpackModule('inference'))))
+  // DataNodeRequestDatasetAuthorizationIT runs a security-enabled internal cluster against crafted compute requests.
+  internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
+  internalClusterTestImplementation(testArtifact(project(xpackModule('security'))))
   internalClusterTestImplementation project(path: xpackModule('mapper-constant-keyword'))
   internalClusterTestImplementation project(xpackModule('analytics'))
   internalClusterTestImplementation project(xpackModule('spatial'))

@@ -186,6 +186,7 @@ public class DatasetResolverTests extends ESTestCase {
             relationOf("logs_*"),
             project,
             true,
+            Map.of(),
             QueryPragmas.EMPTY,
             EsqlFlags.withMaxBranchCountPerMerge(cap),
             future
@@ -267,6 +268,7 @@ public class DatasetResolverTests extends ESTestCase {
                 relationOf(DATASET_NAME),
                 project(),
                 false,
+                Map.of(),
                 QueryPragmas.EMPTY,
                 EsqlFlags.DEFAULTS,
                 meteredAtCompletion.map(rewritten -> tracker.isMeteringCurrentThread())
@@ -293,7 +295,7 @@ public class DatasetResolverTests extends ESTestCase {
         boolean wildcardsMatchDatasets
     ) {
         PlainActionFuture<LogicalPlan> future = new PlainActionFuture<>();
-        resolver.replaceDatasets(plan, project, wildcardsMatchDatasets, QueryPragmas.EMPTY, EsqlFlags.DEFAULTS, future);
+        resolver.replaceDatasets(plan, project, wildcardsMatchDatasets, Map.of(), QueryPragmas.EMPTY, EsqlFlags.DEFAULTS, future);
         return future.actionGet();
     }
 

@@ -11,11 +11,13 @@ package org.elasticsearch.index.codec.columnar;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.columnar.ColumnarFormat;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -32,9 +34,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
@@ -57,7 +61,9 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
         assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
 
         final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
-        createIndex(INDEX, columnarSettings(mode), "@timestamp", "type=date", "kw", "type=keyword");
+        final String mapping = Strings.format("""
+            {"properties":{"@timestamp":{"type":"date"},"kw":{"type":"keyword","doc_values":{"multi_value":%s}}}}""", randomBoolean());
+        indicesAdmin().prepareCreate(INDEX).setSettings(columnarSettings(mode)).setMapping(mapping).get();
         prepareIndex(INDEX).setSource("@timestamp", "2024-01-01T00:00:00Z", "kw", "hello").get();
         prepareIndex(INDEX).setSource("@timestamp", "2024-01-01T00:00:01Z", "kw", "world").get();
         indicesAdmin().prepareRefresh(INDEX).get();
@@ -67,6 +73,71 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
         assertHitCount(client().prepareSearch(INDEX).setSize(0), 2);
         assertHitCount(client().prepareSearch(INDEX).setQuery(QueryBuilders.termQuery("kw", "hello")), 1);
         assertHitCount(client().prepareSearch(INDEX).setQuery(QueryBuilders.termQuery("kw", "world")), 1);
+    }
+
+    /**
+     * A keyword in a columnar index is not indexed by default, so it may hold a value longer than Lucene's term limit. The codec's
+     * term table cannot hold such a value, so the codec has to write it as an escape rather than fail the flush, and keep doing so
+     * when segments are merged.
+     */
+    public void testKeywordLongerThanTermLimitRoundTripsThroughColumnarCodec() throws IOException {
+        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
+
+        final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
+        final String mapping = Strings.format("""
+            {"properties":{"@timestamp":{"type":"date"},"kw":{"type":"keyword","doc_values":{"multi_value":%s}}}}""", randomBoolean());
+        indicesAdmin().prepareCreate(INDEX).setSettings(columnarSettings(mode)).setMapping(mapping).get();
+
+        final Map<String, String> firstBatch = keywordsWithRepeatedShortValues("first");
+        firstBatch.put("at-limit", "a".repeat(IndexWriter.MAX_TERM_LENGTH));
+        firstBatch.put("just-over", "b".repeat(IndexWriter.MAX_TERM_LENGTH + 1));
+        firstBatch.put("well-over", "c".repeat(40_000));
+        bulkIndexKeywords(firstBatch);
+        assertEquals(
+            "the refresh flushes the long values through the codec",
+            0,
+            indicesAdmin().prepareRefresh(INDEX).get().getFailedShards()
+        );
+        assertKeywordFieldUsesColumnarFormat(INDEX);
+        assertKeywordsReadBack(firstBatch);
+
+        final Map<String, String> secondBatch = keywordsWithRepeatedShortValues("second");
+        secondBatch.put("well-over-again", "d".repeat(50_000));
+        bulkIndexKeywords(secondBatch);
+        assertEquals(0, indicesAdmin().prepareRefresh(INDEX).get().getFailedShards());
+
+        // Deleting a document makes the merge read the values back and survey them again, rather than reuse what each segment recorded.
+        client().prepareDelete(INDEX, "first-0").get();
+        indicesAdmin().prepareForceMerge(INDEX).setMaxNumSegments(1).get();
+        assertEquals(0, indicesAdmin().prepareRefresh(INDEX).get().getFailedShards());
+
+        firstBatch.remove("first-0");
+        assertKeywordsReadBack(firstBatch);
+        assertKeywordsReadBack(secondBatch);
+    }
+
+    private static Map<String, String> keywordsWithRepeatedShortValues(String idPrefix) {
+        final Map<String, String> keywordById = new LinkedHashMap<>();
+        for (int i = 0; i < 200; i++) {
+            keywordById.put(idPrefix + "-" + i, i % 2 == 0 ? "on" : "off");
+        }
+        return keywordById;
+    }
+
+    private void bulkIndexKeywords(Map<String, String> keywordById) {
+        final BulkRequestBuilder bulk = client().prepareBulk();
+        keywordById.forEach(
+            (id, keyword) -> bulk.add(prepareIndex(INDEX).setId(id).setSource("@timestamp", "2024-01-01T00:00:00Z", "kw", keyword))
+        );
+        final var response = bulk.get();
+        assertFalse(response.buildFailureMessage(), response.hasFailures());
+    }
+
+    private void assertKeywordsReadBack(Map<String, String> keywordById) {
+        for (Map.Entry<String, String> entry : keywordById.entrySet()) {
+            final Map<String, Object> source = client().prepareGet(INDEX, entry.getKey()).get().getSourceAsMap();
+            assertEquals(entry.getKey(), entry.getValue(), source.get("kw"));
+        }
     }
 
     public void testMultiValuedKeywordRoundTripsThroughColumnarCodec() throws IOException {
@@ -196,17 +267,17 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
     }
 
     /**
-     * An index sorted by a {@code multi_value: false} field, whose sort key is each document's value as its own bytes. The flushed
+     * An index sorted by a field holding at most one value per document, in either framing. The flushed
      * segment is sorted by what the indexing buffer holds and the merged one by what the column holds, so both are checked: one batch,
      * and several batches force-merged. Documents without the field sort to whichever end {@code missing} names.
      */
-    public void testIndexSortedBySingleValuedField() throws IOException {
+    public void testIndexSortedByKeywordWithOneValuePerDocument() throws IOException {
         assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
 
         final boolean descending = randomBoolean();
         final boolean missingFirst = randomBoolean();
-        final String mapping = """
-            {"properties":{"@timestamp":{"type":"date"},"kw":{"type":"keyword","doc_values":{"multi_value":false}}}}""";
+        final String mapping = Strings.format("""
+            {"properties":{"@timestamp":{"type":"date"},"kw":{"type":"keyword","doc_values":{"multi_value":%s}}}}""", randomBoolean());
         final List<String> values = new ArrayList<>();
         final int numDocs = between(50, 200);
         for (int i = 0; i < numDocs; i++) {
@@ -277,6 +348,148 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
         }
     }
 
+    /**
+     * An index sorted by a multi-valued keyword with a {@code min} or {@code max} sort mode, merged from several segments that hold
+     * deleted documents. The flushed segments are sorted from the indexing buffer, but the merged segment is sorted from the column
+     * and the deletes shift the document ids it is read through, so a wrong merged order would go unnoticed by anything that only
+     * looks at one segment. The merged order is checked against the order the values themselves dictate, which holds whatever
+     * doc-values format the index's codec picks for the keyword.
+     */
+    public void testIndexSortedByMultiValuedKeywordAcrossMergeWithDeletes() throws IOException {
+        final boolean max = randomBoolean();
+        final boolean descending = randomBoolean();
+        final boolean missingFirst = randomBoolean();
+        final String mapping = """
+            {"properties":{"@timestamp":{"type":"date"},"kw":{"type":"keyword"}}}""";
+
+        final int numDocs = between(100, 300);
+        final List<List<String>> docs = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            docs.add(switch (i % 7) {
+                case 0 -> null;
+                case 1 -> List.of();
+                case 2 -> Arrays.asList((String) null);
+                case 3 -> List.of("term-" + (i % 5));
+                case 4 -> Arrays.asList("term-" + (i % 5), null, "value-" + randomAlphaOfLength(between(1, 6)));
+                case 5 -> List.of("", "term-" + (i % 3));
+                default -> {
+                    final List<String> values = new ArrayList<>();
+                    for (int v = between(2, 5); v > 0; v--) {
+                        values.add(randomBoolean() ? "term-" + between(0, 4) : "value-" + randomAlphaOfLength(between(1, 8)));
+                    }
+                    yield values;
+                }
+            });
+        }
+        final List<Integer> order = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            order.add(i);
+        }
+        Collections.shuffle(order, random());
+        final Set<String> deleted = new HashSet<>();
+        for (int i = 0; i < numDocs; i++) {
+            if (randomInt(4) == 0) {
+                deleted.add(Integer.toString(i));
+            }
+        }
+        final int batches = between(3, 5);
+
+        final String index = INDEX + "-multi-sorted";
+        final Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR)
+            .put("index.sort.field", "kw")
+            .put("index.sort.mode", max ? "max" : "min")
+            .put("index.sort.order", descending ? "desc" : "asc")
+            .put("index.sort.missing", missingFirst ? "_first" : "_last")
+            .build();
+        indicesAdmin().prepareCreate(index).setSettings(settings).setMapping(mapping).get();
+        final int perBatch = (numDocs + batches - 1) / batches;
+        for (int from = 0; from < numDocs; from += perBatch) {
+            final BulkRequestBuilder bulk = client().prepareBulk();
+            for (int i = from; i < Math.min(from + perBatch, numDocs); i++) {
+                final int doc = order.get(i);
+                final Map<String, Object> source = new LinkedHashMap<>();
+                source.put("@timestamp", "2024-01-01T00:00:00Z");
+                if (docs.get(doc) != null) {
+                    source.put("kw", docs.get(doc));
+                }
+                bulk.add(prepareIndex(index).setId(Integer.toString(doc)).setSource(source));
+            }
+            final var response = bulk.get();
+            assertFalse(response.buildFailureMessage(), response.hasFailures());
+            indicesAdmin().prepareRefresh(index).get();
+        }
+        for (String id : deleted) {
+            client().prepareDelete(index, id).get();
+        }
+        indicesAdmin().prepareRefresh(index).get();
+        indicesAdmin().prepareForceMerge(index).setMaxNumSegments(1).get();
+        indicesAdmin().prepareRefresh(index).get();
+
+        final String description = "max=" + max + " desc=" + descending + " missingFirst=" + missingFirst;
+        final Map<String, List<String>> merged = valuesByIdInIndexOrder(index, numDocs);
+        assertEquals(description, numDocs - deleted.size(), merged.size());
+        for (String id : deleted) {
+            assertFalse("deleted [" + id + "] is gone", merged.containsKey(id));
+        }
+
+        // The merge rewrites every value it keeps, so each surviving document has to come back holding what was indexed for it.
+        for (var doc : merged.entrySet()) {
+            final List<String> indexed = docs.get(Integer.parseInt(doc.getKey()));
+            assertEquals("values of [" + doc.getKey() + "], " + description, indexed == null ? List.of() : indexed, doc.getValue());
+        }
+
+        // The sort keys the surviving documents were indexed with, in the order the merged segment holds them, against the order the
+        // keys dictate.
+        final List<String> actualKeys = new ArrayList<>();
+        for (String id : merged.keySet()) {
+            final List<String> indexed = docs.get(Integer.parseInt(id));
+            actualKeys.add(indexed == null ? null : sortKey(indexed, max));
+        }
+        final List<String> expectedKeys = new ArrayList<>(actualKeys);
+        final Comparator<String> byKey = descending ? Comparator.<String>reverseOrder() : Comparator.<String>naturalOrder();
+        expectedKeys.sort(Comparator.nullsFirst(byKey));
+        if (missingFirst == false) {
+            final long nulls = expectedKeys.stream().filter(k -> k == null).count();
+            expectedKeys.removeIf(k -> k == null);
+            for (long n = 0; n < nulls; n++) {
+                expectedKeys.add(null);
+            }
+        }
+        assertEquals("merged sort keys, " + description, expectedKeys, actualKeys);
+    }
+
+    /** The one value of {@code values} that the sort looks at, or {@code null} where the document has none. */
+    private static String sortKey(List<String> values, boolean max) {
+        return values.stream()
+            .filter(v -> v != null)
+            .reduce((a, b) -> (max ? a.compareTo(b) >= 0 : a.compareTo(b) <= 0) ? a : b)
+            .orElse(null);
+    }
+
+    /** Each live document's {@code kw} values by id, in the order the one segment of {@code index} holds them. */
+    private Map<String, List<String>> valuesByIdInIndexOrder(String index, int size) {
+        final var response = client().prepareSearch(index).addSort("_doc", org.elasticsearch.search.sort.SortOrder.ASC).setSize(size).get();
+        try {
+            final Map<String, List<String>> ordered = new LinkedHashMap<>();
+            for (var hit : response.getHits().getHits()) {
+                final Object kw = hit.getSourceAsMap().get("kw");
+                final List<String> values = new ArrayList<>();
+                if (kw instanceof List<?> list) {
+                    for (Object value : list) {
+                        values.add((String) value);
+                    }
+                } else if (kw != null) {
+                    values.add((String) kw);
+                }
+                ordered.put(hit.getId(), values);
+            }
+            return ordered;
+        } finally {
+            response.decRef();
+        }
+    }
+
     /** Each document's {@code kw} in the order the one segment of {@code index} holds them, {@code null} where it has none. */
     private List<String> valuesInIndexOrder(String index) {
         final var response = client().prepareSearch(index).addSort("_doc", org.elasticsearch.search.sort.SortOrder.ASC).setSize(1000).get();
@@ -293,9 +506,8 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
 
     /**
      * With no inverted index to fall back on, the term-family queries scan the binary doc values themselves. The columnar payload is not
-     * one of the encodings those queries are told about up front — {@code KeywordFieldType} hands them
-     * {@code usesArrayOrderInlineNull()}, which is false for it — so they have to recognise it per segment from the field's own
-     * attributes. This pins that, including the empty-term case, which rewrites to a length query and has to recognise the payload again.
+     * told to them by the mapping: {@code KeywordFieldType} hands them its binary format, which says the blobs are payloads. This pins
+     * that, including the empty-term case, which rewrites to a length query and has to recognise the payload again.
      */
     public void testDocValuesOnlyQueriesReadTheColumnarPayload() throws IOException {
         assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());

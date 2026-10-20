@@ -66,6 +66,23 @@ public class WarningsTests extends ESTestCase {
         assertThat(collected(dc), contains(expected));
     }
 
+    public void testRegisterExceptionDeduplication() {
+        DriverContext dc = collectingContext();
+        Warnings warnings = dc.createWarnings(new TestWarningsSource("foo"));
+        for (int i = 0; i < Warnings.MAX_ADDED_WARNINGS + 1000; i++) {
+            warnings.registerException(new ArithmeticException("not a finite double number: Infinity"));
+        }
+        warnings.registerException(new ArithmeticException("not a finite double number: -Infinity"));
+        assertThat(
+            collected(dc),
+            contains(
+                "Line 1:1: evaluation of [foo] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.ArithmeticException: not a finite double number: Infinity",
+                "Line 1:1: java.lang.ArithmeticException: not a finite double number: -Infinity"
+            )
+        );
+    }
+
     public void testRegisterIgnore() {
         DriverContext dc = ignoringContext();
         Warnings warnings = dc.createWarnings(new TestWarningsSource("foo"));

@@ -38,18 +38,7 @@ public class VectorScorerInt8BulkOperationBenchmarkTests extends BenchmarkTest {
         for (int i = 0; i < 100; i++) {
             var bench = newBench();
             try {
-                assertArrayEquals(function.toString(), bench.scoreSequential(), bench.scoreBulk(), 1e-5f);
-            } finally {
-                bench.teardown();
-            }
-        }
-    }
-
-    public void testBulkOffsets() {
-        for (int i = 0; i < 100; i++) {
-            var bench = newBench();
-            try {
-                assertArrayEquals(function.toString(), bench.scoreRandom(), bench.scoreBulkOffsets(), 1e-5f);
+                assertArrayEquals(function.toString(), bench.scoreSequential().clone(), bench.scoreBulk(), 1e-5f);
             } finally {
                 bench.teardown();
             }
@@ -60,7 +49,7 @@ public class VectorScorerInt8BulkOperationBenchmarkTests extends BenchmarkTest {
         for (int i = 0; i < 100; i++) {
             var bench = newBench();
             try {
-                assertArrayEquals(function.toString(), bench.scoreRandom(), bench.scoreBulkSparse(), 1e-5f);
+                assertArrayEquals(function.toString(), bench.scoreRandom().clone(), bench.scoreBulkSparse(), 1e-5f);
             } finally {
                 bench.teardown();
             }

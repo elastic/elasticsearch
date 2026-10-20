@@ -15,10 +15,12 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
+import org.elasticsearch.compute.operator.ThreadCpuTimer;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -54,6 +56,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 
 public class ExternalSourceCacheServiceTests extends ESTestCase {
@@ -65,6 +68,255 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             .put("esql.external.cache.enabled", true)
             .put("esql.external.cache.listing.ttl", "30s")
             .build();
+    }
+
+    private static Settings withSchemaTtl(String ttl) {
+        return Settings.builder()
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.schema.ttl", ttl)
+            .build();
+    }
+
+    /** The dataset aggregate expires on the listing clock, not the schema one. */
+    private static Settings withListingTtl(String ttl) {
+        return Settings.builder()
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", ttl)
+            .build();
+    }
+
+    /**
+     * A dataset is cached under one listing key per filter-hint set. A failed query drops every key of the datasets it read,
+     * including a hint-set key the query itself did not record. It leaves another dataset's listings alone, and those of another
+     * store that happens to use the same bucket and prefix.
+     */
+    public void testInvalidateDropsEveryHintVariantOfAUsedDataset() throws Exception {
+        Settings settings = Settings.builder().put("esql.external.cache.listing.ttl", "1h").build();
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
+            AtomicInteger loads = new AtomicInteger();
+            ListingCacheKey recorded = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), "");
+            ListingCacheKey hinted = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), "year=2024");
+            ListingCacheKey other = ListingCacheKey.build("s3", "other", "/data/*.parquet", "", "", Map.of(), "");
+            ListingCacheKey otherStore = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "other-endpoint", "", Map.of(), "");
+            for (ListingCacheKey key : List.of(recorded, hinted, other, otherStore)) {
+                service.getOrComputeListing(key, k -> {
+                    loads.incrementAndGet();
+                    return testCompactFileList();
+                });
+            }
+            assertEquals(4, loads.get());
+
+            service.invalidateListings(List.of(recorded));
+
+            for (ListingCacheKey key : List.of(recorded, hinted, other, otherStore)) {
+                service.getOrComputeListing(key, k -> {
+                    loads.incrementAndGet();
+                    return testCompactFileList();
+                });
+            }
+            assertEquals(
+                "the recorded and the hinted listing of the used dataset are read again, the other dataset and store are not",
+                6,
+                loads.get()
+            );
+        }
+    }
+
+    /**
+     * A failed query drops only the listings and file-metadata entries it read. Another dataset's listing, which was not part of the
+     * failed query, stays cached, so one rewritten object does not cost every dataset a re-listing.
+     */
+    public void testInvalidateDropsOnlyTheGivenListingsAndFileMetadata() throws Exception {
+        Settings settings = Settings.builder().put("esql.external.cache.listing.ttl", "1h").build();
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
+            AtomicInteger listingLoads = new AtomicInteger();
+            AtomicInteger metadataLoads = new AtomicInteger();
+            ListingCacheKey failed = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), "");
+            ListingCacheKey other = ListingCacheKey.build("s3", "other", "/data/*.parquet", "", "", Map.of(), "");
+            FileMetadataCacheKey failedFile = new FileMetadataCacheKey("s3://bucket/data/file.parquet", "");
+            FileMetadataCacheKey otherFile = new FileMetadataCacheKey("s3://other/data/file.parquet", "");
+            for (ListingCacheKey key : List.of(failed, other)) {
+                service.getOrComputeListing(key, k -> {
+                    listingLoads.incrementAndGet();
+                    return testCompactFileList();
+                });
+            }
+            for (FileMetadataCacheKey key : List.of(failedFile, otherFile)) {
+                service.getOrComputeFileMetadata(key, k -> {
+                    metadataLoads.incrementAndGet();
+                    return new FileMetadata(1L, 1L, "e1");
+                });
+            }
+
+            service.invalidateListings(List.of(failed));
+            service.invalidateFileMetadata(List.of(failedFile));
+
+            service.getOrComputeListing(failed, k -> {
+                listingLoads.incrementAndGet();
+                return testCompactFileList();
+            });
+            service.getOrComputeListing(other, k -> {
+                listingLoads.incrementAndGet();
+                return testCompactFileList();
+            });
+            service.getOrComputeFileMetadata(failedFile, k -> {
+                metadataLoads.incrementAndGet();
+                return new FileMetadata(1L, 1L, "e2");
+            });
+            service.getOrComputeFileMetadata(otherFile, k -> {
+                metadataLoads.incrementAndGet();
+                return new FileMetadata(1L, 1L, "e2");
+            });
+            assertEquals("only the failed query's listing is read again", 3, listingLoads.get());
+            assertEquals("only the failed query's file metadata is read again", 3, metadataLoads.get());
+        }
+    }
+
+    /**
+     * Reuse is bounded by the store's write clock, so an entry goes whether or not anything reads it and
+     * reading cannot postpone that.
+     */
+    public void testSchemaIsNotServedPastTheWindow() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(withSchemaTtl("1ms"))) {
+            SchemaCacheKey key = SchemaCacheKey.build(
+                "s3://bucket/data/file.parquet",
+                1000L,
+                TestDatasetIdentities.identity(".parquet", "", Map.of()),
+                false
+            );
+            service.putSchema(key, testSchemaEntry());
+            assertBusy(() -> assertNull("past the window the entry is not served", service.getSchemaIfPresent(key)));
+
+            AtomicInteger loads = new AtomicInteger();
+            service.getOrComputeSchema(key, k -> {
+                loads.incrementAndGet();
+                return testSchemaEntry();
+            });
+            assertEquals("and the loader runs again, so the read is retaken", 1, loads.get());
+        }
+    }
+
+    /**
+     * A sub-millisecond interval still bounds reuse. Only an explicit zero removes the clock, so rounding the
+     * configured value to whole milliseconds would turn the shortest interval into no interval at all.
+     */
+    public void testASubMillisecondIntervalStillBounds() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(withSchemaTtl("500micros"))) {
+            SchemaCacheKey key = SchemaCacheKey.build(
+                "s3://bucket/sub-milli.parquet",
+                1000L,
+                TestDatasetIdentities.identity(".parquet", "", Map.of()),
+                false
+            );
+            service.getOrComputeSchema(key, k -> testSchemaEntry());
+            assertBusy(() -> assertNull("a 500micros interval must still expire the entry", service.getSchemaIfPresent(key)));
+        }
+    }
+
+    /**
+     * Zero configures no clock at all, so an operator who wants the previous behaviour back sets it rather than
+     * guessing at a very large value.
+     */
+    public void testSchemaTtlOfZeroIsUnbounded() throws Exception {
+        SchemaCacheKey key = SchemaCacheKey.build(
+            "s3://bucket/data/file.parquet",
+            1000L,
+            TestDatasetIdentities.identity(".parquet", "", Map.of()),
+            false
+        );
+        try (
+            ExternalSourceCacheService windowed = new ExternalSourceCacheService(withSchemaTtl("1ms"));
+            ExternalSourceCacheService unbounded = new ExternalSourceCacheService(withSchemaTtl("0"))
+        ) {
+            windowed.putSchema(key, testSchemaEntry());
+            unbounded.putSchema(key, testSchemaEntry());
+
+            // The windowed store losing its entry is what dates the wait. No sleep on its own would show that
+            // the unbounded store keeps its entry; outliving a store that did expire does.
+            assertBusy(() -> assertNull(windowed.getSchemaIfPresent(key)));
+            assertNotNull("with no window configured the entry is still served", unbounded.getSchemaIfPresent(key));
+        }
+    }
+
+    /** The dataset aggregate is the glob read path's warm answer, so the window covers it as well. */
+    public void testDatasetAggregateIsNotServedPastTheWindow() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(withListingTtl("1ms"))) {
+            DatasetAggregateKey key = datasetKey();
+            service.putDatasetAggregate(key, 123L);
+            assertBusy(() -> assertNull("past the window the aggregate is not served", service.getDatasetAggregate(key)));
+        }
+    }
+
+    /**
+     * Expire-after-write, not after access: once the configured TTL passes, the next call re-lists exactly
+     * once and the call after that is a hit again. File metadata shares the same TTL.
+     */
+    public void testListingAndFileMetadataExpireAfterWrite() throws Exception {
+        Settings settings = Settings.builder()
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "200ms")
+            .build();
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
+            AtomicInteger listingLoads = new AtomicInteger();
+            AtomicInteger metadataLoads = new AtomicInteger();
+            ListingCacheKey listingKey = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), "");
+            FileMetadataCacheKey metadataKey = new FileMetadataCacheKey("s3://bucket/data/file.parquet", "");
+
+            service.getOrComputeListing(listingKey, k -> {
+                listingLoads.incrementAndGet();
+                return testCompactFileList();
+            });
+            service.getOrComputeFileMetadata(metadataKey, k -> {
+                metadataLoads.incrementAndGet();
+                return new FileMetadata(1L, 1L);
+            });
+            service.getOrComputeListing(listingKey, k -> {
+                listingLoads.incrementAndGet();
+                return testCompactFileList();
+            });
+            service.getOrComputeFileMetadata(metadataKey, k -> {
+                metadataLoads.incrementAndGet();
+                return new FileMetadata(1L, 1L);
+            });
+            assertEquals(1, listingLoads.get());
+            assertEquals(1, metadataLoads.get());
+
+            // Separate waits: the two entries were written a moment apart, so one can expire while the
+            // other is still fresh. A shared attempt would refresh the expired one and then fail the
+            // assertion, leaving a new TTL that the retry would treat as a hit.
+            assertBusy(() -> {
+                int before = listingLoads.get();
+                service.getOrComputeListing(listingKey, k -> {
+                    listingLoads.incrementAndGet();
+                    return testCompactFileList();
+                });
+                assertEquals(before + 1, listingLoads.get());
+            });
+            assertBusy(() -> {
+                int before = metadataLoads.get();
+                service.getOrComputeFileMetadata(metadataKey, k -> {
+                    metadataLoads.incrementAndGet();
+                    return new FileMetadata(1L, 1L);
+                });
+                assertEquals(before + 1, metadataLoads.get());
+            });
+
+            int listingsAfterExpiry = listingLoads.get();
+            int metadataAfterExpiry = metadataLoads.get();
+            service.getOrComputeListing(listingKey, k -> {
+                listingLoads.incrementAndGet();
+                return testCompactFileList();
+            });
+            service.getOrComputeFileMetadata(metadataKey, k -> {
+                metadataLoads.incrementAndGet();
+                return new FileMetadata(1L, 1L);
+            });
+            assertEquals(listingsAfterExpiry, listingLoads.get());
+            assertEquals(metadataAfterExpiry, metadataLoads.get());
+        }
     }
 
     public void testSchemaHitMiss() throws Exception {
@@ -193,6 +445,89 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             expectThrows(TaskCancelledException.class, leader::actionGet);
             assertSame(followerResult, follower.actionGet());
             assertEquals(1, followerComputeCalls.get());
+        }
+    }
+
+    private static void burnCpu(long nanos) {
+        long start = ThreadCpuTimer.currentNanos();
+        while (ThreadCpuTimer.elapsedNanos(start) < nanos) {
+            Thread.onSpinWait();
+        }
+    }
+
+    /**
+     * CPU a follower burns in the metering tests. Large relative to the leader's own cold-path CPU (exception stack trace, class
+     * init), which can reach tens of ms on slow CI, so a burn leaked onto the leader stays distinguishable from noise.
+     */
+    private static final long FOLLOWER_BURN_NANOS = TimeUnit.MILLISECONDS.toNanos(250);
+
+    /**
+     * The leader's thread completes a coalesced follower, so the follower's continuation must be metered for the
+     * follower's own query rather than counted in the leader's planning CPU.
+     */
+    public void testAsyncListingFollowerContinuationIsMeteredForTheFollower() throws Exception {
+        assumeTrue("thread CPU time unsupported", ThreadCpuTimer.currentNanos() >= 0);
+        long burnNanos = FOLLOWER_BURN_NANOS;
+        PlanningCpuTracker leaderCpu = new PlanningCpuTracker();
+        PlanningCpuTracker followerCpu = new PlanningCpuTracker();
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            ListingCacheKey key = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), "");
+            AtomicReference<ActionListener<FileList>> leaderCompletion = new AtomicReference<>();
+            AtomicBoolean meteredForFollower = new AtomicBoolean();
+            PlainActionFuture<FileList> follower = new PlainActionFuture<>();
+
+            leaderCpu.meteredCpu(() -> service.getOrComputeListingAsync(key, leaderCompletion::set, ActionListener.noop()));
+            followerCpu.meteredCpu(
+                () -> service.getOrComputeListingAsync(key, l -> fail("follower must not compute"), ActionListener.wrap(listing -> {
+                    meteredForFollower.set(followerCpu.isMeteringCurrentThread() && leaderCpu.isMeteringCurrentThread() == false);
+                    burnCpu(burnNanos);
+                    follower.onResponse(listing);
+                }, follower::onFailure))
+            );
+            long leaderBefore = leaderCpu.cpuNanos();
+            long followerBefore = followerCpu.cpuNanos();
+
+            FileList result = testCompactFileList();
+            leaderCpu.meteredCpu(() -> leaderCompletion.get().onResponse(result));
+
+            assertSame(result, follower.actionGet());
+            assertTrue("the follower's continuation must run in its own measurement", meteredForFollower.get());
+            assertThat(followerCpu.cpuNanos() - followerBefore, greaterThanOrEqualTo(burnNanos));
+            assertThat(leaderCpu.cpuNanos() - leaderBefore, lessThan(burnNanos));
+        }
+    }
+
+    /**
+     * A follower whose leader is cancelled computes the listing itself, on the leader's thread. That listing is the
+     * follower's planning CPU, not the cancelled leader's.
+     */
+    public void testAsyncListingFollowerRetryIsMeteredForTheFollower() throws Exception {
+        assumeTrue("thread CPU time unsupported", ThreadCpuTimer.currentNanos() >= 0);
+        long burnNanos = FOLLOWER_BURN_NANOS;
+        PlanningCpuTracker leaderCpu = new PlanningCpuTracker();
+        PlanningCpuTracker followerCpu = new PlanningCpuTracker();
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            ListingCacheKey key = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), "");
+            AtomicReference<ActionListener<FileList>> leaderCompletion = new AtomicReference<>();
+            AtomicBoolean meteredForFollower = new AtomicBoolean();
+            PlainActionFuture<FileList> follower = new PlainActionFuture<>();
+            FileList followerResult = testCompactFileList();
+
+            leaderCpu.meteredCpu(() -> service.getOrComputeListingAsync(key, leaderCompletion::set, ActionListener.noop()));
+            followerCpu.meteredCpu(() -> service.getOrComputeListingAsync(key, l -> {
+                meteredForFollower.set(followerCpu.isMeteringCurrentThread() && leaderCpu.isMeteringCurrentThread() == false);
+                burnCpu(burnNanos);
+                l.onResponse(followerResult);
+            }, follower));
+            long leaderBefore = leaderCpu.cpuNanos();
+            long followerBefore = followerCpu.cpuNanos();
+
+            leaderCpu.meteredCpu(() -> leaderCompletion.get().onFailure(new TaskCancelledException("leader cancelled")));
+
+            assertSame(followerResult, follower.actionGet());
+            assertTrue("the follower's retry must run in its own measurement", meteredForFollower.get());
+            assertThat(followerCpu.cpuNanos() - followerBefore, greaterThanOrEqualTo(burnNanos));
+            assertThat(leaderCpu.cpuNanos() - leaderBefore, lessThan(burnNanos));
         }
     }
 
@@ -363,76 +698,6 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         } finally {
             exec.shutdownNow();
             service.close();
-        }
-    }
-
-    /**
-     * Expire-after-write, not after access: once the configured TTL passes, the next call re-lists exactly
-     * once and the call after that is a hit again. File metadata shares the same TTL.
-     */
-    public void testListingAndFileMetadataExpireAfterWrite() throws Exception {
-        Settings settings = Settings.builder()
-            .put("esql.external.cache.size", "10mb")
-            .put("esql.external.cache.enabled", true)
-            .put("esql.external.cache.listing.ttl", "200ms")
-            .build();
-        try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
-            AtomicInteger listingLoads = new AtomicInteger();
-            AtomicInteger metadataLoads = new AtomicInteger();
-            ListingCacheKey listingKey = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), "");
-            FileMetadataCacheKey metadataKey = new FileMetadataCacheKey("s3://bucket/data/file.parquet", "");
-
-            service.getOrComputeListing(listingKey, k -> {
-                listingLoads.incrementAndGet();
-                return testCompactFileList();
-            });
-            service.getOrComputeFileMetadata(metadataKey, k -> {
-                metadataLoads.incrementAndGet();
-                return new FileMetadata(1L, 1L);
-            });
-            service.getOrComputeListing(listingKey, k -> {
-                listingLoads.incrementAndGet();
-                return testCompactFileList();
-            });
-            service.getOrComputeFileMetadata(metadataKey, k -> {
-                metadataLoads.incrementAndGet();
-                return new FileMetadata(1L, 1L);
-            });
-            assertEquals(1, listingLoads.get());
-            assertEquals(1, metadataLoads.get());
-
-            // Separate waits: the two entries were written a moment apart, so one can expire while the
-            // other is still fresh. A shared attempt would refresh the expired one and then fail the
-            // assertion, leaving a new TTL that the retry would treat as a hit.
-            assertBusy(() -> {
-                int before = listingLoads.get();
-                service.getOrComputeListing(listingKey, k -> {
-                    listingLoads.incrementAndGet();
-                    return testCompactFileList();
-                });
-                assertEquals(before + 1, listingLoads.get());
-            });
-            assertBusy(() -> {
-                int before = metadataLoads.get();
-                service.getOrComputeFileMetadata(metadataKey, k -> {
-                    metadataLoads.incrementAndGet();
-                    return new FileMetadata(1L, 1L);
-                });
-                assertEquals(before + 1, metadataLoads.get());
-            });
-
-            int listingsAfterExpiry = listingLoads.get();
-            int metadataAfterExpiry = metadataLoads.get();
-            service.getOrComputeListing(listingKey, k -> {
-                listingLoads.incrementAndGet();
-                return testCompactFileList();
-            });
-            service.getOrComputeFileMetadata(metadataKey, k -> {
-                metadataLoads.incrementAndGet();
-                return new FileMetadata(1L, 1L);
-            });
-            assertEquals(listingsAfterExpiry, listingLoads.get());
-            assertEquals(metadataAfterExpiry, metadataLoads.get());
         }
     }
 
@@ -3018,9 +3283,10 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     /**
      * B1: {@code esql.source.cache.schema.ttl} shipped in released versions, so it must stay REGISTERED — a
      * node carrying it in {@code elasticsearch.yml} would fail startup on an unregistered setting. It is now
-     * a deprecated no-op: wired to nothing, ignored. Unlike the other pre-rename {@code esql.source.cache.*}
-     * keys (covered by {@link #testRenamedCacheKeysResolveThroughDeprecatedOldKeys}), it has no
-     * {@code esql.external.cache.*} counterpart to fall back to — renaming a no-op would be pointless.
+     * a deprecated no-op: wired to nothing, ignored. It now has an {@code esql.external.cache.*} counterpart,
+     * {@code esql.external.cache.schema.ttl}, which deliberately does NOT inherit this key's value the way the
+     * other pre-rename keys do (see {@link #testRenamedCacheKeysResolveThroughDeprecatedOldKeys}): this one
+     * shipped documented as ignored, so a cluster may carry a value for it that nobody expects to be live.
      */
     public void testDeprecatedSchemaTtlSettingStaysRegisteredAndInert() throws Exception {
         assertTrue(
@@ -3043,6 +3309,11 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             service.getOrComputeSchema(key, k -> testSchemaEntry());
             assertEquals(1, service.usageStats().get("schema_cache.count"));
         }
+        assertEquals(
+            "the live key must not inherit the deprecated one's value: that key shipped documented as ignored",
+            TimeValue.timeValueMinutes(20),
+            ExternalSourceCacheSettings.SCHEMA_TTL.get(settings)
+        );
     }
 
     /**
@@ -3742,6 +4013,52 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
      * instead of the record already at the address: column a is gone after the second harvest and the first
      * assertion turns red.
      */
+    /**
+     * The statistics store takes no clock. A measurement stays readable after the schema record beside it has
+     * expired, because its own address does not move. Give that store the schema interval and this goes red.
+     */
+    public void testAMeasurementOutlivesTheSchemaRecordBesideIt() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(withSchemaTtl("1ms"))) {
+            String path = "file:///data/counted.csv";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, TestDatasetIdentities.identity(".csv", "id", Map.of()), false);
+            service.getOrComputeSchema(
+                key,
+                k -> SchemaCacheEntry.from(
+                    List.of(new ReferenceAttribute(Source.EMPTY, null, "a", DataType.LONG, Nullability.TRUE, null, false)),
+                    "csv",
+                    path,
+                    Map.of(
+                        ExternalStats.CONFIG_FINGERPRINT_KEY,
+                        "fp",
+                        ExternalStats.MTIME_MILLIS_KEY,
+                        mtime,
+                        ExternalStats.READ_CONFIG_FINGERPRINT_KEY,
+                        "own"
+                    ),
+                    Map.of()
+                )
+            );
+
+            Map<String, Object> harvest = new LinkedHashMap<>();
+            harvest.put(ExternalStats.MTIME_MILLIS_KEY, mtime);
+            harvest.put(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp");
+            harvest.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "own");
+            harvest.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 5L);
+            service.reconcileSourceStats(Map.of(path, harvest));
+            assertNotNull("the harvest must be readable to begin with", service.getStatistics(StatisticsKey.of(key, "own")));
+
+            assertBusy(() -> assertNull("the schema record expires on its own clock", service.getSchemaIfPresent(key)));
+            // Well past the schema interval, so a clock mistakenly applied to the statistics store would have
+            // taken the measurement with it rather than merely racing this read.
+            safeSleep(200);
+
+            Map<String, Object> stats = service.getStatistics(StatisticsKey.of(key, "own"));
+            assertNotNull("a measurement has no clock and outlives the record beside it", stats);
+            assertEquals(5L, stats.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        }
+    }
+
     public void testAStatisticsRecordAccumulatesAcrossHarvestsOfOneRead() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/two-cols.csv";

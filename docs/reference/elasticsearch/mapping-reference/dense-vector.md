@@ -614,7 +614,18 @@ $$$dense-vector-index-options$$$
 :   (Optional, boolean) When `true`, direct I/O is used where possible while merging the field's vector data, so that a merge does not displace what searches keep in memory. Can be changed with a mapping update, which applies to later merges; a merge reads each source segment with the setting that segment was written with, so segments written before the change keep the old behavior until they are merged away. Defaults to `false`.
 
 `auto_calibrate` {applies_to}`stack: ga 9.5`
-:   (Optional, boolean) Only applicable to `bbq_disk`. When `true`, {{es}} automatically selects the optimal quantization encoding, oversampling factor, and preconditioning for each merged segment based on the actual recall characteristics of the merged corpus. Segments containing fewer than 10,000 vectors after merging are not calibrated and, when not otherwise specified in the mappings, use the default oversampling factor of 3.0x. Defaults to `false`. Cannot be changed after the field is created. Refer to [Auto-calibration for `bbq_disk`](/reference/elasticsearch/mapping-reference/bbq.md#bbq-auto-calibration) for details.
+:   (Optional, boolean) Only applicable to `bbq_disk`.
+    When `true`, {{es}} automatically selects the optimal quantization encoding, oversampling factor, and preconditioning for each merged segment based on the actual recall characteristics of the merged corpus.
+    Segments containing fewer than 10,000 vectors after merging are not calibrated and when not otherwise specified in the mappings, use the default oversampling factor of 3.0x.
+    Defaults to `false`.
+    Refer to [Auto-calibration for `bbq_disk`](/reference/elasticsearch/mapping-reference/bbq.md#bbq-auto-calibration) for details.
+
+::::{applies-switch}
+
+- {applies_to}`stack: ga 9.6+` Can be changed on an existing field with the [update mapping API]({{es-apis}}operation/operation-indices-put-mapping), in either direction. The new value applies to later merges only. Segments that already exist are not rewritten. Refer to [Changing `auto_calibrate` on an existing field](/reference/elasticsearch/mapping-reference/bbq.md#bbq-auto-calibration-update) for details.
+- {applies_to}`stack: ga =9.5` Cannot be changed after the field is created.
+
+::::
 :::::
 
 

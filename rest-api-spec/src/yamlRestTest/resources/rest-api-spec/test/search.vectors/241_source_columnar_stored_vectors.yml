@@ -232,6 +232,11 @@ setup:
           name: dynamic.jpg
           my_vector: [1, 2, 3]
 
+  # wait and ensure that the mapping update is replicated
+  - do:
+      cluster.health:
+        wait_for_events: languid
+
   - do:
       indices.get_mapping:
         index: test_dynamic

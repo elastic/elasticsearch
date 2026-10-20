@@ -24,10 +24,12 @@ import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
- * Removes {@code STATS BY} keys that do not add grouping cardinality and rebuilds their output above the aggregation.
+ * Removes {@code STATS BY} keys that do not add grouping cardinality and rebuilds their output above the aggregation. When it
+ * prunes, it also drops fields of the {@code EVAL} directly below the aggregate that nothing reads any more.
  * <p>
  * Only scalar constants qualify: {@code STATS ... BY 1, x} or {@code EVAL c = 1 | STATS ... BY c, x} group on {@code x}
  * alone and re-emit the constant in an {@link Eval} above the {@link Aggregate}. A constant is single-valued on every
@@ -81,7 +83,7 @@ public final class PruneRedundantAggregateGroupings extends OptimizerRules.Optim
         }
 
         LogicalPlan plan = aggregate.with(
-            pruneUnusedChildEvals(aggregate.child(), prunedGroupings, newGroupings, newAggregates),
+            pruneUnusedChildEvals(aggregate.child(), newGroupings, newAggregates),
             newGroupings,
             newAggregates
         );
@@ -112,7 +114,6 @@ public final class PruneRedundantAggregateGroupings extends OptimizerRules.Optim
 
     private static LogicalPlan pruneUnusedChildEvals(
         LogicalPlan child,
-        List<PrunedGrouping> prunedGroupings,
         List<Expression> newGroupings,
         List<NamedExpression> newAggregates
     ) {
@@ -120,26 +121,23 @@ public final class PruneRedundantAggregateGroupings extends OptimizerRules.Optim
             return child;
         }
 
-        AttributeSet requiredByAggregate = Aggregate.computeReferences(newAggregates, newGroupings);
-        AttributeSet.Builder removableAttributes = AttributeSet.builder();
-        for (PrunedGrouping prunedGrouping : prunedGroupings) {
-            Attribute attribute = Expressions.attribute(prunedGrouping.grouping());
-            if (attribute != null && requiredByAggregate.contains(attribute) == false) {
-                removableAttributes.add(attribute);
+        // Only the aggregate reads this Eval, so a field is needed only if the aggregate or a needed field after it reads it,
+        // such as a kept grouping `b = a * 2` reading a pruned `a`. A field reads only fields before it, so walking backwards
+        // settles each field after all of its readers.
+        AttributeSet.Builder required = Aggregate.computeReferences(newAggregates, newGroupings).asBuilder();
+        List<Alias> fields = eval.fields();
+        List<Alias> remainingFields = new ArrayList<>(fields.size());
+        for (int i = fields.size() - 1; i >= 0; i--) {
+            Alias field = fields.get(i);
+            if (required.contains(field.toAttribute())) {
+                required.addAll(field.child().references());
+                remainingFields.add(field);
             }
         }
-
-        if (removableAttributes.isEmpty()) {
+        if (remainingFields.size() == fields.size()) {
             return child;
         }
-
-        List<Alias> remainingFields = eval.fields()
-            .stream()
-            .filter(alias -> removableAttributes.contains(alias.toAttribute()) == false)
-            .toList();
-        if (remainingFields.size() == eval.fields().size()) {
-            return child;
-        }
+        Collections.reverse(remainingFields);
         return remainingFields.isEmpty() ? eval.child() : new Eval(eval.source(), eval.child(), remainingFields);
     }
 

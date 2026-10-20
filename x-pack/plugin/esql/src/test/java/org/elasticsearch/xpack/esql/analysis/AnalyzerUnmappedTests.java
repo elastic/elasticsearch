@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
@@ -41,6 +42,7 @@ import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -66,7 +68,8 @@ import java.util.function.Function;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
-import static org.elasticsearch.xpack.esql.analysis.Analyzer.nonLoadablePunkWarning;
+import static org.elasticsearch.xpack.esql.analysis.Analyzer.MAX_LISTED_NON_LOADABLE_PUNKS;
+import static org.elasticsearch.xpack.esql.analysis.Analyzer.nonLoadablePunksWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldCapabilitiesIndexResponse;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldResponseMap;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
@@ -777,6 +780,60 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         test().statement(setUnmappedLoad("FROM test | RENAME first_name AS fname | KEEP fname, does_not_exist"));
     }
 
+    public void testAllFieldsFillNullFillsLoadInjectedUnmappedColumn() {
+        assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        var plan = test().statement(setUnmappedLoad("FROM test | FILLNULL DEFAULT ON * | KEEP emp_no, does_not_exist"));
+
+        Holder<FillNull> holder = new Holder<>();
+        plan.forEachDown(FillNull.class, holder::set);
+        FillNull fillNull = holder.get();
+        assertThat("FILLNULL node should be present in the analyzed plan", fillNull, notNullValue());
+
+        Set<String> filledNames = new HashSet<>();
+        fillNull.fields().forEach(alias -> filledNames.add(alias.name()));
+        assertThat(
+            "all-fields FILLNULL must fill the load-injected unmapped keyword column [does_not_exist]",
+            filledNames,
+            hasItem("does_not_exist")
+        );
+    }
+
+    public void testAllFieldsFillNullWithColistedUnmappedNameResolvesUnderLoad() {
+        assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        // A name co-listed with `*` is resolved like in any other command, so under unmapped_fields="load" it resolves
+        // to the injected column rather than failing - and is covered by the all-fields form.
+        var plan = test().statement(setUnmappedLoad("FROM test | FILLNULL DEFAULT ON *, does_not_exist | KEEP emp_no, does_not_exist"));
+
+        Holder<FillNull> holder = new Holder<>();
+        plan.forEachDown(FillNull.class, holder::set);
+        FillNull fillNull = holder.get();
+        assertThat("FILLNULL node should be present in the analyzed plan", fillNull, notNullValue());
+        assertThat("`*` co-listed with a name is still the all-fields form", fillNull.allColumns(), is(true));
+
+        Set<String> filledNames = new HashSet<>();
+        fillNull.fields().forEach(alias -> filledNames.add(alias.name()));
+        assertThat("the co-listed load-injected column [does_not_exist] must be filled", filledNames, hasItem("does_not_exist"));
+    }
+
+    public void testAllFieldsFillNullWithNonStringValueResolvesUnderLoad() {
+        assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        for (String value : List.of("0", "true", "1.5", "null", "DEFAULT", "\"x\"")) {
+            var plan = test().statement(setUnmappedLoad("FROM test | FILLNULL " + value + " ON * | KEEP emp_no, does_not_exist"));
+            assertThat("FILLNULL " + value + " ON * must not leave the plan unresolved", plan.resolved(), is(true));
+        }
+    }
+
+    public void testTargetedFillNullIsUnaffectedByAnUnrelatedLoadInjectedColumn() {
+        assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        var plan = test().statement(setUnmappedLoad("FROM test | FILLNULL \"x\" ON first_name | KEEP first_name, does_not_exist"));
+
+        assertThat("the analyzed plan must be fully resolved", plan.resolved(), is(true));
+        Holder<FillNull> holder = new Holder<>();
+        plan.forEachDown(FillNull.class, holder::set);
+        assertThat(holder.get(), notNullValue());
+        assertThat(holder.get().expressionsResolved(), is(true));
+    }
+
     // unmapped_fields="load" now supports branching views/subqueries (#142033): the branching-view equivalent analyzes successfully.
     public void testLoadModeAllowsBranchingViewEquivalent() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
@@ -790,6 +847,119 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         test().statement(
             setUnmappedLoad("FROM (FROM test | WHERE emp_no > 1),(FROM test | WHERE emp_no < 100) | KEEP emp_no, does_not_exist")
         );
+    }
+
+    // A reference written inside a view body is not a load candidate: the caller's unmapped_fields setting ends at
+    // the view boundary, so it fails resolution exactly as it would without the setting. End-to-end in ViewSettingsIT.
+    public void testLoadReferenceInsideViewBodyFailsResolution() {
+        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        test().addLanguages()
+            .addView("emp_lang_view", "FROM test, (FROM languages | KEEP language_code, does_not_exist)")
+            .statementError(setUnmappedLoad("""
+                FROM emp_lang_view
+                | KEEP emp_no, language_code
+                """), allOf(containsString("in view [emp_lang_view]"), containsString("Unknown column [does_not_exist]")));
+    }
+
+    // The same boundary under LOAD_ALL, which does not load anything from a view's _source either: a field a view body names fails
+    // resolution as without the setting, whether it is read, kept, dropped or renamed.
+    public void testLoadAllReferenceInsideViewBodyFailsResolution() {
+        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
+        for (String body : List.of(
+            "FROM test | WHERE does_not_exist IS NOT NULL",
+            "FROM test | KEEP emp_no, does_not_exist",
+            "FROM test | DROP does_not_exist",
+            "FROM test | RENAME does_not_exist AS renamed",
+            "FROM test | STATS c = COUNT(does_not_exist)"
+        )) {
+            test().addView("bad_view", body)
+                .statementError(
+                    setUnmappedLoadAll("FROM bad_view"),
+                    allOf(containsString("in view [bad_view]"), containsString("Unknown column [does_not_exist]"))
+                );
+        }
+    }
+
+    public void testNullifyReferenceInsideViewBodyFailsResolution() {
+        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        test().addLanguages()
+            .addView("emp_lang_view", "FROM test, (FROM languages | KEEP language_code, does_not_exist)")
+            .statementError(setUnmappedNullify("""
+                FROM emp_lang_view
+                | KEEP emp_no, language_code
+                """), allOf(containsString("in view [emp_lang_view]"), containsString("Unknown column [does_not_exist]")));
+    }
+
+    // The view's own SET unmapped_fields applies to that definition alone. The caller set nothing.
+    public void testDropInsideLoadViewDropsTheColumnWhenCallerUsesDefault() {
+        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        LogicalPlan plan = test().addView("drop_view", """
+            SET unmapped_fields="load";
+            FROM test | DROP does_not_exist | KEEP emp_no
+            """).statement("FROM drop_view");
+        assertThat(plan.resolved(), is(true));
+        assertThat(Expressions.names(plan.output()), not(hasItem("does_not_exist")));
+    }
+
+    // The view's own SET unmapped_fields=load is what makes field.a load. The caller set nothing, so the flattened-parent
+    // rejection has to use the view's mode.
+    public void testFlattenedSubfieldInsideLoadViewIsRejectedWhenCallerUsesDefault() {
+        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        index1().addView("flat_view", """
+            SET unmapped_fields="load";
+            FROM test | KEEP field.a
+            """)
+            .statementError(
+                "FROM flat_view",
+                containsString(
+                    "Loading subfield [field.a] when parent [field] is of flattened field type is not supported with "
+                        + "unmapped_fields=\"load\""
+                )
+            );
+    }
+
+    public void testLoadSetInsideViewDefinitionResolvesReferenceInThatBody() {
+        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        LogicalPlan plan = test().addView("load_view", """
+            SET unmapped_fields="load";
+            FROM test | KEEP emp_no, does_not_exist
+            """).statement("FROM load_view");
+        assertThat(plan.resolved(), is(true));
+    }
+
+    // A nested view does not inherit the enclosing view's SET. The reference lives in the nested definition, which
+    // did not opt in, so it fails exactly as it would with no setting anywhere.
+    public void testLoadSetInsideViewDoesNotResolveReferenceInsideNestedView() {
+        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        test().addView("inner_view", "FROM test | KEEP emp_no, does_not_exist")
+            .addView("outer_view", """
+                SET unmapped_fields="load";
+                FROM inner_view
+                """)
+            .statementError(
+                "FROM outer_view",
+                allOf(containsString("in view [inner_view]"), containsString("Unknown column [does_not_exist]"))
+            );
+    }
+
+    // The nested view opted in itself. The enclosing view did not, and does not have to: each definition stands alone.
+    public void testLoadSetInsideNestedViewResolvesEvenWhenEnclosingViewDoesNot() {
+        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        LogicalPlan plan = test().addView("inner_view", """
+            SET unmapped_fields="load";
+            FROM test | KEEP emp_no, does_not_exist
+            """).addView("outer_view", "FROM inner_view").statement("FROM outer_view");
+        assertThat(plan.resolved(), is(true));
+    }
+
+    public void testNullifySetInsideViewDefinitionResolvesReferenceInThatBody() {
+        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        LogicalPlan plan = test().addView("null_view", """
+            SET unmapped_fields="nullify";
+            FROM test | KEEP emp_no, does_not_exist
+            """).statement("FROM null_view");
+        assertThat(plan.resolved(), is(true));
     }
 
     public void testLoadModeDisallowsCrossBranchTypeConflict() {
@@ -912,7 +1082,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             ua -> ua.output()
                 .forEach(at -> assertThat(at.name() + " should not be UNSUPPORTED", at.dataType(), not(equalTo(DataType.UNSUPPORTED))))
         );
-        assertWarnings(nonLoadablePunkWarning("foo", "text"));
+        assertWarnings(nonLoadablePunksWarning(List.of("foo")));
     }
 
     public void testLoadModeCrossBranchSmallNumericPunkResolvesToWidenedNotUnsupported() {
@@ -1217,12 +1387,9 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             }
         }
         assertThat(noConverterTypes, equalTo(NO_IMPLICIT_KEYWORD_CONVERTER_PUNK_TYPES));
-        // Every surviving single-type PUNK falls back to null where unmapped, so all of them warn.
-        assertWarnings(
-            noConverterTypes.stream()
-                .map(dt -> nonLoadablePunkWarning("test_field", dt.widenSmallNumeric().typeName()))
-                .toArray(String[]::new)
-        );
+        // Every surviving single-type PUNK falls back to null where unmapped, so all of them warn. The warning does not name the type, so
+        // the identical warnings from each query collapse into one.
+        assertWarnings(nonLoadablePunksWarning(List.of("test_field")));
     }
 
     private static boolean supportsKeywordConversionUnderLoad(DataType mappedType) {
@@ -1464,34 +1631,20 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
      */
     public void testLoadAllModeRejectsUnsupportedCommands() {
         for (var commandAndLabel : List.of(
-            Tuple.tuple("| DISSECT first_name \"%{a}\"", "DISSECT"),
-            Tuple.tuple("| GROK first_name \"%{WORD:a}\"", "GROK"),
-            Tuple.tuple("| MV_EXPAND first_name", "MV_EXPAND")
+            Tuple.tuple("| RERANK \"food\" ON first_name WITH { \"inference_id\" : \"reranking-inference-id\" }", "RERANK")
         )) {
-            test().statementError(
-                setUnmappedLoadAll("FROM test " + commandAndLabel.v1()),
-                containsString(
-                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
-                        + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; ["
-                        + commandAndLabel.v2()
-                        + "] is not supported yet"
-                )
-            );
+            test().addAnalysisTestsInferenceResolution()
+                .statementError(
+                    setUnmappedLoadAll("FROM test METADATA _score " + commandAndLabel.v1()),
+                    containsString(
+                        "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, MV_EXPAND, "
+                            + "SAMPLE, CHANGE_POINT, WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and "
+                            + "subquery commands; ["
+                            + commandAndLabel.v2()
+                            + "] is not supported yet"
+                    )
+                );
         }
-    }
-
-    public void testLoadAllModeAllowsSupportedCommands() {
-        LogicalPlan plan = test().statement(setUnmappedLoadAll("""
-            FROM test
-            | WHERE emp_no > 1
-            | EVAL x = salary + 1
-            | RENAME first_name AS name
-            | KEEP name, x, salary
-            | DROP salary
-            | SORT name
-            | LIMIT 10
-            """));
-        assertThat(Expressions.names(plan.output()), equalTo(List.of("name", "x")));
     }
 
     public void testLoadAllModeAllowsInlineStats() {
@@ -1530,7 +1683,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
 
     public void testLoadAllModeAllowsMainIndexPlusSubquery() {
         test().addLanguages().statement(setUnmappedLoadAll("FROM test, (FROM languages | WHERE language_code > 1)"));
-        assertWarnings(nonLoadablePunkWarning("gender", "text"), nonLoadablePunkWarning("job", "text"));
+        assertWarnings(nonLoadablePunksWarning(List.of("gender", "job")));
     }
 
     public void testLoadAllModeAllowsTwoSubqueriesWithoutMainIndex() {
@@ -1626,7 +1779,130 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         var plan = analyzer().addIndex(mapped).addIndex(unmapped).statement(setUnmappedLoadAll("FROM (FROM idx1), (FROM idx2) | KEEP tx"));
         var tx = EsqlTestUtils.singleValue(plan.output().stream().filter(a -> a.name().equals("tx")).toList());
         assertThat(tx.dataType(), equalTo(DataType.AGGREGATE_METRIC_DOUBLE));
-        assertWarnings(nonLoadablePunkWarning("tx", "aggregate_metric_double"));
+        assertWarnings(nonLoadablePunksWarning(List.of("tx")));
+    }
+
+    public void testNonLoadablePunksWarningText() {
+        assertThat(
+            nonLoadablePunksWarning(List.of("a")),
+            equalTo("Field [a] is unmapped in some indices and has no implicit conversion from KEYWORD; it is null in those indices")
+        );
+        assertThat(
+            nonLoadablePunksWarning(List.of("a", "b")),
+            equalTo(
+                "Fields [a], [b] are unmapped in some indices and have no implicit conversion from KEYWORD; they are null in those indices"
+            )
+        );
+    }
+
+    /**
+     * The warning names at most 20 fields. Any further fields, however long their names, only increment the {@code [M] more} count.
+     */
+    public void testNonLoadablePunksWarningListsAtMost20Fields() {
+        assertThat(MAX_LISTED_NON_LOADABLE_PUNKS, equalTo(20));
+        List<String> listed = new ArrayList<>();
+        for (int i = 0; i < 20; i++) {
+            listed.add("f" + i);
+        }
+        String atLimit = nonLoadablePunksWarning(listed);
+        assertThat(atLimit, containsString("[f19] are unmapped"));
+        assertThat(atLimit, not(containsString("more")));
+
+        int extra = randomIntBetween(1, 1000);
+        List<String> names = new ArrayList<>(listed);
+        for (int i = 0; i < extra; i++) {
+            names.add(randomAlphaOfLength(between(1, 100)));
+        }
+        String overLimit = nonLoadablePunksWarning(names);
+        assertThat(overLimit, equalTo(atLimit.replace("[f19] are unmapped", "[f19] and [" + extra + "] more are unmapped")));
+    }
+
+    /**
+     * Wide index patterns can have hundreds of partially unmapped fields without a KEYWORD conversion. They must all be reported in a
+     * single warning that lists a bounded number of names, or the {@code Warning} headers become too large for some clients.
+     * See https://github.com/elastic/elasticsearch/issues/161968.
+     */
+    public void testManyNonLoadablePunksEmitOneBoundedWarning() {
+        int count = randomIntBetween(1, 60);
+        List<String> names = new ArrayList<>(count);
+        Map<String, EsField> mapping = new HashMap<>();
+        for (int i = 0; i < count; i++) {
+            String name = String.format(Locale.ROOT, "field_%03d", i);
+            names.add(name);
+            mapping.put(name, textField(name));
+        }
+        Collections.shuffle(names, random());
+
+        // LOAD and LOAD_ALL treat partially unmapped fields the same.
+        String query = "FROM idx* | KEEP " + String.join(", ", names);
+        boolean loadAll = randomBoolean() && EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled();
+        var plan = analyzer().addIndex(partialIndex(mapping, mapping.keySet()))
+            .statement(loadAll ? setUnmappedLoadAll(query) : setUnmappedLoad(query));
+        assertThat(Expressions.names(plan.output()), equalTo(names));
+
+        // The fields are named in KEEP order, up to 20 of them.
+        String listed = String.join(", ", names.subList(0, Math.min(count, 20)).stream().map(n -> "[" + n + "]").toList());
+        String expected = count == 1
+            ? "Field " + listed + " is unmapped in some indices and has no implicit conversion from KEYWORD; it is null in those indices"
+            : "Fields "
+                + listed
+                + (count > 20 ? " and [" + (count - 20) + "] more" : "")
+                + " are unmapped in some indices and have no implicit conversion from KEYWORD; they are null in those indices";
+        assertWarnings(expected);
+    }
+
+    /**
+     * Partially unmapped fields of a regular index pattern and fields that a LOAD_ALL subquery null-fills are reported in the same
+     * warning and count towards the same limit of 20 named fields.
+     */
+    public void testLoadAllNonLoadablePunksAndSubqueryNullFillsShareOneLimit() {
+        int punkCount = randomIntBetween(1, 20);
+        int nullFillCount = randomIntBetween(21 - punkCount, 20);
+        // The pt_* fields are partially unmapped in idx* but mapped in both subqueries, so they are reported only as PUNKs.
+        Set<String> punks = new HashSet<>();
+        Map<String, EsField> mainMapping = new HashMap<>();
+        Map<String, EsField> sub1Mapping = new HashMap<>();
+        Map<String, EsField> sub2Mapping = new HashMap<>();
+        sub2Mapping.put("id", keywordField("id"));
+        for (int i = 0; i < punkCount; i++) {
+            String name = "pt_" + i;
+            punks.add(name);
+            mainMapping.put(name, textField(name));
+            sub1Mapping.put(name, textField(name));
+            sub2Mapping.put(name, textField(name));
+        }
+        // The tx_* fields only exist in sub1, so they are null-filled in the other branches.
+        Set<String> nullFills = new HashSet<>();
+        for (int i = 0; i < nullFillCount; i++) {
+            String name = "tx_" + i;
+            nullFills.add(name);
+            sub1Mapping.put(name, aggregateMetricDoubleField(name));
+        }
+        var main = partialIndex(mainMapping, punks);
+        var sub1 = new EsIndex("sub1", sub1Mapping, Map.of("sub1", new IndexProperties(IndexMode.STANDARD, 0)), Map.of(), Map.of());
+        var sub2 = new EsIndex("sub2", sub2Mapping, Map.of("sub2", new IndexProperties(IndexMode.STANDARD, 0)), Map.of(), Map.of());
+        analyzer().addIndex(main).addIndex(sub1).addIndex(sub2).statement(setUnmappedLoadAll("FROM idx*, (FROM sub1), (FROM sub2)"));
+
+        List<String> warnings = threadContext.getResponseHeaders()
+            .getOrDefault("Warning", List.of())
+            .stream()
+            .map(w -> HeaderWarning.extractWarningValueFromWarningHeader(w, true))
+            .filter(w -> w.contains("no implicit conversion from KEYWORD"))
+            .toList();
+        assertThat(warnings, hasSize(1));
+        String warning = warnings.getFirst();
+        int total = punkCount + nullFillCount;
+        assertThat(warning, containsString(" and [" + (total - 20) + "] more are unmapped in some indices"));
+        String listedPart = warning.substring("Fields ".length(), warning.indexOf(" and ["));
+        Set<String> listed = new HashSet<>();
+        for (String bracketed : listedPart.split(", ")) {
+            listed.add(bracketed.substring(1, bracketed.length() - 1));
+        }
+        assertThat(listed, hasSize(20));
+        Set<String> all = new HashSet<>(punks);
+        all.addAll(nullFills);
+        assertTrue("listed fields " + listed + " must all be non-loadable", all.containsAll(listed));
+        assertWarnings(warning);
     }
 
     public void testLoadAllModeAllowsSubqueryWithLookupJoin() {
@@ -1647,16 +1923,18 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             .statementError(
                 setUnmappedLoadAll("TS test | STATS MAX(RATE(network.bytes_in)) BY host"),
                 containsString(
-                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
-                        + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; [TS] is not supported yet"
+                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, MV_EXPAND, "
+                        + "SAMPLE, CHANGE_POINT, WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and "
+                        + "subquery commands; [TS] is not supported yet"
                 )
             );
         test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
             .statementError(
                 setUnmappedLoadAll("TS test | SORT @timestamp | LIMIT 10"),
                 containsString(
-                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
-                        + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; [TS] is not supported yet"
+                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, MV_EXPAND, "
+                        + "SAMPLE, CHANGE_POINT, WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and "
+                        + "subquery commands; [TS] is not supported yet"
                 )
             );
     }
@@ -1878,7 +2156,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         var plan = analyzer.statement(setUnmappedLoad("FROM idx* | KEEP kept_amd, common"));
         var keptAttr = EsqlTestUtils.singleValue(plan.output().stream().filter(a -> a.name().equals("kept_amd")).toList());
         assertThat(keptAttr.dataType(), equalTo(DataType.AGGREGATE_METRIC_DOUBLE));
-        assertWarnings(nonLoadablePunkWarning("kept_amd", "aggregate_metric_double"));
+        assertWarnings(nonLoadablePunksWarning(List.of("kept_amd")));
     }
 
     public void testNonLoadablePunkWarnsUnderBareFrom() {
@@ -1890,7 +2168,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         var plan = analyzer().addIndex(partialAmdAndCommonIndex()).statement(setUnmappedLoad("FROM idx*"));
         var attr = EsqlTestUtils.singleValue(plan.output().stream().filter(a -> a.name().equals("partial_amd")).toList());
         assertThat(attr.dataType(), equalTo(DataType.AGGREGATE_METRIC_DOUBLE));
-        assertWarnings(nonLoadablePunkWarning("partial_amd", "aggregate_metric_double"));
+        assertWarnings(nonLoadablePunksWarning(List.of("partial_amd")));
     }
 
     public void testNonLoadablePunkWarnsUnderKeepWildcard() {
@@ -1902,7 +2180,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         var plan = analyzer().addIndex(partialAmdAndCommonIndex()).statement(setUnmappedLoad("FROM idx* | KEEP *"));
         var attr = EsqlTestUtils.singleValue(plan.output().stream().filter(a -> a.name().equals("partial_amd")).toList());
         assertThat(attr.dataType(), equalTo(DataType.AGGREGATE_METRIC_DOUBLE));
-        assertWarnings(nonLoadablePunkWarning("partial_amd", "aggregate_metric_double"));
+        assertWarnings(nonLoadablePunksWarning(List.of("partial_amd")));
     }
 
     public void testNonLoadablePunkNoWarnWhenExcludedByKeepWildcard() {
@@ -1951,7 +2229,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             "Expected x to load unmapped rows from _source via a KEYWORD union",
             unionFields(plan).stream().anyMatch(u -> u.getDataType() == DataType.KEYWORD && u.getUnmappedConversionExpression() != null)
         );
-        assertWarnings(nonLoadablePunkWarning(field, "aggregate_metric_double"));
+        assertWarnings(nonLoadablePunksWarning(List.of(field)));
     }
 
     public void testNonLoadablePunkEvalSameNameOverrideDoesNotWarn() {
@@ -2254,7 +2532,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         assertThat(attr.dataType(), equalTo(DataType.KEYWORD));
         assertThat(unionFields(plan), Matchers.empty());
         // The cast targets the renamed alias, not the field itself, so the unmapped leg is not loaded and partial_text falls back to null.
-        assertWarnings(nonLoadablePunkWarning("partial_text", "text"));
+        assertWarnings(nonLoadablePunksWarning(List.of("partial_text")));
     }
 
     /**

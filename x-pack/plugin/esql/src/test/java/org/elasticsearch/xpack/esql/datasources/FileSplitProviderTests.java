@@ -25,6 +25,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.compute.operator.ThreadCpuTimer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -85,7 +86,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
-import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCompare;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
@@ -307,6 +307,45 @@ public class FileSplitProviderTests extends ESTestCase {
             ),
             hints
         );
+    }
+
+    public void testFolderRangePredicateForQueryOneSidedAndBoundedKeepsTimestampOutOfHints() {
+        FieldAttribute ts = new FieldAttribute(
+            SRC,
+            "@timestamp",
+            new EsField("@timestamp", DataType.DATETIME, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+        );
+        Instant start = Instant.parse("2024-06-15T00:00:00Z");
+        Instant end = Instant.parse("2024-06-16T00:00:00Z");
+        PartitionSpec spec = PartitionSpec.parse("year(@timestamp), month(@timestamp), day(@timestamp)");
+        Set<String> hive = Set.of("year", "month", "day");
+
+        Expression oneSided = new GreaterThanOrEqual(SRC, ts, new Literal(SRC, start.toEpochMilli(), DataType.DATETIME));
+        List<PartitionFilterHintExtractor.PartitionFilterHint> oneSidedHints = FileSplitProvider.listingHintsForQuery(
+            List.of(oneSided),
+            Set.of(),
+            hive,
+            spec
+        );
+        assertTrue(oneSidedHints.stream().noneMatch(h -> h.columnName().equals("@timestamp")));
+        assertNotNull(FileSplitProvider.folderRangePredicateForQuery(List.of(oneSided), spec));
+
+        Expression bounded = new And(
+            SRC,
+            new GreaterThanOrEqual(SRC, ts, new Literal(SRC, start.toEpochMilli(), DataType.DATETIME)),
+            new LessThan(SRC, ts, new Literal(SRC, end.toEpochMilli(), DataType.DATETIME))
+        );
+        List<PartitionFilterHintExtractor.PartitionFilterHint> boundedHints = FileSplitProvider.listingHintsForQuery(
+            List.of(bounded),
+            Set.of(),
+            hive,
+            spec
+        );
+        assertTrue(boundedHints.stream().noneMatch(h -> h.columnName().equals("@timestamp")));
+        assertNotNull(FileSplitProvider.folderRangePredicateForQuery(List.of(bounded), spec));
+
+        Expression yearEq = new Equals(SRC, fieldAttr("year"), intLiteral(2024));
+        assertNull("hive-key equality is not a temporal bound", FileSplitProvider.folderRangePredicateForQuery(List.of(yearEq), spec));
     }
 
     public void testListingHintsForQueryEmptySpecEqualsListingExtract() {
@@ -1704,10 +1743,16 @@ public class FileSplitProviderTests extends ESTestCase {
     private static final long NON_BINDING_PROBE_WINDOW = SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES;
 
     public void testQuotedCsvMacroSplits() {
-        // Default CSV is mode=quoted: a quoted field may embed newlines, so it cannot be probed at arbitrary
+        // CSV with multiline_fields=true: a quoted field may embed newlines, so it cannot be probed at arbitrary
         // byte offsets. It is still macro-split for cross-node parallelism via the proven-probe path, which
         // proves a record start at each emitted boundary rather than assuming every newline terminates a record.
-        List<ExternalSplit> splits = discoverRealDelimitedSplits(Map.of(), "quoted.csv", ".csv", CsvFormatOptions.DEFAULT, "a,b,c\n");
+        List<ExternalSplit> splits = discoverRealDelimitedSplits(
+            Map.of("multiline_fields", true),
+            "quoted.csv",
+            ".csv",
+            CsvFormatOptions.DEFAULT,
+            "a,b,c\n"
+        );
 
         assertTrue("quoted CSV should macro-split", splits.size() > 1);
         for (ExternalSplit s : splits) {
@@ -1717,6 +1762,42 @@ public class FileSplitProviderTests extends ESTestCase {
             }
             assertEquals("true", fileSplit.config().get(FileSplitProvider.RECORD_ALIGNED_MACRO_SPLIT_KEY));
         }
+    }
+
+    public void testNewlineSplitCsvMacroSplitsWithoutProvingBoundaries() {
+        // A default .csv (multiline_fields not true) is split at plain newlines, like mode=plain,
+        // so planning does not walk the file to prove record boundaries: it probes fewer times than the proven walk does
+        // over the very same bytes.
+        SplitDiscoveryResult quoteFree = discoverRealDelimited(
+            Map.of(),
+            "quote-free.csv",
+            ".csv",
+            CsvFormatOptions.DEFAULT,
+            "a,b,c\n",
+            CSV_MIN_SEGMENT_BYTES,
+            TransportVersion.current(),
+            DeclaredReadSpec.NONE
+        );
+        SplitDiscoveryResult proven = discoverRealDelimited(
+            Map.of("multiline_fields", true),
+            "proven.csv",
+            ".csv",
+            CsvFormatOptions.DEFAULT,
+            "a,b,c\n",
+            CSV_MIN_SEGMENT_BYTES,
+            TransportVersion.current(),
+            DeclaredReadSpec.NONE
+        );
+
+        assertTrue("quote-free CSV should macro-split", quoteFree.splits().size() > 1);
+        for (ExternalSplit s : quoteFree.splits()) {
+            assertEquals("true", ((FileSplit) s).config().get(FileSplitProvider.RECORD_ALIGNED_MACRO_SPLIT_KEY));
+        }
+        assertThat(
+            "the strided scan must not prove boundaries by walking the file",
+            quoteFree.splitDiscoveryProbes(),
+            lessThan(proven.splitDiscoveryProbes())
+        );
     }
 
     public void testPlainCsvStillMacroSplits() {
@@ -1808,7 +1889,7 @@ public class FileSplitProviderTests extends ESTestCase {
         String lineContent,
         long targetStrideBytes
     ) {
-        return discoverRealDelimitedSplits(
+        return discoverRealDelimited(
             config,
             fileName,
             extension,
@@ -1817,10 +1898,32 @@ public class FileSplitProviderTests extends ESTestCase {
             targetStrideBytes,
             TransportVersion.current(),
             DeclaredReadSpec.NONE
-        );
+        ).splits();
     }
 
     private List<ExternalSplit> discoverRealDelimitedSplits(
+        Map<String, Object> config,
+        String fileName,
+        String extension,
+        CsvFormatOptions baselineOptions,
+        String lineContent,
+        long targetStrideBytes,
+        TransportVersion minTransportVersion,
+        DeclaredReadSpec declaredReadSpec
+    ) {
+        return discoverRealDelimited(
+            config,
+            fileName,
+            extension,
+            baselineOptions,
+            lineContent,
+            targetStrideBytes,
+            minTransportVersion,
+            declaredReadSpec
+        ).splits();
+    }
+
+    private SplitDiscoveryResult discoverRealDelimited(
         Map<String, Object> config,
         String fileName,
         String extension,
@@ -1878,7 +1981,7 @@ public class FileSplitProviderTests extends ESTestCase {
             0,
             minTransportVersion
         );
-        return splitter.discoverSplits(ctx).splits();
+        return splitter.discoverSplits(ctx);
     }
 
     /**
@@ -3714,7 +3817,15 @@ public class FileSplitProviderTests extends ESTestCase {
         byte[] payload = csv.toString().getBytes(StandardCharsets.UTF_8);
 
         List<ExternalSplit> splits = withSplitLog(
-            () -> discoverCsvSplits(Map.of("unterminated-tail.csv", payload), stride, null, null, Settings.EMPTY, () -> false, Map.of()),
+            () -> discoverCsvSplits(
+                Map.of("unterminated-tail.csv", payload),
+                stride,
+                null,
+                null,
+                Settings.EMPTY,
+                () -> false,
+                Map.of("multiline_fields", true)
+            ),
             // No probe offset tally between the count and the example.
             shortfallLogged(
                 "[1] file(s) were cut into fewer splits than a ["
@@ -4808,6 +4919,11 @@ public class FileSplitProviderTests extends ESTestCase {
                     public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
 
                     @Override
+                    public String version() {
+                        return "v1";
+                    }
+
+                    @Override
                     public StorageIdentity storageIdentity() {
                         return AbstractTestStorageObject.NOOP;
                     }
@@ -4975,8 +5091,8 @@ public class FileSplitProviderTests extends ESTestCase {
         long fileLength = payload.length;
         assertTrue("payload must exceed 2 MiB so macro-splits form", fileLength > 2 * 1024 * 1024);
 
-        // Default construction => quoting on => CsvRecordSplitter: non-strided but proven-capable.
-        var csvReader = new CsvFormatReader(blockFactory);
+        // multiline_fields => quoting on => CsvRecordSplitter: non-strided but proven-capable.
+        var csvReader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multiline_fields", true));
         StorageObject obj = createInMemoryStorageObject(payload, StoragePath.of("mem://test.csv"));
         Set<Long> trueStarts = trueRecordStarts(csvReader.recordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES), payload);
 
@@ -5010,7 +5126,7 @@ public class FileSplitProviderTests extends ESTestCase {
     public void testProvenBoundariesStopsAtMaxBoundariesWithoutMarkingAShortfall() throws IOException {
         var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         byte[] payload = repeatingLines("1,\"embedded\nnewline\",ok\n", 5L * CSV_MIN_SEGMENT_BYTES);
-        var csvReader = new CsvFormatReader(blockFactory);
+        var csvReader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multiline_fields", true));
         StorageObject obj = createInMemoryStorageObject(payload, StoragePath.of("mem://capped.csv"));
         int maxBoundaries = 4;
         RecordBoundaryProbe.ProvenWalk walk = RecordBoundaryProbe.provenBoundaries(
@@ -5054,7 +5170,7 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals("the payload must contain no quote character", -1, csv.indexOf("\""));
         long fileLength = payload.length;
 
-        var csvReader = new CsvFormatReader(blockFactory);
+        var csvReader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multiline_fields", true));
         int maxRecordBytes = SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES;
         StorageObject obj = createInMemoryStorageObject(payload, StoragePath.of("mem://quote-free.csv"));
         Set<Long> trueStarts = trueRecordStarts(csvReader.recordSplitter(maxRecordBytes), payload);
@@ -5487,6 +5603,11 @@ public class FileSplitProviderTests extends ESTestCase {
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
 
             @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -5647,6 +5768,11 @@ public class FileSplitProviderTests extends ESTestCase {
         StorageObject counting = new StorageObject() {
             @Override
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
 
             @Override
             public StorageIdentity storageIdentity() {
@@ -5839,6 +5965,11 @@ public class FileSplitProviderTests extends ESTestCase {
         return new StorageObject() {
             @Override
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
 
             @Override
             public StorageIdentity storageIdentity() {
@@ -6539,12 +6670,7 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(2L, ((Number) stats.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
     }
 
-    /**
-     * A split's stamped statistics follow the same rule as the fold: a column the scan narrows per value
-     * cannot have its pre-narrowing extrema or counts served, so they are withheld rather than rewritten
-     * as all-null, which would have claimed the column holds no values at all.
-     */
-    public void testRangeAwareSplitsSafeMissANarrowedFooterColumn() {
+    public void testRangeAwareSplitsRewriteFirstFileWinsUnrepresentableFooterColumn() {
         Map<String, Object> rawStats = harvestStats("x", -10L, 20L);
         RangeAwareFormatReader mockReader = createMockRangeReader(List.of(new SplitRange(100, 500, rawStats)));
         FileSplitProvider splitter = splitterFor(mockReader);
@@ -6559,7 +6685,14 @@ public class FileSplitProviderTests extends ESTestCase {
 
         List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
         assertEquals(1, splits.size());
-        assertUnknownColumnStats(((FileSplit) splits.get(0)).statistics(), "x", 2L);
+        Map<String, Object> stats = ((FileSplit) splits.get(0)).statistics();
+        assertEquals(0L, stats.get(SourceStatisticsSerializer.columnValueCountKey("x")));
+        assertEquals(2L, stats.get(SourceStatisticsSerializer.columnNullCountKey("x")));
+        assertNull(stats.get(SourceStatisticsSerializer.columnMinKey("x")));
+        assertNull(stats.get(SourceStatisticsSerializer.columnMaxKey("x")));
+        assertNull(stats.get(SourceStatisticsSerializer.columnMinUnservableKey("x")));
+        assertNull(stats.get(SourceStatisticsSerializer.columnMaxUnservableKey("x")));
+        assertEquals(2L, ((Number) stats.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
     }
 
     public void testUnknownFirstFileWinsNativeTypesPublishUnknownCountsNotAllNulls() {
@@ -6660,90 +6793,30 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(2L, stats.get(SourceStatisticsSerializer.columnValueCountKey("x")));
     }
 
-    /**
-     * An anchor-pinned read whose per-file types were never read must not publish that file's extrema,
-     * because nothing has established that the file's own column types match the schema the statistics
-     * are being interpreted against. Whether the schema was declared or inferred does not bear on it:
-     * every cell below is the same bytes read the same way, and all of them safe-miss.
-     * <p>
-     * The declared set is the one production builds - a strict mapping names every column of its schema - and
-     * the unified schema is varied because it is what decides whether this gate is the only thing protecting
-     * the column. With a unified schema, {@code normalizeSplitStats} reaches its declared branch, which
-     * poisons every declared column anyway; with none, that branch is skipped and the gate stands alone.
-     */
-    public void testAnchorPinnedFileWithUnreadTypesSafeMissesWhoeverDeclaredTheSchema() {
+    public void testDeclaredProvenanceDoesNotTreatMissingInferredTypesAsUnknown() {
+        Map<String, Object> rawStats = harvestStats("x", -10L, 20L);
+        RangeAwareFormatReader mockReader = createMockRangeReader(List.of(new SplitRange(100, 500, rawStats)));
+        FileSplitProvider splitter = splitterFor(mockReader);
         ExternalSchema unified = new ExternalSchema(List.of(new ReferenceAttribute(SRC, "x", DataType.INTEGER)));
-        for (SchemaProvenance provenance : List.of(SchemaProvenance.DECLARED, SchemaProvenance.INFERRED)) {
-            for (ExternalSchema unifiedSchema : Arrays.asList(unified, null)) {
-                Map<String, Object> rawStats = harvestStats("x", -10L, 20L);
-                RangeAwareFormatReader mockReader = createMockRangeReader(List.of(new SplitRange(100, 500, rawStats)));
-                FileSplitProvider splitter = splitterFor(mockReader);
-                StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/part-b.parquet"), 2000, Instant.EPOCH);
-                SplitDiscoveryContext ctx = new SplitDiscoveryContext(
-                    null,
-                    GlobExpander.fileListOf(List.of(entry), "s3://b/*.parquet"),
-                    Map.of(entry.path(), new SchemaReconciliation.FileSchemaInfo(unified, null, null)),
-                    Map.of("schema_resolution", "first_file_wins"),
-                    PartitionMetadata.EMPTY,
-                    List.of(),
-                    unified,
-                    unifiedSchema,
-                    SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-                    () -> false,
-                    DeclaredReadSpec.of(Map.of(), Map.of(), Set.of("x"), provenance)
-                );
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/part-b.parquet"), 2000, Instant.EPOCH);
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            null,
+            GlobExpander.fileListOf(List.of(entry), "s3://b/*.parquet"),
+            Map.of(entry.path(), new SchemaReconciliation.FileSchemaInfo(unified, null, null)),
+            Map.of("schema_resolution", "first_file_wins"),
+            PartitionMetadata.EMPTY,
+            List.of(),
+            unified,
+            unified,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            DeclaredReadSpec.of(Map.of(), Map.of(), Set.of(), SchemaProvenance.DECLARED)
+        );
 
-                List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
-                assertUnknownColumnStats(
-                    provenance + ", unifiedSchema=" + (unifiedSchema == null ? "none" : "present"),
-                    ((FileSplit) splits.get(0)).statistics(),
-                    "x",
-                    2L
-                );
-            }
-        }
-    }
-
-    /**
-     * The twin of the above, and the reason it is not simply "anchor-pinned reads publish nothing": once
-     * the file's own types have been read, its extrema are interpretable and are published. Both
-     * provenances again agree, so the published statistics follow from what was read, not from who
-     * supplied the schema.
-     */
-    public void testAnchorPinnedFilePublishesExtremaOnceItsOwnTypesWereRead() {
-        for (SchemaProvenance provenance : List.of(SchemaProvenance.DECLARED, SchemaProvenance.INFERRED)) {
-            Map<String, Object> rawStats = harvestStats("x", -10L, 20L);
-            RangeAwareFormatReader mockReader = createMockRangeReader(List.of(new SplitRange(100, 500, rawStats)));
-            FileSplitProvider splitter = splitterFor(mockReader);
-            ExternalSchema unified = new ExternalSchema(List.of(new ReferenceAttribute(SRC, "x", DataType.INTEGER)));
-            StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/part-b.parquet"), 2000, Instant.EPOCH);
-            SchemaReconciliation.FileSchemaInfo read = new SchemaReconciliation.FileSchemaInfo(
-                unified,
-                null,
-                null,
-                Map.of("x", DataType.INTEGER)
-            );
-            assertTrue("the four-arg form records that the types were read", read.nativeTypesRead());
-            SplitDiscoveryContext ctx = new SplitDiscoveryContext(
-                null,
-                GlobExpander.fileListOf(List.of(entry), "s3://b/*.parquet"),
-                Map.of(entry.path(), read),
-                Map.of("schema_resolution", "first_file_wins"),
-                PartitionMetadata.EMPTY,
-                List.of(),
-                unified,
-                unified,
-                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-                () -> false,
-                DeclaredReadSpec.of(Map.of(), Map.of(), Set.of(), provenance)
-            );
-
-            List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
-            Map<String, Object> stats = ((FileSplit) splits.get(0)).statistics();
-            assertEquals(-10L, stats.get(SourceStatisticsSerializer.columnMinKey("x")));
-            assertEquals(20L, stats.get(SourceStatisticsSerializer.columnMaxKey("x")));
-            assertEquals(2L, ((Number) stats.get(SourceStatisticsSerializer.columnValueCountKey("x"))).longValue());
-        }
+        List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
+        Map<String, Object> stats = ((FileSplit) splits.get(0)).statistics();
+        assertEquals(-10L, stats.get(SourceStatisticsSerializer.columnMinKey("x")));
+        assertEquals(20L, stats.get(SourceStatisticsSerializer.columnMaxKey("x")));
     }
 
     public void testUnknownFirstFileWinsRenamePoisonsLogicalSplitColumns() {
@@ -6824,19 +6897,18 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
-     * The all-null contract survives for a pair the scan cannot convert at all: an {@code INTEGER} column
-     * read as {@code BOOLEAN} is null-filled whole by the footer reader, so the stamp says zero values and
-     * every row null rather than withholding the counts.
+     * An extensionless object with {@code format: parquet} still applies the footer rewrite;
+     * implicit-nulls come from the configured reader, not the filename extension.
      */
-    public void testCachedExtensionlessSplitsRewriteUnconvertibleFooterColumn() throws Exception {
+    public void testCachedExtensionlessSplitsRewriteUnrepresentableFooterColumn() throws Exception {
         Map<String, Object> rawStats = harvestStats("x", -10L, 20L);
         RangeAwareFormatReader mockReader = createCachedRangeReader(List.of(new SplitRange(0, 2000, rawStats)));
         FileSplitProvider splitter = rangeAwareProvider(mockReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        ExternalSchema unified = new ExternalSchema(List.of(new ReferenceAttribute(SRC, "x", DataType.BOOLEAN)));
+        ExternalSchema unified = new ExternalSchema(List.of(new ReferenceAttribute(SRC, "x", DataType.INTEGER)));
         SplitDiscoveryContext ctx = singleFileStatsContext(
             "s3://b/part-b",
             "s3://b/part-b",
-            new SchemaReconciliation.FileSchemaInfo(unified, null, null, Map.of("x", DataType.INTEGER)),
+            new SchemaReconciliation.FileSchemaInfo(unified, null, null, Map.of("x", DataType.LONG)),
             unified,
             Map.of(FormatNameResolver.CONFIG_FORMAT, "parquet")
         );
@@ -6863,16 +6935,6 @@ public class FileSplitProviderTests extends ESTestCase {
         rawStats.put(SourceStatisticsSerializer.columnValueCountKey(column), 2L);
         rawStats.put(SourceStatisticsSerializer.columnNullCountKey(column), 0L);
         return rawStats;
-    }
-
-    private static void assertUnknownColumnStats(String message, Map<String, Object> stats, String column, long rowCount) {
-        assertNull(message, stats.get(SourceStatisticsSerializer.columnMinKey(column)));
-        assertNull(message, stats.get(SourceStatisticsSerializer.columnMaxKey(column)));
-        assertEquals(message, Boolean.TRUE, stats.get(SourceStatisticsSerializer.columnMinUnservableKey(column)));
-        assertEquals(message, Boolean.TRUE, stats.get(SourceStatisticsSerializer.columnMaxUnservableKey(column)));
-        assertNull(message, stats.get(SourceStatisticsSerializer.columnValueCountKey(column)));
-        assertNull(message, stats.get(SourceStatisticsSerializer.columnNullCountKey(column)));
-        assertEquals(message, rowCount, ((Number) stats.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
     }
 
     private static void assertUnknownColumnStats(Map<String, Object> stats, String column, long rowCount) {
@@ -8734,6 +8796,11 @@ public class FileSplitProviderTests extends ESTestCase {
                     public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
 
                     @Override
+                    public String version() {
+                        return "v1";
+                    }
+
+                    @Override
                     public StorageIdentity storageIdentity() {
                         return AbstractTestStorageObject.NOOP;
                     }
@@ -8842,6 +8909,11 @@ public class FileSplitProviderTests extends ESTestCase {
                 return new StorageObject() {
                     @Override
                     public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+                    @Override
+                    public String version() {
+                        return "v1";
+                    }
 
                     @Override
                     public StorageIdentity storageIdentity() {
@@ -10597,5 +10669,24 @@ public class FileSplitProviderTests extends ESTestCase {
 
     private static Attribute metadataAttr(String name) {
         return new ExternalMetadataAttribute(SRC, name, MetadataAttribute.dataType(name));
+    }
+
+    /**
+     * The file's version rides in each split's config, as the file length does, so a split on a data node addresses the
+     * footer of the version the coordinator listed. A file with no version keeps the query's config as it is.
+     */
+    /** A file's version alone is not a query option, so a query with no options still has no inline config. */
+    public void testFileVersionAloneIsNotQueryConfig() {
+        assertFalse(FileSplitProvider.carriesQueryConfig(FileSplitProvider.withFileVersion(Map.of(), "etag-7")));
+        assertTrue(FileSplitProvider.carriesQueryConfig(FileSplitProvider.withFileVersion(Map.of("format", "parquet"), "etag-7")));
+    }
+
+    public void testFileVersionIsCarriedInTheSplitConfig() {
+        Map<String, Object> query = Map.of("format", "parquet");
+        assertSame("no version: the query's config, unchanged", query, FileSplitProvider.withFileVersion(query, null));
+        Map<String, Object> versioned = FileSplitProvider.withFileVersion(query, "etag-7");
+        assertEquals("etag-7", versioned.get(FileSplitProvider.FILE_VERSION_KEY));
+        assertEquals("the query's own keys are kept", "parquet", versioned.get("format"));
+        assertNull("the query's config is not modified", query.get(FileSplitProvider.FILE_VERSION_KEY));
     }
 }

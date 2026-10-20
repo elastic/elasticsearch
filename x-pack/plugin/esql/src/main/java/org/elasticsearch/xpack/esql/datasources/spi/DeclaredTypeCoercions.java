@@ -87,10 +87,14 @@ import java.util.function.IntFunction;
  *       whole-number exact parse above is the same refuse-vs-cast pattern for numeric columns;</li>
  *   <li><b>{@code datetime}</b>: string sources parse via {@link #parseDatetimeMillis} with the
  *       column's declared {@code format} (else the ISO default). A {@code date_nanos} source narrows
- *       nanos&rarr;millis ({@link DateUtils#toMilliSeconds}, truncating sub-millisecond precision) —
- *       the narrowing {@code ::datetime} performs. This is what lets an annotated
+ *       nanos&rarr;millis by floor division, losing sub-millisecond precision but never failing —
+ *       including below the epoch, where {@code ::datetime} nulls the value instead, because that
+ *       bound belongs to {@code date_nanos} and not to {@code date}. This is what lets an annotated
  *       {@code TIMESTAMP(MICROS|NANOS)} column (which infers as {@code date_nanos}) be declared
- *       {@code date}, the conventional dashboard type. Numeric sources follow the unit rule below
+ *       {@code date}, the conventional dashboard type, for any instant a signed epoch-nanosecond long can hold
+ *       (1677-09-21 to 2262-04-11): a {@code TIMESTAMP(NANOS)} value always does, and a {@code TIMESTAMP(MICROS)}
+ *       value outside that range is nulled on read before the narrowing runs.
+ *       Numeric sources follow the unit rule below
  *       ({@code date} = millis when no format is declared; a {@code double} rounds to the nearest
  *       milli, the {@code ::datetime} semantic);</li>
  *   <li><b>{@code date_nanos}</b>: string sources parse via the column's declared {@code format}
@@ -109,7 +113,8 @@ import java.util.function.IntFunction;
  * decides it, and it is the same rule for every temporal target:
  * <ol>
  *   <li><b>The file's annotation wins.</b> A physically-typed temporal column (a parquet
- *       {@code TIMESTAMP(unit)}) is already an instant, not a raw number: its unit is known, a
+ *       {@code TIMESTAMP(unit)}, or a {@code TIME(unit)}, which is a time of day rendered as an
+ *       instant on 1970-01-01) is already an instant, not a raw number: its unit is known, a
  *       {@code format} on it is rejected at resolution rather than obeyed, and the declaration only
  *       chooses the target precision (nanos&rarr;millis narrows, millis&rarr;nanos widens).</li>
  *   <li><b>Else the declared {@code format} wins</b>, naming the unit / parse dialect of the number
@@ -153,9 +158,8 @@ import java.util.function.IntFunction;
  *       re-check {@link #supports} per file for a <b>declared</b> column, since a multi-file glob
  *       can drift from the anchor footer; a declared column a file cannot supply is a read failure
  *       of the whole column in that file and follows the {@link ErrorPolicy} through
- *       {@link #onUncoercibleColumn}. Nothing about this turns on whether the type was declared or
- *       inferred: a column whose file type {@link #supports} admits is converted per value either way,
- *       and one it refuses follows the policy either way.</li>
+ *       {@link #onUncoercibleColumn}. An <b>inferred</b> column may only widen, so a drifted
+ *       inferred type null-fills rather than taking this lossy escape (never narrows).</li>
  *   <li><b>Text formats</b> (CSV/TSV, NDJSON) have no physical schema — every value is a string,
  *       so the parse into the declared type <i>is</i> the coercion and a bad token follows the
  *       reader's own per-value error policy. Their declared date {@code format} parse goes
@@ -171,6 +175,9 @@ import java.util.function.IntFunction;
  */
 public final class DeclaredTypeCoercions {
 
+    /** Nanoseconds per millisecond: the divisor of the {@code date_nanos -> date} narrowing. */
+    private static final long NANOS_PER_MILLI = 1_000_000L;
+
     private DeclaredTypeCoercions() {}
 
     /**
@@ -180,9 +187,9 @@ public final class DeclaredTypeCoercions {
      * {@code NULL} and {@code UNSUPPORTED} always return {@code false} (the readers cannot
      * decode such a column, so there is no value to coerce). This is THE castability predicate:
      * resolution-time rejects consult it directly; the reader-side per-file null-fill validation
-     * consults it for every column, so a lossy narrowing is admitted wherever the two types permit it. It used
-     * to be consulted only for a declared column, which left an inferred one null-filled whole however
-     * convertible its values were — see {@code ParquetFormatReader.validatePlannerTypesAgainstFile}.
+     * consults it only for a <b>declared</b> column (an inferred cross-file clash widens-or-nulls,
+     * never narrows — see {@code ParquetFormatReader.validatePlannerTypesAgainstFile}), so a lossy
+     * narrowing is admitted exactly where a declaration licenses it.
      */
     public static boolean supports(DataType from, DataType to) {
         if (from == to) {
@@ -210,7 +217,8 @@ public final class DeclaredTypeCoercions {
             // declared, else the number is epoch millis. A double rounds to epoch millis (the
             // ::datetime semantic). A date_nanos source narrows nanos -> millis: it is not a raw
             // number whose unit is unknown but an instant the file already typed, so the conversion
-            // is unambiguous — the same narrowing ::datetime performs.
+            // is unambiguous. Above the epoch it is the same narrowing ::datetime performs; below it the two
+            // diverge deliberately, because ::datetime nulls a pre-epoch instant and the date mapper ingests it.
             case DATETIME -> fromString
                 || from == DataType.INTEGER
                 || from == DataType.LONG
@@ -229,48 +237,6 @@ public final class DeclaredTypeCoercions {
             case IP -> fromString;
             default -> false;
         };
-    }
-
-    /**
-     * Whether every value of {@code from} reads as {@code to} without the read being able to fail, so no
-     * per-value conversion can produce a null or an error. One predicate for the readers and for the
-     * planner: a read's filter pushdown, its deferred extraction and its column decode must agree about
-     * whether a value can fail, and they agreed only by coincidence while each asked its own question.
-     * <p>
-     * {@link EsqlDataTypeConverter#commonType} naming {@code to} as the supertype is necessary but not
-     * sufficient, and {@code unsigned_long} is why: it is the common type of itself and any signed whole
-     * number, yet {@link #exactToUnsignedLong} refuses a negative value, so a {@code long} column read as
-     * {@code unsigned_long} fails on the first negative. A caller using this to decide that nothing can
-     * fail would push a filter over such a column and keep the row with the cell nulled.
-     * <p>
-     * It is not sufficient in the other direction either: a string target is total for every source the
-     * reader can render, and {@code commonType} does not name one the supertype of a number, boolean or
-     * ip. Since {@code keyword} is what {@code union_by_name} settles on for a cross-file pair with no
-     * closer supertype, deferring to {@code commonType} there would call a whole class of reads failable
-     * for a conversion that can only succeed.
-     */
-    public static boolean readsLossless(DataType from, DataType to) {
-        if (from == null || to == null) {
-            return false;
-        }
-        if (from == to) {
-            return true;
-        }
-        if (to == DataType.UNSIGNED_LONG) {
-            return false;
-        }
-        // Rendering a value as text cannot fail: every coercer arm for a string target is total
-        // (String::valueOf, dateTimeToString, nanoTimeToString) - no parse, no range check. commonType
-        // does not name a string type the supertype of a number, boolean or ip, so asking it here would
-        // call a total conversion failable, and a keyword is what union_by_name picks for any cross-file
-        // pair with no closer supertype. That would cost a whole class of reads their ORC stripe skipping
-        // and ORC IS NULL pushdown, in any mode, and under skip_row their filter pushdown and deferred
-        // extraction on every format, for a value that can only succeed.
-        if (to == DataType.KEYWORD || to == DataType.TEXT) {
-            return supports(from, to);
-        }
-        DataType unified = EsqlDataTypeConverter.commonType(to, from);
-        return unified != null && unified.equals(to);
     }
 
     private static boolean isDecodable(DataType type) {
@@ -524,15 +490,12 @@ public final class DeclaredTypeCoercions {
     }
 
     /**
-     * The whole-column sibling of {@link #onCoercionFailure}: a column whose type in {@code fileLocation} cannot be
-     * read as the type the query wants is a read failure of every value of that column in that file, so the read's
-     * {@link ErrorPolicy} decides it the same way. With a {@code null} {@code warnings} sink ({@code fail_fast}) the
-     * read fails, naming the column, the file, both types and the {@code [error_mode]} pointer; with a live sink the
-     * detail is recorded once and the caller nulls the column for the file (or, under {@code skip_row}, drops the
-     * file's rows).
-     * <p>
-     * Reached for a column whose type was inferred as readily as for a declared one. It used to be declared-only,
-     * which is why an inferred column was null-filled under every mode including {@code fail_fast}.
+     * The whole-column sibling of {@link #onCoercionFailure}: a <b>declared</b> column whose type in
+     * {@code fileLocation} cannot be read as the declared type is a read failure of every value of that column in
+     * that file, so the read's {@link ErrorPolicy} decides it the same way. With a {@code null} {@code warnings}
+     * sink ({@code fail_fast}) the read fails, naming the column, the file, both types and the {@code [error_mode]}
+     * pointer; with a live sink the detail is recorded once and the caller nulls the column for the file (or, under
+     * {@code skip_row}, drops the file's rows). An inferred column never comes here: it widens or nulls.
      */
     public static void onUncoercibleColumn(
         String columnName,
@@ -550,9 +513,6 @@ public final class DeclaredTypeCoercions {
     /**
      * The {@code fail_fast} message of {@link #onUncoercibleColumn}. Resolution raises it too, for the files whose types
      * it already knows, so a query fails with the same text wherever the drift is caught.
-     * <p>
-     * Names the type the query reads the column as, without saying where that type came from: the same failure now
-     * reaches a column whose type was inferred, and "its declared type" was untrue of those.
      */
     public static String uncoercibleColumnFailure(String columnName, String fileLocation, DataType fileType, DataType queryType) {
         return "column ["
@@ -561,7 +521,7 @@ public final class DeclaredTypeCoercions {
             + fileLocation
             + "] is ["
             + fileType.typeName()
-            + "] in the file and cannot be read as ["
+            + "] in the file and cannot be read as its declared type ["
             + queryType.typeName()
             + "]; set [error_mode] to [null_field] to return null instead";
     }
@@ -607,11 +567,25 @@ public final class DeclaredTypeCoercions {
                 }
                 if (from == DataType.DATE_NANOS) {
                     // An annotated TIMESTAMP(MICROS|NANOS) column infers as date_nanos; declaring it `date` narrows
-                    // nanos -> millis, truncating sub-millisecond precision. Value-identical to ::datetime, which maps
-                    // DATE_NANOS through this same DateUtils.toMilliSeconds (ToDatetime's DATE_NANOS evaluator), so a
-                    // declared read and an explicit cast cannot disagree. A pre-epoch nanos instant throws and follows
-                    // the read's error policy. No format is involved: the annotation already states the unit.
-                    yield v -> DateUtils.toMilliSeconds((Long) v);
+                    // nanos -> millis, losing sub-millisecond precision. The narrowing is arithmetic and total: every
+                    // value a date_nanos block can hold is a representable epoch-millis instant, so it cannot fail,
+                    // and it must not borrow date_nanos' own 1970 floor. DateUtils.toMilliSeconds throws below the
+                    // epoch -- the same floor the date_nanos field mapper enforces at ingest (DateUtils.toLong), a fact
+                    // about the ingest path and not about `date`; that floor failed a pre-1970 TIMESTAMP(MICROS)
+                    // column under the default fail_fast mode
+                    // -- nulling the cell under null_field and dropping the row under skip_row, per onCoercionFailure
+                    // -- while the same column read correctly with no declaration at all.
+                    //
+                    // Floor division, not truncation toward zero: rawBoundFor's ScaleDown arithmetic -- the bounds the
+                    // planner pushes for this very column -- is derived from `decoded == floorDiv(raw, d)`, so
+                    // truncating would make the decode disagree with the pruning and skip row groups the query
+                    // matches.
+                    //
+                    // This is where a declared read diverges from ::datetime, which maps DATE_NANOS through
+                    // DateUtils.toMilliSeconds and so nulls a pre-epoch instant. The declared coercions answer to the
+                    // field mappers (see the class javadoc), and a `date` mapper ingests the instant happily. No
+                    // format is involved: the annotation already states the unit.
+                    yield v -> Math.floorDiv((Long) v, NANOS_PER_MILLI);
                 }
                 if (from == DataType.DOUBLE) {
                     // A declared double column reads as an epoch value the same way ::datetime treats a double
@@ -975,7 +949,7 @@ public final class DeclaredTypeCoercions {
      *
      * <p>The map has a direction, and the direction is NOT a property of the file alone. A {@code TIMESTAMP(MICROS)}
      * column decodes to nanos ({@code raw x 1000}) when it infers {@code date_nanos}, and to millis
-     * ({@code raw / 1000}, truncating) when it is declared {@code date}. Same bytes, opposite maps, chosen by the
+     * ({@code floorDiv(raw, 1000)}) when it is declared {@code date}. Same bytes, opposite maps, chosen by the
      * declaration. That is why this takes the declared type, and why a per-consumer switch on the annotation cannot
      * express it.
      */

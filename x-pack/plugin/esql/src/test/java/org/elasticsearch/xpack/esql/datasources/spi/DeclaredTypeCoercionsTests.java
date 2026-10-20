@@ -36,7 +36,6 @@ import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -57,154 +56,6 @@ import static org.hamcrest.Matchers.startsWith;
 public class DeclaredTypeCoercionsTests extends ESTestCase {
 
     private final BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
-
-    /**
-     * The types {@link DeclaredTypeCoercions#supports} is closed over, taken from its own class javadoc: the
-     * sources a reader can decode a block of. Quantifying the guard below over all of {@link DataType} instead
-     * sweeps in types no reader produces and no query asks for ({@code SHORT}, {@code FLOAT},
-     * {@code DENSE_VECTOR}, {@code DATE_PERIOD} and the rest), where {@code commonType} widens but
-     * {@code supports} has no arm - 83 such pairs, none reachable, all noise. A reader that starts producing a
-     * new type belongs in this list, and the guard then holds it to the same rule.
-     */
-    private static final List<DataType> DECODABLE_TYPES = List.of(
-        DataType.KEYWORD,
-        DataType.TEXT,
-        DataType.INTEGER,
-        DataType.LONG,
-        DataType.UNSIGNED_LONG,
-        DataType.DOUBLE,
-        DataType.BOOLEAN,
-        DataType.DATETIME,
-        DataType.DATE_NANOS,
-        DataType.IP
-    );
-
-    /**
-     * The licence an inferred column has today is {@link TypeWidening}'s lossless promotion; the licence a declared
-     * column has is {@link DeclaredTypeCoercions#supports}. These are now collapsed, so a file's column type is
-     * read the same way whatever produced the schema, and that collapse is only safe in one direction: every
-     * pair an inferred column may widen through must already be a supported pair, or giving both columns the
-     * {@code supports} licence would silently REFUSE a read that works today.
-     * <p>
-     * Enumerated over every pair {@code EsqlDataTypeConverter.commonType} admits rather than over the promotions by
-     * name, so a widening it starts admitting without a matching {@code supports} arm fails here instead of narrowing
-     * a read. It does NOT quantify {@code TypeWidening}: {@code widenOrdered} promotes {@code DATETIME} to
-     * {@code DATE_NANOS}, which {@code commonType} returns null for, so that one promotion is not covered here.
-     */
-    public void testEveryLosslessWideningIsAlsoACoerciblePair() {
-        List<String> gaps = new ArrayList<>();
-        for (DataType from : DECODABLE_TYPES) {
-            for (DataType to : DECODABLE_TYPES) {
-                if (from == to) {
-                    continue;
-                }
-                DataType unified = EsqlDataTypeConverter.commonType(to, from);
-                if (unified == null || unified.equals(to) == false) {
-                    continue;
-                }
-                if (DeclaredTypeCoercions.supports(from, to) == false) {
-                    gaps.add(from + " -> " + to);
-                }
-            }
-        }
-        assertThat("a lossless widening that supports() does not admit would be refused after the collapse", gaps, empty());
-    }
-
-    /**
-     * {@link DeclaredTypeCoercions#readsLossless} promises that no value can fail, and two callers act on it by
-     * skipping a guard. Every pair it admits must therefore have a coercion that cannot throw for any value the
-     * readers deliver. {@code unsigned_long} is the pair that broke this: it is the common type of itself and any
-     * signed whole number, so a supertype test alone called {@code long -> unsigned_long} lossless, while
-     * {@link DeclaredTypeCoercions#exactToUnsignedLong} refuses a negative.
-     */
-    public void testReadsLosslessNeverAdmitsASignedValueReadAsUnsignedLong() {
-        List<String> admitted = new ArrayList<>();
-        for (DataType from : DataType.values()) {
-            for (DataType to : DataType.values()) {
-                if (DeclaredTypeCoercions.readsLossless(from, to) && to == DataType.UNSIGNED_LONG && from != to) {
-                    admitted.add(from + " -> " + to);
-                }
-            }
-        }
-        assertThat("a signed value read as unsigned_long fails on the first negative", admitted, empty());
-    }
-
-    /**
-     * Two callers skip a guard on {@link DeclaredTypeCoercions#readsLossless}, so a pair it admits must be one the
-     * reader can actually perform: admitting a pair {@link DeclaredTypeCoercions#supports} rejects would skip the
-     * guard for a read that then has no way to produce the value at all.
-     * <p>
-     * Scoped to the types a file reader can yield and a query can read at, because the two predicates are different
-     * kinds of thing: {@code readsLossless} is a question about the type lattice and answers for every pair in it,
-     * while {@code supports} is an allow-list over the decodable types. Over the whole of {@link DataType} the
-     * containment is false and means nothing - {@code short -> long} is a lossless widening no reader will ever be
-     * asked for. It is over this set that a caller can act on the answer, so it is over this set that it must hold.
-     */
-    public void testEveryLosslessPairIsAlsoASupportedPair() {
-        Set<DataType> decodable = Set.of(
-            DataType.KEYWORD,
-            DataType.TEXT,
-            DataType.INTEGER,
-            DataType.LONG,
-            DataType.DOUBLE,
-            DataType.BOOLEAN,
-            DataType.DATETIME,
-            DataType.DATE_NANOS,
-            DataType.IP,
-            DataType.UNSIGNED_LONG
-        );
-        List<String> admittedButUnsupported = new ArrayList<>();
-        for (DataType from : decodable) {
-            for (DataType to : decodable) {
-                if (DeclaredTypeCoercions.readsLossless(from, to) && DeclaredTypeCoercions.supports(from, to) == false) {
-                    admittedButUnsupported.add(from + " -> " + to);
-                }
-            }
-        }
-        assertThat(
-            "readsLossless promised a decodable pair the reader cannot perform, so its callers skip a guard for nothing",
-            admittedButUnsupported,
-            empty()
-        );
-    }
-
-    /**
-     * A conversion into a string type cannot fail - the coercer renders the value and there is nothing to parse or
-     * range-check - so every supported pair into {@code keyword} or {@code text} reads lossless. Asking
-     * {@code commonType} instead answers no for a number, boolean or ip source, because no string type is their
-     * supertype, and {@code keyword} is exactly what {@code union_by_name} picks for a cross-file pair with no
-     * closer supertype. Calling those reads failable costs them ORC stripe skipping and ORC {@code IS NULL}
-     * pushdown in any mode, and under {@code skip_row} their filter pushdown and deferred extraction on every
-     * format, for a conversion that can only succeed.
-     */
-    public void testAConversionIntoAStringTypeCannotFail() {
-        Set<DataType> decodable = Set.of(
-            DataType.KEYWORD,
-            DataType.TEXT,
-            DataType.INTEGER,
-            DataType.LONG,
-            DataType.DOUBLE,
-            DataType.BOOLEAN,
-            DataType.DATETIME,
-            DataType.DATE_NANOS,
-            DataType.IP,
-            DataType.UNSIGNED_LONG
-        );
-        List<String> refused = new ArrayList<>();
-        for (DataType from : decodable) {
-            for (DataType to : List.of(DataType.KEYWORD, DataType.TEXT)) {
-                if (DeclaredTypeCoercions.supports(from, to) && DeclaredTypeCoercions.readsLossless(from, to) == false) {
-                    refused.add(from + " -> " + to);
-                }
-            }
-        }
-        assertThat("a supported conversion into a string type is total, so it must read lossless", refused, empty());
-        // The pair union_by_name produces, named so the enumeration above cannot pass by covering nothing.
-        assertTrue(DeclaredTypeCoercions.readsLossless(DataType.LONG, DataType.KEYWORD));
-        assertTrue(DeclaredTypeCoercions.readsLossless(DataType.IP, DataType.KEYWORD));
-        // A string target the reader cannot supply at all is still not lossless.
-        assertFalse(DeclaredTypeCoercions.readsLossless(DataType.UNSUPPORTED, DataType.KEYWORD));
-    }
 
     /**
      * The full (physical, declared) matrix over the types the file mappers produce plus the
@@ -748,11 +599,10 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
     }
 
     /**
-     * A {@code date_nanos} source declared {@code datetime} narrows nanos&rarr;millis, truncating sub-millisecond
-     * precision. This is what lets an annotated {@code TIMESTAMP(MICROS|NANOS)} parquet column — which infers as
-     * {@code date_nanos} — be declared as the conventional {@code date}. Pinned value-identical to {@code ::datetime},
-     * which maps DATE_NANOS through the same {@link DateUtils#toMilliSeconds}, so a declared read and an explicit cast
-     * cannot disagree.
+     * A {@code date_nanos} source declared {@code datetime} narrows nanos&rarr;millis by floor division, losing
+     * sub-millisecond precision. This is what lets an annotated {@code TIMESTAMP(MICROS|NANOS)} parquet column — which
+     * infers as {@code date_nanos} — be declared as the conventional {@code date}. Above the epoch the result is
+     * value-identical to {@code ::datetime}, which maps DATE_NANOS through {@link DateUtils#toMilliSeconds}.
      */
     public void testCastDateNanosToDatetimeNarrowsToMillis() {
         long nanos = 1704067200_123_456_789L; // 2024-01-01T00:00:00.123456789Z
@@ -763,9 +613,32 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
             assertEquals("nanos truncate to millis", 1704067200_123L, ((LongBlock) cast).getLong(0));
             assertEquals("must equal the ::datetime primitive", DateUtils.toMilliSeconds(nanos), ((LongBlock) cast).getLong(0));
         }
-        // a pre-epoch nanos instant has no millis representation here: it throws and follows the read's error policy
-        try (Block src = blockFactory.newLongArrayVector(new long[] { -1L }, 1).asBlock()) {
-            expectThrows(InvalidArgumentException.class, () -> castStrict(src, DataType.DATE_NANOS, DataType.DATETIME).close());
+    }
+
+    /**
+     * The narrowing is total below the epoch too, and this is where the declared read deliberately parts from
+     * {@code ::datetime}. {@code date} represents a pre-1970 instant exactly; the 1970 floor
+     * {@link DateUtils#toMilliSeconds} enforces is the floor the {@code date_nanos} field mapper enforces at ingest
+     * ({@link DateUtils#toLong}). Borrowing it made a pre-1970 {@code TIMESTAMP(MICROS)} parquet column fail the
+     * whole read under the default error mode,
+     * while the same column read correctly with no declaration at all.
+     *
+     * <p>Floor division rather than truncation toward zero, which is not a matter of taste: {@code rawBoundFor}'s
+     * {@code ScaleDown} arithmetic — the bounds the planner pushes for this very column — is derived from
+     * {@code decoded == floorDiv(raw, d)}, so truncating would make the decode disagree with the pruning. A single
+     * nanosecond before the epoch is the case that tells them apart: flooring keeps it in 1969, truncation moves it
+     * forward into 1970.
+     */
+    public void testCastDateNanosToDatetimeIsTotalBelowTheEpoch() {
+        long nanos = -152366400_000_000_000L; // 1965-03-04T12:00:00Z
+        try (
+            Block src = blockFactory.newLongArrayVector(new long[] { nanos, -1L, 0L }, 3).asBlock();
+            Block cast = castStrict(src, DataType.DATE_NANOS, DataType.DATETIME)
+        ) {
+            LongBlock millis = (LongBlock) cast;
+            assertEquals("a pre-1970 instant narrows, it does not fail", -152366400_000L, millis.getLong(0));
+            assertEquals("one nanosecond before the epoch floors into 1969, it does not truncate to 0", -1L, millis.getLong(1));
+            assertEquals(0L, millis.getLong(2));
         }
     }
 
@@ -1515,7 +1388,7 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
         assertThat(
             e.getMessage(),
             equalTo(
-                "column [flag] in [data/a.parquet] is [integer] in the file and cannot be read as [boolean]; "
+                "column [flag] in [data/a.parquet] is [integer] in the file and cannot be read as its declared type [boolean]; "
                     + "set [error_mode] to [null_field] to return null instead"
             )
         );

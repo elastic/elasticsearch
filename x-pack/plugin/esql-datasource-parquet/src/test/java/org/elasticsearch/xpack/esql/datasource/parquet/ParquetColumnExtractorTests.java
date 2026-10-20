@@ -59,6 +59,7 @@ import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -273,19 +274,40 @@ public class ParquetColumnExtractorTests extends ESTestCase {
         }
     }
 
-    /**
-     * An {@code int64} column read as {@code integer} on the deferred path narrows per value, so values in range
-     * come back as integers rather than nulls. The deferred-extraction twin of
-     * {@code ParquetFormatReaderTests.testInt64IntegerNarrowsPerValue}: a column must read the same whether or not
-     * extraction was deferred.
-     * <p>
-     * This was two tests, one asserting that the same read null-filled the whole column when nobody had declared
-     * the target type. Nothing about the file or the query differed between them.
-     */
-    public void testDeferredIntegerOverInt64NarrowsPerValue() throws IOException {
+    public void testDeferredInferredIntegerOverInt64NullFillsWholeColumn() throws IOException {
+        // The deferred-extraction twin of ParquetFormatReaderTests.testInt64InferredIntegerNullFillsWholeColumn. After a
+        // TopN, an INFERRED INTEGER target over an int64 column must null-fill via coerceToTarget — never downcast —
+        // otherwise the column reads differently depending on whether extraction was deferred. supports(LONG, INTEGER) is
+        // true, so a plain (non-declared) reader here pins the deferred branch of the gate split: dropping the
+        // isDeclaredTypeColumn guard in coerceToTarget coerces here and this fails.
         byte[] data = writeSingleInt64File(new long[] { 5L, 7L, 9L });
         StorageObject so = createStorageObject(data);
-        try (ColumnExtractor extractor = newFullFileExtractor(so)) {
+        try (ColumnExtractor extractor = newFullFileExtractor(so)) { // plain reader => "v" is inferred
+            long[] positions = { 0, 1, 2 };
+            Block[] blocks = extractor.extract(new String[] { "v" }, new DataType[] { DataType.INTEGER }, positions, blockFactory);
+            try (Block block = blocks[0]) {
+                assertEquals(3, block.getPositionCount());
+                for (int i = 0; i < positions.length; i++) {
+                    assertTrue("inferred int64->integer must null-fill on the deferred path, never downcast", block.isNull(i));
+                }
+            }
+        }
+        List<String> warnings = drainWarnings();
+        assertFalse("deferred inferred incompatibility must emit a response Warning", warnings.isEmpty());
+        assertTrue(
+            "warning must name the incompatibility, got: " + warnings,
+            warnings.toString().contains("column [v]: [long] in the file, [integer] in the query")
+        );
+    }
+
+    public void testDeferredDeclaredIntegerOverInt64Coerces() throws IOException {
+        // The declared contrast to the above on the SAME deferred path: when "v"'s INTEGER target is declared, the escape
+        // is licensed and coerceToTarget narrows per value (values in range => Integer results, not null) — proving the
+        // deferred gate distinguishes declared from inferred, exactly like the eager pair.
+        byte[] data = writeSingleInt64File(new long[] { 5L, 7L, 9L });
+        StorageObject so = createStorageObject(data);
+        ParquetFormatReader reader = (ParquetFormatReader) new ParquetFormatReader(blockFactory).withDeclaredTypeColumns(Set.of("v"));
+        try (ColumnExtractor extractor = new ParquetColumnExtractor(so, reader, loadFooter(so), ErrorPolicy.PERMISSIVE)) {
             long[] positions = { 0, 1, 2 };
             Block[] blocks = extractor.extract(new String[] { "v" }, new DataType[] { DataType.INTEGER }, positions, blockFactory);
             try (Block block = blocks[0]) {
@@ -296,32 +318,6 @@ public class ParquetColumnExtractorTests extends ESTestCase {
                 assertEquals(9, ints.getInt(2));
             }
         }
-        assertTrue("a value that fits needs no warning, got: " + drainWarnings(), drainWarnings().isEmpty());
-    }
-
-    /**
-     * A column the query carries no type for reads as null on the deferred path under every error mode, including
-     * {@code fail_fast}, because both eager validations skip a NULL or UNSUPPORTED planner type before asking whether
-     * the file's type converts and the scan reads the column as null. Asking the type pair instead of who declared the
-     * column must not turn that into a failed query.
-     */
-    public void testDeferredColumnTheQueryDoesNotTypeReadsNull() throws IOException {
-        byte[] data = writeSingleInt64File(new long[] { 5L, 7L, 9L });
-        StorageObject so = createStorageObject(data);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-        long[] positions = { 0, 1, 2 };
-        for (DataType untyped : List.of(DataType.UNSUPPORTED, DataType.NULL)) {
-            for (ErrorPolicy policy : List.of(ErrorPolicy.STRICT, ErrorPolicy.PERMISSIVE)) {
-                try (ColumnExtractor extractor = new ParquetColumnExtractor(so, reader, loadFooter(so), policy)) {
-                    Block[] blocks = extractor.extract(new String[] { "v" }, new DataType[] { untyped }, positions, blockFactory);
-                    try (Block block = blocks[0]) {
-                        assertTrue(untyped + " under " + policy.mode() + " must read null", block.areAllValuesNull());
-                        assertEquals(3, block.getPositionCount());
-                    }
-                }
-            }
-        }
-        assertTrue("an untyped column is not a conversion failure, got: " + drainWarnings(), drainWarnings().isEmpty());
     }
 
     /**
@@ -332,14 +328,14 @@ public class ParquetColumnExtractorTests extends ESTestCase {
     public void testDeferredDeclaredUncoercibleColumnFollowsErrorMode() throws IOException {
         byte[] data = writeSingleInt64File(new long[] { 5L, 7L, 9L });
         StorageObject so = createStorageObject(data);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        ParquetFormatReader reader = (ParquetFormatReader) new ParquetFormatReader(blockFactory).withDeclaredTypeColumns(Set.of("v"));
         long[] positions = { 0, 1, 2 };
         try (ColumnExtractor extractor = new ParquetColumnExtractor(so, reader, loadFooter(so), ErrorPolicy.STRICT)) {
             Exception e = expectThrows(
                 Exception.class,
                 () -> extractor.extract(new String[] { "v" }, new DataType[] { DataType.IP }, positions, blockFactory)
             );
-            assertThat(e.getMessage(), containsString("cannot be read as [ip]"));
+            assertThat(e.getMessage(), containsString("cannot be read as its declared type [ip]"));
         }
         try (ColumnExtractor extractor = new ParquetColumnExtractor(so, reader, loadFooter(so), ErrorPolicy.PERMISSIVE)) {
             for (int batch = 0; batch < 2; batch++) {
@@ -381,7 +377,7 @@ public class ParquetColumnExtractorTests extends ESTestCase {
             return groups;
         }, /* rowGroupBytes = */ 1024L);
         StorageObject so = createStorageObject(data);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        ParquetFormatReader reader = (ParquetFormatReader) new ParquetFormatReader(blockFactory).withDeclaredTypeColumns(Set.of("v"));
         List<String> sink = new ArrayList<>();
         try (ColumnExtractor extractor = new ParquetColumnExtractor(so, reader, loadFooter(so), ErrorPolicy.PERMISSIVE, sink::add)) {
             long[] positions = { 0, 1, 2 };
@@ -1408,6 +1404,11 @@ public class ParquetColumnExtractorTests extends ESTestCase {
         return new StorageObject() {
             @Override
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
 
             @Override
             public StorageIdentity storageIdentity() {

@@ -14,8 +14,8 @@ products:
 KQL (Kibana Query Language) is a text-based language for filtering documents by field values, ranges, wildcards, and combined conditions. You can use KQL syntax in:
 
 * The {{kib}} query bar, for example in **Discover** and in dashboards.
-* The [`kql` query](/reference/query-languages/query-dsl/query-dsl-kql-query.md) in {{es}}.
-* The [`KQL` function](/reference/query-languages/esql/functions-operators/search-functions/kql.md) in {{esql}}.
+* The Query DSL [`kql` clause](/reference/query-languages/query-dsl/query-dsl-kql-query.md), for example in a `_search` request.
+* The {{esql}} [`KQL` function](/reference/query-languages/esql/functions-operators/search-functions/kql.md).
 
 This page is the syntax reference, with examples you can adapt. The syntax is the same in all three places, with a few differences listed in [Differences between {{kib}} and {{es}}](#kql-differences). To learn what KQL is and where to use it, refer to the [{{kib}} Query Language (KQL) overview](docs-content://explore-analyze/query-filter/languages/kql.md).
 
@@ -195,7 +195,7 @@ In {{kib}}, without parentheses, `NOT` applies first, then `AND`, then `OR`. For
 http.request.method: GET OR http.request.method: POST AND http.response.status_code: 400
 ```
 
-In the `kql` query and the {{esql}} `KQL` function, `AND` and `OR` have the same precedence and group from right to left. In those places, `a: 1 AND b: 2 OR c: 3` means `a: 1 AND (b: 2 OR c: 3)`. In {{kib}}, it means `(a: 1 AND b: 2) OR c: 3`. To get the same result everywhere, use parentheses.
+In the Query DSL `kql` clause and the {{esql}} `KQL` function, `AND` and `OR` have the same precedence and group from right to left. In those places, `a: 1 AND b: 2 OR c: 3` means `a: 1 AND (b: 2 OR c: 3)`. In {{kib}}, it means `(a: 1 AND b: 2) OR c: 3`. To get the same result everywhere, use parentheses.
 
 You can also use parentheses to match several values on one field. For example, documents where `http.request.method` is GET, POST, or DELETE:
 
@@ -276,12 +276,12 @@ user.names:{ first: "Alice" AND last: "White" }
 
 ## Differences between {{kib}} and {{es}} [kql-differences]
 
-The {{kib}} query bar, the `kql` query, and the {{esql}} `KQL` function accept the same syntax. The following behaviors differ. Operator precedence also differs, as described in [Combine multiple queries](#_combining_multiple_queries).
+The {{kib}} query bar, the Query DSL `kql` clause, and the {{esql}} `KQL` function accept the same syntax. The following behaviors differ. Operator precedence also differs, as described in [Combine multiple queries](#_combining_multiple_queries).
 
-| Behavior | {{kib}} query bar | `kql` query and {{esql}} `KQL` function |
+| Behavior | {{kib}} query bar | Query DSL `kql` clause and {{esql}} `KQL` function |
 | --- | --- | --- |
 | Ignore case in `keyword` values | Not available | Use the `case_insensitive` option. |
 | Time zone for dates | The **Time zone** (`dateFormat:tz`) advanced setting | Use the `time_zone` option. |
 | Fields searched when you omit the field name | The [`index.query.default_field`](/reference/elasticsearch/index-settings/index-modules.md#index-query-default-field) index setting | The `default_field` option. If you don't set it, the `index.query.default_field` index setting. |
 
-{applies_to}`stack: ga 9.3+` The {{esql}} `KQL` function accepts these options in its `options` parameter. For the `kql` query, set them in the [query body](/reference/query-languages/query-dsl/query-dsl-kql-query.md).
+{applies_to}`stack: ga 9.3+` The {{esql}} `KQL` function accepts these options in its `options` parameter. For the Query DSL `kql` clause, set them as [parameters of the clause](/reference/query-languages/query-dsl/query-dsl-kql-query.md).

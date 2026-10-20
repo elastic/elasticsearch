@@ -24,6 +24,11 @@ import java.io.IOException;
  * scenarios assert — through the {@link AbstractColumnarMapperCompatibilityTestCase} harness, which compares the blob bytes of both
  * paths — that the bound sinks reproduce exactly what per-document field repopulation produces, in particular the per-document slot
  * clearing, the first-value-wins rule of single-valued slots, and the add-every-value rule of multi-valued ones.
+ *
+ * <p>They also cover the reused blob buffer: the batch path streams every document's JSON into one buffer behind a precomputed
+ * {@code SingularIgnoredSourceEncoding} header and {@code XContentDataHelper} type byte, where the row path encodes each document
+ * through fresh builders and intermediate copies. The scenarios assert that the prefix bytes and the buffer reuse reproduce the row
+ * path's encoding exactly.
  */
 public class SourceFieldMapperColumnarCompatibilityTests extends AbstractColumnarMapperCompatibilityTestCase {
 
@@ -138,6 +143,67 @@ public class SourceFieldMapperColumnarCompatibilityTests extends AbstractColumna
                 1L,
                 doc("d5", 5L, "{\"present_kw\":\"four\",\"present_long\":9,\"present_date\":\"2026-05-05\",\"present_text\":\"t\"}")
             )
+        );
+    }
+
+    /**
+     * Documents ordered from large to small, ending in an empty one: the batch path writes each blob over the previous one in the
+     * same buffer, so any stale byte past the reset point — the bug class a reused, in-place-exposed buffer invites — would surface
+     * as a longer blob than the row path produces.
+     */
+    public void testShrinkingDocumentsReuseTheBlobBuffer() throws IOException {
+        final String big = "x".repeat(500);
+        assertColumnarMatchesXContent(
+            wideMapping(),
+            columnarSettings(),
+            batch(
+                "shrinking docs",
+                1L,
+                doc(
+                    "d1",
+                    1L,
+                    "{\"present_kw\":\"" + big + "\",\"present_text\":\"" + big + " " + big + "\",\"present_long\":123456789012345}"
+                ),
+                doc("d2", 2L, "{\"present_kw\":[\"alpha\",\"beta\"],\"obj\":{\"inner_kw\":\"inner\"}}"),
+                doc("d3", 3L, "{\"present_long\":7}"),
+                doc("d4", 4L, "{}")
+            )
+        );
+    }
+
+    /**
+     * Growing and shrinking across consecutive documents, with values whose encoded forms differ in kind (dates, multi-values,
+     * the {@code ignore_above} fallback that embeds its own {@code _ignored_source} entry inside the blob): every document must
+     * come out byte-identical to the row path's fresh-builder encoding regardless of what the previous document left in the buffer.
+     */
+    public void testAlternatingDocumentSizes() throws IOException {
+        final String big = "y".repeat(300);
+        assertColumnarMatchesXContent(
+            wideMapping(),
+            columnarSettings(),
+            batch(
+                "alternating sizes",
+                1L,
+                doc("d1", 1L, "{\"present_long\":1}"),
+                doc("d2", 2L, "{\"present_kw\":\"" + big + "\",\"present_date\":\"2026-10-17T12:00:00Z\"}"),
+                doc("d3", 3L, "{\"capped\":\"waytoolongforthelimit\"}"),
+                doc("d4", 4L, "{\"present_text\":\"" + big + "\",\"present_kw\":[\"a\",\"b\",\"c\"],\"capped\":\"short\"}"),
+                doc("d5", 5L, "{\"present_date\":\"2026-01-01\"}")
+            )
+        );
+    }
+
+    /**
+     * Several batches against the same mapper service: the buffer and the prefix are per batch, so each batch must stand on its
+     * own, including a batch whose first document is empty (nothing but the prefix in the buffer).
+     */
+    public void testBufferIsPerBatch() throws IOException {
+        assertColumnarMatchesXContent(
+            wideMapping(),
+            columnarSettings(),
+            batch("first", 1L, doc("d1", 1L, "{\"present_kw\":\"one\",\"present_long\":1}")),
+            batch("empty leading doc", 1L, doc("d2", 2L, "{}"), doc("d3", 3L, "{\"present_kw\":\"two\"}")),
+            batch("wider", 1L, doc("d4", 4L, "{\"present_kw\":\"three\",\"present_date\":\"2026-05-05\",\"obj\":{\"inner_kw\":\"x\"}}"))
         );
     }
 }

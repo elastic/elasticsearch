@@ -90,7 +90,9 @@ public final class SimdJsonDirectWalker {
      * @param buffer the contiguous byte buffer containing the JSON data
      * @param parser the batch parser with a prepared document window
      * @param handler receives parsed JSON events
-     * @throws JsonParsingException if the JSON is malformed or nesting exceeds {@code maxDepth}
+     * @throws JsonParsingException if the JSON is malformed, nesting exceeds {@code maxDepth}, or
+     *         anything other than whitespace follows the top-level object in the document's window.
+     *         The object's events have been emitted by then.
      */
     public void walkDocument(byte[] buffer, SimdJsonParser parser, JsonDocumentHandler handler) {
         walkDocument(buffer, parser.currentDocumentOffset(), parser.bitIndexes(), handler);
@@ -104,6 +106,19 @@ public final class SimdJsonDirectWalker {
 
     private void walkDocument(byte[] buffer, int docStart, BitIndexes bitIndexes, JsonDocumentHandler handler) {
         this.docStart = docStart;
+        try {
+            walkDocumentBody(buffer, bitIndexes, handler);
+        } catch (ArrayIndexOutOfBoundsException e) {
+            // Scalar scanning (numbers, literals, strings, escaped names) trusts that a well-formed
+            // document is terminated by a structural character, and so reads without bounds checks
+            // beyond the value. A truncated document that ends exactly at the end of the buffer
+            // violates that and runs off the array. Checking on every byte would cost the hot path,
+            // so the failure is translated here instead. Handlers must not throw this exception.
+            throw new JsonParsingException("Unexpected end of document", e);
+        }
+    }
+
+    private void walkDocumentBody(byte[] buffer, BitIndexes bitIndexes, JsonDocumentHandler handler) {
         if (bitIndexes.isEnd()) {
             throw new JsonParsingException("No structural element found.");
         }
@@ -115,18 +130,29 @@ public final class SimdJsonDirectWalker {
 
         if (buffer[bitIndexes.peek()] == '}') {
             bitIndexes.advance();
+            checkNoTrailingContent(buffer, bitIndexes);
             freezeAfterFirstDoc();
             return;
         }
 
         currentDepth = 0;
         walkObject(buffer, bitIndexes, handler);
+        checkNoTrailingContent(buffer, bitIndexes);
         freezeAfterFirstDoc();
+    }
+
+    private static void checkNoTrailingContent(byte[] buffer, BitIndexes bitIndexes) {
+        if (bitIndexes.isEnd() == false) {
+            throw new JsonParsingException("Unexpected content after end of document: '" + (char) buffer[bitIndexes.peek()] + "'");
+        }
     }
 
     private void freezeAfterFirstDoc() {
         if (docCount++ == 0) {
-            nameCache.freeze();
+            // release() already freezes an unfrozen-and-dirty cache, and additionally falls back
+            // to adopting an already-published parent table when the first document taught us
+            // nothing (e.g. {}); calling it here instead of freeze() directly gets both for free.
+            nameCache.release();
         }
     }
 

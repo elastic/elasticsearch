@@ -451,6 +451,8 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
         when(indexShard.getThreadPool()).thenReturn(threadPool);
 
         IndexService indexService = mock(IndexService.class);
+        IndexMetadata indexMetadata = IndexMetadata.builder("index").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
+        when(indexService.getIndexSettings()).thenReturn(new IndexSettings(indexMetadata, Settings.EMPTY));
 
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
 

@@ -44,7 +44,7 @@ public final class RankFeatureQueryBuilder extends LeafQueryBuilder<RankFeatureQ
 
         abstract void writeTo(StreamOutput out) throws IOException;
 
-        abstract Query toQuery(String field, String feature, boolean positiveScoreImpact) throws IOException;
+        abstract Query toQuery(String field, String feature, boolean positiveScoreImpact);
 
         abstract void doXContent(XContentBuilder builder) throws IOException;
 
@@ -388,8 +388,13 @@ public final class RankFeatureQueryBuilder extends LeafQueryBuilder<RankFeatureQ
             if (lastDotIndex != -1) {
                 final String parentField = field.substring(0, lastDotIndex);
                 final MappedFieldType parentFt = context.getFieldType(parentField);
-                if (parentFt instanceof RankFeaturesFieldType) {
-                    return scoreFunction.toQuery(parentField, field.substring(lastDotIndex + 1), true);
+                if (parentFt instanceof RankFeaturesFieldType parentRankFeatures) {
+                    // Through the field type, so that on a slice index the feature's term carries the slice.
+                    return parentRankFeatures.featureQuery(
+                        field.substring(lastDotIndex + 1),
+                        context,
+                        feature -> scoreFunction.toQuery(parentField, feature, true)
+                    );
                 }
             }
             return Queries.NO_DOCS_INSTANCE; // unmapped field

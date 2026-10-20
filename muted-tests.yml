@@ -245,9 +245,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/158128
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   issue: https://github.com/elastic/elasticsearch/issues/158224
-- class: org.elasticsearch.indices.recovery.IndexRecoveryIT
-  method: testPeerRecoveryTrimsLocalTranslog
-  issue: https://github.com/elastic/elasticsearch/issues/158303
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
   method: testFetchTooManyBigFields
   issue: https://github.com/elastic/elasticsearch/issues/158349
@@ -453,9 +450,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
   method: testFullyUploadedListenerDoesNotFireBeforeItsCopyCompletes
   issue: https://github.com/elastic/elasticsearch/issues/162163
-- class: org.elasticsearch.xpack.wildcard.heappressure.WildcardFieldWildcardHeapPressureIT
-  method: testPausedHeavyWildcardsTripBreaker
-  issue: https://github.com/elastic/elasticsearch/issues/162207
 - class: org.elasticsearch.columnar.PayloadColumnMergeTests
   method: testMergeCarriesRepeatsOverWithoutComparing
   issue: https://github.com/elastic/elasticsearch/issues/162235
@@ -464,6 +458,10 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/162240
 - class: org.elasticsearch.search.heappressure.FuzzyHighlightHeapPressureIT
   issue: https://github.com/elastic/elasticsearch/issues/149983
+- class: org.elasticsearch.search.heappressure.QueryCacheDenseClauseHeapPressureIT
+  issue: https://github.com/elastic/elasticsearch/issues/139398
+- class: org.elasticsearch.painless.heappressure.PainlessFieldAllocationIT
+  issue: https://github.com/elastic/elasticsearch/issues/162575
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=cluster.state/20_filtering/Filtering the cluster state by indices should work in routing table and metadata}
   issue: https://github.com/elastic/elasticsearch/issues/162277
@@ -502,9 +500,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecPrometheusK8sIT
   method: test {csv-spec:prometheus-k8s.derivative_of_gauge_metric_promql}
   issue: https://github.com/elastic/elasticsearch/issues/162491
-- class: org.elasticsearch.xpack.enrich.action.EnrichShardMultiSearchActionIT
-  method: testChargeIsHeldUntilResponseIsSent
-  issue: https://github.com/elastic/elasticsearch/issues/162495
 - class: org.elasticsearch.xpack.ccr.index.engine.FollowingEngineTests
   method: testOptimizeMultipleVersions
   issue: https://github.com/elastic/elasticsearch/issues/162517
@@ -514,3 +509,33 @@ tests:
 - class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRelocationSourceThrottleIT
   method: testSourceNodeShutdown
   issue: https://github.com/elastic/elasticsearch/issues/162540
+- class: org.elasticsearch.compute.aggregation.blockhash.LongBytesRefBlockHashTests
+  method: testLookup
+  issue: https://github.com/elastic/elasticsearch/issues/162546
+- class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS1MissingIndicesIT
+  method: testSearchesAgainstNonMatchingIndices
+  issue: https://github.com/elastic/elasticsearch/issues/162565
+- class: org.elasticsearch.action.bulk.BulkItemResponseFailureWireSerializingTests
+  method: testFailureStoreCauseIsSuppressedForOlderVersions
+  issue: https://github.com/elastic/elasticsearch/issues/162587
+- class: org.elasticsearch.xpack.esql.datasource.parquet.PrefetchLatencySimulationTests
+  method: testPrefetchFailureEntersAndSuccessfulProbeExitsProbeMode
+  issue: https://github.com/elastic/elasticsearch/issues/162589
+- class: org.elasticsearch.painless.heappressure.RuntimeFieldHighlightHeapPressureIT
+  method: testDoubleRuntimeFieldFromFreeTextSearch
+  issue: https://github.com/elastic/elasticsearch/issues/162593
+- class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=search.vectors/46_knn_search_bbq_ivf_byte/Test knn search with visit_percentage}
+  issue: https://github.com/elastic/elasticsearch/issues/162596
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {yaml=search.vectors/46_knn_search_bbq_ivf_byte/Test knn search with filter}
+  issue: https://github.com/elastic/elasticsearch/issues/162604
+- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
+  method: testRestartAfterCompletion
+  issue: https://github.com/elastic/elasticsearch/issues/162607
+- class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=search.vectors/46_knn_search_bbq_ivf_byte/Test knn search with filter}
+  issue: https://github.com/elastic/elasticsearch/issues/162612
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {yaml=search.vectors/46_knn_search_bbq_ivf_byte/Test knn search}
+  issue: https://github.com/elastic/elasticsearch/issues/162632

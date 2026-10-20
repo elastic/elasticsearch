@@ -1561,6 +1561,11 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND_FORK_NULL_FILL_DATE_NANOS,
 
         /**
+         * EVAL fields overwritten by an IN subquery are appended at the end of the output, matching ordinary EVAL shadowing.
+         */
+        EVAL_IN_SUBQUERY_OVERWRITE_APPENDED,
+
+        /**
          * Support IN non-correlated subqueries in WHERE command.
          */
         WHERE_IN_SUBQUERY,
@@ -1693,6 +1698,13 @@ public class EsqlCapabilities {
          * views or datasets, whatever the caller's {@code wildcards_match_views}/{@code wildcards_match_datasets} say.
          */
         SETTINGS_SCOPED_AT_VIEW_BOUNDARIES,
+        /**
+         * A view definition may itself {@code SET} the settings that are scoped at view boundaries for callers —
+         * {@code unmapped_fields} (except {@code LOAD_ALL}), {@code wildcards_match_views} and
+         * {@code wildcards_match_datasets} — applied to that view's body alone; a nested view is still governed only
+         * by its own definition's {@code SET}.
+         */
+        SET_IN_VIEW_DEFINITIONS,
         /**
          * Fixed a bug where views are incorrectly de-duplicated.
          */

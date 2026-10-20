@@ -6521,6 +6521,7 @@ message:keyword | event_duration:long | unmapped_event_duration:keyword
 loadAllViewGapDropWildcard
 required_capability: optional_fields_load_all_views
 required_capability: settings_scoped_at_view_boundaries
+required_capability: set_in_view_definitions
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 

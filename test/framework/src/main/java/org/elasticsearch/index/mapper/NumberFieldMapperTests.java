@@ -14,6 +14,7 @@ import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -621,5 +622,16 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
             }));
             assertThat(mapperService.fieldType("field").indexType(), equalTo(IndexType.points(true, true)));
         }
+    }
+
+    @Override
+    protected List<CheckedConsumer<XContentBuilder, IOException>> fieldMappingsForIndexSortRangeTest() {
+        return List.of(b -> {
+            minimalMapping(b);
+            b.field("index", false);
+        }, b -> {
+            minimalMapping(b);
+            b.field("index", true);
+        });
     }
 }

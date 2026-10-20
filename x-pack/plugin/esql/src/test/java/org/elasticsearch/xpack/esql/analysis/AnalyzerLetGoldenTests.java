@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.util.EnumSet;
 import java.util.Map;
@@ -108,7 +109,7 @@ public class AnalyzerLetGoldenTests extends GoldenTestCase {
             | SORT outer_code
             """;
         var statement = EsqlTestUtils.TEST_PARSER.createStatement(query);
-        var planAfterLet = LetResolver.resolve(statement.plan(), statement.letBindings());
+        var planAfterLet = LetResolver.resolve(statement.plan(), statement.letBindings(), ViewResolver.DEFAULT_MAX_PLAN_NODES_COUNT);
         var parsedPlan = InSubqueryResolver.resolve(planAfterLet);
         var esqlAnalyzer = EsqlTestUtils.analyzer().addLanguages().buildAnalyzer();
         var e = expectThrows(VerificationException.class, () -> esqlAnalyzer.analyze(parsedPlan));
@@ -138,7 +139,7 @@ public class AnalyzerLetGoldenTests extends GoldenTestCase {
             | KEEP language_code, language_name
             """;
         var statement = EsqlTestUtils.TEST_PARSER.createStatement(query);
-        var planAfterLet = LetResolver.resolve(statement.plan(), statement.letBindings());
+        var planAfterLet = LetResolver.resolve(statement.plan(), statement.letBindings(), ViewResolver.DEFAULT_MAX_PLAN_NODES_COUNT);
         var ta = EsqlTestUtils.analyzer()
             .addView("view", "FROM subquery | KEEP language_code, language_name")
             .addLanguages()
@@ -155,7 +156,7 @@ public class AnalyzerLetGoldenTests extends GoldenTestCase {
         expectThrows(
             ParsingException.class,
             containsString("Subqueries are not supported in TS command"),
-            () -> LetResolver.resolve(statement.plan(), statement.letBindings())
+            () -> LetResolver.resolve(statement.plan(), statement.letBindings(), ViewResolver.DEFAULT_MAX_PLAN_NODES_COUNT)
         );
     }
 }

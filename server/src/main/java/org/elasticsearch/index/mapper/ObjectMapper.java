@@ -1143,6 +1143,9 @@ public class ObjectMapper extends Mapper {
         // Whether fields are in strictly increasing order of their field name, so that sorting them by name (and telling apart two with
         // the same name) is not needed when there are no ignored values to merge with them.
         private final boolean fieldsOrderedByName;
+        // The _unmapped sink among the fields, if any. A document with absorbed keys can't use orderedWriters: they're merged in by name.
+        @Nullable
+        private final UnmappedSinkSyntheticFieldLoader unmappedSink;
 
         private final boolean columnarStored;
 
@@ -1158,13 +1161,18 @@ public class ObjectMapper extends Mapper {
             this.columnarStored = columnarStored;
             this.fieldWriters = new FieldWriter.FieldLoader[fields.length];
             boolean ordered = true;
+            UnmappedSinkSyntheticFieldLoader sink = null;
             for (int i = 0; i < fields.length; i++) {
                 fieldWriters[i] = new FieldWriter.FieldLoader(fields[i]);
                 if (i > 0 && fields[i - 1].fieldName().compareTo(fields[i].fieldName()) >= 0) {
                     ordered = false;
                 }
+                if (fields[i] instanceof UnmappedSinkSyntheticFieldLoader s) {
+                    sink = s;
+                }
             }
             this.fieldsOrderedByName = ordered;
+            this.unmappedSink = sink;
             String fullPath = ObjectMapper.this.isRoot() ? null : fullPath();
             this.parserConfig = filter == null
                 ? XContentParserConfiguration.EMPTY
@@ -1234,7 +1242,9 @@ public class ObjectMapper extends Mapper {
                 }
             }
 
-            if (fieldsOrderedByName && (ignoredValues == null || ignoredValues.isEmpty())) {
+            if (fieldsOrderedByName
+                && (ignoredValues == null || ignoredValues.isEmpty())
+                && (unmappedSink == null || unmappedSink.hasValue() == false)) {
                 currentWriters = null;
                 orderedWriters.clear();
                 for (int i = 0; i < fields.length; i++) {

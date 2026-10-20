@@ -614,8 +614,8 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             }
 
             var uniqueAggregates = new LinkedHashSet<Expression>();
-            uniqueAggregates.addAll(withSeriesFilter(leftAgg.aggregates(), left.pendingFilter()));
-            uniqueAggregates.addAll(withSeriesFilter(rightAgg.aggregates(), right.pendingFilter()));
+            uniqueAggregates.addAll(addFilter(leftAgg.aggregates(), left.pendingFilter()));
+            uniqueAggregates.addAll(addFilter(rightAgg.aggregates(), right.pendingFilter()));
 
             // Only the aggregate functions need fresh names: both operands define `value`. Grouping columns keep their
             // own names - the command projection finds a passthrough label (`labels.pod`) by its canonical name when the
@@ -654,7 +654,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
      * columns. Filtering the per-series value leaves the outer aggregate over the matching series only. An aggregate
      * without a time-series function keeps the filter on its own functions.
      */
-    private static List<? extends Expression> withSeriesFilter(List<? extends Expression> aggregates, Expression filter) {
+    private static List<? extends Expression> addFilter(List<? extends Expression> aggregates, Expression filter) {
         if (filter == null) {
             return aggregates;
         }

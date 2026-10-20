@@ -2622,3 +2622,43 @@ result:double | step:datetime            | pod:keyword
 947.0         | 2024-05-10T01:00:00.000Z | one
 9969.0        | 2024-05-10T01:00:00.000Z | three
 ;
+
+// The pod matcher reads a source label omitted from the outer grouping. Each cluster has three series, one matching.
+fused_operand_count_filters_series
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_fused_operand_filter
+PROMQL index=k8s step=1h result=(count by (cluster) (network.bytes_in) - count by (cluster) (network.cost{pod="one"}))
+| SORT cluster;
+
+result:double | step:datetime | cluster:keyword
+2.0 | 2024-05-10T01:00:00.000Z | prod
+2.0 | 2024-05-10T01:00:00.000Z | qa
+2.0 | 2024-05-10T01:00:00.000Z | staging
+;
+
+// Each operand keeps its own pod matcher: the difference is the cost of pod two in each cluster.
+fused_operands_keep_separate_matchers
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_fused_operand_filter
+PROMQL index=k8s step=1h result=(sum by (cluster) (network.cost{pod!="three"}) - sum by (cluster) (network.cost{pod="one"}))
+| SORT cluster;
+
+result:double | step:datetime | cluster:keyword
+10.75 | 2024-05-10T01:00:00.000Z | prod
+9.375 | 2024-05-10T01:00:00.000Z | qa
+1.75 | 2024-05-10T01:00:00.000Z | staging
+;
+
+// Only prod has a matching right operand; the other clusters must disappear from the binary result.
+fused_operand_drops_unmatched_groups
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_fused_operand_filter
+PROMQL index=k8s step=1h result=(sum by (cluster) (network.cost) - sum by (cluster) (network.cost{pod="one",cluster="prod"}))
+| SORT cluster;
+
+result:double | step:datetime | cluster:keyword
+10.75 | 2024-05-10T01:00:00.000Z | prod
+;

@@ -3916,6 +3916,12 @@ public class EsqlCapabilities {
         FIX_PROMQL_FUSED_BINARY_OP_LABELS,
 
         /**
+         * Apply a fused PromQL operand's selector matchers to its per-series functions so the outer aggregate
+         * does not reference source labels that the first aggregation phase has removed.
+         */
+        FIX_PROMQL_FUSED_OPERAND_FILTER,
+
+        /**
          * PromQL math and arithmetic now preserve non-finite IEEE-754 results ({@code NaN}, {@code +Inf},
          * {@code -Inf}) instead of dropping the series, matching Prometheus. Affects e.g. {@code metric * Inf},
          * {@code metric * NaN}, {@code metric / 0}, {@code metric % 0}, {@code sqrt(-x)}, {@code ln(-x)},

@@ -1590,7 +1590,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             );
             new IndexWriterConfig(null).setIndexSort(indexSort);
             return true;
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException | UnsupportedOperationException e) {
             return false;
         }
     }

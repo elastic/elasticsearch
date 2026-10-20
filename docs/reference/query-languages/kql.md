@@ -11,26 +11,34 @@ products:
 
 # {{kib}} Query Language (KQL) syntax reference [kuery-query]
 
-This page shows the KQL syntax for each kind of condition, with examples you can adapt. The {{kib}} query bar, the [`kql` query](/reference/query-languages/query-dsl/query-dsl-kql-query.md) in {{es}}, and the [`KQL` function](/reference/query-languages/esql/functions-operators/search-functions/kql.md) in {{esql}} accept the same syntax, with the differences noted on this page. To learn what KQL is and where to use it, refer to [{{kib}} Query Language (KQL) overview](docs-content://explore-analyze/query-filter/languages/kql.md).
+KQL (Kibana Query Language) is a text-based language for filtering documents by field values, ranges, wildcards, and combined conditions. You can use KQL syntax in:
+
+* The {{kib}} query bar, for example in **Discover** and in dashboards.
+* The [`kql` query](/reference/query-languages/query-dsl/query-dsl-kql-query.md) in {{es}}.
+* The [`KQL` function](/reference/query-languages/esql/functions-operators/search-functions/kql.md) in {{esql}}.
+
+This page is the syntax reference, with examples you can adapt. The syntax is the same in all three places, with a few differences listed in [Differences between {{kib}} and {{es}}](#kql-differences). To learn what KQL is and where to use it, refer to the [{{kib}} Query Language (KQL) overview](docs-content://explore-analyze/query-filter/languages/kql.md).
 
 
 ## Syntax at a glance [kql-syntax-at-a-glance]
+
+Find the kind of condition you need in the table, then follow the link for details and examples.
 
 | To find documents | Syntax | Example |
 | --- | --- | --- |
 | [Where a field exists](#_filter_for_documents_where_a_field_exists) | `field: *` | `http.request.method: *` |
 | [That match a value](#_filter_for_documents_that_match_a_value) | `field: value` | `http.request.method: GET` |
 | [That match an exact phrase in a `text` field](#_filter_for_documents_that_match_a_value) | `field: "value"` | `http.request.body.content: "null pointer"` |
-| [With a value in any field](#search-all-fields-without-a-field-name) | `value` | `Hello` |
+| [With a value in any field](#kql-search-without-field-name) | `value` | `Hello` |
 | [Within a range](#_filter_for_documents_within_a_range) | `<`, `<=`, `>`, `>=` | `http.response.bytes < 10000` |
 | [That match a pattern](#_filter_for_documents_using_wildcards) | `*` | `machine.os: win*` |
 | [That don't match a condition](#_negating_a_query) | `NOT` | `NOT http.request.method: GET` |
 | [That match several conditions](#_combining_multiple_queries) | `AND`, `OR`, `( )` | `http.request.method: (GET OR POST OR DELETE)` |
 | [With a value in one of several fields](#_matching_multiple_fields) | `field.*: value` | `datastream.*: logs` |
-| [With a matching nested field](#_querying_nested_fields) | `field:{ condition }` | `user:{ first: "Alice" and last: "White" }` |
+| [With a matching nested field](#_querying_nested_fields) | `field:{ condition }` | `user:{ first: "Alice" AND last: "White" }` |
 
 
-## Filter for documents where a field exists [_filter_for_documents_where_a_field_exists]
+## Match documents where a field exists [_filter_for_documents_where_a_field_exists]
 
 To match documents that have an indexed value for a field, use `*` as the value. For example, documents where `http.request.method` exists:
 
@@ -41,7 +49,7 @@ http.request.method: *
 This matches any indexed value, including an empty string.
 
 
-## Filter for documents that match a value [_filter_for_documents_that_match_a_value]
+## Match documents by value [_filter_for_documents_that_match_a_value]
 
 To match a number, text, date, or boolean value, enter the field name, a colon, and the value. For example, documents where `http.request.method` is GET:
 
@@ -49,9 +57,7 @@ To match a number, text, date, or boolean value, enter the field name, a colon, 
 http.request.method: GET
 ```
 
-On `keyword`, numeric, `date`, or `boolean` fields, the value must match exactly, including punctuation and case. In the [`kql` query](/reference/query-languages/query-dsl/query-dsl-kql-query.md), use the `case_insensitive` option to ignore case in `keyword` values.
-
-{applies_to}`stack: ga 9.3+` The {{esql}} `KQL` function accepts options such as `case_insensitive`, `time_zone`, and `default_field` in its `options` parameter.
+On `keyword`, numeric, `date`, or `boolean` fields, the value must match exactly, including punctuation and case. To ignore case in `keyword` values, refer to [Differences between {{kib}} and {{es}}](#kql-differences).
 
 On `text` fields, {{es}} analyzes the value using the [field's mapping settings](docs-content://solutions/search/full-text/text-analysis-during-search.md). For example, documents where `http.request.body.content` contains `null pointer`:
 
@@ -65,15 +71,15 @@ Because this is a `text` field, the order of the search terms doesn't matter. Do
 http.request.body.content: "null pointer"
 ```
 
-### Search all fields without a field name
+### Search without a field name [kql-search-without-field-name]
 
-The field name is optional. If you leave it out, KQL searches the fields in the `default_field` option of the [`kql` query](/reference/query-languages/query-dsl/query-dsl-kql-query.md). If you don't set that option, it searches the fields set by the [`index.query.default_field`](/reference/elasticsearch/index-settings/index-modules.md#index-query-default-field) index setting. By default, that is every field that supports term queries, except metadata fields and nested fields. For example, to search for `Hello` in those fields:
+The field name is optional. If you leave it out, KQL searches a default set of fields. By default, that is every field that supports term queries, except metadata fields and nested fields. To change the fields, refer to [Differences between {{kib}} and {{es}}](#kql-differences). For example, to search for `Hello` in the default fields:
 
 ```yaml
 Hello
 ```
 
-### Escape special characters
+### Escape special characters [kql-escape-special-characters]
 
 To use one of these characters in a value, escape it with a backslash, unless you surround the value with quotation marks:
 
@@ -90,10 +96,10 @@ http.request.referrer: https\://example.com
 
 Inside quotation marks, escape only the quotation mark and the backslash, as `\"` and `\\`. An asterisk inside quotation marks is a literal asterisk, not a wildcard.
 
-The words `and`, `or`, and `not` are keywords (not case-sensitive). To use one as a value, escape it with a backslash, as in `\and`, or surround it with quotation marks. Field names follow the same escaping rules as values.
+The words `AND`, `OR`, and `NOT` are keywords (not case-sensitive). To use one as a value, escape it with a backslash, as in `\AND`, or surround it with quotation marks. Field names follow the same escaping rules as values.
 
 
-## Filter for documents within a range [_filter_for_documents_within_a_range]
+## Match documents within a range [_filter_for_documents_within_a_range]
 
 To match values in a range, use `<`, `<=`, `>`, or `>=`. For example, documents where `http.response.bytes` is less than 10000:
 
@@ -104,7 +110,7 @@ http.response.bytes < 10000
 For an inclusive range, combine two conditions. For example, documents where `http.response.bytes` is greater than 10000 and less than or equal to 20000:
 
 ```yaml
-http.response.bytes > 10000 and http.response.bytes <= 20000
+http.response.bytes > 10000 AND http.response.bytes <= 20000
 ```
 
 On multi-value fields, KQL tests each condition against every value in the array. `number > 300 AND number < 400` matches `"number": [500, 10]`. The value 500 matches the first condition and 10 matches the second. If one value must satisfy every condition, use [Query DSL](/reference/query-languages/query-dsl/query-dsl-range-query.md).
@@ -121,12 +127,12 @@ A date that includes a time contains a colon, so surround it with quotation mark
 @timestamp >= "2021-01-01T10:00:00"
 ```
 
-{{kib}} interprets explicit dates in the time zone set by the **Time zone** (`dateFormat:tz`) advanced setting. In the `kql` query, use the `time_zone` option instead.
+To set the time zone that KQL uses to interpret explicit dates, refer to [Differences between {{kib}} and {{es}}](#kql-differences).
 
 For more examples of acceptable date formats, refer to [Date Math](/reference/elasticsearch/rest-apis/common-options.md#date-math).
 
 
-## Filter for documents using wildcards [_filter_for_documents_using_wildcards]
+## Match documents using wildcards [_filter_for_documents_using_wildcards]
 
 To match a pattern, use a wildcard. Wildcards work on `keyword`, `text`, and `wildcard` fields. They don't work on numeric, `date`, or `boolean` fields. KQL supports only `*`, which matches zero or more characters.
 
@@ -149,7 +155,7 @@ Queries that start with `*` can slow searches.
 
 ## Exclude documents with a negated query [_negating_a_query]
 
-To exclude documents, use the `not` keyword (not case-sensitive). For example, documents where `http.request.method` is not GET:
+To exclude documents, use the `NOT` keyword (not case-sensitive). For example, documents where `http.request.method` is not GET:
 
 ```yaml
 NOT http.request.method: GET
@@ -164,13 +170,13 @@ NOT (http.request.method: GET OR http.request.method: POST)
 
 ## Combine multiple queries [_combining_multiple_queries]
 
-To combine queries, use `and` or `or` (not case-sensitive). For example, documents where `http.request.method` is GET or `http.response.status_code` is 400:
+To combine queries, use `AND` or `OR` (not case-sensitive). For example, documents where `http.request.method` is GET or `http.response.status_code` is 400:
 
 ```yaml
 http.request.method: GET OR http.response.status_code: 400
 ```
 
-To require both conditions, use `and`. For example, documents where `http.request.method` is GET and `http.response.status_code` is 400:
+To require both conditions, use `AND`. For example, documents where `http.request.method` is GET and `http.response.status_code` is 400:
 
 ```yaml
 http.request.method: GET AND http.response.status_code: 400
@@ -183,13 +189,13 @@ To set precedence, use parentheses. For example, documents where `http.request.m
 (http.request.method: POST AND http.response.status_code: 400)
 ```
 
-In {{kib}}, without parentheses, `not` applies first, then `and`, then `or`. For example, this query matches GET requests, and also POST requests with status 400:
+In {{kib}}, without parentheses, `NOT` applies first, then `AND`, then `OR`. For example, this query matches GET requests, and also POST requests with status 400:
 
 ```yaml
 http.request.method: GET OR http.request.method: POST AND http.response.status_code: 400
 ```
 
-In the `kql` query and the {{esql}} `KQL` function, `and` and `or` have the same precedence and group from right to left. In those places, `a: 1 AND b: 2 OR c: 3` means `a: 1 AND (b: 2 OR c: 3)`. In {{kib}}, it means `(a: 1 AND b: 2) OR c: 3`. To get the same result everywhere, use parentheses.
+In the `kql` query and the {{esql}} `KQL` function, `AND` and `OR` have the same precedence and group from right to left. In those places, `a: 1 AND b: 2 OR c: 3` means `a: 1 AND (b: 2 OR c: 3)`. In {{kib}}, it means `(a: 1 AND b: 2) OR c: 3`. To get the same result everywhere, use parentheses.
 
 You can also use parentheses to match several values on one field. For example, documents where `http.request.method` is GET, POST, or DELETE:
 
@@ -197,7 +203,7 @@ You can also use parentheses to match several values on one field. For example, 
 http.request.method: (GET OR POST OR DELETE)
 ```
 
-Inside the parentheses, you can also use `and` and `not`. For example, documents where `tags` contains `production` and doesn't contain `deprecated`:
+Inside the parentheses, you can also use `AND` and `NOT`. For example, documents where `tags` contains `production` and doesn't contain `deprecated`:
 
 ```yaml
 tags: (production AND NOT deprecated)
@@ -237,7 +243,7 @@ The query can fail if the matching fields have different types. For example, if 
 To find documents where a single value in the `user` array has the first name `Alice` and the last name `White`:
 
 ```yaml
-user:{ first: "Alice" and last: "White" }
+user:{ first: "Alice" AND last: "White" }
 ```
 
 If nested fields contain other nested fields, use the full path of the field you want to query. In this JSON document, `user` and `names` are both nested fields:
@@ -264,5 +270,18 @@ If nested fields contain other nested fields, use the full path of the field you
 To find documents where a single value in the `user.names` array has the first name `Alice` and the last name `White`:
 
 ```yaml
-user.names:{ first: "Alice" and last: "White" }
+user.names:{ first: "Alice" AND last: "White" }
 ```
+
+
+## Differences between {{kib}} and {{es}} [kql-differences]
+
+The {{kib}} query bar, the `kql` query, and the {{esql}} `KQL` function accept the same syntax. The following behaviors differ. Operator precedence also differs, as described in [Combine multiple queries](#_combining_multiple_queries).
+
+| Behavior | {{kib}} query bar | `kql` query and {{esql}} `KQL` function |
+| --- | --- | --- |
+| Ignore case in `keyword` values | Not available | Use the `case_insensitive` option. |
+| Time zone for dates | The **Time zone** (`dateFormat:tz`) advanced setting | Use the `time_zone` option. |
+| Fields searched when you omit the field name | The [`index.query.default_field`](/reference/elasticsearch/index-settings/index-modules.md#index-query-default-field) index setting | The `default_field` option. If you don't set it, the `index.query.default_field` index setting. |
+
+{applies_to}`stack: ga 9.3+` The {{esql}} `KQL` function accepts these options in its `options` parameter. For the `kql` query, set them in the [query body](/reference/query-languages/query-dsl/query-dsl-kql-query.md).

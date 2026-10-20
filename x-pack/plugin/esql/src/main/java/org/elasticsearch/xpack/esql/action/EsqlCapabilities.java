@@ -3693,7 +3693,7 @@ public class EsqlCapabilities {
          * names given with {@code AS}, which shadow an unmapped field of the same name. Only meaningful when
          * {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available. See https://github.com/elastic/elasticsearch/issues/157189.
          */
-        OPTIONAL_FIELDS_LOAD_ALL_CHANGE_POINT(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+        OPTIONAL_FIELDS_LOAD_ALL_CHANGE_POINT,
 
         /**
          * Under {@code unmapped_fields="LOAD_ALL"}, a {@code _source} value that says nothing about its field - {@code null},

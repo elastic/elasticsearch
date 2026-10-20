@@ -6770,3 +6770,59 @@ FROM change_point_mapped, change_point_unmapped
 rows:long | changes:long
 48        | 1
 ;
+
+changePointByExpressionPromotesUnmappedField
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_change_point
+required_capability: change_point_by
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM change_point_mapped
+| CHANGE_POINT v ON k BY SUBSTRING(note, 1, 1)
+| WHERE k >= 12 AND k <= 13
+| SORT k
+;
+
+k:long | v:long | note:keyword | _unmapped_fields:_source                             | type:keyword | pvalue:double
+12     | 10     | n12          | "{""ctype"":""c12"",""cp"":""q12"",""ukey"":""12""}" | null         | null
+13     | 51     | n13          | "{""ctype"":""c13"",""cp"":""q13"",""ukey"":""13""}" | step_change  | 0..1E-20
+;
+
+changePointByIndexAcrossMappedAndUnmappedValue
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_change_point
+required_capability: change_point_by
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM change_point_mapped, change_point_unmapped METADATA _index
+| CHANGE_POINT v ON k BY _index
+| WHERE k >= 12 AND k <= 13
+| KEEP _index, k, v, type, n*
+| SORT _index, k
+;
+
+_index:keyword        | k:long | v:long | type:keyword | _unmapped_fields:_source
+change_point_mapped   | 12     | 10     | null         | "{""note"":""n12""}"
+change_point_mapped   | 13     | 51     | step_change  | "{""note"":""n13""}"
+change_point_unmapped | 12     | 10     | null         | "{""note"":""n12""}"
+change_point_unmapped | 13     | 51     | step_change  | "{""note"":""n13""}"
+;
+
+changePointAsUnmappedFieldsNameTakesTheColumn
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_change_point
+required_capability: optional_fields_load_all_name_collision_warning
+required_capability: change_point
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM change_point_mapped
+| CHANGE_POINT v ON k AS _unmapped_fields, cp
+| WHERE k >= 12 AND k <= 13
+| SORT k
+;
+warning:The query has a column named [_unmapped_fields], so the unmapped fields are not returned in a column of that name; rename that column to get them
+
+k:long | v:long | _unmapped_fields:keyword | cp:double
+12     | 10     | null                     | null
+13     | 51     | step_change              | 0..1E-20
+;

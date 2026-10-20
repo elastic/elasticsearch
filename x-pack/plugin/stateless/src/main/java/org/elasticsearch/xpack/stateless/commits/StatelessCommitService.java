@@ -3338,7 +3338,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             if (latestUploaded == null) {
                 throw new NoShardAvailableActionException(shardId, "indexing shard is initializing");
             }
-            // onOrAfter (really just "on", see next if block) means the shard *is* uploaded, since the search shard saw it
+            // onOrAfter, but only "on" gets through the next `if` block. The search shard read `compoundCommitGeneration`
+            // from the object store, so if the last compound commit of `latestUploading` matches it, then `latestUploading`
+            // has already been uploaded even if we have not yet processed the upload completion. "After" is technically
+            // possible, e.g. when this primary is relocating and the search shard read a commit uploaded by the relocation
+            // target, but the next `if` block then rejects it.
             AbstractBatchedCompoundCommit availableBcc = latestUploading.map(o -> (AbstractBatchedCompoundCommit) o)
                 .filter(bcc -> compoundCommitGeneration.onOrAfter(bcc.lastCompoundCommit().primaryTermAndGeneration()))
                 .orElse(latestUploaded);

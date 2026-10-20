@@ -492,12 +492,6 @@ tests:
 - class: org.elasticsearch.painless.heappressure.RuntimeFieldHighlightHeapPressureIT
   method: testDoubleRuntimeFieldFromFreeTextSearch
   issue: https://github.com/elastic/elasticsearch/issues/162593
-- class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=search.vectors/46_knn_search_bbq_ivf_byte/Test knn search with visit_percentage}
-  issue: https://github.com/elastic/elasticsearch/issues/162596
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {yaml=search.vectors/46_knn_search_bbq_ivf_byte/Test knn search with filter}
-  issue: https://github.com/elastic/elasticsearch/issues/162604
 - class: org.elasticsearch.xpack.enrich.heappressure.EnrichDistinctKeysHeapPressureIT
   issue: https://github.com/elastic/incident-management/issues/2018
 - class: org.elasticsearch.xpack.enrich.heappressure.EnrichRepeatedKeyColdHeapPressureIT
@@ -519,3 +513,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.plugin.EsqlQueryMetricsCollectorIT
   method: testCsvReadNanosIsolatedBetweenQueries
   issue: https://github.com/elastic/elasticsearch/issues/162715
+- class: org.elasticsearch.search.basic.TransportSearchFailuresIT
+  method: testFailedSearchWithWrongQuery
+  issue: https://github.com/elastic/elasticsearch/issues/162738

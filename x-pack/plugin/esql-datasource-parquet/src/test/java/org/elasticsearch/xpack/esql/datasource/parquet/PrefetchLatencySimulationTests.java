@@ -55,7 +55,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -279,13 +278,12 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
 
             assertTrue(iter.hasNext());
             assertEquals("the first real prefetch must fail", 1, storage.failedAsyncReadCount.get());
+            assertFalse("the re-ticketed GET is a successful probe and must leave probe mode", opi.probingPrefetch());
+            assertEquals(floor, opi.prefetchDepth());
             Page first = iter.next();
             first.releaseBlocks();
 
-            assertTrue(storage.successfulAsyncReads.await(10, TimeUnit.SECONDS));
             assertTrue(iter.hasNext());
-            assertFalse("the re-ticketed GET is a successful probe and must leave probe mode", opi.probingPrefetch());
-            assertEquals(floor, opi.prefetchDepth());
             Page second = iter.next();
             second.releaseBlocks();
             assertFalse(iter.hasNext());
@@ -334,8 +332,8 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
                 .withPageSize(10 * 1024 * 1024)
                 .build()
         ) {
-            // Two >8 MB row groups cross SHALLOW_PREFETCH_BYTES and provide a real successful
-            // probe after the first row group's failed prefetch falls back synchronously.
+            // Two >8 MB row groups cross SHALLOW_PREFETCH_BYTES, so the floor is above 1 and the
+            // first row group's re-ticketed GET is a real successful probe.
             byte[] value = new byte[9 * 1024 * 1024];
             for (int i = 0; i < 2; i++) {
                 writer.write(groupFactory.newGroup().append("payload", Binary.fromConstantByteArray(value)));
@@ -739,7 +737,6 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
         private final Exception firstFailure;
         private final AtomicBoolean failNextAsyncRead = new AtomicBoolean(true);
         private final AtomicInteger failedAsyncReadCount = new AtomicInteger();
-        private final CountDownLatch successfulAsyncReads = new CountDownLatch(2);
 
         private FailFirstAsyncStorageObject(byte[] data, ExecutorService asyncIoExecutor, Exception firstFailure) {
             super(data, asyncIoExecutor);
@@ -760,18 +757,7 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
                 failureExecutor.execute(() -> listener.onFailure(firstFailure));
                 return;
             }
-            super.readBytesAsync(position, length, factory, executor, new ActionListener<>() {
-                @Override
-                public void onResponse(DirectReadBuffer response) {
-                    listener.onResponse(response);
-                    successfulAsyncReads.countDown();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+            super.readBytesAsync(position, length, factory, executor, listener);
         }
     }
 

@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -31,6 +33,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
@@ -50,6 +53,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction.withFilter;
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combineAndNullable;
@@ -58,6 +62,7 @@ import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan.getTyp
 import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.finite;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.intersect;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.open;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.subtract;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.union;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch.Joining;
 
@@ -128,10 +133,10 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         // If both the left and right are a scalar, this works, too
         // as both outputs will be empty (scalars don't have any grouping attributes).
         if (PromqlPlan.returnsScalar(left())) {
-            return right().output();
+            return dropMetricName ? withoutMetricNameColumns(right().output()) : right().output();
         }
         if (PromqlPlan.returnsScalar(right())) {
-            return left().output();
+            return dropMetricName ? withoutMetricNameColumns(left().output()) : left().output();
         }
         Set<String> outputLabels;
         // Labels the translation guarantees as result columns even when no operand declares them as attributes (an
@@ -168,16 +173,14 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             outputLabels = new HashSet<>(leftLabels);
             outputLabels.removeAll(match.filterLabels());
         } else if (leftLabels.equals(rightLabels)) {
-            return leftAttrs;
+            // Same label set on both sides: the result carries the left operand's columns, like every other
+            // one-to-one match.
+            return dropMetricName ? withoutMetricNameColumns(leftAttrs) : leftAttrs;
         } else {
             // Default matching between different label sets: a pair matches only where the labels one side lacks are
             // absent on the other side too (a Prometheus signature has no entry for an absent label), and like every
             // one-to-one match the result carries the left operand's labels.
             outputLabels = new HashSet<>(leftLabels);
-        }
-
-        if (dropMetricName) {
-            outputLabels.remove(LabelMatcher.NAME);
         }
 
         List<Attribute> result = new ArrayList<>();
@@ -189,8 +192,24 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
                 result.add(new ReferenceAttribute(source(), label, DataType.KEYWORD));
             }
         }
+        if (dropMetricName) {
+            result.removeIf(VectorBinaryOperator::isMetricNameColumn);
+        }
 
         return result;
+    }
+
+    /**
+     * The columns without the metric name, however the relation spells it ({@code __name__} or a passthrough
+     * {@code labels.__name__}). Arithmetic and {@code bool} comparisons drop the metric name from the result,
+     * whichever operand carried it.
+     */
+    private static List<Attribute> withoutMetricNameColumns(List<Attribute> columns) {
+        return columns.stream().filter(attribute -> isMetricNameColumn(attribute) == false).toList();
+    }
+
+    private static boolean isMetricNameColumn(Attribute attribute) {
+        return LabelMatcher.NAME.equals(PromqlLabels.labelName(attribute));
     }
 
     /**
@@ -306,31 +325,83 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         return translateJoin(context);
     }
 
-    /** Composes a binary operator as an expression over the operands' shared aggregate. */
+    /**
+     * Composes the operator as an expression over the operands' shared aggregate; the operands pass the requirement through.
+     * A name-dropping operator (arithmetic, {@code bool} comparison) requires nothing of {@code __name__} from its operands
+     * and discards the column from the result; a filter comparison returns the left side unchanged, metric name included.
+     */
     private IntermediateResult translateAggregate(TranslationContext context) {
-        IntermediateResult left = context.translate(left());
+        // IN: required, on both operands; a name-dropping operator over a `__name__`-dimension source pairs
+        // without the metric name, two vectors pair on the rest. Layouts without such a dimension pair within
+        // one physical series, so there is no name to exclude.
+        boolean dropName = dropMetricName && context.sourceExposesMetricName();
+        TranslationContext leftTranslation = dropName
+            ? context.withRequired(subtract(context.required(), List.of(LabelMatcher.NAME)))
+            : context;
+        TranslationContext rightTranslation = dropName
+            ? context.withRequired(subtract(context.required(), List.of(LabelMatcher.NAME)))
+            : context;
+        IntermediateResult left = leftTranslation.translate(left());
+        if (dropName) {
+            left = left.with(left.plan(), subtract(left.schema(), List.of(LabelMatcher.NAME)), left.value());
+        }
         Expression leftExpr = new ToDouble(left.value().source(), left.value());
         if (this instanceof VectorBinaryComparison comp && comp.filterMode()) {
             return left.with(left.plan(), left.schema(), leftExpr);
         }
 
-        IntermediateResult right = context.translate(right());
-        Expression rightExpr = new ToDouble(right.value().source(), right.value());
+        IntermediateResult right = rightTranslation.translate(right());
+        if (dropName) {
+            right = right.with(right.plan(), subtract(right.schema(), List.of(LabelMatcher.NAME)), right.value());
+        }
+        // Two range functions pair over one series sample by sample; a side that counts no sample has no element.
         boolean seriesPair = left.kind().afterInitialAggregation == false
             && right.kind().afterInitialAggregation == false
             && getType(left()) != SCALAR
             && getType(right()) != SCALAR;
         if (seriesPair) {
-            // Two range functions over one series pair sample by sample; a side that counts no sample has no element.
             leftExpr = new ToDouble(left.value().source(), TranslationContext.emptySampleCountAsNull(left.value()));
-            rightExpr = new ToDouble(right.value().source(), TranslationContext.emptySampleCountAsNull(right.value()));
         }
-        Expression binaryExpr = binaryOp().asFunction().create(source(), leftExpr, rightExpr, context.configuration());
+        Expression binaryExpr = binaryOp().asFunction()
+            .create(source(), leftExpr, vectorOperandExpression(right, seriesPair), context.configuration());
+
+        // Scalar operands compose as expressions; only two vectors pair or fuse. Two raw vectors pair per
+        // series-minus-name first: a metric ingested as its own series never shares a physical series with another
+        // metric, so folding both into one shared frame would find one side null on every row.
+        if (dropMetricName && getType(left()) != SCALAR && getType(right()) != SCALAR) {
+            boolean leftRaw = isVectorBeforeInitialAgg(left(), left);
+            boolean rightRaw = isVectorBeforeInitialAgg(right(), right);
+            if (leftRaw && rightRaw && pairsPerSeries(context)) {
+                return collapseRawOperands(context, left, right);
+            }
+            // A raw vector next to an aggregated operand (a nested `a / (b + c)`) collapses first: per series
+            // when the other side is a single collapse, or straight to the other side's grain when it is a
+            // regrouped aggregation, so the two fuse below as aggregates over one grouping.
+            if (leftRaw && right.kind().afterInitialAggregation) {
+                left = collapseRawSide(context, left, right, dropName);
+                leftExpr = new ToDouble(left.value().source(), left.value());
+            }
+            if (rightRaw && left.kind().afterInitialAggregation) {
+                right = collapseRawSide(context, right, left, dropName);
+            }
+            binaryExpr = binaryOp().asFunction()
+                .create(source(), leftExpr, vectorOperandExpression(right, seriesPair), context.configuration());
+        }
 
         LogicalPlan plan;
         Expression filter;
         if (left.kind().afterInitialAggregation && right.kind().afterInitialAggregation) {
-            plan = emitBinaryOperatorAggregateExpression(left, right);
+            if (dropMetricName
+                && getType(left()) != SCALAR
+                && getType(right()) != SCALAR
+                && aggregatesCorrespond(left, right, dropName) == false) {
+                // Fusion merges two aggregates over one source level by level. An operand with a different aggregate
+                // skeleton (an aggregate over a collapsed pair next to a single collapse, `sum(a / b) / sum(a)`) has
+                // no level-wise counterpart to merge into, so the sides match through the join instead, each as its
+                // own finished table.
+                return translateJoin(context);
+            }
+            plan = emitBinaryOperatorAggregateExpression(left, right, dropMetricName);
             filter = null;
         } else {
             plan = left.kind().afterInitialAggregation ? left.plan() : right.plan();
@@ -340,8 +411,180 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         Kind kind = left.kind().afterInitialAggregation || right.kind().afterInitialAggregation
             ? Kind.AFTER_INITIAL_AGGREGATE
             : Kind.BEFORE_INITIAL_AGGREGATE;
+        // OUT: the vector operand's labels (left when both are), without the metric name when dropped.
+        if (dropName) {
+            shape = subtract(shape, List.of(LabelMatcher.NAME));
+        }
         IntermediateResult result = new IntermediateResult(plan, shape, null, left.step(), filter, kind);
         return context.eval(result, binaryExpr);
+    }
+
+    /**
+     * Whether two raw operands pair per series before composing: only over a {@code __name__}-dimension source,
+     * where a shared frame never pairs because each metric lives in its own series. Over layouts without one the
+     * shared frame already pairs within one physical series, and every operand stays lazy so the enclosing
+     * aggregate folds both sides per series; an eager per-series collapse would only add packings that later
+     * regroups can drop.
+     */
+    private static boolean pairsPerSeries(TranslationContext context) {
+        return context.sourceExposesMetricName();
+    }
+
+    /**
+     * The grain raw operands pair at: the enclosing requirement's labels stay concrete columns (an outer BY regroups
+     * by them), while every other label but the metric name packs into series identity, plus whatever the enclosing
+     * requirement already excludes (an outer WITHOUT regroups the paired rows and needs its keys excluded up
+     * front). A coarser grain would merge distinct series.
+     */
+    private static TranslationSchema seriesGrain(TranslationContext context) {
+        TranslationSchema requirement = context.required().isOpen() ? context.required() : finite(context.required().labels());
+        TranslationSchema grain = subtract(requirement, List.of(LabelMatcher.NAME));
+        // Pairs need series identity even under a closed requirement (sum, sum by (k)): without the
+        // name-exclusion packing the collapse merges distinct pairs before the operator applies. Layouts
+        // without a __name__ dimension pair within one physical series and need no packing.
+        if (grain.skips().isEmpty() && context.sourceExposesMetricName()) {
+            grain = union(grain, open(List.of(LabelMatcher.NAME)));
+        }
+        return grain;
+    }
+
+    /**
+     * Collapses a raw operand next to an already-aggregated one, preferring series grain so no series merge. When
+     * the other side regrouped coarser and series grain has no level-wise counterpart to fuse into, the collapse
+     * goes straight to the other side's top grouping instead; Max over the raw rows equals Max over per-series
+     * maxima, so the fused value is unchanged.
+     */
+    private static IntermediateResult collapseRawSide(
+        TranslationContext context,
+        IntermediateResult raw,
+        IntermediateResult agg,
+        boolean dropName
+    ) {
+        TranslationSchema series = seriesGrain(context);
+        IntermediateResult collapsed = context.collapse(raw, series, new Max(raw.value().source(), raw.value()));
+        if (aggregatesCorrespond(collapsed, agg, dropName)) {
+            return collapsed;
+        }
+        Aggregate top = agg.plan().collect(Aggregate.class).getFirst();
+        var keys = new LinkedHashSet<String>();
+        List<? extends Expression> groupings = top.groupings();
+        for (int i = 1; i < groupings.size(); i++) {
+            if (groupings.get(i) instanceof NamedExpression ne) {
+                keys.add(ne.name());
+            }
+        }
+        Set<String> available = new HashSet<>();
+        raw.plan().output().forEach(attr -> available.add(attr.name()));
+        TranslationSchema schema = available.containsAll(keys) ? finite(keys) : raw.schema();
+        return context.collapse(raw, schema, new Max(raw.value().source(), raw.value()));
+    }
+
+    /**
+     * Whether the fusion can merge the two tables level by level: both sides have the same aggregate levels outermost
+     * first, and each pair groups alike, so every merged function keeps a grouping that computes it. Anything else
+     * has no level-wise counterpart and must match through the join instead.
+     */
+    private static boolean aggregatesCorrespond(IntermediateResult left, IntermediateResult right, boolean dropName) {
+        var leftAggs = left.plan().collect(Aggregate.class);
+        var rightAggs = right.plan().collect(Aggregate.class);
+        if (leftAggs.size() != rightAggs.size() || leftAggs.isEmpty()) {
+            return false;
+        }
+        for (int i = 0; i < leftAggs.size(); i++) {
+            if (groupingNames(leftAggs.get(i), dropName).equals(groupingNames(rightAggs.get(i), dropName)) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static Set<String> groupingNames(Aggregate agg, boolean dropName) {
+        List<Expression> groupings = dropName ? withoutMetricName(agg.groupings()) : agg.groupings();
+        Set<String> names = new HashSet<>();
+        for (Expression grouping : groupings) {
+            if (grouping instanceof NamedExpression ne) {
+                names.add(ne.name());
+            }
+        }
+        return names;
+    }
+
+    /** A raw (not yet collapsed) instant-vector operand, as opposed to a scalar or an aggregated table. */
+    private static boolean isVectorBeforeInitialAgg(LogicalPlan operand, IntermediateResult translated) {
+        return translated.kind().afterInitialAggregation == false && getType(operand) != SCALAR;
+    }
+
+    /**
+     * The operand's value as a double expression, read from its current table: collapsing the operand first (a raw
+     * vector next to an aggregated one) replaces the table, so the expression must be built after, not reused.
+     */
+    private static Expression vectorOperandExpression(IntermediateResult operand, boolean seriesPair) {
+        Expression value = seriesPair ? TranslationContext.emptySampleCountAsNull(operand.value()) : operand.value();
+        return new ToDouble(value.source(), value);
+    }
+
+    /**
+     * Pairs two raw vector operands per series and step before applying the operator. The collapse's first phase runs per
+     * physical time series, and a metric ingested as its own documents (one per sample, {@code labels.__name__} a
+     * dimension) never shares a physical series with another metric: computed row by row, the operator would see one
+     * operand null in every row. Aggregating each operand within its group first is exact - the group is every label but
+     * {@code __name__}, so it holds at most one series per metric - and puts both values in one row. The eager collapse
+     * hands an aggregated table to any enclosing aggregate, which regroups it like any other collapsed operand.
+     */
+    private IntermediateResult collapseRawOperands(TranslationContext context, IntermediateResult left, IntermediateResult right) {
+        // Each side keeps its operand's source, so the paired expression still reads as `a <op> b` over the selectors.
+        Source leftSource = left.value().source();
+        Source rightSource = right.value().source();
+        // Each operand's pending filter is attached to the inner TSAF so it fires in the first phase of the
+        // TimeSeriesAggregate, where source fields (like `labels.__name__`) are still present. Combining the two
+        // filters with AND on the source relation would exclude all rows for cross-metric binary ops: a row matches
+        // `labels.__name__ = "metric_a"` or `labels.__name__ = "metric_b"` but never both simultaneously.
+        Expression leftMax = applySeriesFilter(
+            new Max(leftSource, TranslationContext.emptySampleCountAsNull(left.value())),
+            left.pendingFilter()
+        );
+        Expression rightMax = applySeriesFilter(
+            new Max(rightSource, TranslationContext.emptySampleCountAsNull(right.value())),
+            right.pendingFilter()
+        );
+        Expression leftExpr = new ToDouble(leftSource, leftMax);
+        Expression rightExpr = new ToDouble(rightSource, rightMax);
+        Expression paired = binaryOp().asFunction().create(source(), leftExpr, rightExpr, context.configuration());
+        // Pair at series grain; an enclosing aggregate regroups the paired rows to its own grain.
+        TranslationSchema grain = seriesGrain(context);
+        IntermediateResult raw = new IntermediateResult(right.plan(), grain, null, right.step(), null, Kind.BEFORE_INITIAL_AGGREGATE);
+        return context.collapse(raw, grain, paired);
+    }
+
+    private static Expression applySeriesFilter(Expression expr, Expression filter) {
+        if (filter == null) {
+            return expr;
+        }
+        return expr.transformDown(TimeSeriesAggregateFunction.class, f -> f.withFilter(filter));
+    }
+
+    /**
+     * Attaches an operand's pending filter to the time-series functions of its aggregates only. The selector matchers
+     * reference source fields, which exist in the per-series first phase of the time-series aggregate but not in its
+     * second phase; an outer aggregate nested in an expression (the {@code Max} of a paired collapse) would keep a filter
+     * over vanished columns.
+     */
+    private static List<? extends Expression> withSeriesFilter(List<? extends Expression> aggregates, Expression filter) {
+        if (filter == null) {
+            return aggregates;
+        }
+        return aggregates.stream()
+            .map(e -> e.transformDown(TimeSeriesAggregateFunction.class, function -> function.withFilter(filter)))
+            .toList();
+    }
+
+    /** The grouping keys without the {@code __name__} label, however the relation spells it. */
+    private static List<Expression> withoutMetricName(List<Expression> groupings) {
+        return groupings.stream().filter(g -> (g instanceof NamedExpression ne && isMetricName(ne.toAttribute())) == false).toList();
+    }
+
+    private static boolean isMetricName(Attribute attribute) {
+        return LabelMatcher.NAME.equals(PromqlLabels.labelName(attribute));
     }
 
     /**
@@ -408,6 +651,8 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         var names = new TreeSet<>(left.schema().labels());
         names.addAll(right.schema().labels());
         names.removeAll(match.filterLabels());
+        // A Prometheus signature never includes the metric name: operands of different metrics pair on their other labels.
+        names.remove(LabelMatcher.NAME);
         return List.copyOf(names);
     }
 
@@ -587,34 +832,71 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         return e;
     }
 
-    /** Fold left and right aggregates into a single plan. */
-    private LogicalPlan emitBinaryOperatorAggregateExpression(IntermediateResult left, IntermediateResult right) {
+    /**
+     * Fold left and right aggregates into a single plan. When the operator drops the metric name, a {@code __name__}
+     * grouping is dropped from both sides first: Prometheus pairs series on their labels without the metric name, and over
+     * the remote-write layout the two operands never share one (each metric is its own {@code __name__}), so grouping on
+     * it would put the sides in disjoint groups. A selector names one metric, so within an operand the grouping is
+     * constant and dropping it merges nothing.
+     */
+    private LogicalPlan emitBinaryOperatorAggregateExpression(IntermediateResult left, IntermediateResult right, boolean dropName) {
         var names = new TemporaryNameGenerator.Monotonic();
         var rightAgg = right.plan().collect(Aggregate.class).getFirst();
 
         var result = left.plan().transformDown(Aggregate.class, leftAgg -> {
+            List<Expression> leftGroupings = dropName ? withoutMetricName(leftAgg.groupings()) : leftAgg.groupings();
+            List<Expression> rightGroupings = dropName ? withoutMetricName(rightAgg.groupings()) : rightAgg.groupings();
             Set<String> leftGroupingNames = new HashSet<>();
-            for (Expression grouping : leftAgg.groupings()) {
+            for (Expression grouping : leftGroupings) {
                 if (grouping instanceof NamedExpression ne) {
                     leftGroupingNames.add(ne.name());
                 }
             }
             Set<String> rightGroupingNames = new HashSet<>();
-            for (Expression grouping : rightAgg.groupings()) {
+            for (Expression grouping : rightGroupings) {
                 if (grouping instanceof NamedExpression ne) {
                     rightGroupingNames.add(ne.name());
                 }
             }
-            boolean groupingsCompatible = leftAgg.groupings().size() == rightAgg.groupings().size()
-                && leftGroupingNames.equals(rightGroupingNames);
+            boolean groupingsCompatible = leftGroupings.size() == rightGroupings.size() && leftGroupingNames.equals(rightGroupingNames);
 
             if (groupingsCompatible == false) {
                 throw new VerificationException("binary operations between vectors with mismatched grouping keys are not yet supported");
             }
 
+            // Grouping columns match by name. Relation fields share one attribute on both sides, but a packing alias
+            // (`_timeseries$__name__`) is minted per collapse: rebind the right side's keys to the left side's so the
+            // fused aggregate carries each key once and every reference resolves against the surviving grouping.
+            Map<String, Attribute> leftKeys = new HashMap<>();
+            for (Expression grouping : leftAgg.groupings()) {
+                if (grouping instanceof NamedExpression ne) {
+                    leftKeys.put(ne.name(), ne.toAttribute());
+                }
+            }
+            Map<NameId, Attribute> rightToLeft = new HashMap<>();
+            for (Expression grouping : rightAgg.groupings()) {
+                if (grouping instanceof NamedExpression ne && leftKeys.containsKey(ne.name())) {
+                    rightToLeft.put(ne.toAttribute().id(), leftKeys.get(ne.name()));
+                }
+            }
+            List<? extends Expression> rightAggregates = rightAgg.aggregates()
+                .stream()
+                .map(e -> e.transformUp(Attribute.class, a -> rightToLeft.getOrDefault(a.id(), a)))
+                .toList();
+
             var uniqueAggregates = new LinkedHashSet<Expression>();
-            uniqueAggregates.addAll(withFilter(leftAgg.aggregates(), left.pendingFilter()));
-            uniqueAggregates.addAll(withFilter(rightAgg.aggregates(), right.pendingFilter()));
+            uniqueAggregates.addAll(
+                dropName
+                    ? withSeriesFilter(leftAgg.aggregates(), left.pendingFilter())
+                    : withFilter(leftAgg.aggregates(), left.pendingFilter())
+            );
+            uniqueAggregates.addAll(
+                dropName ? withSeriesFilter(rightAggregates, right.pendingFilter()) : withFilter(rightAggregates, right.pendingFilter())
+            );
+            if (dropName) {
+                // the dropped grouping is no longer an output column either
+                uniqueAggregates.removeIf(e -> e instanceof Attribute a && isMetricName(a));
+            }
 
             // Only the aggregate functions need fresh names: both operands define `value`. Grouping columns keep their
             // own names - the command projection finds a passthrough label (`labels.pod`) by its canonical name when the
@@ -626,11 +908,15 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
                 return e;
             }).toList();
 
-            return leftAgg.with(leftAgg.child(), leftAgg.groupings(), newAggregates);
+            return leftAgg.with(leftAgg.child(), leftGroupings, newAggregates);
         });
 
+        // Input expressions are already below the surviving aggregate. Only replay result expressions above it.
         var rightEvals = right.plan().collect(Eval.class);
-        for (Eval eval : rightEvals.reversed()) {
+        Stream<Eval> replayed = dropName
+            ? rightEvals.stream().filter(eval -> rightAgg.collect(Eval.class).contains(eval) == false)
+            : rightEvals.stream();
+        for (Eval eval : replayed.toList().reversed()) {
             result = new Eval(eval.source(), result, eval.fields());
         }
         return result;

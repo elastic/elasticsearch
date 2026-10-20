@@ -11,10 +11,8 @@ import org.apache.http.HttpHeaders;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.message.BasicNameValuePair;
-import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -23,11 +21,12 @@ import org.elasticsearch.xpack.prometheus.proto.RemoteWrite;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
@@ -115,11 +114,10 @@ public class PrometheusEsqlTimeSeriesRestIT extends AbstractPrometheusRestIT {
     }
 
     /**
-     * Remote write maps {@code labels.__name__} dynamically, so only the real template shows the verifier detects it as a
-     * dimension: an unmatched binary operator between bare selectors of different metrics must fail rather than return no
-     * rows. The aggregated workaround is covered by {@code PrometheusQueryRangeRestIT}.
+     * A binary operator between bare selectors of different metrics pairs per series: each instance carries both
+     * metrics, so the unpaired frame holds one row per series and the operator applies per pair.
      */
-    public void testBinaryOperatorBetweenDifferentMetricsRequiresAggregation() throws Exception {
+    public void testBinaryOperatorBetweenDifferentMetricsPairsPerSeries() throws Exception {
         long timestamp = System.currentTimeMillis();
         for (String instance : List.of("a:9100", "b:9100")) {
             Map<String, String> labels = Map.of("instance", instance, "job", "node");
@@ -134,12 +132,24 @@ public class PrometheusEsqlTimeSeriesRestIT extends AbstractPrometheusRestIT {
             + Instant.ofEpochMilli(timestamp + 60_000L)
             + "\" step=1m r=(node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)";
 
-        ResponseException e = expectThrows(ResponseException.class, () -> runEsqlQuery(query));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(
-            EntityUtils.toString(e.getResponse().getEntity()),
-            containsString("binary operations between different metrics require aggregating both operands by the labels to match on")
-        );
+        ObjectPath response = runEsqlQuery(query);
+        List<Map<String, String>> columns = response.evaluate("columns");
+        List<String> columnNames = columns.stream().map(c -> c.get("name")).toList();
+        int valueIdx = columnNames.indexOf("r");
+        int timeseriesIdx = columnNames.indexOf("_timeseries");
+        assertThat("expected value and series columns in " + columnNames, valueIdx != -1 && timeseriesIdx != -1, equalTo(true));
+        List<List<Object>> rows = response.evaluate("values");
+        assertThat(rows.isEmpty(), equalTo(false));
+        Set<String> instances = new HashSet<>();
+        for (List<Object> row : rows) {
+            assertThat(((Number) row.get(valueIdx)).doubleValue(), equalTo(0.5));
+            Map<String, Object> parsed = parseJsonObject(String.valueOf(row.get(timeseriesIdx)));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> parsedLabels = (Map<String, Object>) parsed.get("labels");
+            assertThat(parsedLabels, notNullValue());
+            instances.add(String.valueOf(parsedLabels.get("instance")));
+        }
+        assertThat(instances, equalTo(Set.of("a:9100", "b:9100")));
     }
 
     private static Map<String, String> series(String cluster, String pod, String region) {

@@ -22,7 +22,9 @@ import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDef
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry.PromqlContext;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -135,6 +137,11 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
                 for (Attribute label : groupings) {
                     excluded.add(labelKey(label));
                 }
+                // `without` also drops the metric name - Prometheus never carries `__name__` past an aggregation.
+                // Only where series carry one; other layouts have no such column to exclude.
+                if (TranslationContext.carriesMetricName(childOutput)) {
+                    excluded.add(LabelMatcher.NAME);
+                }
                 return childOutput.stream().filter(a -> excluded.contains(labelKey(a)) == false).toList();
             }
             return List.of(timeseriesAttribute);
@@ -168,6 +175,12 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
     }
 
     @Override
+    public boolean dropsMetricName() {
+        // Aggregations group series away: the result carries only grouping labels, never the metric name.
+        return true;
+    }
+
+    @Override
     public boolean isIdentityTransparent() {
         // Aggregates across series into a grouped result: a relabel below it must be part of this grouping's identity.
         return false;
@@ -182,10 +195,18 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
     @Override
     public IntermediateResult translate(TranslationContext context) {
         List<String> keys = TranslationContext.mapFinite(groupings());
+        // `without` also drops the metric name - Prometheus never carries `__name__` past an aggregation - so `without ()`
+        // drops exactly it.
+        // NOTE: without excluding `__name__` the aggregation result would be split across metrics.
+        List<String> dropped = new ArrayList<>(keys);
+        if (dropped.contains(LabelMatcher.NAME) == false) {
+            dropped.add(LabelMatcher.NAME);
+        }
         TranslationSchema childRequired = switch (grouping()) {
             case BY -> finite(keys);
-            // without () keeps the child's label set; without (K) declares its own and widens every pending one by K
-            case WITHOUT -> keys.isEmpty() ? context.required() : union(subtract(context.required(), keys), open(keys));
+            // without (d) keeps every other label but the dropped ones and `__name__`; without (K) declares its own
+            // and widens every pending one by K
+            case WITHOUT -> union(subtract(context.required(), dropped), open(dropped));
             case NONE -> TranslationSchema.EMPTY;
         };
         TranslationContext childTranslation = context.withRequired(childRequired);
@@ -195,7 +216,7 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
         }
         TranslationSchema schema = switch (grouping()) {
             case BY -> finite(TranslationContext.mapFinite(output()));
-            case WITHOUT -> context.regroupWithout(ir.schema(), keys);
+            case WITHOUT -> context.regroupWithout(ir.schema(), dropped);
             case NONE -> TranslationSchema.EMPTY;
         };
 

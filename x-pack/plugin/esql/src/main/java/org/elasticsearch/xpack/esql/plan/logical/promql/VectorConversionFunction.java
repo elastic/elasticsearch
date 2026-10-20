@@ -35,6 +35,12 @@ public final class VectorConversionFunction extends PromqlFunctionCall {
     }
 
     @Override
+    public boolean dropsMetricName() {
+        // vector() builds a new series with no labels at all, so no metric name survives.
+        return true;
+    }
+
+    @Override
     public boolean isIdentityTransparent() {
         return true;
     }

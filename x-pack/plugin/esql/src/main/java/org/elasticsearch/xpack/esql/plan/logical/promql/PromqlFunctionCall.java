@@ -24,11 +24,14 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.subtract;
 
 /**
  * Represents a PromQL function call in the logical plan.
@@ -108,6 +111,15 @@ public abstract sealed class PromqlFunctionCall extends UnaryPlan implements Pro
     }
 
     /**
+     * Whether the result drops {@code __name__} from the series identity. Prometheus drops the metric name from the result
+     * of every function, except the label functions (they return the input series relabeled), {@code topk}/{@code bottomk}/
+     * {@code limitk} (they return input series unchanged) and {@code last_over_time}, which acts like an offset.
+     */
+    public boolean dropsMetricName() {
+        return true;
+    }
+
+    /**
      * Builds the ES|QL expression that implements this PromQL function call.
      * <p>
      * The builder returns an {@link Expression}: a value expression for scalar/aggregate/value-transformation
@@ -160,7 +172,15 @@ public abstract sealed class PromqlFunctionCall extends UnaryPlan implements Pro
      * {@link #translate} so a new family cannot inherit this lowering by accident.
      */
     protected final IntermediateResult translateValueFunction(TranslationContext context) {
-        IntermediateResult child = context.translate(child());
+        // A function that drops the metric name requires nothing of `__name__` below itself, so the child's
+        // packings already exclude it - but only where the child carries one. A selector child never declares
+        // `__name__` in its output, so a `__name__`-dimension source implies the drop on its own.
+        boolean dropName = dropsMetricName()
+            && (TranslationContext.carriesMetricName(child().output()) || context.sourceExposesMetricName());
+        TranslationContext childTranslation = dropName
+            ? context.withRequired(subtract(context.required(), List.of(LabelMatcher.NAME)))
+            : context;
+        IntermediateResult child = childTranslation.translate(child());
         if (child.kind().constant) {
             return child;
         }
@@ -169,6 +189,8 @@ public abstract sealed class PromqlFunctionCall extends UnaryPlan implements Pro
             window = context.cmd().resolveRangeWindow(rangeSelector.range());
         }
         var promqlCtx = new PromqlContext(context.time(), window, child.step(), context.configuration());
-        return context.eval(child, buildEsqlFunction(child.value(), promqlCtx));
+        IntermediateResult result = context.eval(child, buildEsqlFunction(child.value(), promqlCtx));
+        // OUT: child's labels - `__name__` when dropped, the function as the value.
+        return dropName ? result.with(result.plan(), subtract(result.schema(), List.of(LabelMatcher.NAME)), result.value()) : result;
     }
 }

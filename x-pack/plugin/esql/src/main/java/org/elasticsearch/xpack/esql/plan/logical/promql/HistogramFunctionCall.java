@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDef
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 
 import java.util.List;
 
@@ -52,9 +53,13 @@ public abstract sealed class HistogramFunctionCall extends PromqlFunctionCall pe
     @Override
     public final List<Attribute> output() {
         if (output == null) {
+            // the buckets collapse: `le` goes, and so does the metric name (a `by (__name__, le)` grouping column)
             output = child().output()
                 .stream()
-                .filter(attr -> MetadataAttribute.isTimeSeriesAttributeName(attr.name()) || LE_LABEL.equals(labelName(attr)) == false)
+                .filter(
+                    attr -> MetadataAttribute.isTimeSeriesAttributeName(attr.name())
+                        || (LE_LABEL.equals(labelName(attr)) == false && LabelMatcher.NAME.equals(labelName(attr)) == false)
+                )
                 .toList();
         }
         return output;
@@ -63,6 +68,12 @@ public abstract sealed class HistogramFunctionCall extends PromqlFunctionCall pe
     @Override
     public final FunctionType functionType() {
         return FunctionType.HISTOGRAM;
+    }
+
+    @Override
+    public boolean dropsMetricName() {
+        // Classic histograms collapse buckets like `without (le)`: the metric name goes with `le`.
+        return true;
     }
 
     @Override
@@ -87,10 +98,12 @@ public abstract sealed class HistogramFunctionCall extends PromqlFunctionCall pe
 
     @Override
     public IntermediateResult translate(TranslationContext context) {
-        // Classic histogram functions collapse the `le` bucket dimension like a `without (le)` would, and read the
-        // bucket bound off the `le` column itself, so the child must also expose it by name.
+        // Classic histogram functions collapse the `le` bucket dimension like a `without (le)` would, dropping the
+        // metric name with it, and read the bucket bound off the `le` column itself, so the child must also expose it by
+        // name.
         List<String> le = List.of(HistogramFunctionCall.LE_LABEL);
-        TranslationSchema childRequired = union(union(subtract(context.required(), le), open(le)), finite(le));
+        List<String> dropped = List.of(HistogramFunctionCall.LE_LABEL, LabelMatcher.NAME);
+        TranslationSchema childRequired = union(union(subtract(context.required(), dropped), open(dropped)), finite(le));
         IntermediateResult result = context.withRequired(childRequired).translate(child());
         if (result.kind().constant) {
             return result;
@@ -121,7 +134,8 @@ public abstract sealed class HistogramFunctionCall extends PromqlFunctionCall pe
         }
 
         // Bucket counts are consumed as doubles; counter buckets are frequently integer/long typed, so cast explicitly.
-        TranslationSchema schema = context.regroupWithout(result.schema(), le);
+        // OUT: child's labels - le - `__name__`; bucket counts read as doubles.
+        TranslationSchema schema = context.regroupWithout(result.schema(), dropped);
         Expression count = new ToDouble(source(), result.value());
         return context.regroup(result, schema, true, buildAggregateFunction(count, leColumn));
     }

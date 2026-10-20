@@ -145,7 +145,7 @@ PUT /_cluster/settings
 
 ## Telemetry [cluster-telemetry]
 
-{{es}} can export metrics and traces about its own operation, configured with the `telemetry.*` settings. This exists mainly for Elastic's own observability of {{es}}. The `telemetry.*` settings, their defaults, and the exported metrics and traces can change in any version. Do not rely on them staying the same between versions.
+The `telemetry.*` settings configure the export of internal metrics and traces in {{es}}. This is not a publicly supported feature. Related settings, their defaults, and the exported metrics and traces can change at any time.
 
 
 ## Persistent tasks allocation [persistent-tasks-allocation]

@@ -362,6 +362,8 @@ public final class IndexPrivilege extends Privilege {
         Setting.Property.NodeScope
     );
 
+    private static final Set<IndexPrivilege> NONE_SET = Set.of(NONE);
+
     private static volatile Cache<Set<String>, CachedPrivileges> cache = buildCache(Settings.EMPTY);
 
     private final IndexComponentSelectorPredicate selectorPredicate;
@@ -415,11 +417,15 @@ public final class IndexPrivilege extends Privilege {
      * A notable exception is the {@link IndexPrivilege#ALL} privilege. If this privilege is included in the input name set, this method
      * returns a single index privilege that grants access to all selectors.
      * All raw actions are treated as granting access to the {@link IndexComponentSelector#DATA} selector.
+     * An empty input returns a shared set containing {@link #NONE} without using the cache.
      */
     public static Set<IndexPrivilege> resolveBySelectorAccess(Set<String> names) {
+        if (names.isEmpty()) {
+            return NONE_SET;
+        }
         try {
             return cache.computeIfAbsent(names, (theName) -> {
-                final Set<IndexPrivilege> privileges = theName.isEmpty() ? Set.of(NONE) : resolve(theName);
+                final Set<IndexPrivilege> privileges = resolve(theName);
                 return new CachedPrivileges(privileges, weigh(theName, privileges));
             }).privileges();
         } catch (ExecutionException e) {
@@ -451,10 +457,24 @@ public final class IndexPrivilege extends Privilege {
 
     /**
      * Estimates the heap a cache entry retains: the key with its names, the cached value wrapper, and the value set with its privileges,
-     * which account for their automata through {@link Privilege#ramBytesUsed()}.
+     * which account for their automata through {@link Privilege#ramBytesUsed()}. Shared built-in privilege instances are excluded because
+     * {@link #VALUES} retains them independently of the cache. The value set and its references are still counted.
      */
     private static long weigh(Set<String> names, Set<IndexPrivilege> privileges) {
-        return CachedPrivileges.SHALLOW_SIZE + RamUsageEstimator.sizeOfCollection(names) + RamUsageEstimator.sizeOfCollection(privileges);
+        final long entrySize = CachedPrivileges.SHALLOW_SIZE + RamUsageEstimator.sizeOfCollection(names);
+        if (isSharedNamedPrivilege(names, privileges)) {
+            // Match sizeOfCollection's estimate of a singleton set and its reference, excluding the shared privilege.
+            final long referenceArraySize = RamUsageEstimator.alignObjectSize(
+                RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF
+            );
+            return entrySize + RamUsageEstimator.shallowSizeOf(privileges) + referenceArraySize;
+        } else {
+            return entrySize + RamUsageEstimator.sizeOfCollection(privileges);
+        }
+    }
+
+    private static boolean isSharedNamedPrivilege(Set<String> names, Set<IndexPrivilege> privileges) {
+        return names.size() == 1 && privileges.size() == 1 && getNamedOrNull(names.iterator().next()) == privileges.iterator().next();
     }
 
     // visible for testing

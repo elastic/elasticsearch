@@ -44,7 +44,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -595,16 +594,54 @@ public class IndexPrivilegeTests extends ESTestCase {
         assertThat(IndexPrivilege.resolveBySelectorAccess(new HashSet<>(names)), sameInstance(resolved));
         assertThat(IndexPrivilege.resolveBySelectorAccess(new TreeSet<>(names)), sameInstance(resolved));
 
-        final Set<IndexPrivilege> emptyNamesResolved = IndexPrivilege.resolveBySelectorAccess(Set.of());
-        assertThat(emptyNamesResolved, equalTo(Set.of(IndexPrivilege.NONE)));
+        final Set<String> otherNames = Set.of("read");
+        final Set<IndexPrivilege> otherResolved = IndexPrivilege.resolveBySelectorAccess(otherNames);
         final Cache<Set<String>, IndexPrivilege.CachedPrivileges> cache = IndexPrivilege.getCache();
         final long weight = cache.weight();
         for (int i = 0; i < 3; i++) {
             // alternate lookups so each entry is promoted in the LRU list
             assertThat(IndexPrivilege.resolveBySelectorAccess(names), sameInstance(resolved));
             assertThat(cache.weight(), equalTo(weight));
-            assertThat(IndexPrivilege.resolveBySelectorAccess(Set.of()), sameInstance(emptyNamesResolved));
+            assertThat(IndexPrivilege.resolveBySelectorAccess(otherNames), sameInstance(otherResolved));
             assertThat(cache.weight(), equalTo(weight));
+        }
+    }
+
+    public void testEmptyNamesBypassCache() {
+        final Cache<Set<String>, IndexPrivilege.CachedPrivileges> cache = IndexPrivilege.getCache();
+        final Set<IndexPrivilege> resolved = IndexPrivilege.resolveBySelectorAccess(Set.of());
+        assertThat(resolved, containsInAnyOrder(sameInstance(IndexPrivilege.NONE)));
+        assertThat(cache.count(), equalTo(0));
+        assertThat(cache.weight(), equalTo(0L));
+
+        IndexPrivilege.resolveBySelectorAccess(Set.of("read", "write"));
+        final long weight = cache.weight();
+        assertThat(IndexPrivilege.resolveBySelectorAccess(new HashSet<>()), sameInstance(resolved));
+        assertThat(cache.count(), equalTo(1));
+        assertThat(cache.weight(), equalTo(weight));
+
+        IndexPrivilege.updateConfiguration(Settings.EMPTY);
+        assertThat(IndexPrivilege.resolveBySelectorAccess(Set.of()), sameInstance(resolved));
+        assertThat(IndexPrivilege.getCache().count(), equalTo(0));
+        assertThat(IndexPrivilege.getCache().weight(), equalTo(0L));
+    }
+
+    public void testCacheWeightExcludesSharedPrivileges() {
+        final Cache<Set<String>, IndexPrivilege.CachedPrivileges> cache = IndexPrivilege.getCache();
+        for (String name : IndexPrivilege.names()) {
+            final IndexPrivilege shared = IndexPrivilege.getNamedOrNull(name);
+            for (String requestedName : List.of(name, name.toUpperCase(Locale.ROOT))) {
+                final Set<String> names = Set.of(requestedName);
+                final long previousWeight = cache.weight();
+                final Set<IndexPrivilege> resolved = IndexPrivilege.resolveBySelectorAccess(names);
+                assertThat(resolved, containsInAnyOrder(sameInstance(shared)));
+                // Only the shared privilege is excluded; the set that holds its reference is still allocated for this entry.
+                // Lucene estimates collection storage as an array of references.
+                final long expectedWeight = RamUsageEstimator.shallowSizeOfInstance(IndexPrivilege.CachedPrivileges.class)
+                    + RamUsageEstimator.sizeOfCollection(names) + RamUsageEstimator.shallowSizeOf(resolved) + RamUsageEstimator
+                        .shallowSizeOf(new Object[resolved.size()]);
+                assertThat(cache.weight() - previousWeight, equalTo(expectedWeight));
+            }
         }
     }
 
@@ -645,18 +682,33 @@ public class IndexPrivilegeTests extends ESTestCase {
         final Cache<Set<String>, IndexPrivilege.CachedPrivileges> cache = IndexPrivilege.getCache();
         assertThat(cache.count(), equalTo(0));
 
-        final Set<String> names = Set.of("read", "write", "manage_failure_store");
-        final Set<IndexPrivilege> resolved = IndexPrivilege.resolveBySelectorAccess(names);
-        // one privilege for the data selector (read + write) and one for the failures selector, both built for this entry
-        assertThat(resolved, hasSize(2));
-        assertThat(cache.count(), equalTo(1));
-        // the key, the cached value wrapper, the value set and the privileges, which sizeOfCollection sums through their ramBytesUsed
-        final long expectedWeight = RamUsageEstimator.shallowSizeOfInstance(IndexPrivilege.CachedPrivileges.class) + RamUsageEstimator
-            .sizeOfCollection(names) + RamUsageEstimator.sizeOfCollection(resolved);
-        assertThat(cache.weight(), equalTo(expectedWeight));
-        for (IndexPrivilege privilege : resolved) {
-            // the run automaton backing the predicate dominates the footprint and must be accounted for
-            assertThat(privilege.ramBytesUsed(), greaterThanOrEqualTo(new CharacterRunAutomaton(privilege.getAutomaton()).ramBytesUsed()));
+        for (Set<String> names : List.of(
+            Set.of("read", "write", "manage_failure_store"),
+            Set.of("read", "read_failure_store"),
+            Set.of("read", "READ"),
+            Set.of("indices:data/read/search*")
+        )) {
+            final long previousWeight = cache.weight();
+            final Set<IndexPrivilege> resolved = IndexPrivilege.resolveBySelectorAccess(names);
+            // The key, the cached value wrapper, the value set and all privileges are allocated for this entry.
+            final long expectedWeight = RamUsageEstimator.shallowSizeOfInstance(IndexPrivilege.CachedPrivileges.class) + RamUsageEstimator
+                .sizeOfCollection(names) + RamUsageEstimator.sizeOfCollection(resolved);
+            assertThat(cache.weight() - previousWeight, equalTo(expectedWeight));
+            for (IndexPrivilege privilege : resolved) {
+                if (privilege.name().size() == 1) {
+                    final IndexPrivilege named = IndexPrivilege.getNamedOrNull(privilege.name().iterator().next());
+                    if (named != null) {
+                        // Selector partitioning and case normalization can create privileges equal to, but distinct from, a built-in.
+                        assertThat(privilege, equalTo(named));
+                        assertThat(privilege, not(sameInstance(named)));
+                    }
+                }
+                // The run automaton backing the predicate dominates the footprint and must be accounted for.
+                assertThat(
+                    privilege.ramBytesUsed(),
+                    greaterThanOrEqualTo(new CharacterRunAutomaton(privilege.getAutomaton()).ramBytesUsed())
+                );
+            }
         }
     }
 

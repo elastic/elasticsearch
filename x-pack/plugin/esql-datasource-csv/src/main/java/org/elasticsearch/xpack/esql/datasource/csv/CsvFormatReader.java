@@ -888,12 +888,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
         if ("\\t".equals(s)) {
             return '\t';
         }
-        if ("\\n".equals(s)) {
-            return '\n';
-        }
-        if ("\\r".equals(s)) {
-            return '\r';
-        }
         if ("\\\\".equals(s)) {
             return '\\';
         }

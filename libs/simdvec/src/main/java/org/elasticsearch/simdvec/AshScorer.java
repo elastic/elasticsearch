@@ -36,9 +36,9 @@ public interface AshScorer<T> {
     void scoreBulk(T query, int blockSize, float[] scores) throws IOException;
 
     /**
-     * Scores {@code offsetsCount} of the next {@code blockSize} data vectors, advancing the input past all of them
-     * so a block can be consumed whole even when most of it is filtered out. Scores are written into the corresponding
-     * entries in {@code scores[0..blockSize)}.
+     * Scores the next {@code blockSize} data vectors whose bit is set in {@code mask} (see {@link BulkMask}), advancing
+     * the input past all of them so a block can be consumed whole even when most of it is filtered out. Scores are
+     * written into the corresponding entries in {@code scores[0..blockSize)}.
      */
-    void scoreBulkOffsets(T query, int[] offsets, int offsetsCount, float[] scores, int blockSize) throws IOException;
+    void scoreBulkMasked(T query, int mask, float[] scores, int blockSize) throws IOException;
 }

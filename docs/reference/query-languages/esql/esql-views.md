@@ -248,6 +248,8 @@ When multiple views are referenced within the same index pattern, each view exec
 
 :::{applies-item} { "stack": "preview 9.6+", "serverless": "preview" }
 [Query compaction](#query-compaction) flattens nested view branches into one merge only when the result has at most 20 branches by default (`esql.query.max_branch_count`). If flattening would exceed that cap, {{esql}} keeps the nested plan instead of failing the query. The same setting also caps the total number of leaf branches in the query.
+
+A query and the views and subqueries it references are limited to 500 commands in total (`esql.query.max_command_count`). The limit applies both to the query as written and to the expanded plan after every view and subquery body is inlined, so deeply nested or heavily repeated view references fail instead of consuming unbounded memory.
 :::
 
 :::{applies-item} stack: preview 9.4-9.5

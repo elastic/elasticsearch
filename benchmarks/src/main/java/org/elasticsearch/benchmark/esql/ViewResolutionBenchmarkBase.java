@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -141,7 +142,7 @@ public abstract class ViewResolutionBenchmarkBase {
     private ViewResolver viewResolver;
     private LogicalPlan preParsedPlan;
     private String queryString;
-    private BiFunction<String, String, LogicalPlan> viewParser;
+    private BiFunction<String, String, EsqlStatement> viewParser;
     private Analyzer analyzer;
     private LogicalPlanOptimizer optimizer;
     private ThreadPool threadPool;
@@ -158,7 +159,13 @@ public abstract class ViewResolutionBenchmarkBase {
         TransportVersion minimumVersion = TransportVersion.current();
 
         parser = new EsqlParser(new EsqlConfig(functionRegistry));
-        viewParser = (query, viewName) -> parser.parseView(query, new QueryParams(), inferenceSettings, viewName).plan();
+        viewParser = (query, viewName) -> parser.parseView(
+            query,
+            new QueryParams(),
+            inferenceSettings,
+            viewName,
+            EsqlParser.DEFAULT_MAX_COMMAND_COUNT
+        );
 
         LinkedHashMap<String, EsField> mapping = new LinkedHashMap<>();
         for (int i = 0; i < 5; i++) {

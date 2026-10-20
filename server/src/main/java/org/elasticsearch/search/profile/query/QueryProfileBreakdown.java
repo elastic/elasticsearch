@@ -11,6 +11,9 @@ package org.elasticsearch.search.profile.query;
 
 import org.elasticsearch.search.profile.AbstractProfileBreakdown;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * A record of timings for the various operations that may happen during query execution.
  * A node's time may be composed of several internal attributes (rewriting, weighting,
@@ -18,8 +21,28 @@ import org.elasticsearch.search.profile.AbstractProfileBreakdown;
  */
 public final class QueryProfileBreakdown extends AbstractProfileBreakdown<QueryTimingType> {
 
+    private Integer rescorer;
+
     /** Sole constructor. */
     public QueryProfileBreakdown() {
         super(QueryTimingType.class);
+    }
+
+    /**
+     * Record that this query was run by the rescorer at the given position of the rescore phase.
+     */
+    void setRescorer(int rescorer) {
+        this.rescorer = rescorer;
+    }
+
+    @Override
+    protected Map<String, Object> toDebugMap() {
+        Map<String, Object> debug = super.toDebugMap();
+        if (rescorer == null) {
+            return debug;
+        }
+        Map<String, Object> withRescorer = new HashMap<>(debug);
+        withRescorer.put("rescorer", rescorer);
+        return withRescorer;
     }
 }

@@ -8,17 +8,19 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.datasources.glob.PlanningMemory;
-import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalPlanningIo;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
@@ -205,7 +207,11 @@ public final class SplitDiscoveryPhase {
         private int splitDiscoveryProbes;
     }
 
-    public static PhysicalPlan resolveExternalSplits(PhysicalPlan plan, Map<String, ExternalSourceFactory> sourceFactories) {
+    /**
+     * Tests only: plans for a cluster where every node runs this build. Production callers must pass the minimum transport
+     * version through the overload that takes it.
+     */
+    static PhysicalPlan resolveExternalSplits(PhysicalPlan plan, Map<String, ExternalSourceFactory> sourceFactories) {
         return resolveExternalSplits(
             plan,
             sourceFactories,
@@ -213,19 +219,22 @@ public final class SplitDiscoveryPhase {
         );
     }
 
-    public static PhysicalPlan resolveExternalSplits(
-        PhysicalPlan plan,
-        Map<String, ExternalSourceFactory> sourceFactories,
-        int maxRecordBytes
-    ) {
+    /**
+     * Tests only: plans for a cluster where every node runs this build. Production callers must pass the minimum transport
+     * version through the overload that takes it.
+     */
+    static PhysicalPlan resolveExternalSplits(PhysicalPlan plan, Map<String, ExternalSourceFactory> sourceFactories, int maxRecordBytes) {
         return resolveExternalSplitsWithStats(plan, sourceFactories, maxRecordBytes).plan();
     }
 
     /**
      * Like {@link #resolveExternalSplits}, but also returns the post-prune scanned counts aggregated
      * across every {@link ExternalSourceExec} in the plan.
+     * <p>
+     * Tests only: plans for a cluster where every node runs this build. Production callers must pass the minimum transport
+     * version through the overload that takes it.
      */
-    public static Result resolveExternalSplitsWithStats(
+    static Result resolveExternalSplitsWithStats(
         PhysicalPlan plan,
         Map<String, ExternalSourceFactory> sourceFactories,
         int maxRecordBytes
@@ -236,8 +245,11 @@ public final class SplitDiscoveryPhase {
     /**
      * Like {@link #resolveExternalSplitsWithStats(PhysicalPlan, Map, int)}, but threads a cancellation
      * signal into each {@link SplitDiscoveryContext} so a long-running discovery aborts promptly on cancel.
+     * <p>
+     * Tests only: plans for a cluster where every node runs this build. Production callers must pass the minimum transport
+     * version through the overload that takes it.
      */
-    public static Result resolveExternalSplitsWithStats(
+    static Result resolveExternalSplitsWithStats(
         PhysicalPlan plan,
         Map<String, ExternalSourceFactory> sourceFactories,
         int maxRecordBytes,
@@ -259,8 +271,11 @@ public final class SplitDiscoveryPhase {
      * <p>The seed is not blindly trusted: {@link #resolveExternalSource} binds each conjunct to the relation's output by
      * {@link NameId} before it may prune, so a filter over a downstream-generated column that merely shares a partition
      * column's name cannot mis-prune.
+     * <p>
+     * Tests only: plans for a cluster where every node runs this build. Production callers must pass the minimum transport
+     * version through the overload that takes it.
      */
-    public static Result resolveExternalSplitsWithStats(
+    static Result resolveExternalSplitsWithStats(
         PhysicalPlan plan,
         Map<String, ExternalSourceFactory> sourceFactories,
         int maxRecordBytes,
@@ -286,8 +301,11 @@ public final class SplitDiscoveryPhase {
      * child, because it has no rule for which nodes preserve a row count - {@link #guardedRelations} does, on the
      * logical plan, and that is where the demand is decided. A demand carried through a filter would stop the scan
      * once the unfiltered rows covered it and answer the filtered LIMIT short, with nothing to say so.
+     * <p>
+     * Tests only: plans for a cluster where every node runs this build. Production callers must pass the minimum transport
+     * version through the overload that takes it.
      */
-    public static Result resolveExternalSplitsWithStats(
+    static Result resolveExternalSplitsWithStats(
         PhysicalPlan plan,
         Map<String, ExternalSourceFactory> sourceFactories,
         int maxRecordBytes,
@@ -308,8 +326,12 @@ public final class SplitDiscoveryPhase {
         );
     }
 
-    /** As above, carrying {@code task_concurrency} so discovery sizes LIMIT cuts to the planner's drivers. */
-    public static Result resolveExternalSplitsWithStats(
+    /** As above, carrying {@code task_concurrency} so discovery sizes LIMIT cuts to the planner's drivers.
+     * <p>
+     * Tests only: plans for a cluster where every node runs this build. Production callers must pass the minimum transport
+     * version through the overload that takes it.
+     */
+    static Result resolveExternalSplitsWithStats(
         PhysicalPlan plan,
         Map<String, ExternalSourceFactory> sourceFactories,
         int maxRecordBytes,
@@ -319,8 +341,45 @@ public final class SplitDiscoveryPhase {
         PlanningMemory listingMemory,
         int taskConcurrency
     ) {
+        return resolveExternalSplitsWithStats(
+            plan,
+            sourceFactories,
+            maxRecordBytes,
+            isCancelled,
+            seedFilters,
+            seedRowLimit,
+            listingMemory,
+            taskConcurrency,
+            TransportVersion.current()
+        );
+    }
+
+    /**
+     * As above, carrying the minimum transport version of the nodes that will read the splits, so a split provider never
+     * emits a split shape an older node cannot read. Production callers must use this overload and pass the cluster's
+     * minimum transport version: the narrower overloads assume every node runs this build, and are for tests only.
+     */
+    public static Result resolveExternalSplitsWithStats(
+        PhysicalPlan plan,
+        Map<String, ExternalSourceFactory> sourceFactories,
+        int maxRecordBytes,
+        BooleanSupplier isCancelled,
+        List<Expression> seedFilters,
+        int seedRowLimit,
+        PlanningMemory listingMemory,
+        int taskConcurrency,
+        TransportVersion minTransportVersion
+    ) {
         ScanStats stats = new ScanStats();
-        Traversal traversal = new Traversal(sourceFactories, maxRecordBytes, stats, isCancelled, listingMemory, taskConcurrency);
+        Traversal traversal = new Traversal(
+            sourceFactories,
+            maxRecordBytes,
+            stats,
+            isCancelled,
+            listingMemory,
+            taskConcurrency,
+            minTransportVersion
+        );
         ExternalPlanningIo planningIo = ExternalPlanningIo.current();
         PhysicalPlan resolved;
         try (Releasable ignored = ExternalPlanningIo.activate(planningIo)) {
@@ -339,10 +398,14 @@ public final class SplitDiscoveryPhase {
 
     /**
      * Async counterpart of {@link #resolveExternalSplitsWithStats(PhysicalPlan, Map, int, BooleanSupplier, List)}.
-     * Used by {@code ComputeService} so the inbound {@code SEARCH}/{@code esql_external_io} thread is not
-     * held in a gather latch. Sync {@link #resolveExternalSplits} remains for unit tests on the test thread.
+     * {@code ComputeService} uses the async form (through the overload taking the minimum transport version) so the
+     * inbound {@code SEARCH}/{@code esql_external_io} thread is not held in a gather latch. Sync
+     * {@link #resolveExternalSplits} remains for unit tests on the test thread.
+     * <p>
+     * Tests only: plans for a cluster where every node runs this build. Production callers must pass the minimum transport
+     * version through the overload that takes it.
      */
-    public static void resolveExternalSplitsWithStatsAsync(
+    static void resolveExternalSplitsWithStatsAsync(
         PhysicalPlan plan,
         Map<String, ExternalSourceFactory> sourceFactories,
         int maxRecordBytes,
@@ -364,8 +427,12 @@ public final class SplitDiscoveryPhase {
         );
     }
 
-    /** As above, carrying the row demand {@link #guardedRelations} recovered for the relation below. */
-    public static void resolveExternalSplitsWithStatsAsync(
+    /** As above, carrying the row demand {@link #guardedRelations} recovered for the relation below.
+     * <p>
+     * Tests only: plans for a cluster where every node runs this build. Production callers must pass the minimum transport
+     * version through the overload that takes it.
+     */
+    static void resolveExternalSplitsWithStatsAsync(
         PhysicalPlan plan,
         Map<String, ExternalSourceFactory> sourceFactories,
         int maxRecordBytes,
@@ -390,8 +457,12 @@ public final class SplitDiscoveryPhase {
         );
     }
 
-    /** As above, carrying {@code task_concurrency} so discovery sizes LIMIT cuts to the planner's drivers. */
-    public static void resolveExternalSplitsWithStatsAsync(
+    /** As above, carrying {@code task_concurrency} so discovery sizes LIMIT cuts to the planner's drivers.
+     * <p>
+     * Tests only: plans for a cluster where every node runs this build. Production callers must pass the minimum transport
+     * version through the overload that takes it.
+     */
+    static void resolveExternalSplitsWithStatsAsync(
         PhysicalPlan plan,
         Map<String, ExternalSourceFactory> sourceFactories,
         int maxRecordBytes,
@@ -403,6 +474,39 @@ public final class SplitDiscoveryPhase {
         Executor executor,
         ActionListener<Result> listener
     ) {
+        resolveExternalSplitsWithStatsAsync(
+            plan,
+            sourceFactories,
+            maxRecordBytes,
+            isCancelled,
+            seedFilters,
+            seedRowLimit,
+            listingMemory,
+            taskConcurrency,
+            TransportVersion.current(),
+            executor,
+            listener
+        );
+    }
+
+    /**
+     * As above, carrying the minimum transport version of the nodes that will read the splits, so a split provider never
+     * emits a split shape an older node cannot read. Production callers must use this overload and pass the cluster's
+     * minimum transport version: the narrower overloads assume every node runs this build, and are for tests only.
+     */
+    public static void resolveExternalSplitsWithStatsAsync(
+        PhysicalPlan plan,
+        Map<String, ExternalSourceFactory> sourceFactories,
+        int maxRecordBytes,
+        BooleanSupplier isCancelled,
+        List<Expression> seedFilters,
+        int seedRowLimit,
+        PlanningMemory listingMemory,
+        int taskConcurrency,
+        TransportVersion minTransportVersion,
+        Executor executor,
+        ActionListener<Result> listener
+    ) {
         ActionListener.run(listener, l -> {
             ScanStats stats = new ScanStats();
             ExternalPlanningIo planningIo = ExternalPlanningIo.current();
@@ -410,7 +514,7 @@ public final class SplitDiscoveryPhase {
                 plan,
                 seedFilters,
                 seedRowLimit,
-                new Traversal(sourceFactories, maxRecordBytes, stats, isCancelled, listingMemory, taskConcurrency),
+                new Traversal(sourceFactories, maxRecordBytes, stats, isCancelled, listingMemory, taskConcurrency, minTransportVersion),
                 wrapPlanningIo(executor, planningIo),
                 l.map(
                     resolved -> new Result(
@@ -454,7 +558,8 @@ public final class SplitDiscoveryPhase {
         ScanStats stats,
         BooleanSupplier isCancelled,
         PlanningMemory listingMemory,
-        int taskConcurrency
+        int taskConcurrency,
+        TransportVersion minTransportVersion
     ) {}
 
     private static void resolveRecursiveAsync(
@@ -592,7 +697,7 @@ public final class SplitDiscoveryPhase {
         FileList fileList = exec.fileList();
         PartitionMetadata partitionInfo = fileList != null ? fileList.partitionMetadata() : null;
 
-        // Partition columns must survive: buildFileTasks strips them separately via stripPartitionColumns.
+        // Partition columns must survive: FileSplitProvider.buildSurvivors strips them via stripPartitionColumns.
         ExternalSchema querySchema = ExternalSchema.dataAttributesOf(exec.output());
 
         // Bind filter hints to the relation's output by NameId, not by name. A downstream EVAL/DISSECT/GROK/ENRICH can
@@ -628,7 +733,8 @@ public final class SplitDiscoveryPhase {
             PartitionValueLayout.retainedKeys(querySchema, partitionInfo, metadataColumnNames),
             rowLimit,
             traversal.listingMemory(),
-            traversal.taskConcurrency()
+            traversal.taskConcurrency(),
+            traversal.minTransportVersion()
         );
 
         SplitDiscoveryResult result;
@@ -654,7 +760,7 @@ public final class SplitDiscoveryPhase {
         FileList fileList = exec.fileList();
         PartitionMetadata partitionInfo = fileList != null ? fileList.partitionMetadata() : null;
 
-        // Partition columns must survive: buildFileTasks strips them separately via stripPartitionColumns.
+        // Partition columns must survive: FileSplitProvider.buildSurvivors strips them via stripPartitionColumns.
         ExternalSchema querySchema = ExternalSchema.dataAttributesOf(exec.output());
         List<Expression> boundFilters = filtersBoundToOutput(ancestorFilters, exec.output());
         Set<String> metadataColumnNames = ExternalMetadataColumns.metadataNames(exec.output());
@@ -683,7 +789,8 @@ public final class SplitDiscoveryPhase {
             PartitionValueLayout.retainedKeys(querySchema, partitionInfo, metadataColumnNames),
             rowLimit,
             traversal.listingMemory(),
-            traversal.taskConcurrency()
+            traversal.taskConcurrency(),
+            traversal.minTransportVersion()
         );
 
         splitProvider.discoverSplitsAsync(context, executor, ActionListener.wrap(result -> {
@@ -700,27 +807,25 @@ public final class SplitDiscoveryPhase {
      * discovery failure is detached from storage-client causes, whose messages name the bucket and key.
      */
     private static RuntimeException wrapDiscoveryFailure(ExternalSourceExec exec, Exception e) {
-        if (e instanceof ExternalException ee) {
-            return ExternalFailures.detach(ee);
+        if (ExceptionsHelper.unwrap(e, TaskCancelledException.class) instanceof TaskCancelledException cancelled) {
+            return ExternalFailures.detach(cancelled);
         }
         if (e instanceof ElasticsearchException ee) {
-            return ee;
+            return ExternalFailures.detach(ee);
         }
         String context = "failed to discover splits for external source [" + sourceLabel(exec) + "] of type [" + exec.sourceType() + "]";
         if (e instanceof IllegalArgumentException) {
-            LOGGER.debug("Split discovery failed (cause logged, not forwarded)", e);
-            String message = e.getMessage();
-            return new IllegalArgumentException(
-                message != null && ExternalFailures.safeForUserMessage(message) ? context + ": " + message : context
-            );
+            String forwardable = ExternalFailures.forwardableDetail(e);
+            ExternalFailures.logClientFailure(e);
+            return new IllegalArgumentException(forwardable != null ? context + ": " + forwardable : context);
         }
         RuntimeException surfaced = ExternalFailures.surface(e, context);
         if (surfaced != e) {
             return surfaced;
         }
         LOGGER.warn("Split discovery failed (cause logged, not forwarded)", e);
-        String message = e.getMessage();
-        String detail = message != null && ExternalFailures.safeForUserMessage(message) ? message : e.getClass().getSimpleName();
+        String forwardable = ExternalFailures.forwardableDetail(e);
+        String detail = forwardable != null ? forwardable : ExternalFailures.rootCause(e).getClass().getSimpleName();
         return new ElasticsearchException("{}: {}", context, detail);
     }
 

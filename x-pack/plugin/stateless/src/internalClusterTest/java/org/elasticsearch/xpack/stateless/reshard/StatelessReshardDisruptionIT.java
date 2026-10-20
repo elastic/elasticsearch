@@ -8,11 +8,16 @@
 package org.elasticsearch.xpack.stateless.reshard;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.plugins.Plugin;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
@@ -112,9 +117,25 @@ public class StatelessReshardDisruptionIT extends StatelessReshardDisruptionBase
     }
 
     @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.appendToCopy(super.nodePlugins(), AddSettingPlugin.class);
+    }
+
+    /** Registers the test-only setting for retrying split requests to a source shard. */
+    public static class AddSettingPlugin extends Plugin {
+        @Override
+        public List<Setting<?>> getSettings() {
+            return List.of(SplitTargetService.START_SPLIT_RETRY_TIMEOUT);
+        }
+    }
+
+    @Override
     protected Settings.Builder nodeSettings() {
-        // These tests are not performing writes and do not need the grace period.
-        return super.nodeSettings().put(RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.ZERO);
+        return super.nodeSettings()
+            // These tests are not performing writes and do not need the grace period.
+            .put(RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.ZERO)
+            // If the source moves, retry recovery with its new location before the test's cluster health wait times out.
+            .put(SplitTargetService.START_SPLIT_RETRY_TIMEOUT.getKey(), TimeValue.timeValueSeconds(5));
     }
 
     private static void checkNumberOfShardsSetting(String indexName, int expected_shards) {

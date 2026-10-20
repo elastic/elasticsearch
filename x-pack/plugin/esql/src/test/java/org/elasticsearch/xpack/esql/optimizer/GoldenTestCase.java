@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.LoadMapping;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
+import org.elasticsearch.xpack.esql.analysis.LetResolver;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
@@ -64,7 +65,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
-import org.elasticsearch.xpack.esql.plugin.ComputeServiceTestUtils;
+import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.ReductionPlan;
@@ -72,6 +73,9 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
+import org.elasticsearch.xpack.esql.view.ViewCompaction;
+import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
+import org.elasticsearch.xpack.esql.view.ViewResolver;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.runner.notification.Failure;
 import org.junit.runner.notification.RunListener;
@@ -106,8 +110,10 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.rewriteDatasetsUnsecured;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
+import static org.elasticsearch.xpack.esql.plan.QuerySettings.WILDCARDS_MATCH_DATASETS;
 
 /** See GoldenTestsReadme.md for more information about these tests. */
 @Listeners({ GoldenTestCase.GoldenTestReproduceInfoPrinter.class })
@@ -224,7 +230,6 @@ public abstract class GoldenTestCase extends ESTestCase {
         private ExternalSourceResolution externalSourceResolution = ExternalSourceResolution.EMPTY;
         private QueryBuilder requestFilter;
         private Map<String, String> views = Map.of();
-        private EsqlFlags flags = EsqlFlags.withRemoteFetchTopN(false);
 
         private TestBuilder(
             String esqlQuery,
@@ -258,11 +263,6 @@ public abstract class GoldenTestCase extends ESTestCase {
 
         public EnumSet<Stage> stages() {
             return stages;
-        }
-
-        public TestBuilder flags(EsqlFlags flags) {
-            this.flags = flags;
-            return this;
         }
 
         public TestBuilder searchStats(SearchStats searchStats) {
@@ -593,8 +593,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                 datasetMetadata,
                 externalSourceResolution,
                 requestFilter,
-                views,
-                flags
+                views
             );
         }
 
@@ -742,33 +741,50 @@ public abstract class GoldenTestCase extends ESTestCase {
         ProjectMetadata datasetMetadata,
         ExternalSourceResolution externalSourceResolution,
         QueryBuilder requestFilter,
-        Map<String, String> views,
-        EsqlFlags flags
+        Map<String, String> views
     ) {
 
         private List<Tuple<Stage, TestResult>> doTests() throws IOException {
             EsqlStatement statement = TEST_PARSER.createStatement(esqlQuery);
-            // Mirror EsqlSession#execute: expand views and rewrite IN subqueries into SemiJoin/AntiJoin/MarkJoin before
-            // running pre-analysis and analysis, so inner subquery indices are discovered and verifier checks (e.g. unbounded
-            // SORT inside an IN subquery) fire. When the query references views, register them and run the iterative
-            // view/IN-subquery resolution; otherwise resolve IN subqueries only.
+            // Mirror EsqlSession#execute: resolve LET bindings first (synchronous, local), then expand views and rewrite
+            // IN subqueries into SemiJoin/AntiJoin/MarkJoin before running pre-analysis and analysis, so inner subquery
+            // indices are discovered and verifier checks (e.g. unbounded SORT inside an IN subquery) fire.
+            // When the query references views, register them and run the iterative view/IN-subquery resolution; otherwise
+            // resolve IN subqueries only.
+            LogicalPlan planAfterLet = LetResolver.resolve(
+                statement.plan(),
+                statement.letBindings(),
+                ViewResolver.DEFAULT_MAX_PLAN_NODES_COUNT
+            );
             LogicalPlan parsedPlan;
+            Map<String, ViewQuerySettings> viewSettings = Map.of();
             if (views.isEmpty()) {
-                parsedPlan = InSubqueryResolver.resolve(statement.plan());
+                parsedPlan = InSubqueryResolver.resolve(planAfterLet);
             } else {
-                TestAnalyzer viewAnalyzer = analyzer();
+                // The unmapped_fields and wildcards_match_datasets settings decide how much view structure resolution keeps, as in
+                // EsqlSession.
+                TestAnalyzer viewAnalyzer = analyzer().unmappedResolution(statement.setting(UNMAPPED_FIELDS))
+                    .wildcardsMatchDatasets(statement.setting(WILDCARDS_MATCH_DATASETS));
                 views.forEach(viewAnalyzer::addView);
-                parsedPlan = viewAnalyzer.resolveViewsAndInSubqueries(statement.plan());
+                parsedPlan = viewAnalyzer.resolveViewsAndInSubqueries(planAfterLet);
+                viewSettings = viewAnalyzer.viewSettings();
             }
             // Then turn FROM <dataset> targets into UnresolvedExternalRelation, exactly as EsqlSession does. A
             // null datasetMetadata (the default) makes this a no-op, so plain golden tests are unaffected; when a
             // test registers datasets, external relations are excluded from CSV index discovery below.
-            // Golden tests name their datasets exactly, which reaches them at the wildcards_match_datasets default.
-            parsedPlan = DatasetRewriter.rewriteUnsecured(
+            // Golden tests name their datasets exactly, which reaches them at the wildcards_match_datasets default; tests that SET
+            // wildcards_match_datasets get it applied here, as in EsqlSession.
+            // Mirror EsqlSession: reshape user-written Subquery/UnionAll structures into BranchPlan before dataset
+            // resolution and analysis. Rules that read the pre-analysis shape depend on it — the _class/_name metadata
+            // freeze (ResolveSubqueryRelationColumns) answers "subquery" from the Subquery branch wrapper this pass
+            // preserves, and without it a subquery branch beside an index silently null-fills _class.
+            parsedPlan = ViewCompaction.preIndexResolution(parsedPlan);
+            parsedPlan = rewriteDatasetsUnsecured(
                 parsedPlan,
                 datasetMetadata,
                 TestIndexNameExpressionResolver.newInstance(),
-                false
+                statement.setting(WILDCARDS_MATCH_DATASETS),
+                viewSettings
             );
             String[] queryPathParts = new String[nestedPath.length + 2];
             queryPathParts[0] = testName;
@@ -788,7 +804,9 @@ public abstract class GoldenTestCase extends ESTestCase {
                 .addAnalysisTestsInferenceResolution()
                 .minimumTransportVersion(transportVersion)
                 .externalSourceResolution(externalSourceResolution)
-                .unmappedResolution(unmappedResolution);
+                .unmappedResolution(unmappedResolution)
+                .wildcardsMatchDatasets(statement.setting(WILDCARDS_MATCH_DATASETS))
+                .viewSettings(viewSettings);
             boolean trackUnmappedFieldIndices = unmappedResolution.loadsUnmappedFields();
             loadIndexResolution(testDatasets(parsedPlan), trackUnmappedFieldIndices).forEach(
                 (pattern, resolution) -> testAnalyzer.addIndex(pattern.indexPattern(), resolution)
@@ -827,7 +845,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                 // optimization. Since subplan execution is not done in the golden tests,
                 // manually replace the placeholders instead by a fixed value.
                 logicallyOptimized = ApproximationPlan.substituteSampleProbability(logicallyOptimized, SAMPLE_PROBABILITY);
-                var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration, transportVersion, flags));
+                var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration, transportVersion));
                 PhysicalPlan physicalPlan = physicalPlanOptimizer.optimize(
                     new Mapper().map(new Versioned<>(logicallyOptimized, transportVersion))
                 );
@@ -875,7 +893,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                     if (exchanges.isEmpty() == false) {
                         ExchangeExec exec = EsqlTestUtils.singleValue(exchanges);
                         var sink = new ExchangeSinkExec(exec.source(), exec.output(), false, exec.child());
-                        var reductionPlan = ComputeServiceTestUtils.reductionPlan(
+                        var reductionPlan = ComputeService.reductionPlan(
                             PlannerSettings.DEFAULTS,
                             new EsqlFlags(false),
                             configuration,
@@ -1211,8 +1229,8 @@ public abstract class GoldenTestCase extends ESTestCase {
          */
         LOOKUP_PHYSICAL_OPTIMIZATION(new SingleFileOutput("lookup_physical_optimization")),
         /**
-         * See {@link ComputeServiceTestUtils#reductionPlan}. Actually results in <b>two</b> plans: one for the node reduce driver and one
-         * for the data nodes.
+         * See {@link ComputeService#reductionPlan}. Actually results in <b>two</b> plans: one for the node reduce driver and one for the
+         * data nodes.
          */
         NODE_REDUCE(new DualFileOutput("local_reduce_planned_reduce_driver", "local_reduce_planned_data_driver")),
 

@@ -30,7 +30,7 @@ import java.util.Map;
  * cases wrong.
  * <p>
  * It sits beside the identity each format reader vends for its own configuration, which covers the other half of the same idea — the
- * {@code WITH} options. Two components rather than one is an accident of how they arrived; the end state is a single
+ * format-affecting dataset settings. Two components rather than one is an accident of how they arrived; the end state is a single
  * read configuration owning both, so that a new parameter has one place it must be considered.
  * <p>
  * <b>Derived, never shipped.</b> Both sides compute it from artifacts the coordinator already minted and the wire
@@ -47,6 +47,8 @@ import java.util.Map;
  *       rows survive under a lenient policy.</li>
  *   <li><b>Binding mode</b> — a DECLARED schema binds by name and reports absent columns; an INFERRED one binds by
  *       position. Same columns, different reads.</li>
+ *   <li><b>The decode-semantics revision</b> ({@link #DECODE_SEMANTICS_REVISION}) — what the readers make of the
+ *       same bytes under the same configuration is code, not configuration, and it can change between versions.</li>
  *   <li><b>NOT nullability</b> — {@code FileSplit} normalizes the planner-internal UNKNOWN to nullable on the wire,
  *       so a coordinator hashing its in-memory schema and a data node hashing the round-tripped one would disagree.
  *       An identity the two sides compute differently is worse than no identity: it matches nothing, silently.</li>
@@ -91,6 +93,15 @@ public final class ReadConfigFingerprint {
     public static final String MIXED = "mixed";
 
     /**
+     * Hashed into every fingerprint. Bump it whenever a reader starts decoding the same bytes into different values
+     * under an unchanged column name, type, date format and binding mode: no other hashed component moves then, so a
+     * statistic harvested under the old decode would match a read under the new one. The window is a rolling upgrade,
+     * where a data node on an older build that already computes this fingerprint contributes to an upgraded
+     * coordinator's cache. It only separates statistics; the rows such a node reads still follow its own decode.
+     */
+    static final int DECODE_SEMANTICS_REVISION = 1;
+
+    /**
      * Computes the fingerprint of one file's resolved read configuration. {@code readSchema} is the per-file effective schema the
      * reader will bind, in <b>logical</b> names as the resolution produced them; renames are applied here so both
      * sides agree on a physical-name encoding. Returns {@link #UNKNOWN} when there is no schema to describe.
@@ -99,11 +110,23 @@ public final class ReadConfigFingerprint {
         if (readSchema == null || readSchema.isEmpty()) {
             return UNKNOWN;
         }
+        MurmurHash3.Hash128 hash = hash128(readSchema, spec);
+        return render(hash.h1, hash.h2);
+    }
+
+    /**
+     * The two lanes, shared with {@link #of} so that a caller keying on them and the metadata entry describing
+     * the same read can never disagree about what was hashed. {@code readSchema} must be non-empty - an empty one
+     * has no configuration to describe, which is {@link #UNKNOWN}, and only {@link #of} can decide what to return
+     * in its place.
+     */
+    private static MurmurHash3.Hash128 hash128(List<Attribute> readSchema, @Nullable DeclaredReadSpec spec) {
         DeclaredReadSpec readSpec = spec == null ? DeclaredReadSpec.NONE : spec;
         Map<String, String> renames = readSpec.renames();
         Map<String, String> dateFormats = readSpec.dateFormats();
 
         StringBuilder encoded = new StringBuilder();
+        appendLengthPrefixed(encoded, Integer.toString(DECODE_SEMANTICS_REVISION));
         for (Attribute attribute : readSchema) {
             String logicalName = attribute.name();
             // Physicalize both the name and the date-format lookup with the same mapping the reader boundary uses
@@ -115,10 +138,16 @@ public final class ReadConfigFingerprint {
         appendLengthPrefixed(encoded, readSpec.provenance().name());
 
         byte[] bytes = encoded.toString().getBytes(StandardCharsets.UTF_8);
-        MurmurHash3.Hash128 hash = MurmurHash3.hash128(bytes, 0, bytes.length, 0, new MurmurHash3.Hash128());
-        // Zero-padded: Long.toHexString does not pad, so (0x1, 0x23) and (0x12, 0x3) would both render "123" —
-        // a rendering collision in the one place the javadoc above argues a collision is a wrong answer.
-        return String.format(Locale.ROOT, "%016x%016x", hash.h1, hash.h2);
+        return MurmurHash3.hash128(bytes, 0, bytes.length, 0, new MurmurHash3.Hash128());
+    }
+
+    /**
+     * Zero-padded: {@code Long.toHexString} does not pad, so {@code (0x1, 0x23)} and {@code (0x12, 0x3)} would both
+     * render {@code "123"} - a rendering collision in the one place the javadoc above argues a collision is a wrong
+     * answer.
+     */
+    static String render(long high, long low) {
+        return String.format(Locale.ROOT, "%016x%016x", high, low);
     }
 
     /** Length-prefixed so no user-controlled value can forge a field boundary. */

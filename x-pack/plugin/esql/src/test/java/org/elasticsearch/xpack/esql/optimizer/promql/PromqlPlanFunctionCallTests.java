@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.capabilities.NonFiniteSupport;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Changes;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileOverTime;
@@ -93,6 +95,14 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
             .toList();
         assertThat(expr, perStep, hasSize(1));
         assertThat(expr, Expressions.names(perStep.getFirst().groupings()), contains("step"));
+    }
+
+    /** Prometheus: a duration literal is a float literal in seconds - {@code 1h30m} is {@code 5400}, {@code 1ms} is {@code 0.001}. */
+    public void testDurationLiteralIsSeconds() {
+        assertConstantResult("1h30m", equalTo(5400.0));
+        assertConstantResult("2m + 30s", equalTo(150.0));
+        assertConstantResult("1ms", equalTo(0.001));
+        assertConstantResult("vector(1h) / 60", equalTo(60.0));
     }
 
     /**
@@ -363,10 +373,34 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         assertFalse(isCounter(field.dataType()));
     }
 
+    public void testChangesSupportsPlainNumericInput() {
+        assumeTrue("Requires PROMQL_CHANGES capability", EsqlCapabilities.Cap.PROMQL_CHANGES.isEnabled());
+        Changes changes = changesFromPromql("PROMQL index=k8s step=5m changes=(changes(network.cost[5m]))");
+
+        FieldAttribute field = as(changes.field(), FieldAttribute.class);
+        assertThat(field.name(), equalTo("network.cost"));
+        assertFalse(isCounter(field.dataType()));
+    }
+
+    public void testChangesSupportsCounterInput() {
+        assumeTrue("Requires PROMQL_CHANGES capability", EsqlCapabilities.Cap.PROMQL_CHANGES.isEnabled());
+        Changes changes = changesFromPromql("PROMQL index=k8s step=5m changes=(changes(network.total_bytes_in[5m]))");
+
+        FieldAttribute field = as(changes.field(), FieldAttribute.class);
+        assertThat(field.name(), equalTo("network.total_bytes_in"));
+        assertTrue(isCounter(field.dataType()));
+    }
+
     private Avg avgOverTimeFromPromql(String query) {
         LogicalPlan analyzed = planPromql(query, false);
         TimeSeriesAggregate tsAggregate = analyzed.collect(TimeSeriesAggregate.class).getFirst();
         return tsAggregate.aggregates().getFirst().collect(Avg.class).getFirst();
+    }
+
+    private Changes changesFromPromql(String query) {
+        LogicalPlan analyzed = planPromql(query, false);
+        TimeSeriesAggregate tsAggregate = analyzed.collect(TimeSeriesAggregate.class).getFirst();
+        return tsAggregate.aggregates().getFirst().collect(Changes.class).getFirst();
     }
 
     /**

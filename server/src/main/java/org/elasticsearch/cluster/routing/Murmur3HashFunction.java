@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.common.util.ByteUtils;
 
@@ -32,6 +33,23 @@ public final class Murmur3HashFunction {
             ByteUtils.LITTLE_ENDIAN_CHAR.set(bytesToHash, 2 * i, routing.charAt(i));
         }
         return hash(bytesToHash, 0, strLen * 2);
+    }
+
+    /**
+     * Hashes the same value as {@link #hash(String)} for the String these UTF-8 bytes decode to, without building that String when the
+     * bytes are ASCII (each byte is then exactly one char); other input falls back to the String form.
+     */
+    public static int hash(BytesRef utf8) {
+        final int length = utf8.length;
+        final byte[] bytesToHash = length * 2 <= MAX_SCRATCH_SIZE ? scratch.get() : new byte[length * 2];
+        for (int i = 0; i < length; ++i) {
+            final byte b = utf8.bytes[utf8.offset + i];
+            if (b < 0) {
+                return hash(utf8.utf8ToString());
+            }
+            ByteUtils.LITTLE_ENDIAN_CHAR.set(bytesToHash, 2 * i, (char) b);
+        }
+        return hash(bytesToHash, 0, length * 2);
     }
 
     private static boolean assertHashWithoutInformationLoss(String routing) {

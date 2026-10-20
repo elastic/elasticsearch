@@ -42,6 +42,7 @@ public interface NonFiniteSupport extends TransportVersionAware {
     TransportVersion ESQL_PROMQL_NON_FINITE_MAX_MIN = TransportVersion.fromName("esql_promql_non_finite_max_min");
     TransportVersion ESQL_PROMQL_NON_FINITE_AVG = TransportVersion.fromName("esql_promql_non_finite_avg");
     TransportVersion ESQL_PROMQL_NON_FINITE_STDDEV = TransportVersion.fromName("esql_promql_non_finite_stddev");
+    TransportVersion ESQL_PROMQL_NON_FINITE_PERCENTILE = TransportVersion.fromName("esql_promql_non_finite_percentile");
 
     /**
      * Transport version that first writes this expression's non-finite flag. Defaults to

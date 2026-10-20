@@ -39,6 +39,8 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.merge.OnGoingMerge;
+import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.index.shard.ShardFieldStats;
 import org.elasticsearch.index.shard.ShardSplittingQuery;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
@@ -49,6 +51,8 @@ import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
@@ -782,6 +786,46 @@ public class IndexEngineTests extends AbstractEngineTestCase {
         }
     }
 
+    /**
+     * Hollow commit user data is snapshotted from the internal searcher. Documents buffered in the
+     * {@code IndexWriter} since the last refresh must still be included in both doc stats and shard field stats.
+     */
+    public void testHollowCommitStatsIncludeUnrefreshedDocuments() throws Exception {
+        try (var engine = newIndexEngine(indexConfig(Settings.EMPTY, Settings.EMPTY, () -> 1L, NoMergePolicy.INSTANCE))) {
+            engine.index(randomDoc("0"));
+            engine.refresh("test");
+            assertThat(engine.docStats().getCount(), equalTo(1L));
+            final ShardFieldStats staleShardFieldStats = engine.shardFieldStats();
+
+            engine.index(randomDoc("1"));
+            // The new document is buffered in the IndexWriter and not yet visible to the internal searcher.
+            assertThat(engine.docStats().getCount(), equalTo(1L));
+            assertThat(engine.shardFieldStats(), equalTo(staleShardFieldStats));
+
+            final PlainActionFuture<Engine.FlushResult> future = new PlainActionFuture<>();
+            engine.flushHollow(future);
+            future.actionGet();
+
+            try (Engine.IndexCommitRef commitRef = engine.acquireLastIndexCommit(false)) {
+                final Map<String, String> userData = commitRef.getIndexCommit().getUserData();
+                try (
+                    XContentParser parser = XContentType.JSON.xContent()
+                        .createParser(XContentParserConfiguration.EMPTY, userData.get(IndexEngine.DOC_STATS))
+                ) {
+                    assertThat(DocsStats.PARSER.parse(parser, null).getCount(), equalTo(2L));
+                }
+                try (
+                    XContentParser parser = XContentType.JSON.xContent()
+                        .createParser(XContentParserConfiguration.EMPTY, userData.get(IndexEngine.SHARD_FIELD_STATS))
+                ) {
+                    final ShardFieldStats committedShardFieldStats = ShardFieldStats.PARSER.parse(parser, null);
+                    assertThat(committedShardFieldStats.numSegments(), greaterThan(staleShardFieldStats.numSegments()));
+                    assertThat(committedShardFieldStats, equalTo(engine.shardFieldStats()));
+                }
+            }
+        }
+    }
+
     public void testHollowEngineCannotIngest() throws Exception {
         try (var engine = newIndexEngine(indexConfig())) {
             var indexedDoc = randomDoc(String.valueOf(0));
@@ -847,10 +891,10 @@ public class IndexEngineTests extends AbstractEngineTestCase {
 
                 @Override
                 protected Map<String, String> getCommitExtraUserData(final long localCheckpoint) {
-                    firstFlushGettingUserDataLatch.countDown();
                     int flushNumber = flushesInitiated.get();
+                    firstFlushGettingUserDataLatch.countDown();
                     logger.debug("flush {} trying to get user data", flushNumber);
-                    if (flushesInitiated.get() > 1) {
+                    if (flushNumber > 1) {
                         safeAwait(hollowFlushProceedToGetUserDataLatch);
                     } else {
                         safeAwait(firstFlushProceedToGetUserDataLatch);

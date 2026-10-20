@@ -424,17 +424,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
     static final String CONFIG_SCHEMA_SAMPLE_SIZE = "schema_sample_size";
     static final String CONFIG_SKIP_ROWS = "skip_rows";
     static final String CONFIG_SCHEMA_MAX_FIELDS = "schema_max_fields";
-
-    /**
-     * The most columns a header split produces when it is locating an already-settled schema's columns rather than
-     * resolving one. {@code schema_max_fields} bounds the dataset's schema, and a split that only supplies names to bind
-     * against is not resolving that schema, so holding it to the same number would make the file's own width decide
-     * whether a narrow schema can be read at all. What is left to bound here is the split: a header of millions of
-     * columns would allocate a name for every one of them before the binding discarded all but a handful. The ceiling
-     * {@code schema_max_fields} itself accepts, since no schema wider than that can be read, so no binding needs to look
-     * past it.
-     */
-    static final int MAX_HEADER_SPLIT_COLUMNS = ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS;
+    static final String CONFIG_MULTILINE_FIELDS = "multiline_fields";
 
     /** Context prefix {@link ExternalFailures#surface} puts on an I/O failure of the record iterator. */
     static final String READ_RECORD_FAILURE = "Failed to read CSV record";
@@ -457,6 +447,18 @@ public class CsvFormatReader implements SegmentableFormatReader {
     /** Mode [escaped] plus an explicit [quote]: the PUT-time error and the read-time warning say the same thing. */
     static final String ESCAPED_WITH_QUOTE_MESSAGE =
         "[quote] turns off the [escaped] mode's \\N and \\t decoding; remove [quote] to decode them";
+
+    /** Bracketed multi-values are quoted cells that can span lines, so a promise that nothing does cannot hold. */
+    static final String MULTILINE_FALSE_WITH_BRACKETS_MESSAGE =
+        "[multiline_fields] [false] can't be combined with multi_value_syntax [brackets]: bracketed cells can span lines";
+
+    /**
+     * A plain dialect (no quoting, no escaping) has no syntax that could carry a line break inside a field, so declaring
+     * {@code multiline_fields: true} on one changes nothing: the file is still cut and read line by line. Worth a notice,
+     * since the user likely expects multi-line values to come through and they will instead surface as extra rows.
+     */
+    static final String MULTILINE_TRUE_WITH_PLAIN_MESSAGE =
+        "[multiline_fields] [true] has no effect without quoting or escaping: no field of a plain file can span lines";
 
     /**
      * Upper bound on {@code skip_rows}. Preambles are a handful of lines; a larger cap would
@@ -482,20 +484,28 @@ public class CsvFormatReader implements SegmentableFormatReader {
         CONFIG_TRIM_SPACES,
         CONFIG_SCHEMA_SAMPLE_SIZE,
         CONFIG_SKIP_ROWS,
-        CONFIG_SCHEMA_MAX_FIELDS
+        CONFIG_SCHEMA_MAX_FIELDS,
+        CONFIG_MULTILINE_FIELDS
     );
 
     private final BlockFactory blockFactory;
     private final CsvMapper sharedCsvMapper;
     private final CsvFormatOptions options;
+    /**
+     * The dataset's {@code multiline_fields}: whether a quoted field or an escaped line break may span lines. Unset is
+     * {@code false}, a contract that no record spans a raw newline; what follows from it is derived from this flag and
+     * {@link #options} on demand, see {@link #newlineSplitting()}.
+     */
+    private final boolean multilineFields;
     private final String format;
     private final List<String> extensions;
     private final List<Attribute> resolvedSchema;
     private final int schemaSampleSize;
     private final int schemaMaxFields;
     /**
-     * Notices this reader can raise about its own {@code WITH} options (today one: {@code mode: escaped} with a
-     * {@code quote} override, which switches the escaped decode off). They are known when the options are parsed, but
+     * Notices this reader can raise about its own {@code WITH} options ({@code mode: escaped} with a {@code quote}
+     * override, which switches the escaped decode off; {@code multiline_fields} set where it conflicts with the
+     * multi-value syntax or has no effect). They are known when the options are parsed, but
      * parsing runs on the resolver's executor and again on every data node, and neither can reach the client. So they
      * are kept here and handed out through {@link #configWarnings()}, which the resolver reads once per path on every
      * resolve; they describe the options, not a file, so they never enter the per-file metadata or its cache. Empty
@@ -575,7 +585,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             Map.of(),
             false,
             false,
-            List.of()
+            List.of(),
+            false
         );
     }
 
@@ -595,7 +606,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             Map.of(),
             false,
             false,
-            List.of()
+            List.of(),
+            false
         );
     }
 
@@ -615,7 +627,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             Map.of(),
             false,
             false,
-            List.of()
+            List.of(),
+            false
         );
     }
 
@@ -634,8 +647,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
         Map<String, String> declaredDateFormats,
         boolean declaredProvenanceBinding,
         boolean headerBindingByProvenance,
-        List<String> configWarnings
+        List<String> configWarnings,
+        boolean multilineFields
     ) {
+        this.multilineFields = multilineFields;
         this.blockFactory = blockFactory;
         this.options = options;
         this.format = format;
@@ -677,7 +692,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             declaredDateFormats,
             declaredProvenanceBinding,
             headerBindingByProvenance,
-            configWarnings
+            configWarnings,
+            multilineFields
         );
     }
 
@@ -701,7 +717,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * whitespace (unlike Jackson {@code SKIP_EMPTY_LINES}).
      */
     private boolean jacksonGrammarApplies() {
-        return options.trimSpaces() && options.decodesEscapes() == false;
+        // Every read of a newline-splitting reader goes through the record reader, the one place that sees a quoted line
+        // break and fails on it (see CsvLogicalRecordReader#failOnLineSpan); Jackson would silently parse the multi-line
+        // field.
+        return options.trimSpaces() && options.decodesEscapes() == false && newlineSplitting() == false;
     }
 
     private static CsvMapper createMapper(CsvFormatOptions opts) {
@@ -725,9 +744,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     /**
      * What a dataset's {@code WITH} options resolve to: the parsed {@link CsvFormatOptions} ({@code null} when nothing
-     * differs from the baseline) and any notices about those options worth telling the user.
+     * differs from the baseline), the user's {@code multiline_fields} decision ({@code null} when unset) and any notices
+     * about those options worth telling the user.
      */
-    private record ParsedOptions(@Nullable CsvFormatOptions options, List<String> configWarnings) {}
+    private record ParsedOptions(@Nullable CsvFormatOptions options, @Nullable Boolean multilineFields, List<String> configWarnings) {}
 
     /**
      * Validates format-specific settings by running the same parser used at query time.
@@ -827,6 +847,20 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     + "the bracket scanner honors quoted fields"
             );
         }
+        Boolean multilineFields = parseMultilineFields(config);
+        if (multiValueSyntax == CsvFormatOptions.MultiValueSyntax.BRACKETS && Boolean.FALSE.equals(multilineFields)) {
+            // Same split as the escaped-with-quote conflict below: rejected when the dataset is stored, a notice (and the
+            // proven walk) when a stored one is read.
+            if (strict) {
+                throw new IllegalArgumentException(MULTILINE_FALSE_WITH_BRACKETS_MESSAGE);
+            }
+            configWarnings.add(MULTILINE_FALSE_WITH_BRACKETS_MESSAGE);
+        }
+        if (Boolean.TRUE.equals(multilineFields) && quoting == false && escaping == false) {
+            // Not a conflict, so not rejected at PUT time: the flag is simply inert on this dialect. The notice tells
+            // the user why their multi-line values still read as separate rows.
+            configWarnings.add(MULTILINE_TRUE_WITH_PLAIN_MESSAGE);
+        }
         if (parsedMode == CsvFormatOptions.Mode.ESCAPED && quoting) {
             // mode=escaped asks for the C-style decode (\N to null, \t to tab), but setting a quote turns quoting
             // on, and the quoting parser does not decode escapes. So the user gets neither what they asked for nor a
@@ -876,7 +910,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             trimSpaces,
             skipRows
         );
-        return new ParsedOptions(merged.equals(baseline) ? null : merged, configWarnings);
+        return new ParsedOptions(merged.equals(baseline) ? null : merged, multilineFields, configWarnings);
     }
 
     /**
@@ -906,6 +940,20 @@ public class CsvFormatReader implements SegmentableFormatReader {
             return CsvFormatOptions.MultiValueSyntax.BRACKETS;
         }
         throw new IllegalArgumentException("Invalid multi_value_syntax [" + value + "]. Accepted values: \"none\", \"brackets\"");
+    }
+
+    /**
+     * The user's {@code multiline_fields} decision, or {@code null} when unset, which is treated as {@code false}.
+     * {@code false} promises that no quoted field or escape spans a line break, so the file may be cut on plain newlines.
+     * The parser's fallback is unreachable (unset is handled first) and set to the same {@code false} so it cannot
+     * contradict that reading if the guard above ever changes.
+     */
+    private static Boolean parseMultilineFields(Map<String, Object> config) {
+        Object value = config.get(CONFIG_MULTILINE_FIELDS);
+        if (value == null || value.toString().trim().isEmpty()) {
+            return null;
+        }
+        return parseBooleanOption(CONFIG_MULTILINE_FIELDS, value, false);
     }
 
     /**
@@ -1055,7 +1103,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             declaredDateFormats,
             declaredProvenanceBinding,
             headerBindingByProvenance,
-            configWarnings
+            configWarnings,
+            multilineFields
         );
     }
 
@@ -1075,7 +1124,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             declaredDateFormats,
             declaredProvenanceBinding,
             headerBindingByProvenance,
-            configWarnings
+            configWarnings,
+            multilineFields
         );
     }
 
@@ -1096,7 +1146,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             declaredDateFormats,
             declaredProvenanceBinding,
             headerBindingByProvenance,
-            configWarnings
+            configWarnings,
+            multilineFields
         );
     }
 
@@ -1120,7 +1171,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             declaredDateFormats,
             binding,
             headerBindingByProvenance,
-            configWarnings
+            configWarnings,
+            multilineFields
         );
     }
 
@@ -1144,7 +1196,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             declaredDateFormats,
             declaredProvenanceBinding,
             byProvenance,
-            configWarnings
+            configWarnings,
+            multilineFields
         );
     }
 
@@ -1293,7 +1346,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             physicalNameToPattern,
             declaredProvenanceBinding,
             headerBindingByProvenance,
-            configWarnings
+            configWarnings,
+            multilineFields
         );
     }
 
@@ -1317,7 +1371,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             declaredDateFormats,
             declaredProvenanceBinding,
             headerBindingByProvenance,
-            configWarnings
+            configWarnings,
+            multilineFields
         );
     }
 
@@ -1343,8 +1398,27 @@ public class CsvFormatReader implements SegmentableFormatReader {
             declaredDateFormats,
             declaredProvenanceBinding,
             headerBindingByProvenance,
-            configWarnings
+            configWarnings,
+            multilineFields
         );
+    }
+
+    /**
+     * Whether a quoting or escaping dialect is cut at plain newlines, which avoids proving record boundaries by walking the
+     * file: unless {@code multiline_fields} is {@code true}, on the contract that no record spans a raw newline. A quoting
+     * read stays quote-aware and fails on a record that breaks the contract, see {@link CsvLogicalRecordReader#failOnLineSpan()};
+     * Jackson cannot apply that guard, see {@link #jacksonGrammarApplies()}. {@code mode: escaped} (escaping on, quoting off)
+     * is cut here too when the flag is unset, but a raw newline already ends its records: an in-field newline is the two
+     * bytes {@code \}+{@code n}, so the flag does not change the rows. Bracketed multi-values can span lines by design, so
+     * they keep the quote-aware walk whatever the flag ({@link #parseOptionsFromConfig} rejects an explicit {@code false}
+     * with them, and only an explicit one: unset is {@code false} everywhere else, but here it is simply the walk the
+     * brackets need). A plain dialect (no quoting, no escaping) is cut at newlines regardless, as no record of it can span
+     * one; it is not this case.
+     */
+    private boolean newlineSplitting() {
+        return multilineFields == false
+            && (options.quoting() || options.escaping())
+            && options.multiValueSyntax() != CsvFormatOptions.MultiValueSyntax.BRACKETS;
     }
 
     @Override
@@ -1380,6 +1454,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // fingerprint, and since a contribution is matched to an entry on path, mtime and that fingerprint alone,
         // a lenient scan's count enriches a strict entry whose own scan aborts.
         String canon = Configured.fold(Configured.identityOf(config, RECOGNIZED_KEYS), resolvedPolicy.readIdentity());
+        // multiline_fields is a contract, not a guess from the data: unless the user sets it to true, no quoted field or
+        // escaped line break is assumed to span lines, see newlineSplitting(). Absent, it keeps the baseline like every
+        // other option.
+        boolean newMultilineFields = parsedOptions.multilineFields() != null ? parsedOptions.multilineFields() : multilineFields;
         result = new CsvFormatReader(
             result.blockFactory,
             result.options,
@@ -1395,7 +1473,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             result.declaredDateFormats,
             result.declaredProvenanceBinding,
             result.headerBindingByProvenance,
-            parsedOptions.configWarnings()
+            parsedOptions.configWarnings(),
+            newMultilineFields
         );
         // The vended identity IS canon — the same string this reader stamps on a harvest. The coordinator seeds a
         // cache entry with the former and the data node stamps the latter, and the reconcile gate enriches the entry
@@ -1515,7 +1594,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         + " has no schema line: the object is empty or contains only comments"
                 );
             }
-            List<Attribute> typedSchema = parseSchema(headerLine, widthBound());
+            List<Attribute> typedSchema = parseSchema(headerLine);
             if (typedSchema != null) {
                 checkUniqueAttributeNames(typedSchema);
                 return new InferredSchema(typedSchema, 0L, 0);
@@ -1548,11 +1627,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
         Consumer<WidenedColumn> widenedColumnSink,
         HeaderBudget budget
     ) throws IOException {
-        String[] columnNames = splitFieldsForOptions(headerLine, options, widthBound(), budget);
+        String[] columnNames = splitFieldsForOptions(headerLine, options, effectiveMaxFields(), budget);
         if (options.quoting()) {
             // No type annotations on this path, so the fields are bare names — unwrap RFC 4180 quoting.
             unquoteHeaderNames(columnNames, options.quoteChar());
         }
+        recordReader = sampleRecordReader(recordReader);
         Iterator<List<?>> csvIterator = newCsvIterator(recordReader);
         CircuitBreaker breaker = blockFactory.breaker();
         SchemaSample sample = collectSampleRows(csvIterator, options.commentPrefix(), schemaSampleSize, breaker, effectivePolicy);
@@ -1580,6 +1660,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         Consumer<String> warningSink,
         Consumer<WidenedColumn> widenedColumnSink
     ) throws IOException {
+        recordReader = sampleRecordReader(recordReader);
         Iterator<List<?>> csvIterator = newCsvIterator(recordReader);
         CircuitBreaker breaker = blockFactory.breaker();
         SchemaSample sample = collectSampleRows(csvIterator, options.commentPrefix(), schemaSampleSize, breaker, effectivePolicy);
@@ -1589,7 +1670,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             maybeHintUndecodedNullMarker(sample.rows(), sourceLocation, warningSink);
             int columns = syntheticColumnCount(sample.rows());
-            checkColumnCap(columns, widthBound());
+            checkColumnCap(columns, effectiveMaxFields());
             try (Releasable charge = chargeSyntheticColumns(columns)) {
                 boolean[] sawUndecodableTemporal = new boolean[columns];
                 List<CsvSchemaInferrer.Widening> widenings = new ArrayList<>();
@@ -1792,6 +1873,17 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
+     * A record that spans lines while {@code multiline_fields} is not {@code true} is not a bad row: it breaks the contract
+     * the file is read and split on, so no {@code error_mode} may count it as a skipped row and carry on with the tail of
+     * the value.
+     */
+    private static void rethrowIfLineSpanningRecord(RuntimeException e) {
+        if (ExceptionsHelper.unwrap(e, CsvLogicalRecordReader.LineSpanningRecordException.class) != null) {
+            throw e;
+        }
+    }
+
+    /**
      * True when the failure chain carries a {@link CsvRecordTooLargeException} — an over-{@code external_max_record_size}
      * record dropped by the record-reader path and laundered into an unchecked wrapper by
      * {@link #surfaceReadFailure} (see {@link CsvRecordIterator#hasNext}). Detected by cause-walk so the
@@ -1987,6 +2079,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     // error budget, reported as bad data, or end the sample early. Propagate it (HTTP 429).
                     throw e;
                 } catch (RuntimeException e) {
+                    rethrowIfLineSpanningRecord(e);
                     totalRowCount++;
                     errorCount++;
                     if (isRecordCapDrop(e)) {
@@ -2267,8 +2360,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
             );
         // Under the default gate, the read that owns a headered file's start steps over its skip_rows and header with the reader
         // fileHeaderColumns uses for every later split, and names the columns from that same pass. The two cannot then disagree
-        // on where the header ends, which an escape-aware data reader would (an escaped quote before a line break), and every
-        // split binds the same names. That reader reads one character at a time, so the data reader below resumes exactly after
+        // on where the header ends, which the data reader would when it is escape-aware and this one is not (an escaped quote
+        // before a line break), and every split binds the same names. That reader reads one character at a time, so the data
+        // reader below resumes exactly after
         // the header, and nothing is buffered however many comment or skipped lines come first. With headerBindingByProvenance
         // set, the header is read on the data reader instead, as main does; see the header step in the schema block.
         List<String> leadingColumns = null;
@@ -2287,6 +2381,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
         if (leadingBytes > 0) {
             recordReader.setInitialByteOffset(leadingBytes);
+        }
+        // Armed on every read, cut or not, so the file fails the same way whatever its size and however it is read; the
+        // schema sample applies the same guard, see leadingRecordReader.
+        if (newlineSplitting()) {
+            recordReader.failOnLineSpan();
         }
         // Bulk read-ahead is safe when this reader owns the stream end to end: the direct-to-block
         // path, and the house per-record path (useRecordReaderPath). The Jackson bulk path skips the
@@ -2408,7 +2507,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
         } else {
             // Byte-range macro-split (bzip2 / zstd-indexed); leading partial record was emitted by
             // the prior split.
-            skipLeadingPartialRecord(recordReader, effective);
+            try {
+                skipLeadingPartialRecord(recordReader, effective);
+            } catch (Exception e) {
+                abortRead(object, rawStream, e);
+                throw e;
+            }
             effectiveSchema = resolvedSchema;
         }
         // mtime is pinned here at open-time so a mid-scan file replacement cannot pair a new
@@ -2470,7 +2574,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
     /** Discards the leading partial record of a byte-range split; an oversized one fails only a strict read. */
     private void skipLeadingPartialRecord(CsvLogicalRecordReader recordReader, ErrorPolicy effective) throws IOException {
         try {
-            recordReader.readRecord(options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS && options.delimiter() == ',');
+            recordReader.discardLeadingPartialRecord(
+                options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS && options.delimiter() == ','
+            );
         } catch (CsvRecordTooLargeException e) {
             if (effective.isStrict()) {
                 throw e;
@@ -2490,13 +2596,16 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     @Override
     public RecordSplitter recordSplitter(int maxRecordBytes) {
-        // Splitter chosen once, from the (quoting, escaping) pair - never a per-byte branch. Only plain
-        // data (no quoting, no escaping: every byte literal) has raw line terminators that are always
-        // record boundaries, so only it can use the cheap strided terminator scan. When quoting is on a
-        // raw newline can sit inside a quoted field, and when escaping is on a backslash-escaped raw
-        // newline is in-field content; either way boundary detection needs the quote/escape state machine
-        // and must be driven sequentially from a known record start.
-        if (options.quoting() == false && options.escaping() == false) {
+        // Splitter chosen once, from the (quoting, escaping) pair and multiline_fields - never a per-byte
+        // branch. Plain data (no quoting, no escaping: every byte literal) has raw line terminators that are
+        // always record boundaries, so it can use the cheap strided terminator scan. When quoting is on, a raw
+        // newline can sit inside a quoted field and a backslash can escape one; boundary detection then needs the
+        // quote/escape state machine and must be driven sequentially from a known record start. The exception is a
+        // dataset not declared multiline_fields: true (newlineSplitting): its newlines are presumed to be boundaries,
+        // so it is cut by the cheap scan too, and a quoting read fails loudly, via CsvLogicalRecordReader#failOnLineSpan,
+        // on a record that proves the presumption wrong. mode=escaped (escaping on, quoting off) is cut the same way
+        // when the flag is unset, but a raw newline already ends its records, so the rows do not change.
+        if ((options.quoting() == false && options.escaping() == false) || newlineSplitting()) {
             return new NewlineRecordSplitter(maxRecordBytes);
         }
         return new CsvRecordSplitter(options, maxRecordBytes);
@@ -2679,7 +2788,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * Opens a file's leading records, past a byte-order mark and {@code skip_rows}, the one way {@link #readSchema} and
      * {@link #fileHeaderColumns} read them, so schema inference and the header columns handed to every split agree on
      * where the header ends: the header record ends where the dialect's quoting says, never escape-aware, and a record
-     * is capped at {@link SegmentableFormatReader#DEFAULT_MAX_RECORD_BYTES}.
+     * is capped at {@link SegmentableFormatReader#DEFAULT_MAX_RECORD_BYTES}. An escaped quote therefore does not move
+     * the header boundary. Sampled data rows of a quoting and escaping dialect are read escape-aware afterwards, see
+     * {@link #sampleRecordReader}.
      * <p>
      * The data path of a read is not the same reader: for a quoting and escaping dialect it is escape-aware, and it caps
      * records at the query's {@code maxRecordBytes}. So the read that owns a headered file's start steps over these
@@ -2697,10 +2808,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
     /**
      * The reader of a file's leading records: never escape-aware, records capped at
      * {@link SegmentableFormatReader#DEFAULT_MAX_RECORD_BYTES}, and without read-ahead, so a caller sharing {@code reader}
-     * resumes exactly after the last record it returned.
+     * resumes exactly after the last record it returned. Under {@link #newlineSplitting()} it fails on a record that spans
+     * lines, as every data read does, so a header that breaks the contract is reported at planning rather than by the
+     * first split read. It stays unaware of escapes so a backslash before a closing quote does not move where the header
+     * ends; sampled data rows are the escape-aware reader, see {@link #sampleRecordReader}. A cut inside a multi-line
+     * value whose tail is read without the split that owns the value's start goes unnoticed, hence the contract rather
+     * than a proof.
      */
     private CsvLogicalRecordReader leadingRecordReader(BufferedReader reader) {
-        return new CsvLogicalRecordReader(
+        CsvLogicalRecordReader leading = new CsvLogicalRecordReader(
             reader,
             options.quoteChar(),
             options.delimiter(),
@@ -2708,6 +2824,32 @@ public class CsvFormatReader implements SegmentableFormatReader {
             options.encoding(),
             options.quoting()
         );
+        return newlineSplitting() ? leading.failOnLineSpan() : leading;
+    }
+
+    /**
+     * The reader of rows sampled for schema inference, continuing on the stream {@code leading} has positioned.
+     * The header itself stays on {@code leading}, which is not escape-aware. Under {@link #newlineSplitting()} on a
+     * quoting and escaping dialect the sample is: a backslash-escaped newline is in-field content for the data read
+     * and fails the line-span contract, so the sample must fail the same way rather than as two short rows. Escaped
+     * mode (quoting off) is not this case — a raw newline already ends its records.
+     */
+    private CsvLogicalRecordReader sampleRecordReader(CsvLogicalRecordReader leading) {
+        if (newlineSplitting() == false || options.quoting() == false || options.escaping() == false) {
+            return leading;
+        }
+        CsvLogicalRecordReader sample = new CsvLogicalRecordReader(
+            leading.source(),
+            options.quoteChar(),
+            options.delimiter(),
+            options.escapeChar(),
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            options.encoding(),
+            true,
+            true
+        );
+        sample.setInitialByteOffset(leading.bytesRead());
+        return sample.failOnLineSpan();
     }
 
     /**
@@ -2720,12 +2862,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
         if (headerLine == null) {
             return List.of();
         }
-        // These names locate an already-settled schema's columns, so MAX_HEADER_SPLIT_COLUMNS bounds the split and not
-        // schema_max_fields: the file's own width does not decide whether a narrower schema can be read. The breaker
-        // bounds the names as they are split, so a header of millions of columns trips part-way rather than after it is
-        // allocated, and the count ignores empty names, so a header of bare delimiters is bounded by the breaker alone.
+        // The breaker bounds the names as they are split, so a header of millions of columns trips part-way rather than
+        // after it is allocated; the cap counts only non-empty names, so a header of bare delimiters is bounded by the
+        // breaker alone. A declared schema is not capped by the file's width, only charged (see effectiveMaxFields).
         try (HeaderBudget budget = newHeaderBudget()) {
-            return List.of(headerColumnNames(headerLine, splitFieldsForOptions(headerLine, options, MAX_HEADER_SPLIT_COLUMNS, budget)));
+            return List.of(headerColumnNames(headerLine, splitFieldsForOptions(headerLine, options, effectiveMaxFields(), budget)));
         }
     }
 
@@ -2738,8 +2879,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * @param fields the already-split header fields, parallel to the returned names
      */
     private String[] headerColumnNames(String headerLine, String[] fields) {
-        // Locating names rather than resolving a schema, so this split is bounded like its caller's.
-        List<Attribute> typed = parseSchema(headerLine, MAX_HEADER_SPLIT_COLUMNS); // non-null iff the header has types
+        List<Attribute> typed = parseSchema(headerLine); // non-null iff the header carries type annotations
         String[] names = new String[fields.length];
         for (int i = 0; i < fields.length; i++) {
             if (typed != null && i < typed.size()) {
@@ -2751,15 +2891,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
         return names;
     }
 
-    /**
-     * The schema a typed header line ({@code emp_no:integer}) declares, or {@code null} when the header carries no type
-     * annotations. {@code maxFields} is the width this caller is bounded by: {@code schema_max_fields} where the result
-     * becomes the dataset's schema, {@link #MAX_HEADER_SPLIT_COLUMNS} where it only supplies column names to bind
-     * against.
-     */
-    private List<Attribute> parseSchema(String schemaLine, int maxFields) {
+    private List<Attribute> parseSchema(String schemaLine) {
         try (HeaderBudget budget = newHeaderBudget()) {
-            String[] columns = splitFieldsForOptions(schemaLine, options, maxFields, budget);
+            String[] columns = splitFieldsForOptions(schemaLine, options, effectiveMaxFields(), budget);
             if (hasTypeAnnotations(columns)) {
                 return parseTypedSchema(columns);
             }
@@ -3066,26 +3200,17 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * The width a split in this reader is held to. {@code schema_max_fields} bounds the schema a read resolves, so it
-     * applies while this reader has none of its own: the file's columns become the dataset's schema and the cap is what
-     * bounds them. Once a schema is settled, a split is locating that schema's columns in the file rather than deciding
-     * what the schema is, so {@link #MAX_HEADER_SPLIT_COLUMNS} bounds it instead and the file's own width does not
-     * decide whether a narrower schema can be read.
-     * <p>
-     * The pin is what this reads, never where the pin came from: the planner pins a declared schema and an anchor
-     * file's inferred schema through the same field, so a {@code first_file_wins} glob's wide later file and a
-     * {@code dynamic: false} dataset's wide file are bounded alike. A streaming read asks this
-     * reader for its first chunk's metadata after the pin, which is why the bound has to follow the pin rather than the
-     * call site; the two sites that can only ever be locating names take {@link #MAX_HEADER_SPLIT_COLUMNS} directly.
+     * The cap on a file's columns for this reader. A declared schema names the columns it reads, so it is not capped
+     * by how many the file has; its header is bounded by the breaker through {@link HeaderBudget} instead.
      */
-    private int widthBound() {
-        return resolvedSchema != null && resolvedSchema.isEmpty() == false ? MAX_HEADER_SPLIT_COLUMNS : schemaMaxFields;
+    private int effectiveMaxFields() {
+        return declaredProvenanceBinding ? Integer.MAX_VALUE : schemaMaxFields;
     }
 
     /**
      * Charges the circuit breaker for the names and attributes a headerless file's schema synthesizes, one per column of
-     * the widest sampled row. The callers cap them at {@link #widthBound}, so this charge bounds the memory and that
-     * bound the count. Release the result once the schema is built.
+     * the widest sampled row. The callers cap them at {@link #effectiveMaxFields}, so a declared dataset, which is not
+     * capped by the file's width, is bounded by this charge alone. Release the result once the schema is built.
      */
     private Releasable chargeSyntheticColumns(int columns) {
         long bytes = (long) columns * HeapEstimates.columnBytes(options.columnPrefix().length() + SYNTHETIC_INDEX_DIGITS);
@@ -3097,8 +3222,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
     /**
      * Charges the circuit breaker for the scratch a split builds to bind a pinned schema against the {@code columns} header
      * names, read from the file's start or passed down from chunk 0: two arrays of the names and the duplicate-name set.
-     * The names themselves are charged by whoever holds them, and {@link #MAX_HEADER_SPLIT_COLUMNS} bounds the count,
-     * so this charge bounds the memory. Release the result once the binding is built.
+     * The names themselves are charged by whoever holds them. A declared read is not capped by the file's width, so this
+     * is all that bounds the binding. Release the result once the binding is built.
      */
     private Releasable chargeHeaderBinding(int columns) {
         long bytes = (long) columns * (2 * Long.BYTES + HeaderBudget.SET_ENTRY_BYTES);
@@ -3174,16 +3299,16 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * The refusal for a width over {@code maxFields}. Below the ceiling only a read resolving its own schema can reach
-     * it, and raising the cap is the remedy, so the message names the setting. At the ceiling raising it is rejected
-     * too, and the same number bounds a split locating a settled schema's columns
-     * ({@link #MAX_HEADER_SPLIT_COLUMNS}), which no setting raises, so the message states the width instead of offering
-     * a remedy that does not work. It speaks of the file rather than the schema because at that bound the file's own
-     * header is what is too wide, whether or not a schema was being resolved from it.
+     * The refusal for a schema over {@code maxFields}. Below the ceiling the user can raise the cap. At the ceiling
+     * raising it is rejected too, so suggest declaring the columns, which lifts the cap.
      */
     static String columnCapMessage(int maxFields) {
         if (maxFields >= ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS) {
-            return "the file has more than [" + maxFields + "] columns, the most that can be read";
+            return "schema inference found more than ["
+                + maxFields
+                + "] columns, the most ["
+                + CONFIG_SCHEMA_MAX_FIELDS
+                + "] allows; declare the dataset's columns with [dynamic: false] to skip inference";
         }
         return "schema inference found more than ["
             + maxFields
@@ -4642,7 +4767,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     if (counters != null) {
                         counters.markHeaderDetected();
                     }
-                    schema = parseSchema(headerLine, widthBound());
+                    schema = parseSchema(headerLine);
                     if (schema == null) {
                         schema = inferSchemaFromBatchReader(headerLine);
                     }
@@ -4837,6 +4962,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                                     rowStartBytesList.add(rowStartByte);
                                 }
                             } catch (RuntimeException e) {
+                                rethrowIfLineSpanningRecord(e);
                                 totalRowCount++;
                                 if (isRecordCapDrop(e)) {
                                     // An over-external_max_record_size record dropped by the record-reader path
@@ -4955,7 +5081,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
 
         private List<Attribute> inferSchemaFromBatchReader(String headerLine, HeaderBudget budget) throws IOException {
-            String[] columnNames = splitFieldsForOptions(headerLine, options, widthBound(), budget);
+            String[] columnNames = splitFieldsForOptions(headerLine, options, effectiveMaxFields(), budget);
             if (options.quoting()) {
                 // No type annotations on this path, so the fields are bare names — unwrap RFC 4180 quoting.
                 unquoteHeaderNames(columnNames, options.quoteChar());
@@ -5012,7 +5138,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             prefetchSample(sample);
             maybeHintUndecodedNullMarker(sample.rows(), messageLocation, warningSink);
             int columns = syntheticColumnCount(sample.rows());
-            checkColumnCap(columns, widthBound());
+            checkColumnCap(columns, effectiveMaxFields());
             try (Releasable charge = chargeSyntheticColumns(columns)) {
                 boolean[] sawUndecodableTemporal = new boolean[columns];
                 List<CsvSchemaInferrer.Widening> widenings = new ArrayList<>();

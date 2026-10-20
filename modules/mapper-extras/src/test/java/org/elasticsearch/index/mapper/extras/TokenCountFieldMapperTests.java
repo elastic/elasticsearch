@@ -279,4 +279,10 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
     protected boolean supportsDocValuesSkippers() {
         return false;
     }
+
+    @Override
+    protected boolean supportsIndexSortRangeTest() {
+        // NOTE: The values of a token count field are the number of tokens of a text.
+        return false;
+    }
 }

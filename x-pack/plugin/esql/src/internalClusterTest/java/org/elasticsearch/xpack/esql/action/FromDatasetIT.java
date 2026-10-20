@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
-import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -44,8 +43,6 @@ import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.elasticsearch.xpack.esql.view.DeleteViewAction;
-import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.junit.After;
 import org.junit.Before;
 
@@ -61,7 +58,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
@@ -77,7 +73,6 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -183,32 +178,6 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
      * validator used by {@code local_ds} is a pass-through and stores a missing key (legacy hydrate).
      */
     private static final String FILE_DS = "file_ds";
-
-    /**
-     * Names every {@code testXxx} body creates via {@link PutViewAction}. As with datasets, the SUITE-scoped
-     * cluster requires explicit teardown so views don't leak across methods.
-     */
-    private static final Set<String> CREATED_VIEWS = Set.of(
-        "employees_view",
-        "employees_filtered_view",
-        "mapped_dataset_view",
-        "fork_dataset_view",
-        "fork_dataset_view_a",
-        "fork_dataset_view_b"
-    );
-
-    @After
-    public void cleanupViews() throws Exception {
-        for (String view : CREATED_VIEWS) {
-            try {
-                client().execute(DeleteViewAction.INSTANCE, deleteViewRequest(view)).actionGet(30, SECONDS);
-            } catch (ResourceNotFoundException ignored) {
-                // already deleted by the test itself
-            } catch (Exception e) {
-                logger.warn("view cleanup [{}] failed", view, e);
-            }
-        }
-    }
 
     /**
      * Tears down every dataset in cluster state, not just those the base {@code registerDataset} helper recorded: tests
@@ -2044,7 +2013,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                         .getResponseHeaders()
                         .getOrDefault("Warning", List.of())
                         .stream()
-                        .filter(w -> w.contains("cannot be read as the type the query uses"))
+                        .filter(w -> w.contains("cannot be read as their declared type"))
                         .forEach(coercionWarnings::add);
                 } finally {
                     latch.countDown();
@@ -2399,12 +2368,13 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
     }
 
-    public void testDeclaredNumericNarrowingCoercesPerValue() throws Exception {
-        // A declared INTEGER target over a physical int64 column, reached through the non-strict overlay and a `path`
-        // rename: FileSourceFactory physicalizes the target to `emp_no` and the reader narrows int64 -> integer per
-        // value. The Integer-valued (not Long) non-null results prove both that the conversion happened and that the
-        // target type is INTEGER. This used to be the contrast to an inferred first_file_wins clash, which null-filled
-        // the same column whole (parquet-multifile.parquetFfwAllRows); that read now narrows too, so the two agree.
+    public void testDeclaredNumericNarrowingCoercesWhereInferredClashWouldNull() throws Exception {
+        // The end-to-end contrast to an INFERRED first_file_wins clash (parquet-multifile.parquetFfwAllRows null-fills an
+        // int64-vs-INTEGER divergence). Here the INTEGER target for the same physical int64 column comes from an explicit
+        // DECLARATION: the coordinator marks it a declared-type column, FileSourceFactory physicalizes that to `emp_no`,
+        // and the reader keeps the coercion escape — narrowing int64 -> integer per value instead of null-filling the
+        // whole column. Guards the declared-vs-inferred null-fill gate split through the non-strict overlay. The
+        // Integer-valued (not Long) non-null results prove both the coercion happened AND the target type is INTEGER.
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         Path parquet = writeParquetRenameFixture(); // physical emp_no int64 = 1,2,3 (all fit in integer)
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
@@ -5287,42 +5257,6 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * A view whose body targets a dataset carrying a DECLARED mapping: the declared coercion must survive view
-     * inlining (view resolution rewrites the inlined leaf into the external relation, which must keep the mapping —
-     * a dropped mapping here would silently read the file's physical type instead of the declared one).
-     */
-    public void testViewOverMappedDatasetPreservesCoercion() throws Exception {
-        Path root = createTempDir();
-        Files.writeString(root.resolve("d.csv"), "val:integer\n100\n");
-
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("val", new DatasetFieldMapping("long", null)); // declare integer file column as long
-        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                new PutDatasetAction.Request(
-                    TIMEOUT,
-                    TIMEOUT,
-                    "mapped_ds_for_view",
-                    "local_ds",
-                    root.toUri() + "*.csv",
-                    null,
-                    new HashMap<>(Map.of("format", "csv")),
-                    mapping
-                )
-            )
-        );
-        assertAcked(client().execute(PutViewAction.INSTANCE, putViewRequest("mapped_dataset_view", "FROM mapped_ds_for_view")));
-
-        try (var response = run(syncEsqlQueryRequest("FROM mapped_dataset_view | KEEP val | LIMIT 1"), TIMEOUT)) {
-            assertThat("declared type must survive view inlining", response.columns().get(0).outputType(), equalTo("long"));
-            assertThat(getValuesList(response).get(0).get(0), equalTo(100L));
-        }
-    }
-
-    /**
      * A dataset carrying a DECLARED mapping used inside a subquery ({@code FROM (FROM mapped)}): the declared
      * coercion must survive the subquery planning rewrite, not just a top-level {@code FROM}.
      */
@@ -5353,55 +5287,6 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         try (var response = run(syncEsqlQueryRequest("FROM (FROM mapped_ds_for_subquery) | KEEP val | LIMIT 1"), TIMEOUT)) {
             assertThat("declared type must survive the subquery rewrite", response.columns().get(0).outputType(), equalTo("long"));
             assertThat(getValuesList(response).get(0).get(0), equalTo(100L));
-        }
-    }
-
-    public void testViewOverExternalDatasetIsQueryable() throws Exception {
-        registerDataSource("local_ds", Map.of());
-        registerDataset("employees_external", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
-        // The view body targets the dataset. View resolution runs before the dataset rewrite, so it inlines the body
-        // while it is still a plain index-shaped relation; the rewriter then turns the inlined leaf into an external
-        // relation over the CSV fixture. This is the end-to-end realisation of a view "containing" an external source.
-        // There is no index named "employees_external", so the query can only succeed via the external dataset pipeline —
-        // if the inlined leaf were treated as an index it would fail with "unknown index" (see testFromUnknownName...).
-        assertAcked(client().execute(PutViewAction.INSTANCE, putViewRequest("employees_view", "FROM employees_external")));
-
-        try (var response = run(syncEsqlQueryRequest("FROM employees_view | SORT emp_no | LIMIT 10"), TIMEOUT)) {
-            List<? extends ColumnInfo> columns = response.columns();
-            assertThat(columns, hasSize(2));
-            assertThat(columns.get(0).name(), equalTo("emp_no"));
-            assertThat(columns.get(1).name(), equalTo("first_name"));
-
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(3));
-            assertThat(rows.get(0).get(0), equalTo(1));
-            assertThat(rows.get(0).get(1).toString(), equalTo("Alice"));
-            assertThat(rows.get(1).get(0), equalTo(2));
-            assertThat(rows.get(1).get(1).toString(), equalTo("Bob"));
-            assertThat(rows.get(2).get(0), equalTo(3));
-            assertThat(rows.get(2).get(1).toString(), equalTo("Carol"));
-        }
-    }
-
-    public void testViewOverExternalDatasetWithTransformInBody() throws Exception {
-        registerDataSource("local_ds", Map.of());
-        registerDataset("employees_external", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
-        // A non-trivial view body (a WHERE on top of the dataset) proves the external leaf resolves and executes when
-        // it is nested below other commands inside a resolved view, not just as a bare top-level relation.
-        assertAcked(
-            client().execute(
-                PutViewAction.INSTANCE,
-                putViewRequest("employees_filtered_view", "FROM employees_external | WHERE emp_no > 1")
-            )
-        );
-
-        try (var response = run(syncEsqlQueryRequest("FROM employees_filtered_view | SORT emp_no"), TIMEOUT)) {
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(2));
-            assertThat(rows.get(0).get(0), equalTo(2));
-            assertThat(rows.get(0).get(1).toString(), equalTo("Bob"));
-            assertThat(rows.get(1).get(0), equalTo(3));
-            assertThat(rows.get(1).get(1).toString(), equalTo("Carol"));
         }
     }
 
@@ -6397,14 +6282,6 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertThat("error chain should contain message fragment [" + fragment + "]", cause, notNullValue());
     }
 
-    private static PutViewAction.Request putViewRequest(String name, String query) {
-        return new PutViewAction.Request(TIMEOUT, TIMEOUT, new View(name, query));
-    }
-
-    private static DeleteViewAction.Request deleteViewRequest(String name) {
-        return new DeleteViewAction.Request(TIMEOUT, TIMEOUT, new String[] { name });
-    }
-
     private static PutDataSourceAction.Request putDataSourceRequest(String name, Map<String, Object> settings) {
         return new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, name, "test", null, new HashMap<>(settings));
     }
@@ -6648,35 +6525,37 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertDeclaredUnsignedLongReadsFullMagnitude("ul_ndjson", ndjsonUnsignedLongFixture, "ndjson");
     }
 
-    public void testFirstFileWinsAggregateOverAConvertedColumnScansAndMatchesIt() throws Exception {
+    public void testFirstFileWinsWarmAggregateMatchesTheScanOnDivergentColumnTypes() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         Path dir = createTempDir();
         writeParquet(dir.resolve("part-a.parquet"), "message m { required int32 x; }", 2, 1024, (g, i) -> g.add("x", i + 1));
         writeParquet(dir.resolve("part-b.parquet"), "message m { required int64 x; }", 2, 1024, (g, i) -> g.add("x", i == 0 ? -10L : 20L));
         putFirstFileWinsGlob("drift_pq_type_ffw", dir);
 
-        // part-b's int64 x is narrowed per value into the anchor's int32, and both values fit, so nothing is
-        // nulled and nothing is warned about. The warm aggregate must agree with the scan on the real values.
-        assertThat(collectWarningsContaining("FROM drift_pq_type_ffw | KEEP x | SORT x", "the query"), empty());
-        assertThat(columnValues("FROM drift_pq_type_ffw | KEEP x | SORT x"), containsInAnyOrder(1, 2, -10, 20));
-        assertThat(firstRowOf("FROM drift_pq_type_ffw | WHERE x IS NOT NULL | STATS c = COUNT(x)"), equalTo(List.of(4L)));
-        assertThat(firstRowOf("FROM drift_pq_type_ffw | STATS c = COUNT(x)"), equalTo(List.of(4L)));
-        // A converted column's footer statistics describe the values before conversion, so they are withheld and
-        // the aggregate is answered by scanning. It used to be served warm because the column read as all-null,
-        // which made the statistics trivially right about a column the user should never have been given.
-        assertThat(documentsReadBy("FROM drift_pq_type_ffw | STATS c = COUNT(x)"), greaterThan(0L));
+        // The INTEGER anchor cannot represent part-b's LONG, so that file's x is read as null.
+        // Parquet emits a SkipWarnings summary plus one per-column detail; the file path is a temp URI.
+        List<String> warnings = collectWarningsContaining("FROM drift_pq_type_ffw | KEEP x | SORT x", "the query");
+        assertThat(warnings, hasSize(2));
+        assertThat(warnings, hasItem(containsString("have a type the query cannot read; returning null")));
+        assertThat(warnings, hasItem(containsString("part-b.parquet")));
+        assertThat(warnings, hasItem(containsString("column [x]: ")));
+        assertThat(warnings, hasItem(containsString("column [x]: [long] in the file, [integer] in the query")));
+        assertThat(columnValues("FROM drift_pq_type_ffw | KEEP x | SORT x"), containsInAnyOrder(1, 2, null, null));
+        assertThat(firstRowOf("FROM drift_pq_type_ffw | WHERE x IS NOT NULL | STATS c = COUNT(x)"), equalTo(List.of(2L)));
+        assertThat(firstRowOf("FROM drift_pq_type_ffw | STATS c = COUNT(x)"), equalTo(List.of(2L)));
+        assertThat(documentsReadBy("FROM drift_pq_type_ffw | STATS c = COUNT(x)"), equalTo(0L));
         assertThat(
             firstRowOf("FROM drift_pq_type_ffw | WHERE x IS NOT NULL | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"),
-            equalTo(List.of(-10, 20, 4L))
+            equalTo(List.of(1, 2, 2L))
         );
-        assertThat(firstRowOf("FROM drift_pq_type_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(List.of(-10, 20, 4L)));
-        assertThat(documentsReadBy("FROM drift_pq_type_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), greaterThan(0L));
-        assertThat(firstRowOf("FROM drift_pq_type_ffw | KEEP x | STATS c = COUNT(x)"), equalTo(List.of(4L)));
+        assertThat(firstRowOf("FROM drift_pq_type_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(List.of(1, 2, 2L)));
+        assertThat(documentsReadBy("FROM drift_pq_type_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(0L));
+        assertThat(firstRowOf("FROM drift_pq_type_ffw | KEEP x | STATS c = COUNT(x)"), equalTo(List.of(2L)));
         assertThat(
             firstRowOf("FROM drift_pq_type_ffw | KEEP x | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"),
-            equalTo(List.of(-10, 20, 4L))
+            equalTo(List.of(1, 2, 2L))
         );
-        assertThat(documentsReadBy("FROM drift_pq_type_ffw | KEEP x | STATS c = COUNT(x)"), greaterThan(0L));
+        assertThat(documentsReadBy("FROM drift_pq_type_ffw | KEEP x | STATS c = COUNT(x)"), equalTo(0L));
     }
 
     public void testFirstFileWinsColdIsNullCountMatchesTheScanOnDivergentColumnTypes() throws Exception {
@@ -6698,12 +6577,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             // Each query gets new file paths so neither schema nor footer caches can be warmed by another query.
             actual.put(aggregation, columnValues("FROM drift_pq_cold_null_count_ffw | WHERE x IS NULL | " + aggregation));
             List<Object> scan = columnValues("FROM drift_pq_cold_null_count_ffw | KEEP x | SORT x");
-            // part-b's int64 values narrow into the int32 anchor type, so none of them reads as null.
-            assertThat(scan, containsInAnyOrder(1, 2, -10, 20));
-            long nulls = scan.stream().filter(Objects::isNull).count();
-            // An ungrouped COUNT(*) over no rows is 0; a GROUPED one has no groups at all, so no rows come back.
-            boolean grouped = aggregation.contains(" BY ");
-            expected.put(aggregation, grouped && nulls == 0 ? List.of() : List.of(nulls));
+            assertThat(scan, containsInAnyOrder(1, 2, null, null));
+            expected.put(aggregation, List.of(scan.stream().filter(Objects::isNull).count()));
         }
         assertThat(actual, equalTo(expected));
     }
@@ -6726,9 +6601,9 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         ) {
             rows = getValuesList(response);
         }
-        assertThat(rows.stream().map(row -> row.getFirst()).toList(), containsInAnyOrder(1, 2, -10, 20));
+        assertThat(rows.stream().map(row -> row.getFirst()).toList(), containsInAnyOrder(1, 2, null, null));
         for (List<Object> row : rows) {
-            assertThat("cold INLINE STATS rows: " + rows, row.subList(1, 4), equalTo(List.of(4L, -10, 20)));
+            assertThat("cold INLINE STATS rows: " + rows, row.subList(1, 4), equalTo(List.of(2L, 1, 2)));
         }
     }
 
@@ -6767,25 +6642,25 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertThat(second.settings().get("schema_resolution"), equalTo("first_file_wins"));
     }
 
-    public void testOmittedSchemaResolutionAggregateOverAConvertedColumnScansAndMatchesIt() throws Exception {
+    public void testOmittedSchemaResolutionWarmAggregateMatchesTheScanOnDivergentColumnTypes() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putLocalFileDataSourceRequest()));
         Path dir = createTempDir();
         writeParquet(dir.resolve("part-a.parquet"), "message m { required int32 x; }", 2, 1024, (g, i) -> g.add("x", i + 1));
         writeParquet(dir.resolve("part-b.parquet"), "message m { required int64 x; }", 2, 1024, (g, i) -> g.add("x", i == 0 ? -10L : 20L));
         putOmittedSchemaResolutionGlob("drift_pq_type_default", dir);
 
-        assertThat(collectWarningsContaining("FROM drift_pq_type_default | KEEP x | SORT x", "the query"), empty());
-        assertThat(firstRowOf("FROM drift_pq_type_default | KEEP x | SORT x"), equalTo(List.of(-10)));
-        assertThat(firstRowOf("FROM drift_pq_type_default | WHERE x IS NOT NULL | STATS c = COUNT(x)"), equalTo(List.of(4L)));
-        assertThat(firstRowOf("FROM drift_pq_type_default | STATS c = COUNT(x)"), equalTo(List.of(4L)));
-        // Withheld and scanned, for the reason given in the first_file_wins twin above.
-        assertThat(documentsReadBy("FROM drift_pq_type_default | STATS c = COUNT(x)"), greaterThan(0L));
+        List<String> scanWarnings = collectWarningsContaining("FROM drift_pq_type_default | KEEP x | SORT x", "the query");
+        assertThat(scanWarnings, not(empty()));
+        assertThat(firstRowOf("FROM drift_pq_type_default | KEEP x | SORT x"), equalTo(List.of(1)));
+        assertThat(firstRowOf("FROM drift_pq_type_default | WHERE x IS NOT NULL | STATS c = COUNT(x)"), equalTo(List.of(2L)));
+        assertThat(firstRowOf("FROM drift_pq_type_default | STATS c = COUNT(x)"), equalTo(List.of(2L)));
+        assertThat(documentsReadBy("FROM drift_pq_type_default | STATS c = COUNT(x)"), equalTo(0L));
         assertThat(
             firstRowOf("FROM drift_pq_type_default | WHERE x IS NOT NULL | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"),
-            equalTo(List.of(-10, 20, 4L))
+            equalTo(List.of(1, 2, 2L))
         );
-        assertThat(firstRowOf("FROM drift_pq_type_default | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(List.of(-10, 20, 4L)));
-        assertThat(documentsReadBy("FROM drift_pq_type_default | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), greaterThan(0L));
+        assertThat(firstRowOf("FROM drift_pq_type_default | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(List.of(1, 2, 2L)));
+        assertThat(documentsReadBy("FROM drift_pq_type_default | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(0L));
     }
 
     public void testOmittedSchemaResolutionWarmAggregateKeepsWideningFileValues() throws Exception {
@@ -6853,9 +6728,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertAcked(client().execute(PutDatasetAction.INSTANCE, putDatasetRequest("re_put_legacy_omit", FILE_DS, resource, settings)));
         Dataset second = getDataset("re_put_legacy_omit");
         assertThat(second.settings().get("schema_resolution"), equalTo("first_file_wins"));
-        // Both resolutions now count every row: under first_file_wins part-b's int64 x narrows into the anchor's
-        // int32 rather than reading as null, so the count no longer distinguishes them - the stored setting does.
-        assertThat(firstRowOf("FROM re_put_legacy_omit | STATS c = COUNT(x)"), equalTo(List.of(4L)));
+        assertThat(firstRowOf("FROM re_put_legacy_omit | STATS c = COUNT(x)"), equalTo(List.of(2L)));
     }
 
     public void testUnionByNameWarmAggregateWidensDivergentColumnTypes() throws Exception {
@@ -7040,52 +6913,6 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                 getValuesList(response),
                 equalTo(List.of(List.of("fork1", 11), List.of("fork1", 10), List.of("fork2", 10), List.of("fork2", 3)))
             );
-        }
-    }
-
-    public void testForkOverCompactedDatasetViews() throws Exception {
-        registerDataSource("local_ds", Map.of());
-        registerDataset("fork_view_dataset_a", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
-        registerDataset("fork_view_dataset_b", "local_ds", csvFixtureAlt.toUri().toString(), Map.of("format", "csv"));
-        assertAcked(
-            client().execute(PutViewAction.INSTANCE, putViewRequest("fork_dataset_view", "FROM fork_view_dataset_a, fork_view_dataset_b"))
-        );
-        assertAcked(client().execute(PutViewAction.INSTANCE, putViewRequest("fork_dataset_view_a", "FROM fork_view_dataset_a")));
-        assertAcked(client().execute(PutViewAction.INSTANCE, putViewRequest("fork_dataset_view_b", "FROM fork_view_dataset_b")));
-
-        for (String source : List.of(
-            "fork_dataset_view",
-            "fork_dataset_view_a, fork_view_dataset_b",
-            "fork_dataset_view_a, fork_dataset_view_b"
-        )) {
-            String query = "FROM " + source + """
-                 | FORK
-                     (STATS count = COUNT(*))
-                     (WHERE emp_no >= 10 | STATS count = COUNT(*))
-                 | KEEP _fork, count
-                 | SORT _fork
-                """;
-            try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
-                List<List<Object>> rows = getValuesList(response);
-                assertThat(rows, hasSize(2));
-                assertThat(rows.get(0).get(1), equalTo(5L));
-                assertThat(rows.get(1).get(1), equalTo(2L));
-            }
-        }
-
-        String composed = """
-            FROM fork_dataset_view, fork_view_dataset_a
-             | FORK
-                 (STATS count = COUNT(*))
-                 (WHERE emp_no >= 10 | STATS count = COUNT(*))
-             | KEEP _fork, count
-             | SORT _fork
-            """;
-        try (var response = run(syncEsqlQueryRequest(composed), TIMEOUT)) {
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(2));
-            assertThat(rows.get(0).get(1), equalTo(8L));
-            assertThat(rows.get(1).get(1), equalTo(2L));
         }
     }
 

@@ -289,7 +289,7 @@ Because a search request may be executed against one or more shards in an index,
 
 The profile itself may consist of one or more "searches", where a search is a query executed against the underlying Lucene index. Most search requests submitted by the user will only execute a single `search` against the Lucene index. But occasionally multiple searches will be executed, such as including a global aggregation (which needs to execute a secondary "match_all" query for the global context).
 
-Inside each `search` object there will be two arrays of profiled information: a `query` array and a `collector` array. Alongside the `search` object is an `aggregations` object that contains the profile information for the aggregations. In the future, more sections may be added, such as `suggest`, `highlight`, etc.
+Each `search` object contains two arrays of profiled information: a `query` array and a `collector` array. In addition to the `search` object, an `aggregations` object contains profile information for aggregations. If the request has rescorers, there is also a [`rescore`](#profiling-rescore) array that contains the profile information for each rescorer.
 
 There will also be a `rewrite` metric showing the total time spent rewriting the query (in nanoseconds).
 
@@ -810,6 +810,93 @@ The `breakdown` component lists detailed statistics about low-level execution:
 Each property in the `breakdown` component corresponds to an internal method for the aggregation. For example, the `build_leaf_collector` property measures nanoseconds spent running the aggregation’s `getLeafCollector()` method. Properties ending in `_count` record the number of invocations of the particular method. For example, `"collect_count": 2` means the aggregation called the `collect()` on two different documents. The `reduce` property is reserved for future use and always returns `0`.
 
 Timings are listed in wall-clock nanoseconds and are not normalized at all. All caveats about the overall `time` apply here. The intention of the breakdown is to give you a feel for A) what machinery in {{es}} is actually eating time, and B) the magnitude of differences in times between the various components. Like the overall time, the breakdown is inclusive of all children times.
+
+
+### Profiling rescore [profiling-rescore]
+
+```{applies_to}
+stack: ga 9.6
+```
+
+All shards that run at least one [rescorer](rescore-search-results.md) have a `rescore` section in the profile. The following example runs a small search with a rescorer:
+
+```console
+GET /my-index-000001/_search?filter_path=profile.shards.rescore
+{
+  "profile": true,
+  "query": {
+    "term": {
+      "user.id": {
+        "value": "elkbee"
+      }
+    }
+  },
+  "rescore": {
+    "window_size": 2,
+    "query": {
+      "rescore_query": {
+        "match": {
+          "message": "search"
+        }
+      }
+    }
+  }
+}
+```
+% TEST[continued]
+
+The `rescore` section in the profile response is an array with one element per rescorer, in the order the rescorers ran:
+
+```console-result
+{
+  "profile": {
+    "shards": [
+      {
+        "rescore": [
+          {
+            "type": "query",                       <1>
+            "description": "message:search",       <2>
+            "time_in_nanos": 254826,               <3>
+            "breakdown": {},                       <4>
+            "debug": {
+              "window_size": 2                     <5>
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+% TESTRESPONSE[s/"time_in_nanos": 254826/"time_in_nanos": $body.profile.shards.0.rescore.0.time_in_nanos/]
+
+1. The name of the rescorer, such as `query` or `learning_to_rank`.
+2. What the rescorer runs. For a `query` rescorer, this is its `rescore_query`. For a `learning_to_rank` rescorer, this is `LTR model [<model_id>]`.
+3. The total time spent in the rescorer, including the time spent running its queries.
+4. The time spent in each step of the rescorer. Rescorers that don't report steps, like the `query` rescorer, have an empty `breakdown`.
+5. The number of top documents the rescorer was configured to rescore on each shard.
+
+If the search times out while a rescorer is running, its `debug` section has `"timed_out": true`, and the top documents of the shard are not rescored.
+
+The queries run by a rescorer, such as the `rescore_query` of a `query` rescorer or the feature extraction queries of a `learning_to_rank` model, are profiled in the [query section](#query-section) of `searches`, after the main query, and their rewrite time is part of its `rewrite_time`. Each of these queries has a `debug` section with the position of its rescorer in the `rescore` array, like `"debug": { "rescorer": 0 }`. Because their time is also part of the rescorer's `time_in_nanos`, don't add the two together. To compare the time of the main query with the time spent rescoring, use the queries without a `rescorer` or the [collector section](#collectors-section), which doesn't include the rescore phase.
+
+A `learning_to_rank` rescorer reports the steps of the model in its `breakdown`:
+
+```js
+"breakdown": {
+  "build_feature_extractors": 310250,      <1>
+  "build_feature_extractors_count": 1,
+  "feature_extraction": 1624917,           <2>
+  "feature_extraction_count": 10,
+  "inference": 1943541,                    <3>
+  "inference_count": 10
+}
+```
+% NOTCONSOLE
+
+1. The time spent turning the feature queries of the model into queries that can score documents. This step runs once per rescore. It includes rewriting the feature queries and creating their weights, which are also reported in `searches`.
+2. The time spent extracting the features of the top documents. The count is the number of documents rescored. It includes scoring the top documents with the feature queries, which are listed with their own timings in `searches`, and reading the field values used as features.
+3. The time spent running the model on the extracted features. The count is the number of documents rescored.
 
 
 ### Profiling fetch [profiling-fetch]

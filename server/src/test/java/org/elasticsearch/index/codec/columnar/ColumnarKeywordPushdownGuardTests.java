@@ -36,12 +36,12 @@ import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.ColumnarFieldType;
 import org.elasticsearch.columnar.numeric.NumericPipeline;
+import org.elasticsearch.columnar.string.DenseOrdinalReader;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.columnar.string.StringColumnOptions;
 import org.elasticsearch.columnar.string.StringColumnOptionsSelector;
 import org.elasticsearch.columnar.string.StringColumnReader;
 import org.elasticsearch.columnar.string.StringColumnSource;
-import org.elasticsearch.columnar.string.StringDictionary;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -559,14 +559,8 @@ public class ColumnarKeywordPushdownGuardTests extends ESTestCase {
         }
 
         @Override
-        public StringDictionary dictionary() throws IOException {
-            return column.dictionary();
-        }
-
-        @Override
-        public void visitValues(ValueVisitor visitor) throws IOException {
-            readsAValue();
-            column.visitValues(visitor);
+        public DenseOrdinalReader denseOrdinals() throws IOException {
+            return column.denseOrdinals();
         }
 
         @Override

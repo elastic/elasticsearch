@@ -11,8 +11,8 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.columnar.string.DenseOrdinalReader;
 import org.elasticsearch.columnar.string.StringColumnSource;
-import org.elasticsearch.columnar.string.StringDictionary;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.ColumnarPayloadSortableBinaryDocValues;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -32,8 +32,8 @@ import java.util.function.LongConsumer;
  *
  * <p>Only the lookup from term bytes to bucket changes. Sub-aggregations, {@code _doc_count} and
  * {@code significant_terms} counting work as they do in the per-document loop, because the consumer still does the
- * counting. The collector knows nothing of how the column encodes its ordinals: {@link StringColumnSource#visitValues}
- * hands over each value of a document as an ordinal or, when it is not in the dictionary, as bytes.
+ * counting. The collector knows nothing of how the column encodes its ordinals: {@link DenseOrdinalReader} says how many
+ * values a document has, and which term the one value is.
  *
  * <p>A document is decided on its own. A document with one value, in the dictionary, is counted from the cache. An
  * escaped value is hashed for each document, as it is without the cache. A document with several values goes to the
@@ -42,7 +42,7 @@ import java.util.function.LongConsumer;
  * <p>The cache holds buckets of one owning bucket ordinal, zero. A document collected for another owning bucket goes to
  * the per-document collector.
  */
-final class ColumnarOrdinalTermsCollector extends LeafBucketCollectorBase implements StringColumnSource.ValueVisitor {
+final class ColumnarOrdinalTermsCollector extends LeafBucketCollectorBase {
 
     /**
      * The largest dictionary the cache covers. The cache is cleared for each segment, so the cost of a segment grows
@@ -92,14 +92,13 @@ final class ColumnarOrdinalTermsCollector extends LeafBucketCollectorBase implem
         if (source == null || source instanceof BinaryDocValues == false) {
             return null;
         }
-        final StringDictionary dictionary = source.dictionary();
-        if (dictionary != null && dictionary.size() <= MAX_DICTIONARY_SIZE) {
-            final long[] buckets = ordinalBuckets.reset(dictionary.size(), addRequestCircuitBreakerBytes);
+        final DenseOrdinalReader ordinals = source.denseOrdinals();
+        if (ordinals != null && ordinals.size() <= MAX_DICTIONARY_SIZE) {
+            final long[] buckets = ordinalBuckets.reset(ordinals.size(), addRequestCircuitBreakerBytes);
             return new ColumnarOrdinalTermsCollector(
                 values,
                 (BinaryDocValues) source,
-                source,
-                dictionary,
+                ordinals,
                 buckets,
                 includeExclude,
                 sub,
@@ -111,8 +110,7 @@ final class ColumnarOrdinalTermsCollector extends LeafBucketCollectorBase implem
     }
 
     private final BinaryDocValues docValues;
-    private final StringColumnSource source;
-    private final StringDictionary dictionary;
+    private final DenseOrdinalReader ordinals;
     private final long[] buckets;
     private final IncludeExclude.StringFilter includeExclude;
     private final LeafBucketCollector sub;
@@ -120,15 +118,10 @@ final class ColumnarOrdinalTermsCollector extends LeafBucketCollectorBase implem
     private final LeafBucketCollector fallback;
     private final BytesRef scratch = new BytesRef();
 
-    /** The document being collected, and whether it holds several values, which the fallback collects. */
-    private int doc;
-    private boolean several;
-
     private ColumnarOrdinalTermsCollector(
         ColumnarPayloadSortableBinaryDocValues values,
         BinaryDocValues docValues,
-        StringColumnSource source,
-        StringDictionary dictionary,
+        DenseOrdinalReader ordinals,
         long[] buckets,
         @Nullable IncludeExclude.StringFilter includeExclude,
         LeafBucketCollector sub,
@@ -137,8 +130,7 @@ final class ColumnarOrdinalTermsCollector extends LeafBucketCollectorBase implem
     ) {
         super(sub, values);
         this.docValues = docValues;
-        this.source = source;
-        this.dictionary = dictionary;
+        this.ordinals = ordinals;
         this.buckets = buckets;
         this.includeExclude = includeExclude;
         this.sub = sub;
@@ -155,29 +147,27 @@ final class ColumnarOrdinalTermsCollector extends LeafBucketCollectorBase implem
         if (docValues.advanceExact(doc) == false) {
             return;
         }
-        this.doc = doc;
-        source.visitValues(this);
-        if (several) {
-            several = false;
-            fallback.collect(doc, 0);
+        final int count = ordinals.nonNullValueCount();
+        if (count == 0) {
+            return;
         }
-    }
-
-    @Override
-    public void values(int nonNullCount) {
-        several = nonNullCount > 1;
-    }
-
-    @Override
-    public void term(int ordinal) throws IOException {
-        if (several) {
+        if (count > 1) {
+            fallback.collect(doc, 0);
+            return;
+        }
+        final int ordinal = ordinals.ordinal();
+        if (ordinal == DenseOrdinalReader.ESCAPED) {
+            final BytesRef escaped = ordinals.escapedValue(scratch);
+            if (includeExclude == null || includeExclude.accept(escaped)) {
+                consumer.accept(sub, doc, 0, escaped);
+            }
             return;
         }
         final long bucket = buckets[ordinal];
         if (bucket >= 0) {
             consumer.acceptExisting(sub, doc, bucket);
         } else if (bucket == UNSEEN) {
-            final BytesRef term = dictionary.term(ordinal, scratch);
+            final BytesRef term = ordinals.term(ordinal, scratch);
             if (includeExclude == null || includeExclude.accept(term)) {
                 buckets[ordinal] = consumer.accept(sub, doc, 0, term);
             } else {
@@ -185,16 +175,6 @@ final class ColumnarOrdinalTermsCollector extends LeafBucketCollectorBase implem
             }
         } else {
             assert bucket == EXCLUDED : bucket;
-        }
-    }
-
-    @Override
-    public void escaped(BytesRef value) throws IOException {
-        if (several) {
-            return;
-        }
-        if (includeExclude == null || includeExclude.accept(value)) {
-            consumer.accept(sub, doc, 0, value);
         }
     }
 }

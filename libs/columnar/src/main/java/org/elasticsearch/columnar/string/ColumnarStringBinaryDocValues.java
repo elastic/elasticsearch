@@ -106,71 +106,14 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
         return singleValued;
     }
 
-    private StringDictionary dictionaryView;
-    private final BytesRef escaped = new BytesRef();
+    private DenseOrdinalReader denseOrdinals;
 
     @Override
-    public StringDictionary dictionary() {
-        if (reader instanceof DictionaryStringColumnReader dictionary) {
-            if (dictionaryView == null) {
-                dictionaryView = new StringDictionary() {
-                    @Override
-                    public int size() {
-                        return dictionary.dictionarySize();
-                    }
-
-                    @Override
-                    public BytesRef term(int ordinal, BytesRef dst) throws IOException {
-                        return dictionary.termAt(ordinal + StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL, dst);
-                    }
-                };
-            }
-            return dictionaryView;
+    public DenseOrdinalReader denseOrdinals() {
+        if (denseOrdinals == null && reader instanceof DictionaryStringColumnReader dictionary) {
+            denseOrdinals = new DenseOrdinalReader(dictionary, iterator);
         }
-        return null;
-    }
-
-    @Override
-    public void visitValues(ValueVisitor visitor) throws IOException {
-        if (reader instanceof DictionaryStringColumnReader dictionary) {
-            final int rank = iterator.rank();
-            final long first = reader.firstValueAddress(rank);
-            final long slots = reader.valueCount(rank);
-            if (slots == 1) {
-                // The common case, read once: one ordinal says whether the document holds a value and which.
-                final int ordinal = dictionary.ordinalAt(first);
-                if (ordinal == StringColumnMetadata.Dictionary.NULL_ORDINAL) {
-                    visitor.values(0);
-                } else {
-                    visitor.values(1);
-                    visit(dictionary, visitor, ordinal, first);
-                }
-                return;
-            }
-            int nonNull = 0;
-            for (long slot = first; slot < first + slots; slot++) {
-                if (dictionary.isNullSlot(slot) == false) {
-                    nonNull++;
-                }
-            }
-            visitor.values(nonNull);
-            for (long slot = first; nonNull > 0 && slot < first + slots; slot++) {
-                final int ordinal = dictionary.ordinalAt(slot);
-                if (ordinal != StringColumnMetadata.Dictionary.NULL_ORDINAL) {
-                    visit(dictionary, visitor, ordinal, slot);
-                }
-            }
-            return;
-        }
-        throw new IllegalStateException("the column has no dictionary");
-    }
-
-    private void visit(DictionaryStringColumnReader dictionary, ValueVisitor visitor, int ordinal, long slot) throws IOException {
-        if (ordinal == dictionary.escapeOrdinal()) {
-            visitor.escaped(dictionary.resolveEscape(slot, escaped));
-        } else {
-            visitor.term(ordinal - StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL);
-        }
+        return denseOrdinals;
     }
 
     @Override

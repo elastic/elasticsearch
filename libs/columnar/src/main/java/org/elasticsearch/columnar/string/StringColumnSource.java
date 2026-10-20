@@ -32,40 +32,12 @@ public interface StringColumnSource {
     boolean singleValued();
 
     /**
-     * The terms of the column's dictionary, so a caller that counts or groups by value can work with ordinals and
-     * read each term once rather than once for each document. Null when the column has no dictionary.
-     *
-     * <p>A lookup that holds no per-document state, so it can be asked for any ordinal at any time, such as to read the
-     * keys of a result after the documents are collected.
+     * The column's values as dense dictionary ordinals, so a caller that counts or groups by value can read each term once
+     * rather than once for each document. Null when the column has no dictionary. It reads whichever document these values
+     * are positioned on.
      */
     @Nullable
-    StringDictionary dictionary() throws IOException;
-
-    /**
-     * Hands each non-null value of the document these values are positioned on to {@code visitor}, as a dictionary ordinal or,
-     * when the value is not in the dictionary, as its bytes. Only for a column with a dictionary.
-     *
-     * <p>A document of one value is the common case, and one the visitor can answer without reading the value's bytes. A
-     * null slot is no value, so a document of several slots with one non-null slot holds one value.
-     *
-     * <p>Answered from the ordinals the column records, so nothing is decoded.
-     */
-    void visitValues(ValueVisitor visitor) throws IOException;
-
-    /** Receives the values of one document from {@link #visitValues}. */
-    interface ValueVisitor {
-        /**
-         * Called first, with how many non-null values follow. A caller that reads one value at a time can send a document
-         * of several to a path that reads them all, and ignore the calls that follow.
-         */
-        void values(int nonNullCount) throws IOException;
-
-        /** A value in the dictionary, as the ordinal that {@link StringDictionary#term} reads the bytes of. */
-        void term(int ordinal) throws IOException;
-
-        /** A value that is not in the dictionary. {@code value} is only valid during the call. */
-        void escaped(BytesRef value) throws IOException;
-    }
+    DenseOrdinalReader denseOrdinals() throws IOException;
 
     /**
      * The largest or smallest value the document these values are positioned on holds, or null when it holds none.

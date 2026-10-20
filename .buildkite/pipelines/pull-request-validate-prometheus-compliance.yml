@@ -5,6 +5,16 @@ env:
   PROMCHECK_VER: "0.11.0+prometheus-3.13.1"
   PROMCHECK_TEST_INSTANCE_TIMEOUT: "900"
 steps:
+  # Comments on the PR as soon as the build starts: the build bot posts its comment early once the job named by
+  # pr_comment:early_comment_job_id finishes, as the performance benchmark pipeline does, and the report below
+  # replaces it when the build ends.
+  - label: notify
+    key: notify
+    command: |
+      buildkite-agent meta-data set pr_comment:early_comment_job_id "$$BUILDKITE_JOB_ID"
+      printf '<!-- promcheck-pr-report -->\n## Promcheck\n\n**Running**\n\nChecking Prometheus/Elasticsearch mismatches on the merge base and this PR with promcheck v%s. The verdict replaces this comment when both runs finish.\n\n[Buildkite run](%s)\n' \
+        "$$PROMCHECK_VER" "$$BUILDKITE_BUILD_URL" \
+        | buildkite-agent meta-data set pr_comment:validate-prometheus-compliance:body
   - label: validate-prometheus-compliance
     key: validate-prometheus-compliance
     command: .buildkite/scripts/validate-prometheus-compliance.sh

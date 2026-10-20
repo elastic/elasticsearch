@@ -1,5 +1,5 @@
 area: Mapping
 issues: []
 pr: 162337
-summary: "[8.19] Limit the size of a put mappings request via a cluster setting"
+summary: "[8.19] Avoid allocations during type checking in put mapping request"
 type: enhancement

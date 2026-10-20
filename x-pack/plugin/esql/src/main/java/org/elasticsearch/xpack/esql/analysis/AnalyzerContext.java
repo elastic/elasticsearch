@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
+import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -47,11 +48,13 @@ public class AnalyzerContext {
     private final TransportVersion minimumVersion;
     private final ProjectMetadata projectMetadata;
     private final UnmappedResolution unmappedResolution;
-    private final Set<String> deferredHeaderWarnings = new LinkedHashSet<>();
-    private final Set<String> subqueryNonLoadableNullFills = new LinkedHashSet<>();
+    private final Set<String> deferredHeaderWarnings;
+    private final Set<String> subqueryNonLoadableNullFills;
     private final TimestampBounds timestampBounds;
     private final IpLocationResolution ipLocationResolution;
     private final boolean preserveViewBoundaries;
+    /** Per-view SET settings from each resolved view's definition, keyed by view name; see {@link ViewQuerySettings}. */
+    private final Map<String, ViewQuerySettings> viewSettings;
     private final EsqlFlags flags;
 
     public AnalyzerContext(
@@ -71,6 +74,7 @@ public class AnalyzerContext {
         @Nullable TimestampBounds timestampBounds,
         IpLocationResolution ipLocationResolution,
         boolean preserveViewBoundaries,
+        Map<String, ViewQuerySettings> viewSettings,
         EsqlFlags flags
     ) {
         this.configuration = configuration;
@@ -86,15 +90,49 @@ public class AnalyzerContext {
         this.externalSourceResolution = externalSourceResolution;
         this.minimumVersion = minimumVersion;
         this.unmappedResolution = unmappedResolution;
+        this.deferredHeaderWarnings = new LinkedHashSet<>();
+        this.subqueryNonLoadableNullFills = new LinkedHashSet<>();
         this.timestampBounds = timestampBounds;
         this.ipLocationResolution = ipLocationResolution;
         this.preserveViewBoundaries = preserveViewBoundaries;
+        this.viewSettings = viewSettings;
         this.flags = flags;
 
         assert minimumVersion != null : "AnalyzerContext must have a minimum transport version";
         assert flags != null : "AnalyzerContext must have flags";
         assert TransportVersion.current().supports(minimumVersion)
             : "AnalyzerContext [" + minimumVersion + "] is not on or before current transport version [" + TransportVersion.current() + "]";
+    }
+
+    /**
+     * A context that resolves names with {@code unmappedResolution} and otherwise shares this one, including the warning sets.
+     * Warnings recorded while resolving a view branch stay visible on the context that started analysis.
+     */
+    AnalyzerContext withUnmappedResolution(UnmappedResolution unmappedResolution) {
+        return new AnalyzerContext(this, unmappedResolution);
+    }
+
+    private AnalyzerContext(AnalyzerContext other, UnmappedResolution unmappedResolution) {
+        this.configuration = other.configuration;
+        this.functionRegistry = other.functionRegistry;
+        this.promqlFunctionRegistry = other.promqlFunctionRegistry;
+        this.analysisRegistry = other.analysisRegistry;
+        this.indexResolution = other.indexResolution;
+        this.lookupResolution = other.lookupResolution;
+        this.linkedResolution = other.linkedResolution;
+        this.enrichResolution = other.enrichResolution;
+        this.inferenceResolution = other.inferenceResolution;
+        this.externalSourceResolution = other.externalSourceResolution;
+        this.minimumVersion = other.minimumVersion;
+        this.projectMetadata = other.projectMetadata;
+        this.unmappedResolution = unmappedResolution;
+        this.deferredHeaderWarnings = other.deferredHeaderWarnings;
+        this.subqueryNonLoadableNullFills = other.subqueryNonLoadableNullFills;
+        this.timestampBounds = other.timestampBounds;
+        this.ipLocationResolution = other.ipLocationResolution;
+        this.preserveViewBoundaries = other.preserveViewBoundaries;
+        this.viewSettings = other.viewSettings;
+        this.flags = other.flags;
     }
 
     // for testing only
@@ -127,6 +165,7 @@ public class AnalyzerContext {
             null,
             IpLocationResolution.SERVICE_UNAVAILABLE,
             false,
+            Map.of(),
             EsqlFlags.DEFAULTS
         );
     }
@@ -187,6 +226,11 @@ public class AnalyzerContext {
 
     public UnmappedResolution unmappedResolution() {
         return unmappedResolution;
+    }
+
+    /** Per-view SET settings from each resolved view's definition, keyed by view name. */
+    public Map<String, ViewQuerySettings> viewSettings() {
+        return viewSettings;
     }
 
     /**
@@ -290,6 +334,7 @@ public class AnalyzerContext {
         @Nullable TimestampBounds timestampBounds,
         IpLocationResolution ipLocationResolution,
         boolean preserveViewBoundaries,
+        Map<String, ViewQuerySettings> viewSettings,
         EsqlFlags flags
     ) {
         this(
@@ -309,6 +354,7 @@ public class AnalyzerContext {
             timestampBounds,
             ipLocationResolution,
             preserveViewBoundaries,
+            viewSettings,
             flags
         );
     }

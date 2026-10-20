@@ -15,6 +15,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 
@@ -29,10 +30,7 @@ import java.io.IOException;
 public class SourceFieldMapperColumnarCompatibilityTests extends AbstractColumnarMapperCompatibilityTestCase {
 
     private static Settings columnarSettings() {
-        return Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
-            .build();
+        return Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
     }
 
     private static XContentBuilder testMapping() throws IOException {
@@ -59,9 +57,66 @@ public class SourceFieldMapperColumnarCompatibilityTests extends AbstractColumna
         });
     }
 
+    /**
+     * Documents ordered from large to small, ending in an empty one: the batch path writes each blob over the previous one in the
+     * same buffer, so any stale byte past the reset point — the bug class a reused, in-place-exposed buffer invites — would surface
+     * as a longer blob than the row path produces.
+     */
+    public void testShrinkingDocumentsReuseTheBlobBuffer() throws IOException {
+        final String big = "x".repeat(500);
+        assertColumnarMatchesXContent(
+            testMapping(),
+            columnarSettings(),
+            batch(
+                "shrinking docs",
+                1L,
+                doc("d1", 1L, "{\"kw\":\"" + big + "\",\"text\":\"" + big + " " + big + "\",\"num\":123456789012345}"),
+                doc("d2", 2L, "{\"kw\":[\"alpha\",\"beta\"],\"obj\":{\"inner_kw\":\"inner\"}}"),
+                doc("d3", 3L, "{\"num\":7}"),
+                doc("d4", 4L, "{}")
+            )
+        );
+    }
+
     /** The intent of the change, pinned: the blob must not silently fall back to JSON. */
     public void testBlobContentTypeIsSmile() {
         assertEquals(XContentType.SMILE, SourceFieldMapper.COLUMNAR_BLOB_XCONTENT_TYPE);
+    }
+
+    /**
+     * Growing and shrinking across consecutive documents, with values whose encoded forms differ in kind (dates, multi-values,
+     * the {@code ignore_above} fallback that embeds its own {@code _ignored_source} entry inside the blob): every document must
+     * come out byte-identical to the row path's fresh-builder encoding regardless of what the previous document left in the buffer.
+     */
+    public void testAlternatingDocumentSizes() throws IOException {
+        final String big = "y".repeat(300);
+        assertColumnarMatchesXContent(
+            testMapping(),
+            columnarSettings(),
+            batch(
+                "alternating sizes",
+                1L,
+                doc("d1", 1L, "{\"num\":1}"),
+                doc("d2", 2L, "{\"kw\":\"" + big + "\",\"date\":\"2026-10-17T12:00:00Z\"}"),
+                doc("d3", 3L, "{\"capped\":\"waytoolongforthelimit\"}"),
+                doc("d4", 4L, "{\"text\":\"" + big + "\",\"kw\":[\"a\",\"b\",\"c\"],\"capped\":\"short\"}"),
+                doc("d5", 5L, "{\"date\":\"2026-01-01\"}")
+            )
+        );
+    }
+
+    /**
+     * Several batches against the same mapper service: the buffer and the prefix are per batch, so each batch must stand on its
+     * own, including a batch whose first document is empty (nothing but the prefix in the buffer).
+     */
+    public void testBufferIsPerBatch() throws IOException {
+        assertColumnarMatchesXContent(
+            testMapping(),
+            columnarSettings(),
+            batch("first", 1L, doc("d1", 1L, "{\"kw\":\"one\",\"num\":1}")),
+            batch("empty leading doc", 1L, doc("d2", 2L, "{}"), doc("d3", 3L, "{\"kw\":\"two\"}")),
+            batch("wider", 1L, doc("d4", 4L, "{\"kw\":\"three\",\"date\":\"2026-05-05\",\"obj\":{\"inner_kw\":\"x\"}}"))
+        );
     }
 
     /**

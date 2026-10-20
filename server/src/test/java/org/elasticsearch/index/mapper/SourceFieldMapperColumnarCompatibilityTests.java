@@ -18,11 +18,13 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 
 /**
- * Parity tests for the {@code columnar_stored} source blob that {@link SourceFieldMapper#postColumnarParse} builds, aimed at the
- * loader pruning in {@link ColumnarSourceWriter}: the batch path only builds synthetic field loaders for the fields that have a
- * column in the batch, so these scenarios use a mapping that is much wider than any document and assert — through the
- * {@link AbstractColumnarMapperCompatibilityTestCase} harness, which compares the blob bytes of both paths — that pruning the
- * unused fields' loaders does not change the reconstructed source.
+ * Parity tests for the {@code columnar_stored} source blob that {@link SourceFieldMapper#postColumnarParse} builds, aimed at two
+ * batch-path optimizations. The loader pruning in {@link ColumnarSourceWriter} only builds synthetic field loaders for the fields that
+ * have a column in the batch, so those scenarios use a mapping that is much wider than any document. The reused blob buffer streams
+ * every document's JSON into one buffer behind a precomputed {@code SingularIgnoredSourceEncoding} header and
+ * {@code XContentDataHelper} type byte, where the row path encodes each document through fresh builders and intermediate copies.
+ * All scenarios assert — through the {@link AbstractColumnarMapperCompatibilityTestCase} harness, which compares the blob bytes of
+ * both paths — that neither optimization changes the reconstructed source or the blob encoding.
  */
 public class SourceFieldMapperColumnarCompatibilityTests extends AbstractColumnarMapperCompatibilityTestCase {
 
@@ -72,6 +74,30 @@ public class SourceFieldMapperColumnarCompatibilityTests extends AbstractColumna
             }
             b.endObject();
             b.startObject("unused_obj");
+            {
+                b.startObject("properties");
+                b.startObject("inner_kw").field("type", "keyword").endObject();
+                b.endObject();
+            }
+            b.endObject();
+        });
+    }
+
+    private static XContentBuilder testMapping() throws IOException {
+        return mapping(b -> {
+            b.startObject("kw").field("type", "keyword").endObject();
+            b.startObject("num").field("type", "long").endObject();
+            b.startObject("date").field("type", "date").endObject();
+            b.startObject("text");
+            {
+                b.field("type", "text");
+                b.startObject("fields");
+                b.startObject("keyword").field("type", "keyword").endObject();
+                b.endObject();
+            }
+            b.endObject();
+            b.startObject("capped").field("type", "keyword").field("ignore_above", 8).endObject();
+            b.startObject("obj");
             {
                 b.startObject("properties");
                 b.startObject("inner_kw").field("type", "keyword").endObject();
@@ -138,6 +164,63 @@ public class SourceFieldMapperColumnarCompatibilityTests extends AbstractColumna
                 1L,
                 doc("d5", 5L, "{\"present_kw\":\"four\",\"present_long\":9,\"present_date\":\"2026-05-05\",\"present_text\":\"t\"}")
             )
+        );
+    }
+
+    /**
+     * Documents ordered from large to small, ending in an empty one: the batch path writes each blob over the previous one in the
+     * same buffer, so any stale byte past the reset point — the bug class a reused, in-place-exposed buffer invites — would surface
+     * as a longer blob than the row path produces.
+     */
+    public void testShrinkingDocumentsReuseTheBlobBuffer() throws IOException {
+        final String big = "x".repeat(500);
+        assertColumnarMatchesXContent(
+            testMapping(),
+            columnarSettings(),
+            batch(
+                "shrinking docs",
+                1L,
+                doc("d1", 1L, "{\"kw\":\"" + big + "\",\"text\":\"" + big + " " + big + "\",\"num\":123456789012345}"),
+                doc("d2", 2L, "{\"kw\":[\"alpha\",\"beta\"],\"obj\":{\"inner_kw\":\"inner\"}}"),
+                doc("d3", 3L, "{\"num\":7}"),
+                doc("d4", 4L, "{}")
+            )
+        );
+    }
+
+    /**
+     * Growing and shrinking across consecutive documents, with values whose encoded forms differ in kind (dates, multi-values,
+     * the {@code ignore_above} fallback that embeds its own {@code _ignored_source} entry inside the blob): every document must
+     * come out byte-identical to the row path's fresh-builder encoding regardless of what the previous document left in the buffer.
+     */
+    public void testAlternatingDocumentSizes() throws IOException {
+        final String big = "y".repeat(300);
+        assertColumnarMatchesXContent(
+            testMapping(),
+            columnarSettings(),
+            batch(
+                "alternating sizes",
+                1L,
+                doc("d1", 1L, "{\"num\":1}"),
+                doc("d2", 2L, "{\"kw\":\"" + big + "\",\"date\":\"2026-10-17T12:00:00Z\"}"),
+                doc("d3", 3L, "{\"capped\":\"waytoolongforthelimit\"}"),
+                doc("d4", 4L, "{\"text\":\"" + big + "\",\"kw\":[\"a\",\"b\",\"c\"],\"capped\":\"short\"}"),
+                doc("d5", 5L, "{\"date\":\"2026-01-01\"}")
+            )
+        );
+    }
+
+    /**
+     * Several batches against the same mapper service: the buffer and the prefix are per batch, so each batch must stand on its
+     * own, including a batch whose first document is empty (nothing but the prefix in the buffer).
+     */
+    public void testBufferIsPerBatch() throws IOException {
+        assertColumnarMatchesXContent(
+            testMapping(),
+            columnarSettings(),
+            batch("first", 1L, doc("d1", 1L, "{\"kw\":\"one\",\"num\":1}")),
+            batch("empty leading doc", 1L, doc("d2", 2L, "{}"), doc("d3", 3L, "{\"kw\":\"two\"}")),
+            batch("wider", 1L, doc("d4", 4L, "{\"kw\":\"three\",\"date\":\"2026-05-05\",\"obj\":{\"inner_kw\":\"x\"}}"))
         );
     }
 }

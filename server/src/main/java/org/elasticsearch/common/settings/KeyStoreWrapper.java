@@ -133,8 +133,11 @@ public class KeyStoreWrapper implements SecureSettings {
      * unprotected keystore uses the same code path as a protected one, and so that providers which enforce a minimum
      * password length for password based key derivation (e.g. FIPS 140 approved mode) accept it. Protection of secure
      * settings at rest comes only from an operator supplied password.
+     * Nonzero ASCII control characters make an accidental collision with an operator supplied password unlikely and avoid
+     * the equivalence of an all-NUL input to an empty password under HMAC key padding. This value is part of the keystore
+     * format and must remain fixed for this format version.
      */
-    private static final char[] UNPROTECTED_KDF_INPUT = "elasticsearch.keystore unprotected".toCharArray();
+    private static final char[] UNPROTECTED_KDF_INPUT = "\u0001".repeat(32).toCharArray();
 
     /** The number of iterations to derive the cipher key. */
     private static final int KDF_ITERS = 210000;

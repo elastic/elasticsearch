@@ -134,7 +134,7 @@ For more examples of acceptable date formats, refer to [Date Math](/reference/el
 
 ## Match documents using wildcards [_filter_for_documents_using_wildcards]
 
-To match a pattern, use a wildcard. Wildcards work on string-based fields, such as `keyword`, `text`, `match_only_text`, `constant_keyword`, `flattened`, and `wildcard` fields. KQL supports only `*`, which matches zero or more characters.
+To match a pattern, use a wildcard. Wildcards work on string-based fields, such as `keyword`, `text`, `match_only_text`, `constant_keyword`, `flattened`, and `wildcard` fields. On numeric, `date`, `boolean`, and `ip` fields, a wildcard makes the search fail with an error. KQL supports only `*`, which matches zero or more characters.
 
 For example, documents where `machine.os` begins with `win`:
 

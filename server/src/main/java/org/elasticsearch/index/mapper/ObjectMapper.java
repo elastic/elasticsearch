@@ -1133,7 +1133,16 @@ public class ObjectMapper extends Mapper {
         // F.e. objects that only contain fields that are destinations of copy_to.
         private boolean writersHaveValues;
         // Use an ordered map between field names and writers to order writing by field name.
+        // Null when the writers of the current document are in orderedWriters instead.
         private TreeMap<String, FieldWriter> currentWriters;
+        // The writers of the current document, in field name order, when it has no ignored values and so there is nothing to merge them
+        // with. Only used if fieldsOrderedByName, as the fields then already are in the order to write them in.
+        private final List<FieldWriter> orderedWriters = new ArrayList<>();
+        // A writer for each of the fields, created once as it does not hold any per-document state.
+        private final FieldWriter.FieldLoader[] fieldWriters;
+        // Whether fields are in strictly increasing order of their field name, so that sorting them by name (and telling apart two with
+        // the same name) is not needed when there are no ignored values to merge with them.
+        private final boolean fieldsOrderedByName;
 
         private final boolean columnarStored;
 
@@ -1147,6 +1156,15 @@ public class ObjectMapper extends Mapper {
             this.isFragment = isFragment;
             this.filter = filter;
             this.columnarStored = columnarStored;
+            this.fieldWriters = new FieldWriter.FieldLoader[fields.length];
+            boolean ordered = true;
+            for (int i = 0; i < fields.length; i++) {
+                fieldWriters[i] = new FieldWriter.FieldLoader(fields[i]);
+                if (i > 0 && fields[i - 1].fieldName().compareTo(fields[i].fieldName()) >= 0) {
+                    ordered = false;
+                }
+            }
+            this.fieldsOrderedByName = ordered;
             String fullPath = ObjectMapper.this.isRoot() ? null : fullPath();
             this.parserConfig = filter == null
                 ? XContentParserConfiguration.EMPTY
@@ -1216,6 +1234,19 @@ public class ObjectMapper extends Mapper {
                 }
             }
 
+            if (fieldsOrderedByName && (ignoredValues == null || ignoredValues.isEmpty())) {
+                currentWriters = null;
+                orderedWriters.clear();
+                for (int i = 0; i < fields.length; i++) {
+                    if (fields[i].hasValue()) {
+                        orderedWriters.add(fieldWriters[i]);
+                    }
+                }
+                writersHaveValues |= orderedWriters.isEmpty() == false;
+                return;
+            }
+
+            orderedWriters.clear();
             currentWriters = new TreeMap<>();
 
             if (ignoredValues != null && ignoredValues.isEmpty() == false) {
@@ -1299,7 +1330,7 @@ public class ObjectMapper extends Mapper {
                 b.startObject(leafName());
             }
 
-            for (var writer : currentWriters.values()) {
+            for (var writer : currentWriters != null ? currentWriters.values() : orderedWriters) {
                 if (writer.hasValue()) {
                     writer.writeTo(b);
                 }

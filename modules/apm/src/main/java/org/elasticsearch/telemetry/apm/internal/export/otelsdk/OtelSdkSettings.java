@@ -177,11 +177,27 @@ public final class OtelSdkSettings {
     // --- Traces
 
     /** Maximum depth of child spans per request. {@code 0} exports only the root span.
-     * Spans from an upstream {@code traceparent} are not counted. */
+     * Spans from an upstream {@code traceparent} are not counted.
+     * Defaults to unlimited when a span limit is set, so that limit applies at any depth; otherwise {@code 0}. */
     public static final Setting<Integer> TELEMETRY_TRACING_MAX_DEPTH = Setting.intSetting(
         "telemetry.tracing.max_depth",
+        settings -> settings.get("telemetry.tracing.max_spans") != null || settings.get("telemetry.agent.transaction_max_spans") != null
+            ? String.valueOf(Integer.MAX_VALUE)
+            : "0",
         0,
+        Integer.MAX_VALUE,
+        OperatorDynamic,
+        NodeScope
+    );
+
+    /** Maximum number of spans recorded under a local root span, not counting the root. Spans beyond it, and their
+     * children, are not recorded. Defaults to the legacy {@code telemetry.agent.transaction_max_spans} when set,
+     * otherwise 500. */
+    public static final Setting<Integer> TELEMETRY_TRACING_MAX_SPANS = Setting.intSetting(
+        "telemetry.tracing.max_spans",
+        settings -> String.valueOf(Math.max(0, settings.getAsInt("telemetry.agent.transaction_max_spans", 500))),
         0,
+        Integer.MAX_VALUE,
         OperatorDynamic,
         NodeScope
     );

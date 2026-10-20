@@ -150,6 +150,7 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFiel
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
+import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CloneApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
@@ -174,11 +175,23 @@ import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesActio
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesRequest;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAction;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
+import org.elasticsearch.xpack.core.security.action.role.GetRolesAction;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationAction;
+import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenAction;
+import org.elasticsearch.xpack.core.security.action.service.CreateUserManagedServiceAccountTokenAction;
+import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenAction;
+import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountAction;
+import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountTokenAction;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountAction;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsAction;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountNodesCredentialsAction;
+import org.elasticsearch.xpack.core.security.action.service.PutUserManagedServiceAccountAction;
+import org.elasticsearch.xpack.core.security.action.service.QueryServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
+import org.elasticsearch.xpack.core.security.action.user.GetUsersAction;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -303,10 +316,10 @@ public class ReservedRolesStoreTests extends ESTestCase {
                     Set.of("index", "maintenance", "read", "view_index_metadata")
                 ),
                 Map.entry(".ai-index-idx-elastic-index", Set.of("view_index_metadata")),
-                Map.entry(".alerts-security.alerts-sample", Set.of("read", "view_index_metadata")),
+                Map.entry(".alerts-security.alerts-sample", Set.of("index", "maintenance", "read", "view_index_metadata")),
                 Map.entry(".alerts-security.attack.discovery.alerts-sample", Set.of("index", "maintenance", "read", "view_index_metadata")),
                 Map.entry(".internal.adhoc.alerts-security.attack.discovery.alerts-sample", Set.of("index", "maintenance")),
-                Map.entry(".internal.alerts-security.alerts-sample", Set.of()),
+                Map.entry(".internal.alerts-security.alerts-sample", Set.of("index", "maintenance")),
                 Map.entry(".internal.alerts-security.attack.discovery.alerts-sample", Set.of("index", "maintenance")),
                 Map.entry(".internal.preview.alerts-security.alerts-sample", Set.of()),
                 Map.entry(".kibana-elastic-ai-assistant-anonymization-fields-sample", Set.of("read")),
@@ -816,6 +829,28 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(kibanaRole.cluster().check(QueryApiKeyAction.NAME, queryApiKeyRequest, authentication), is(false));
         queryApiKeyRequest.setFilterForCurrentUser();
         assertThat(kibanaRole.cluster().check(QueryApiKeyAction.NAME, queryApiKeyRequest, authentication), is(true));
+
+        // Service accounts: read only
+        assertThat(kibanaRole.cluster().check(QueryServiceAccountAction.NAME, request, authentication), is(true));
+        assertThat(kibanaRole.cluster().check(GetServiceAccountAction.NAME, request, authentication), is(true));
+        // Token names are not needed to name an account
+        assertThat(kibanaRole.cluster().check(GetServiceAccountCredentialsAction.NAME, request, authentication), is(false));
+        assertThat(kibanaRole.cluster().check(GetServiceAccountNodesCredentialsAction.NAME, request, authentication), is(false));
+        assertThat(kibanaRole.cluster().check(PutUserManagedServiceAccountAction.NAME, request, authentication), is(false));
+        assertThat(kibanaRole.cluster().check(DeleteUserManagedServiceAccountAction.NAME, request, authentication), is(false));
+        assertThat(kibanaRole.cluster().check(CreateServiceAccountTokenAction.NAME, request, authentication), is(false));
+        assertThat(kibanaRole.cluster().check(DeleteServiceAccountTokenAction.NAME, request, authentication), is(false));
+        assertThat(kibanaRole.cluster().check(CreateUserManagedServiceAccountTokenAction.NAME, request, authentication), is(false));
+        assertThat(kibanaRole.cluster().check(DeleteUserManagedServiceAccountTokenAction.NAME, request, authentication), is(false));
+        assertThat(kibanaRole.cluster().check(ClearSecurityCacheAction.NAME, request, authentication), is(false));
+        assertThat(
+            kibanaRole.cluster()
+                .check("cluster:admin/xpack/security/service_account/" + randomAlphaOfLengthBetween(3, 8), request, authentication),
+            is(false)
+        );
+        // The read grant is not a stand-in for read_security
+        assertThat(kibanaRole.cluster().check(GetUsersAction.NAME, request, authentication), is(false));
+        assertThat(kibanaRole.cluster().check(GetRolesAction.NAME, request, authentication), is(false));
 
         // ML
         assertRoleHasManageMl(kibanaRole);
@@ -1632,6 +1667,14 @@ public class ReservedRolesStoreTests extends ESTestCase {
         // creates and manages itself, including its alias.
         Arrays.asList(".ai-index-idx-elastic-index", ".ai-index-idx-elastic-index-" + randomAlphaOfLength(randomIntBetween(0, 13)))
             .forEach(index -> assertReadWriteAndManage(kibanaRole, index));
+
+        // Context Engine AI index backing stores, read by the Kibana usage collector.
+        Arrays.asList(
+            "ai-index-idx-" + randomAlphaOfLength(randomIntBetween(1, 13)),
+            "ai-index-ds-" + randomAlphaOfLength(randomIntBetween(1, 13)),
+            ".ai-index-idx-" + randomAlphaOfLength(randomIntBetween(1, 13)),
+            ".ai-index-ds-" + randomAlphaOfLength(randomIntBetween(1, 13))
+        ).forEach(index -> assertOnlyReadAllowed(kibanaRole, index));
 
         // Context Engine feedback-loop signals: per-space, regular (non-system)
         // user indices that Kibana creates and manages via the storage adapter.

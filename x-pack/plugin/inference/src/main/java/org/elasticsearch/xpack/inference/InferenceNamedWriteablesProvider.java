@@ -20,6 +20,7 @@ import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.configuration.InferenceServiceFeatures;
 import org.elasticsearch.xpack.core.inference.results.CompletionResults;
+import org.elasticsearch.xpack.core.inference.results.DecisionResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.DocumentExtractionResults;
@@ -80,6 +81,8 @@ import org.elasticsearch.xpack.inference.services.custom.response.SparseEmbeddin
 import org.elasticsearch.xpack.inference.services.deepseek.DeepSeekServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.decision.ElasticInferenceServiceDecisionServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.decision.ElasticInferenceServiceDecisionTaskSettings;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionTaskSettings;
@@ -855,6 +858,7 @@ public class InferenceNamedWriteablesProvider {
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(InferenceServiceResults.class, RankedDocsResults.NAME, RankedDocsResults::new)
         );
+        namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceServiceResults.class, DecisionResults.NAME, DecisionResults::new));
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(InferenceServiceResults.class, DocumentExtractionResults.NAME, DocumentExtractionResults::new)
         );
@@ -1078,6 +1082,22 @@ public class InferenceNamedWriteablesProvider {
                 ServiceSettings.class,
                 ElasticInferenceServiceDenseEmbeddingsServiceSettings.NAME,
                 ElasticInferenceServiceDenseEmbeddingsServiceSettings::new
+            )
+        );
+
+        // Decision
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                ElasticInferenceServiceDecisionServiceSettings.NAME,
+                ElasticInferenceServiceDecisionServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                TaskSettings.class,
+                ElasticInferenceServiceDecisionTaskSettings.NAME,
+                ElasticInferenceServiceDecisionTaskSettings::new
             )
         );
     }

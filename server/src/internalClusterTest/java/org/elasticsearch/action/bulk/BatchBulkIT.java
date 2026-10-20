@@ -794,6 +794,64 @@ public class BatchBulkIT extends ESIntegTestCase {
         assertThat(getResponse.getSourceAsMap().get("name"), equalTo("explicit-0"));
     }
 
+    public void testTrailingContentAfterObjectRejectedInBatchMode() throws IOException {
+        String index = "test-batch-trailing";
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                        .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
+                )
+                .setMapping("""
+                    {"dynamic":"strict","properties":{"name":{"type":"keyword"},"value":{"type":"long"}}}""")
+        );
+        ensureGreen(index);
+        String coordinatingNode = findCoordinatingNode();
+
+        final Logger batchLogger = LogManager.getLogger(ShardBatchIndexer.class);
+        final Level origLevel = batchLogger.getLevel();
+        Loggers.setLevel(batchLogger, Level.TRACE);
+        try (var mockLog = MockLog.capture(ShardBatchIndexer.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "batch indexed on primary",
+                    ShardBatchIndexer.class.getName(),
+                    Level.TRACE,
+                    "batch indexed * operations on primary shard *"
+                )
+            );
+            assertNoFailures(client(coordinatingNode).bulk(trailingContentBulk(index, null)).actionGet());
+            mockLog.assertAllExpectationsMatched();
+        } finally {
+            Loggers.setLevel(batchLogger, origLevel);
+        }
+
+        String malformed = "{\"name\":\"first\",\"value\":1}{\"name\":\"second\",\"value\":2}";
+        BulkResponse response = client(coordinatingNode).bulk(trailingContentBulk(index, malformed)).actionGet();
+        BulkItemResponse[] items = response.getItems();
+        for (int i = 0; i < items.length - 1; i++) {
+            assertFalse(items[i].getFailureMessage(), items[i].isFailed());
+        }
+        BulkItemResponse last = items[items.length - 1];
+        assertTrue("trailing content must be rejected, but got: " + last.getResponse(), last.isFailed());
+        assertThat(last.getFailure().getStatus(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(last.getFailure().getMessage(), containsString("extra data after parsing"));
+    }
+
+    private static BulkRequest trailingContentBulk(String index, String malformed) {
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < 3; i++) {
+            bulkRequest.add(new IndexRequest(index).opType(DocWriteRequest.OpType.CREATE).source(Map.of("name", "ok-" + i, "value", i)));
+        }
+        if (malformed != null) {
+            bulkRequest.add(new IndexRequest(index).opType(DocWriteRequest.OpType.CREATE).source(malformed, XContentType.JSON));
+        }
+        return bulkRequest;
+    }
+
     public void testBatchModeWithParseFailures() throws IOException {
         String index = "test-batch-failures";
         createBatchIndex(index, 2, 1);

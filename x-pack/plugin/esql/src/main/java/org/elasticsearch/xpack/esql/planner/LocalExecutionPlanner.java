@@ -134,6 +134,7 @@ import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.AsyncConnectorSourceOperatorFactory;
 import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperatorFactory;
+import org.elasticsearch.xpack.esql.datasources.DatasetConfigResolver;
 import org.elasticsearch.xpack.esql.datasources.DeferredExtractionCapable;
 import org.elasticsearch.xpack.esql.datasources.ExternalFieldExtractOperator;
 import org.elasticsearch.xpack.esql.datasources.ExternalLimitSplits;
@@ -163,6 +164,7 @@ import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
@@ -299,6 +301,12 @@ public class LocalExecutionPlanner {
     private final ProjectMetadata projectMetadata;
     private final AbstractPhysicalOperationProviders physicalOperationProviders;
     private final OperatorFactoryRegistry operatorFactoryRegistry;
+    /**
+     * Whether an external source with no registered dataset behind it may be planned (the snapshot-only inline
+     * {@code EXTERNAL} command). Injected, like {@link DatasetConfigResolver}'s, so tests that plan bare execs are not
+     * tied to the build they run under.
+     */
+    private final boolean snapshotBuild;
     @Nullable
     private final Executor parallelWorkerExecutor;
     private final int esqlWorkerPoolSize;
@@ -325,6 +333,7 @@ public class LocalExecutionPlanner {
         ProjectMetadata projectMetadata,
         AbstractPhysicalOperationProviders physicalOperationProviders,
         OperatorFactoryRegistry operatorFactoryRegistry,
+        boolean snapshotBuild,
         @Nullable Executor parallelWorkerExecutor,
         int esqlWorkerPoolSize,
         MatcherWatchdog grokMatcherWatchdog,
@@ -349,6 +358,7 @@ public class LocalExecutionPlanner {
         this.projectMetadata = projectMetadata;
         this.physicalOperationProviders = physicalOperationProviders;
         this.operatorFactoryRegistry = operatorFactoryRegistry;
+        this.snapshotBuild = snapshotBuild;
         this.parallelWorkerExecutor = parallelWorkerExecutor;
         this.esqlWorkerPoolSize = esqlWorkerPoolSize;
         // Resolved once by the caller from the live ClusterSettings (the setting is dynamic), then shared
@@ -2235,6 +2245,14 @@ public class LocalExecutionPlanner {
         // bypasses that gate and is stopped only here, after its planning-time source resolution and split discovery
         // have run.
         Federation.ensureEnabled(settings);
+        // Credential backstop. Every path that brings an external source to this point has already rebound the exec
+        // to this node's registered dataset (DatasetConfigResolver, in PlannerUtils.localPlan and in ComputeService
+        // .runCompute), which refuses a source with no dataset behind it on a release build. Repeat that one check
+        // here: it catches a future path that builds the operator from an unbound exec, though not one that skips the
+        // rebind for a named exec, which only the rebind itself can guard.
+        if (externalSource.datasetName() == null && snapshotBuild == false) {
+            throw DatasetConfigResolver.notRegistered(null);
+        }
 
         Layout.Builder layout = new Layout.Builder();
         layout.append(externalSource.output());
@@ -2246,6 +2264,16 @@ public class LocalExecutionPlanner {
 
         if (operatorFactoryRegistry == null) {
             throw new IllegalStateException("OperatorFactoryRegistry is required for external sources");
+        }
+        // The plan carries the source type, but registered dataset settings are only valid with the file source factory.
+        if (externalSource.datasetName() != null && operatorFactoryRegistry.isFileSourceFactory(externalSource.sourceType()) == false) {
+            throw new IllegalArgumentException(
+                "external dataset ["
+                    + externalSource.datasetName()
+                    + "] cannot be read through non-file source type ["
+                    + externalSource.sourceType()
+                    + "]"
+            );
         }
 
         StoragePath path = StoragePath.of(externalSource.sourcePath());
@@ -2386,51 +2414,74 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planFilter(FilterExec filter, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(filter.child(), context);
-        // TODO: should this be extracted into a separate eval block?
-        PhysicalOperation filterOperation = source.with(
-            new FilterOperatorFactory(
-                EvalMapper.toEvaluator(
-                    context.foldCtx(),
-                    filter.condition(),
-                    source.layout,
+        // Scoring normally needs a data node, which can run the query against the resulting docs. A runtime search is the
+        // exception: it scores per row from the values in the page, so it also contributes on the coordinator.
+        if (PlannerUtils.usesScoring(filter) == false
+            || (context.shardContexts.isEmpty() && scoresWithoutShards(filter.condition()) == false)) {
+            return planFilterCondition(source, filter.condition(), context);
+        }
+        // The filter adds its searches' scores only once it has filtered, so a predicate on _score runs after that, to see
+        // them, just as it sees the score of a search Lucene runs at the source.
+        boolean holdsSearch = FullTextFunction.containsScoringSearch(filter.condition());
+        List<Expression> scorePredicates = new ArrayList<>();
+        List<Expression> searchConditions = new ArrayList<>();
+        for (Expression conjunct : Predicates.splitAnd(filter.condition())) {
+            if (holdsSearch
+                && conjunct.anyMatch(MetadataAttribute::isScoreAttribute)
+                && FullTextFunction.containsScoringSearch(conjunct) == false) {
+                scorePredicates.add(conjunct);
+            } else {
+                searchConditions.add(conjunct);
+            }
+        }
+        Expression condition = scorePredicates.isEmpty() ? filter.condition() : Predicates.combineAnd(searchConditions);
+        PhysicalOperation filterOperation = planFilterCondition(source, condition, context);
+
+        // Add scorer operator to add the filter expression scores to the overall scores
+        Attribute scoreAttribute = null;
+
+        for (Attribute attribute : filter.output()) {
+            if (MetadataAttribute.isScoreAttribute(attribute)) {
+                scoreAttribute = attribute;
+            }
+        }
+        assert scoreAttribute != null : "Couldn't find _score attribute in a WHERE clause";
+
+        int scoreBlock = filterOperation.layout.get(scoreAttribute.id()).channel();
+        filterOperation = filterOperation.with(
+            new ScoreOperator.ScoreOperatorFactory(
+                ScoreMapper.toScorer(
+                    condition,
                     context.shardContexts,
-                    context.analysisRegistry()
-                )
+                    EvalMapper.toEvaluatorContext(
+                        context.foldCtx(),
+                        filterOperation.layout,
+                        context.shardContexts,
+                        context.analysisRegistry()
+                    )
+                ),
+                scoreBlock
+            ),
+            filterOperation.layout
+        );
+        if (scorePredicates.isEmpty() == false) {
+            filterOperation = planFilterCondition(filterOperation, Predicates.combineAnd(scorePredicates), context);
+        }
+        return filterOperation;
+    }
+
+    private static PhysicalOperation planFilterCondition(
+        PhysicalOperation source,
+        Expression condition,
+        LocalExecutionPlannerContext context
+    ) {
+        // TODO: should this be extracted into a separate eval block?
+        return source.with(
+            new FilterOperatorFactory(
+                EvalMapper.toEvaluator(context.foldCtx(), condition, source.layout, context.shardContexts, context.analysisRegistry())
             ),
             source.layout
         );
-        // Scoring normally needs a data node, which can run the query against the resulting docs. A runtime search is the
-        // exception: it scores per row from the values in the page, so it also contributes on the coordinator.
-        if (PlannerUtils.usesScoring(filter) && (context.shardContexts.isEmpty() == false || scoresWithoutShards(filter.condition()))) {
-            // Add scorer operator to add the filter expression scores to the overall scores
-            Attribute scoreAttribute = null;
-
-            for (Attribute attribute : filter.output()) {
-                if (MetadataAttribute.isScoreAttribute(attribute)) {
-                    scoreAttribute = attribute;
-                }
-            }
-            assert scoreAttribute != null : "Couldn't find _score attribute in a WHERE clause";
-
-            int scoreBlock = filterOperation.layout.get(scoreAttribute.id()).channel();
-            filterOperation = filterOperation.with(
-                new ScoreOperator.ScoreOperatorFactory(
-                    ScoreMapper.toScorer(
-                        filter.condition(),
-                        context.shardContexts,
-                        EvalMapper.toEvaluatorContext(
-                            context.foldCtx(),
-                            filterOperation.layout,
-                            context.shardContexts,
-                            context.analysisRegistry()
-                        )
-                    ),
-                    scoreBlock
-                ),
-                filterOperation.layout
-            );
-        }
-        return filterOperation;
     }
 
     /**

@@ -15,6 +15,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.RemoteException;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -36,6 +37,7 @@ import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
+import org.elasticsearch.compute.operator.ThreadCpuTimer;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
@@ -74,6 +76,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.datasources.DatasetConfigResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalIoExecutors;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
@@ -90,7 +93,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
-import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
@@ -1956,6 +1958,11 @@ public class ComputeService {
             var parallelWorkerExecutor = workerThreadPool.executor(EsqlPlugin.computePool());
             int esqlWorkerPoolSize = workerThreadPool.info(EsqlPlugin.computePool()).getMax();
 
+            // One snapshot of the project for the dataset rebind below and for the planner. The external request handler
+            // rebinds under its own snapshot before calling here; the planner does not consult datasets, so the two
+            // snapshots cannot disagree on anything that is read.
+            ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
+            DatasetConfigResolver datasetConfigResolver = DatasetConfigResolver.forProduction(projectMetadata);
             LocalExecutionPlanner planner = new LocalExecutionPlanner(
                 context.sessionId(),
                 context.clusterAlias(),
@@ -1972,9 +1979,10 @@ public class ComputeService {
                 userAgentParserRegistry,
                 ipLocationService,
                 projectResolver,
-                projectResolver.getProjectMetadata(clusterService.state()),
+                projectMetadata,
                 physicalOperationProviders,
                 operatorFactoryRegistry,
+                datasetConfigResolver.snapshotBuild(),
                 parallelWorkerExecutor,
                 esqlWorkerPoolSize,
                 grokMatcherWatchdog.get(),
@@ -2002,7 +2010,8 @@ public class ComputeService {
                         SearchContextStats.from(localContexts),
                         formatReaderRegistry,
                         coordinatorExternalSplits,
-                        planTimeProfile
+                        planTimeProfile,
+                        datasetConfigResolver
                     );
                     logicalPlanString = null;
                     approximationApplied = false;
@@ -2021,7 +2030,10 @@ public class ComputeService {
                     approximationApplied = localPlanResult.approximationApplied();
                 }
             } else {
-                localPlan = plan;
+                // No reduce plan carries an external source today (reductionPlan replaces the breaker's children with
+                // an exchange source), and the external request handler rebinds before it gets here; the rebind is
+                // idempotent and free on a plan without external sources, so apply it rather than rely on that.
+                localPlan = plan.transformUp(ExternalSourceExec.class, datasetConfigResolver::rebind);
                 logicalPlanString = null;
                 approximationApplied = false;
             }

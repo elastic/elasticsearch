@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -485,4 +486,23 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
         return ((CsvFormatReader) reader.withConfigTrackingConsumedKeys(config).value()).harvestFingerprintForTests();
     }
 
+    public void testDatasetAuditSettings() {
+        for (var field : CsvDataSourcePlugin.FORMAT_CONFIG_KEYS) {
+            var request = new PutDatasetAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                "dataset",
+                "datasource",
+                "resource",
+                null,
+                Map.of(field, "test-value")
+            );
+
+            assertEquals(
+                "Unexpected audit value for setting [" + field + "]",
+                "test-value",
+                request.auditFields().get("settings." + field)
+            );
+        }
+    }
 }

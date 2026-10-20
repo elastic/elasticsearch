@@ -51,9 +51,9 @@ final class SnapshotExternalChangesBatcher {
     private static final Logger logger = LogManager.getLogger(SnapshotExternalChangesBatcher.class);
 
     @FunctionalInterface
-    interface SnapshotFinalizer {
-        /** Writes the completed snapshot to the repository. */
-        void finalizeSnapshot(SnapshotsInProgress.Entry entry, Metadata metadata);
+    interface FinalizeTaskSubmitter {
+        /// Trigger the (eventual) finalization of a newly-ready-to-finalize snapshot.
+        void submitFinalizeSnapshotRepositoryDataWriteTask(SnapshotsInProgress.Entry entry, Metadata metadata);
     }
 
     @FunctionalInterface
@@ -63,9 +63,9 @@ final class SnapshotExternalChangesBatcher {
     }
 
     @FunctionalInterface
-    interface DeletionStarter {
-        /** Deletes snapshots from the repository. */
-        void startDeletion(SnapshotDeletionsInProgress.Entry deleteEntry, IndexVersion minNodeVersion);
+    interface DeleteTaskSubmitter {
+        /// Trigger the (eventual) start of a newly-ready-to-process deletion.
+        void submitDeleteSnapshotsRepositoryDataWriteTask(SnapshotDeletionsInProgress.Entry deleteEntry, IndexVersion minNodeVersion);
     }
 
     private enum State {
@@ -85,37 +85,37 @@ final class SnapshotExternalChangesBatcher {
 
     private final MasterServiceTaskQueue<Task> taskQueue;
     private final Predicate<Snapshot> isInitializingClone;
-    private final SnapshotFinalizer snapshotFinalizer;
+    private final FinalizeTaskSubmitter finalizeTaskSubmitter;
     private final ClonesStarter clonesStarter;
-    private final DeletionStarter deletionStarter;
+    private final DeleteTaskSubmitter deleteTaskSubmitter;
     private State state = State.IDLE;
 
     SnapshotExternalChangesBatcher(
         ClusterService clusterService,
         Predicate<Snapshot> isInitializingClone,
-        SnapshotFinalizer snapshotFinalizer,
+        FinalizeTaskSubmitter finalizeTaskSubmitter,
         ClonesStarter clonesStarter,
-        DeletionStarter deletionStarter
+        DeleteTaskSubmitter deleteTaskSubmitter
     ) {
         this.isInitializingClone = isInitializingClone;
-        this.snapshotFinalizer = snapshotFinalizer;
+        this.finalizeTaskSubmitter = finalizeTaskSubmitter;
         this.clonesStarter = clonesStarter;
-        this.deletionStarter = deletionStarter;
+        this.deleteTaskSubmitter = deleteTaskSubmitter;
         this.taskQueue = clusterService.createTaskQueue("snapshots-service-external-changes", Priority.NORMAL, new Executor());
     }
 
     SnapshotExternalChangesBatcher(
         MasterServiceTaskQueue<Task> taskQueue,
         Predicate<Snapshot> isInitializingClone,
-        SnapshotFinalizer snapshotFinalizer,
+        FinalizeTaskSubmitter finalizeTaskSubmitter,
         ClonesStarter clonesStarter,
-        DeletionStarter deletionStarter
+        DeleteTaskSubmitter deleteTaskSubmitter
     ) {
         this.taskQueue = taskQueue;
         this.isInitializingClone = isInitializingClone;
-        this.snapshotFinalizer = snapshotFinalizer;
+        this.finalizeTaskSubmitter = finalizeTaskSubmitter;
         this.clonesStarter = clonesStarter;
-        this.deletionStarter = deletionStarter;
+        this.deleteTaskSubmitter = deleteTaskSubmitter;
     }
 
     /**
@@ -346,7 +346,7 @@ final class SnapshotExternalChangesBatcher {
                     .collect(Collectors.toSet());
                 for (SnapshotsInProgress.Entry entry : finishedSnapshots) {
                     if (reposWithRunningDeletes.contains(entry.repository()) == false) {
-                        snapshotFinalizer.finalizeSnapshot(entry, newState.metadata());
+                        finalizeTaskSubmitter.submitFinalizeSnapshotRepositoryDataWriteTask(entry, newState.metadata());
                     }
                 }
                 finishedSnapshots.clear();
@@ -355,7 +355,10 @@ final class SnapshotExternalChangesBatcher {
             // Run newly ready deletes
             for (SnapshotDeletionsInProgress.Entry entry : snapshotDeletionsInProgress.getEntries()) {
                 if (entry.state() == SnapshotDeletionsInProgress.State.STARTED) {
-                    deletionStarter.startDeletion(entry, newState.nodes().getMaxDataNodeCompatibleIndexVersion());
+                    deleteTaskSubmitter.submitDeleteSnapshotsRepositoryDataWriteTask(
+                        entry,
+                        newState.nodes().getMaxDataNodeCompatibleIndexVersion()
+                    );
                 }
             }
         }

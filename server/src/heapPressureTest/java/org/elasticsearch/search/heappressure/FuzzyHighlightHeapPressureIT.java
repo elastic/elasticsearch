@@ -76,8 +76,8 @@ public class FuzzyHighlightHeapPressureIT extends HeapPressureTestCase {
     private String smallTerm;
 
     @Override
-    protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
+    protected ElasticsearchCluster cluster() {
+        return cluster;
     }
 
     @Before

@@ -500,9 +500,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecPrometheusK8sIT
   method: test {csv-spec:prometheus-k8s.derivative_of_gauge_metric_promql}
   issue: https://github.com/elastic/elasticsearch/issues/162491
-- class: org.elasticsearch.xpack.enrich.action.EnrichShardMultiSearchActionIT
-  method: testChargeIsHeldUntilResponseIsSent
-  issue: https://github.com/elastic/elasticsearch/issues/162495
 - class: org.elasticsearch.xpack.ccr.index.engine.FollowingEngineTests
   method: testOptimizeMultipleVersions
   issue: https://github.com/elastic/elasticsearch/issues/162517
@@ -533,12 +530,12 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {yaml=search.vectors/46_knn_search_bbq_ivf_byte/Test knn search with filter}
   issue: https://github.com/elastic/elasticsearch/issues/162604
-- class: org.elasticsearch.xpack.esql.view.InMemoryViewServiceTests
-  method: testMaxPlanNodesCountWithDeepInSubqueriesAndViews
-  issue: https://github.com/elastic/elasticsearch/issues/162598
 - class: org.elasticsearch.xpack.search.AsyncSearchActionIT
   method: testRestartAfterCompletion
   issue: https://github.com/elastic/elasticsearch/issues/162607
 - class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=search.vectors/46_knn_search_bbq_ivf_byte/Test knn search with filter}
   issue: https://github.com/elastic/elasticsearch/issues/162612
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {yaml=search.vectors/46_knn_search_bbq_ivf_byte/Test knn search}
+  issue: https://github.com/elastic/elasticsearch/issues/162632

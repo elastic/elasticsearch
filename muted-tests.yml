@@ -450,9 +450,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
   method: testFullyUploadedListenerDoesNotFireBeforeItsCopyCompletes
   issue: https://github.com/elastic/elasticsearch/issues/162163
-- class: org.elasticsearch.xpack.wildcard.heappressure.WildcardFieldWildcardHeapPressureIT
-  method: testPausedHeavyWildcardsTripBreaker
-  issue: https://github.com/elastic/elasticsearch/issues/162207
 - class: org.elasticsearch.columnar.PayloadColumnMergeTests
   method: testMergeCarriesRepeatsOverWithoutComparing
   issue: https://github.com/elastic/elasticsearch/issues/162235
@@ -461,6 +458,8 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/162240
 - class: org.elasticsearch.search.heappressure.FuzzyHighlightHeapPressureIT
   issue: https://github.com/elastic/elasticsearch/issues/149983
+- class: org.elasticsearch.painless.heappressure.PainlessFieldAllocationIT
+  issue: https://github.com/elastic/elasticsearch/issues/162575
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=cluster.state/20_filtering/Filtering the cluster state by indices should work in routing table and metadata}
   issue: https://github.com/elastic/elasticsearch/issues/162277
@@ -517,3 +516,6 @@ tests:
 - class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS1MissingIndicesIT
   method: testSearchesAgainstNonMatchingIndices
   issue: https://github.com/elastic/elasticsearch/issues/162565
+- class: org.elasticsearch.action.bulk.BulkItemResponseFailureWireSerializingTests
+  method: testFailureStoreCauseIsSuppressedForOlderVersions
+  issue: https://github.com/elastic/elasticsearch/issues/162587

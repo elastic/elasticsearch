@@ -83,6 +83,7 @@ import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.isSafeAcces
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.isUnsafeForGets;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -1022,6 +1023,76 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
             stopThreads.set(true);
             refreshThread.join();
         }
+    }
+
+    public void testNoLostUpdatesDuringUpdate() throws Exception {
+        // Like testNoVersionConflictDuringUpdate, but each update adds its own field, so that an update applied on top of a stale
+        // version is detected as well. If the archive serves a stale version to both the get for update and the version check, the
+        // update succeeds without a conflict but drops the fields of the updates it missed.
+        String indexNodeA = startIndexNode(
+            Settings.builder()
+                .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+                .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofGb(1))
+                .put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), Integer.MAX_VALUE)
+                .put(StatelessCommitService.STATELESS_UPLOAD_VBCC_MAX_AGE.getKey(), TimeValue.timeValueDays(1L))
+                .build()
+        );
+        startSearchNode();
+        ensureStableCluster(3);
+
+        String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
+        ensureGreen(indexName);
+
+        final var indicesService = internalCluster().getInstance(IndicesService.class, indexNodeA);
+        final var shardId = new ShardId(resolveIndex(indexName), 0);
+        final var indexEngine = (IndexEngine) indicesService.indexServiceSafe(shardId.getIndex()).getShard(0).getEngineOrNull();
+
+        String docId = "doc-1";
+        client().prepareIndex(indexName).setId(docId).setSource("f_init", 0).get();
+
+        var stopThreads = new AtomicBoolean(false);
+        final Thread refreshThread = new Thread(() -> {
+            while (stopThreads.get() == false) {
+                indexEngine.refresh("VERSION_CONFLICT_TEST");
+            }
+        }, "RefreshThread");
+        refreshThread.start();
+
+        final int updates = 30;
+        final List<Integer> acked = new ArrayList<>();
+        final List<String> failures = new ArrayList<>();
+        try {
+            for (int i = 0; i < updates; ++i) {
+                var response = client().prepareBulk().add(client().prepareUpdate(indexName, docId).setDoc("f" + i, i)).get();
+                if (response.hasFailures()) {
+                    failures.add("update " + i + ": " + response.buildFailureMessage());
+                } else {
+                    acked.add(i);
+                }
+            }
+        } finally {
+            stopThreads.set(true);
+            refreshThread.join();
+        }
+
+        indicesAdmin().prepareFlush(indexName).setForce(true).get();
+        indicesAdmin().prepareRefresh(indexName).get();
+        final List<Integer> lost = new ArrayList<>();
+        assertResponse(client().prepareSearch(indexName), r -> {
+            assertThat(r.getHits().getHits().length, equalTo(1));
+            var source = r.getHits().getHits()[0].getSourceAsMap();
+            // The last acked update must be visible, so missing earlier fields cannot be explained by a stale read.
+            if (acked.isEmpty() == false) {
+                assertTrue("last acked update missing: " + source.keySet(), source.containsKey("f" + acked.get(acked.size() - 1)));
+            }
+            for (int i : acked) {
+                if (source.containsKey("f" + i) == false) {
+                    lost.add(i);
+                }
+            }
+        });
+        assertThat("failures: " + failures + ", lost acked updates: " + lost, failures.size() + lost.size(), equalTo(0));
     }
 
     private LiveVersionMap getLiveVersionMap(String indexNodeName, String indexName, int shardId) {

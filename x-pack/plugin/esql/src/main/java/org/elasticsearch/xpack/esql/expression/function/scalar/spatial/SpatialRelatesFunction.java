@@ -113,6 +113,13 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
 
     @Override
     public Object fold(FoldContext ctx) {
+        Expression withFoldedArguments = EvaluatorMapper.foldArguments(this, ctx);
+        if (withFoldedArguments == null) {
+            return null;
+        }
+        if (withFoldedArguments != this) {
+            return withFoldedArguments.fold(ctx);
+        }
         try {
             if (this.spatialTypeResolver.supportsGrid) {
                 if (DataType.isGeoGrid(left().dataType())) {

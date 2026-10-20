@@ -11,11 +11,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.ExceptionUtils;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 
 import java.io.IOException;
@@ -143,6 +145,15 @@ public abstract class DateTimeArithmeticOperation extends DenseVectorArithmeticO
 
     @Override
     public final Object fold(FoldContext ctx) {
+        if (this instanceof AnyNullIsNull) {
+            Expression withFoldedArguments = EvaluatorMapper.foldArguments(this, ctx);
+            if (withFoldedArguments == null) {
+                return null;
+            }
+            if (withFoldedArguments != this) {
+                return withFoldedArguments.fold(ctx);
+            }
+        }
         DataType leftDataType = left().dataType();
         DataType rightDataType = right().dataType();
         if (leftDataType == DATE_PERIOD && rightDataType == DATE_PERIOD) {

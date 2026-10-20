@@ -283,6 +283,13 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper, A
 
     @Override
     public Object fold(FoldContext ctx) {
+        Expression withFoldedArguments = EvaluatorMapper.foldArguments(this, ctx);
+        if (withFoldedArguments == null) {
+            return null;
+        }
+        if (withFoldedArguments != this) {
+            return withFoldedArguments.fold(ctx);
+        }
         var wkb = (BytesRef) spatialField().fold(ctx);
         if (wkb == null) {
             return null;

@@ -124,12 +124,16 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        Double pValue = (Double) p.fold(toEvaluator.foldCtx());
+        if (pValue == null) {
+            return ConstantEvaluators.CONSTANT_NULL_FACTORY;
+        }
         return switch (PlannerUtils.toElementType(field.dataType())) {
             case DOUBLE -> new MvPSeriesWeightedSumDoubleEvaluator.Factory(
                 source(),
                 toEvaluator.apply(field),
                 ctx -> new CompensatedSum(),
-                (Double) p.fold(toEvaluator.foldCtx())
+                pValue
             );
             case NULL -> ConstantEvaluators.CONSTANT_NULL_FACTORY;
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());

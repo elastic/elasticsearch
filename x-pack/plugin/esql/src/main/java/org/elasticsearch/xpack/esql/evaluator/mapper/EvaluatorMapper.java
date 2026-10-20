@@ -20,12 +20,17 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.Layout;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.elasticsearch.compute.data.BlockUtils.fromArrayRow;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
@@ -88,6 +93,15 @@ public interface EvaluatorMapper {
      * implementation of {@link Expression#fold}.
      */
     default Object fold(Source source, FoldContext ctx) {
+        if (this instanceof AnyNullIsNull && this instanceof Expression expression) {
+            Expression withFoldedArguments = foldArguments(expression, ctx);
+            if (withFoldedArguments == null) {
+                return null;
+            }
+            if (withFoldedArguments != expression) {
+                return withFoldedArguments.fold(ctx);
+            }
+        }
         /*
          * OK! So! We're going to build a bunch of *stuff* that so that we can
          * call toEvaluator and use it without standing up an entire compute
@@ -185,5 +199,31 @@ public interface EvaluatorMapper {
             HeaderWarning.addWarning(warning);
         }
         return toJavaObject(block, 0);
+    }
+
+    /**
+     * Folds the arguments of an {@link AnyNullIsNull} expression, so it can fold to {@code null} if any of them is
+     * {@code null}, even if they aren't {@code null} literals yet (like {@code CASE(false, 1)} or {@code 1/0}).
+     *
+     * @return {@code null} if any argument folds to {@code null};
+     *         a copy of the expression with its arguments replaced by their folded {@link Literal}s;
+     *         or the expression itself if they were already literals, or not all of them are foldable.
+     */
+    static Expression foldArguments(Expression expression, FoldContext ctx) {
+        List<Expression> arguments = expression.children();
+        if (arguments.stream().allMatch(Expression::foldable) == false) {
+            return expression;
+        }
+        List<Expression> foldedArguments = new ArrayList<>(arguments.size());
+        boolean changed = false;
+        for (Expression argument : arguments) {
+            Literal folded = Literal.of(ctx, argument);
+            if (folded.value() == null) {
+                return null;
+            }
+            changed |= folded != argument;
+            foldedArguments.add(folded);
+        }
+        return changed ? expression.replaceChildren(foldedArguments) : expression;
     }
 }

@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 
 import java.util.Locale;
 import java.util.Map;
@@ -67,6 +68,13 @@ public abstract class FoldablesConvertFunction extends AbstractConvertFunction i
 
     @Override
     public final Object fold(FoldContext ctx) {
+        Expression withFoldedArguments = EvaluatorMapper.foldArguments(this, ctx);
+        if (withFoldedArguments == null) {
+            return null;
+        }
+        if (withFoldedArguments != this) {
+            return withFoldedArguments.fold(ctx);
+        }
         return foldToTemporalAmount(ctx, field(), sourceText(), dataType());
     }
 

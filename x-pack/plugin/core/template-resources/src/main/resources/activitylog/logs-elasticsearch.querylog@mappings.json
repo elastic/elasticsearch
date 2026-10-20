@@ -3,6 +3,16 @@
     "mappings": {
       "dynamic_templates": [
         {
+          "elasticsearch_querylog_settings": {
+            "path_match": "elasticsearch.querylog.settings.*",
+            "match_mapping_type": "string",
+            "mapping": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        },
+        {
           "elasticsearch_querylog_esql_profile_took": {
             "path_match": "elasticsearch.querylog.esql.profile.*.took",
             "mapping": {

@@ -229,9 +229,14 @@ public class FsDirectoryFactoryTests extends ESTestCase {
 
     /** A mapping holding the dense vector field {@code vector}, with the given {@code on_disk_rescore} and {@code on_disk_merge}. */
     static MappingLookup vectorField(boolean onDiskRescore, boolean onDiskMerge) {
+        return vectorField("vector", onDiskRescore, onDiskMerge);
+    }
+
+    /** A mapping holding the dense vector field {@code name}, with the given {@code on_disk_rescore} and {@code on_disk_merge}. */
+    static MappingLookup vectorField(String name, boolean onDiskRescore, boolean onDiskMerge) {
         Map<String, Object> indexOptions = new HashMap<>(Map.of("on_disk_rescore", onDiskRescore, "on_disk_merge", onDiskMerge));
         FieldMapper mapper = new DenseVectorFieldMapper.Builder(
-            "vector",
+            name,
             IndexVersion.current(),
             IndexMode.STANDARD,
             false,
@@ -240,7 +245,7 @@ public class FsDirectoryFactoryTests extends ESTestCase {
             false
         ).dimensions(64)
             .indexOptions(
-                DenseVectorFieldMapper.VectorIndexType.BBQ_HNSW.parseIndexOptions("vector", indexOptions, mappingParserContext(), false)
+                DenseVectorFieldMapper.VectorIndexType.BBQ_HNSW.parseIndexOptions(name, indexOptions, mappingParserContext(), false)
             )
             .build(MapperBuilderContext.root(false, false));
         return MappingLookup.fromMappers(Mapping.EMPTY, List.of(mapper), List.of(), IndexMode.STANDARD);

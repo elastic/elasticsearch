@@ -24,8 +24,10 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.QuantizedAndRawFloatVectorValues;
+import org.elasticsearch.index.codec.vectors.SequentialRawVectors;
 import org.elasticsearch.index.codec.vectors.VectorReadHints;
 import org.elasticsearch.index.codec.vectors.VectorWriteHints;
 import org.elasticsearch.index.codec.vectors.es93.ES93GenericFlatVectorScorer;
@@ -86,7 +88,13 @@ public class ES94ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
 
     @Override
     public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new ESQuantizedVectorsReader(state, rawVectorFormat.fieldsReader(VectorReadHints.readToRescore(state)), flatVectorScorer);
+        SegmentReadState rawState = VectorReadHints.readToRescore(state);
+        return new ESQuantizedVectorsReader(
+            state,
+            rawVectorFormat.fieldsReader(rawState),
+            new SequentialRawVectors(rawVectorFormat, rawState),
+            flatVectorScorer
+        );
     }
 
     @Override
@@ -222,16 +230,24 @@ public class ES94ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
     static final class ESQuantizedVectorsReader extends Lucene104ScalarQuantizedVectorsReader {
 
         final FlatVectorsReader delegate;
+        // shared with the merge instances, closed with this reader
+        private final SequentialRawVectors sequentialRaw;
 
-        ESQuantizedVectorsReader(SegmentReadState state, FlatVectorsReader delegate, Lucene104ScalarQuantizedVectorScorer scorer)
-            throws IOException {
+        ESQuantizedVectorsReader(
+            SegmentReadState state,
+            FlatVectorsReader delegate,
+            SequentialRawVectors sequentialRaw,
+            Lucene104ScalarQuantizedVectorScorer scorer
+        ) throws IOException {
             super(state, delegate, scorer);
             this.delegate = delegate;
+            this.sequentialRaw = sequentialRaw;
         }
 
         private ESQuantizedVectorsReader(ESQuantizedVectorsReader reader, FlatVectorsReader mergeDelegate) {
             super(reader, mergeDelegate);
             this.delegate = mergeDelegate;
+            this.sequentialRaw = reader.sequentialRaw;
         }
 
         @Override
@@ -247,7 +263,16 @@ public class ES94ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
             }
             // Its critical that we use this for later rescoring to ensure that the HasSlice, and byte size information relates to the
             // raw vectors
-            return new QuantizedAndRawFloatVectorValues(floatVectorValues, delegate.getFloatVectorValues(field));
+            return new QuantizedAndRawFloatVectorValues(
+                floatVectorValues,
+                delegate.getFloatVectorValues(field),
+                () -> sequentialRaw.getFloatVectorValues(field)
+            );
+        }
+
+        @Override
+        public void close() throws IOException {
+            IOUtils.close(sequentialRaw, super::close);
         }
     }
 

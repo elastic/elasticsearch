@@ -11,6 +11,7 @@ package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.search.VectorScorer;
+import org.apache.lucene.util.IOSupplier;
 import org.elasticsearch.search.internal.FilterFloatVectorValues;
 
 import java.io.IOException;
@@ -19,14 +20,25 @@ import java.io.IOException;
  * Provides appropriate values for iterating and providing HasSlice with the raw vector file
  * But still provides VectorScorer logic with the quantizedValues
  */
-public final class QuantizedAndRawFloatVectorValues extends FilterFloatVectorValues {
+public final class QuantizedAndRawFloatVectorValues extends FilterFloatVectorValues implements SequentialVectorValues {
     private final FloatVectorValues quantizedValues;
+    private final IOSupplier<FloatVectorValues> sequentialRawValues;
 
     public QuantizedAndRawFloatVectorValues(FloatVectorValues quantizedValues, FloatVectorValues rawValues) {
+        this(quantizedValues, rawValues, null);
+    }
+
+    /** @param sequentialRawValues the raw vectors read sequentially, see {@link SequentialRawVectors}; may be or return null */
+    public QuantizedAndRawFloatVectorValues(
+        FloatVectorValues quantizedValues,
+        FloatVectorValues rawValues,
+        IOSupplier<FloatVectorValues> sequentialRawValues
+    ) {
         // It's critical to pass rawValues up stream to satisfy the HasSlice implementation and that slice be
         // the raw vector slices
         super(rawValues);
         this.quantizedValues = quantizedValues;
+        this.sequentialRawValues = sequentialRawValues;
     }
 
     @Override
@@ -35,6 +47,12 @@ public final class QuantizedAndRawFloatVectorValues extends FilterFloatVectorVal
     }
 
     public FloatVectorValues copy() throws IOException {
-        return new QuantizedAndRawFloatVectorValues(quantizedValues.copy(), in.copy());
+        return new QuantizedAndRawFloatVectorValues(quantizedValues.copy(), in.copy(), sequentialRawValues);
+    }
+
+    @Override
+    public FloatVectorValues sequential() throws IOException {
+        FloatVectorValues sequential = sequentialRawValues == null ? null : sequentialRawValues.get();
+        return sequential == null ? this : new QuantizedAndRawFloatVectorValues(quantizedValues, sequential);
     }
 }

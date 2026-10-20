@@ -45,6 +45,7 @@ import org.apache.lucene.store.FileTypeHint;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.util.IOSupplier;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.SuppressForbidden;
@@ -57,6 +58,8 @@ import org.apache.lucene.util.quantization.QuantizedVectorsReader;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
+import org.elasticsearch.index.codec.vectors.SequentialRawVectors;
+import org.elasticsearch.index.codec.vectors.SequentialVectorValues;
 import org.elasticsearch.index.codec.vectors.es816.BinaryQuantizer;
 import org.elasticsearch.search.internal.FilterFloatVectorValues;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -84,17 +87,21 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader impleme
     private final Map<String, FieldEntry> fields;
     private final IndexInput quantizedVectorData;
     private final FlatVectorsReader rawVectorsReader;
+    // shared with the merge instances, closed with this reader
+    private final SequentialRawVectors sequentialRaw;
     private final ES818BinaryFlatVectorsScorer vectorScorer;
 
     @SuppressWarnings("this-escape")
     public ES818BinaryQuantizedVectorsReader(
         SegmentReadState state,
         FlatVectorsReader rawVectorsReader,
+        SequentialRawVectors sequentialRaw,
         ES818BinaryFlatVectorsScorer vectorsScorer
     ) throws IOException {
         this.fields = new HashMap<>();
         this.vectorScorer = vectorsScorer;
         this.rawVectorsReader = rawVectorsReader;
+        this.sequentialRaw = sequentialRaw;
         int versionMeta = -1;
         String metaFileName = IndexFileNames.segmentFileName(
             state.segmentInfo.name,
@@ -134,6 +141,7 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader impleme
 
     private ES818BinaryQuantizedVectorsReader(ES818BinaryQuantizedVectorsReader clone, FlatVectorsReader rawVectorsReader) {
         this.rawVectorsReader = rawVectorsReader;
+        this.sequentialRaw = clone.sequentialRaw;
         this.vectorScorer = clone.vectorScorer;
         this.quantizedVectorData = clone.quantizedVectorData;
         this.fields = clone.fields;
@@ -251,7 +259,11 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader impleme
             fi.vectorDataLength,
             quantizedVectorData
         );
-        return new BinarizedVectorValues(rawVectorsReader.getFloatVectorValues(field), bvv);
+        return new BinarizedVectorValues(
+            rawVectorsReader.getFloatVectorValues(field),
+            bvv,
+            () -> sequentialRaw.getFloatVectorValues(field)
+        );
     }
 
     @Override
@@ -271,7 +283,7 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader impleme
 
     @Override
     public void close() throws IOException {
-        IOUtils.close(quantizedVectorData, rawVectorsReader);
+        IOUtils.close(sequentialRaw, quantizedVectorData, rawVectorsReader);
     }
 
     @Override
@@ -533,19 +545,32 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader impleme
     }
 
     /** Binarized vector values holding row and quantized vector values */
-    protected static class BinarizedVectorValues extends FilterFloatVectorValues {
+    protected static class BinarizedVectorValues extends FilterFloatVectorValues implements SequentialVectorValues {
         final BinarizedByteVectorValues quantizedVectorValues;
+        private final IOSupplier<FloatVectorValues> sequentialRawVectorValues;
 
-        BinarizedVectorValues(FloatVectorValues rawVectorValues, BinarizedByteVectorValues quantizedVectorValues) {
+        /** @param sequentialRawVectorValues the raw vectors read sequentially, see {@link SequentialRawVectors}; may be or return null */
+        BinarizedVectorValues(
+            FloatVectorValues rawVectorValues,
+            BinarizedByteVectorValues quantizedVectorValues,
+            IOSupplier<FloatVectorValues> sequentialRawVectorValues
+        ) {
             // Its critical that `rawVectorValues` are the filtered format
             // this aligns with rescore assumptions with HasSlice
             super(rawVectorValues);
             this.quantizedVectorValues = quantizedVectorValues;
+            this.sequentialRawVectorValues = sequentialRawVectorValues;
         }
 
         @Override
         public BinarizedVectorValues copy() throws IOException {
-            return new BinarizedVectorValues(in.copy(), quantizedVectorValues.copy());
+            return new BinarizedVectorValues(in.copy(), quantizedVectorValues.copy(), sequentialRawVectorValues);
+        }
+
+        @Override
+        public FloatVectorValues sequential() throws IOException {
+            FloatVectorValues sequential = sequentialRawVectorValues == null ? null : sequentialRawVectorValues.get();
+            return sequential == null ? this : new BinarizedVectorValues(sequential, quantizedVectorValues, null);
         }
 
         @Override

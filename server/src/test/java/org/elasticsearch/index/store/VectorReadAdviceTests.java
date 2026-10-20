@@ -14,8 +14,10 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
@@ -27,21 +29,32 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.MMapDirectory;
+import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.store.NoReuseHint;
 import org.apache.lucene.store.ReadAdvice;
+import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.index.codec.vectors.SequentialVectorValues;
+import org.elasticsearch.index.codec.vectors.SequentialVectorValuesTests;
 import org.elasticsearch.index.codec.vectors.VectorReadHintsTests;
 import org.elasticsearch.index.codec.vectors.VectorReadHintsTests.Case;
 import org.elasticsearch.index.codec.vectors.VectorReadHintsTests.Open;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.index.mapper.MappingLookup;
 
 import java.io.IOException;
+import java.nio.channels.FileChannel;
+import java.nio.file.OpenOption;
+import java.nio.file.Path;
+import java.nio.file.attribute.FileAttribute;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -105,6 +118,78 @@ public class VectorReadAdviceTests extends MapperServiceTestCase {
             }
         });
         assertThat(failures, empty());
+    }
+
+    /** Raw vectors read in doc order are opened as a merge opens them, so they are advised sequentially and not reused. */
+    public void testReadsInDocOrderAreAdvisedSequentially() throws IOException {
+        assumeTrue("reads the raw vectors in doc order", SequentialVectorValuesTests.readsSequentially(each));
+        List<Open> opens = new CopyOnWriteArrayList<>();
+        try (Directory dir = new RecordingDirectory(newDirectory(), opens, new ArrayList<>())) {
+            writeOneSegment(dir);
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                opens.clear();
+                SequentialVectorValues.sequential(getOnlyLeafReader(reader).getFloatVectorValues("field"));
+            }
+        }
+        List<Open> raw = opens.stream().filter(Open::isRawVectors).toList();
+        assertThat(raw.toString(), raw.size(), equalTo(1));
+        Open open = raw.get(0);
+        assertThat(
+            open.toString(),
+            FsDirectoryFactory.getReadAdviceFunc().apply(open.name(), open.context()),
+            equalTo(Optional.of(ReadAdvice.SEQUENTIAL))
+        );
+    }
+
+    /** With {@code on_disk_merge}, raw vectors read in doc order go to direct I/O as a merge's do, and read the same vectors. */
+    public void testReadsInDocOrderUseDirectIOWhenMergesDo() throws IOException {
+        assumeTrue("reads the raw vectors in doc order", SequentialVectorValuesTests.readsSequentially(each));
+        assumeTrue("needs the direct open option to intercept", AsyncDirectIOIndexInput.ExtendedOpenOption_DIRECT != null);
+        Path path = createTempDir();
+        AtomicInteger directOpens = new AtomicInteger();
+        FilterFileSystemProvider counting = new FilterFileSystemProvider("countdirect://", path.getFileSystem()) {
+            @Override
+            public FileChannel newFileChannel(Path p, Set<? extends OpenOption> openOptions, FileAttribute<?>... attrs) throws IOException {
+                if (openOptions.contains(AsyncDirectIOIndexInput.ExtendedOpenOption_DIRECT)) {
+                    directOpens.incrementAndGet();
+                    Set<OpenOption> plain = new HashSet<>(openOptions);
+                    plain.remove(AsyncDirectIOIndexInput.ExtendedOpenOption_DIRECT);
+                    return super.newFileChannel(p, plain, attrs);
+                }
+                return super.newFileChannel(p, openOptions, attrs);
+            }
+        };
+        MappingLookup onDiskMerge = FsDirectoryFactoryTests.vectorField("field", false, true);
+        try (
+            FsDirectoryFactory.HybridDirectory dir = new FsDirectoryFactory.HybridDirectory(
+                NativeFSLockFactory.INSTANCE,
+                new MMapDirectory(counting.wrapPath(path)),
+                0,
+                () -> onDiskMerge
+            )
+        ) {
+            writeOneSegment(dir);
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                LeafReader leaf = getOnlyLeafReader(reader);
+                directOpens.set(0);
+                FloatVectorValues sequential = SequentialVectorValues.sequential(leaf.getFloatVectorValues("field"));
+                assertThat("the raw vectors are read with direct I/O", directOpens.get(), equalTo(1));
+                SequentialVectorValuesTests.assertSameVectors(leaf.getFloatVectorValues("field"), sequential);
+            }
+        }
+    }
+
+    /** Writes one segment of 256 vectors, outside a compound file. */
+    private void writeOneSegment(Directory dir) throws IOException {
+        IndexWriterConfig iwc = new IndexWriterConfig().setCodec(each.codec(this)).setUseCompoundFile(false);
+        try (IndexWriter writer = new IndexWriter(dir, iwc)) {
+            for (int i = 0; i < 256; i++) {
+                Document doc = new Document();
+                doc.add(new KnnFloatVectorField("field", VectorReadHintsTests.randomVector(), VectorSimilarityFunction.EUCLIDEAN));
+                writer.addDocument(doc);
+            }
+            writer.forceMerge(1);
+        }
     }
 
     /** What a merge of two segments opened and created, after the flushes. */

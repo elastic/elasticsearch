@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.EsqlLicenseChecker;
+import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
@@ -101,6 +102,7 @@ public class DatasetResolver {
         LogicalPlan parsed,
         ProjectMetadata projectMetadata,
         boolean wildcardsMatchDatasets,
+        Map<String, ViewQuerySettings> viewSettings,
         QueryPragmas pragmas,
         EsqlFlags flags,
         ActionListener<LogicalPlan> listener
@@ -122,14 +124,16 @@ public class DatasetResolver {
 
         // Collect the relations worth a round-trip: skip remote-prefixed (datasets are local-only, CCS sees the original
         // FROM) and skip any relation whose patterns could not match a registered dataset name (ordinary FROM <index>).
-        List<UnresolvedRelation> relations = new ArrayList<>();
-        parsed.forEachUp(UnresolvedRelation.class, r -> {
+        // Per relation: inside a view body, only the view definition's own SET makes wildcards match datasets
+        // (DatasetRewriter.forEachRelation).
+        List<ScopedRelation> relations = new ArrayList<>();
+        DatasetRewriter.forEachRelation(parsed, wildcardsMatchDatasets, viewSettings, (r, relationWildcards) -> {
             List<String> patterns = DatasetRewriter.patternsOf(r);
             if (DatasetRewriter.hasRemotePattern(patterns)
-                || DatasetRewriter.anyPatternCouldMatchDataset(patterns, datasetNames, wildcardsMatchDatasets) == false) {
+                || DatasetRewriter.anyPatternCouldMatchDataset(patterns, datasetNames, relationWildcards) == false) {
                 return;
             }
-            relations.add(r);
+            relations.add(new ScopedRelation(r, relationWildcards));
         });
         if (relations.isEmpty()) {
             listener.onResponse(parsed);
@@ -146,11 +150,12 @@ public class DatasetResolver {
         }
 
         // One request per relation, chained sequentially via andThen so each result lands in the identity-keyed map
-        // before the next dispatches. (forEachUp may visit the same relation instance more than once in a degenerate
+        // before the next dispatches. (The walk may visit the same relation instance more than once in a degenerate
         // tree; the map dedups by identity.)
         Map<UnresolvedRelation, DatasetResolution> resolutions = new IdentityHashMap<>();
         SubscribableListener<Void> chain = SubscribableListener.newForked(l -> l.onResponse(null));
-        for (UnresolvedRelation relation : relations) {
+        for (ScopedRelation scoped : relations) {
+            UnresolvedRelation relation = scoped.relation();
             chain = chain.andThen((l, ignored) -> {
                 if (resolutions.containsKey(relation)) {
                     l.onResponse(null);
@@ -159,7 +164,7 @@ public class DatasetResolver {
                 var request = new EsqlResolveDatasetAction.Request(
                     REST_MASTER_TIMEOUT_DEFAULT,
                     DatasetRewriter.patternsOf(relation).toArray(String[]::new),
-                    wildcardsMatchDatasets
+                    scoped.wildcardsMatchDatasets()
                 );
                 client.execute(
                     EsqlResolveDatasetAction.TYPE,
@@ -192,4 +197,7 @@ public class DatasetResolver {
             return DatasetRewriter.rewrite(parsed, projectMetadata, resolutions, crossProjectEnabled, pragmas, flags);
         }).addListener(listener);
     }
+
+    /** A relation worth a dataset round-trip, with its effective {@code wildcards_match_datasets}. */
+    private record ScopedRelation(UnresolvedRelation relation, boolean wildcardsMatchDatasets) {}
 }

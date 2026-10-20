@@ -104,10 +104,19 @@ For additional operations, see [*Connectors UI in {{kib}}*](/reference/search-co
 
 To connect to Exchange Server, the connector fetches Active Directory users with the help of the `ldap3` Python library, then reads each mailbox through Exchange Web Services (EWS).
 
-The account you configure in `username` and `password` needs:
+With `auth_method: ntlm` (default), the service account you configure in `username` and `password` needs:
 
 * Permission to read user objects from Active Directory.
 * The Exchange `ApplicationImpersonation` role for the mailboxes you want to sync. The connector opens each mailbox with impersonation, so valid credentials alone are not enough.
+
+With `auth_method: kerberos`, the connector uses GSSAPI for LDAP and EWS. You must provide a valid Kerberos ticket for the service account on the host running the connector (for example by setting `KRB5CCNAME`). Username and password are not used. The service account still needs the same Active Directory and Exchange permissions.
+
+
+### FIPS mode [es-connectors-exchange-server-client-fips]
+
+When [FIPS mode](https://github.com/elastic/connectors/blob/main/docs/FIPS.md) is enabled in the connector service, `auth_method: ntlm` is rejected because NTLM relies on non-FIPS algorithms. Configure `auth_method: kerberos` and ensure a valid Kerberos ticket is available for the connector process.
+
+The legacy Outlook connector in `outlook_server` mode uses the same authentication settings.
 
 
 ### Configuration [es-connectors-exchange-server-client-configuration]
@@ -118,11 +127,14 @@ The account you configure in `username` and `password` needs:
 `active_directory_server`
 :   (required) IP address of the Active Directory server used to fetch users. Example: `127.0.0.1`
 
+`auth_method`
+:   Authentication method for LDAP user lookup and EWS. Supported values: `ntlm` (default) or `kerberos`. Use `kerberos` when running the connector service in FIPS mode.
+
 `username`
-:   (required) Username to authenticate with Exchange Server.
+:   (required when `auth_method` is `ntlm`) Username to authenticate with Exchange Server.
 
 `password`
-:   (required) Password to authenticate with Exchange Server.
+:   (required when `auth_method` is `ntlm`) Password to authenticate with Exchange Server.
 
 `domain`
 :   (required) Active Directory domain name, used to look up users. Example: `corp.example.com`

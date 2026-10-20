@@ -515,10 +515,11 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             };
         }
 
-        // used to keep track of the successful hedges
+        // used to keep track of the successful hedges and to guarantee we only complete the `listener` once in case of 2 parallel uploads
         private void uploaded(boolean byHedge, ActionListener<UploadTranslogTask> listener) {
-            completedByHedge.compareAndSet(null, byHedge);
-            listener.onResponse(this);
+            if (completedByHedge.compareAndSet(null, byHedge)) {
+                listener.onResponse(this);
+            }
         }
 
         // A translog-upload might be slow or might even hang, so on the first try of an `UploadTranslogTask`, we schedule a hedge upload

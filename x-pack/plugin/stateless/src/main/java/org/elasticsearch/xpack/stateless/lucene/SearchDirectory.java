@@ -358,8 +358,9 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     }
 
     /**
-     * The exclusive end ({@code offset + fileLength}) of the furthest file observed for the blob. Empty when the name
-     * is not a batched compound commit blob, or when that primary term and blob are not tracked.
+     * The exclusive end ({@code offset + fileLength}) of the furthest file observed for the blob.
+     * {@code blobName} must be a batched compound commit blob; any other name fails an assertion. Empty when that
+     * primary term and blob are not tracked.
      * <p>
      * The value grows as a virtual batched compound commit is appended, including when a generational file is carried
      * in a later blob whose location this directory does not store. It is kept while any file still references the blob,
@@ -368,6 +369,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
      */
     public OptionalLong blobLength(long primaryTerm, String blobName) {
         if (BatchedCompoundCommit.startsWithBlobPrefix(blobName) == false) {
+            assert false : "blob name [" + blobName + "] is not a batched compound commit blob";
             return OptionalLong.empty();
         }
         final Long length = blobLengths.get(
@@ -950,9 +952,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             .stream()
             .map(ranges -> ranges.blobLocation().getBatchedCompoundCommitTermAndGeneration())
             .collect(Collectors.toSet());
-        final int commonKeys = Sets.intersection(blobLengths.keySet(), referenced).size();
-        assert commonKeys == blobLengths.size() && commonKeys == referenced.size()
-            : "blob lengths " + blobLengths.keySet() + " must contain only " + referenced;
+        assert blobLengths.keySet().equals(referenced) : "blob lengths " + blobLengths.keySet() + " must contain only " + referenced;
         return true;
     }
 }

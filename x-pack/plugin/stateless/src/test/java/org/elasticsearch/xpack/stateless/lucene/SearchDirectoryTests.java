@@ -550,7 +550,7 @@ public class SearchDirectoryTests extends ESTestCase {
             final var searchDirectory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
             final String blobName = "stateless_commit_1";
             assertThat(searchDirectory.blobLength(1L, blobName).isPresent(), equalTo(false));
-            assertThat(searchDirectory.blobLength(1L, "not-a-blob").isPresent(), equalTo(false));
+            expectThrows(AssertionError.class, () -> searchDirectory.blobLength(1L, "not-a-blob"));
 
             final var locationA = createBlobLocation(1L, 1L, 0L, 100L);
             final var locationB = createBlobLocation(1L, 1L, 100L, 150L);

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 161475
+summary: Warm repeated aggregates over an external dataset whose mapping retypes a column
+type: bug

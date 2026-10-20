@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
+import org.elasticsearch.xpack.esql.datasources.DefinitionVersion;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
@@ -197,6 +198,38 @@ public class ExternalSourceExecSerializationTests extends AbstractPhysicalPlanSe
             null,
             Map.of(),
             List.of()
+        );
+    }
+
+    /**
+     * The dataset-tier definition version never travels, on ANY transport version. Only the coordinator mints and
+     * reads it, and a data node builds its storage provider from this map while {@code StorageProviderCache} keys
+     * on the whole of it. An older node's {@code FRAMEWORK_KEYS} does not know the key, so sending it would reach
+     * that cache key and fragment the client pool per dataset definition — a pool that throws at its ceiling
+     * rather than degrading. Not sending it needs no transport version.
+     * <p>
+     * Asserted at {@code TransportVersion.current()} as well as at an older one, because the hazard is an old
+     * NODE reading a new coordinator's map: a version gate on the write side would not have closed it.
+     */
+    public void testDatasetVersionNeverTravels() throws IOException {
+        Map<String, Object> config = new HashMap<>();
+        config.put("format", "csv");
+        config.put(DefinitionVersion.DATASET_CONFIG_KEY, "0123456789abcdef0123456789abcdef");
+
+        ExternalSourceExec current = copyInstance(externalSourceExecWithConfig(config), TransportVersion.current());
+        assertThat(
+            "the coordinator-only dataset version must not reach a data node",
+            current.config().containsKey(DefinitionVersion.DATASET_CONFIG_KEY),
+            equalTo(false)
+        );
+        assertThat("and the rest of the config still travels", current.config().get("format"), equalTo("csv"));
+
+        TransportVersion older = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("data_source_encrypted_data"));
+        ExternalSourceExec old = copyInstance(externalSourceExecWithConfig(config, older), older);
+        assertThat(
+            "nor an older one, which is the node whose FRAMEWORK_KEYS cannot strip it",
+            old.config().containsKey(DefinitionVersion.DATASET_CONFIG_KEY),
+            equalTo(false)
         );
     }
 

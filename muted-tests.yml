@@ -539,3 +539,6 @@ tests:
 - class: org.elasticsearch.xpack.search.AsyncSearchActionIT
   method: testRestartAfterCompletion
   issue: https://github.com/elastic/elasticsearch/issues/162607
+- class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=search.vectors/46_knn_search_bbq_ivf_byte/Test knn search with filter}
+  issue: https://github.com/elastic/elasticsearch/issues/162612

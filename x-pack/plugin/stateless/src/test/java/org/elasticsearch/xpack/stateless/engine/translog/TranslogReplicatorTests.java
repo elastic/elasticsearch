@@ -71,6 +71,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import java.util.zip.CRC32;
 
 import static org.elasticsearch.indices.recovery.RecoverySourceHandlerTests.generateOperation;
@@ -1549,12 +1550,23 @@ public class TranslogReplicatorTests extends ESTestCase {
         };
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         try {
-            PlainActionFuture<Void> future = syncOneOperation(nodeSettings, objectStoreService, meterRegistry);
+            AtomicReference<TranslogReplicator.UploadTranslogTask> uploadTranslogTask = new AtomicReference<>();
+            PlainActionFuture<Void> future = syncOneOperation(
+                nodeSettings,
+                objectStoreService,
+                meterRegistry,
+                task -> assertTrue("only one upload task expected", uploadTranslogTask.compareAndSet(null, task))
+            );
             assertFalse(future.isDone()); // first upload is hanging
             assertBusy(() -> assertNotNull(hedge.get()), 10L, TimeUnit.SECONDS); // make sure we scheduled the hedge
+            assertFalse(uploadTranslogTask.get().isUploaded()); // upload task is still ongoing
             hedge.get().run(); // run the hedge, which will complete the sync
             safeGet(future);
             assertThat(uploads.get(), equalTo(2)); // both uploads were attempted
+
+            // hedge completed the upload, and now the single upload task has completed and because the task is set to uploaded in
+            // `markUploadFinished` after the task has completed, we can indirectly deduce that we have NO more retries
+            assertTrue(uploadTranslogTask.get().isUploaded());
 
             // hedge won
             assertThat(
@@ -1608,7 +1620,7 @@ public class TranslogReplicatorTests extends ESTestCase {
             }
         };
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
-        PlainActionFuture<Void> future = syncOneOperation(nodeSettings, objectStoreService, meterRegistry);
+        PlainActionFuture<Void> future = syncOneOperation(nodeSettings, objectStoreService, meterRegistry, unused -> {});
         safeGet(future);
         assertThat(uploads.get(), equalTo(1)); // only the first upload
 
@@ -1641,7 +1653,8 @@ public class TranslogReplicatorTests extends ESTestCase {
     private PlainActionFuture<Void> syncOneOperation(
         Settings settings,
         ObjectStoreService objectStoreService,
-        RecordingMeterRegistry meterRegistry
+        RecordingMeterRegistry meterRegistry,
+        Consumer<TranslogReplicator.UploadTranslogTask> onUploadTranslogTaskCreated
     ) throws IOException {
         ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
         long primaryTerm = randomLongBetween(0, 10);
@@ -1653,7 +1666,14 @@ public class TranslogReplicatorTests extends ESTestCase {
             false,
             (sId) -> primaryTerm,
             meterRegistry
-        );
+        ) {
+            @Override
+            protected UploadTranslogTask createUploadTask(CompoundTranslog translog) {
+                UploadTranslogTask task = super.createUploadTask(translog);
+                onUploadTranslogTaskCreated.accept(task);
+                return task;
+            }
+        };
         translogReplicator.doStart();
         translogReplicator.register(shardId, primaryTerm, seqNo -> {});
 

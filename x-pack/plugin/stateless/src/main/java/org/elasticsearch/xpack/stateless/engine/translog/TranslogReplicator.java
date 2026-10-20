@@ -526,8 +526,8 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         // - If the hedge upload completes first, then `isDone` is set, and we'll stop retrying this `UploadTranslogTask`. Note this is
         // because the `listener` passed in `hedge(listener)` is the same `RetryingListener` passed in `tryAction` and hence
         // `RetryableAction`'s `isDone` is set to true.
-        // - If the non-hedge upload completes first (e.g., in less than `UPLOAD_HEDGE_DELAY_SETTING` seconds), then `onFinished`
-        // is called, `hedgeTimer` is canceled and hence the hedge upload is never fired.
+        // - If the normal (i.e., non-hedge) upload completes first (e.g., in less than `UPLOAD_HEDGE_DELAY_SETTING` seconds),
+        // then `onFinished` is called, `hedgeTimer` is canceled and hence the hedge upload is never fired.
         private void hedge(ActionListener<UploadTranslogTask> listener) {
             translogUploadHedgesCounter.increment();
             if (completed || uploadRefs.tryIncRef() == false) {
@@ -552,8 +552,11 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         public void tryAction(ActionListener<UploadTranslogTask> listener) {
             if (uploadTryNumber.incrementAndGet() == 1) {
                 firstAttemptStartMillis = threadPool.relativeTimeInMillis();
-                // only in the first try we schedule another parallel upload, only if after `uploadHedgeDelay` seconds
-                // we have not yet uploaded the translog
+                // Only in the first try we schedule another parallel upload, only if after `uploadHedgeDelay` seconds
+                // we have not yet uploaded the translog.
+                // Note that `hedge` gets the same `listener` as the one passed as an argument in `tryAction`. This means that if
+                // the `hedge` completes the upload first, `RetryingListener.onResponse` is called that sets
+                // the `isDone` of `RetryingAction` to true. As a result, we stop retrying (i.e., `tryAction`) to upload a translog.
                 hedgeTimer = threadPool.schedule(() -> hedge(listener), uploadHedgeDelay, EsExecutors.DIRECT_EXECUTOR_SERVICE);
             }
             if (uploadRefs.tryIncRef()) {
@@ -606,6 +609,11 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             super.onFinished();
         }
 
+        // visible for testing
+        protected boolean isUploaded() {
+            return isUploaded;
+        }
+
         @Override
         public int compareTo(UploadTranslogTask o) {
             return Long.compare(translog.metadata().generation(), o.translog.metadata().generation());
@@ -617,7 +625,8 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         }
     }
 
-    private UploadTranslogTask createUploadTask(CompoundTranslog translog) {
+    // protected for testing
+    protected UploadTranslogTask createUploadTask(CompoundTranslog translog) {
         UploadTranslogTask uploadTranslogTask = new UploadTranslogTask(translog, new ActionListener<>() {
             @Override
             public void onResponse(UploadTranslogTask task) {

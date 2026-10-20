@@ -1,0 +1,6 @@
+area: Downsampling
+issues:
+ - 160939
+pr: 162641
+summary: Reduce index buffer size for downsampling indexes with synthetic ids
+type: bug

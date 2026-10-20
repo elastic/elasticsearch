@@ -426,11 +426,6 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        return syntheticSourceSupport(ignoreMalformed, false);
-    }
-
-    @Override
-    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed, boolean columnReader) {
         return new SyntheticSourceSupport() {
             private final boolean ignoreZValue = usually();
             private final CartesianPoint nullValue = usually() ? null : randomCartesianPoint();

@@ -8,14 +8,19 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.util.List;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.ConstantLongVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.arrow.LongArrowBufVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -104,6 +109,37 @@ public final class MaxLongAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(LongVector vVector) {
+    if (vVector.getClass() == LongArrayVector.class) {
+      LongArrayVector specialized = (LongArrayVector) vVector;
+      state.seen(true);
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        long vValue = specialized.getLong(valuesPosition);
+        state.longValue(MaxLongAggregator.combine(state.longValue(), vValue));
+      }
+      return;
+    }
+    if (vVector.getClass() == LongArrowBufVector.class) {
+      LongArrowBufVector specialized = (LongArrowBufVector) vVector;
+      MemorySegment bulkSegment = specialized.valuesSegment();
+      int bulkCount = specialized.getPositionCount();
+      long bulkAcc = state.longValue();
+      for (int p = 0; p < bulkCount; p++) {
+        long vValue = bulkSegment.getAtIndex(ValueLayout.JAVA_LONG_UNALIGNED, p);
+        bulkAcc = MaxLongAggregator.combine(bulkAcc, vValue);
+      }
+      state.longValue(bulkAcc);
+      state.seen(true);
+      return;
+    }
+    if (vVector.getClass() == ConstantLongVector.class) {
+      ConstantLongVector specialized = (ConstantLongVector) vVector;
+      state.seen(true);
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        long vValue = specialized.getLong(valuesPosition);
+        state.longValue(MaxLongAggregator.combine(state.longValue(), vValue));
+      }
+      return;
+    }
     state.seen(true);
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       long vValue = vVector.getLong(valuesPosition);
@@ -112,6 +148,46 @@ public final class MaxLongAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(LongVector vVector, BooleanVector mask) {
+    if (vVector.getClass() == LongArrayVector.class) {
+      LongArrayVector specialized = (LongArrayVector) vVector;
+      state.seen(true);
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        long vValue = specialized.getLong(valuesPosition);
+        state.longValue(MaxLongAggregator.combine(state.longValue(), vValue));
+      }
+      return;
+    }
+    if (vVector.getClass() == LongArrowBufVector.class) {
+      LongArrowBufVector specialized = (LongArrowBufVector) vVector;
+      MemorySegment bulkSegment = specialized.valuesSegment();
+      int bulkCount = specialized.getPositionCount();
+      long bulkAcc = state.longValue();
+      for (int p = 0; p < bulkCount; p++) {
+        if (mask.getBoolean(p) == false) {
+          continue;
+        }
+        long vValue = bulkSegment.getAtIndex(ValueLayout.JAVA_LONG_UNALIGNED, p);
+        bulkAcc = MaxLongAggregator.combine(bulkAcc, vValue);
+      }
+      state.longValue(bulkAcc);
+      state.seen(true);
+      return;
+    }
+    if (vVector.getClass() == ConstantLongVector.class) {
+      ConstantLongVector specialized = (ConstantLongVector) vVector;
+      state.seen(true);
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        long vValue = specialized.getLong(valuesPosition);
+        state.longValue(MaxLongAggregator.combine(state.longValue(), vValue));
+      }
+      return;
+    }
     state.seen(true);
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       if (mask.getBoolean(valuesPosition) == false) {

@@ -18,10 +18,6 @@ public class RegexQuery extends Query {
     private final String field, regex;
     private final boolean caseInsensitive;
 
-    public RegexQuery(Source source, String field, String regex) {
-        this(source, field, regex, false);
-    }
-
     public RegexQuery(Source source, String field, String regex, boolean caseInsensitive) {
         super(source);
         this.field = field;

@@ -20,6 +20,5 @@
   "examples" : [
     "stddev_over_time(http_requests_total[5m])"
   ],
-  "preview" : true,
   "snapshot_only" : false
 }

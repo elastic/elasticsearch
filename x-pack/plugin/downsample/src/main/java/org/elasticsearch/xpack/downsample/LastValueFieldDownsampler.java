@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.downsample;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.internal.hppc.IntArrayList;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -58,6 +59,20 @@ class LastValueFieldDownsampler extends AbstractFieldDownsampler<FormattedDocVal
     public void reset() {
         state = State.EMPTY;
         lastValue = null;
+    }
+
+    @Override
+    public void collect(FormattedDocValues docValues, IntArrayList docIdBuffer) throws IOException {
+        if (isDone()) {
+            return;
+        }
+        for (int i = 0; i < docIdBuffer.size() && isDone() == false; i++) {
+            int docId = docIdBuffer.get(i);
+            if (docValues.advanceExact(docId) == false) {
+                continue;
+            }
+            collectCurrentValues(docValues);
+        }
     }
 
     @Override
@@ -123,8 +138,10 @@ class LastValueFieldDownsampler extends AbstractFieldDownsampler<FormattedDocVal
 
                 var iterator = list.iterator();
                 FlattenedFieldSyntheticWriterHelper helper = new FlattenedFieldSyntheticWriterHelper(
-                    () -> iterator.hasNext() ? iterator.next() : null,
-                    FlattenedFieldSyntheticWriterHelper.SortedOffsetValues.NONE,
+                    new FlattenedFieldSyntheticWriterHelper.OffsetKeyedValueProducer(
+                        () -> iterator.hasNext() ? iterator.next() : null,
+                        FlattenedFieldSyntheticWriterHelper.SortedOffsetValues.NONE
+                    ),
                     List.of()
                 );
                 helper.writeNested(builder);

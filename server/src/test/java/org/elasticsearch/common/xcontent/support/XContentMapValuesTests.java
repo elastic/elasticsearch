@@ -9,6 +9,9 @@
 
 package org.elasticsearch.common.xcontent.support;
 
+import org.apache.lucene.util.automaton.Automata;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Tuple;
@@ -582,6 +585,21 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         assertEquals(Collections.singletonMap("指数", 3), XContentMapValues.filter(map, new String[0], new String[] { "搜索" }));
     }
 
+    public void testNonBmpCharactersInPaths() {
+        // Unlike the BMP CJK chars in testSupplementaryCharactersInPaths above, these are above U+FFFF (surrogate pairs).
+        final String x = "\uD835\uDD4F"; // U+1D54F MATHEMATICAL DOUBLE-STRUCK CAPITAL X
+        final String y = "\uD835\uDD50"; // U+1D550 MATHEMATICAL DOUBLE-STRUCK CAPITAL Y
+
+        Map<String, Object> map = new HashMap<>();
+        map.put(x, 2);
+        map.put(y, 3);
+
+        // include: only the requested non-BMP field is retained
+        assertEquals(Map.of(x, 2), XContentMapValues.filter(map, new String[] { x }, new String[0]));
+        // exclude: the excluded non-BMP field is dropped, the other is retained
+        assertEquals(Map.of(y, 3), XContentMapValues.filter(map, new String[0], new String[] { x }));
+    }
+
     /**
      * Tests that we can extract paths which share a prefix with other paths.
      * See {@link AbstractFilteringTestCase#testFilterSharedPrefixes()}
@@ -995,6 +1013,34 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         );
 
         assertThat(map, Matchers.equalTo(originalMap));
+    }
+
+    public void testCompileAutomatonTooComplexIsGeneric() {
+        String[] patterns = new String[40];
+        for (int i = 0; i < patterns.length; i++) {
+            patterns[i] = "*group_" + i + ".field*";
+        }
+
+        IllegalArgumentException compile = expectThrows(
+            IllegalArgumentException.class,
+            () -> XContentMapValues.compileAutomaton(patterns, new CharacterRunAutomaton(Automata.makeEmpty()))
+        );
+        assertThat(compile.getMessage(), equalTo("[40] field patterns are too complex to compile into an automaton"));
+        assertThat(compile.getCause(), instanceOf(TooComplexToDeterminizeException.class));
+
+        IllegalArgumentException includes = expectThrows(
+            IllegalArgumentException.class,
+            () -> XContentMapValues.filter(patterns, Strings.EMPTY_ARRAY)
+        );
+        assertThat(includes.getMessage(), equalTo("[40] include field patterns are too complex to compile into an automaton"));
+        assertThat(includes.getCause(), instanceOf(TooComplexToDeterminizeException.class));
+
+        IllegalArgumentException excludes = expectThrows(
+            IllegalArgumentException.class,
+            () -> XContentMapValues.filter(Strings.EMPTY_ARRAY, patterns)
+        );
+        assertThat(excludes.getMessage(), equalTo("[40] exclude field patterns are too complex to compile into an automaton"));
+        assertThat(excludes.getCause(), instanceOf(TooComplexToDeterminizeException.class));
     }
 
     private static Object getMapValue(Map<String, Object> map, String key) {

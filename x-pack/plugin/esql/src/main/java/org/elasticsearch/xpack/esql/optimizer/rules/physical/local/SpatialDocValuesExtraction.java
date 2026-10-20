@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.BinarySpatialFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.BinarySpatialGeometryFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDocValuesFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
@@ -108,6 +109,7 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
                 List<Alias> changed = fields.stream()
                     .map(
                         f -> (Alias) f.transformDown(BinarySpatialFunction.class, s -> withDocValues(s, foundAttributes))
+                            .transformDown(BinarySpatialGeometryFunction.class, s -> withDocValues(s, foundAttributes))
                             .transformDown(SpatialDocValuesFunction.class, s -> withDocValues(s, foundAttributes))
                     )
                     .toList();
@@ -120,6 +122,7 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
                 // to support shapes, we need to consider loading shape doc-values for both centroid and relates (ST_INTERSECTS)
                 var condition = filterExec.condition()
                     .transformDown(BinarySpatialFunction.class, s -> withDocValues(s, foundAttributes))
+                    .transformDown(BinarySpatialGeometryFunction.class, s -> withDocValues(s, foundAttributes))
                     .transformDown(SpatialDocValuesFunction.class, s -> withDocValues(s, foundAttributes));
                 if (filterExec.condition().equals(condition) == false) {
                     exec = new FilterExec(filterExec.source(), filterExec.child(), condition);
@@ -171,6 +174,16 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
                         foundAttributes.add(fieldAttribute);
                     }
                 });
+                field.forEachDown(BinarySpatialGeometryFunction.class, spatialFunction -> {
+                    if (spatialFunction.left() instanceof FieldAttribute leftField
+                        && allowedForDocValues(leftField, ctx.searchStats(), exec, foundAttributes)) {
+                        foundAttributes.add(leftField);
+                    }
+                    if (spatialFunction.right() instanceof FieldAttribute rightField
+                        && allowedForDocValues(rightField, ctx.searchStats(), exec, foundAttributes)) {
+                        foundAttributes.add(rightField);
+                    }
+                });
             }
         });
         // Remove any fields that will be returned to the coordinator, since we must use source for those
@@ -180,11 +193,95 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
                 foundAttributes.remove(fieldAttribute);
             }
         });
+        // Remove any fields that appear in EVAL or WHERE expressions that cannot handle doc-values.
+        // Functions like TO_STRING expect a BytesRefBlock (WKB from source) but would receive a LongBlock
+        // (doc-values encoding) after the optimization — causing a ClassCastException at runtime.
+        // Spatial functions that support doc-values (SpatialDocValuesFunction, BinarySpatialFunction,
+        // BinarySpatialGeometryFunction) safely consume their spatial field as a Long, so we skip those.
+        exec.forEachDown(EvalExec.class, evalExec -> {
+            for (Alias alias : evalExec.fields()) {
+                foundAttributes.removeAll(findUnsafeDocValuesRefs(alias.child(), foundAttributes));
+            }
+        });
+        exec.forEachDown(FilterExec.class, filterExec -> {
+            foundAttributes.removeAll(findUnsafeDocValuesRefs(filterExec.condition(), foundAttributes));
+        });
         return foundAttributes;
+    }
+
+    /**
+     * Returns the subset of {@code candidates} that are referenced in {@code expr} in a context that
+     * cannot handle doc-values ({@code LongBlock}) inputs.
+     * <p>
+     * Spatial functions that support doc-values — {@link SpatialDocValuesFunction},
+     * {@link BinarySpatialFunction}, and {@link BinarySpatialGeometryFunction} — safely consume their
+     * spatial field argument as a {@code Long}, so those references are not considered unsafe. Any other
+     * occurrence of a candidate {@link FieldAttribute} (for example, inside {@code TO_STRING}) is
+     * considered unsafe because the evaluator expects a {@code BytesRefBlock} (WKB) rather than the
+     * {@code LongBlock} produced by doc-values extraction.
+     */
+    private Set<FieldAttribute> findUnsafeDocValuesRefs(Expression expr, Set<FieldAttribute> candidates) {
+        if (candidates.isEmpty()) {
+            return Set.of();
+        }
+        Set<FieldAttribute> unsafe = new HashSet<>();
+        collectUnsafeDocValuesRefs(expr, candidates, unsafe);
+        return unsafe;
+    }
+
+    private void collectUnsafeDocValuesRefs(Expression expr, Set<FieldAttribute> candidates, Set<FieldAttribute> unsafe) {
+        if (expr instanceof FieldAttribute fa && candidates.contains(fa)) {
+            // This field is referenced outside any doc-values-safe spatial function.
+            unsafe.add(fa);
+            return;
+        }
+        if (expr instanceof SpatialDocValuesFunction sdf) {
+            // The spatial field is safely consumed by this function via withDocValues(); skip it.
+            // Traverse all other children (e.g. literal zoom-level parameters) normally.
+            Expression spatialField = sdf.spatialField();
+            boolean spatialFieldIsCandidate = foundField(spatialField, candidates);
+            for (Expression child : sdf.children()) {
+                if (spatialFieldIsCandidate && child == spatialField) {
+                    continue; // Safely consumed by the spatial function
+                }
+                collectUnsafeDocValuesRefs(child, candidates, unsafe);
+            }
+            return;
+        }
+        if (expr instanceof BinarySpatialFunction bf) {
+            // left() and right() FieldAttributes in candidates are safely consumed via withDocValues()
+            if (foundField(bf.left(), candidates) == false) {
+                collectUnsafeDocValuesRefs(bf.left(), candidates, unsafe);
+            }
+            if (foundField(bf.right(), candidates) == false) {
+                collectUnsafeDocValuesRefs(bf.right(), candidates, unsafe);
+            }
+            return;
+        }
+        if (expr instanceof BinarySpatialGeometryFunction bf) {
+            // left() and right() FieldAttributes in candidates are safely consumed via withDocValues()
+            if (foundField(bf.left(), candidates) == false) {
+                collectUnsafeDocValuesRefs(bf.left(), candidates, unsafe);
+            }
+            if (foundField(bf.right(), candidates) == false) {
+                collectUnsafeDocValuesRefs(bf.right(), candidates, unsafe);
+            }
+            return;
+        }
+        // For all other expressions, recursively check all children
+        for (Expression child : expr.children()) {
+            collectUnsafeDocValuesRefs(child, candidates, unsafe);
+        }
     }
 
     private BinarySpatialFunction withDocValues(BinarySpatialFunction spatial, Set<FieldAttribute> foundAttributes) {
         // Only update the docValues flags if the field is found in the attributes
+        boolean foundLeft = foundField(spatial.left(), foundAttributes);
+        boolean foundRight = foundField(spatial.right(), foundAttributes);
+        return foundLeft || foundRight ? spatial.withDocValues(foundLeft, foundRight) : spatial;
+    }
+
+    private BinarySpatialGeometryFunction withDocValues(BinarySpatialGeometryFunction spatial, Set<FieldAttribute> foundAttributes) {
         boolean foundLeft = foundField(spatial.left(), foundAttributes);
         boolean foundRight = foundField(spatial.right(), foundAttributes);
         return foundLeft || foundRight ? spatial.withDocValues(foundLeft, foundRight) : spatial;

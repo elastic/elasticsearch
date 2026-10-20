@@ -14,6 +14,7 @@ import org.elasticsearch.index.codec.tsdb.pipeline.EncodingContext;
 import org.elasticsearch.index.codec.tsdb.pipeline.MetadataReader;
 import org.elasticsearch.index.codec.tsdb.pipeline.MetadataWriter;
 import org.elasticsearch.index.codec.tsdb.pipeline.StageId;
+import org.elasticsearch.index.codec.tsdb.pipeline.StageSpec;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericCodecStage;
 
 import java.io.IOException;
@@ -77,8 +78,8 @@ public final class SplitDeltaCodecStage implements NumericCodecStage {
      * @throws IllegalArgumentException if {@code kMax} is less than one
      */
     public SplitDeltaCodecStage(int kMax) {
-        if (kMax < 1) {
-            throw new IllegalArgumentException("kMax must be at least 1, got: " + kMax);
+        if (kMax < 1 || kMax > StageSpec.SplitDeltaStage.MAX_K_MAX) {
+            throw new IllegalArgumentException("kMax must be in [1, " + StageSpec.SplitDeltaStage.MAX_K_MAX + "], got: " + kMax);
         }
         this.kMax = kMax;
         this.splits = new int[kMax + 1];
@@ -103,7 +104,7 @@ public final class SplitDeltaCodecStage implements NumericCodecStage {
         if (blockSize < 1) {
             throw new IllegalArgumentException("blockSize must be at least 1, got: " + blockSize);
         }
-        return new SplitDeltaCodecStage(Math.min(64, Math.max(4, blockSize / 32)));
+        return new SplitDeltaCodecStage(Math.min(StageSpec.SplitDeltaStage.MAX_K_MAX, Math.max(4, blockSize / 32)));
     }
 
     /**

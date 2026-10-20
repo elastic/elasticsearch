@@ -1,5 +1,0 @@
-area: Snapshot/Restore
-issues: []
-pr: 151196
-summary: Optionally always sign S3 requests
-type: enhancement

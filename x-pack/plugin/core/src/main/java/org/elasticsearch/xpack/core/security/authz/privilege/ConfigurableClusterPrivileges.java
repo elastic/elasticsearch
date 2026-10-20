@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -416,6 +417,8 @@ public final class ConfigurableClusterPrivileges {
      */
     public static class DatasourcePrivileges implements ConfigurableClusterPrivilege {
 
+        public static final TransportVersion ESQL_DATASOURCE_PRIVILEGE = TransportVersion.fromName("esql_datasource_privilege");
+
         public static final String WRITEABLE_NAME = "datasource-privileges";
 
         public static final String PRIVILEGE_CREATE = "create";
@@ -684,7 +687,8 @@ public final class ConfigurableClusterPrivileges {
                                     indexPrivilege -> requestIndexPatternsAllowed(
                                         indicesPermission,
                                         indexPrivilege.getIndices(),
-                                        indexPrivilege.getPrivileges()
+                                        indexPrivilege.getPrivileges(),
+                                        indexPrivilege.allowRestrictedIndices()
                                     ) == false
                                 );
                     } else if (request instanceof final BulkPutRolesRequest bulkPutRoleRequest) {
@@ -697,7 +701,8 @@ public final class ConfigurableClusterPrivileges {
                                             indexPrivilege -> requestIndexPatternsAllowed(
                                                 indicesPermission,
                                                 indexPrivilege.getIndices(),
-                                                indexPrivilege.getPrivileges()
+                                                indexPrivilege.getPrivileges(),
+                                                indexPrivilege.allowRestrictedIndices()
                                             ) == false
                                         )
                                 );
@@ -705,13 +710,15 @@ public final class ConfigurableClusterPrivileges {
                         return requestIndexPatternsAllowed(
                             indicesPermission,
                             new String[] { deleteRoleRequest.name() },
-                            DELETE_INDEX.name().toArray(String[]::new)
+                            DELETE_INDEX.name().toArray(String[]::new),
+                            false
                         );
                     } else if (request instanceof final BulkDeleteRolesRequest bulkDeleteRoleRequest) {
                         return requestIndexPatternsAllowed(
                             indicesPermission,
                             bulkDeleteRoleRequest.getRoleNames().toArray(String[]::new),
-                            DELETE_INDEX.name().toArray(String[]::new)
+                            DELETE_INDEX.name().toArray(String[]::new),
+                            false
                         );
                     }
                     throw new IllegalArgumentException("Unsupported request type [" + request.getClass() + "]");
@@ -915,9 +922,11 @@ public final class ConfigurableClusterPrivileges {
         private static boolean requestIndexPatternsAllowed(
             IndicesPermission indicesPermission,
             String[] requestIndexPatterns,
-            String[] privileges
+            String[] privileges,
+            boolean allowRestrictedIndices
         ) {
-            return indicesPermission.checkResourcePrivileges(Set.of(requestIndexPatterns), false, Set.of(privileges), true, null);
+            return allowRestrictedIndices == false
+                && indicesPermission.checkResourcePrivileges(Set.of(requestIndexPatterns), false, Set.of(privileges), true, null);
         }
 
         private static boolean hasNonIndexPrivileges(RoleDescriptor roleDescriptor) {

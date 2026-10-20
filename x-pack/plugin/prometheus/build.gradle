@@ -24,6 +24,9 @@ dependencies {
   testImplementation project(path: xpackModule('esql'))
   testImplementation project(path: xpackModule('esql-core'))
   testImplementation project(xpackModule('esql:qa:testFixtures'))
+  internalClusterTestImplementation project(path: xpackModule('esql'))
+  internalClusterTestImplementation(testArtifact(project(xpackModule('esql')), 'internalClusterTest'))
+  internalClusterTestImplementation(testArtifact(project(xpackModule('esql'))))
   // stack is needed as we import the metrics@custom template
   clusterModules project(xpackModule('stack'))
   // transitive dependencies of stack
@@ -92,4 +95,3 @@ tasks.named('yamlRestTest') {
 tasks.named('javaRestTest').configure {
   usesDefaultDistribution("Prometheus REST tests require full distribution")
 }
-

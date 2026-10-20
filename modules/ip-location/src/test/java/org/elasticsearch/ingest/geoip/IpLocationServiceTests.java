@@ -402,6 +402,42 @@ public class IpLocationServiceTests extends ESTestCase {
         }
     }
 
+    public void testGetDefaultFieldsMatchesDatabaseDefaultProperties() {
+        for (var entry : Map.of(
+            "GeoLite2-City.mmdb",
+            Database.City,
+            "GeoLite2-Country.mmdb",
+            Database.Country,
+            "GeoLite2-ASN.mmdb",
+            Database.Asn
+        ).entrySet()) {
+            IpDataLookupInfo info = databaseNodeService.getIpDataLookupInfo(entry.getKey());
+            assertNotNull("getIpDataLookupInfo returned null for [" + entry.getKey() + "]", info);
+            assertNotNull("getDefaultFields returned null for [" + entry.getKey() + "]", info.getDefaultFields());
+
+            assertThat(
+                "default fields mismatch for [" + entry.getKey() + "]",
+                info.getDefaultFields().keySet(),
+                equalTo(fieldNames(entry.getValue().defaultProperties()))
+            );
+
+            for (var fieldEntry : info.getDefaultFields().entrySet()) {
+                assertThat(
+                    "getDefaultFields values must be a subset of getFields for [" + entry.getKey() + "]",
+                    info.getFields().get(fieldEntry.getKey()),
+                    equalTo(fieldEntry.getValue())
+                );
+            }
+        }
+    }
+
+    public void testCreateIpDataLookupInfoHasDefaultFields() {
+        IpDataLookup lookup = databaseNodeService.createIpDataLookup(projectId.id(), "GeoLite2-City.mmdb", null);
+        assertThat(lookup, notNullValue());
+        assertThat(lookup.getInfo().getDefaultFields(), notNullValue());
+        assertThat(lookup.getInfo().getDefaultFields().keySet(), equalTo(fieldNames(Database.City.defaultProperties())));
+    }
+
     private void cleanDatabases() {
         for (String database : DEFAULT_DATABASES) {
             configDatabases.updateDatabase(geoIpConfigDir.resolve(database), false);

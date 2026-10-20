@@ -202,7 +202,7 @@ public final class CircuitBreakingOperations {
             }
         } finally {
             if (totalReserved > 0) {
-                circuitBreaker.addWithoutBreaking(-totalReserved);
+                circuitBreaker.addWithoutBreaking(-totalReserved, label);
             }
         }
 

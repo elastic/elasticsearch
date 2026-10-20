@@ -15,14 +15,13 @@ import org.elasticsearch.index.codec.tsdb.pipeline.DecodingContext;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
 import org.elasticsearch.index.codec.tsdb.pipeline.StageId;
 import org.elasticsearch.index.codec.tsdb.pipeline.StageSpec;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.AlpDoubleTransformStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.DeltaCodecStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.GcdCodecStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.OffsetCodecStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.SplitDeltaCodecStage;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Immutable decoding pipeline: reads payload then reverses transform stages.
@@ -30,6 +29,13 @@ import java.util.List;
  * <p>Reconstructed from a {@link PipelineDescriptor} read from segment metadata,
  * making the format self-describing. The decoder does not need to know the
  * pipeline configuration at compile time.
+ *
+ * <p>When the descriptor ends with the {@code delta > offset > gcd > bitPack}
+ * suffix, the trailing three transform stages are folded out of the per-stage
+ * array and decoded together by {@link DeltaOffsetGcd}. The leading stages
+ * (if any) are kept in {@link #transformStages} and decoded by the per-stage
+ * switch as before. The wire format and the per-block bitmap layout are
+ * unchanged; the optimization is decode-only.
  *
  * <p>Instances are immutable and thread-safe. Mutable per-block state lives in
  * {@link DecodingContext}, which must be provided by the caller.
@@ -41,8 +47,15 @@ public final class NumericDecodePipeline {
     private final PayloadCodecStage payloadStage;
     private final int blockSize;
     private final int payloadPosition;
+    private final int fusedSuffixBitmapPosition;
 
-    NumericDecodePipeline(final NumericCodecStage[] transformStages, final PayloadCodecStage payloadStage, int blockSize) {
+    NumericDecodePipeline(
+        final NumericCodecStage[] transformStages,
+        final PayloadCodecStage payloadStage,
+        int blockSize,
+        int payloadPosition,
+        int fusedSuffixBitmapPosition
+    ) {
         this.transformStages = transformStages;
         this.stageIds = new StageId[transformStages.length];
         for (int i = 0; i < transformStages.length; i++) {
@@ -50,7 +63,8 @@ public final class NumericDecodePipeline {
         }
         this.payloadStage = payloadStage;
         this.blockSize = blockSize;
-        this.payloadPosition = transformStages.length;
+        this.payloadPosition = payloadPosition;
+        this.fusedSuffixBitmapPosition = fusedSuffixBitmapPosition;
     }
 
     /**
@@ -62,16 +76,37 @@ public final class NumericDecodePipeline {
     public static NumericDecodePipeline fromDescriptor(final PipelineDescriptor descriptor) {
         final int blockSize = descriptor.blockSize();
         final int stageCount = descriptor.pipelineLength();
-        final List<NumericCodecStage> transforms = new ArrayList<>();
+        final int fusedStart = findDeltaOffsetGcd(descriptor, stageCount - 1);
+        final int leadingCount = fusedStart < 0 ? stageCount - 1 : fusedStart;
 
-        for (int i = 0; i < stageCount - 1; i++) {
+        final NumericCodecStage[] transforms = new NumericCodecStage[leadingCount];
+        for (int i = 0; i < leadingCount; i++) {
             final StageSpec spec = StageFactory.specFromStageId(StageId.fromId(descriptor.stageIdAt(i)));
-            transforms.add(StageFactory.newTransformStage(spec));
+            transforms[i] = StageFactory.newTransformStage(spec, blockSize);
         }
         final StageSpec payloadSpec = StageFactory.specFromStageId(StageId.fromId(descriptor.stageIdAt(stageCount - 1)));
         final PayloadCodecStage payloadStage = StageFactory.newPayloadStage(payloadSpec, blockSize);
 
-        return new NumericDecodePipeline(transforms.toArray(NumericCodecStage[]::new), payloadStage, blockSize);
+        return new NumericDecodePipeline(transforms, payloadStage, blockSize, stageCount - 1, fusedStart);
+    }
+
+    // NOTE: returns `delta`'s descriptor position when the last three transform stages
+    // are `delta`, `offset`, `gcd` in that order; -1 otherwise. Doubles as the bitmap
+    // bit index `DeltaOffsetGcd.decode` reads for the three per-stage flags.
+    private static int findDeltaOffsetGcd(final PipelineDescriptor descriptor, int transformCount) {
+        if (transformCount < 3) {
+            return -1;
+        }
+        if (descriptor.stageIdAt(transformCount - 3) != StageId.DELTA_STAGE.id) {
+            return -1;
+        }
+        if (descriptor.stageIdAt(transformCount - 2) != StageId.OFFSET_STAGE.id) {
+            return -1;
+        }
+        if (descriptor.stageIdAt(transformCount - 1) != StageId.GCD_STAGE.id) {
+            return -1;
+        }
+        return transformCount - 3;
     }
 
     /**
@@ -90,6 +125,9 @@ public final class NumericDecodePipeline {
     public void decode(final long[] values, int count, final DataInput in, final DecodingContext context) throws IOException {
         context.setDataInput(in);
         BlockFormat.readBlock(in, values, payloadStage, context, payloadPosition);
+        if (fusedSuffixBitmapPosition >= 0) {
+            DeltaOffsetGcd.INSTANCE.decode(values, count, context, fusedSuffixBitmapPosition);
+        }
         for (int i = transformStages.length - 1; i >= 0; i--) {
             if (context.isStageApplied(i)) {
                 switch (stageIds[i]) {
@@ -98,6 +136,12 @@ public final class NumericDecodePipeline {
                     case GCD_STAGE -> GcdCodecStage.decodeStatic((GcdCodecStage) transformStages[i], values, count, context);
                     case SPLIT_DELTA_STAGE -> SplitDeltaCodecStage.decodeStatic(
                         (SplitDeltaCodecStage) transformStages[i],
+                        values,
+                        count,
+                        context
+                    );
+                    case ALP_DOUBLE_STAGE -> AlpDoubleTransformStage.decodeStatic(
+                        (AlpDoubleTransformStage) transformStages[i],
                         values,
                         count,
                         context
@@ -118,11 +162,11 @@ public final class NumericDecodePipeline {
     }
 
     /**
-     * Returns the total number of stages (transforms + payload).
+     * Returns the total number of stages in the descriptor (transforms + payload).
      *
      * @return the total number of stages
      */
     public int size() {
-        return transformStages.length + 1;
+        return payloadPosition + 1;
     }
 }

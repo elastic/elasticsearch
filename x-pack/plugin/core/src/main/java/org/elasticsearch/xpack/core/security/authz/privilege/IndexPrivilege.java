@@ -28,11 +28,11 @@ import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
+import org.elasticsearch.action.datastreams.PastTimeSeriesIndexCreationAction;
 import org.elasticsearch.action.datastreams.PromoteDataStreamAction;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.search.TransportSearchShardsAction;
 import org.elasticsearch.action.support.IndexComponentSelector;
-import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
@@ -148,7 +148,8 @@ public final class IndexPrivilege extends Privilege {
     private static final Automaton CREATE_INDEX_AUTOMATON = patterns(
         TransportCreateIndexAction.TYPE.name(),
         AutoCreateAction.NAME,
-        CreateDataStreamAction.NAME
+        CreateDataStreamAction.NAME,
+        PastTimeSeriesIndexCreationAction.NAME
     );
     private static final Automaton DELETE_INDEX_AUTOMATON = patterns(TransportDeleteIndexAction.TYPE.name(), DeleteDataStreamAction.NAME);
     private static final Automaton VIEW_METADATA_AUTOMATON = patterns(
@@ -188,7 +189,11 @@ public final class IndexPrivilege extends Privilege {
         "indices:admin/synced_flush",
         "indices:admin/forcemerge*"
     );
-    private static final Automaton AUTO_CONFIGURE_AUTOMATON = patterns(TransportAutoPutMappingAction.TYPE.name(), AutoCreateAction.NAME);
+    private static final Automaton AUTO_CONFIGURE_AUTOMATON = patterns(
+        TransportAutoPutMappingAction.TYPE.name(),
+        AutoCreateAction.NAME,
+        PastTimeSeriesIndexCreationAction.NAME
+    );
 
     private static final Automaton CROSS_CLUSTER_REPLICATION_AUTOMATON = patterns(
         "indices:data/read/xpack/ccr/shard_changes*",
@@ -282,43 +287,37 @@ public final class IndexPrivilege extends Privilege {
                 .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue))
         ),
         sortByAccessLevel(
-            Stream.concat(
-                Stream.of(
-                    entry("none", NONE),
-                    entry("all", ALL),
-                    entry("manage", MANAGE),
-                    entry("create_index", CREATE_INDEX),
-                    entry("monitor", MONITOR),
-                    entry("read", READ),
-                    entry("index", INDEX),
-                    entry("delete", DELETE),
-                    entry("write", WRITE),
-                    entry("create", CREATE),
-                    entry("create_doc", CREATE_DOC),
-                    entry("delete_index", DELETE_INDEX),
-                    entry("view_index_metadata", VIEW_METADATA),
-                    entry("read_cross_cluster", DEPRECATED_READ_CROSS_CLUSTER),
-                    entry("manage_follow_index", MANAGE_FOLLOW_INDEX),
-                    entry("manage_leader_index", MANAGE_LEADER_INDEX),
-                    entry("manage_ilm", MANAGE_ILM),
-                    entry("manage_data_stream_lifecycle", MANAGE_DATA_STREAM_LIFECYCLE),
-                    entry("maintenance", MAINTENANCE),
-                    entry("auto_configure", AUTO_CONFIGURE),
-                    entry("cross_cluster_replication", CROSS_CLUSTER_REPLICATION),
-                    entry("cross_cluster_replication_internal", CROSS_CLUSTER_REPLICATION_INTERNAL),
-                    entry("manage_view", MANAGE_VIEW),
-                    entry("create_view", CREATE_VIEW),
-                    entry("delete_view", DELETE_VIEW),
-                    entry("read_view_metadata", READ_VIEW_METADATA)
-                ),
-                DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()
-                    ? Stream.of(
-                        entry("manage_dataset", MANAGE_DATASET),
-                        entry("create_dataset", CREATE_DATASET),
-                        entry("delete_dataset", DELETE_DATASET),
-                        entry("read_dataset_metadata", READ_DATASET_METADATA)
-                    )
-                    : Stream.of()
+            Stream.of(
+                entry("none", NONE),
+                entry("all", ALL),
+                entry("manage", MANAGE),
+                entry("create_index", CREATE_INDEX),
+                entry("monitor", MONITOR),
+                entry("read", READ),
+                entry("index", INDEX),
+                entry("delete", DELETE),
+                entry("write", WRITE),
+                entry("create", CREATE),
+                entry("create_doc", CREATE_DOC),
+                entry("delete_index", DELETE_INDEX),
+                entry("view_index_metadata", VIEW_METADATA),
+                entry("read_cross_cluster", DEPRECATED_READ_CROSS_CLUSTER),
+                entry("manage_follow_index", MANAGE_FOLLOW_INDEX),
+                entry("manage_leader_index", MANAGE_LEADER_INDEX),
+                entry("manage_ilm", MANAGE_ILM),
+                entry("manage_data_stream_lifecycle", MANAGE_DATA_STREAM_LIFECYCLE),
+                entry("maintenance", MAINTENANCE),
+                entry("auto_configure", AUTO_CONFIGURE),
+                entry("cross_cluster_replication", CROSS_CLUSTER_REPLICATION),
+                entry("cross_cluster_replication_internal", CROSS_CLUSTER_REPLICATION_INTERNAL),
+                entry("manage_view", MANAGE_VIEW),
+                entry("create_view", CREATE_VIEW),
+                entry("delete_view", DELETE_VIEW),
+                entry("read_view_metadata", READ_VIEW_METADATA),
+                entry("manage_dataset", MANAGE_DATASET),
+                entry("create_dataset", CREATE_DATASET),
+                entry("delete_dataset", DELETE_DATASET),
+                entry("read_dataset_metadata", READ_DATASET_METADATA)
             ).collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue))
         )
     );

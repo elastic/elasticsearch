@@ -32,6 +32,10 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(':libs:arrow')
   testImplementation project(xpackModule('esql:compute'))
+  // DataSourceSetting (loaded transitively when a validator stores settings) references EncryptedData
+  // from the encryption SPI. esql depends on it only as compileOnly, which is not transitive onto our
+  // test runtime classpath, so add it here to avoid a NoClassDefFoundError in validator unit tests.
+  testRuntimeOnly project(':x-pack:plugin:encryption:spi')
 }
 
 tasks.named("test").configure {

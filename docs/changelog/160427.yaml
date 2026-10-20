@@ -1,0 +1,6 @@
+area: Search
+issues:
+- 160426
+pr: 160427
+summary: Skip string round trip for integral boxed values in `NumberType#objectToLong`
+type: enhancement

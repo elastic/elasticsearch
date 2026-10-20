@@ -463,6 +463,19 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assertEquals(expected, query);
     }
 
+    /**
+     * A deeply nested query string must fail with a {@link QueryShardException} rather than a {@link StackOverflowError}.
+     */
+    public void testToQueryWithDeeplyNestedParentheses() {
+        int depth = 100000;
+        String queryString = "(".repeat(depth) + "value" + ")".repeat(depth);
+        QueryShardException e = expectThrows(
+            QueryShardException.class,
+            () -> new SimpleQueryStringBuilder(queryString).field(TEXT_FIELD_NAME).toQuery(createSearchExecutionContext())
+        );
+        assertThat(e.getMessage(), containsString("too deeply nested"));
+    }
+
     public void testAnalyzeWildcard() throws IOException {
         SimpleQueryStringQueryParser.Settings settings = new SimpleQueryStringQueryParser.Settings();
         settings.analyzeWildcard(true);

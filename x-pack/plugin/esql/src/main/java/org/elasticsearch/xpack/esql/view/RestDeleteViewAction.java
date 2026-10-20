@@ -12,12 +12,15 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestUtils;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestDeleteViewAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
@@ -34,7 +37,8 @@ public class RestDeleteViewAction extends BaseRestHandler {
         DeleteViewAction.Request req = new DeleteViewAction.Request(
             RestUtils.getMasterNodeTimeout(request),
             RestUtils.getAckTimeout(request),
-            Strings.splitStringByCommaToArray(request.param("name"))
+            Strings.splitStringByCommaToArray(request.param("name")),
+            false // internal view can not be deleted via API
         );
         return channel -> client.execute(DeleteViewAction.INSTANCE, req, new RestToXContentListener<>(channel));
     }

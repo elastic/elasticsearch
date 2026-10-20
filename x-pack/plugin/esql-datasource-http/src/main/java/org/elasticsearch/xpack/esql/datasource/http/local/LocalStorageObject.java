@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.esql.datasource.http.local;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
@@ -31,6 +34,11 @@ import java.time.Instant;
  * - File metadata (size, last modified)
  */
 public final class LocalStorageObject extends AbstractMeteredStorageObject {
+
+    private record LocalFileIdentity() implements StorageIdentity {}
+
+    private static final LocalFileIdentity LOCAL_FILE_IDENTITY = new LocalFileIdentity();
+
     private final Path filePath;
     private final StoragePath storagePath;
 
@@ -38,13 +46,23 @@ public final class LocalStorageObject extends AbstractMeteredStorageObject {
     private Long cachedLength;
     private Instant cachedLastModified;
     private Boolean cachedExists;
+    /** The modification time the listing reported, when this object was made from a listing entry. */
+    private volatile String seededVersion;
 
     public LocalStorageObject(Path filePath) {
         if (filePath == null) {
             throw new IllegalArgumentException("filePath cannot be null");
         }
         this.filePath = filePath;
-        this.storagePath = StoragePath.of("file://" + filePath.toAbsolutePath());
+        // Use the shared canonical factory (not "file://" + toAbsolutePath) so the location is
+        // normalized identically to every other producer of a local StoragePath (the directory
+        // listing's toStoragePath, the query's location). On Windows toAbsolutePath() keeps
+        // backslashes and yields a two-slash "file://C:\dir\file" form, whereas the factory
+        // normalizes to "file:///C:/dir/file"; the mismatch made object.path() (the stats-capture
+        // key) differ from the planning-side SchemaCacheKey location, so
+        // ExternalSourceCacheService.reconcileSourceStats silently dropped every captured
+        // contribution and warm queries re-scanned. On POSIX both forms already coincide.
+        this.storagePath = StoragePath.ofLocalPath(filePath);
     }
 
     public LocalStorageObject(Path filePath, long length) {
@@ -57,23 +75,51 @@ public final class LocalStorageObject extends AbstractMeteredStorageObject {
         this.cachedLastModified = lastModified;
     }
 
+    /**
+     * The version a local file is addressed by: its modification time, at the precision the filesystem keeps. It is the
+     * only validator a local file has, and {@link #version()} reads the same value from the listing as from the file.
+     */
+    static String versionOf(BasicFileAttributes attributes) {
+        return attributes.lastModifiedTime().toInstant().toString();
+    }
+
+    /** Seeds the version the listing reported; set before the object is shared. */
+    void seedVersion(String version) {
+        this.seededVersion = version;
+    }
+
+    /**
+     * The seeded listing version, or else the file's current modification time. A file that cannot be stat'ed has no
+     * version, and is not footer-cached.
+     */
+    @Override
+    @Nullable
+    public String version() {
+        if (seededVersion != null) {
+            return seededVersion;
+        }
+        try {
+            return versionOf(Files.readAttributes(filePath, BasicFileAttributes.class));
+        } catch (IOException | RuntimeException e) {
+            return null;
+        }
+    }
+
     @Override
     public InputStream newStream() throws IOException {
-        checkFileExists();
+        checkCurrentVersion();
         if (Files.isRegularFile(filePath) == false) {
-            throw new IOException("Path is not a regular file: " + filePath);
+            throw new IOException("Path is not a regular file: " + storagePath.objectName());
         }
         long startNanos = System.nanoTime();
-        long bytes = 0L;
         try {
             InputStream stream = Files.newInputStream(filePath);
             if (cachedLength == null) {
                 cachedLength = Files.size(filePath);
             }
-            bytes = cachedLength;
-            return stream;
+            return metered(stream);
         } finally {
-            counters.addRequest(System.nanoTime() - startNanos, bytes);
+            counters.addRequest(System.nanoTime() - startNanos, 0L);
         }
     }
 
@@ -87,16 +133,16 @@ public final class LocalStorageObject extends AbstractMeteredStorageObject {
             // rejected rather than yielding an empty stream, so the precondition is uniform across providers.
             throw new IllegalArgumentException("length must be positive or READ_TO_END, got: " + length);
         }
-        checkFileExists();
+        checkCurrentVersion();
         if (Files.isRegularFile(filePath) == false) {
-            throw new IOException("Path is not a regular file: " + filePath);
+            throw new IOException("Path is not a regular file: " + storagePath.objectName());
         }
         long startNanos = System.nanoTime();
         try {
             // READ_TO_END: read from position to the end of the file (no length() / size() lookup).
-            return new RangeInputStream(filePath, position, length);
+            return metered(new RangeInputStream(filePath, position, length));
         } finally {
-            counters.addRequest(System.nanoTime() - startNanos, length < 0 ? 0L : length);
+            counters.addRequest(System.nanoTime() - startNanos, 0L);
         }
     }
 
@@ -110,7 +156,7 @@ public final class LocalStorageObject extends AbstractMeteredStorageObject {
         if (target.hasRemaining() == false) {
             return 0;
         }
-        checkFileExists();
+        checkCurrentVersion();
         long startNanos = System.nanoTime();
         long bytes = 0L;
         try (FileChannel ch = FileChannel.open(filePath, StandardOpenOption.READ)) {
@@ -130,7 +176,7 @@ public final class LocalStorageObject extends AbstractMeteredStorageObject {
             fetchMetadata();
         }
         if (cachedExists == Boolean.FALSE) {
-            throw new NoSuchFileException(filePath.toString());
+            throw new NoSuchFileException(storagePath.objectName());
         }
         return cachedLength;
     }
@@ -141,7 +187,7 @@ public final class LocalStorageObject extends AbstractMeteredStorageObject {
             fetchMetadata();
         }
         if (cachedExists == Boolean.FALSE) {
-            throw new NoSuchFileException(filePath.toString());
+            throw new NoSuchFileException(storagePath.objectName());
         }
         return cachedLastModified;
     }
@@ -159,9 +205,26 @@ public final class LocalStorageObject extends AbstractMeteredStorageObject {
         return storagePath;
     }
 
-    private void checkFileExists() throws NoSuchFileException {
-        if (Files.exists(filePath) == false) {
-            throw new NoSuchFileException(filePath.toString());
+    @Override
+    public StorageIdentity storageIdentity() {
+        return LOCAL_FILE_IDENTITY;
+    }
+
+    /**
+     * A read of a listed file is only valid for the version the listing reported: the footer cache is addressed by it, so
+     * bytes from a rewritten file must not be read under the old footer. A rewrite since the listing is refused, as an
+     * object-store read is refused by its conditional request. One stat both finds the file and checks its version.
+     */
+    private void checkCurrentVersion() throws IOException {
+        BasicFileAttributes attrs;
+        try {
+            attrs = Files.readAttributes(filePath, BasicFileAttributes.class);
+        } catch (IOException e) {
+            // Any failure to stat the file reads as not found, as Files.exists did, and the message names only the object.
+            throw new NoSuchFileException(storagePath.objectName());
+        }
+        if (seededVersion != null && seededVersion.equals(versionOf(attrs)) == false) {
+            throw new ExternalObjectChangedException(storagePath);
         }
     }
 

@@ -1,5 +1,0 @@
-area: Data streams
-issues: []
-pr: 149631
-summary: "[otel-data] Explicitly map `http.response.status_code` as long"
-type: enhancement

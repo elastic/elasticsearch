@@ -15,9 +15,9 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ReplaceSampledStatsBySampleAndStats;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.EnableSpatialDistancePushdown;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ExtractDimensionFieldsAfterAggregation;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InjectRowPositionForRecordRef;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertExternalFieldExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertFieldExtraction;
-import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushAggregatesToExternalSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushCountQueryAndTagsToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushExpressionsToFieldLoad;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource;
@@ -46,12 +46,16 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
     protected Logger log = LogManager.getLogger(getClass());
 
-    private static final List<Batch<PhysicalPlan>> RULES = rules();
-
     private final PhysicalVerifier verifier = PhysicalVerifier.LOCAL_INSTANCE;
+
+    private boolean approximationApplied;
 
     public LocalPhysicalPlanOptimizer(LocalPhysicalOptimizerContext context) {
         super(context);
+    }
+
+    public boolean approximationApplied() {
+        return approximationApplied;
     }
 
     public PhysicalPlan localOptimize(PhysicalPlan plan) {
@@ -69,10 +73,6 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
     @Override
     protected List<Batch<PhysicalPlan>> batches() {
-        return RULES;
-    }
-
-    protected static List<Batch<PhysicalPlan>> rules() {
         // execute the rules multiple times to improve the chances of things being pushed down
         var pushdown = new Batch<>(
             "Push to ES",
@@ -86,10 +86,9 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             new ReplaceSampledStatsByExactStats(),
             new PushStatsToSource(),
             new PushStatsToExternalSource(),
-            new PushAggregatesToExternalSource(),
             new PushTopNIntoExternalSource(),
             new EnableSpatialDistancePushdown(),
-            new ReplaceSampledStatsBySampleAndStats(),
+            new ReplaceSampledStatsBySampleAndStats(() -> approximationApplied = true),
             new PushSampleToSource()
         );
 
@@ -119,7 +118,12 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             // The narrowed source projection ({@code [sortKey, _rowPosition]}) this rule produces
             // is also the precondition the planner's {@code tryBuildNumericTopN} checks before
             // swapping in the specialised {@code NumericTopNOperator}.
-            new InsertExternalFieldExtraction()
+            new InsertExternalFieldExtraction(),
+            // Sibling injection: when _file.record_ref is referenced on an external source, add the
+            // synthetic _rowPosition column so the producer pipeline has the per-record position to
+            // render. Idempotent and independent of deferred extraction (no TopN/ColumnExtractorAware
+            // preconditions).
+            new InjectRowPositionForRecordRef()
         );
 
         return List.of(pushdown, substitutionRules, fieldExtraction);

@@ -192,6 +192,7 @@ public abstract class NativeImageBuildTask extends DefaultTask {
             args.add(platform);
             args.add(imageTag);
             args.add("--no-fallback");
+            args.add("--enable-monitoring=threaddump");
             if (params.getStatic().get()) {
                 args.add("--static");
             }

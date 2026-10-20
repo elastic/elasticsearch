@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equ
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -50,6 +52,10 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
 public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
+
+    public PromqlPlanSelectorTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     /**
      * Regression guard for the promcheck "Unknown column [label]" failures: {@code sum by (<absent>) (metric)}
@@ -84,26 +90,19 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
                 + "(http_request_duration_seconds_bucket)))"
         );
 
+        // `le` is dropped and `cluster` retained: the output carries cluster, not le. (The histogram regroup packs its
+        // carried dimensions for multi-value safety, so the grouping keys are packed aliases - assert on the output.)
         assertThat(outputColumns(plan), equalTo(List.of("result", "step", "cluster")));
         assertThat(collectHistogramQuantiles(plan), hasSize(1));
-
-        Aggregate histogramAggregate = plan.collect(Aggregate.class)
-            .stream()
-            .filter(aggregate -> aggregate instanceof TimeSeriesAggregate == false)
-            .findFirst()
-            .orElseThrow();
-        assertThat(groupingKeyNames(histogramAggregate), hasItem("cluster"));
-        assertThat(groupingKeyNames(histogramAggregate), not(hasItem("le")));
     }
 
-    public void testHistogramQuantileRateDoesNotResolveImplicitLe() {
+    public void testHistogramQuantileRateResolvesImplicitLe() {
         var plan = planPromqlClassicHistogram(
             "PROMQL index=histograms step=1m result=(histogram_quantile(0.5, rate(http_request_duration_seconds_bucket[5m])))"
         );
-        assertWarnings("histogram_quantile: input vector has no le label; no buckets to evaluate");
 
         assertThat(outputColumns(plan), equalTo(List.of("result", "step", "_timeseries")));
-        assertThat(collectHistogramQuantiles(plan), empty());
+        assertThat(collectHistogramQuantiles(plan), hasSize(1));
     }
 
     public void testRangeSelector() {
@@ -221,6 +220,16 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
         );
     }
 
+    public void testGroupByAllInstantSelectorOnlyMaterializesSeriesIdentity() {
+        var plan = planPromql("PROMQL index=k8s step=1m network.bytes_in", false);
+        var dimensions = plan.collect(TimeSeriesAggregate.class)
+            .stream()
+            .flatMap(aggregate -> packedDims(aggregate.aggregates()).stream())
+            .map(e -> e instanceof Attribute attribute ? attribute.name() : e.toString())
+            .toList();
+        assertThat(dimensions, equalTo(List.of(MetadataAttribute.TIMESERIES)));
+    }
+
     public void testGroupByAllInstantSelectorRate() {
         assertThat(
             outputColumns(planPromql("PROMQL index=k8s step=1m rate=(rate(network.total_bytes_in[1m]))")),
@@ -296,7 +305,7 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
                 "container_cpu_usage_seconds_total",
                 new EsField("container_cpu_usage_seconds_total", DataType.COUNTER_LONG, Map.of(), true, EsField.TimeSeriesFieldType.METRIC)
             ),
-            Map.of("metrics", IndexMode.TIME_SERIES),
+            Map.of("metrics", new IndexProperties(IndexMode.TIME_SERIES, 0)),
             Map.of(),
             Map.of()
         );
@@ -323,7 +332,7 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
                     EsField.TimeSeriesFieldType.METRIC
                 )
             ),
-            Map.of("histograms", IndexMode.TIME_SERIES),
+            Map.of("histograms", new IndexProperties(IndexMode.TIME_SERIES, 0)),
             Map.of(),
             Map.of()
         );

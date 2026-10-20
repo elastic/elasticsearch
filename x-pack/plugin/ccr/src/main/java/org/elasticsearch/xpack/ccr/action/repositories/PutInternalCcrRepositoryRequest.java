@@ -8,14 +8,14 @@
 package org.elasticsearch.xpack.ccr.action.repositories;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class PutInternalCcrRepositoryRequest extends LegacyActionRequest {
+public class PutInternalCcrRepositoryRequest extends UntypedActionRequest {
 
     private final String name;
     private final String type;

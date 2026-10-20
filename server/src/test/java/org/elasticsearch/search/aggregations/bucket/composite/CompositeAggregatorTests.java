@@ -131,10 +131,8 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
     private List<ObjectMapper> objectMappers;
     private Sort indexSort;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initFieldTypes() throws Exception {
         FIELD_TYPES = new MappedFieldType[9];
         FIELD_TYPES[0] = new KeywordFieldMapper.KeywordFieldType("keyword");
         FIELD_TYPES[1] = new NumberFieldMapper.NumberFieldType("long", NumberFieldMapper.NumberType.LONG);
@@ -149,10 +147,8 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         objectMappers = new ArrayList<>();
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void clearFieldTypes() throws Exception {
         FIELD_TYPES = null;
         objectMappers = null;
     }

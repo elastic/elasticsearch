@@ -15,8 +15,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.DynamicTemplate.XContentFieldType;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.xcontent.ToXContent;
@@ -31,10 +34,14 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.NavigableMap;
 import java.util.Optional;
+import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
@@ -66,6 +73,7 @@ public class RootObjectMapper extends ObjectMapper {
         protected Explicit<Boolean> dateDetection = Defaults.DATE_DETECTION;
         protected Explicit<Boolean> numericDetection = Defaults.NUMERIC_DETECTION;
         protected RootObjectMapperNamespaceValidator namespaceValidator;
+        protected boolean sliceEnabled;
 
         public Builder(String name) {
             this(name, ObjectMapper.Defaults.SUBOBJECTS);
@@ -77,6 +85,11 @@ public class RootObjectMapper extends ObjectMapper {
 
         public Builder addNamespaceValidator(RootObjectMapperNamespaceValidator namespaceValidator) {
             this.namespaceValidator = namespaceValidator;
+            return this;
+        }
+
+        public Builder setSliceEnabled(boolean sliceEnabled) {
+            this.sliceEnabled = sliceEnabled;
             return this;
         }
 
@@ -113,6 +126,7 @@ public class RootObjectMapper extends ObjectMapper {
             builder.dynamic = this.dynamic;
             builder.sourceKeepMode = this.sourceKeepMode;
             builder.namespaceValidator = this.namespaceValidator;
+            builder.sliceEnabled = this.sliceEnabled;
             return builder;
         }
 
@@ -129,6 +143,14 @@ public class RootObjectMapper extends ObjectMapper {
 
         @Override
         void merge(ObjectMapper.Builder mergeWith, MapperMergeContext objectMergeContext, String fullPath) {
+            if (objectMergeContext.getMapperBuilderContext().isStrictColumnar()
+                && mergeWith.enabled.explicit()
+                && mergeWith.enabled.value() == false) {
+                throw new MapperParsingException(
+                    "[enabled] cannot be set to [false] on the root object in strict columnar index modes;"
+                        + " this would prevent all fields from being indexed"
+                );
+            }
             super.merge(mergeWith, objectMergeContext, fullPath);
             if (mergeWith instanceof RootObjectMapper.Builder rootMergeWith) {
                 if (rootMergeWith.numericDetection.explicit()) {
@@ -164,24 +186,42 @@ public class RootObjectMapper extends ObjectMapper {
                         this.runtimeFields.put(runtimeField.getValue().name(), runtimeField.getValue());
                     }
                 }
+                // Transfer per-prefix settings parsed from the stored source (prefix_properties key).
+                // When re-parsing a stored flat mapping there are no ObjectMapper.Builder children for
+                // asFlattenedFieldBuilders to harvest, so processField writes directly into the incoming
+                // builder's map; we merge them here to ensure they are not lost.
+                for (Map.Entry<String, PrefixProperties> e : rootMergeWith.prefixProperties.entrySet()) {
+                    this.prefixProperties.merge(e.getKey(), e.getValue(), PrefixProperties::merge);
+                }
             }
         }
 
         @Override
         public RootObjectMapper build(MapperBuilderContext context) {
+            if (context.isStrictColumnar() && enabled.explicit() && enabled.value() == false) {
+                throw new MapperParsingException(
+                    "[enabled] cannot be set to [false] on the root object in strict columnar index modes;"
+                        + " this would prevent all fields from being indexed"
+                );
+            }
+            // Build child mappers first so that flattenBuildersIfNeeded has a chance to populate
+            // prefixProperties before we pass them to the RootObjectMapper constructor.
+            Map<String, Mapper> mappers = buildMappers(context.createChildContext(null, dynamic));
             return new RootObjectMapper(
                 leafName(),
                 enabled,
                 subobjects,
                 sourceKeepMode,
                 dynamic,
-                buildMappers(context.createChildContext(null, dynamic)),
+                mappers,
+                prefixProperties,
                 new HashMap<>(runtimeFields),
                 dynamicDateTimeFormatters,
                 dynamicTemplates,
                 dateDetection,
                 numericDetection,
-                namespaceValidator
+                namespaceValidator,
+                sliceEnabled
             );
         }
     }
@@ -192,6 +232,18 @@ public class RootObjectMapper extends ObjectMapper {
     private final Explicit<DynamicTemplate[]> dynamicTemplates;
     private final Map<String, RuntimeField> runtimeFields;
     private final RootObjectMapperNamespaceValidator namespaceValidator;
+    private final boolean sliceEnabled;
+    /** Computed on first use. */
+    private Boolean canRetainUnmappedFields;
+    /**
+     * Per-prefix settings captured during auto-flattening in strict columnar mode.
+     * Keys are the full dotted paths of declared object mappers (e.g. {@code "attributes"},
+     * {@code "resource.sub"}); values hold any combination of {@link PrefixProperties#dynamic},
+     * {@link PrefixProperties#passthrough}, and {@link PrefixProperties#enabled} settings for
+     * that prefix. Kept in sorted key order for longest-prefix resolution and deterministic
+     * serialization. Empty for non-strict-columnar indices.
+     */
+    private final NavigableMap<String, PrefixProperties> prefixProperties;
 
     RootObjectMapper(
         String name,
@@ -200,12 +252,14 @@ public class RootObjectMapper extends ObjectMapper {
         Optional<SourceKeepMode> sourceKeepMode,
         Dynamic dynamic,
         Map<String, Mapper> mappers,
+        Map<String, PrefixProperties> prefixProperties,
         Map<String, RuntimeField> runtimeFields,
         Explicit<DateFormatter[]> dynamicDateTimeFormatters,
         Explicit<DynamicTemplate[]> dynamicTemplates,
         Explicit<Boolean> dateDetection,
         Explicit<Boolean> numericDetection,
-        RootObjectMapperNamespaceValidator namespaceValidator
+        RootObjectMapperNamespaceValidator namespaceValidator,
+        boolean sliceEnabled
     ) {
         super(name, name, enabled, subobjects, sourceKeepMode, dynamic, mappers);
         this.runtimeFields = runtimeFields;
@@ -214,6 +268,8 @@ public class RootObjectMapper extends ObjectMapper {
         this.dateDetection = dateDetection;
         this.numericDetection = numericDetection;
         this.namespaceValidator = namespaceValidator == null ? new DefaultRootObjectMapperNamespaceValidator() : namespaceValidator;
+        this.sliceEnabled = sliceEnabled;
+        this.prefixProperties = Collections.unmodifiableNavigableMap(new TreeMap<>(prefixProperties));
     }
 
     @Override
@@ -222,6 +278,7 @@ public class RootObjectMapper extends ObjectMapper {
         builder.enabled = enabled;
         builder.dynamic = dynamic;
         builder.sourceKeepMode = sourceKeepMode;
+        builder.sliceEnabled = sliceEnabled;
         return builder;
     }
 
@@ -234,13 +291,67 @@ public class RootObjectMapper extends ObjectMapper {
             sourceKeepMode,
             dynamic,
             Map.of(),
+            prefixProperties,
             Map.of(),
             dynamicDateTimeFormatters,
             dynamicTemplates,
             dateDetection,
             numericDetection,
-            namespaceValidator
+            namespaceValidator,
+            sliceEnabled
         );
+    }
+
+    /**
+     * Whether a document indexed under this mapping may keep a field that no mapper holds: the mapping or one of its
+     * objects is disabled or has {@code dynamic} set to {@code false} or {@code flattened}, or the field is a runtime
+     * field, which can be removed from the mapping. A dynamic field skipped for exceeding a limit is not covered: it is
+     * recorded per document in {@code _ignored}.
+     */
+    public boolean canRetainUnmappedFields() {
+        Boolean canRetain = canRetainUnmappedFields;
+        if (canRetain == null) {
+            canRetain = runtimeFields.isEmpty() == false
+                || canRetainUnmappedFields(isEnabled(), dynamic, getMappers().values(), prefixProperties);
+            canRetainUnmappedFields = canRetain;
+        }
+        return canRetain;
+    }
+
+    private static boolean canRetainUnmappedFields(
+        boolean enabled,
+        @Nullable Dynamic dynamic,
+        Collection<Mapper> mappers,
+        Map<String, PrefixProperties> prefixProperties
+    ) {
+        if (enabled == false || retainsUnmappedFields(dynamic)) {
+            return true;
+        }
+        for (PrefixProperties properties : prefixProperties.values()) {
+            if (Boolean.FALSE.equals(properties.enabled()) || retainsUnmappedFields(properties.dynamic())) {
+                return true;
+            }
+        }
+        for (Mapper mapper : mappers) {
+            // Checks the object and, through its own mappers, every object below it.
+            if (mapper instanceof ObjectMapper object
+                && canRetainUnmappedFields(object.isEnabled(), object.dynamic(), object.getMappers().values(), Map.of())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean retainsUnmappedFields(@Nullable Dynamic dynamic) {
+        if (dynamic == null) {
+            // Inherited from the parent, which is checked on its own.
+            return false;
+        }
+        return switch (dynamic) {
+            // Every field holding a value gets a mapper, or the document is rejected.
+            case TRUE, STRICT -> false;
+            case FALSE, FLATTENED, RUNTIME -> true;
+        };
     }
 
     /**
@@ -271,12 +382,64 @@ public class RootObjectMapper extends ObjectMapper {
         return dynamicTemplates.value();
     }
 
-    Collection<RuntimeField> runtimeFields() {
+    public Collection<RuntimeField> runtimeFields() {
         return runtimeFields.values();
     }
 
     RuntimeField getRuntimeField(String name) {
         return runtimeFields.get(name);
+    }
+
+    /**
+     * Resolves the effective {@code dynamic} value for an unmapped field at {@code fullPath} in strict columnar mode.
+     * Uses a longest-prefix match against the per-object {@code dynamic} settings and {@code enabled:false} prefixes
+     * captured during auto-flattening. If no prefix matches, returns {@code fallback} (the root-level dynamic).
+     *
+     * <p>An {@code enabled:false} prefix always resolves to {@link Dynamic#FALSE}, causing the entire subtree
+     * under that prefix to be dropped at index time — consistent with the existing columnar {@code dynamic:false}
+     * drop behaviour.
+     *
+     * <p>For example, if the mapping declared {@code attributes} with {@code dynamic:false},
+     * {@code resource} with {@code dynamic:strict}, and {@code disabled} with {@code enabled:false}, then:
+     * <ul>
+     *   <li>{@code "attributes.foo"} → {@link Dynamic#FALSE}</li>
+     *   <li>{@code "resource.bar"} → {@link Dynamic#STRICT}</li>
+     *   <li>{@code "disabled.anything"} → {@link Dynamic#FALSE} (enabled:false wins)</li>
+     *   <li>{@code "other.baz"} → {@code fallback}</li>
+     * </ul>
+     *
+     * @param fullPath the full dotted path of the field being resolved (e.g. {@code "attributes.foo"})
+     * @param fallback the dynamic value to return when no prefix matches (typically the root dynamic)
+     * @return the resolved dynamic value
+     */
+    public Dynamic resolveDynamic(String fullPath, Dynamic fallback) {
+        if (prefixProperties.isEmpty()) {
+            return fallback;
+        }
+        // headMap(fullPath, inclusive=true) limits candidates to prefixes <= fullPath in sort order.
+        // Iterating in descending order finds the longest (closest) matching prefix first.
+        // A prefix matches if it is exactly fullPath or a dotted ancestor of fullPath.
+        // TODO: for large prefix sets a trie would reduce scan cost; acceptable for now given the
+        // small number of prefixes expected in practice.
+        for (Map.Entry<String, PrefixProperties> entry : prefixProperties.headMap(fullPath, true).descendingMap().entrySet()) {
+            PrefixProperties pp = entry.getValue();
+            if (pp.dynamic() == null && Boolean.FALSE.equals(pp.enabled()) == false) {
+                continue; // passthrough-only (or enabled:true) prefix with no dynamic; skip
+            }
+            String prefix = entry.getKey();
+            if (fullPath.equals(prefix) || fullPath.startsWith(prefix + ".")) {
+                if (Boolean.FALSE.equals(pp.enabled())) {
+                    return Dynamic.FALSE; // disabled ancestor always wins
+                }
+                return pp.dynamic();
+            }
+        }
+        return fallback;
+    }
+
+    // package-private accessor used by tests and MappingLookup → FieldTypeLookup for prefix-based resolution
+    Map<String, PrefixProperties> getPrefixProperties() {
+        return prefixProperties;
     }
 
     @Override
@@ -316,6 +479,35 @@ public class RootObjectMapper extends ObjectMapper {
                 .toList();
             for (RuntimeField fieldType : sortedRuntimeFields) {
                 fieldType.toXContent(builder, params);
+            }
+            builder.endObject();
+        }
+
+        if (prefixProperties.isEmpty() == false) {
+            // Keys are in sorted order (guaranteed by the NavigableMap field type) for deterministic
+            // serialization: the mapping source is byte-compared across nodes, so output order must
+            // be stable.
+            //
+            // "prefix_properties" is an umbrella for per-prefix object settings in strict columnar
+            // mode. Each entry is keyed by the full dotted prefix path and holds its facets as an
+            // object (e.g. {"dynamic": "strict", "passthrough": 1, "enabled": false}). To add a new
+            // facet: add it to the {@link PrefixProperties} record, populate it in
+            // asFlattenedFieldBuilders gated on isStrictColumnar(), serialize/parse it in the loop
+            // below, and propagate it in PrefixProperties#merge. Follow-ups in #151524.
+            builder.startObject("prefix_properties");
+            for (Map.Entry<String, PrefixProperties> entry : prefixProperties.entrySet()) {
+                PrefixProperties pp = entry.getValue();
+                builder.startObject(entry.getKey());
+                if (pp.dynamic() != null) {
+                    builder.field("dynamic", pp.dynamic().name().toLowerCase(Locale.ROOT));
+                }
+                if (pp.passthrough() != null) {
+                    builder.field("passthrough", pp.passthrough());
+                }
+                if (pp.enabled() != null) {
+                    builder.field("enabled", pp.enabled());
+                }
+                builder.endObject();
             }
             builder.endObject();
         }
@@ -433,6 +625,7 @@ public class RootObjectMapper extends ObjectMapper {
         Explicit<Subobjects> subobjects = parseSubobjects(node, parserContext);
         RootObjectMapper.Builder builder = new Builder(name, subobjects);
         builder.addNamespaceValidator(parserContext.getNamespaceValidator());
+        builder.setSliceEnabled(parserContext.getIndexSettings().isSliceEnabled());
         Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator();
         while (iterator.hasNext()) {
             Map.Entry<String, Object> entry = iterator.next();
@@ -486,24 +679,7 @@ public class RootObjectMapper extends ObjectMapper {
                   }
               ]
             */
-            if ((fieldNode instanceof List) == false) {
-                throw new MapperParsingException("Dynamic template syntax error. An array of named objects is expected.");
-            }
-            List<?> tmplNodes = (List<?>) fieldNode;
-            List<DynamicTemplate> templates = new ArrayList<>();
-            for (Object tmplNode : tmplNodes) {
-                Map<String, Object> tmpl = (Map<String, Object>) tmplNode;
-                if (tmpl.size() != 1) {
-                    throw new MapperParsingException("A dynamic template must be defined with a name");
-                }
-                Map.Entry<String, Object> entry = tmpl.entrySet().iterator().next();
-                String templateName = entry.getKey();
-                Map<String, Object> templateParams = (Map<String, Object>) entry.getValue();
-                DynamicTemplate template = DynamicTemplate.parse(templateName, templateParams);
-                validateDynamicTemplate(parserContext.createDynamicTemplateContext(null), template);
-                templates.add(template);
-            }
-            builder.dynamicTemplates(templates);
+            builder.dynamicTemplates(parseDynamicTemplates(fieldNode, parserContext));
             return true;
         } else if (fieldName.equals("date_detection")) {
             builder.dateDetection = Explicit.explicitBoolean(nodeBooleanValue(fieldNode, "date_detection"));
@@ -519,8 +695,123 @@ public class RootObjectMapper extends ObjectMapper {
             } else {
                 throw new ElasticsearchParseException("runtime must be a map type");
             }
+        } else if (fieldName.equals("prefix_properties")) {
+            if ((fieldNode instanceof Map) == false) {
+                throw new MapperParsingException("[prefix_properties] must be an object");
+            }
+            for (Map.Entry<String, Object> prefixEntry : ((Map<String, Object>) fieldNode).entrySet()) {
+                String prefix = prefixEntry.getKey();
+                Object prefixNode = prefixEntry.getValue();
+                if ((prefixNode instanceof Map) == false) {
+                    throw new MapperParsingException("[prefix_properties." + prefix + "] must be an object");
+                }
+                Map<String, Object> facets = (Map<String, Object>) prefixNode;
+                Dynamic dynamic = null;
+                Integer passthrough = null;
+                Boolean enabled = null;
+                Object dynamicVal = facets.get("dynamic");
+                if (dynamicVal != null) {
+                    dynamic = parsePrefixDynamic(prefix, dynamicVal);
+                }
+                Object passthroughVal = facets.get("passthrough");
+                if (passthroughVal != null) {
+                    passthrough = parsePrefixPassthrough(prefix, passthroughVal);
+                }
+                Object enabledVal = facets.get("enabled");
+                if (enabledVal != null) {
+                    enabled = parsePrefixEnabled(prefix, enabledVal);
+                }
+                builder.prefixProperties.put(prefix, new PrefixProperties(dynamic, passthrough, enabled));
+            }
+            return true;
         }
         return false;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<DynamicTemplate> parseDynamicTemplates(Object fieldNode, MappingParserContext parserContext) {
+        if ((fieldNode instanceof List) == false) {
+            throw new MapperParsingException("Dynamic template syntax error. An array of named objects is expected.");
+        }
+        List<?> tmplNodes = (List<?>) fieldNode;
+        List<DynamicTemplate> templates = new ArrayList<>();
+        Set<String> seenNames = new LinkedHashSet<>();
+        Set<String> duplicateNames = new LinkedHashSet<>();
+        for (Object tmplNode : tmplNodes) {
+            Map<String, Object> tmpl = (Map<String, Object>) tmplNode;
+            if (tmpl.size() != 1) {
+                throw new MapperParsingException("A dynamic template must be defined with a name");
+            }
+            Map.Entry<String, Object> entry = tmpl.entrySet().iterator().next();
+            String templateName = entry.getKey();
+            Map<String, Object> templateParams = (Map<String, Object>) entry.getValue();
+            DynamicTemplate template = DynamicTemplate.parse(templateName, templateParams);
+            validateDynamicTemplate(parserContext.createDynamicTemplateContext(null), template);
+            if (seenNames.add(templateName) == false) {
+                duplicateNames.add(templateName);
+            }
+            templates.add(template);
+        }
+        if (duplicateNames.isEmpty() == false) {
+            String indexName = parserContext.getIndexSettings().getIndex().getName();
+            int colonIdx = indexName.indexOf(':');
+            String sourceDescription = indexName.startsWith("validate-template-") && colonIdx >= 0
+                ? "template [" + indexName.substring(colonIdx + 1) + "]"
+                : "index [" + indexName + "]";
+            String firstSentence = duplicateNames.size() == 1
+                ? "Dynamic template " + duplicateNames + " in " + sourceDescription + " is defined more than once."
+                : "Dynamic templates " + duplicateNames + " in " + sourceDescription + " are defined more than once.";
+            DEPRECATION_LOGGER.warn(
+                DeprecationCategory.TEMPLATES,
+                "duplicate_dynamic_template",
+                "{} It is not defined which of the duplicate definitions takes effect."
+                    + " Defining multiple dynamic templates with the same name will be rejected in a future version.",
+                firstSentence
+            );
+        }
+        return templates;
+    }
+
+    /**
+     * Parses a {@code dynamic} value for use in {@code prefix_properties.<prefix>.dynamic}.
+     * Accepts {@code true}, {@code false}, and {@code strict} (case-insensitive).
+     * {@code runtime} is explicitly rejected because it is not supported in strict columnar mode.
+     */
+    private static Dynamic parsePrefixDynamic(String key, Object value) {
+        if (value instanceof String == false) {
+            throw new MapperParsingException("[prefix_properties." + key + ".dynamic] must be a string value");
+        }
+        String str = (String) value;
+        if (str.equalsIgnoreCase("runtime")) {
+            throw new MapperParsingException("[prefix_properties." + key + ".dynamic] does not support [runtime]");
+        }
+        // Dynamic.FLATTENED is an internal resolved value only; it is not user-settable (Dynamic.valueOf would otherwise accept it).
+        if (str.equalsIgnoreCase("flattened")) {
+            throw new MapperParsingException("[prefix_properties." + key + ".dynamic] does not support [flattened]");
+        }
+        try {
+            return Dynamic.valueOf(str.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw new MapperParsingException("unknown value [" + str + "] for [prefix_properties." + key + ".dynamic]");
+        }
+    }
+
+    private static int parsePrefixPassthrough(String key, Object value) {
+        if (value instanceof Integer i) {
+            return i;
+        }
+        if (value instanceof Number n) {
+            return n.intValue();
+        }
+        try {
+            return Integer.parseInt(String.valueOf(value));
+        } catch (NumberFormatException e) {
+            throw new MapperParsingException("[prefix_properties." + key + ".passthrough] must be an integer value");
+        }
+    }
+
+    private static boolean parsePrefixEnabled(String key, Object value) {
+        return nodeBooleanValue(value, "prefix_properties." + key + ".enabled");
     }
 
     @Override
@@ -535,6 +826,15 @@ public class RootObjectMapper extends ObjectMapper {
     @Override
     protected void validateSubField(Mapper mapper, MappingLookup mappers) {
         namespaceValidator.validateNamespace(subobjects(), mapper.leafName());
+        if (sliceEnabled && SliceIndexing.isReservedFieldName(mapper.leafName())) {
+            throw new IllegalArgumentException(
+                "["
+                    + mapper.leafName()
+                    + "] is a reserved field name and cannot be used when ["
+                    + IndexSettings.SLICE_ENABLED.getKey()
+                    + "] is true"
+            );
+        }
         super.validateSubField(mapper, mappers);
     }
 }

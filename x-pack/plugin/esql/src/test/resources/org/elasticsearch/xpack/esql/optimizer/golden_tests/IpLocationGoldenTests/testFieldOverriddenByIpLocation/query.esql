@@ -1,0 +1,5 @@
+FROM employees
+| EVAL g.city_name = 123
+| ip_location g = first_name
+| KEEP g.city_name
+| EVAL x = CONCAT(g.city_name, "...")

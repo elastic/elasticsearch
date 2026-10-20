@@ -275,7 +275,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     public void testGetAnswer() throws IOException {
         Map<String, Object> answer = runEsql(requestObjectBuilder().query("row a = 1, b = 2"));
-        assertEquals(13, answer.size());
+        assertEquals(15, answer.size());
         assertThat(((Integer) answer.get("took")).intValue(), greaterThanOrEqualTo(0));
         Map<String, String> colA = Map.of("name", "a", "type", "integer");
         Map<String, String> colB = Map.of("name", "b", "type", "integer");
@@ -288,7 +288,9 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 .entry("rows_emitted", IntOrLongMatcher.isIntOrLong())
                 .entry("bytes_read", IntOrLongMatcher.isIntOrLong())
                 .entry("read_nanos", IntOrLongMatcher.isIntOrLong())
+                .entry("read_cpu_nanos", IntOrLongMatcher.isIntOrLong())
                 .entry("cpu_nanos", IntOrLongMatcher.isIntOrLong())
+                .entry("driver_nanos", IntOrLongMatcher.isIntOrLong())
                 .entry("columns", List.of(colA, colB))
                 .entry("values", List.of(List.of(1, 2)))
                 .entry("completion_time_in_millis", greaterThan(0L))
@@ -407,6 +409,27 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         assertWarnings(response, new AssertWarnings.NoWarnings(), actual);
     }
 
+    public void testMarkdownMode() throws IOException {
+        int count = randomIntBetween(0, 100);
+        bulkLoadTestData(count);
+        var builder = requestObjectBuilder().query(fromIndex() + " | keep keyword, integer | sort integer asc | limit 100");
+        assertEquals(expectedTextBody("md", count, null), runEsqlAsTextWithFormat(builder, "md", null, mode));
+    }
+
+    public void testMarkdownHeaderAbsentIsError() throws IOException {
+        bulkLoadTestData(1);
+        var builder = requestObjectBuilder().query(fromIndex() + " | keep keyword, integer | sort integer asc | limit 100");
+        Request request = prepareRequest(SYNC);
+        String mediaType = attachBody(builder.build(), request);
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader("Content-Type", mediaType);
+        options.addHeader("Accept", "text/markdown; header=absent");
+        request.setOptions(options);
+        ResponseException e = expectThrows(ResponseException.class, () -> performRequest(request));
+        assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
+        assertThat(e.getMessage(), containsString("[header=absent] is not supported for the [md] format"));
+    }
+
     public void testOutOfRangeComparisons() throws IOException {
         final int NUM_SINGLE_VALUE_ROWS = 100;
         bulkLoadTestData(NUM_SINGLE_VALUE_ROWS);
@@ -472,12 +495,36 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             for (String falsePredicate : alwaysFalsePredicates) {
                 String comparison = fieldWithType + falsePredicate;
                 var query = requestObjectBuilder().query(format(null, "from {} | where {}", testIndexName(), comparison));
-                var result = runEsql(query);
+                AssertWarnings warnings = falsePredicate.contains("to_double(null)")
+                    ? new AssertWarnings.ExactStrings(List.of(nullComparisonWarning(comparison)))
+                    : new AssertWarnings.NoWarnings();
+                var result = runEsql(query, warnings, profileLogger, mode);
 
                 var values = as(result.get("values"), ArrayList.class);
                 assertThat(format(null, "Comparison [{}] should return no rows.", comparison), values.size(), is(0));
             }
         }
+    }
+
+    /**
+     * {@code to_double(null)} is a typed null, so the warning is on the comparison that uses it.
+     * A leading minus folds first, so {@code -to_double(null)} warns on the negation.
+     * The comparison starts at column 29 of {@code from rest-esql-test | where …}.
+     */
+    private static String nullComparisonWarning(String comparison) {
+        int minus = comparison.indexOf("-to_double(null)");
+        if (minus >= 0) {
+            return "Line 1:" + (29 + minus) + ": Expression [-to_double(null)] always evaluates to NULL.";
+        }
+        String message = "Line 1:29: Expression [" + comparison + "] always evaluates to NULL";
+        String field = comparison.substring(0, comparison.indexOf(' '));
+        if (comparison.contains(" != ")) {
+            return message + ", did you mean [" + field + " IS NOT NULL]?";
+        }
+        if (comparison.contains(" == ")) {
+            return message + ", did you mean [" + field + " IS NULL]?";
+        }
+        return message + ".";
     }
 
     // Test the Range created in PushFiltersToSource for qualified pushable filters on the same field
@@ -1333,8 +1380,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public void testTopLevelFilterWithSubqueriesInFromCommand() throws IOException {
-        assumeTrue("subqueries in from command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-
         bulkLoadTestData(10);
 
         String query = format(null, "FROM {} , (FROM {} | WHERE integer < 8) | STATS count(*)", testIndexName(), testIndexName());
@@ -1352,67 +1397,51 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public void testNestedSubqueries() throws IOException {
-        assumeTrue("subqueries in from command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-
         bulkLoadTestData(10);
-
-        ResponseException re = expectThrows(
-            ResponseException.class,
-            () -> runEsqlSync(
-                requestObjectBuilder().query(
-                    format(
-                        null,
-                        "from {}, (from {}, (from {} | where integer > 1) | where integer < 8) | stats count(*)",
-                        testIndexName(),
-                        testIndexName(),
-                        testIndexName()
-                    )
+        // subquery1: 10(0-9) rows, subquery2: 8(0-7) rows, subquery3: 6(2-7) rows, total 24 rows
+        Map<String, Object> result = runEsql(
+            requestObjectBuilder().query(
+                format(
+                    null,
+                    "from {}, (from {}, (from {} | where integer > 1) | where integer < 8) | stats count(*)",
+                    testIndexName(),
+                    testIndexName(),
+                    testIndexName()
                 )
             )
         );
-        String error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
-        assertThat(error, containsString("VerificationException"));
-        assertThat(error, containsString("Nested subqueries are not supported"));
+        assertResultMap(result, matchesList().item(matchesMap().entry("name", "count(*)").entry("type", "long")), List.of(List.of(24)));
     }
 
     public void testSubqueryWithFork() throws IOException {
-        assumeTrue("subqueries in from command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-
         bulkLoadTestData(10);
-
-        ResponseException re = expectThrows(
-            ResponseException.class,
-            () -> runEsqlSync(
-                requestObjectBuilder().query(
-                    format(
-                        null,
-                        "from {}, (from {} | where integer > 1) | fork (where long > 2) (where ip == \"127.0.0.1\") | stats count(*)",
-                        testIndexName(),
-                        testIndexName()
-                    )
+        // 10 docs with integer/long = i and ip = 127.0.0.i for i in [0, 9].
+        // Main: 10 rows. Subquery integer > 1: 8 rows (2-9). Union: 18 rows.
+        // FORK (long > 2): 7 main + 7 subquery. FORK (ip == 127.0.0.1): 1 main + 0 subquery. Total 15.
+        Map<String, Object> result = runEsql(
+            requestObjectBuilder().query(
+                format(
+                    null,
+                    "from {}, (from {} | where integer > 1) | fork (where long > 2) (where ip == \"127.0.0.1\") | stats count(*)",
+                    testIndexName(),
+                    testIndexName()
                 )
             )
         );
-        String error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
-        assertThat(error, containsString("VerificationException"));
-        assertThat(error, containsString("FORK after subquery is not supported"));
+        assertResultMap(result, matchesList().item(matchesMap().entry("name", "count(*)").entry("type", "long")), List.of(List.of(15)));
 
-        re = expectThrows(
-            ResponseException.class,
-            () -> runEsqlSync(
-                requestObjectBuilder().query(
-                    format(
-                        null,
-                        "from {}, (from {} | where integer > 1 | fork (where long > 2) ( where ip == \"127.0.0.1\")) | stats count(*)",
-                        testIndexName(),
-                        testIndexName()
-                    )
+        // Main: 10 rows. Subquery integer > 1 then FORK: long > 2 keeps 7, ip == 127.0.0.1 keeps 0. Total 17.
+        result = runEsql(
+            requestObjectBuilder().query(
+                format(
+                    null,
+                    "from {}, (from {} | where integer > 1 | fork (where long > 2) (where ip == \"127.0.0.1\")) | stats count(*)",
+                    testIndexName(),
+                    testIndexName()
                 )
             )
         );
-        error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
-        assertThat(error, containsString("VerificationException"));
-        assertThat(error, containsString("FORK inside subquery is not supported"));
+        assertResultMap(result, matchesList().item(matchesMap().entry("name", "count(*)").entry("type", "long")), List.of(List.of(17)));
     }
 
     private static String queryWithComplexFieldNames(int field) {
@@ -1433,11 +1462,19 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             }
             case "csv" -> sb.append("keyword").append(csvDelimiter).append("integer\r\n");
             case "tsv" -> sb.append("keyword\tinteger\n");
+            case "md" -> {
+                sb.append("| keyword | integer |\n");
+                sb.append("| --- | --- |\n");
+            }
             default -> {
                 assert false : "unexpected format type [" + format + "]";
             }
         }
         for (int i = 0; i < count; i++) {
+            if (format.equals("md")) {
+                sb.append("| keyword").append(i).append(" | ").append(i).append(" |\n");
+                continue;
+            }
             sb.append("keyword").append(i);
             int iLen = String.valueOf(i).length();
             switch (format) {
@@ -1497,7 +1534,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         @Nullable ProfileLogger profileLogger
     ) throws IOException {
         Boolean profileEnabled = requestObject.profile;
-        prepareProfileLogger(requestObject, profileLogger);
+        prepareProfileLogger(profileLogger);
         Request request = prepareRequestWithOptions(requestObject, SYNC);
 
         Response response = performRequest(request);
@@ -1532,7 +1569,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         @Nullable ProfileLogger profileLogger
     ) throws IOException {
         Boolean profileEnabled = requestObject.profile;
-        prepareProfileLogger(requestObject, profileLogger);
+        prepareProfileLogger(profileLogger);
         addAsyncParameters(requestObject, keepOnCompletion);
         Request request = prepareRequestWithOptions(requestObject, ASYNC);
 
@@ -1618,17 +1655,13 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             profileLogger.extractProfile(result, profileEnabled);
         }
         assertWarnings(response, assertWarnings, result);
-        assertDeletable(id);
+        assertAsyncQueryResultDeleted(id);
         return removeAsyncProperties(result);
     }
 
-    private static void prepareProfileLogger(RequestObjectBuilder requestObject, @Nullable ProfileLogger profileLogger) throws IOException {
+    private static void prepareProfileLogger(@Nullable ProfileLogger profileLogger) {
         if (profileLogger != null) {
             profileLogger.clearProfile();
-            var isProfileSafe = hasCapabilities(adminClient(), List.of("fixed_profile_serialization"));
-            if (isProfileSafe) {
-                requestObject.profile(true);
-            }
         }
     }
 
@@ -1974,6 +2007,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
         assertResultMap(
             result,
+            getResultMatcher(result).entry("approximation_applied", false),
             matchesList().item(matchesMap().entry("name", "count").entry("type", "long"))
                 .item(
                     matchesMap().entry("name", "_approximation_confidence_interval(count)")
@@ -2036,7 +2070,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         // deliberately short in order to frequently trigger return without results
         requestObject.waitForCompletion(TimeValue.timeValueNanos(randomIntBetween(1, 100)));
         requestObject.keepOnCompletion(keepOnCompletion);
-        requestObject.keepAlive(TimeValue.timeValueDays(randomIntBetween(1, 10)));
+        // capped at 7d so it stays within serverless's async_search.max_keep_alive
+        requestObject.keepAlive(TimeValue.timeValueDays(randomIntBetween(1, 7)));
     }
 
     // If keep_on_completion is set then an id must always be present, regardless of the value of any other property.
@@ -2049,7 +2084,11 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
     }
 
-    static void assertDeletable(String id) throws IOException {
+    /**
+     * Removes the result of an async esql query. Asserts that it returned {@code 200 OK}
+     * and that deleting it a second time gives a {@code 404 Not Found}.
+     */
+    static void assertAsyncQueryResultDeleted(String id) throws IOException {
         var request = prepareAsyncDeleteRequest(id);
         performRequest(request);
 
@@ -2082,6 +2121,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 case "txt" -> options.addHeader("Accept", "text/plain");
                 case "csv" -> options.addHeader("Accept", "text/csv");
                 case "tsv" -> options.addHeader("Accept", "text/tab-separated-values");
+                case "md" -> options.addHeader("Accept", "text/markdown");
             }
         }
         if (delimiter != null) {
@@ -2133,6 +2173,12 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                         assertEquals("\n", initialValue);
                         initialValue = "";
                     }
+                    case "md" -> {
+                        // the markdown formatter always writes a header row and a separator row, even when no
+                        // columns are known yet (the still-running response has no column info)
+                        assertEquals("|\n|\n", initialValue);
+                        initialValue = "";
+                    }
                 }
             }
             // issue a second request to "async get" the results
@@ -2158,7 +2204,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             assertEquals(initialValue, newValue);
         }
 
-        assertDeletable(id);
+        assertAsyncQueryResultDeleted(id);
         return newValue;
     }
 

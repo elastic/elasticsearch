@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionType;
@@ -42,7 +43,7 @@ import java.util.stream.Collectors;
  * API without risking breaking the external field-caps API. For now, this API delegates to the field-caps API, but gradually,
  * we will decouple this API completely from the field-caps.
  */
-public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabilitiesRequest, EsqlResolveFieldsResponse> {
+public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveFieldsRequest, EsqlResolveFieldsResponse> {
     public static final String NAME = "indices:data/read/esql/resolve_fields";
     public static final ActionType<EsqlResolveFieldsResponse> TYPE = new ActionType<>(NAME);
     public static final RemoteClusterActionType<EsqlResolveFieldsResponse> RESOLVE_REMOTE_TYPE = new RemoteClusterActionType<>(
@@ -65,7 +66,7 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
         ProjectResolver projectResolver
     ) {
         // TODO replace DIRECT_EXECUTOR_SERVICE when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
-        super(NAME, transportService, actionFilters, FieldCapabilitiesRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(NAME, transportService, actionFilters, EsqlResolveFieldsRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.fieldCapsAction = fieldCapsAction;
         this.clusterService = clusterService;
         this.viewResolutionService = new ViewResolutionService(indexNameExpressionResolver);
@@ -73,21 +74,17 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
     }
 
     @Override
-    protected void doExecute(Task task, FieldCapabilitiesRequest request, final ActionListener<EsqlResolveFieldsResponse> listener) {
-        // During CCS, resolveViews is only set on a request from the originating cluster and is therefore only true on a remote cluster
-        if (request.indicesOptions().indexAbstractionOptions().resolveViews()) {
-            Set<String> viewsLocalToRemoteCluster = getViews(
-                request.indices(),
-                request.indicesOptions(),
-                request.getResolvedIndexExpressions()
-            );
-            if (viewsLocalToRemoteCluster.isEmpty() == false) {
-                listener.onFailure(remoteViewDetectedException(request.clusterAlias(), viewsLocalToRemoteCluster));
-                return;
-            }
+    protected void doExecute(Task task, EsqlResolveFieldsRequest request, final ActionListener<EsqlResolveFieldsResponse> listener) {
+        var failure = validateNoRemoteViews(request);
+        if (failure != null) {
+            listener.onFailure(failure);
+            return;
         }
 
-        fieldCapsAction.executeRequest(task, request, new TransportFieldCapabilitiesAction.LinkedRequestExecutor<>() {
+        FieldCapabilitiesRequest fieldCapsRequest = request.fieldCapsRequest();
+        clearDatasetResolution(fieldCapsRequest);
+
+        fieldCapsAction.executeRequest(task, fieldCapsRequest, new TransportFieldCapabilitiesAction.LinkedRequestExecutor<>() {
             @Override
             public void executeRemoteRequest(
                 TransportService transportService,
@@ -95,14 +92,9 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
                 FieldCapabilitiesRequest remoteRequest,
                 ActionListenerResponseHandler<FieldCapabilitiesResponse> responseHandler
             ) {
-                remoteRequest.indicesOptions(
-                    IndicesOptions.builder(remoteRequest.indicesOptions())
-                        .indexAbstractionOptions(
-                            IndicesOptions.IndexAbstractionOptions.builder(remoteRequest.indicesOptions().indexAbstractionOptions())
-                                .resolveViews(true)
-                        )
-                        .build()
-                );
+                // Neither kind of non-remotable abstraction is asked for: #157726 stopped asking a remote to resolve
+                // its views and this change stops asking it to resolve its datasets, so a name that matches either one
+                // there falls through to normal remote index resolution and resolves to nothing.
                 transportService.sendRequest(
                     conn,
                     RESOLVE_REMOTE_TYPE.name(),
@@ -129,14 +121,65 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
         }, listener);
     }
 
+    /**
+     * Stops this cluster resolving its own datasets for the request, whatever the caller asked for.
+     * <p>
+     * A dataset is a registration on the cluster that holds it, read by that cluster's own query, so it must not
+     * resolve for a caller on another one. A coordinator that predates that rule can still ask for datasets here — a
+     * snapshot build with federation on, new enough for the option to survive the wire — and by
+     * the time this runs the security layer has already resolved the request under that flag ({@link
+     * EsqlResolveFieldsRequest} is an {@code IndicesRequest.Replaceable} and {@code IndicesAndAliasesResolver} reads
+     * {@code resolveDatasets}), so a dataset name can already be sitting in {@code indices()}. Clearing the option is
+     * what stops field caps resolving it, and from there the name is just a name that matches nothing.
+     * <p>
+     * What the clear cannot undo is anything authorization already did under that flag. {@code
+     * ViewAndDatasetDlsFlsRequestInterceptor} runs earlier and gates on {@code resolveViews() || resolveDatasets()}.
+     * A current coordinator asks for neither, so on a request from one the interceptor does not apply at all and there
+     * is nothing left for the clear to undo. An older coordinator asks for both, its request was resolved under them,
+     * and the dataset name is still sitting in {@code indices()} when the interceptor runs, so a caller whose role
+     * carries document or field level security is refused, with the name reported in the failure's metadata rather
+     * than in its message. That closes once both ends are current.
+     */
+    static void clearDatasetResolution(FieldCapabilitiesRequest fieldCapsRequest) {
+        fieldCapsRequest.indicesOptions(
+            IndicesOptions.builder(fieldCapsRequest.indicesOptions())
+                .indexAbstractionOptions(
+                    IndicesOptions.IndexAbstractionOptions.builder(fieldCapsRequest.indicesOptions().indexAbstractionOptions())
+                        .resolveDatasets(false)
+                )
+                .build()
+        );
+    }
+
+    /**
+     * This method is only called when this cluster acts as a remote for a 9.5.x coordinator trying to execute a CCS query.
+     */
+    private ElasticsearchException validateNoRemoteViews(EsqlResolveFieldsRequest request) {
+        // resolveViews is only set on a request from the originating cluster, so this detection runs only on a remote
+        // cluster. A view is not remotable and a query that reaches one across a cluster boundary fails rather than
+        // silently reading less than it named. Since #157726 no current coordinator asks, so what still reaches this is
+        // a coordinator on an older version running a cross-cluster query against this one.
+        var abstractionOptions = request.indicesOptions().indexAbstractionOptions();
+        List<String> remoteViews = abstractionOptions.resolveViews()
+            ? qualify(
+                request.fieldCapsRequest().clusterAlias(),
+                getViews(request.indices(), request.indicesOptions(), request.getResolvedIndexExpressions())
+            )
+            : List.of();
+        return remoteViews.isEmpty() ? null : new RemoteViewNotSupportedException(remoteViews);
+    }
+
     private Set<String> getViews(String[] indices, IndicesOptions indicesOptions, ResolvedIndexExpressions resolvedIndexExpressions) {
         var projectState = projectResolver.getProjectState(clusterService.state());
         var result = viewResolutionService.resolveViews(projectState, indices, indicesOptions, resolvedIndexExpressions);
         return Arrays.stream(result.views()).map(View::getName).collect(Collectors.toSet());
     }
 
-    private RemoteViewNotSupportedException remoteViewDetectedException(String clusterAlias, Set<String> detectedViews) {
-        List<String> qualifiedViews = detectedViews.stream().sorted().map(v -> clusterAlias + ":" + v).toList();
-        return new RemoteViewNotSupportedException(qualifiedViews);
+    /**
+     * Qualify each local abstraction name with the remote cluster alias (sorted for a stable error message).
+     */
+    private static List<String> qualify(String clusterAlias, Set<String> names) {
+        return names.stream().sorted().map(name -> clusterAlias + ":" + name).toList();
     }
+
 }

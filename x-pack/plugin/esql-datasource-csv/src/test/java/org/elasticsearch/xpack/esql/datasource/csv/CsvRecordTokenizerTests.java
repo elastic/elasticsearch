@@ -1,0 +1,391 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.datasource.csv;
+
+import com.fasterxml.jackson.databind.MappingIterator;
+import com.fasterxml.jackson.dataformat.csv.CsvMapper;
+import com.fasterxml.jackson.dataformat.csv.CsvParser;
+import com.fasterxml.jackson.dataformat.csv.CsvSchema;
+
+import org.elasticsearch.test.ESTestCase;
+
+import java.io.IOException;
+import java.io.StringReader;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
+
+/**
+ * Unit + differential coverage for {@link CsvFormatReader#splitRecordFields}, the house record tokenizer
+ * used on the no-trim {@code QUOTED} / {@code PLAIN} record paths and for the escaped-mode protect-only
+ * split (raw emit; C-style decode is a later pass).
+ *
+ * <p>The no-trim QUOTED / PLAIN cases pin the exact grammar the direct-to-block walkers implement
+ * (leading-whitespace preservation at column 0, outer-whitespace skip before a quote, padded-quoted
+ * column counts). The trim=true block is a Jackson-equivalence differential: it confirms the splitter
+ * agrees with Jackson's own tokenization under {@code TRIM_SPACES}, so widening
+ * {@link CsvFormatReader#jacksonGrammarApplies()} to route trim=true through the splitter would stay
+ * behavior-preserving.
+ *
+ * <p>Escaped-mode cases pin the protect-only contract: {@code escape + delimiter} is one field and
+ * the backslash is left in the token, the cap governs raw length, trailing empties are kept, and
+ * {@code trim_spaces} still does not treat an escaped delimiter as a boundary.
+ */
+public class CsvRecordTokenizerTests extends ESTestCase {
+
+    private static final int NO_CAP = Integer.MAX_VALUE;
+
+    // ---------------------------------------------------------------------------------------------
+    // No-trim grammar (the production path): the B1 repros and the col-0 fix
+    // ---------------------------------------------------------------------------------------------
+
+    public void testQuotedPaddedBeforeQuoteSkipsWhitespace() {
+        assertTokens(csv(), "x,  \"y\"", "x", "y");
+    }
+
+    public void testQuotedPaddedQuoteWithEmbeddedDelimiterKeepsColumnCount() {
+        // The B1 headline: Jackson (no-trim) splits this into 4 fields; the house grammar keeps 3.
+        assertTokens(csv(), "x, \"a,b\",z", "x", "a,b", "z");
+    }
+
+    public void testQuotedPaddedQuoteTwoColumns() {
+        assertTokens(csv(), "1, \"Alice, PhD\"", "1", "Alice, PhD");
+    }
+
+    public void testCsvColumnZeroLeadingWhitespacePreserved() {
+        assertTokens(csv(), "  a,b", "  a", "b");
+    }
+
+    public void testCsvColumnZeroPaddedBeforeQuote() {
+        assertTokens(csv(), "  \"q\",b", "q", "b");
+    }
+
+    public void testPlainTsvColumnZeroLeadingWhitespacePreserved() {
+        assertTokens(tsv(), "  a\tb", "  a", "b");
+    }
+
+    public void testTrailingWhitespaceAfterCloseQuote() {
+        assertTokens(csv(), "x,\"y\"  ", "x", "y");
+    }
+
+    public void testEmptyQuotedFieldIsEmptyString() {
+        // The tokenizer emits "" for an empty quoted field; downstream tryConvertValue maps "" to null.
+        assertTokens(csv(), "\"\",x", "", "x");
+    }
+
+    public void testInnerWhitespacePreservedInQuotedField() {
+        assertTokens(csv(), "\"  x  \"", "  x  ");
+    }
+
+    public void testDoubledQuoteDecodes() {
+        assertTokens(csv(), "\"a\"\"b\"", "a\"b");
+    }
+
+    public void testUnquotedEscapedCommaIsLiteral() {
+        assertTokens(csv(), "a\\,b", "a,b");
+    }
+
+    public void testUnquotedFieldVerbatimUnderNoTrim() {
+        assertTokens(csv(), "x,  spaced  ", "x", "  spaced  ");
+    }
+
+    public void testTrailingDelimiterYieldsEmptyLastField() {
+        assertTokens(csv(), "a,b,", "a", "b", "");
+        assertTokens(tsv(), "a\tb\t", "a", "b", "");
+    }
+
+    public void testQuotedNewlinePreservedInsideField() {
+        assertTokens(csv(), "\"line1\nline2\",tail", "line1\nline2", "tail");
+    }
+
+    public void testQuoteInMiddleOfUnquotedIsLiteral() {
+        assertTokens(csv(), "ab\"cd\"", "ab\"cd\"");
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // max_field_size cap: same message as the direct walker's rejectFieldTooLarge
+    // ---------------------------------------------------------------------------------------------
+
+    public void testPlainFieldOverCapThrowsWithJacksonMessage() {
+        MalformedRowException e = expectThrows(
+            MalformedRowException.class,
+            () -> CsvFormatReader.splitRecordFields("helloworld12", csv(), 10)
+        );
+        assertEquals(CsvFormatReader.fieldSizeExceededDetail(12, 10), e.getMessage());
+    }
+
+    public void testQuotedFieldOverCapCountsDecodedLength() {
+        MalformedRowException e = expectThrows(
+            MalformedRowException.class,
+            () -> CsvFormatReader.splitRecordFields("\"helloworld\"", csv(), 5)
+        );
+        assertEquals(CsvFormatReader.fieldSizeExceededDetail(10, 5), e.getMessage());
+    }
+
+    public void testDoubledQuoteWithinCap() {
+        // "a""b" decodes to a"b (length 3), within a cap of 5.
+        assertTokens(csv(), 5, "\"a\"\"b\"", "a\"b");
+    }
+
+    public void testNonFirstFieldOverCapStillThrows() {
+        MalformedRowException e = expectThrows(
+            MalformedRowException.class,
+            () -> CsvFormatReader.splitRecordFields("short,helloworld", csv(), 5)
+        );
+        assertEquals(CsvFormatReader.fieldSizeExceededDetail(10, 5), e.getMessage());
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Unclosed quote
+    // ---------------------------------------------------------------------------------------------
+
+    public void testUnclosedQuoteThrows() {
+        expectThrows(MalformedRowException.class, () -> CsvFormatReader.splitRecordFields("\"unterminated,x", csv(), NO_CAP));
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Escaped mode: protect-only (raw emit; decode is a later pass)
+    // ---------------------------------------------------------------------------------------------
+
+    public void testEscapedProtectsDelimiterAndEmitsRaw() {
+        assertTokens(escaped(), "a\\,b,c", "a\\,b", "c");
+    }
+
+    public void testEscapedCapGovernsRawLength() {
+        MalformedRowException e = expectThrows(
+            MalformedRowException.class,
+            () -> CsvFormatReader.splitRecordFields("aaaa\\,bb", escaped(), 7)
+        );
+        assertEquals(CsvFormatReader.fieldSizeExceededDetail(8, 7), e.getMessage());
+    }
+
+    public void testEscapedTrailingEmptyFieldsKept() {
+        assertTokens(escaped(), "a,b,", "a", "b", "");
+        assertTokens(escaped(), "a\\,b,", "a\\,b", "");
+    }
+
+    public void testEscapedTrimDoesNotSplitOnEscapedDelim() {
+        assertTokens(escapedTrim(), "  a\\,b  ,c", "a\\,b", "c");
+    }
+
+    public void testEscapedTrimKeepsEscapedTrailingWhitespace() {
+        assertTokens(escapedTrim(), "foo\\ ,bar", "foo\\ ", "bar");
+    }
+
+    public void testEscapedTrimDropsUnescapedWhitespaceAfterEscapeRun() {
+        assertTokens(escapedTrim(), "foo\\\\  ,bar", "foo\\\\", "bar");
+        assertTokens(escapedTrim(), "hello\\\\\t,ok", "hello\\\\", "ok");
+    }
+
+    public void testEscapedTrimKeepsLeadingWhitespaceEscape() {
+        assertTokens(escapedSpaceTrim(), " n,x", " n", "x");
+        // Space-as-escape + comma: an odd run before the delimiter swallows it (esc+next). Three
+        // spaces as the last field is one pair plus a trailing lone introducer.
+        assertTokens(escapedSpaceTrim(), "x,   ", "x", "  ");
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // trim=true: Jackson-equivalence differential (splitter vs the production Jackson mapper shape)
+    // ---------------------------------------------------------------------------------------------
+
+    public void testTrimTrueMatchesJacksonQuoted() throws IOException {
+        assertJacksonEquivalence(csvTrim(), quotedCorpus());
+    }
+
+    public void testTrimTrueMatchesJacksonPlain() throws IOException {
+        assertJacksonEquivalence(tsvTrim(), plainCorpus());
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Harness
+    // ---------------------------------------------------------------------------------------------
+
+    private static void assertTokens(CsvFormatOptions options, String record, String... expected) {
+        assertTokens(options, NO_CAP, record, expected);
+    }
+
+    private static void assertTokens(CsvFormatOptions options, int maxFieldChars, String record, String... expected) {
+        assertEquals(
+            "tokenization of [" + record + "]",
+            Arrays.asList(expected),
+            Arrays.asList(CsvFormatReader.splitRecordFields(record, options, maxFieldChars))
+        );
+    }
+
+    /**
+     * Parses every record in {@code corpus} with both the house splitter (trim on) and a Jackson mapper
+     * built exactly as {@link CsvFormatReader#createMapper} / {@code newCsvSchema} do, and asserts the two
+     * agree field-for-field after normalizing Jackson's {@code null} (its {@code withNullValue} substitution)
+     * against the splitter's raw {@code ""}. Records Jackson skips entirely (blank under SKIP_EMPTY_LINES) are
+     * skipped here — blank-line handling lives outside the tokenizer, in the per-record read loop.
+     */
+    private static void assertJacksonEquivalence(CsvFormatOptions options, List<String> corpus) throws IOException {
+        CsvMapper mapper = jacksonMapper(options);
+        CsvSchema schema = jacksonSchema(options);
+        for (String record : corpus) {
+            List<String> jackson = jacksonTokens(mapper, schema, record);
+            if (jackson == null) {
+                continue; // Jackson skipped it (empty line); the splitter's blank handling is elsewhere.
+            }
+            String[] house = CsvFormatReader.splitRecordFields(record, options, NO_CAP);
+            assertEquals(
+                "column count for [" + record + "] (jackson=" + jackson + " house=" + Arrays.asList(house) + ")",
+                jackson.size(),
+                house.length
+            );
+            for (int i = 0; i < jackson.size(); i++) {
+                assertEquals(
+                    "field [" + i + "] of [" + record + "]",
+                    normalizeNull(jackson.get(i), options),
+                    normalizeNull(house[i], options)
+                );
+            }
+        }
+    }
+
+    /** Jackson's withNullValue substitutes null for a field equal to nullValue; fold both arms to one token. */
+    private static String normalizeNull(String value, CsvFormatOptions options) {
+        // Objects.equals: handles a null nullValue (= no token configured).
+        // The short-circuit on value == null covers a field already resolved to null upstream.
+        if (value == null || Objects.equals(value, options.nullValue())) {
+            return " NULL ";
+        }
+        return value;
+    }
+
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    private static List<String> jacksonTokens(CsvMapper mapper, CsvSchema schema, String record) throws IOException {
+        try (MappingIterator<List> it = mapper.readerFor(List.class).with(schema).readValues(new StringReader(record))) {
+            if (it.hasNext() == false) {
+                return null;
+            }
+            List<?> row = it.next();
+            List<String> out = new ArrayList<>(row.size());
+            for (Object o : row) {
+                out.add(o == null ? null : o.toString());
+            }
+            return out;
+        }
+    }
+
+    private static CsvMapper jacksonMapper(CsvFormatOptions opts) {
+        CsvMapper mapper = new CsvMapper();
+        if (opts.trimSpaces()) {
+            mapper.enable(CsvParser.Feature.TRIM_SPACES);
+        }
+        mapper.enable(CsvParser.Feature.SKIP_EMPTY_LINES);
+        mapper.enable(CsvParser.Feature.WRAP_AS_ARRAY);
+        return mapper;
+    }
+
+    private static CsvSchema jacksonSchema(CsvFormatOptions opts) {
+        // Mirrors newCsvSchema: only a configured null token is installed, so an unset one leaves an empty
+        // field as the empty-string token on both arms.
+        CsvSchema schema = CsvSchema.emptySchema().withColumnSeparator(opts.delimiter());
+        if (opts.nullValue() != null) {
+            schema = schema.withNullValue(opts.nullValue());
+        }
+        if (opts.quoting() == false) {
+            return schema.withoutQuoteChar();
+        }
+        schema = schema.withQuoteChar(opts.quoteChar());
+        return opts.escaping() ? schema.withEscapeChar(opts.escapeChar()) : schema;
+    }
+
+    private static List<String> quotedCorpus() {
+        return List.of(
+            "a,b,c",
+            "x,  \"y\"",
+            "x, \"a,b\",z",
+            "1, \"Alice, PhD\"",
+            "\"has,comma\",\"he said \"\"hi\"\"\"",
+            "\"  x  \",tail",
+            "  \"q\",b",
+            "x,\"y\"  ,z",
+            "a,b,",
+            ",lead",
+            "one",
+            "\"quoted\"",
+            "n1,n2,n3,n4"
+        );
+    }
+
+    private static List<String> plainCorpus() {
+        return List.of("a\tb\tc", "  a\tb", "x\t  spaced  ", "a\tb\t", "\tlead", "one", "n1\tn2\tn3");
+    }
+
+    private static CsvFormatOptions csv() {
+        return CsvFormatOptions.DEFAULT;
+    }
+
+    private static CsvFormatOptions tsv() {
+        return CsvFormatOptions.TSV;
+    }
+
+    /** Quoting off, escaping on: the house protect-only split. */
+    private static CsvFormatOptions escaped() {
+        return escaped('\\', false);
+    }
+
+    private static CsvFormatOptions escapedTrim() {
+        return escaped('\\', true);
+    }
+
+    /** Whitespace escape char (legal in {@link CsvFormatOptions}) under {@code trim_spaces}. */
+    private static CsvFormatOptions escapedSpaceTrim() {
+        return escaped(' ', true);
+    }
+
+    private static CsvFormatOptions escaped(char esc, boolean trim) {
+        return new CsvFormatOptions(
+            ',',
+            '"',
+            esc,
+            "//",
+            null,
+            StandardCharsets.UTF_8,
+            null,
+            CsvFormatOptions.DEFAULT_MAX_FIELD_SIZE,
+            CsvFormatOptions.MultiValueSyntax.NONE,
+            true,
+            CsvFormatOptions.DEFAULT_COLUMN_PREFIX,
+            false,
+            true,
+            trim
+        );
+    }
+
+    private static CsvFormatOptions csvTrim() {
+        return withTrim(CsvFormatOptions.DEFAULT, true);
+    }
+
+    private static CsvFormatOptions tsvTrim() {
+        return withTrim(CsvFormatOptions.TSV, true);
+    }
+
+    private static CsvFormatOptions withTrim(CsvFormatOptions o, boolean trim) {
+        return new CsvFormatOptions(
+            o.delimiter(),
+            o.quoteChar(),
+            o.escapeChar(),
+            o.commentPrefix(),
+            o.nullValue(),
+            o.encoding(),
+            o.datetimeFormatter(),
+            o.maxFieldSize(),
+            o.multiValueSyntax(),
+            o.headerRow(),
+            o.columnPrefix(),
+            o.quoting(),
+            o.escaping(),
+            trim
+        );
+    }
+}

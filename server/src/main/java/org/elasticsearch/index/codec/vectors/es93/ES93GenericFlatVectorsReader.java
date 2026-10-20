@@ -18,14 +18,11 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexFileNames;
-import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.SegmentReadState;
-import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
-import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
 
@@ -42,8 +39,6 @@ class ES93GenericFlatVectorsReader extends FlatVectorsReader {
         SegmentReadState state,
         GenericFlatVectorReaders.LoadFlatVectorsReader loadReader
     ) throws IOException {
-        super(null);    // this is not actually used by anything
-
         this.fieldInfos = state.fieldInfos;
         this.genericReaders = new GenericFlatVectorReaders();
 
@@ -62,7 +57,7 @@ class ES93GenericFlatVectorsReader extends FlatVectorsReader {
                     state.segmentSuffix
                 );
 
-                readFields(metaIn, state.fieldInfos, genericReaders, loadReader);
+                readFields(metaIn, versionMeta, state.fieldInfos, genericReaders, loadReader);
             } catch (Throwable exception) {
                 priorE = exception;
             } finally {
@@ -75,13 +70,13 @@ class ES93GenericFlatVectorsReader extends FlatVectorsReader {
     }
 
     private ES93GenericFlatVectorsReader(FieldInfos fieldInfos, GenericFlatVectorReaders genericReaders) {
-        super(null);
         this.fieldInfos = fieldInfos;
         this.genericReaders = genericReaders;
     }
 
     private static void readFields(
         IndexInput meta,
+        int versionMeta,
         FieldInfos fieldInfos,
         GenericFlatVectorReaders fieldHelper,
         GenericFlatVectorReaders.LoadFlatVectorsReader loadReader
@@ -94,41 +89,17 @@ class ES93GenericFlatVectorsReader extends FlatVectorsReader {
                 throw new CorruptIndexException("Invalid field number: " + fieldNumber, meta);
             }
 
-            FieldEntry entry = new FieldEntry(meta.readString(), meta.readByte() == 1);
-            fieldHelper.loadField(fieldNumber, entry, loadReader);
+            String rawVectorFormatName = meta.readString();
+            boolean useDirectIOReads = meta.readByte() == 1;
+            boolean onDiskMerge = versionMeta >= ES93GenericFlatVectorsFormat.VERSION_ON_DISK_MERGE && meta.readByte() == 1;
+            FieldEntry entry = new FieldEntry(rawVectorFormatName, useDirectIOReads);
+            fieldHelper.loadField(fieldNumber, entry, onDiskMerge, loadReader);
         }
     }
 
     @Override
-    public FlatVectorsScorer getFlatVectorScorer() {
-        // this should not actually be used at all
-        return new FlatVectorsScorer() {
-            @Override
-            public RandomVectorScorerSupplier getRandomVectorScorerSupplier(
-                VectorSimilarityFunction similarityFunction,
-                KnnVectorValues vectorValues
-            ) throws IOException {
-                throw new UnsupportedOperationException("Scorer should not be used");
-            }
-
-            @Override
-            public RandomVectorScorer getRandomVectorScorer(
-                VectorSimilarityFunction similarityFunction,
-                KnnVectorValues vectorValues,
-                float[] target
-            ) throws IOException {
-                throw new UnsupportedOperationException("Scorer should not be used");
-            }
-
-            @Override
-            public RandomVectorScorer getRandomVectorScorer(
-                VectorSimilarityFunction similarityFunction,
-                KnnVectorValues vectorValues,
-                byte[] target
-            ) throws IOException {
-                throw new UnsupportedOperationException("Scorer should not be used");
-            }
-        };
+    public FlatVectorsScorer getFlatVectorScorer(String field) throws IOException {
+        return genericReaders.getReaderForField(findField(field)).getFlatVectorScorer(field);
     }
 
     @Override

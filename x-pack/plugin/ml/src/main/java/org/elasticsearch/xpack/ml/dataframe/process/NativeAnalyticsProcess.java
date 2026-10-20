@@ -81,7 +81,7 @@ public class NativeAnalyticsProcess extends AbstractNativeAnalyticsProcess<Analy
                 }
 
                 // We fetch the documents one at a time because all together they can amount to too much memory
-                SearchResponse stateResponse = client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
+                SearchResponse stateResponse = client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexPatterns())
                     .setSize(1)
                     .setQuery(QueryBuilders.idsQuery().addIds(stateDocIdPrefix + ++docNum))
                     .get();

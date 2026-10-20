@@ -22,18 +22,7 @@ import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.greaterThan;
-
 public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
-
-    public boolean hasNativeAccess() {
-        var jdkVersion = Runtime.version().feature();
-        var arch = System.getProperty("os.arch");
-        var osName = System.getProperty("os.name");
-        return (jdkVersion >= 22
-            && (arch.equals("aarch64") && (osName.startsWith("Mac") || osName.equals("Linux"))
-                || arch.equals("amd64") && osName.equals("Linux")));
-    }
 
     public void testInt7DotProduct() throws Exception {
         // only even dimensions are supported
@@ -181,8 +170,7 @@ public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
                     assertEquals(scoreDefault, scorePanama, 0.001f);
                     assertEquals(scoreDefault, scoreNative, 0.001f);
                     float realSimilarity = similarityFunction.compare(vectors[i], query);
-                    float accuracy = realSimilarity > scoreDefault ? scoreDefault / realSimilarity : realSimilarity / scoreDefault;
-                    assertThat(accuracy, greaterThan(0.98f));
+                    assertEqualsPercent(realSimilarity, scoreDefault, 0.02f, 0.02f);
                     assertEquals(slice.getFilePointer(), slice2.getFilePointer());
                     assertEquals(slice.getFilePointer(), slice3.getFilePointer());
                 }
@@ -291,10 +279,7 @@ public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
                         assertEquals(scoresDefault[j], scoresPanama[j], 1e-2f);
                         assertEquals(scoresDefault[j], scoresNative[j], 1e-2f);
                         float realSimilarity = similarityFunction.compare(vectors[i + j], query);
-                        float accuracy = realSimilarity > scoresDefault[j]
-                            ? scoresDefault[j] / realSimilarity
-                            : realSimilarity / scoresDefault[j];
-                        assertThat(accuracy, greaterThan(0.98f));
+                        assertEqualsPercent(realSimilarity, scoresDefault[j], 0.03f, 0.03f);
                     }
                     assertEquals(slice.getFilePointer(), slice2.getFilePointer());
                     assertEquals(slice.getFilePointer(), slice3.getFilePointer());

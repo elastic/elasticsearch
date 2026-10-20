@@ -273,7 +273,7 @@ public final class ExchangeSourceHandler {
         final ActionListener<Void> sinkListener = ActionListener.assertAtLeastOnce(
             ActionListener.notifyOnce(ActionListener.runBefore(listener, () -> remoteSinks.remove(sinkId)))
         );
-        try (var refs = new EsqlRefCountingListener(ActionListener.releaseBefore(addEmptySink(), sinkListener))) {
+        try (var refs = new EsqlRefCountingListener(ActionListener.releaseAfter(sinkListener, addEmptySink()))) {
             for (int i = 0; i < instances; i++) {
                 fetchExecutor.execute(new ActionRunnable<>(refs.acquire()) {
                     @Override

@@ -23,9 +23,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -36,13 +34,11 @@ import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
 import org.elasticsearch.search.vectors.SparseVectorQueryWrapper;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.search.vectors.VectorSimilarityQuery;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceField;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper;
+import org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper.SemanticFieldType;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
-import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
+import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SemanticTextFieldType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -87,7 +83,15 @@ public class SemanticTextChunkUtils {
                 )
             );
         }
-        return (String) nestedSources.get(cand.index()).get(SemanticTextField.CHUNKED_TEXT_FIELD);
+
+        String content = (String) nestedSources.get(cand.index()).get(SemanticTextField.CHUNKED_TEXT_FIELD);
+        if (content == null) {
+            throw new IllegalStateException(
+                String.format(Locale.ROOT, "Invalid content detected for field [%s]: missing text for the chunk [%s]", fieldName, cand)
+            );
+        }
+
+        return content;
     }
 
     public static List<Query> extractQueries(FieldMapper embeddingsField, TaskType taskType, Query query) {
@@ -104,7 +108,7 @@ public class SemanticTextChunkUtils {
     public static List<OffsetAndScore> extractOffsetAndScores(
         SearchExecutionContext context,
         LeafReader reader,
-        SemanticTextFieldMapper.SemanticTextFieldType fieldType,
+        SemanticFieldType fieldType,
         int docId,
         List<Query> leafQueries
     ) throws IOException {
@@ -126,8 +130,9 @@ public class SemanticTextChunkUtils {
             return List.of();
         }
 
+        final boolean useLegacyFormat = (fieldType instanceof SemanticTextFieldType stft && stft.useLegacyFormat());
         OffsetSourceField.OffsetSourceLoader offsetReader = null;
-        if (fieldType.useLegacyFormat() == false) {
+        if (useLegacyFormat == false) {
             var terms = reader.terms(fieldType.getOffsetsField().fullPath());
             if (terms == null) {
                 // The field is empty
@@ -173,15 +178,15 @@ public class SemanticTextChunkUtils {
 
             private void visitLeaf(Query query, Float similarity) {
                 if (query instanceof KnnFloatVectorQuery knnQuery) {
-                    queries.add(fieldType.createExactKnnQuery(VectorData.fromFloats(knnQuery.getTargetCopy()), similarity));
+                    queries.add(fieldType.createIndexedExactKnnQuery(VectorData.fromFloats(knnQuery.getTargetCopy()), similarity, null));
                 } else if (query instanceof KnnByteVectorQuery knnQuery) {
-                    queries.add(fieldType.createExactKnnQuery(VectorData.fromBytes(knnQuery.getTargetCopy()), similarity));
+                    queries.add(fieldType.createIndexedExactKnnQuery(VectorData.fromBytes(knnQuery.getTargetCopy()), similarity, null));
                 } else if (query instanceof MatchAllDocsQuery) {
                     queries.add(Queries.ALL_DOCS_INSTANCE);
                 } else if (query instanceof DenseVectorQuery.Floats floatsQuery) {
-                    queries.add(fieldType.createExactKnnQuery(VectorData.fromFloats(floatsQuery.getQuery()), similarity));
+                    queries.add(fieldType.createIndexedExactKnnQuery(VectorData.fromFloats(floatsQuery.getQuery()), similarity, null));
                 } else if (query instanceof IVFKnnFloatVectorQuery ivfQuery) {
-                    queries.add(fieldType.createExactKnnQuery(VectorData.fromFloats(ivfQuery.getQuery()), similarity));
+                    queries.add(fieldType.createIndexedExactKnnQuery(VectorData.fromFloats(ivfQuery.getQuery()), similarity, null));
                 } else if (query instanceof RescoreKnnVectorQuery rescoreQuery) {
                     visitLeaf(rescoreQuery.innerQuery(), similarity);
                 } else if (query instanceof VectorSimilarityQuery similarityQuery) {
@@ -228,26 +233,4 @@ public class SemanticTextChunkUtils {
         return queries;
     }
 
-    public static VectorData getTextEmbeddingVectorFromChunk(
-        SemanticTextField.Chunk chunk,
-        XContentType contentType,
-        DenseVectorFieldMapper.ElementType elementType
-    ) throws IOException {
-        XContentParser parser = XContentHelper.createParserNotCompressed(
-            XContentParserConfiguration.EMPTY,
-            chunk.rawEmbeddings(),
-            contentType
-        );
-
-        // forward to the start token
-        parser.nextToken();
-        VectorData parsedVector = VectorData.parseXContent(parser);
-        if (parsedVector.isFloat()
-            && (elementType == DenseVectorFieldMapper.ElementType.BIT || elementType == DenseVectorFieldMapper.ElementType.BYTE)) {
-            // the parsing created float elements, we need this to be bytes
-            parsedVector = new VectorData(parsedVector.asByteVector());
-        }
-
-        return parsedVector;
-    }
 }

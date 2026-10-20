@@ -8,13 +8,13 @@
 package org.elasticsearch.xpack.core.security.action.role;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.WriteRequest;
 
 import java.util.List;
 import java.util.Objects;
 
-public class BulkDeleteRolesRequest extends LegacyActionRequest {
+public class BulkDeleteRolesRequest extends UntypedActionRequest {
 
     private List<String> roleNames;
 

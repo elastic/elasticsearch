@@ -40,6 +40,7 @@
               "options": [
                 "chat_completion",
                 "completion",
+                "document_extraction",
                 "embedding",
                 "rerank",
                 "sparse_embedding",
@@ -57,6 +58,12 @@
     "body": {
       "description": "The inference endpoint's task and service settings",
       "required": true
+    },
+    "params": {
+      "timeout": {
+        "type": "time",
+        "description": "Specifies the amount of time to wait for the inference endpoint to be updated. The default depends on the task type: 120s for completion and chat_completion, and 30s for all other task types."
+      }
     }
   }
 }

@@ -14,6 +14,8 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -27,6 +29,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
@@ -39,19 +42,22 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.AbstractMultivalueFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAppend;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvConcat;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDedupe;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvFirst;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLast;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDifference;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersection;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSlice;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSort;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvUnion;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvZip;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.LTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
@@ -62,6 +68,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
@@ -109,17 +117,15 @@ public class FoldNullTests extends ESTestCase {
         assertEquals(false, foldNull(new IsNotNull(EMPTY, NULL)).fold(FoldContext.small()));
     }
 
-    @SuppressWarnings("unchecked")
     public void testNullFoldingDoesNotApplyOnAbstractMultivalueFunction() throws Exception {
-        List<Class<? extends AbstractMultivalueFunction>> items = List.of(
-            MvDedupe.class,
-            MvFirst.class,
-            MvLast.class,
-            MvMax.class,
-            MvMedian.class,
-            MvMin.class,
-            MvSum.class
-        );
+        List<Class<? extends AbstractMultivalueFunction>> items = new EsqlFunctionRegistry().listFunctions()
+            .stream()
+            .map(FunctionDefinition::clazz)
+            .distinct()
+            .filter(AbstractMultivalueFunction.class::isAssignableFrom)
+            .filter(c -> c != MvAvg.class && c != MvCount.class) // fixed return type; pinned separately below
+            .<Class<? extends AbstractMultivalueFunction>>map(c -> c.asSubclass(AbstractMultivalueFunction.class))
+            .toList();
         for (Class<? extends AbstractMultivalueFunction> clazz : items) {
             Constructor<? extends AbstractMultivalueFunction> ctor = clazz.getConstructor(Source.class, Expression.class);
             AbstractMultivalueFunction conditionalFunction = ctor.newInstance(EMPTY, getFieldAttribute("a"));
@@ -249,7 +255,7 @@ public class FoldNullTests extends ESTestCase {
     }
 
     public void testNullBucketGetsFolded() {
-        assertEquals(NULL, foldNull(new Bucket(EMPTY, NULL, NULL, NULL, NULL, TEST_CFG)));
+        assertEquals(NULL, foldNull(new Bucket(EMPTY, NULL, NULL, NULL, NULL, NULL, TEST_CFG)));
     }
 
     public void testNullCategorizeGroupingNotFolded() {
@@ -264,6 +270,101 @@ public class FoldNullTests extends ESTestCase {
             new Coalesce(EMPTY, NULL, List.of(Literal.keyword(EMPTY, "bar")))
         );
         assertEquals(append, foldNull(append));
+    }
+
+    // A null condition means that branch is not taken, not that the whole CASE is null.
+    public void testNullFoldingDoesNotApplyOnCase() {
+        Case caseExpr = new Case(EMPTY, NULL, List.of(getFieldAttribute("a"), getFieldAttribute("b")));
+        assertEquals(caseExpr, foldNull(caseExpr));
+    }
+
+    public void testMultivalueFunctionsWithDefaultNullabilityGetFolded() {
+        assertNullLiteral(foldNull(new MvConcat(EMPTY, NULL, Literal.keyword(EMPTY, ","))));
+        assertNullLiteral(foldNull(new MvSort(EMPTY, NULL, Literal.keyword(EMPTY, "ASC"))));
+        assertNullLiteral(foldNull(new MvSlice(EMPTY, NULL, L(0), L(1))));
+        assertNullLiteral(foldNull(new MvIntersection(EMPTY, NULL, getFieldAttribute("a"))));
+    }
+
+    // These treat a null argument as data (empty set / absent side), so folding the whole expression would be wrong.
+    public void testMultivalueFunctionsWithNullAsDataNotFolded() {
+        MvContains contains = new MvContains(EMPTY, getFieldAttribute("a"), NULL);
+        assertEquals(contains, foldNull(contains));
+
+        MvIntersects intersects = new MvIntersects(EMPTY, getFieldAttribute("a"), NULL);
+        assertEquals(intersects, foldNull(intersects));
+
+        MvUnion union = new MvUnion(EMPTY, NULL, getFieldAttribute("a"));
+        assertEquals(union, foldNull(union));
+
+        MvDifference difference = new MvDifference(EMPTY, NULL, getFieldAttribute("a"));
+        assertEquals(difference, foldNull(difference));
+
+        MvZip zip = new MvZip(EMPTY, NULL, getFieldAttribute("a", KEYWORD), Literal.keyword(EMPTY, ","));
+        assertEquals(zip, foldNull(zip));
+    }
+
+    // Under nullify, downstream consumers still see the expression's type; folding must not erase it to NULL.
+    public void testFoldedNullLiteralKeepsExpressionType() {
+        Add add = new Add(EMPTY, L(randomInt()), NULL, TEST_CFG);
+        Literal folded = as(foldNull(add), Literal.class);
+        assertNull(folded.value());
+        assertEquals(add.dataType(), folded.dataType());
+    }
+
+    public void testEqualsNullSuggestsIsNull() {
+        var field = getFieldAttribute("emp_no").withLocation(new Source(1, 19, "emp_no"));
+        Equals equals = new Equals(new Source(1, 19, "emp_no == NULL"), field, NULL);
+        assertNullLiteral(foldNull(equals));
+        assertEquals("emp_no IS NULL", equals.nullMisuseAlternative());
+    }
+
+    public void testInsensitiveEqualsNullSuggestsIsNull() {
+        var field = getFieldAttribute("name", KEYWORD).withLocation(new Source(1, 12, "name"));
+        InsensitiveEquals insensitiveEquals = new InsensitiveEquals(new Source(1, 12, "name =~ NULL"), field, NULL);
+        assertNullLiteral(foldNull(insensitiveEquals));
+        assertEquals("name IS NULL", insensitiveEquals.nullMisuseAlternative());
+    }
+
+    public void testNotSuggestsIsNotNullWhenChildIsEquals() {
+        var field = getFieldAttribute("emp_no").withLocation(new Source(1, 24, "emp_no"));
+        Equals equals = new Equals(new Source(1, 24, "emp_no == NULL"), field, NULL);
+        Not not = new Not(new Source(1, 19, "NOT (emp_no == NULL)"), equals);
+        assertNullLiteral(foldNull(not));
+        assertEquals("emp_no IS NOT NULL", not.nullMisuseAlternative());
+    }
+
+    public void testInAllNullListSuggestsIsNull() {
+        var field = getFieldAttribute("emp_no").withLocation(new Source(1, 12, "emp_no"));
+        In in = new In(new Source(1, 12, "emp_no IN (NULL, NULL)"), field, List.of(NULL, NULL));
+        assertSame(in, foldNull(in));
+        assertEquals("emp_no IS NULL", in.nullMisuseAlternative());
+    }
+
+    public void testInNullValueHasNoAlternative() {
+        var field = getFieldAttribute("emp_no");
+        In in = new In(new Source(1, 12, "NULL IN (emp_no, 1)"), NULL, List.of(field, L(1)));
+        assertNullLiteral(foldNull(in));
+        assertNull(in.nullMisuseAlternative());
+    }
+
+    public void testInValueAndNullDoesNotFold() {
+        var field = getFieldAttribute("emp_no");
+        In in = new In(EMPTY, field, List.of(L(1), NULL));
+        assertSame(in, foldNull(in));
+        assertNull(in.nullMisuseAlternative());
+    }
+
+    public void testNotInAllNullListSuggestsIsNotNull() {
+        var field = getFieldAttribute("emp_no").withLocation(new Source(1, 12, "emp_no"));
+        In in = new In(new Source(1, 12, "emp_no NOT IN (NULL, NULL)"), field, List.of(NULL, NULL));
+        Not not = new Not(new Source(1, 12, "emp_no NOT IN (NULL, NULL)"), in);
+        assertNullLiteral(foldNull(not));
+        assertEquals("emp_no IS NOT NULL", not.nullMisuseAlternative());
+    }
+
+    public void testArithmeticNullHasNoAlternative() {
+        var field = getFieldAttribute("emp_no");
+        assertNullLiteral(foldNull(new Add(new Source(1, 16, "emp_no + NULL"), field, NULL, TEST_CFG)));
     }
 
     private void assertNullLiteral(Expression expression) {

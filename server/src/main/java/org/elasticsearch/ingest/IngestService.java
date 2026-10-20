@@ -58,7 +58,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.streams.StreamType;
-import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -589,19 +589,160 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             return;
         }
 
+        // Capture the limits once, up front, so that the pre-check below and the authoritative check inside the cluster state update
+        // both evaluate this request against the same values even if the settings are updated in between.
+        final IngestSettings.PipelineLimits limits = IngestSettings.PipelineLimits.from(clusterService.getClusterSettings());
+
+        // Parse the source once and share it across the whole pre-check. Measure the pipeline's size immediately, before anything else
+        // touches the map: validating a pipeline consumes its config (ConfigurationUtils.read* removes each property as it reads it), so
+        // measuring afterwards would silently under-count. Everything downstream takes the size as a plain long.
+        final Map<String, Object> config = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
+        final long pipelineSize = PipelineConfiguration.serializedSizeInBytes(request.getId(), config);
+
+        // Check the limits before asking every node in the cluster for its ingest info: this check needs nothing from that response, so
+        // running it first means abusive input is rejected without provoking a cluster-wide fan-out.
+        validatePipelineLimits(projectId, request.getId(), pipelineSize, limits);
+
         nodeInfoListener.accept(listener.delegateFailureAndWrap((l, nodeInfos) -> {
-            validatePipelineRequest(projectId, request, nodeInfos);
+            validatePipelineRequest(projectId, request, nodeInfos, config);
 
             taskQueue.submitTask(
                 "put-pipeline-" + request.getId(),
-                new PutPipelineClusterStateUpdateTask(projectId, l, request),
+                new PutPipelineClusterStateUpdateTask(projectId, l, request, limits),
                 request.masterNodeTimeout()
             );
         }));
     }
 
+    /**
+     * A best-effort pre-check of the pipeline limits, run on the user-facing put path before the request is queued as a cluster state
+     * update. It is evaluated against the last applied cluster state, so concurrent puts can each pass it; the authoritative check that
+     * actually bounds the cluster state is in {@link PutPipelineClusterStateUpdateTask#execute}. The point of doing it here as well is to
+     * reject abusive input early -- before it occupies a slot in the master's task queue -- and to report the failure against the request
+     * the user actually sent.
+     * <p>
+     * It has the useful side effect of populating {@link PipelineConfiguration#serializedSizeInBytes()} for the existing pipelines off the
+     * cluster state update thread, so the authoritative check usually only has to sum memoized values.
+     * <p>
+     * Package-private and taking the limits as parameters (rather than reading them from the cluster settings itself) so it can be unit
+     * tested directly.
+     *
+     * @param pipelineSize the serialized size of the pipeline being put, measured by the caller before the config map was consumed
+     */
+    void validatePipelineLimits(ProjectId projectId, String pipelineId, long pipelineSize, IngestSettings.PipelineLimits limits) {
+        final IngestMetadata ingestMetadata = state.metadata().getProject(projectId).custom(IngestMetadata.TYPE);
+        final Map<String, PipelineConfiguration> existingPipelines = ingestMetadata == null ? Map.of() : ingestMetadata.getPipelines();
+        validatePipelineLimits(pipelineId, pipelineSize, existingPipelines, limits);
+    }
+
+    /**
+     * Rejects a pipeline that would put too much data into the cluster state. Pipelines are held in heap on every node and serialized on
+     * every cluster state update, so oversized or too-numerous pipelines can destabilize the cluster. Three safety limits are enforced:
+     * <ul>
+     *     <li>the serialized size of the new pipeline ({@link IngestSettings#MAX_PIPELINE_SIZE}),</li>
+     *     <li>the total number of pipelines ({@link IngestSettings#MAX_PIPELINES}), enforced only when creating a new pipeline so existing
+     *     pipelines above the limit keep working, and</li>
+     *     <li>the combined serialized size of all pipelines ({@link IngestSettings#MAX_TOTAL_METADATA_SIZE}); per-pipeline and per-count
+     *     limits do not bound the aggregate, so many pipelines each just under the per-pipeline limit could otherwise accumulate. Only
+     *     changes that grow the aggregate are checked, so a cluster that is already over the limit can still shrink its way back under
+     *     it.</li>
+     * </ul>
+     *
+     * @param pipelineId the id of the pipeline being put
+     * @param newSize the serialized size of the pipeline as it would be stored
+     * @param existingPipelines the pipelines it would be stored alongside, <em>including</em> the one it replaces, if any
+     */
+    static void validatePipelineLimits(
+        String pipelineId,
+        long newSize,
+        Map<String, PipelineConfiguration> existingPipelines,
+        IngestSettings.PipelineLimits limits
+    ) {
+        final ByteSizeValue maxPipelineSize = limits.maxPipelineSize();
+        if (newSize > maxPipelineSize.getBytes()) {
+            throw new IllegalArgumentException(
+                "pipeline ["
+                    + pipelineId
+                    + "] of size ["
+                    + ByteSizeValue.ofBytes(newSize)
+                    + "] exceeds the maximum allowed size of ["
+                    + maxPipelineSize
+                    + "]; this limit is controlled by the ["
+                    + IngestSettings.MAX_PIPELINE_SIZE.getKey()
+                    + "] setting"
+            );
+        }
+
+        final int maxPipelines = limits.maxPipelines();
+        final boolean isNewPipeline = existingPipelines.containsKey(pipelineId) == false;
+
+        if (isNewPipeline && existingPipelines.size() >= maxPipelines) {
+            throw new IllegalArgumentException(
+                "could not create pipeline ["
+                    + pipelineId
+                    + "] because the maximum number of pipelines ["
+                    + maxPipelines
+                    + "] would be exceeded; this limit is controlled by the ["
+                    + IngestSettings.MAX_PIPELINES.getKey()
+                    + "] setting"
+            );
+        }
+
+        // An update that does not grow the aggregate cannot push the cluster any further over the limit, so it is always allowed. Without
+        // this, a cluster that is already above the limit -- because the limit was lowered, or because it was upgraded into one -- could
+        // not edit any pipeline at all, not even to shrink one back under the limit.
+        final PipelineConfiguration replacedPipeline = existingPipelines.get(pipelineId);
+        final long replacedSize = replacedPipeline == null ? 0L : replacedPipeline.serializedSizeInBytes();
+        if (newSize <= replacedSize) {
+            return;
+        }
+
+        // The aggregate is the quantity that actually determines how much heap the ingest metadata occupies. Exclude the pipeline being
+        // replaced (if any) from the existing total, since the new definition supersedes it.
+        final ByteSizeValue maxTotalSize = limits.maxTotalSize();
+        long totalSize = newSize;
+        for (Map.Entry<String, PipelineConfiguration> entry : existingPipelines.entrySet()) {
+            if (entry.getKey().equals(pipelineId) == false) {
+                totalSize += entry.getValue().serializedSizeInBytes();
+            }
+        }
+        if (totalSize > maxTotalSize.getBytes()) {
+            throw new IllegalArgumentException(
+                "could not store pipeline ["
+                    + pipelineId
+                    + "] because the total size of all ingest pipelines ["
+                    + ByteSizeValue.ofBytes(totalSize)
+                    + "] would exceed the maximum allowed size of ["
+                    + maxTotalSize
+                    + "]; this limit is controlled by the ["
+                    + IngestSettings.MAX_TOTAL_METADATA_SIZE.getKey()
+                    + "] setting"
+            );
+        }
+    }
+
     public void validatePipelineRequest(ProjectId projectId, PutPipelineRequest request, NodesInfoResponse nodeInfos) throws Exception {
-        final Map<String, Object> config = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
+        validatePipelineRequest(
+            projectId,
+            request,
+            nodeInfos,
+            XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2()
+        );
+    }
+
+    /**
+     * As {@link #validatePipelineRequest(ProjectId, PutPipelineRequest, NodesInfoResponse)}, but reusing a config map the caller has
+     * already parsed from the request source.
+     * <p>
+     * Note that validation <em>consumes</em> {@code config}: {@link ConfigurationUtils} removes each property as it reads it, so the map
+     * is largely empty by the time this returns. Callers must not read anything from it afterwards.
+     */
+    public void validatePipelineRequest(
+        ProjectId projectId,
+        PutPipelineRequest request,
+        NodesInfoResponse nodeInfos,
+        Map<String, Object> config
+    ) throws Exception {
         Map<DiscoveryNode, IngestInfo> ingestInfos = new HashMap<>();
         for (NodeInfo nodeInfo : nodeInfos.getNodes()) {
             ingestInfos.put(nodeInfo.getNode(), nodeInfo.getInfo(IngestInfo.class));
@@ -737,6 +878,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      */
     public static class PutPipelineClusterStateUpdateTask extends PipelineClusterStateUpdateTask {
         private final PutPipelineRequest request;
+        // The limits to enforce when this task runs, or null to exempt it from them entirely (see the ReservedPipelineAction constructor).
+        @Nullable
+        private final IngestSettings.PipelineLimits limits;
         private final InstantSource instantSource;
 
         // constructor allowing for injection of InstantSource/time for testing
@@ -744,26 +888,31 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             final ProjectId projectId,
             final ActionListener<AcknowledgedResponse> listener,
             final PutPipelineRequest request,
+            @Nullable final IngestSettings.PipelineLimits limits,
             final InstantSource instantSource
         ) {
             super(projectId, listener);
             this.request = request;
+            this.limits = limits;
             this.instantSource = instantSource;
         }
 
         PutPipelineClusterStateUpdateTask(
             final ProjectId projectId,
             final ActionListener<AcknowledgedResponse> listener,
-            final PutPipelineRequest request
+            final PutPipelineRequest request,
+            @Nullable final IngestSettings.PipelineLimits limits
         ) {
-            this(projectId, listener, request, Instant::now);
+            this(projectId, listener, request, limits, Instant::now);
         }
 
         /**
-         * Used by {@link org.elasticsearch.action.ingest.ReservedPipelineAction}
+         * Used by {@link org.elasticsearch.action.ingest.ReservedPipelineAction}. Pipelines applied from file-based state are
+         * operator-managed and therefore trusted: they are exempt from the pipeline limits, which must not be able to wedge cluster
+         * bootstrap.
          */
         public PutPipelineClusterStateUpdateTask(ProjectId projectId, PutPipelineRequest request) {
-            this(projectId, null, request);
+            this(projectId, null, request, null);
         }
 
         @Override
@@ -831,7 +980,17 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             }
             newPipelineConfig.put(Pipeline.MODIFIED_DATE_MILLIS, nowMillis);
 
-            pipelines.put(request.getId(), new PipelineConfiguration(request.getId(), newPipelineConfig));
+            final PipelineConfiguration newPipeline = new PipelineConfiguration(request.getId(), newPipelineConfig);
+            if (limits != null) {
+                // This is the authoritative enforcement point for the pipeline limits. Unlike the pre-check on the put path, it runs on
+                // the cluster state update thread against the pipelines as they will actually be stored: within a batch each task sees the
+                // result of the preceding one (see PIPELINE_TASK_EXECUTOR), so concurrent puts cannot collectively exceed a limit that each
+                // of them individually respected. Throwing here fails just this task -- the batch's other tasks are unaffected, and no
+                // state has been mutated yet.
+                validatePipelineLimits(request.getId(), newPipeline.serializedSizeInBytes(), pipelines, limits);
+            }
+
+            pipelines.put(request.getId(), newPipeline);
             return new IngestMetadata(pipelines);
         }
     }
@@ -1246,11 +1405,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 try {
                     // check for self-references if necessary, (i.e. if a script processor has run), and clear the bit
                     if (ingestDocument.doNoSelfReferencesCheck()) {
-                        CollectionUtils.ensureNoSelfReferences(ingestDocument.getSource(), null);
+                        ingestDocument.ensureNoSelfReferences();
                         ingestDocument.doNoSelfReferencesCheck(false);
                     }
                 } catch (IllegalArgumentException ex) {
-                    // An IllegalArgumentException can be thrown when an ingest processor creates a source map that is self-referencing.
+                    // An IllegalArgumentException can be thrown when an ingest processor creates self-referencing data.
                     // In that case, we catch and wrap the exception, so we can include more details
                     exceptionHandler.accept(
                         new IngestPipelineException(
@@ -1683,7 +1842,13 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         return processors;
     }
 
-    public <P extends Processor> Collection<String> getPipelineWithProcessorType(
+    /**
+     * Finds the ids of the pipelines in the given project that contain at least one processor of {@code clazz}
+     * matching {@code predicate}.
+     * This is {@code synchronized} on the same monitor as {@link #innerUpdatePipelines} and {@link #reloadPipeline}
+     * so that callers always observe a fully published view of {@link #pipelines}.
+     */
+    public synchronized <P extends Processor> Collection<String> getPipelineWithProcessorType(
         ProjectId projectId,
         Class<P> clazz,
         Predicate<P> predicate

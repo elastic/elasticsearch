@@ -213,3 +213,54 @@ from employees
 cnt:long
 5
 ;
+
+keywordGreaterThanKeywordField
+from employees
+| where first_name > last_name
+| stats cnt = count(*)
+;
+
+cnt:long
+49
+;
+
+keywordGreaterThanOrEqualKeywordField
+from employees
+| where first_name >= last_name
+| stats cnt = count(*)
+;
+
+cnt:long
+49
+;
+
+keywordLessThanKeywordField
+from employees
+| where first_name < last_name
+| stats cnt = count(*)
+;
+
+cnt:long
+41
+;
+
+keywordLessThanOrEqualKeywordField
+from employees
+| where first_name <= last_name
+| stats cnt = count(*)
+;
+
+cnt:long
+41
+;
+
+keywordNotEqualsKeywordField
+skip_flattened_rewrite: not_equals_desugars_to_not_of_equals_at_parse_time
+from employees
+| where first_name != last_name
+| stats cnt = count(*)
+;
+
+cnt:long
+90
+;

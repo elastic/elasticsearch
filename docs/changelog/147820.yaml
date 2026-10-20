@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 97541
+pr: 147820
+summary: Add dense_vector query for exact NN scoring
+type: feature

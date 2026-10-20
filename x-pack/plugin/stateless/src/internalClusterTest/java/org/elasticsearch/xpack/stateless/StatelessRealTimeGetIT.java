@@ -32,6 +32,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
@@ -72,13 +73,14 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.action.support.ActionTestUtils.assertNoFailureListener;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.get;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.getArchive;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.isSafeAccessRequired;
-import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.isUnsafe;
+import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.isUnsafeForGets;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
@@ -93,6 +95,18 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
     @Before
     public void init() {
         startMasterOnlyNode();
+    }
+
+    @Override
+    protected Settings.Builder nodeSettings() {
+        // testStress generates large commits (3-5 MB). randomConcurrentMultiPartSettings can pick values as small as 1 KB threshold /
+        // 792 B part size, producing ~3000-4000 upload tasks for a shared 5-thread pool. With multiple shards uploading concurrently
+        // this overwhelms the pool, causing safeGet to exceed SAFE_AWAIT_TIMEOUT and triggering upload retries that outlive the 5-second
+        // shard lock check in assertAfterTest. Fixed values here keep the part count bounded (~20 parts for a 5 MB commit).
+        return super.nodeSettings().put(
+            ConcurrentMultiPartUploadsMockFsRepository.MULTIPART_UPLOAD_THRESHOLD_SIZE,
+            ByteSizeValue.of(128, ByteSizeUnit.KB)
+        ).put(ConcurrentMultiPartUploadsMockFsRepository.MULTIPART_UPLOAD_PART_SIZE, ByteSizeValue.of(256, ByteSizeUnit.KB));
     }
 
     public void testGet() {
@@ -287,10 +301,11 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
         assertThat(indexShard.getEngineOrNull(), instanceOf(IndexEngine.class));
         var indexEngine = ((IndexEngine) indexShard.getEngineOrNull());
         var map = indexEngine.getLiveVersionMap();
-        if (randomBoolean()) {
+        final boolean forceUnsafe = randomBoolean();
+        if (forceUnsafe) {
             // Make sure the map is marked as unsafe
             indexDocs(indexName, randomIntBetween(1, 10));
-            assertTrue(isUnsafe(map));
+            assertTrue(isUnsafeForGets(map));
         }
         // Enforce safe access mode
         client().prepareIndex(indexName).setId(randomIdentifier()).setSource("field1", randomUnicodeOfLength(10)).get();
@@ -302,12 +317,18 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
         assertNoFailures(bulkResponse);
         assertNotNull(get(map, "1"));
         assertTrue(getFromTranslog(indexShard, "1").getResult().isExists());
+        if (forceUnsafe) {
+            // The map was unsafe, so the get above forced a flush and the archive stays unsafe until the search shard acks that
+            // commit. A second get before the ack forces another flush, whose ack can prune "1" from the archive before the
+            // engine looks it up, making the get legitimately return null. Wait for the ack so the next get is deterministic.
+            assertBusy(() -> assertFalse(isUnsafeForGets(map)));
+        }
         // A local refresh doesn't prune the LVM archive
         indexEngine.refresh("test");
         assertNotNull(get(map, "1"));
         assertTrue(getFromTranslog(indexShard, "1").getResult().isExists());
         final long lastUnsafeGenerationForGets = indexEngine.getLastUnsafeSegmentGenerationForGets();
-        // Create a new commit explicitly where once ack'ed by the unpronmotables we are sure the docs that were
+        // Create a new commit explicitly where once ack'ed by the unpromotables we are sure the docs that were
         // in the archive are visible on the unpromotable shards.
         indexDocs(indexName, randomIntBetween(1, 10));
         safeGet(client().admin().indices().refresh(new RefreshRequest(indexName)));
@@ -365,20 +386,20 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
         var indexShard = findIndexShard(indexName);
         var indexEngine = ((IndexEngine) indexShard.getEngineOrNull());
         var map = indexEngine.getLiveVersionMap();
-        assertTrue(isUnsafe(map));
+        assertTrue(isUnsafeForGets(map));
         // While map is unsafe and unpromotable refresh is inflight, index more
         safeAwait(sendUnpromotableRefreshStarted);
         var id = client().prepareIndex(indexName).setSource("field", randomIdentifier()).get().getId();
         // Still unsafe and `id` is not in the previous commit
-        assertTrue(isUnsafe(map));
+        assertTrue(isUnsafeForGets(map));
         // Local refresh happens (sets minSafeGeneration).
         indexEngine.refresh("local");
         var archive = (StatelessLiveVersionMapArchive) getArchive(map);
         assertThat(archive.getMinSafeGeneration(), equalTo(indexEngine.getCurrentGeneration() + 1));
-        // After unpromotable refresh comes back, map should still be unsafe
+        // After unpromotable refresh comes back, map should still be unsafe for gets
         continueSendUnpromotableRefresh.countDown();
         refreshFuture.get();
-        assertTrue(isUnsafe(map));
+        assertTrue(isUnsafeForGets(map));
         var getResponse = client().prepareGet(indexName, id).get();
         assertTrue(getResponse.isExists());
     }
@@ -423,8 +444,6 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
             }
         } finally {
             assertThat(finalRefreshFuture.actionGet(), nullValue()); // ensure all refreshes completed with no exception
-            // TODO: Actively deleting the index until ES-8407 is resolved
-            assertAcked(client().admin().indices().prepareDelete(indexName).get(TimeValue.timeValueSeconds(10)));
         }
     }
 
@@ -540,8 +559,6 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
         for (Thread thread : threads) {
             thread.join();
         }
-        // TODO: Actively deleting the index until ES-8407 is resolved
-        assertAcked(client().admin().indices().prepareDelete(indexName).get(TimeValue.timeValueSeconds(10)));
     }
 
     public void testLiveVersionMapMemoryBytesUsed() throws Exception {
@@ -753,17 +770,18 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
         final var getFromTranslogSeen = new AtomicInteger();
         MockTransportService.getInstance(indexNodeA)
             .addRequestHandlingBehavior(TransportGetFromTranslogAction.NAME, (handler, request, channel, task) -> {
-                if (getFromTranslogSeen.incrementAndGet() <= failCount) {
+                final var attempt = getFromTranslogSeen.incrementAndGet();
+                if (attempt <= failCount) {
                     channel.sendResponse(randomFrom(new IndexNotFoundException(indexName), new ShardNotFoundException(shardId)));
+                    // Update cluster state after failed attempt to retry the get call
+                    indicesAdmin().preparePutMapping(indexName)
+                        .setSource("field" + attempt, "type=keyword")
+                        .execute(assertNoFailureListener(ignored -> {}));
                 } else {
                     handler.messageReceived(request, channel, task);
                 }
             });
         final var getFuture = client().prepareGet(indexName, "non-existing").setRealtime(true).execute();
-        // Trigger enough cluster state updates to see the reties succeed.
-        for (int i = 0; i < failCount; i++) {
-            indicesAdmin().preparePutMapping(indexName).setSource("field" + i, "type=keyword").get();
-        }
         assertFalse(getFuture.get(10, TimeUnit.SECONDS).isExists());
         assertEquals(failCount + 1, getFromTranslogSeen.get());
     }
@@ -851,17 +869,18 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
         final var getFromTranslogSeen = new AtomicInteger();
         MockTransportService.getInstance(indexNodeA)
             .addRequestHandlingBehavior(TransportShardMultiGetFomTranslogAction.NAME, (handler, request, channel, task) -> {
-                if (getFromTranslogSeen.incrementAndGet() <= failCount) {
+                final var attempt = getFromTranslogSeen.incrementAndGet();
+                if (attempt <= failCount) {
                     channel.sendResponse(randomFrom(new IndexNotFoundException(indexName), new ShardNotFoundException(shardId)));
+                    // Update cluster state after failed attempt to retry the multi-get call
+                    indicesAdmin().preparePutMapping(indexName)
+                        .setSource("field" + attempt, "type=keyword")
+                        .execute(assertNoFailureListener(ignored -> {}));
                 } else {
                     handler.messageReceived(request, channel, task);
                 }
             });
         final var getFuture = client().prepareMultiGet().addIds(indexName, "non-existing").setRealtime(true).execute();
-        // Trigger enough cluster state updates to see the reties succeed.
-        for (int i = 0; i < failCount; i++) {
-            indicesAdmin().preparePutMapping(indexName).setSource("field" + i, "type=keyword").get();
-        }
         assertFalse(getFuture.get(10, TimeUnit.SECONDS).getResponses()[0].getResponse().isExists());
         assertEquals(failCount + 1, getFromTranslogSeen.get());
     }
@@ -972,7 +991,7 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
         final var indexEngine = (IndexEngine) indexShard.getEngineOrNull();
         var map = indexEngine.getLiveVersionMap();
 
-        assertFalse(isUnsafe(map));
+        assertFalse(isUnsafeForGets(map));
 
         String docId = "doc-1";
         // index 1 doc with doc-id. This should enforce safe access mode

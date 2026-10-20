@@ -934,3 +934,263 @@ version is not allowed:
   - length: { columns: 1 }
   - length: { values: 1 }
   - match: {values.0.0: 2}
+
+
+---
+"Empty list named param is treated as null":
+  # https://github.com/elastic/elasticsearch/issues/152271
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings_regex ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ empty_list_param_as_null ]
+      reason: "empty list named parameter is treated as null"
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'row a = ?bare, b = ?keyed, c = ?explicit'
+          params: [{"bare": []}, {"keyed": {"value": []}}, {"explicit": null}]
+
+  - length: {columns: 3}
+  - match: {columns.0.name: "a"}
+  - match: {columns.0.type: "null"}
+  - match: {columns.1.name: "b"}
+  - match: {columns.1.type: "null"}
+  - match: {columns.2.name: "c"}
+  - match: {columns.2.type: "null"}
+  - length: {values: 1}
+  - match: {values.0: [null, null, null]}
+
+  # Reproducer from the issue: MV_CONTAINS with an empty-list named param must not NPE.
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'row v = 1 | where mv_contains(?x, [1, 2])'
+          params: [{"x": []}]
+
+  - length: {values: 0}
+
+  # IS NULL / IS NOT NULL: an empty-list named param must be considered null.
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'row v = 1 | eval is_null = ?x is null, is_not_null = ?x is not null'
+          params: [{"x": []}]
+
+  - length: {columns: 3}
+  - match: {columns.1.name: "is_null"}
+  - match: {columns.1.type: "boolean"}
+  - match: {columns.2.name: "is_not_null"}
+  - match: {columns.2.type: "boolean"}
+  - length: {values: 1}
+  - match: {values.0.1: true}
+  - match: {values.0.2: false}
+
+
+---
+"Empty list named param rejected for identifier or pattern":
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings_regex ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ empty_list_param_as_null ]
+      reason: "empty list named parameter is treated as null"
+
+  - do:
+      catch: /parameter is multivalued, only VALUE parameters can be multivalued/
+      esql.query:
+        body:
+          query: 'from test | keep ?f | limit 1'
+          params: [{"f" : {"identifier" : []}}]
+
+  - do:
+      catch: /parameter is multivalued, only VALUE parameters can be multivalued/
+      esql.query:
+        body:
+          query: 'from test | keep ?f | limit 1'
+          params: [{"f" : {"pattern" : []}}]
+
+
+---
+"Empty list positional param is treated as null":
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings_regex ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ empty_list_param_as_null ]
+      reason: "empty list positional parameter is treated as null"
+
+  # Anonymous params (`?`): empty list and explicit null are both treated as null.
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'row a = ?, b = ?, c = ?'
+          params: [[], null, []]
+
+  - length: {columns: 3}
+  - match: {columns.0.type: "null"}
+  - match: {columns.1.type: "null"}
+  - match: {columns.2.type: "null"}
+  - length: {values: 1}
+  - match: {values.0: [null, null, null]}
+
+  # Positional params (`?N`): same behavior as anonymous.
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'row a = ?1, b = ?2, c = ?3'
+          params: [[], null, []]
+
+  - length: {columns: 3}
+  - match: {columns.0.type: "null"}
+  - match: {columns.1.type: "null"}
+  - match: {columns.2.type: "null"}
+  - length: {values: 1}
+  - match: {values.0: [null, null, null]}
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'row v = 1 | eval x = COALESCE(?1, v)'
+          params: [[]]
+
+  - length: {values: 1}
+  - match: {values.0.1: 1}
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'row v = 1 | eval x = CASE(?1, 1, 2)'
+          params: [[]]
+
+  - length: {values: 1}
+  - match: {values.0.1: 2}
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'row v = 1 | eval is_null = ?1 is null, is_not_null = ?1 is not null'
+          params: [[]]
+
+  - match: {values.0.1: true}
+  - match: {values.0.2: false}
+
+  # Reproducer from the issue: COALESCE(?, v) with anonymous positional empty-list param.
+  # Before the fix this threw index_out_of_bounds_exception.
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'row v = 1 | eval x = COALESCE(?, v)'
+          params: [[]]
+
+  - length: {values: 1}
+  - match: {values.0.1: 1}
+
+  # Reproducer from the issue: WHERE ? AND true with anonymous positional empty-list param.
+  # Before the fix this threw ClassCastException.
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'row v = 1 | where ? and true'
+          params: [[]]
+
+  - length: {values: 0}
+
+  # Identifier-pattern positions with null positional params.
+  # This is actually a bug, but can't be fixed without breaking queries like the ones below.
+  #
+  # DROP: the empty column name is not found → verification error.
+  - do:
+      catch: /Unknown column \[\]/
+      esql.query:
+        body:
+          query: 'from test | drop ?1'
+          params: [[]]
+
+  # RENAME: the target column is renamed to "" — the query succeeds and the output column carries an empty name.
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | rename color as ?1 | limit 0'
+          params: [[]]
+
+  - length: {columns: 6}
+  - match: {columns.0.name: ""}
+  - match: {columns.0.type: "keyword"}
+
+  # RENAME then DROP the same null param: drops the renamed (empty-named) column — equivalent to DROP color.
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | rename color as ?1 | drop ?1 | limit 0'
+          params: [[]]
+
+  - length: {columns: 5}
+  - match: {columns.0.name: "count"}
+
+---
+"Empty list param executes correctly with real index data":
+  # Verifies that empty-list params coerced to null are handled correctly at execution time,
+  # not just at parse time. See https://github.com/elastic/elasticsearch/issues/147448
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ empty_list_param_as_null ]
+      reason: "empty list parameter is treated as null"
+
+  # COALESCE with a null named param falls back to the real field value.
+  # Uses KEEP to get a deterministic single-column result.
+  - do:
+      esql.query:
+        body:
+          query: 'from test | eval x = COALESCE(?val, color) | keep x | sort x | limit 1'
+          params: [{"val": []}]
+
+  - length: {columns: 1}
+  - match: {columns.0.name: "x"}
+  - match: {values.0.0: "blue"}
+
+  # COALESCE with a null positional param falls back to the real field value.
+  - do:
+      esql.query:
+        body:
+          query: 'from test | eval x = COALESCE(?1, color) | keep x | sort x | limit 1'
+          params: [[]]
+
+  - length: {columns: 1}
+  - match: {values.0.0: "blue"}
+

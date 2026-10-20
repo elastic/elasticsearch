@@ -35,6 +35,7 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -53,6 +54,7 @@ import org.elasticsearch.index.search.stats.SearchStatsSettings;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.IndexingStatsSettings;
+import org.elasticsearch.index.shard.MutableOperationGate;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -142,6 +144,8 @@ public final class IndexModule {
             // IndexMode cannot be referenced here: IndexModule is loaded before IndexMode, and IndexMode's static
             // initializer references IndexSettings, which in turn needs IndexMode.VALIDATE_WITH_SETTINGS — causing
             // a circular static initialization that results in a NullPointerException at boot time.
+            // vectordb_columnar is intentionally excluded from the columnar family here: unlike the other columnar
+            // modes it keeps the query cache enabled, since filtered vector search relies on it to cache the filter bitset.
             String mode = settings.get("index.mode");
             return Boolean.toString("columnar".equals(mode) == false && "logsdb_columnar".equals(mode) == false);
         },
@@ -189,6 +193,7 @@ public final class IndexModule {
     private final BooleanSupplier allowExpensiveQueries;
     private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
     private final SetOnce<Engine.IndexCommitListener> indexCommitListener = new SetOnce<>();
+    private final SetOnce<MutableOperationGate> mutableOperationGate = new SetOnce<>();
     private final MapperMetrics mapperMetrics;
     private final IndexingStatsSettings indexingStatsSettings;
     private final SearchStatsSettings searchStatsSettings;
@@ -419,6 +424,11 @@ public final class IndexModule {
         this.indexCommitListener.set(Objects.requireNonNull(listener));
     }
 
+    public void setMutableOperationGate(MutableOperationGate gate) {
+        ensureNotFrozen();
+        this.mutableOperationGate.set(Objects.requireNonNull(gate));
+    }
+
     IndexEventListener freeze() { // pkg private for testing
         if (this.frozen.compareAndSet(false, true)) {
             return new CompositeIndexEventListener(indexSettings, indexEventListeners);
@@ -499,6 +509,7 @@ public final class IndexModule {
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
         ScriptService scriptService,
         ClusterService clusterService,
+        FeatureService featureService,
         Client client,
         IndicesQueryCache indicesQueryCache,
         MapperRegistry mapperRegistry,
@@ -552,6 +563,7 @@ public final class IndexModule {
                 threadPoolMergeExecutorService,
                 scriptService,
                 clusterService,
+                featureService,
                 client,
                 queryCache,
                 directoryFactory,
@@ -570,6 +582,7 @@ public final class IndexModule {
                 indexFoldersDeletionListener,
                 snapshotCommitSupplier,
                 indexCommitListener.get(),
+                mutableOperationGate.get(),
                 mapperMetrics,
                 indexingStatsSettings,
                 searchStatsSettings,
@@ -669,6 +682,7 @@ public final class IndexModule {
      */
     public MapperService newIndexMapperService(
         ClusterService clusterService,
+        FeatureService featureService,
         XContentParserConfiguration parserConfiguration,
         MapperRegistry mapperRegistry,
         ScriptService scriptService,
@@ -676,6 +690,7 @@ public final class IndexModule {
     ) throws IOException {
         return new MapperService(
             clusterService,
+            featureService,
             indexSettings,
             analysisRegistry.build(IndexCreationContext.METADATA_VERIFICATION, indexSettings),
             parserConfiguration,

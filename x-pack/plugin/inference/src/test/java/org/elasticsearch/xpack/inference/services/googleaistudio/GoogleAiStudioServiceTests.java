@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.googleaistudio;
 
-import org.apache.http.HttpHeaders;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -24,6 +24,7 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceConfigurationTests;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -36,8 +37,8 @@ import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
+import org.elasticsearch.xpack.core.inference.results.CompletionResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
@@ -747,7 +748,7 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
             assertThat(result.asMap(), is(buildExpectationCompletions(List.of("result"))));
             assertThat(webServer.requests(), hasSize(1));
             assertThat(webServer.requests().get(0).getUri().getQuery(), is("key=secret"));
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo("application/json; charset=UTF-8"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(
@@ -793,7 +794,10 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
             assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F }))));
             assertThat(webServer.requests(), hasSize(1));
             assertThat(webServer.requests().get(0).getUri().getQuery(), endsWith(API_KEY_VALUE));
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo(XContentType.JSON.mediaType()));
+            assertThat(
+                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
+                Matchers.equalTo("application/json; charset=UTF-8")
+            );
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap, aMapWithSize(1));
@@ -918,7 +922,10 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
 
             assertThat(webServer.requests(), hasSize(1));
             assertThat(webServer.requests().get(0).getUri().getQuery(), endsWith(API_KEY_VALUE));
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo(XContentType.JSON.mediaType()));
+            assertThat(
+                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
+                Matchers.equalTo("application/json; charset=UTF-8")
+            );
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap, aMapWithSize(1));
@@ -1011,7 +1018,7 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
                        }
                    }
                 """);
-            InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
+            InferenceServiceConfiguration configuration = InferenceServiceConfigurationTests.fromXContentBytes(
                 new BytesArray(content),
                 XContentType.JSON
             );
@@ -1028,8 +1035,8 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
 
     public static Map<String, Object> buildExpectationCompletions(List<String> completions) {
         return Map.of(
-            ChatCompletionResults.COMPLETION,
-            completions.stream().map(completion -> Map.of(ChatCompletionResults.Result.RESULT, completion)).collect(Collectors.toList())
+            CompletionResults.COMPLETION,
+            completions.stream().map(completion -> Map.of(CompletionResults.Result.RESULT, completion)).collect(Collectors.toList())
         );
     }
 

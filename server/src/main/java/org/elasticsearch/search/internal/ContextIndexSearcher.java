@@ -13,6 +13,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.CollectionTerminatedException;
@@ -21,9 +22,11 @@ import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
@@ -33,8 +36,11 @@ import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.Bits;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.BitsIterator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.lucene.search.CostlyMultiTermQueries;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.profile.Timer;
 import org.elasticsearch.search.profile.query.ProfileWeight;
@@ -71,6 +77,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     private AggregatedDfs aggregatedDfs;
     private QueryProfiler profiler;
+
+    /** Shared with the searchers derived by {@link #withQueryCache}; only the searcher that created it sets the breaker and closes it. */
+    private final ExecutionAccounting executionAccounting;
+    private final boolean ownsExecutionAccounting;
+
     private final MutableQueryTimeout cancellable;
 
     private final boolean hasExecutor;
@@ -117,7 +128,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         );
     }
 
-    @SuppressWarnings("this-escape")
     ContextIndexSearcher(
         IndexReader reader,
         Similarity similarity,
@@ -129,6 +139,33 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         int maximumNumberOfSlices,
         int minimumDocsPerSlice
     ) throws IOException {
+        this(
+            reader,
+            similarity,
+            queryCache,
+            queryCachingPolicy,
+            cancellable,
+            wrapWithExitableDirectoryReader,
+            executor,
+            maximumNumberOfSlices,
+            minimumDocsPerSlice,
+            null
+        );
+    }
+
+    @SuppressWarnings("this-escape")
+    private ContextIndexSearcher(
+        IndexReader reader,
+        Similarity similarity,
+        QueryCache queryCache,
+        QueryCachingPolicy queryCachingPolicy,
+        MutableQueryTimeout cancellable,
+        boolean wrapWithExitableDirectoryReader,
+        Executor executor,
+        int maximumNumberOfSlices,
+        int minimumDocsPerSlice,
+        @Nullable ExecutionAccounting sharedExecutionAccounting
+    ) throws IOException {
         super(wrapWithExitableDirectoryReader ? new ExitableDirectoryReader((DirectoryReader) reader, cancellable) : reader, executor);
         this.hasExecutor = executor != null;
         setSimilarity(similarity);
@@ -137,6 +174,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         this.cancellable = cancellable;
         this.minimumDocsPerSlice = minimumDocsPerSlice;
         this.maximumNumberOfSlices = maximumNumberOfSlices;
+        this.ownsExecutionAccounting = sharedExecutionAccounting == null;
+        this.executionAccounting = ownsExecutionAccounting ? new ExecutionAccounting(getLeafContexts().size()) : sharedExecutionAccounting;
     }
 
     /**
@@ -158,6 +197,65 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     public void setProfiler(QueryProfiler profiler) {
         this.profiler = profiler;
+    }
+
+    public void setCircuitBreaker(@Nullable CircuitBreaker circuitBreaker) {
+        if (ownsExecutionAccounting == false) {
+            throw new IllegalStateException("a searcher derived with withQueryCache uses the circuit breaker of the searcher it came from");
+        }
+        executionAccounting.setBreaker(circuitBreaker);
+    }
+
+    /**
+     * The request circuit breaker for {@code searcher}, or {@code null} when it is not a {@link ContextIndexSearcher} or has no breaker
+     * configured (e.g. percolator or tests). Meant to be called from {@code Query#createWeight} to capture the breaker for later checks.
+     */
+    @Nullable
+    public static CircuitBreaker circuitBreakerOrNull(IndexSearcher searcher) {
+        return searcher instanceof ContextIndexSearcher cis ? cis.executionAccounting.breaker() : null;
+    }
+
+    /**
+     * Returns a searcher over the same reader that uses {@code queryCache} and shares this searcher's request circuit breaker and
+     * execution accounting. The execution memory its weights charge is released when this searcher is closed.
+     */
+    public ContextIndexSearcher withQueryCache(QueryCache queryCache) throws IOException {
+        return new ContextIndexSearcher(
+            getIndexReader(),
+            getSimilarity(),
+            queryCache,
+            getQueryCachingPolicy(),
+            new MutableQueryTimeout(),
+            false,
+            null,
+            -1,
+            -1,
+            executionAccounting
+        );
+    }
+
+    /**
+     * Checkpoint for query-time binary doc values decoding. A large should-fan-out of binary-doc-values matcher queries opens one decoder
+     * per surviving clause/segment pair, each holding a multi-hundred-KB decode buffer that is invisible to any breaker. Passing 0 bytes
+     * means the child breaker never accumulates (nothing to release), but the call still runs the parent's real-heap check, which trips
+     * once the accumulating buffers push heap over the limit - turning a node OOM into a recoverable
+     * {@link org.elasticsearch.common.breaker.CircuitBreakingException}.
+     */
+    public static void checkBinaryDvDecodeBreaker(@Nullable CircuitBreaker breaker) {
+        if (breaker != null) {
+            // Passing 0 bytes means the child breaker never accumulates and hence there is no need to explicitly release anything.
+            // The call still runs the parent's real-heap check, which trips once the accumulating buffers push heap over the limit.
+            breaker.addEstimateBytesAndMaybeBreak(0L, "binary_doc_values_decode");
+        }
+    }
+
+    /**
+     * As {@link #checkBinaryDvDecodeBreaker(CircuitBreaker)}, resolving the breaker from {@code searcher}. Shaped to be
+     * passed as a method reference where a caller can only be handed a searcher - see {@code ScanBudget} in the columnar
+     * library, which has no notion of a circuit breaker of its own.
+     */
+    public static void checkBinaryDvDecodeBreaker(IndexSearcher searcher) {
+        checkBinaryDvDecodeBreaker(circuitBreakerOrNull(searcher));
     }
 
     /**
@@ -192,6 +290,10 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         // A cancellable can contain an indirect reference to the search context, which potentially retains a significant amount
         // of memory.
         this.cancellable.clear();
+
+        if (ownsExecutionAccounting) {
+            executionAccounting.close();
+        }
     }
 
     // clear all registered cancellation callbacks to prevent them from leaking into other phases
@@ -247,17 +349,78 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             QueryProfileBreakdown profile = profiler.getQueryBreakdown(query);
             Timer timer = profile.getNewTimer(QueryTimingType.CREATE_WEIGHT);
             timer.start();
-            final Weight weight;
+            final Weight innerWeight;
             try {
-                weight = query.createWeight(this, scoreMode, boost);
+                innerWeight = query.createWeight(this, scoreMode, boost);
             } finally {
                 timer.stop();
                 profiler.pollLastElement();
             }
-            return new ProfileWeight(query, weight, profile);
-        } else {
-            return super.createWeight(query, scoreMode, boost);
+            return chargingExecutionMemory(query, new ProfileWeight(query, innerWeight, profile));
         }
+        // The charging weight sits below the query cache, so a leaf served from the cache is not charged.
+        final Weight weight = chargingExecutionMemory(query, query.createWeight(this, scoreMode, boost));
+        final QueryCache queryCache = getQueryCache();
+        if (scoreMode.needsScores() == false && queryCache != null) {
+            return queryCache.doCache(weight, getQueryCachingPolicy());
+        }
+        return weight;
+    }
+
+    /** Wraps {@code weight} so that the memory {@code query} allocates to score a leaf is charged to the request circuit breaker. */
+    private Weight chargingExecutionMemory(Query query, Weight weight) {
+        if (executionAccounting.breaker() == null) {
+            return weight;
+        }
+        PointRangeQuery pointRangeQuery = pointRangeQueryOrNull(query);
+        if (pointRangeQuery != null) {
+            executionAccounting.ensureCreated();
+            return new PointRangeBreakerWeight(this, weight, pointRangeQuery, query instanceof IndexOrDocValuesQuery);
+        }
+        Query multiTermQuery = multiTermQueryOrNull(unwrapBoost(query));
+        if (multiTermQuery != null) {
+            executionAccounting.ensureCreated();
+            return new MultiTermBreakerWeight(this, weight, multiTermQuery, unwrapBoost(query) instanceof IndexOrDocValuesQuery);
+        }
+        return weight;
+    }
+
+    void chargeLeaf(LeafReaderContext ctx, long bytes, String label) {
+        executionAccounting.charge(ctx, bytes, label);
+    }
+
+    /** Test-only */
+    boolean hasLeafExecutionAccounting() {
+        return executionAccounting.hasLeafAccounting();
+    }
+
+    private static PointRangeQuery pointRangeQueryOrNull(Query query) {
+        if (query instanceof PointRangeQuery prq) {
+            return prq;
+        }
+        if (query instanceof IndexOrDocValuesQuery iodvq && iodvq.getIndexQuery() instanceof PointRangeQuery prq) {
+            return prq;
+        }
+        return null;
+    }
+
+    @Nullable
+    private static Query multiTermQueryOrNull(Query query) {
+        if (query instanceof IndexOrDocValuesQuery iodvq) {
+            query = iodvq.getIndexQuery();
+        }
+        return CostlyMultiTermQueries.isCostlyMultiTermQuery(query) ? query : null;
+    }
+
+    /**
+     * Unwraps {@link BoostQuery} only. {@link ConstantScoreQuery#createWeight} recurses through this override, so its child is
+     * already wrapped once; unwrapping it here too would double-charge.
+     */
+    private static Query unwrapBoost(Query query) {
+        while (query instanceof BoostQuery boostQuery) {
+            query = boostQuery.getQuery();
+        }
+        return query;
     }
 
     /**
@@ -462,53 +625,56 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     @Override
     protected void searchLeaf(LeafReaderContext ctx, int minDocId, int maxDocId, Weight weight, Collector collector) throws IOException {
         cancellable.checkCancelled();
-        final LeafCollector leafCollector;
-        try {
-            leafCollector = collector.getLeafCollector(ctx);
-        } catch (CollectionTerminatedException e) {
-            // there is no doc of interest in this reader context
-            // continue with the following leaf
-            // We don't need to finish leaf collector as collection was terminated before it was created
-            return;
-        }
-        Bits liveDocs = ctx.reader().getLiveDocs();
-        int numDocs = ctx.reader().numDocs();
-        // This threshold comes from the previous heuristic that checked whether the BitSet was a SparseFixedBitSet, which uses this
-        // threshold at creation time. But a higher threshold would likely perform better?
-        int threshold = ctx.reader().maxDoc() >> 7;
-        if (numDocs >= threshold) {
-            BulkScorer bulkScorer = weight.bulkScorer(ctx);
-            if (bulkScorer != null) {
-                if (cancellable.isEnabled()) {
-                    bulkScorer = new CancellableBulkScorer(bulkScorer, cancellable::checkCancelled);
+
+        try (Releasable ignored = executionAccounting.enterLeaf(ctx)) {
+            final LeafCollector leafCollector;
+            try {
+                leafCollector = collector.getLeafCollector(ctx);
+            } catch (CollectionTerminatedException e) {
+                // there is no doc of interest in this reader context
+                // continue with the following leaf
+                // We don't need to finish leaf collector as collection was terminated before it was created
+                return;
+            }
+            Bits liveDocs = ctx.reader().getLiveDocs();
+            int numDocs = ctx.reader().numDocs();
+            // This threshold comes from the previous heuristic that checked whether the BitSet was a SparseFixedBitSet, which uses this
+            // threshold at creation time. But a higher threshold would likely perform better?
+            int threshold = ctx.reader().maxDoc() >> 7;
+            if (numDocs >= threshold) {
+                BulkScorer bulkScorer = weight.bulkScorer(ctx);
+                if (bulkScorer != null) {
+                    if (cancellable.isEnabled()) {
+                        bulkScorer = new CancellableBulkScorer(bulkScorer, cancellable::checkCancelled);
+                    }
+                    try {
+                        bulkScorer.score(leafCollector, liveDocs, minDocId, maxDocId);
+                    } catch (CollectionTerminatedException e) {
+                        // collection was terminated prematurely
+                        // continue with the following leaf
+                    }
                 }
-                try {
-                    bulkScorer.score(leafCollector, liveDocs, minDocId, maxDocId);
-                } catch (CollectionTerminatedException e) {
-                    // collection was terminated prematurely
-                    // continue with the following leaf
+            } else {
+                // if the role query result set is sparse then we should use the SparseFixedBitSet for advancing:
+                Scorer scorer = weight.scorer(ctx);
+                if (scorer != null) {
+                    try {
+                        intersectScorerAndBitSet(
+                            scorer,
+                            liveDocs,
+                            leafCollector,
+                            this.cancellable.isEnabled() ? cancellable::checkCancelled : () -> {}
+                        );
+                    } catch (CollectionTerminatedException e) {
+                        // collection was terminated prematurely
+                        // continue with the following leaf
+                    }
                 }
             }
-        } else {
-            // if the role query result set is sparse then we should use the SparseFixedBitSet for advancing:
-            Scorer scorer = weight.scorer(ctx);
-            if (scorer != null) {
-                try {
-                    intersectScorerAndBitSet(
-                        scorer,
-                        liveDocs,
-                        leafCollector,
-                        this.cancellable.isEnabled() ? cancellable::checkCancelled : () -> {}
-                    );
-                } catch (CollectionTerminatedException e) {
-                    // collection was terminated prematurely
-                    // continue with the following leaf
-                }
-            }
+            // Finish the leaf collection in preparation for the next.
+            // This includes any collection that was terminated early via `CollectionTerminatedException`
+            leafCollector.finish();
         }
-        // Finish the leaf collection in preparation for the next.
-        // This includes any collection that was terminated early via `CollectionTerminatedException`
-        leafCollector.finish();
     }
 
     static void intersectScorerAndBitSet(Scorer scorer, Bits acceptDocs, LeafCollector collector, Runnable checkCancelled)

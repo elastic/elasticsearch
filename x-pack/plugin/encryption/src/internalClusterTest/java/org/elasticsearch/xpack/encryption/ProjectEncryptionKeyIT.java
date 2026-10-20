@@ -19,8 +19,6 @@ import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ObjectPath;
-import org.elasticsearch.xpack.encryption.spi.EncryptedData;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,14 +37,6 @@ public class ProjectEncryptionKeyIT extends SecurityIntegTestCase {
     private static final String PASSWORD_ID = "v1";
     private static final String PASSWORD = "encryption-test-password";
 
-    @Before
-    public void checkFeatureFlag() {
-        assumeTrue(
-            "project encryption key feature flag must be enabled",
-            ProjectEncryptionKeyService.PROJECT_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled()
-        );
-    }
-
     @Override
     protected boolean addMockHttpTransport() {
         return false;
@@ -62,13 +52,10 @@ public class ProjectEncryptionKeyIT extends SecurityIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
-        // The encryption settings are only registered when the feature flag is enabled
-        if (ProjectEncryptionKeyService.PROJECT_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled()) {
-            SecuritySettingsSource.addSecureSettings(builder, secure -> {
-                secure.setString(ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY, PASSWORD_ID);
-                secure.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + PASSWORD_ID, PASSWORD);
-            });
-        }
+        SecuritySettingsSource.addSecureSettings(builder, secure -> {
+            secure.setString(ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY, PASSWORD_ID);
+            secure.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + PASSWORD_ID, PASSWORD);
+        });
         return builder.build();
     }
 
@@ -85,17 +72,9 @@ public class ProjectEncryptionKeyIT extends SecurityIntegTestCase {
             assertThat("Project encryption key should be generated", pek, notNullValue());
             assertNotNull(pek.getActiveKeyId());
             assertEquals(PASSWORD_ID, pek.getPasswordId());
-            EncryptedData encryptedActive = pek.getEncryptedKey(pek.getActiveKeyId());
-            assertThat(encryptedActive, notNullValue());
-            // Canonical wrap layout: [kdf_version(1) | salt(16) | AesGcm output(version+iv+ciphertext+tag)] over a 32-byte PEK.
-            assertThat(
-                encryptedActive.payload().length,
-                equalTo(
-                    PasswordBasedEncryption.SALT_OFFSET + PasswordBasedEncryption.SALT_LENGTH_BYTES + AesGcm.OVERHEAD_BYTES
-                        + PasswordBasedEncryption.PEK_LENGTH_BYTES
-                )
-            );
-            assertThat(encryptedActive.keyId(), equalTo(PASSWORD_ID));
+            byte[] keyBytes = pek.getKeys().get(pek.getActiveKeyId()).bytes();
+            assertThat(keyBytes, notNullValue());
+            assertThat(keyBytes.length, equalTo(PasswordBasedEncryption.PEK_LENGTH_BYTES));
         });
     }
 
@@ -166,7 +145,7 @@ public class ProjectEncryptionKeyIT extends SecurityIntegTestCase {
                 response.evaluate(typePath + ".keys." + keyId + ".generated_at")
             );
             assertNull(
-                "wrapped key bytes must not be exposed via the cluster state API for key " + keyId,
+                "key bytes must not be exposed via the cluster state API for key " + keyId,
                 response.evaluate(typePath + ".keys." + keyId + ".bytes")
             );
         }

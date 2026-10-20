@@ -33,6 +33,8 @@ import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -57,6 +59,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -116,6 +119,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
 
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final ProjectResolver projectResolver;
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
     private final TransformParsingContext transformParsingContext;
@@ -123,12 +127,14 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
     public IndexBasedTransformConfigManager(
         ClusterService clusterService,
         IndexNameExpressionResolver indexNameExpressionResolver,
+        ProjectResolver projectResolver,
         Client client,
         NamedXContentRegistry xContentRegistry,
         TransformParsingContext transformParsingContext
     ) {
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.projectResolver = projectResolver;
         this.client = client;
         this.xContentRegistry = xContentRegistry;
         this.transformParsingContext = transformParsingContext;
@@ -195,7 +201,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
         // in some cases, the System Index gets reindexed and LATEST_INDEX_NAME is now an alias pointing to that reindexed index
         // this mostly likely happens after the SystemIndexMigrator ran
         // we need to check if the LATEST_INDEX_NAME is now an alias and points to the indexName
-        var metadata = clusterService.state().projectState().metadata();
+        ProjectMetadata metadata = currentProjectMetadata();
         var indicesForAlias = metadata.aliasedIndices(TransformInternalIndexConstants.LATEST_INDEX_NAME);
         var index = metadata.index(indexName);
         return index != null && indicesForAlias.contains(index.getIndex());
@@ -1011,7 +1017,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
         )
             .setQuery(queryBuilder)
             .setFetchSource(new String[] { "persisted_credential" }, null)
-            .addSort("_id", SortOrder.ASC)
+            .addSort(TransformConfigManager.CLOUD_CREDENTIAL_TOKEN_ID_FIELD, SortOrder.ASC)
             .setSize(1_000)
             .setAllowPartialSearchResults(false);
 
@@ -1218,8 +1224,15 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
         }), client::search);
     }
 
+    private ProjectMetadata currentProjectMetadata() {
+        assert projectResolver.supportsMultipleProjects() == false
+            || client.threadPool().getThreadContext().getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER) != null
+            : "project id must be on the thread context when resolving project metadata in multi-project mode";
+        return projectResolver.getProjectMetadata(clusterService.state());
+    }
+
     private boolean isUpgrading() {
-        return TransformMetadata.isUpgradeMode(clusterService.state());
+        return TransformMetadata.isUpgradeMode(currentProjectMetadata());
     }
 
     private Exception conflictStatusException(String message) {

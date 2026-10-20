@@ -35,10 +35,8 @@ public class BytesReferenceMonitoringDocTests extends BaseMonitoringDocTestCase<
     private XContentType xContentType;
     private BytesReference source;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initBytesReferenceFields() throws Exception {
         xContentType = randomFrom(XContentType.values());
         source = RandomObjects.randomSource(random(), xContentType);
     }

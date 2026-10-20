@@ -15,6 +15,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Glob;
 import org.elasticsearch.core.Predicates;
 
 import java.util.ArrayList;
@@ -207,43 +208,7 @@ public class Regex {
             pattern = Strings.toLowercaseAscii(pattern);
             str = Strings.toLowercaseAscii(str);
         }
-        return simpleMatchWithNormalizedStrings(pattern, str);
-    }
-
-    private static boolean simpleMatchWithNormalizedStrings(String pattern, String str) {
-        final int firstIndex = pattern.indexOf('*');
-        if (firstIndex == -1) {
-            return pattern.equals(str);
-        }
-        if (firstIndex == 0) {
-            if (pattern.length() == 1) {
-                return true;
-            }
-            final int nextIndex = pattern.indexOf('*', firstIndex + 1);
-            if (nextIndex == -1) {
-                // str.endsWith(pattern.substring(1)), but avoiding the construction of pattern.substring(1):
-                return str.regionMatches(str.length() - pattern.length() + 1, pattern, 1, pattern.length() - 1);
-            } else if (nextIndex == 1) {
-                // Double wildcard "**" detected - skipping all "*"
-                int wildcards = nextIndex + 1;
-                while (wildcards < pattern.length() && pattern.charAt(wildcards) == '*') {
-                    wildcards++;
-                }
-                return simpleMatchWithNormalizedStrings(pattern.substring(wildcards - 1), str);
-            }
-            final String part = pattern.substring(1, nextIndex);
-            int partIndex = str.indexOf(part);
-            while (partIndex != -1) {
-                if (simpleMatchWithNormalizedStrings(pattern.substring(nextIndex), str.substring(partIndex + part.length()))) {
-                    return true;
-                }
-                partIndex = str.indexOf(part, partIndex + 1);
-            }
-            return false;
-        }
-        return str.regionMatches(0, pattern, 0, firstIndex)
-            && (firstIndex == pattern.length() - 1 // only wildcard in pattern is at the end, so no need to look at the rest of the string
-                || simpleMatchWithNormalizedStrings(pattern.substring(firstIndex), str.substring(firstIndex)));
+        return Glob.globMatch(pattern, str);
     }
 
     /**

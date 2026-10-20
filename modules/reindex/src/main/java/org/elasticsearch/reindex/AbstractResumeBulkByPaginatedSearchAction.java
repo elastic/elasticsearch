@@ -30,8 +30,8 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.concurrent.Executor;
 
-/// Abstract transport action for resuming BulkByScrollAction operations asynchronously. Delegates to the corresponding action on the local
-/// node, then returns a [ResumeBulkByPaginatedSearchResponse] containing the task id of the delegate action.
+/// Abstract transport action for resuming BulkByPaginatedSearchAction operations asynchronously. Delegates to the corresponding action on
+/// the local node, then returns a [ResumeBulkByPaginatedSearchResponse] containing the task id of the delegate action.
 public abstract class AbstractResumeBulkByPaginatedSearchAction<Request extends AbstractBulkByPaginatedSearchRequest<Request>> extends
     HandledTransportAction<ResumeBulkByPaginatedSearchRequest, ResumeBulkByPaginatedSearchResponse> {
 
@@ -68,7 +68,7 @@ public abstract class AbstractResumeBulkByPaginatedSearchAction<Request extends 
         final ResumeInfo resumeInfo = request.getDelegate().getResumeInfo().get();
 
         var responseListener = new SubscribableListener<BulkByPaginatedSearchResponse>();
-        Task delegateTask = nodeClient.executeLocally(delegateAction, request.getDelegate(), responseListener);
+        Task delegateTask = nodeClient.executeAndReturnTask(delegateAction, request.getDelegate(), responseListener);
         responseListener.addListener(new LoggingReindexTaskListener(delegateTask));
         TaskId taskId = new TaskId(clusterService.localNode().getId(), delegateTask.getId());
         logger.info(

@@ -65,7 +65,7 @@ public class PersistJobIT extends MlNativeAutodetectIntegTestCase {
 
         // Check that state has been persisted
         assertResponse(
-            prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern()).setFetchSource(false).setTrackTotalHits(true).setSize(10000),
+            prepareSearch(AnomalyDetectorsIndex.jobStateIndexPatterns()).setFetchSource(false).setTrackTotalHits(true).setSize(10000),
             stateDocsResponse1 -> {
                 int numQuantileRecords = 0;
                 int numStateRecords = 0;
@@ -104,7 +104,7 @@ public class PersistJobIT extends MlNativeAutodetectIntegTestCase {
 
         // Check that a new state record exists.
         assertResponse(
-            prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern()).setFetchSource(false).setTrackTotalHits(true).setSize(10000),
+            prepareSearch(AnomalyDetectorsIndex.jobStateIndexPatterns()).setFetchSource(false).setTrackTotalHits(true).setSize(10000),
             stateDocsResponse2 -> {
                 int numQuantileRecords = 0;
                 int numStateRecords = 0;
@@ -142,7 +142,7 @@ public class PersistJobIT extends MlNativeAutodetectIntegTestCase {
 
         // Check that state has been persisted
         assertResponse(
-            prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern()).setFetchSource(false).setTrackTotalHits(true).setSize(10000),
+            prepareSearch(AnomalyDetectorsIndex.jobStateIndexPatterns()).setFetchSource(false).setTrackTotalHits(true).setSize(10000),
             stateDocsResponse -> {
                 int numQuantileRecords = 0;
                 int numStateRecords = 0;
@@ -168,7 +168,7 @@ public class PersistJobIT extends MlNativeAutodetectIntegTestCase {
         deleteJob(jobId);
 
         assertResponse(
-            prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern()).setFetchSource(false).setTrackTotalHits(true).setSize(10000),
+            prepareSearch(AnomalyDetectorsIndex.jobStateIndexPatterns()).setFetchSource(false).setTrackTotalHits(true).setSize(10000),
             stateDocsResponse -> {
                 int numQuantileRecords = 0;
                 int numStateRecords = 0;
@@ -195,7 +195,7 @@ public class PersistJobIT extends MlNativeAutodetectIntegTestCase {
         closeJob(jobId);
 
         // Check that state has not been persisted
-        assertHitCount(prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern()), 0);
+        assertHitCount(prepareSearch(AnomalyDetectorsIndex.jobStateIndexPatterns()), 0);
 
         // Check that results have not been persisted
         assertHitCount(prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName(jobId)), 0);

@@ -29,6 +29,8 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -41,9 +43,8 @@ public class PartialHitCountCollectorTests extends ESTestCase {
     private IndexSearcher searcher;
     private int numDocs;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initDirectoryAndSearcher() throws Exception {
         dir = newDirectory();
         RandomIndexWriter writer = new RandomIndexWriter(random(), dir);
         numDocs = scaledRandomIntBetween(900, 1000);
@@ -64,9 +65,8 @@ public class PartialHitCountCollectorTests extends ESTestCase {
         searcher = newSearcher(reader);
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void closeDirectoryAndSearcher() throws Exception {
         searcher.getIndexReader().close();
         dir.close();
     }

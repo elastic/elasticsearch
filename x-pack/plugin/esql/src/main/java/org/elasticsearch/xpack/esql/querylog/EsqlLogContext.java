@@ -17,8 +17,11 @@ import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryProfile;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
+import org.elasticsearch.xpack.esql.action.PreparedEsqlQueryRequest;
+import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -33,15 +36,33 @@ public class EsqlLogContext extends QueryLoggerContext {
     private String[] indexNames = null;
 
     EsqlLogContext(Task task, EsqlQueryRequest request, EsqlQueryResponse response) {
-        super(task, TYPE, response.getExecutionInfo().overallTook().nanos());
+        super(task, queryType(request), response.getExecutionInfo().overallTook().nanos());
         this.request = request;
         this.response = response;
     }
 
     EsqlLogContext(Task task, EsqlQueryRequest request, long tookInNanos, Exception error) {
-        super(task, TYPE, tookInNanos, error);
+        super(task, queryType(request), tookInNanos, error);
         this.request = request;
         this.response = null;
+    }
+
+    /**
+     * Constructor for subclasses that supply their own response-derived data (e.g. streaming queries
+     * that never build an {@link EsqlQueryResponse}); all response-derived accessors return their
+     * null-/empty defaults until overridden by the subclass.
+     */
+    protected EsqlLogContext(Task task, EsqlQueryRequest request, long tookInNanos) {
+        super(task, queryType(request), tookInNanos);
+        this.request = request;
+        this.response = null;
+    }
+
+    private static String queryType(EsqlQueryRequest request) {
+        if (request instanceof PreparedEsqlQueryRequest prepared && prepared.getType() != null) {
+            return prepared.getType();
+        }
+        return TYPE;
     }
 
     @Override
@@ -73,6 +94,11 @@ public class EsqlLogContext extends QueryLoggerContext {
         return Math.clamp(response.getRowCount(), 0, Integer.MAX_VALUE);
     }
 
+    /** The settings the query resolved to, if it got far enough to resolve them. */
+    Optional<ResolvedSettings> getResolvedSettings() {
+        return Optional.ofNullable(request.resolvedSettings());
+    }
+
     Optional<EsqlQueryProfile> getQueryProfile() {
         return Optional.ofNullable(response).map(it -> it.getExecutionInfo().queryProfile());
     }
@@ -94,16 +120,33 @@ public class EsqlLogContext extends QueryLoggerContext {
                 response.rowsEmitted(),
                 response.bytesRead(),
                 response.readNanos(),
-                response.cpuNanos()
+                response.readCpuNanos(),
+                response.cpuNanos(),
+                response.driverNanos()
             )
         );
     }
 
     /** Snapshot of the query-level rollup counters surfaced into the slow log. */
-    record RollupCounters(long documentsFound, long valuesLoaded, long rowsEmitted, long bytesRead, long readNanos, long cpuNanos) {}
+    record RollupCounters(
+        long documentsFound,
+        long valuesLoaded,
+        long rowsEmitted,
+        long bytesRead,
+        long readNanos,
+        long readCpuNanos,
+        long cpuNanos,
+        long driverNanos
+    ) {}
 
     @Override
     public String[] getIndices() {
+        if (request instanceof PreparedEsqlQueryRequest prepared) {
+            String index = prepared.getIndex();
+            if (index != null) {
+                return new String[] { index };
+            }
+        }
         if (response == null) {
             return null;
         }
@@ -139,5 +182,17 @@ public class EsqlLogContext extends QueryLoggerContext {
     @Override
     protected QueryBuilder queryFilter() {
         return request.filter();
+    }
+
+    public Map<String, String> namedParams() {
+        var params = request.params().namedParams();
+        if (params.isEmpty()) {
+            return Map.of();
+        }
+        return params.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> String.valueOf(e.getValue().value())));
+    }
+
+    public List<String> params() {
+        return request.params().params().stream().map(p -> String.valueOf(p.value())).collect(Collectors.toList());
     }
 }

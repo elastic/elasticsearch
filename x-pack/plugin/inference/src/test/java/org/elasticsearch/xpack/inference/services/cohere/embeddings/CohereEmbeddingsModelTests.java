@@ -29,14 +29,14 @@ public class CohereEmbeddingsModelTests extends ESTestCase {
     public void testOverrideWith_DoesNotOverrideAndModelRemainsEqual_WhenSettingsAreEmpty() {
         var model = createModel("url", "api_key", null, null, null);
 
-        var overriddenModel = CohereEmbeddingsModel.of(model, Map.of());
+        var overriddenModel = CohereEmbeddingsModel.createWithOverriddenTaskSettings(model, Map.of());
         MatcherAssert.assertThat(overriddenModel, is(model));
     }
 
     public void testOverrideWith_DoesNotOverrideAndModelRemainsEqual_WhenSettingsAreNull() {
         var model = createModel("url", "api_key", null, null, null);
 
-        var overriddenModel = CohereEmbeddingsModel.of(model, null);
+        var overriddenModel = CohereEmbeddingsModel.createWithOverriddenTaskSettings(model, null);
         MatcherAssert.assertThat(overriddenModel, is(model));
     }
 
@@ -51,7 +51,7 @@ public class CohereEmbeddingsModelTests extends ESTestCase {
             CohereEmbeddingType.FLOAT
         );
 
-        var overriddenModel = CohereEmbeddingsModel.of(model, getTaskSettingsMap(InputType.SEARCH, null));
+        var overriddenModel = CohereEmbeddingsModel.createWithOverriddenTaskSettings(model, getTaskSettingsMap(InputType.SEARCH, null));
         var expectedModel = createModel(
             "url",
             "api_key",
@@ -75,7 +75,7 @@ public class CohereEmbeddingsModelTests extends ESTestCase {
             CohereEmbeddingType.FLOAT
         );
 
-        var overriddenModel = CohereEmbeddingsModel.of(model, getTaskSettingsMap(null, null));
+        var overriddenModel = CohereEmbeddingsModel.createWithOverriddenTaskSettings(model, getTaskSettingsMap(null, null));
         var expectedModel = createModel(
             "url",
             "api_key",

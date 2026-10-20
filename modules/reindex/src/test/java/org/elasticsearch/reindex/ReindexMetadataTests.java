@@ -14,6 +14,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.reindex.PaginatedHitSource.Hit;
@@ -62,6 +63,29 @@ public class ReindexMetadataTests extends AbstractAsyncBulkByPaginatedSearchActi
         assertEquals("=]", index.routing());
     }
 
+    public void testRoutingSetFromSliceIfRequested() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        TestAction action = action();
+        // A destination [slice] is a plain slice value that every reindexed document is routed to.
+        action.mainRequest().getDestination().routing("cat").setRoutingFromSlice(true);
+        IndexRequest index = new IndexRequest();
+        action.copyMetadata(AbstractAsyncBulkByPaginatedSearchAction.wrap(index), doc().setRouting("foo"));
+        assertEquals("cat", index.routing());
+        assertTrue(index.isRoutingFromSlice());
+    }
+
+    public void testRoutingDiscardedWhenSliceSourceReindexedIntoNonSliceDestination() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        TestAction action = action();
+        // Reading in slice mode into a non-slice-enabled destination (the TestAction uses an empty cluster state) drops the slice value
+        // rather than persisting it as ordinary routing.
+        action.mainRequest().getSearchRequest().searchSlice("tenant-a");
+        IndexRequest index = new IndexRequest();
+        action.copyMetadata(AbstractAsyncBulkByPaginatedSearchAction.wrap(index), doc().setRouting("tenant-a"));
+        assertNull(index.routing());
+        assertFalse(index.isRoutingFromSlice());
+    }
+
     @Override
     protected TestAction action() {
         return new TestAction();
@@ -91,7 +115,7 @@ public class ReindexMetadataTests extends AbstractAsyncBulkByPaginatedSearchActi
                 randomPositiveTimeValue(),
                 null,
                 new ReindexSettings(),
-                new NoopCircuitBreaker("test")
+                NoopCircuitBreaker.INSTANCE
             );
         }
 

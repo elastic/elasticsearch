@@ -362,7 +362,7 @@ POST /example/_doc
 
 #### Circle [_circle]
 
-Neither GeoJSON nor WKT supports a point-radius circle type. Instead, use a [circle ingest processor](/reference/enrich-processor/ingest-circle-processor.md) to approximate the circle as a [`polygon`](#geo-polygon).
+Neither GeoJSON nor WKT supports a point-radius circle type. Instead, use a [circle ingest processor](/reference/ingest-processor/ingest-circle-processor.md) to approximate the circle as a [`polygon`](#geo-polygon).
 
 
 ### Sorting and Retrieving index Shapes [_sorting_and_retrieving_index_shapes]

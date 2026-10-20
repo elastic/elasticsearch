@@ -21,7 +21,7 @@ import java.util.Arrays;
  * Vector implementation that stores a constant float value.
  * This class is generated. Edit {@code X-ConstantVector.java.st} instead.
  */
-final class ConstantFloatVector extends AbstractVector implements FloatVector {
+public final class ConstantFloatVector extends AbstractVector implements FloatVector {
 
     static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantFloatVector.class);
 

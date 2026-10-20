@@ -9,6 +9,8 @@
 
 package org.elasticsearch.datageneration.datasource;
 
+import org.elasticsearch.index.IndexMode;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -28,6 +30,10 @@ public class DataSource {
     private List<DataSourceHandler> handlers;
 
     public DataSource(Collection<DataSourceHandler> additionalHandlers) {
+        this(additionalHandlers, IndexMode.STANDARD);
+    }
+
+    public DataSource(Collection<DataSourceHandler> additionalHandlers, IndexMode indexMode) {
         this.handlers = new ArrayList<>();
 
         this.handlers.addAll(additionalHandlers);
@@ -36,7 +42,7 @@ public class DataSource {
         this.handlers.add(new DefaultPrimitiveTypesHandler());
         this.handlers.add(new DefaultWrappersHandler());
         this.handlers.add(new DefaultObjectGenerationHandler());
-        this.handlers.add(new DefaultMappingParametersHandler());
+        this.handlers.add(new DefaultMappingParametersHandler(indexMode));
     }
 
     public <T extends DataSourceResponse> T get(DataSourceRequest<T> request) {

@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.application.connector.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.indices.InvalidIndexNameException;
@@ -21,7 +21,7 @@ import static org.elasticsearch.xpack.application.connector.ConnectorTemplateReg
 /**
  * Abstract base class for action requests targeting the connectors index.
  */
-public abstract class ConnectorActionRequest extends LegacyActionRequest {
+public abstract class ConnectorActionRequest extends UntypedActionRequest {
 
     public ConnectorActionRequest() {
         super();

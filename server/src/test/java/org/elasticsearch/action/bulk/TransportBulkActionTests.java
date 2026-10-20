@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -51,8 +52,10 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.dlm.TimeSeriesEligibleWriteWindowLocator;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.Index;
@@ -128,7 +131,7 @@ public class TransportBulkActionTests extends ESTestCase {
                 TransportBulkActionTests.this.clusterService,
                 null,
                 new NodeClient(Settings.EMPTY, TransportBulkActionTests.this.threadPool, TestProjectResolvers.alwaysThrow()),
-                new ActionFilters(Collections.emptySet()),
+                ActionFilters.EMPTY,
                 new Resolver(),
                 new IndexingPressure(Settings.EMPTY),
                 new SystemIndices(
@@ -151,6 +154,7 @@ public class TransportBulkActionTests extends ESTestCase {
                         return activeProjectId.get();
                     }
                 },
+                TransportBulkActionTests.this.threadPool::relativeTimeInNanos,
                 FailureStoreMetrics.NOOP,
                 DataStreamFailureStoreSettings.create(clusterSettings),
                 new FeatureService(List.of()) {
@@ -158,7 +162,10 @@ public class TransportBulkActionTests extends ESTestCase {
                     public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
                         return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
                     }
-                }
+                },
+                new TimeSeriesEligibleWriteWindowLocator(),
+                DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings()),
+                BigArrays.NON_RECYCLING_INSTANCE
             );
         }
 
@@ -192,8 +199,7 @@ public class TransportBulkActionTests extends ESTestCase {
     }
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initServices() throws Exception {
         threadPool = new TestThreadPool(getClass().getName());
         DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder("node")
             .version(
@@ -221,11 +227,10 @@ public class TransportBulkActionTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void closeServices() throws Exception {
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         threadPool = null;
         clusterService.close();
-        super.tearDown();
     }
 
     public void testDeleteNonExistingDocDoesNotCreateIndex() throws Exception {

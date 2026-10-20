@@ -57,7 +57,7 @@ public final class IpLocationServiceAdapter implements IpLocationService {
             String dbType = database.getDatabaseType();
             IpDataLookupFactories.IpDataLookupFactory factory = IpDataLookupFactories.get(dbType, databaseFile);
             InternalIpDataLookup internalLookup = factory.create(propertyNames);
-            IpDataLookupInfo info = new IpDataLookupInfoImpl(internalLookup.getProperties(), dbType);
+            IpDataLookupInfo info = new IpDataLookupInfoImpl(internalLookup.getProperties(), factory.defaultProperties(), dbType);
             return new BridgeIpDataLookup(provider, pid, databaseFile, internalLookup, info);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -80,7 +80,7 @@ public final class IpLocationServiceAdapter implements IpLocationService {
         if (database == null) {
             return null;
         }
-        return new IpDataLookupInfoImpl(database.properties(), dbType);
+        return new IpDataLookupInfoImpl(database.properties(), database.defaultProperties(), dbType);
     }
 
     /**

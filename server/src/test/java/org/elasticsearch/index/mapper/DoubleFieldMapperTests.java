@@ -163,7 +163,12 @@ public class DoubleFieldMapperTests extends NumberFieldMapperTests {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        return new NumberSyntheticSourceSupport(Number::doubleValue, ignoreMalformed);
+        return new NumberSyntheticSourceSupport(Number::doubleValue, ignoreMalformed, false);
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupportColumnar(boolean ignoreMalformed) {
+        return new NumberSyntheticSourceSupport(Number::doubleValue, ignoreMalformed, true);
     }
 
     protected SyntheticSourceSupport syntheticSourceSupportForKeepTests(boolean ignoreMalformed, Mapper.SourceKeepMode sourceKeepMode) {
@@ -179,7 +184,6 @@ public class DoubleFieldMapperTests extends NumberFieldMapperTests {
     }
 
     public void testColumnarArrayOrderRoundTrip() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.name()).build();
         DocumentMapper mapper = createMapperService(settings, mapping(b -> b.startObject("field").field("type", "double").endObject()))
             .documentMapper();

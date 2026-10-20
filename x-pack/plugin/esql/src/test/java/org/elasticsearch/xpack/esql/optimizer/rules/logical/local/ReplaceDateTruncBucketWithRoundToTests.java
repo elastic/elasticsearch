@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.TestOptimizer;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -281,32 +279,4 @@ public class ReplaceDateTruncBucketWithRoundToTests extends AbstractLocalLogical
         return new EsqlTestUtils.TestSearchStatsWithMinMax(Map.of(field, min), Map.of(field, max));
     }
 
-    /**
-     * TStep (upper-bound) buckets are NOT substituted with a {@link RoundTo}: ceiling lookup needs a
-     * specialized RoundTo path that does not exist yet, so the rule keeps the {@link Bucket} so the
-     * eval path uses the wrapped {@code Rounding.Prepared} directly.
-     */
-    public void testRightClosedBucketIsNotSubstituted() {
-        assumeTrue("TSTEP requires corresponding capability", EsqlCapabilities.Cap.TSTEP.isEnabled());
-        assumeTrue("TSTEP explicit bounds requires corresponding capability", EsqlCapabilities.Cap.TSTEP_EXPLICIT_BOUNDS.isEnabled());
-        String query = """
-            FROM sample_data
-            | WHERE @timestamp >= "2023-10-23T12:00:00Z" AND @timestamp <= "2023-10-23T14:00:00Z"
-            | STATS count(*) BY x = TSTEP(10 minutes, "2023-10-23T12:15:00Z", "2023-10-23T14:00:00Z")
-            """;
-        TestOptimizer analyzer = EsqlTestUtils.optimizer().addSampleData();
-        SearchStats stats = searchStats("@timestamp", 1698063303360L, 1698069301543L);
-        LogicalPlan localPlan = localPlan(analyzer.coordinatorPlan(query), TEST_CFG, stats);
-        Limit limit = as(localPlan, Limit.class);
-        Aggregate aggregate = as(limit.child(), Aggregate.class);
-        Eval eval = as(aggregate.child(), Eval.class);
-        List<Alias> fields = eval.fields();
-        assertEquals(1, fields.size());
-        Alias a = fields.get(0);
-        assertEquals("x", a.name());
-        Bucket bucket = as(a.child(), Bucket.class);
-        FieldAttribute fa = as(bucket.field(), FieldAttribute.class);
-        assertEquals("@timestamp", fa.name());
-        assertEquals(DATETIME, fa.dataType());
-    }
 }

@@ -9,17 +9,140 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
+
+    /**
+     * Ungrouped (no mapping hash) responses go through {@link FieldCapabilitiesIndexResponse#writeTo} /
+     * {@link FieldCapabilitiesIndexResponse#FieldCapabilitiesIndexResponse(StreamInput)}. Verify that
+     * {@code numberOfShards} survives that path.
+     */
+    public void testPlainSerializationRoundTripPreservesShardCount() throws IOException {
+        List<FieldCapabilitiesIndexResponse> responses = new ArrayList<>();
+        for (int i = 0; i < between(1, 10); i++) {
+            responses.add(
+                new FieldCapabilitiesIndexResponse(
+                    "index_" + i,
+                    null,
+                    randomFieldCaps(),
+                    randomBoolean(),
+                    randomFrom(IndexMode.availableModes()),
+                    between(1, 100),
+                    randomLongBetween(1, Long.MAX_VALUE),
+                    randomLongBetween(1, Long.MAX_VALUE)
+                )
+            );
+        }
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(TransportVersion.current());
+        FieldCapabilitiesIndexResponse.writeList(out, responses);
+
+        StreamInput in = out.bytes().streamInput();
+        in.setTransportVersion(TransportVersion.current());
+        List<FieldCapabilitiesIndexResponse> result = FieldCapabilitiesIndexResponse.readList(in);
+
+        assertThat(result, equalTo(responses));
+        assertThat(result.size(), equalTo(responses.size()));
+        Map<String, Integer> expected = responses.stream()
+            .collect(Collectors.toMap(FieldCapabilitiesIndexResponse::getIndexName, FieldCapabilitiesIndexResponse::getNumberOfShards));
+        for (FieldCapabilitiesIndexResponse r : result) {
+            assertThat("index " + r.getIndexName(), r.getNumberOfShards(), equalTo(expected.get(r.getIndexName())));
+        }
+    }
+
+    /**
+     * Two indices sharing a mapping hash (compressed codec path) may have different shard counts.
+     * Verify the per-index count is preserved — not collapsed to a single value for the group.
+     */
+    public void testCompressedSerializationPreservesPerIndexShardCount() throws IOException {
+        String mappingHash = randomIdentifier();
+        Map<String, IndexFieldCapabilities> sharedFieldCaps = randomFieldCaps();
+        IndexMode indexMode = randomFrom(IndexMode.availableModes());
+        int shards1 = between(1, 10);
+        int shards2 = shards1 + between(1, 10); // guaranteed different
+        long settingsVersion1 = randomLongBetween(1, Long.MAX_VALUE);
+        long settingsVersion2 = randomValueOtherThan(settingsVersion1, () -> randomLongBetween(1, Long.MAX_VALUE));
+        long mappingVersion1 = randomLongBetween(1, Long.MAX_VALUE);
+        long mappingVersion2 = randomValueOtherThan(mappingVersion1, () -> randomLongBetween(1, Long.MAX_VALUE));
+        List<FieldCapabilitiesIndexResponse> responses = List.of(
+            new FieldCapabilitiesIndexResponse(
+                "index_a",
+                mappingHash,
+                sharedFieldCaps,
+                true,
+                indexMode,
+                shards1,
+                settingsVersion1,
+                mappingVersion1
+            ),
+            new FieldCapabilitiesIndexResponse(
+                "index_b",
+                mappingHash,
+                sharedFieldCaps,
+                true,
+                indexMode,
+                shards2,
+                settingsVersion2,
+                mappingVersion2
+            )
+        );
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(TransportVersion.current());
+        FieldCapabilitiesIndexResponse.writeList(out, responses);
+
+        StreamInput in = out.bytes().streamInput();
+        in.setTransportVersion(TransportVersion.current());
+        List<FieldCapabilitiesIndexResponse> result = FieldCapabilitiesIndexResponse.readList(in);
+
+        assertThat(result, equalTo(responses));
+        assertThat(result.size(), equalTo(2));
+        Map<String, Integer> actual = result.stream()
+            .collect(Collectors.toMap(FieldCapabilitiesIndexResponse::getIndexName, FieldCapabilitiesIndexResponse::getNumberOfShards));
+        assertThat(actual.get("index_a"), equalTo(shards1));
+        assertThat(actual.get("index_b"), equalTo(shards2));
+    }
+
+    /**
+     * Data written by nodes that pre-date shard-count propagation must deserialize to
+     * {@code numberOfShards == 0} (unknown) on current nodes.
+     */
+    public void testOldVersionDefaultsShardCountToZero() throws IOException {
+        List<FieldCapabilitiesIndexResponse> responses = List.of(
+            new FieldCapabilitiesIndexResponse("idx", null, randomFieldCaps(), true, IndexMode.STANDARD, between(1, 100), 1, 1)
+        );
+
+        // Simulate an old node: write without shard counts.
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(TransportVersion.minimumCompatible());
+        FieldCapabilitiesIndexResponse.writeList(out, responses);
+
+        // Read as if we received bytes from that old node (transport version set to old version).
+        StreamInput in = out.bytes().streamInput();
+        in.setTransportVersion(TransportVersion.minimumCompatible());
+        List<FieldCapabilitiesIndexResponse> result = FieldCapabilitiesIndexResponse.readList(in);
+
+        assertThat(result.size(), equalTo(1));
+        assertThat(result.get(0).getNumberOfShards(), equalTo(0));
+        assertThat(result.get(0).getIndexSettingsVersion(), equalTo(0L));
+        assertThat(result.get(0).getMappingVersion(), equalTo(0L));
+    }
 
     static Map<String, IndexFieldCapabilities> randomFieldCaps() {
         final Map<String, IndexFieldCapabilities> fieldCaps = new HashMap<>();
@@ -31,6 +154,7 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
         final TimeSeriesParams.MetricType metricType = randomBoolean() ? null : randomFrom(TimeSeriesParams.MetricType.values());
         final List<String> fields = randomList(1, 5, () -> randomAlphaOfLength(5));
         for (String field : fields) {
+            final String indexAnalyzer = randomBoolean() ? null : randomFrom("standard", "default", "english", "my_analyzer");
             final IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                 field,
                 randomAlphaOfLengthBetween(5, 20),
@@ -38,8 +162,15 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
                 randomBoolean(),
                 randomBoolean(),
                 randomBoolean(),
+                randomBoolean(),
                 metricType,
-                meta
+                // null for field types that cannot be passthrough sources
+                randomBoolean() ? null : randomBoolean(),
+                meta,
+                indexAnalyzer,
+                randomIntBetween(0, 1000),
+                // index-local only when the name is absent
+                indexAnalyzer == null && randomBoolean()
             );
             fieldCaps.put(field, fieldCap);
         }
@@ -65,7 +196,7 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
             var indexMode = randomFrom(IndexMode.availableModes());
             String mappingHash = e.getKey();
             for (String index : e.getValue()) {
-                responses.add(new FieldCapabilitiesIndexResponse(index, mappingHash, fieldCaps, true, indexMode));
+                responses.add(new FieldCapabilitiesIndexResponse(index, mappingHash, fieldCaps, true, indexMode, 0, 0, 0));
             }
         }
         return responses;
@@ -77,7 +208,7 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
         for (int i = 0; i < numIndices; i++) {
             String index = "index_without_mapping_hash_" + i;
             var indexMode = randomFrom(IndexMode.availableModes());
-            responses.add(new FieldCapabilitiesIndexResponse(index, null, randomFieldCaps(), randomBoolean(), indexMode));
+            responses.add(new FieldCapabilitiesIndexResponse(index, null, randomFieldCaps(), randomBoolean(), indexMode, 0, 0, 0));
         }
         return responses;
     }

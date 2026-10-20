@@ -20,7 +20,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class ProjectExec extends UnaryExec {  // TODO implement EstimatesRowSize *somehow*
+public class ProjectExec extends UnaryExec implements RowCountPreserving {  // TODO implement EstimatesRowSize *somehow*
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         PhysicalPlan.class,
         "ProjectExec",

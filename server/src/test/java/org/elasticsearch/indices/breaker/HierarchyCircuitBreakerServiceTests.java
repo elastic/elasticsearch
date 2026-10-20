@@ -22,6 +22,11 @@ import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
+import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -29,6 +34,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -40,13 +46,16 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -54,6 +63,17 @@ import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
+
+    /**
+     * After the allocation loop, the strategy reads memory usage once to decide on the full GC fallback and once for its result.
+     */
+    private static final long READS_AFTER_ALLOCATION_LOOP = 2;
+
+    /**
+     * An attempt reads the time when it starts, after the allocation loop and for its duration. Deciding on the full GC fallback,
+     * which only happens when no memory was reclaimed, reads it at least once more.
+     */
+    private static final long TIME_READS_WITHOUT_FULL_GC_CHECK = 3;
 
     public void testThreadedUpdatesToChildBreaker() throws Exception {
         final int NUM_THREADS = scaledRandomIntBetween(3, 15);
@@ -81,7 +101,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         };
         final BreakerSettings settings = new BreakerSettings(CircuitBreaker.REQUEST, (BYTES_PER_THREAD * NUM_THREADS) - 1, 1.0);
         final ChildMemoryCircuitBreaker breaker = new ChildMemoryCircuitBreaker(
-            CircuitBreakerMetrics.NOOP.getTripCount(),
+            CircuitBreakerMetrics.NOOP,
             settings,
             logger,
             (HierarchyCircuitBreakerService) service,
@@ -148,7 +168,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         };
         final BreakerSettings settings = new BreakerSettings(CircuitBreaker.REQUEST, childLimit, 1.0);
         final ChildMemoryCircuitBreaker breaker = new ChildMemoryCircuitBreaker(
-            CircuitBreakerMetrics.NOOP.getTripCount(),
+            CircuitBreakerMetrics.NOOP,
             settings,
             logger,
             (HierarchyCircuitBreakerService) service,
@@ -675,6 +695,194 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         }
     }
 
+    public void testG1TriggerAllocationCount() {
+        long regionSize = ByteSizeUnit.MB.toBytes(1L << randomIntBetween(0, 5));
+        long maxHeap = regionSize * randomLongBetween(64, 32768);
+        long freeHeap = randomLongBetween(0, maxHeap / 2);
+
+        assertFillersCoverFreeRegionsPlusOne(maxHeap, maxHeap - freeHeap, regionSize);
+        assertFillersCoverFreeRegionsPlusOne(maxHeap, maxHeap, regionSize);
+    }
+
+    public void testG1TriggerAllocationCountDoesNotLoopWhenUpstreamBudgetIsEmpty() {
+        long regionSize = ByteSizeUnit.MB.toBytes(1L << randomIntBetween(0, 5));
+        long maxHeap = regionSize * randomLongBetween(64, 32768);
+        long baseUsage = maxHeap + regionSize + randomLongBetween(0, maxHeap);
+
+        assertThat((maxHeap - baseUsage) / regionSize + 1, lessThanOrEqualTo(0L));
+        assertThat(triggerAllocationCount(maxHeap, baseUsage, regionSize), equalTo(0));
+    }
+
+    public void testG1TriggerAllocationCountOnLargeHeap() {
+        assertFillersCoverFreeRegionsPlusOne(ByteSizeUnit.TB.toBytes(4), 0, ByteSizeUnit.MB.toBytes(1));
+    }
+
+    public void testG1TriggerAllocationSizeIsHumongousOnlyForFirstAllocation() {
+        long regionSize = ByteSizeUnit.MB.toBytes(1L << randomIntBetween(0, 5));
+        long halfRegion = regionSize / 2;
+
+        long firstSize = HierarchyCircuitBreakerService.G1OverLimitStrategy.triggerAllocationSize(0, regionSize);
+        assertThat(firstSize, greaterThanOrEqualTo(halfRegion));
+        int fillerSize = HierarchyCircuitBreakerService.G1OverLimitStrategy.triggerAllocationSize(randomIntBetween(1, 10_000), regionSize);
+        assertThat(fillerSize, greaterThan(0));
+        assertThat((long) fillerSize, lessThan(halfRegion));
+        assertThat(fillerSize, equalTo(HierarchyCircuitBreakerService.G1OverLimitStrategy.fillerAllocationSize(regionSize)));
+    }
+
+    public void testG1OverLimitStrategyAllocatesTriggerAllocationCount() {
+        long regionSize = strategyRegionSize();
+        long maxHeap = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
+        int freeRegions = randomIntBetween(0, 3);
+        long baseUsage = maxHeap - freeRegions * regionSize;
+        AtomicLong memoryReads = new AtomicLong();
+
+        HierarchyCircuitBreakerService.G1OverLimitStrategy strategy = strategyWithoutFullGC(
+            countingMemoryUsage(memoryReads, baseUsage),
+            () -> 0
+        );
+        HierarchyCircuitBreakerService.MemoryUsage input = new HierarchyCircuitBreakerService.MemoryUsage(baseUsage, baseUsage, 0, 0);
+
+        assertThat(strategy.overLimit(input), sameInstance(input));
+        long allocations = triggerAllocationCount(maxHeap, baseUsage, regionSize);
+        assertThat(allocations, equalTo(1L + 4L * (freeRegions + 1) + 1));
+        assertThat(memoryReads.get(), equalTo(allocations + READS_AFTER_ALLOCATION_LOOP));
+    }
+
+    public void testG1OverLimitStrategyStopsAllocatingOnGcCountChange() {
+        long regionSize = strategyRegionSize();
+        long maxHeap = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
+        long baseUsage = maxHeap - randomIntBetween(0, 3) * regionSize;
+        int allocationsBeforeGc = randomIntBetween(0, triggerAllocationCount(maxHeap, baseUsage, regionSize) - 1);
+        AtomicLong memoryReads = new AtomicLong();
+        AtomicLong gcCountReads = new AtomicLong();
+
+        HierarchyCircuitBreakerService.G1OverLimitStrategy strategy = strategyWithoutFullGC(
+            countingMemoryUsage(memoryReads, baseUsage),
+            () -> gcCountReads.incrementAndGet() > allocationsBeforeGc + 1 ? 1 : 0
+        );
+        HierarchyCircuitBreakerService.MemoryUsage input = new HierarchyCircuitBreakerService.MemoryUsage(baseUsage, baseUsage, 0, 0);
+
+        assertThat(strategy.overLimit(input), sameInstance(input));
+        assertThat(memoryReads.get(), equalTo(allocationsBeforeGc + 1 + READS_AFTER_ALLOCATION_LOOP));
+    }
+
+    /**
+     * A young GC reclaims memory while the loop runs: the loop must stop at the drop, report the reduced usage and not fall back
+     * to a full GC.
+     */
+    public void testG1OverLimitStrategyStopsWhenYoungGcReducesMemory() {
+        long regionSize = strategyRegionSize();
+        long maxHeap = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
+        long baseUsage = maxHeap - randomIntBetween(0, 3) * regionSize;
+        long reducedUsage = randomLongBetween(0, baseUsage - 1);
+        int allocationsBeforeDrop = randomIntBetween(0, triggerAllocationCount(maxHeap, baseUsage, regionSize) - 1);
+        AtomicLong memoryReads = new AtomicLong();
+        AtomicLong timeReads = new AtomicLong();
+
+        HierarchyCircuitBreakerService.G1OverLimitStrategy strategy = strategyWithoutFullGC(
+            () -> memoryReads.incrementAndGet() > allocationsBeforeDrop ? reducedUsage : baseUsage,
+            () -> 0,
+            timeReads
+        );
+        HierarchyCircuitBreakerService.MemoryUsage input = new HierarchyCircuitBreakerService.MemoryUsage(
+            baseUsage,
+            baseUsage + randomLongBetween(0, 100),
+            randomLongBetween(0, 50),
+            randomLongBetween(0, 50)
+        );
+
+        assertReducedUsage(strategy.overLimit(input), input, reducedUsage);
+        assertThat(memoryReads.get(), equalTo(allocationsBeforeDrop + 1 + READS_AFTER_ALLOCATION_LOOP));
+        assertThat(timeReads.get(), equalTo(TIME_READS_WITHOUT_FULL_GC_CHECK));
+    }
+
+    /**
+     * The young GC count changes during the loop and the collection reclaimed memory, which only the reads after the loop see.
+     */
+    public void testG1OverLimitStrategyReportsReducedMemoryAfterYoungGc() {
+        long regionSize = strategyRegionSize();
+        long maxHeap = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
+        long baseUsage = maxHeap - randomIntBetween(0, 3) * regionSize;
+        long reducedUsage = randomLongBetween(0, baseUsage - 1);
+        int allocationsBeforeGc = randomIntBetween(0, triggerAllocationCount(maxHeap, baseUsage, regionSize) - 1);
+        AtomicLong memoryReads = new AtomicLong();
+        AtomicLong gcCountReads = new AtomicLong();
+        AtomicLong timeReads = new AtomicLong();
+
+        HierarchyCircuitBreakerService.G1OverLimitStrategy strategy = strategyWithoutFullGC(
+            () -> memoryReads.incrementAndGet() > allocationsBeforeGc + 1 ? reducedUsage : baseUsage,
+            () -> gcCountReads.incrementAndGet() > allocationsBeforeGc + 1 ? 1 : 0,
+            timeReads
+        );
+        HierarchyCircuitBreakerService.MemoryUsage input = new HierarchyCircuitBreakerService.MemoryUsage(
+            baseUsage,
+            baseUsage + randomLongBetween(0, 100),
+            randomLongBetween(0, 50),
+            randomLongBetween(0, 50)
+        );
+
+        assertReducedUsage(strategy.overLimit(input), input, reducedUsage);
+        assertThat(memoryReads.get(), equalTo(allocationsBeforeGc + 1 + READS_AFTER_ALLOCATION_LOOP));
+        assertThat(timeReads.get(), equalTo(TIME_READS_WITHOUT_FULL_GC_CHECK));
+    }
+
+    private static void assertReducedUsage(
+        HierarchyCircuitBreakerService.MemoryUsage output,
+        HierarchyCircuitBreakerService.MemoryUsage input,
+        long reducedUsage
+    ) {
+        assertThat(output, not(sameInstance(input)));
+        assertThat(output.baseUsage, equalTo(reducedUsage));
+        assertThat(output.totalUsage, equalTo(reducedUsage + input.totalUsage - input.baseUsage));
+        assertThat(output.transientChildUsage, equalTo(input.transientChildUsage));
+        assertThat(output.permanentChildUsage, equalTo(input.permanentChildUsage));
+    }
+
+    private static void assertFillersCoverFreeRegionsPlusOne(long maxHeap, long baseUsage, long regionSize) {
+        long freeHeap = Math.max(0, maxHeap - baseUsage);
+        long freeRegionsPlusOneBytes = (freeHeap / regionSize + 1) * regionSize;
+        long fillerSize = HierarchyCircuitBreakerService.G1OverLimitStrategy.fillerAllocationSize(regionSize);
+        long fillers = triggerAllocationCount(maxHeap, baseUsage, regionSize) - 1;
+        assertThat(fillers * fillerSize, greaterThan(freeHeap));
+        assertThat(fillers * fillerSize, greaterThan(freeRegionsPlusOneBytes));
+        assertThat((fillers - 1) * fillerSize, lessThanOrEqualTo(freeRegionsPlusOneBytes));
+    }
+
+    private static int triggerAllocationCount(long maxHeap, long baseUsage, long regionSize) {
+        return HierarchyCircuitBreakerService.G1OverLimitStrategy.triggerAllocationCount(maxHeap, baseUsage, regionSize);
+    }
+
+    private static long strategyRegionSize() {
+        long g1RegionSize = JvmInfo.jvmInfo().getG1RegionSize();
+        return g1RegionSize > 0 ? g1RegionSize : HierarchyCircuitBreakerService.G1OverLimitStrategy.fallbackRegionSize(JvmInfo.jvmInfo());
+    }
+
+    private static LongSupplier countingMemoryUsage(AtomicLong memoryReads, long memoryUsage) {
+        return () -> {
+            memoryReads.incrementAndGet();
+            return memoryUsage;
+        };
+    }
+
+    private static HierarchyCircuitBreakerService.G1OverLimitStrategy strategyWithoutFullGC(
+        LongSupplier memoryUsageSupplier,
+        LongSupplier gcCountSupplier
+    ) {
+        return strategyWithoutFullGC(memoryUsageSupplier, gcCountSupplier, new AtomicLong());
+    }
+
+    private static HierarchyCircuitBreakerService.G1OverLimitStrategy strategyWithoutFullGC(
+        LongSupplier memoryUsageSupplier,
+        LongSupplier gcCountSupplier,
+        AtomicLong timeReads
+    ) {
+        AtomicLong time = new AtomicLong(Long.MIN_VALUE / 2);
+        return new HierarchyCircuitBreakerService.G1OverLimitStrategy(JvmInfo.jvmInfo(), memoryUsageSupplier, gcCountSupplier, () -> {
+            timeReads.incrementAndGet();
+            return time.incrementAndGet();
+        }, 1, Long.MAX_VALUE, TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(30));
+    }
+
     public void testTrippedCircuitBreakerDurability() {
         Settings clusterSettings = Settings.builder()
             .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), Boolean.FALSE)
@@ -950,5 +1158,233 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
                 + "Absolute size settings will be forbidden in a future release"
         );
 
+    }
+
+    public void testMemoryLimitAndEstimatedGaugesAreRegisteredAndReported() {
+        final RecordingMeterRegistry meter = new RecordingMeterRegistry();
+        final CircuitBreakerMetrics metrics = new CircuitBreakerMetrics(new TelemetryProvider.NoopTelemetryProvider() {
+            @Override
+            public MeterRegistry getMeterRegistry() {
+                return meter;
+            }
+        });
+
+        new HierarchyCircuitBreakerService(
+            metrics,
+            Settings.EMPTY,
+            Collections.emptyList(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+
+        meter.getRecorder().collect();
+
+        final List<Measurement> limits = meter.getRecorder()
+            .getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, CircuitBreakerMetrics.ES_BREAKER_MEMORY_LIMIT);
+        final List<Measurement> estimates = meter.getRecorder()
+            .getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, CircuitBreakerMetrics.ES_BREAKER_MEMORY_ESTIMATED);
+
+        final Set<String> expectedTypes = Set.of(
+            CircuitBreaker.PARENT,
+            CircuitBreaker.FIELDDATA,
+            CircuitBreaker.REQUEST,
+            CircuitBreaker.IN_FLIGHT_REQUESTS
+        );
+        final Set<String> limitTypes = limits.stream()
+            .map(m -> (String) m.attributes().get(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE))
+            .collect(Collectors.toSet());
+        final Set<String> estimateTypes = estimates.stream()
+            .map(m -> (String) m.attributes().get(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE))
+            .collect(Collectors.toSet());
+
+        assertEquals(expectedTypes, limitTypes);
+        assertEquals(expectedTypes, estimateTypes);
+
+        // Default config: configured limits should all be positive bytes, estimates non-negative.
+        for (Measurement m : limits) {
+            assertThat("limit for " + m.attributes() + " expected > 0", m.getLong(), greaterThanOrEqualTo(0L));
+        }
+        for (Measurement m : estimates) {
+            assertThat("estimate for " + m.attributes() + " expected >= 0", m.getLong(), greaterThanOrEqualTo(0L));
+        }
+    }
+
+    public void testMemoryHeldBalancesPerCategoryAcrossAdmitAndLabeledRelease() {
+        final RecordingMeterRegistry meter = new RecordingMeterRegistry();
+        final CircuitBreakerMetrics metrics = new CircuitBreakerMetrics(new TelemetryProvider.NoopTelemetryProvider() {
+            @Override
+            public MeterRegistry getMeterRegistry() {
+                return meter;
+            }
+        });
+
+        final HierarchyCircuitBreakerService service = new HierarchyCircuitBreakerService(
+            metrics,
+            Settings.EMPTY,
+            Collections.emptyList(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        final CircuitBreaker request = service.getBreaker(CircuitBreaker.REQUEST);
+
+        request.addEstimateBytesAndMaybeBreak(100L, ChildMemoryCircuitBreaker.CATEGORY_WILDCARD);
+        request.addWithoutBreaking(-30L, ChildMemoryCircuitBreaker.CATEGORY_WILDCARD);
+        request.addEstimateBytesAndMaybeBreak(50L, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
+        request.addEstimateBytesAndMaybeBreak(40L, ChildMemoryCircuitBreaker.CATEGORY_QUERY);
+        request.addWithoutBreaking(-15L, ChildMemoryCircuitBreaker.CATEGORY_QUERY);
+        // Field-suffixed range labels for two distinct fields must collapse onto the single "range" category.
+        request.addEstimateBytesAndMaybeBreak(25L, ChildMemoryCircuitBreaker.CATEGORY_RANGE + ":field_a");
+        request.addEstimateBytesAndMaybeBreak(35L, ChildMemoryCircuitBreaker.CATEGORY_RANGE + ":field_b");
+        request.addWithoutBreaking(-10L, ChildMemoryCircuitBreaker.CATEGORY_RANGE + ":field_a");
+        request.addWithoutBreaking(-7L);
+
+        final Map<Map<String, Object>, Long> heldByAttrs = meter.getRecorder()
+            .getMeasurements(InstrumentType.LONG_UP_DOWN_COUNTER, CircuitBreakerMetrics.ES_BREAKER_MEMORY_HELD)
+            .stream()
+            .collect(Collectors.groupingBy(Measurement::attributes, Collectors.summingLong(Measurement::getLong)));
+
+        assertEquals(
+            Long.valueOf(70L),
+            heldByAttrs.get(
+                Map.of(
+                    ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE,
+                    CircuitBreaker.REQUEST,
+                    ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE,
+                    ChildMemoryCircuitBreaker.CATEGORY_WILDCARD
+                )
+            )
+        );
+        assertEquals(
+            Long.valueOf(50L),
+            heldByAttrs.get(
+                Map.of(
+                    ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE,
+                    CircuitBreaker.REQUEST,
+                    ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE,
+                    ChildMemoryCircuitBreaker.CATEGORY_REGEXP
+                )
+            )
+        );
+        assertEquals(
+            Long.valueOf(25L),
+            heldByAttrs.get(
+                Map.of(
+                    ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE,
+                    CircuitBreaker.REQUEST,
+                    ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE,
+                    ChildMemoryCircuitBreaker.CATEGORY_QUERY
+                )
+            )
+        );
+        // 25 (field_a) + 35 (field_b) - 10 (field_a release) collapsed onto a single "range" category.
+        assertEquals(
+            Long.valueOf(50L),
+            heldByAttrs.get(
+                Map.of(
+                    ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE,
+                    CircuitBreaker.REQUEST,
+                    ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE,
+                    ChildMemoryCircuitBreaker.CATEGORY_RANGE
+                )
+            )
+        );
+        assertEquals(
+            Long.valueOf(-7L),
+            heldByAttrs.get(
+                Map.of(
+                    ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE,
+                    CircuitBreaker.REQUEST,
+                    ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE,
+                    ChildMemoryCircuitBreaker.CATEGORY_UNCATEGORIZED
+                )
+            )
+        );
+
+        long sum = heldByAttrs.values().stream().mapToLong(Long::longValue).sum();
+        assertEquals(request.getUsed(), sum);
+    }
+
+    /**
+     * Unbounded or user-defined labels (e.g. field names, action names) must not become distinct {@code es_breaker_category}
+     * values, otherwise the gauge's time-series cardinality would grow without bound. Such labels collapse into the single
+     * {@link ChildMemoryCircuitBreaker#CATEGORY_UNCATEGORIZED} bucket.
+     */
+    public void testMemoryHeldBucketsUnknownLabelsUnderUncategorized() {
+        final RecordingMeterRegistry meter = new RecordingMeterRegistry();
+        final CircuitBreakerMetrics metrics = new CircuitBreakerMetrics(new TelemetryProvider.NoopTelemetryProvider() {
+            @Override
+            public MeterRegistry getMeterRegistry() {
+                return meter;
+            }
+        });
+
+        final HierarchyCircuitBreakerService service = new HierarchyCircuitBreakerService(
+            metrics,
+            Settings.EMPTY,
+            Collections.emptyList(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        final CircuitBreaker request = service.getBreaker(CircuitBreaker.REQUEST);
+
+        // Two distinct, high-cardinality labels (think: field names) and one action-name style label.
+        request.addEstimateBytesAndMaybeBreak(10L, "field_name_a");
+        request.addEstimateBytesAndMaybeBreak(20L, "field_name_b");
+        request.addEstimateBytesAndMaybeBreak(30L, "indices:data/read/search");
+
+        final Set<Object> categories = meter.getRecorder()
+            .getMeasurements(InstrumentType.LONG_UP_DOWN_COUNTER, CircuitBreakerMetrics.ES_BREAKER_MEMORY_HELD)
+            .stream()
+            .filter(m -> CircuitBreaker.REQUEST.equals(m.attributes().get(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE)))
+            .map(m -> m.attributes().get(ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE))
+            .collect(Collectors.toSet());
+
+        assertEquals(Set.of(ChildMemoryCircuitBreaker.CATEGORY_UNCATEGORIZED), categories);
+    }
+
+    public void testMemoryHeldNotUpdatedWhenParentTripsAdmission() {
+        final RecordingMeterRegistry meter = new RecordingMeterRegistry();
+        final CircuitBreakerMetrics metrics = new CircuitBreakerMetrics(new TelemetryProvider.NoopTelemetryProvider() {
+            @Override
+            public MeterRegistry getMeterRegistry() {
+                return meter;
+            }
+        });
+
+        final Settings settings = Settings.builder()
+            .put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), 100, ByteSizeUnit.BYTES)
+            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), 200, ByteSizeUnit.BYTES)
+            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING.getKey(), 1.0)
+            .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
+            .build();
+        final HierarchyCircuitBreakerService service = new HierarchyCircuitBreakerService(
+            metrics,
+            settings,
+            Collections.emptyList(),
+            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        final CircuitBreaker request = service.getBreaker(CircuitBreaker.REQUEST);
+
+        expectThrows(CircuitBreakingException.class, () -> request.addEstimateBytesAndMaybeBreak(150L, "wildcard"));
+        assertCircuitBreakerLimitWarning();
+
+        final long heldForWildcard = meter.getRecorder()
+            .getMeasurements(InstrumentType.LONG_UP_DOWN_COUNTER, CircuitBreakerMetrics.ES_BREAKER_MEMORY_HELD)
+            .stream()
+            .filter(m -> CircuitBreaker.REQUEST.equals(m.attributes().get(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE)))
+            .filter(m -> "wildcard".equals(m.attributes().get(ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE)))
+            .mapToLong(Measurement::getLong)
+            .sum();
+        assertEquals(0L, heldForWildcard);
+
+        final long heldUncategorized = meter.getRecorder()
+            .getMeasurements(InstrumentType.LONG_UP_DOWN_COUNTER, CircuitBreakerMetrics.ES_BREAKER_MEMORY_HELD)
+            .stream()
+            .filter(m -> CircuitBreaker.REQUEST.equals(m.attributes().get(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE)))
+            .filter(
+                m -> ChildMemoryCircuitBreaker.CATEGORY_UNCATEGORIZED.equals(
+                    m.attributes().get(ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE)
+                )
+            )
+            .mapToLong(Measurement::getLong)
+            .sum();
+        assertEquals(0L, heldUncategorized);
     }
 }

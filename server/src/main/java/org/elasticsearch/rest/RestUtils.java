@@ -147,7 +147,7 @@ public class RestUtils {
      * @throws IllegalArgumentException if the string contains a malformed
      *                                  escape sequence.
      */
-    private static String decodeComponent(final String s, final Charset charset, boolean plusAsSpace) {
+    public static String decodeComponent(final String s, final Charset charset, boolean plusAsSpace) {
         if (s == null) {
             return "";
         }

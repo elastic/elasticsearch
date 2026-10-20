@@ -153,10 +153,22 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
         assertCircuitBreakerAccountsForQuery(new RegexpQueryBuilder(TEXT_FIELD_NAME, ".*test.*pattern.*"));
     }
 
+    public void testRegexpQueryContinuouslyAccountedDuringConstruction() {
+        assertCircuitBreakerContinuouslyAccountsDuringConstruction(
+            context -> context.getFieldType(TEXT_FIELD_NAME).regexpQuery(".*test.*pattern.*more.*", 0, 0, 10000, null, context)
+        );
+    }
+
+    public void testRegexpQueryNoBreakerDipUnderConcurrency() throws Exception {
+        assertNoBreakerDipUnderConcurrentConstruction(
+            context -> context.getFieldType(TEXT_FIELD_NAME).regexpQuery(".*test.*pattern.*more.*", 0, 0, 10000, null, context)
+        );
+    }
+
     public void testRegexpCircuitBreakerTripsWithLowLimit() {
         assertCircuitBreakerTripsOnQueryConstruction("500kb", () -> {
             BoolQueryBuilder boolQuery = new BoolQueryBuilder();
-            IntStream.range(0, 50)
+            IntStream.range(0, 100)
                 .forEach(
                     i -> boolQuery.should(
                         new RegexpQueryBuilder(TEXT_FIELD_NAME, "(pattern" + i + "|alternate" + i + "|option" + i + ").*")

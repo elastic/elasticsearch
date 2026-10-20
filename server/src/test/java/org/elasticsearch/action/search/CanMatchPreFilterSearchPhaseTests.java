@@ -61,6 +61,8 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -76,6 +78,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.LongConsumer;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.action.search.SearchAsyncActionTests.getShardsIter;
@@ -94,16 +97,14 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
     private TestThreadPool threadPool;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initThreadPool() throws Exception {
         threadPool = new TestThreadPool(getTestName());
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void closeThreadPool() throws Exception {
         terminate(threadPool);
-        super.tearDown();
     }
 
     private static void assertSkippedByClusterAliasLocalOnly(Map<String, Integer> map, int expectedTotal) {
@@ -138,7 +139,9 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 Transport.Connection connection,
                 CanMatchNodeRequest request,
                 SearchTask task,
-                ActionListener<CanMatchNodeResponse> listener
+                ActionListener<CanMatchNodeResponse> listener,
+                LongConsumer bytesConsumer,
+                LongConsumer requestBytesConsumer
             ) {
                 numRequests.incrementAndGet();
                 final List<ResponseOrFailure> responses = new ArrayList<>();
@@ -267,7 +270,9 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 Transport.Connection connection,
                 CanMatchNodeRequest request,
                 SearchTask task,
-                ActionListener<CanMatchNodeResponse> listener
+                ActionListener<CanMatchNodeResponse> listener,
+                LongConsumer bytesConsumer,
+                LongConsumer requestBytesConsumer
             ) {
                 final List<ResponseOrFailure> responses = new ArrayList<>();
                 for (CanMatchNodeRequest.Shard shard : request.getShardLevelRequests()) {
@@ -340,7 +345,9 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 Transport.Connection connection,
                 CanMatchNodeRequest request,
                 SearchTask task,
-                ActionListener<CanMatchNodeResponse> listener
+                ActionListener<CanMatchNodeResponse> listener,
+                LongConsumer bytesConsumer,
+                LongConsumer requestBytesConsumer
             ) {
                 if (fullFailure && randomBoolean()) {
                     throw new IllegalArgumentException("boom");
@@ -442,7 +449,9 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                     Transport.Connection connection,
                     CanMatchNodeRequest request,
                     SearchTask task,
-                    ActionListener<CanMatchNodeResponse> listener
+                    ActionListener<CanMatchNodeResponse> listener,
+                    LongConsumer bytesConsumer,
+                    LongConsumer requestBytesConsumer
                 ) {
                     final List<ResponseOrFailure> responses = new ArrayList<>();
                     for (CanMatchNodeRequest.Shard shard : request.getShardLevelRequests()) {
@@ -550,7 +559,9 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                     Transport.Connection connection,
                     CanMatchNodeRequest request,
                     SearchTask task,
-                    ActionListener<CanMatchNodeResponse> listener
+                    ActionListener<CanMatchNodeResponse> listener,
+                    LongConsumer bytesConsumer,
+                    LongConsumer requestBytesConsumer
                 ) {
                     final List<ResponseOrFailure> responses = new ArrayList<>();
                     for (CanMatchNodeRequest.Shard shard : request.getShardLevelRequests()) {
@@ -1560,7 +1571,9 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 Transport.Connection connection,
                 CanMatchNodeRequest request,
                 SearchTask task,
-                ActionListener<CanMatchNodeResponse> listener
+                ActionListener<CanMatchNodeResponse> listener,
+                LongConsumer bytesConsumer,
+                LongConsumer requestBytesConsumer
             ) {
                 final List<ResponseOrFailure> responses = new ArrayList<>();
                 for (CanMatchNodeRequest.Shard shard : request.getShardLevelRequests()) {

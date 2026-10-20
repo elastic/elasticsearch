@@ -272,6 +272,77 @@ public class StatelessRealTimeTermVectorsIT extends AbstractStatelessPluginInteg
         }
     }
 
+    public void testRoutingsPropagatedToEnsureDocsSearchable() throws Exception {
+        startMasterAndIndexNode();
+        startSearchNode();
+
+        createIndexWithTermVectorMappings(1, 1);
+
+        // Index two docs with distinct custom routing values and one without routing, so the realtime term vectors path has to
+        // carry per-document routing through to the EnsureDocsSearchableRequest (entry i is the routing of docIds[i]).
+        prepareIndex(INDEX_NAME).setId("1").setRouting("r1").setSource("field", "foo bar 1").get();
+        prepareIndex(INDEX_NAME).setId("2").setRouting("r2").setSource("field", "foo bar 2").get();
+        prepareIndex(INDEX_NAME).setId("3").setSource("field", "foo bar 3").get();
+
+        // Capture the routings carried by each EnsureDocsSearchableRequest the index node handles.
+        final List<String[]> capturedRoutings = java.util.Collections.synchronizedList(new ArrayList<>());
+        final List<String[]> capturedDocIds = java.util.Collections.synchronizedList(new ArrayList<>());
+        for (var transportService : internalCluster().getInstances(TransportService.class)) {
+            MockTransportService mockTransportService = (MockTransportService) transportService;
+            mockTransportService.addRequestHandlingBehavior(
+                EnsureDocsSearchableAction.TYPE.name() + "[s]",
+                (handler, request, channel, task) -> {
+                    var edsRequest = (EnsureDocsSearchableAction.EnsureDocsSearchableRequest) request;
+                    capturedDocIds.add(edsRequest.docIds());
+                    capturedRoutings.add(edsRequest.routings());
+                    handler.messageReceived(request, channel, task);
+                }
+            );
+        }
+
+        boolean multiTermVectorRequest = randomBoolean();
+        if (multiTermVectorRequest) {
+            var multiTermVectorsBuilder = client().prepareMultiTermVectors();
+            multiTermVectorsBuilder.add(new TermVectorsRequest(INDEX_NAME, "1").routing("r1"));
+            multiTermVectorsBuilder.add(new TermVectorsRequest(INDEX_NAME, "2").routing("r2"));
+            multiTermVectorsBuilder.add(new TermVectorsRequest(INDEX_NAME, "3"));
+            MultiTermVectorsResponse response = multiTermVectorsBuilder.get();
+            assertThat(response.getResponses().length, equalTo(3));
+
+            // A single EnsureDocsSearchableRequest batches all three docs; routings line up with docIds positionally.
+            assertThat(capturedDocIds.size(), equalTo(1));
+            assertRoutingsForIds(capturedDocIds.getFirst(), capturedRoutings.getFirst(), "1", "r1", "2", "r2", "3", null);
+        } else {
+            client().termVectors(new TermVectorsRequest(INDEX_NAME, "1").routing("r1")).actionGet();
+            client().termVectors(new TermVectorsRequest(INDEX_NAME, "2").routing("r2")).actionGet();
+            client().termVectors(new TermVectorsRequest(INDEX_NAME, "3")).actionGet();
+
+            // Each single term vectors request sends its own EnsureDocsSearchableRequest with a one-element routings array.
+            assertThat(capturedDocIds.size(), equalTo(3));
+            for (int i = 0; i < 3; i++) {
+                assertThat(capturedDocIds.get(i).length, equalTo(1));
+                assertThat(capturedRoutings.get(i).length, equalTo(1));
+            }
+        }
+    }
+
+    private static void assertRoutingsForIds(String[] docIds, String[] routings, String... idRoutingPairs) {
+        assertThat(routings.length, equalTo(docIds.length));
+        for (int p = 0; p < idRoutingPairs.length; p += 2) {
+            final String expectedId = idRoutingPairs[p];
+            final String expectedRouting = idRoutingPairs[p + 1];
+            boolean found = false;
+            for (int i = 0; i < docIds.length; i++) {
+                if (expectedId.equals(docIds[i])) {
+                    assertThat("routing for id [" + expectedId + "]", routings[i], equalTo(expectedRouting));
+                    found = true;
+                    break;
+                }
+            }
+            assertTrue("expected to find id [" + expectedId + "] in " + java.util.Arrays.toString(docIds), found);
+        }
+    }
+
     public void testRefreshFails() throws Exception {
         startMasterAndIndexNode();
         startSearchNode();

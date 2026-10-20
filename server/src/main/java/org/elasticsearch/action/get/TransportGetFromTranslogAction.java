@@ -9,12 +9,11 @@
 
 package org.elasticsearch.action.get;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -67,6 +66,7 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
                 var result = indexShard.getService()
                     .getFromTranslog(
                         getRequest.id(),
+                        getRequest.routing(),
                         getRequest.storedFields(),
                         getRequest.realtime(),
                         getRequest.version(),
@@ -85,7 +85,7 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
         });
     }
 
-    public static class Request extends LegacyActionRequest implements IndicesRequest {
+    public static class Request extends UntypedActionRequest implements IndicesRequest {
 
         private final GetRequest getRequest;
         private final ShardId shardId;
@@ -170,7 +170,7 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
         /**
          * The segment generation that the search shard should wait for before handling the real-time GET request locally.
          * -1 if the result is not null (i.e., the result is served from the indexing shard), or there hasn't simply been
-         * any switches from unsafe to safe map in the LiveVersionMap (see {@link InternalEngine#getVersionFromMap(BytesRef)}).
+         * any switches from unsafe to safe map in the LiveVersionMap (see {@link InternalEngine#getVersionForRead}).
          */
         public long segmentGeneration() {
             return segmentGeneration;

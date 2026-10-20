@@ -136,7 +136,7 @@ public class DLMFrozenTransitionWithSecurityIT extends ESRestTestCase {
             Object object = frozenIndexInfo.get(expectedFrozenIndexName);
             assertNotNull(object);
             // Then use the object path
-            String dlmCreated = ObjectPath.evaluate(object, "settings." + DLMConvertToFrozen.DLM_CREATED_SETTING_KEY);
+            String dlmCreated = ObjectPath.evaluate(object, "settings." + DataStreamLifecycleService.DLM_CREATED_SETTING_KEY);
             assertEquals("true", dlmCreated);
         } finally {
             // Be a good citizen and unset the default repo or else we cannot delete the repository

@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsActionRespons
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelSizeStatsTests;
+import org.elasticsearch.xpack.core.ml.stats.MlConfigSizeUsage;
 import org.elasticsearch.xpack.core.ml.stats.StatsAccumulator;
 
 import java.util.HashMap;
@@ -84,5 +85,30 @@ public class MachineLearningUsageTransportActionTests extends ESTestCase {
             TrainedModelConfig.MODEL_SIZE_BYTES.getPreferredName()
         );
         assertThat(actualModelMemoryUsage, is(emptyAccumulator.asMap()));
+    }
+
+    public void testAddTrainedModelStatsIncludesConfigSizes() {
+        Map<String, Object> usage = new HashMap<>();
+        var deploymentConfig = TrainedModelConfigTests.createTestInstance("id1").build();
+        var stats = new GetTrainedModelsStatsAction.Response.TrainedModelStats(
+            "id1",
+            TrainedModelSizeStatsTests.createRandom(),
+            GetTrainedModelsStatsActionResponseTests.randomIngestStats(),
+            randomIntBetween(0, 10),
+            null,
+            null
+        );
+        var modelsResponse = new GetTrainedModelsAction.Response(
+            new QueryPage<>(List.of(deploymentConfig), 1, GetTrainedModelsAction.Response.RESULTS_FIELD)
+        );
+        var statsResponse = new GetTrainedModelsStatsAction.Response(
+            new QueryPage<>(List.of(stats), 1, GetTrainedModelsStatsAction.Response.RESULTS_FIELD)
+        );
+
+        MachineLearningUsageTransportAction.addTrainedModelStats(modelsResponse, statsResponse, usage);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> trainedModelsUsage = (Map<String, Object>) usage.get("trained_models");
+        assertThat(trainedModelsUsage.containsKey(MlConfigSizeUsage.CONFIG_SIZES), is(true));
     }
 }

@@ -11,6 +11,7 @@
 | date_nanos | time_duration {applies_to}`stack: preview 9.3.0` | date_nanos |
 | double | time_duration {applies_to}`stack: preview 9.3.0` | double |
 | exponential_histogram {applies_to}`stack: preview 9.3.0, ga 9.4.0` | time_duration {applies_to}`stack: preview 9.3.0` | exponential_histogram |
+| flattened {applies_to}`stack: preview 9.5.0` | time_duration {applies_to}`stack: preview 9.3.0` | flattened |
 | integer | time_duration {applies_to}`stack: preview 9.3.0` | integer |
 | ip | time_duration {applies_to}`stack: preview 9.3.0` | ip |
 | keyword | time_duration {applies_to}`stack: preview 9.3.0` | keyword |

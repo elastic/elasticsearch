@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -19,6 +20,7 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.search.SearchParamsParser;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
@@ -94,41 +96,46 @@ public class RestEqlSearchAction extends BaseRestHandler {
 
         return channel -> {
             RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-            cancellableClient.execute(EqlSearchAction.INSTANCE, eqlRequest, new ActionListener<>() {
-                @Override
-                public void onResponse(EqlSearchResponse response) {
-                    try {
-                        XContentBuilder builder = channel.newBuilder(request.getXContentType(), XContentType.JSON, true);
-                        response.toXContent(builder, request);
-                        channel.sendResponse(new RestResponse(RestStatus.OK, builder));
-                    } catch (Exception e) {
-                        onFailure(e);
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    Exception finalException = e;
-                    /*
-                     * In a scenario when Security is enabled and a wildcarded pattern gets resolved to no index, the original error
-                     * message will not contain the initial pattern, but "*,-*". So, we'll throw a INFE from the PreAnalyzer that will
-                     * contain as cause the VerificationException with "*,-*" pattern but we'll rewrite the INFE here with the initial
-                     * pattern that failed resolving. More details here https://github.com/elastic/elasticsearch/issues/63529
-                     */
-                    if (e instanceof IndexNotFoundException infe) {
-                        if (infe.getIndex() != null && infe.getIndex().getName().equals("Unknown index [*,-*]")) {
-                            finalException = new IndexNotFoundException(indices, infe.getCause());
+            ThreadContext threadContext = client.threadPool().getThreadContext();
+            cancellableClient.execute(
+                EqlSearchAction.INSTANCE,
+                eqlRequest,
+                RestActions.wrapWithSearchMetricsHeader(threadContext, EqlSearchResponse::directoryMetrics, new ActionListener<>() {
+                    @Override
+                    public void onResponse(EqlSearchResponse response) {
+                        try {
+                            XContentBuilder builder = channel.newBuilder(request.getXContentType(), XContentType.JSON, true);
+                            response.toXContent(builder, request);
+                            channel.sendResponse(new RestResponse(RestStatus.OK, builder));
+                        } catch (Exception e) {
+                            onFailure(e);
                         }
                     }
-                    logOnFailure(LOGGER, finalException);
-                    try {
-                        channel.sendResponse(new RestResponse(channel, finalException));
-                    } catch (Exception inner) {
-                        inner.addSuppressed(finalException);
-                        LOGGER.error("failed to send failure response", inner);
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        Exception finalException = e;
+                        /*
+                         * In a scenario when Security is enabled and a wildcarded pattern gets resolved to no index, the original error
+                         * message will not contain the initial pattern, but "*,-*". So, we'll throw a INFE from the PreAnalyzer that will
+                         * contain as cause the VerificationException with "*,-*" pattern but we'll rewrite the INFE here with the initial
+                         * pattern that failed resolving. More details here https://github.com/elastic/elasticsearch/issues/63529
+                         */
+                        if (e instanceof IndexNotFoundException infe) {
+                            if (infe.getIndex() != null && infe.getIndex().getName().equals("Unknown index [*,-*]")) {
+                                finalException = new IndexNotFoundException(indices, infe.getCause());
+                            }
+                        }
+                        logOnFailure(LOGGER, finalException);
+                        try {
+                            channel.sendResponse(new RestResponse(channel, finalException));
+                        } catch (Exception inner) {
+                            inner.addSuppressed(finalException);
+                            LOGGER.error("failed to send failure response", inner);
+                        }
                     }
-                }
-            });
+                })
+            );
         };
     }
 

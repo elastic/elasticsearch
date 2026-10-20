@@ -42,6 +42,11 @@
   * [`ST_ISEMPTY`](../../functions-operators/spatial-functions/st_isempty.md) {applies_to}`stack: preview 9.4.0` {applies_to}`serverless: preview`
     :::{include} ../generated/x-pack-esql/functions/briefSummary/st_isempty.md
     :::
+* Geometry combining functions
+  * [`ST_UNION`](../../functions-operators/spatial-functions/st_union.md) {applies_to}`stack: preview 9.5.0` {applies_to}`serverless: preview`
+  * [`ST_INTERSECTION`](../../functions-operators/spatial-functions/st_intersection.md) {applies_to}`stack: preview 9.5.0` {applies_to}`serverless: preview`
+  * [`ST_DIFFERENCE`](../../functions-operators/spatial-functions/st_difference.md) {applies_to}`stack: preview 9.5.0` {applies_to}`serverless: preview`
+  * [`ST_SYMDIFFERENCE`](../../functions-operators/spatial-functions/st_symdifference.md) {applies_to}`stack: preview 9.5.0` {applies_to}`serverless: preview`
 * [`ST_ENVELOPE`](../../functions-operators/spatial-functions/st_envelope.md) {applies_to}`stack: preview` {applies_to}`serverless: preview`
   :::{include} ../generated/x-pack-esql/functions/briefSummary/st_envelope.md
   :::

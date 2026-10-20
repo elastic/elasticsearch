@@ -93,6 +93,8 @@ public class TaskManager implements ClusterStateApplier {
 
     private final List<RemovedTaskListener> removedTaskListeners = new CopyOnWriteArrayList<>();
 
+    private final List<AddedTaskListener> addedTaskListeners = new CopyOnWriteArrayList<>();
+
     // For testing
     public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
         this(settings, threadPool, taskHeaders, Tracer.NOOP);
@@ -173,6 +175,9 @@ public class TaskManager implements ClusterStateApplier {
             if (traceRequest) {
                 maybeStartTrace(threadContext, task);
             }
+        }
+        for (AddedTaskListener listener : addedTaskListeners) {
+            listener.onAdded(task);
         }
         return task;
     }
@@ -366,6 +371,14 @@ public class TaskManager implements ClusterStateApplier {
 
     public void unregisterRemovedTaskListener(RemovedTaskListener removedTaskListener) {
         removedTaskListeners.remove(removedTaskListener);
+    }
+
+    public void registerAddedTaskListener(AddedTaskListener addedTaskListener) {
+        addedTaskListeners.add(addedTaskListener);
+    }
+
+    public void unregisterAddedTaskListener(AddedTaskListener addedTaskListener) {
+        addedTaskListeners.remove(addedTaskListener);
     }
 
     /**
@@ -653,6 +666,10 @@ public class TaskManager implements ClusterStateApplier {
     @Override
     public void applyClusterState(ClusterChangedEvent event) {
         lastDiscoveryNodes = event.state().getNodes();
+    }
+
+    public String getNodeId() {
+        return nodeId;
     }
 
     private static class CancellableTaskHolder {

@@ -1,0 +1,184 @@
+setup:
+  - requires:
+      cluster_features: "semantic_field.semantic_field_mapper"
+      reason: "semantic field needs to be available"
+
+  - do:
+      inference.put:
+        task_type: embedding
+        inference_id: embedding-inference-id
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 4,
+              "similarity": "cosine",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      indices.create:
+        index: test-semantic-field-highlight-index
+        body:
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic
+                inference_id: embedding-inference-id
+              source_field:
+                type: text
+                copy_to: semantic_field
+
+---
+"Highlighting image values":
+  - do:
+      index:
+        index: test-semantic-field-highlight-index
+        id: doc_1
+        body:
+          semantic_field:
+            - type: image
+              value: "data:image/jpeg;base64,Y2F0IG9uIGEgd2luZG93c2lsbA=="
+            - type: image
+              value: "data:image/jpeg;base64,ZG9nIHJ1bm5pbmcgaW4gYSBwYXJr"
+        refresh: true
+
+  - do:
+      search:
+        index: test-semantic-field-highlight-index
+        body:
+          query:
+            match_all: { }
+          highlight:
+            fields:
+              semantic_field:
+                type: "semantic"
+                number_of_fragments: 2
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - length: { hits.hits.0.highlight.semantic_field: 2 }
+  - match: { hits.hits.0.highlight.semantic_field.0: "data:image/jpeg;base64,Y2F0IG9uIGEgd2luZG93c2lsbA==" }
+  - match: { hits.hits.0.highlight.semantic_field.1: "data:image/jpeg;base64,ZG9nIHJ1bm5pbmcgaW4gYSBwYXJr" }
+
+---
+"Highlighting empty field":
+  - do:
+      index:
+        index: test-semantic-field-highlight-index
+        id: doc_empty
+        body: {}
+        refresh: true
+
+  - do:
+      search:
+        index: test-semantic-field-highlight-index
+        body:
+          query:
+            match_all: { }
+          highlight:
+            fields:
+              semantic_field:
+                type: "semantic"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_empty" }
+  - not_exists: hits.hits.0.highlight.semantic_field
+
+---
+"Default highlighter for semantic field":
+  - do:
+      index:
+        index: test-semantic-field-highlight-index
+        id: doc_default
+        body:
+          semantic_field:
+            - type: image
+              value: "data:image/jpeg;base64,Y2F0IG9uIGEgd2luZG93c2lsbA=="
+            - type: image
+              value: "data:image/jpeg;base64,ZG9nIHJ1bm5pbmcgaW4gYSBwYXJr"
+        refresh: true
+
+  - do:
+      search:
+        index: test-semantic-field-highlight-index
+        body:
+          query:
+            match_all: { }
+          highlight:
+            fields:
+              semantic_field:
+                number_of_fragments: 2
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_default" }
+  - length: { hits.hits.0.highlight.semantic_field: 2 }
+  - match: { hits.hits.0.highlight.semantic_field.0: "data:image/jpeg;base64,Y2F0IG9uIGEgd2luZG93c2lsbA==" }
+  - match: { hits.hits.0.highlight.semantic_field.1: "data:image/jpeg;base64,ZG9nIHJ1bm5pbmcgaW4gYSBwYXJr" }
+
+---
+"Highlighting mixed text and image values":
+  - do:
+      index:
+        index: test-semantic-field-highlight-index
+        id: doc_mixed
+        body:
+          semantic_field:
+            - "a cat on a windowsill"
+            - type: image
+              value: "data:image/jpeg;base64,Y2F0IG9uIGEgd2luZG93c2lsbA=="
+            - "a dog running in a park"
+            - type: image
+              value: "data:image/jpeg;base64,ZG9nIHJ1bm5pbmcgaW4gYSBwYXJr"
+        refresh: true
+
+  - do:
+      search:
+        index: test-semantic-field-highlight-index
+        body:
+          query:
+            match_all: { }
+          highlight:
+            fields:
+              semantic_field:
+                type: "semantic"
+                number_of_fragments: 4
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_mixed" }
+  - length: { hits.hits.0.highlight.semantic_field: 4 }
+  - match: { hits.hits.0.highlight.semantic_field.0: "a cat on a windowsill" }
+  - match: { hits.hits.0.highlight.semantic_field.1: "data:image/jpeg;base64,Y2F0IG9uIGEgd2luZG93c2lsbA==" }
+  - match: { hits.hits.0.highlight.semantic_field.2: "a dog running in a park" }
+  - match: { hits.hits.0.highlight.semantic_field.3: "data:image/jpeg;base64,ZG9nIHJ1bm5pbmcgaW4gYSBwYXJr" }
+
+---
+"Highlighting copy_to values":
+  - do:
+      index:
+        index: test-semantic-field-highlight-index
+        id: doc_copy_to
+        body:
+          source_field: "a cat on a windowsill"
+        refresh: true
+
+  - do:
+      search:
+        index: test-semantic-field-highlight-index
+        body:
+          query:
+            match_all: { }
+          highlight:
+            fields:
+              semantic_field:
+                type: "semantic"
+                number_of_fragments: 1
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_copy_to" }
+  - length: { hits.hits.0.highlight.semantic_field: 1 }
+  - match: { hits.hits.0.highlight.semantic_field.0: "a cat on a windowsill" }

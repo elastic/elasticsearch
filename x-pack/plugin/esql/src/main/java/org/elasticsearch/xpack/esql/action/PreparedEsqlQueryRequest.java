@@ -27,14 +27,14 @@ import java.io.IOException;
  * <p>The query string carried by this request is only used for logging and display; it plays no
  * role in execution.
  */
-public final class PreparedEsqlQueryRequest extends EsqlQueryRequest {
+public class PreparedEsqlQueryRequest extends EsqlQueryRequest {
 
     public static final String PREPARED_QUERY_PREFIX = "[pre-built plan] ";
 
     private final EsqlStatement statement;
     private final String queryDescription;
 
-    private PreparedEsqlQueryRequest(boolean async, EsqlStatement statement, String queryDescription) {
+    protected PreparedEsqlQueryRequest(boolean async, EsqlStatement statement, String queryDescription) {
         super(async, null);
         this.statement = statement;
         this.queryDescription = PREPARED_QUERY_PREFIX + queryDescription;
@@ -90,6 +90,14 @@ public final class PreparedEsqlQueryRequest extends EsqlQueryRequest {
         return queryDescription;
     }
 
+    public String getIndex() {
+        return null;
+    }
+
+    public String getType() {
+        return null;
+    }
+
     @Override
     protected ActionRequestValidationException validateQuery() {
         return null; // no query text for prepared requests — skip the Strings.hasText(query) check
@@ -99,7 +107,12 @@ public final class PreparedEsqlQueryRequest extends EsqlQueryRequest {
      * Returns the pre-built statement directly, without invoking the parser, after validating its settings.
      */
     @Override
-    public EsqlStatement parse(EsqlParser parser, SettingsValidationContext settingsValidationCtx, InferenceSettings inferenceSettings) {
+    public EsqlStatement parse(
+        EsqlParser parser,
+        SettingsValidationContext settingsValidationCtx,
+        InferenceSettings inferenceSettings,
+        int maxCommandCount
+    ) {
         QuerySettings.validate(statement, settingsValidationCtx);
         return statement;
     }

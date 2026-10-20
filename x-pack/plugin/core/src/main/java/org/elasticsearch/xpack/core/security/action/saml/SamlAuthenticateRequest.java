@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.security.action.saml;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.Nullable;
 
@@ -17,7 +17,7 @@ import java.util.List;
 /**
  * Represents a request to authenticate using SAML assertions.
  */
-public final class SamlAuthenticateRequest extends LegacyActionRequest {
+public final class SamlAuthenticateRequest extends UntypedActionRequest {
 
     private byte[] saml;
     private List<String> validRequestIds;

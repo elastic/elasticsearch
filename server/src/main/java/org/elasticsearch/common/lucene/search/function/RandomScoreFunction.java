@@ -15,7 +15,7 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -45,7 +45,7 @@ public class RandomScoreFunction extends ScoreFunction {
 
     @Override
     public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) {
-        final SortedBinaryDocValues values;
+        final SortableBinaryDocValues values;
         if (fieldData != null) {
             LeafFieldData leafData = fieldData.load(ctx);
             values = leafData.getBytesValues();

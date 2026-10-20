@@ -1508,14 +1508,6 @@ public class ClassificationHousePricingIT extends MlNativeDataFrameAnalyticsInte
 
     static final String TARGET_FIELD = "CentralAir";
 
-    /**
-     * Fixed seed for boosted-tree training in {@link #testFeatureImportanceValues}. A random seed can rarely
-     * produce empty per-document feature importance; in that case {@code feature_importance} is omitted from
-     * inference results (see {@code ClassificationInferenceResults#addSupportingFieldsToMap}), failing the test.
-     * See <a href="https://github.com/elastic/elasticsearch/issues/124341">#124341</a>.
-     */
-    private static final long FEATURE_IMPORTANCE_RANDOMIZE_SEED = 42L;
-
     private String jobId;
     private String sourceIndex;
     private String destIndex;
@@ -1541,6 +1533,11 @@ public class ClassificationHousePricingIT extends MlNativeDataFrameAnalyticsInte
         String predictionField = TARGET_FIELD + "_prediction";
         initialize("classification_house_pricing_test_feature_importance_values");
         indexData(sourceIndex);
+        // gamma=0 disables the tree-size regularization penalty and the 70% training fraction
+        // keeps much of the imbalanced minority class in the training set; together they prevent
+        // boosted-tree training from occasionally collapsing to a degenerate single-node forest
+        // (constant predictor), which yields empty per-document feature_importance and fails the
+        // assertions below. See https://github.com/elastic/elasticsearch/issues/124341
         DataFrameAnalyticsConfig config = buildAnalytics(
             jobId,
             sourceIndex,
@@ -1548,12 +1545,12 @@ public class ClassificationHousePricingIT extends MlNativeDataFrameAnalyticsInte
             null,
             new Classification(
                 TARGET_FIELD,
-                BoostedTreeParams.builder().setNumTopFeatureImportanceValues(5).build(),
+                BoostedTreeParams.builder().setNumTopFeatureImportanceValues(5).setGamma(0.0).build(),
                 null,
                 null,
                 null,
-                35.0,
-                FEATURE_IMPORTANCE_RANDOMIZE_SEED,
+                70.0,
+                null,
                 null,
                 null
             )

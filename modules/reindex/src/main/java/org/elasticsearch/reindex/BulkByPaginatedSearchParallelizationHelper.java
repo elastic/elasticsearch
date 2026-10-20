@@ -42,7 +42,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest.AUTO_SLICES;
 
 /**
- * Helps parallelize reindex requests using slices. This is search agnostic, working for both scrolls and PITs (point-in-times)
+ * Helps parallelize reindex requests using slices. This is search agnostic.
  */
 class BulkByPaginatedSearchParallelizationHelper {
 
@@ -52,14 +52,14 @@ class BulkByPaginatedSearchParallelizationHelper {
 
     /**
      * Takes an action created by a {@link BulkByPaginatedSearchTask} and runs it with regard to whether the request is sliced or not.
-     *
+     * <p>
      * If the request is not sliced (i.e. the number of slices is 1), the worker action in the given {@link Runnable} will be started on
      * the local node. If the request is sliced (i.e. the number of slices is more than 1), then a subrequest will be created for each
      * slice and sent.
-     *
+     * <p>
      * If slices are set as {@code "auto"}, this class will resolve that to a specific number based on characteristics of the source
      * indices. A request with {@code "auto"} slices may end up being sliced or unsliced.
-     *
+     * <p>
      * This method is equivalent to calling {@link #initTaskState} followed by {@link #executeSlicedAction}
      */
     static <Request extends AbstractBulkByPaginatedSearchRequest<Request>> void startSlicedAction(
@@ -84,11 +84,11 @@ class BulkByPaginatedSearchParallelizationHelper {
     /**
      * Takes an action and a {@link BulkByPaginatedSearchTask} and runs it with regard to whether this task is a
      * leader or worker.
-     *
+     * <p>
      * If this task is a worker, the worker action is invoked with the given {@code remoteVersion} (may be null
      * for local reindex). If the task is a leader (i.e. the number of slices is more than 1), then a subrequest
      * will be created for each slice and sent.
-     *
+     * <p>
      * This method can only be called after the task state is initialized {@link #initTaskState}.
      *
      * @param remoteVersion the version of the remote cluster when reindexing from remote, or null for local reindex
@@ -115,7 +115,7 @@ class BulkByPaginatedSearchParallelizationHelper {
 
     /**
      * Takes a {@link BulkByPaginatedSearchTask} and ensures that its initial task state (leader or worker) is set.
-     *
+     * <p>
      * If slices are set as {@code "auto"}, this method will resolve that to a specific number based on
      * characteristics of the source indices. A request with {@code "auto"} slices may end up being sliced or
      * unsliced. This method does not execute the action. In order to execute the action see
@@ -136,7 +136,7 @@ class BulkByPaginatedSearchParallelizationHelper {
             client.execute(
                 TransportClusterSearchShardsAction.TYPE,
                 new ClusterSearchShardsRequest(request.getTimeout(), searchRequest.indices()).routing(searchRequest.routing())
-                    .searchSlice(searchRequest.searchSlice()),
+                    .setRoutingFromSlice(searchRequest.isRoutingFromSlice()),
                 listener.safeMap(response -> {
                     setWorkerCount(request, task, countSlicesBasedOnShards(response));
                     return null;

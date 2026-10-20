@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Objects;
-import java.util.stream.IntStream;
 
 /**
  * Maps a single {@link Page} into zero or more resulting pages.
@@ -349,20 +348,17 @@ public abstract class AbstractPageMappingToIteratorOperator implements Operator 
                 final Page result = page.appendBlocks(read);
                 // We need to release the blocks of the page in this iteration instead of delaying to the next,
                 // because the blocks of this page are now shared with the output page. The output page can be
-                // passed to a separate driver, which may run concurrently with this driver, leading to data races
-                // of references in AbstractNonThreadSafeRefCounted, which is not thread-safe.
-                // An alternative would be to make RefCounted for Vectors/Blocks thread-safe when they are about
-                // to be shared with other drivers via #allowPassingToDifferentDriver.
+                // passed to a separate driver, which may run concurrently with this driver. AbstractRefCounted
+                // (see #incRef/#decRef there) is thread safe precisely for this kind of cross-driver sharing, but
+                // releasing promptly here still avoids holding these blocks alive longer than necessary.
                 close();
                 return result;
             }
             Block[] newBlocks = new Block[page.getBlockCount() + read.length];
             System.arraycopy(read, 0, newBlocks, page.getBlockCount(), read.length);
             try {
-                // TODO a way to filter with a range please.
-                int[] positions = IntStream.range(start, positionOffset).toArray();
                 for (int b = 0; b < page.getBlockCount(); b++) {
-                    newBlocks[b] = page.getBlock(b).filter(false, positions);
+                    newBlocks[b] = page.getBlock(b).slice(start, positionOffset);
                 }
                 Page result = new Page(newBlocks);
                 Arrays.fill(newBlocks, null);

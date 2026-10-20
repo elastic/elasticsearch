@@ -37,6 +37,7 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedInd
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.Shard;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryListener;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.test.ESTestCase;
@@ -235,6 +236,12 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         }
 
         @Override
+        public void deleteShardsOutsideIndexRange(IndexMetadata metadata, ActionListener<Void> listener) {
+            // The mock has no on-disk shard stores to delete
+            listener.onResponse(null);
+        }
+
+        @Override
         public synchronized void removeIndex(
             Index index,
             IndexRemovalReason reason,
@@ -261,7 +268,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
             final ProjectId projectId,
             final ShardRouting shardRouting,
             final PeerRecoveryTargetService recoveryTargetService,
-            final PeerRecoveryTargetService.RecoveryListener recoveryListener,
+            final RecoveryListener recoveryListener,
             final RepositoriesService repositoriesService,
             final Consumer<IndexShard.ShardFailure> onShardFailure,
             final GlobalCheckpointSyncer globalCheckpointSyncer,

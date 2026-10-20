@@ -17,7 +17,6 @@ import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 
@@ -38,8 +37,6 @@ public final class ResponseCollectorService implements ClusterStateListener {
      * The weight parameter used for all moving averages of parameters.
      */
     public static final double ALPHA = 0.3;
-
-    public static final FeatureFlag ARS_FORMULA_ADJUSTMENT_FEATURE_FLAG = new FeatureFlag("ars_formula_adjustment");
 
     private final ConcurrentMap<String, NodeStatistics> nodeIdToStats = ConcurrentCollections.newConcurrentMap();
 
@@ -169,18 +166,11 @@ public final class ResponseCollectorService implements ClusterStateListener {
             double qBar = queueSize;
             double qHatS = 1 + concurrencyCompensation + qBar;
 
-            // EWMA of response time
-            double rS = responseTime / FACTOR;
             // EWMA of service time. We match the paper's notation, which
             // defines service time as the inverse of service rate (muBarS).
             double muBarSInverse = serviceTime / FACTOR;
 
-            double innerRank = Math.pow(qHatS, queueAdjustmentFactor) * muBarSInverse;
-            // When the feature flag is enabled, the rS - muBarSInverse term is dropped.
-            if (ARS_FORMULA_ADJUSTMENT_FEATURE_FLAG.isEnabled() == false) {
-                innerRank += rS - muBarSInverse;
-            }
-            return innerRank;
+            return Math.pow(qHatS, queueAdjustmentFactor) * muBarSInverse;
         }
 
         public double rank(long outstandingRequests) {

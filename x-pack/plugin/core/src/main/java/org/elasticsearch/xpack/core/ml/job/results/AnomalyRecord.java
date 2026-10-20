@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -40,6 +42,9 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
      * Result type
      */
     public static final String RESULT_TYPE_VALUE = "record";
+
+    private static final TransportVersion ML_ANOMALY_EVENT_INGESTED = TransportVersion.fromName("ml_anomaly_event_ingested");
+
     /**
      * Result fields (all detector types)
      */
@@ -139,6 +144,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
             ignoreUnknownFields ? AnomalyScoreExplanation.LENIENT_PARSER : AnomalyScoreExplanation.STRICT_PARSER,
             ANOMALY_SCORE_EXPLANATION
         );
+        parser.declareObject(AnomalyRecord::setEventIngested, (p, c) -> Result.parseEventIngested(p), Result.EVENT);
 
         return parser;
     }
@@ -160,6 +166,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
     private GeoResults geoResults;
 
     private AnomalyScoreExplanation anomalyScoreExplanation;
+    private Instant eventIngested;
     private String fieldName;
 
     private String overFieldName;
@@ -217,6 +224,9 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         }
         geoResults = in.readOptionalWriteable(GeoResults::new);
         anomalyScoreExplanation = in.readOptionalWriteable(AnomalyScoreExplanation::new);
+        if (in.getTransportVersion().supports(ML_ANOMALY_EVENT_INGESTED)) {
+            eventIngested = in.readOptionalInstant();
+        }
     }
 
     @Override
@@ -262,6 +272,9 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         }
         out.writeOptionalWriteable(geoResults);
         out.writeOptionalWriteable(anomalyScoreExplanation);
+        if (out.getTransportVersion().supports(ML_ANOMALY_EVENT_INGESTED)) {
+            out.writeOptionalInstant(eventIngested);
+        }
     }
 
     @Override
@@ -330,6 +343,11 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         }
         if (anomalyScoreExplanation != null) {
             builder.field(ANOMALY_SCORE_EXPLANATION.getPreferredName(), anomalyScoreExplanation);
+        }
+        if (eventIngested != null) {
+            builder.startObject(Result.EVENT.getPreferredName());
+            builder.field(Result.INGESTED.getPreferredName(), eventIngested.toEpochMilli());
+            builder.endObject();
         }
 
         Map<String, LinkedHashSet<String>> inputFields = inputFieldMap();
@@ -592,6 +610,14 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         this.anomalyScoreExplanation = anomalyScoreExplanation;
     }
 
+    public Instant getEventIngested() {
+        return eventIngested;
+    }
+
+    public void setEventIngested(Instant eventIngested) {
+        this.eventIngested = eventIngested;
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(
@@ -620,7 +646,8 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
             influences,
             jobId,
             geoResults,
-            anomalyScoreExplanation
+            anomalyScoreExplanation,
+            eventIngested
         );
     }
 
@@ -660,7 +687,8 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
             && Objects.equals(this.causes, that.causes)
             && Objects.equals(this.geoResults, that.geoResults)
             && Objects.equals(this.anomalyScoreExplanation, that.anomalyScoreExplanation)
-            && Objects.equals(this.influences, that.influences);
+            && Objects.equals(this.influences, that.influences)
+            && Objects.equals(this.eventIngested, that.eventIngested);
     }
 
     @Override

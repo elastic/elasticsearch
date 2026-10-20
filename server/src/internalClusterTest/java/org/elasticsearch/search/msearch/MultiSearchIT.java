@@ -9,19 +9,35 @@
 
 package org.elasticsearch.search.msearch;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchRequest;
+import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.MultiSearchResponse.Item;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.SliceIndexing;
+import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.breaker.CircuitBreakerStats;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.search.DummyQueryBuilder;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -30,9 +46,18 @@ import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -40,6 +65,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResp
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class MultiSearchIT extends ESIntegTestCase {
 
@@ -74,6 +100,343 @@ public class MultiSearchIT extends ESIntegTestCase {
                 assertFirstHit(response.getResponses()[1].getResponse(), hasId("2"));
             }
         );
+    }
+
+    /**
+     * Verifies that {@code TransportMultiSearchAction} accounts for buffered sub-search responses on the
+     * coordinating node's {@link CircuitBreaker#REQUEST} breaker while the msearch is in flight, and releases
+     * the reservation when the combined {@link org.elasticsearch.action.search.MultiSearchResponse} is delivered.
+     */
+    public void testBreakerAccountingEndToEnd() throws Exception {
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        // The request breaker type is randomized per node (~10% noop). The coordinating-only node gets its own seed and may
+        // be noop even when the pre-existing nodes are not, so the check must target the coordinator that runs the msearch
+        // accounting rather than the pre-existing nodes; a noop breaker never reserves bytes and reports getUsed() == 0.
+        assumeFalse("coordinator uses a noop request breaker, skipping test", noopBreakerUsed(coordinatorNode));
+
+        String index = "msearch-breaker-it";
+        int numDocs = scaledRandomIntBetween(20, 50);
+        int numSearches = scaledRandomIntBetween(10, 25);
+
+        createIndex(index);
+        List<IndexRequestBuilder> indexRequests = new ArrayList<>(numDocs);
+        for (int i = 0; i < numDocs; i++) {
+            indexRequests.add(
+                prepareIndex(index).setId(Integer.toString(i)).setSource("payload", "x".repeat(scaledRandomIntBetween(1_000, 5_000)))
+            );
+        }
+        indexRandom(true, indexRequests);
+        ensureGreen(index);
+
+        assertBusy(
+            () -> assertThat("request breaker should be at baseline before msearch", requestBreakerEstimated(coordinatorNode), equalTo(0L))
+        );
+        long baseline = requestBreakerEstimated(coordinatorNode);
+
+        // Polls every 1 ms; with maxConcurrentSearchRequests(1) and many sub-searches the reservation
+        // stays elevated long enough to observe. A sub-millisecond msearch could theoretically complete
+        // between polls and leave peakUsage at baseline.
+        AtomicLong peakUsage = new AtomicLong(baseline);
+        ScheduledExecutorService monitor = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "msearch-breaker-monitor");
+            t.setDaemon(true);
+            return t;
+        });
+        monitor.scheduleWithFixedDelay(() -> {
+            long used = requestBreakerEstimated(coordinatorNode);
+            peakUsage.updateAndGet(current -> Math.max(current, used));
+        }, 0, 1, TimeUnit.MILLISECONDS);
+
+        try {
+            MultiSearchRequest request = new MultiSearchRequest();
+            request.maxConcurrentSearchRequests(1);
+            var coordinatorClient = internalCluster().client(coordinatorNode);
+            for (int i = 0; i < numSearches; i++) {
+                request.add(coordinatorClient.prepareSearch(index).setSize(numDocs).setQuery(QueryBuilders.matchAllQuery()).request());
+            }
+            assertResponse(coordinatorClient.multiSearch(request), response -> {
+                assertThat(response.getResponses().length, equalTo(numSearches));
+                for (Item item : response) {
+                    assertNoFailures(item.getResponse());
+                }
+            });
+        } finally {
+            monitor.shutdownNow();
+            assertTrue(monitor.awaitTermination(30, TimeUnit.SECONDS));
+        }
+
+        assertThat(
+            "msearch should reserve request breaker bytes on the coordinator while sub-responses are buffered",
+            peakUsage.get(),
+            greaterThan(baseline)
+        );
+        assertBusy(
+            () -> assertThat(
+                "request breaker should return to baseline after msearch completes",
+                requestBreakerEstimated(coordinatorNode),
+                equalTo(baseline)
+            )
+        );
+    }
+
+    public void testBreakerAccountingEndToEndOnFailure() throws Exception {
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assumeFalse("coordinator uses a noop request breaker, skipping test", noopBreakerUsed(coordinatorNode));
+
+        int numSearches = 10;
+
+        assertBusy(
+            () -> assertThat("request breaker should be at baseline before msearch", requestBreakerEstimated(coordinatorNode), equalTo(0L))
+        );
+        long baseline = requestBreakerEstimated(coordinatorNode);
+
+        MultiSearchRequest request = new MultiSearchRequest();
+        var coordinatorClient = internalCluster().client(coordinatorNode);
+        for (int i = 0; i < numSearches; i++) {
+            request.add(coordinatorClient.prepareSearch("msearch-breaker-it-missing-" + i).request());
+        }
+        assertResponse(coordinatorClient.multiSearch(request), response -> {
+            assertThat(response.getResponses().length, equalTo(numSearches));
+            for (Item item : response) {
+                assertTrue(item.isFailure());
+            }
+        });
+
+        assertBusy(
+            () -> assertThat(
+                "request breaker should return to baseline after an all-failure msearch completes",
+                requestBreakerEstimated(coordinatorNode),
+                equalTo(baseline)
+            )
+        );
+    }
+
+    public void testBreakerTripAbortsMsearchWithTopLevel429() throws Exception {
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assumeFalse("coordinator uses a noop request breaker, skipping test", noopBreakerUsed(coordinatorNode));
+
+        String index = "msearch-breaker-abort-it";
+        int numDocs = 50;
+        createIndex(index, Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 0).build());
+        List<IndexRequestBuilder> indexRequests = new ArrayList<>(numDocs);
+        for (int i = 0; i < numDocs; i++) {
+            indexRequests.add(prepareIndex(index).setId(Integer.toString(i)).setSource("payload", "x".repeat(2_000)));
+        }
+        indexRandom(true, indexRequests);
+        ensureGreen(index);
+
+        assertBusy(
+            () -> assertThat("request breaker should be at baseline before msearch", requestBreakerEstimated(coordinatorNode), equalTo(0L))
+        );
+        long baseline = requestBreakerEstimated(coordinatorNode);
+
+        var coordinatorClient = internalCluster().client(coordinatorNode);
+        updateClusterSettings(Settings.builder().put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "1b"));
+        try {
+            MultiSearchRequest request = new MultiSearchRequest();
+            request.maxConcurrentSearchRequests(1);
+            for (int i = 0; i < 10; i++) {
+                request.add(coordinatorClient.prepareSearch(index).setSize(numDocs).setQuery(QueryBuilders.matchAllQuery()).request());
+            }
+            CircuitBreakingException e = expectThrows(
+                CircuitBreakingException.class,
+                () -> coordinatorClient.multiSearch(request).actionGet()
+            );
+            assertThat(e.status(), equalTo(RestStatus.TOO_MANY_REQUESTS));
+        } finally {
+            updateClusterSettings(
+                Settings.builder().putNull(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey())
+            );
+        }
+
+        assertBusy(
+            () -> assertThat(
+                "request breaker should return to baseline after an aborted msearch completes",
+                requestBreakerEstimated(coordinatorNode),
+                equalTo(baseline)
+            )
+        );
+    }
+
+    public void testBufferedHitsAreChargedOnce() throws Exception {
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assumeFalse("coordinator uses a noop request breaker, skipping test", noopBreakerUsed(coordinatorNode));
+
+        String index = "msearch-charged-once-it";
+        int numDocs = 20;
+        // A single shard is searched in one round trip, whose hits the coordinating node does not charge.
+        createIndex(index, Settings.builder().put("number_of_shards", between(2, 3)).put("number_of_replicas", 0).build());
+        List<IndexRequestBuilder> indexRequests = new ArrayList<>(numDocs);
+        for (int i = 0; i < numDocs; i++) {
+            indexRequests.add(prepareIndex(index).setId(Integer.toString(i)).setSource("payload", "x".repeat(50_000)));
+        }
+        indexRandom(true, indexRequests);
+        ensureGreen(index);
+
+        var coordinatorClient = internalCluster().client(coordinatorNode);
+        long hitsBytes = hitsBytes(coordinatorClient.prepareSearch(index).setSize(numDocs));
+        int numSearches = 4;
+        // The buffered hits fit once but not twice. The limit applies to the data nodes as well, which hold about twice the hits
+        // of a single search while it runs.
+        updateClusterSettings(
+            Settings.builder()
+                .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), hitsBytes * numSearches * 3 / 2 + "b")
+        );
+        try {
+            MultiSearchRequest request = new MultiSearchRequest();
+            request.maxConcurrentSearchRequests(1);
+            for (int i = 0; i < numSearches; i++) {
+                request.add(coordinatorClient.prepareSearch(index).setSize(numDocs).request());
+            }
+            assertResponse(coordinatorClient.multiSearch(request), response -> {
+                for (Item item : response) {
+                    assertFalse(item.getFailureMessage(), item.isFailure());
+                    assertNoFailures(item.getResponse());
+                    assertHitCount(item.getResponse(), numDocs);
+                }
+            });
+        } finally {
+            updateClusterSettings(
+                Settings.builder().putNull(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey())
+            );
+        }
+        assertBusy(() -> assertThat(requestBreakerEstimated(coordinatorNode), equalTo(0L)));
+    }
+
+    public void testBufferedCollapseInnerHitsAreCharged() throws Exception {
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assumeFalse("coordinator uses a noop request breaker, skipping test", noopBreakerUsed(coordinatorNode));
+
+        String index = "msearch-collapse-it";
+        int numGroups = 4;
+        int docsPerGroup = 5;
+        assertAcked(
+            prepareCreate(index).setSettings(Settings.builder().put("number_of_shards", between(2, 3)).put("number_of_replicas", 0))
+                .setMapping("group", "type=keyword")
+        );
+        List<IndexRequestBuilder> indexRequests = new ArrayList<>(numGroups * docsPerGroup);
+        for (int i = 0; i < numGroups * docsPerGroup; i++) {
+            indexRequests.add(
+                prepareIndex(index).setId(Integer.toString(i)).setSource("group", "g" + (i % numGroups), "payload", "x".repeat(50_000))
+            );
+        }
+        indexRandom(true, indexRequests);
+        ensureGreen(index);
+
+        var coordinatorClient = internalCluster().client(coordinatorNode);
+        // Only the collapse inner hits carry sources.
+        Supplier<SearchRequestBuilder> collapseSearch = () -> coordinatorClient.prepareSearch(index)
+            .setSize(numGroups)
+            .setFetchSource(false)
+            .setCollapse(new CollapseBuilder("group").setInnerHits(new InnerHitBuilder("docs").setSize(docsPerGroup)));
+        assertBufferedSearchesTripBreaker(coordinatorNode, collapseSearch);
+    }
+
+    public void testBufferedLookupValuesAreCharged() throws Exception {
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assumeFalse("coordinator uses a noop request breaker, skipping test", noopBreakerUsed(coordinatorNode));
+
+        String targetIndex = "msearch-lookup-target-it";
+        String index = "msearch-lookup-it";
+        int numDocs = 20;
+        assertAcked(prepareCreate(targetIndex).setMapping("key", "type=keyword"));
+        assertAcked(
+            prepareCreate(index).setSettings(Settings.builder().put("number_of_shards", between(2, 3)).put("number_of_replicas", 0))
+                .setMapping(Strings.format("""
+                    {
+                      "properties": { "key": { "type": "keyword" } },
+                      "runtime": {
+                        "looked_up": {
+                          "type": "lookup",
+                          "target_index": "%s",
+                          "input_field": "key",
+                          "target_field": "key",
+                          "fetch_fields": ["payload"]
+                        }
+                      }
+                    }
+                    """, targetIndex))
+        );
+        List<IndexRequestBuilder> indexRequests = new ArrayList<>(2 * numDocs);
+        for (int i = 0; i < numDocs; i++) {
+            indexRequests.add(
+                prepareIndex(targetIndex).setId(Integer.toString(i)).setSource("key", "k" + i, "payload", "x".repeat(50_000))
+            );
+            indexRequests.add(prepareIndex(index).setId(Integer.toString(i)).setSource("key", "k" + i));
+        }
+        indexRandom(true, indexRequests);
+        ensureGreen(targetIndex, index);
+
+        var coordinatorClient = internalCluster().client(coordinatorNode);
+        // Only the looked up values are large.
+        Supplier<SearchRequestBuilder> lookupSearch = () -> coordinatorClient.prepareSearch(index)
+            .setSize(numDocs)
+            .setFetchSource(false)
+            .addFetchField("looked_up");
+        assertBufferedSearchesTripBreaker(coordinatorNode, lookupSearch);
+    }
+
+    /**
+     * Runs six of {@code search} in one multi-search, one at a time, under a request breaker limit of four searches, and
+     * checks that the coordinating node trips once it buffers them. The data nodes hold about two searches at a time, so
+     * they stay well under the limit.
+     */
+    private void assertBufferedSearchesTripBreaker(String coordinatorNode, Supplier<SearchRequestBuilder> search) throws Exception {
+        long hitsBytes = hitsBytes(search.get());
+        int numSearches = 6;
+        Map<String, Long> tripsBefore = requestBreakerTrips();
+        updateClusterSettings(
+            Settings.builder().put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), hitsBytes * 4 + "b")
+        );
+        try {
+            MultiSearchRequest request = new MultiSearchRequest();
+            request.maxConcurrentSearchRequests(1);
+            for (int i = 0; i < numSearches; i++) {
+                request.add(search.get().request());
+            }
+            // Depending on where the limit is crossed, either the whole multi-search or one of its searches fails.
+            MultiSearchResponse response;
+            try {
+                response = internalCluster().client(coordinatorNode).multiSearch(request).actionGet();
+            } catch (CircuitBreakingException e) {
+                assertThat(e.status(), equalTo(RestStatus.TOO_MANY_REQUESTS));
+                response = null;
+            }
+            if (response != null) {
+                try {
+                    boolean tripped = false;
+                    for (Item item : response) {
+                        tripped |= item.isFailure() && ExceptionsHelper.unwrap(item.getFailure(), CircuitBreakingException.class) != null;
+                    }
+                    assertTrue("expected a search to trip the request breaker", tripped);
+                } finally {
+                    response.decRef();
+                }
+            }
+        } finally {
+            updateClusterSettings(
+                Settings.builder().putNull(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey())
+            );
+        }
+        for (Map.Entry<String, Long> trips : requestBreakerTrips().entrySet()) {
+            long newTrips = trips.getValue() - tripsBefore.getOrDefault(trips.getKey(), 0L);
+            if (trips.getKey().equals(coordinatorNode)) {
+                assertThat("the coordinating node should trip", newTrips, greaterThan(0L));
+            } else {
+                assertThat("node [" + trips.getKey() + "] should not trip", newTrips, equalTo(0L));
+            }
+        }
+        assertBusy(() -> assertThat(requestBreakerEstimated(coordinatorNode), equalTo(0L)));
+    }
+
+    private static long hitsBytes(SearchRequestBuilder search) {
+        AtomicLong bytes = new AtomicLong();
+        assertResponse(search, response -> {
+            for (SearchHit hit : response.getHits().getHits()) {
+                bytes.addAndGet(hit.ramBytesUsed());
+            }
+        });
+        return bytes.get();
     }
 
     public void testSimpleMultiSearchMoreRequests() throws Exception {
@@ -201,6 +564,34 @@ public class MultiSearchIT extends ESIntegTestCase {
         }
     }
 
+    public void testMrtDefaultsToFalseInCps() throws IOException {
+        String body = """
+            {"index": "index-1" }
+            {"query" : {"match" : { "message": "this is a test"}}}
+            {"index": "index-2" }
+            {"query" : {"match_all" : {}}}
+            """;
+
+        MultiSearchRequest mreq = parseCpsRequest(body, Map.of());
+        for (SearchRequest req : mreq.requests()) {
+            assertFalse(req.isCcsMinimizeRoundtrips());
+        }
+    }
+
+    public void testMrtParamIsIgnoredInCps() throws IOException {
+        String body = """
+            {"index": "index-1", "ccs_minimize_roundtrips": true }
+            {"query" : {"match" : { "message": "this is a test"}}}
+            {"index": "index-2", "ccs_minimize_roundtrips": true }
+            {"query" : {"match_all" : {}}}
+            """;
+
+        MultiSearchRequest mreq = parseCpsRequest(body, Map.of("ccs_minimize_roundtrips", "true"));
+        for (SearchRequest req : mreq.requests()) {
+            assertFalse(req.isCcsMinimizeRoundtrips());
+        }
+    }
+
     public void testTopLevelSliceParamIsAppliedToAllSubRequests() throws IOException {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         String body = """
@@ -209,7 +600,7 @@ public class MultiSearchIT extends ESIntegTestCase {
             {"index": "index-2" }
             {"query" : {"match_all" : {}}}
             """;
-        MultiSearchRequest mreq = parseRequest(body, Map.of(SliceIndexing.PARAM_NAME, "s1,s2"));
+        MultiSearchRequest mreq = parseRequest(body, Map.of(SliceIndexing.FIELD_NAME, "s1,s2"));
         assertThat(mreq.requests().size(), Matchers.is(2));
         for (SearchRequest req : mreq.requests()) {
             assertEquals("s1,s2", req.routing());
@@ -228,7 +619,7 @@ public class MultiSearchIT extends ESIntegTestCase {
         assertThat(ex.getMessage(), Matchers.is("[routing] and [_slice] cannot be combined in the same _msearch request"));
     }
 
-    public void testSliceEnabledIndexRequiresSliceAndRejectsRoutingInExecution() throws Exception {
+    public void testSliceEnabledIndexDefaultsToAllAndRejectsRoutingInExecution() throws Exception {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         createIndex("slice-enabled", Settings.builder().put("index.slice.enabled", true).put("number_of_shards", 1).build());
         ensureGreen("slice-enabled");
@@ -245,11 +636,7 @@ public class MultiSearchIT extends ESIntegTestCase {
         );
         assertResponse(client().multiSearch(request), response -> {
             assertThat(response.getResponses().length, equalTo(2));
-            assertTrue(response.getResponses()[0].isFailure());
-            assertThat(
-                response.getResponses()[0].getFailure().getMessage(),
-                containsString("[_slice] is required when [index.slice.enabled] is true")
-            );
+            assertFalse(response.getResponses()[0].isFailure());
             assertTrue(response.getResponses()[1].isFailure());
             assertThat(
                 response.getResponses()[1].getFailure().getMessage(),
@@ -328,5 +715,49 @@ public class MultiSearchIT extends ESIntegTestCase {
             // Disable CPS for these tests.
             Optional.of(false)
         );
+    }
+
+    private MultiSearchRequest parseCpsRequest(String body, Map<String, String> params) throws IOException {
+        return RestMultiSearchAction.parseRequest(
+            mkRequest(body, params),
+            true,
+            new UsageService().getSearchUsageHolder(),
+            (ignored) -> true,
+            Optional.of(true)
+        );
+    }
+
+    private boolean noopBreakerUsed(String nodeName) {
+        NodesStatsResponse stats = clusterAdmin().prepareNodesStats(nodeName).setBreaker(true).get();
+        for (NodeStats nodeStats : stats.getNodes()) {
+            if (nodeStats.getBreaker().getStats(CircuitBreaker.REQUEST).getLimit() == NoopCircuitBreaker.LIMIT) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private long requestBreakerEstimated(String nodeName) {
+        NodesStatsResponse stats = clusterAdmin().prepareNodesStats(nodeName).setBreaker(true).get();
+        long estimated = 0;
+        for (NodeStats nodeStats : stats.getNodes()) {
+            CircuitBreakerStats breakerStats = nodeStats.getBreaker().getStats(CircuitBreaker.REQUEST);
+            if (breakerStats != null) {
+                estimated += breakerStats.getEstimated();
+            }
+        }
+        return estimated;
+    }
+
+    private Map<String, Long> requestBreakerTrips() {
+        NodesStatsResponse stats = clusterAdmin().prepareNodesStats().setBreaker(true).get();
+        Map<String, Long> trips = new HashMap<>();
+        for (NodeStats nodeStats : stats.getNodes()) {
+            CircuitBreakerStats breakerStats = nodeStats.getBreaker().getStats(CircuitBreaker.REQUEST);
+            if (breakerStats != null) {
+                trips.put(nodeStats.getNode().getName(), breakerStats.getTrippedCount());
+            }
+        }
+        return trips;
     }
 }

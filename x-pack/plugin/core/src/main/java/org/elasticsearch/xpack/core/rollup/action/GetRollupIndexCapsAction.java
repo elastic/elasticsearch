@@ -10,7 +10,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -40,7 +40,7 @@ public class GetRollupIndexCapsAction extends ActionType<GetRollupIndexCapsActio
         super(NAME);
     }
 
-    public static class Request extends LegacyActionRequest implements IndicesRequest.Replaceable, ToXContentFragment {
+    public static class Request extends UntypedActionRequest implements IndicesRequest.Replaceable, ToXContentFragment {
         private String[] indices;
         private IndicesOptions options;
 

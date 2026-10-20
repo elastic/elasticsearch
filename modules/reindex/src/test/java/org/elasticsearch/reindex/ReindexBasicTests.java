@@ -11,6 +11,7 @@ package org.elasticsearch.reindex;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -39,6 +40,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -167,8 +169,8 @@ public class ReindexBasicTests extends ReindexTestCase {
     }
 
     /**
-     * Tests that high throttling (that would exceed the scroll keep-alive) does not terminate a reindexing operation early.
-     * This is achieved by setting the scroll keep-alive to 500ms second, and the throttling is (5 docs at 4 req/s ≈ 1.25s)
+     * Tests that high throttling (that would exceed the search context keep-alive) does not terminate a reindexing operation early.
+     * This is achieved by setting the scroll keep-alive to 500ms, and the throttling is (5 docs at 4 req/s ≈ 1.25s).
      */
     public void testSmallScrollTimeoutWithHeavyThrottleCompletes() {
         String prefix = randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
@@ -451,10 +453,20 @@ public class ReindexBasicTests extends ReindexTestCase {
     public void testReindexFailsWhenSourceIndexIsClosed() {
         String sourceIndex = "source";
         String destIndex = "dest";
-        createIndex(sourceIndex);
+        // disable rebalancing, so the close operation below doesn't happen during rebalancing, which will make it a NOP:
+        // failing the assertions for closeResponse, and the reindex request won't fail (we expect it to fail after a close)
+        createIndex(sourceIndex, Settings.builder().put("index.routing.rebalance.enable", "none").build());
         ensureGreen(sourceIndex);
         indexRandom(true, prepareIndex(sourceIndex).setId("1").setSource("foo", "bar"));
-        indicesAdmin().prepareClose(sourceIndex).get();
+
+        CloseIndexResponse closeResponse = indicesAdmin().prepareClose(sourceIndex).get();
+        assertThat(closeResponse.isAcknowledged(), is(true));
+        assertThat(closeResponse.getIndices(), hasSize(1));
+        assertThat(
+            "close did not actually close source: " + closeResponse.getIndices(),
+            closeResponse.getIndices().getFirst().hasFailures(),
+            is(false)
+        );
 
         Exception e = expectThrows(Exception.class, () -> {
             ReindexRequest request = new ReindexRequest();

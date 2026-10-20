@@ -101,6 +101,7 @@ sum_a:long    | b:integer
 
 expandAfterSort1
 skip_flattened_rewrite: bare_attribute_command_on_flattened
+skip_columnar: MV_EXPAND ordering differs in columnar mode (source order rather than sorted doc-values order) causing sort-then-expand to produce different results
 request_stored: skip
 
 from employees | keep job_positions, emp_no | sort emp_no | mv_expand job_positions | limit 10 | sort job_positions;
@@ -120,6 +121,7 @@ null                      |10003
 
 expandAfterSort2
 skip_flattened_rewrite: bare_attribute_command_on_flattened
+skip_columnar: MV_EXPAND ordering differs in columnar mode (source order rather than sorted doc-values order) causing sort-then-expand to produce different results
 request_stored: skip
 
 from employees | sort emp_no | mv_expand job_positions | keep job_positions, emp_no | limit 5;
@@ -134,6 +136,7 @@ Head Human Resources   |10004
 
 expandWithMultiSort
 skip_flattened_rewrite: bare_attribute_command_on_flattened
+skip_columnar: MV_EXPAND ordering differs in columnar mode (source order rather than sorted doc-values order) causing sort-then-expand to produce different results
 request_stored: skip
 
 from employees | keep emp_no, job_positions | sort emp_no | mv_expand job_positions | limit 10 | where emp_no <= 10006 | sort job_positions nulls first;
@@ -203,6 +206,7 @@ emp_no:integer |  job_positions:keyword   |salary:integer
 
 doubleLimit_expandLimitLowerThanAvailable
 skip_flattened_rewrite: bare_attribute_command_on_flattened
+skip_columnar: MV_EXPAND ordering differs in columnar mode (source order rather than sorted doc-values order) causing sort-then-expand to produce different results
 request_stored: skip
 
 from employees | where emp_no == 10004 | limit 1 | keep emp_no, job_positions | mv_expand job_positions | limit 2;
@@ -214,6 +218,7 @@ emp_no:integer |  job_positions:keyword
 
 doubleLimit_expandLimitGreaterThanAvailable
 skip_flattened_rewrite: bare_attribute_command_on_flattened
+skip_columnar: MV_EXPAND ordering differs in columnar mode (source order rather than sorted doc-values order) causing sort-then-expand to produce different results
 request_stored: ignore_order
 
 from employees | where emp_no == 10004 | limit 1 | keep emp_no, job_positions | mv_expand job_positions | limit 5;
@@ -238,6 +243,7 @@ emp_no:integer |  job_positions:keyword
 
 tripleLimit_WithWhere_InBetween_MvExpand_And_Limit
 skip_flattened_rewrite: bare_attribute_command_on_flattened
+skip_columnar: MV_EXPAND ordering differs in columnar mode (source order rather than sorted doc-values order) causing sort-then-expand to produce different results
 request_stored: skip
 
 from employees | where emp_no == 10004 | limit 1 | keep emp_no, job_positions | mv_expand job_positions | where job_positions LIKE "*a*" | limit 2 | where job_positions LIKE "*a*" | limit 3;
@@ -390,14 +396,14 @@ emp_no:integer  | first_name:keyword | generate_mv:keyword
 
 
 // see https://github.com/elastic/elasticsearch/issues/102120
-expandAfterDuplicateAggs#[skip:-8.11.99]
+expandAfterDuplicateAggs
 row a = 1 |  stats  a = count(*), b = count(*) | mv_expand b;
 
 a:long | b:long 
 1      | 1
 ;
 
-expandAfterDuplicateAggs2#[skip:-8.11.99]
+expandAfterDuplicateAggs2
 row a = 1 | stats a = count(*), b = count(*) | mv_expand a;
 
 a:long | b:long 
@@ -405,14 +411,14 @@ a:long | b:long
 ;
 
 
-expandAfterDuplicateAggsAndEval#[skip:-8.11.99]
+expandAfterDuplicateAggsAndEval
 row a = 1 | stats  a = count(*), b = count(*) | eval c = 2 | mv_expand b;
 
 a:long | b:long | c:integer
 1      | 1      | 2
 ;
 
-expandAfterDuplicateAggsComplex#[skip:-8.11.99]
+expandAfterDuplicateAggsComplex
 row x = [1, 2, 3] 
 | mv_expand x 
 | stats a = count(*), b = count(*), c = count(*) 
@@ -425,7 +431,7 @@ b:long    | c:long    | x:long
 ;
 
 
-expandAfterDuplicateAggsMultirow#[skip:-8.11.99]
+expandAfterDuplicateAggsMultirow
 from employees 
 | stats a = count(gender), b = count(*), c = count(*) by gender 
 | eval str = concat(to_string(b), ",", gender) 
@@ -444,7 +450,7 @@ a:long      | b:long      | c:long      | gender:keyword | str:keyword   | x:key
 
 
 //see https://github.com/elastic/elasticsearch/issues/102912
-statsDissectThatOverwritesAndMvExpand#[skip:-8.11.99]
+statsDissectThatOverwritesAndMvExpand
 row  a = "a", b = 1 | stats  e = min(b) by a | dissect a "%{e}" | mv_expand e;
 
 a:keyword | e:keyword
@@ -453,7 +459,7 @@ a         | a
 
 
 //see https://github.com/elastic/elasticsearch/issues/103331
-keepStarMvExpand#[skip:-8.12.99]
+keepStarMvExpand
 skip_flattened_rewrite: bare_attribute_command_on_flattened
 required_capability: fix_precision_of_scaled_float_fields
 from employees | where emp_no == 10001 | keep * |  mv_expand first_name;

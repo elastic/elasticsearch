@@ -20,7 +20,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -58,7 +58,6 @@ import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterCo
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
@@ -91,8 +90,8 @@ import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NOD
 import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit.blobNameFromGeneration;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
-import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.blobNameFromGeneration;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -295,7 +294,7 @@ public class IndexingShardRecoveryIT extends AbstractStatelessPluginIntegTestCas
             // term is incremented by 1
             afterSnapshot.lastUploadedBcc.primaryTerm() + 1L,
             // Lucene index is committed two or three times on snapshot recovery:
-            // 1st for StatelessIndexEventListener#afterFilesRestoredFromRepository if the commit is neither a hollow commit
+            // 1st for StatelessIndexNodeRecoveryListener#afterFilesRestoredFromRepository if the commit is neither a hollow commit
             // nor from an empty store, i.e. documents have been indexed before the snapshot
             // 2nd for bootstrapNewHistory
             // 3rd for associateIndexWithNewTranslog
@@ -539,7 +538,7 @@ public class IndexingShardRecoveryIT extends AbstractStatelessPluginIntegTestCas
             "All commits uploaded under 1 primary term, except the stale generation",
             blobNamesAndPrimaryTerms.entrySet()
                 .stream()
-                .filter(commit -> commit.getKey().equals(StatelessCompoundCommit.blobNameFromGeneration(generation)) == false)
+                .filter(commit -> commit.getKey().equals(BatchedCompoundCommit.blobNameFromGeneration(generation)) == false)
                 .allMatch(commit -> commit.getValue().size() == 1),
             equalTo(true)
         );
@@ -551,13 +550,13 @@ public class IndexingShardRecoveryIT extends AbstractStatelessPluginIntegTestCas
         assertThat(
             "The commit uploaded under more than 1 primary term correspond to the stale commit generation",
             blobNamesAndPrimaryTerms.entrySet().stream().filter(commit -> commit.getValue().size() != 1).map(Map.Entry::getKey).toList(),
-            hasItem(equalTo(StatelessCompoundCommit.blobNameFromGeneration(staleCommitGeneration)))
+            hasItem(equalTo(BatchedCompoundCommit.blobNameFromGeneration(staleCommitGeneration)))
         );
         assertThat(
             "The duplicate commits have been uploaded under the expected primary terms",
             blobNamesAndPrimaryTerms.entrySet()
                 .stream()
-                .filter(commit -> commit.getKey().equals(StatelessCompoundCommit.blobNameFromGeneration(staleCommitGeneration)))
+                .filter(commit -> commit.getKey().equals(BatchedCompoundCommit.blobNameFromGeneration(staleCommitGeneration)))
                 .map(Map.Entry::getValue)
                 .findFirst()
                 .get(),
@@ -922,7 +921,7 @@ public class IndexingShardRecoveryIT extends AbstractStatelessPluginIntegTestCas
             var node = clusterState.getNodes().get(indexShard.routingEntry().currentNodeId());
             var commitService = internalCluster().getInstance(StatelessCommitService.class, node.getName());
             assertThat("Commit service does not exist: " + shard, commitService, notNullValue());
-            assertThat(commitService.hasPendingBccUploads(indexShard.shardId()), equalTo(false));
+            assertThat(commitService.hasBccUploadInProgress(indexShard.shardId()), equalTo(false));
             consumer.accept(indexShard.shardId(), commitService);
         }
     }
@@ -937,7 +936,12 @@ public class IndexingShardRecoveryIT extends AbstractStatelessPluginIntegTestCas
         logger.info("--> generating {} commit(s) for index [{}] with {} upload max. commits", numCommits, indexName, uploadMaxCommits);
         for (int i = 0; i < numCommits; i++) {
             int numDocs = randomIntBetween(25, 50);
-            indexDocs(indexName, numDocs, bulkRequest -> bulkRequest.setRefreshPolicy(RefreshPolicy.IMMEDIATE));
+            // Refresh all shards explicitly to ensure each shard creates a new commit per iteration. Using
+            // RefreshPolicy.IMMEDIATE on the bulk only refreshes shards that received documents, so when a
+            // multi-shard bulk happens to skip a shard (e.g. all docs route to other shards), that shard
+            // would otherwise miss a generation increment and the per-shard commit assertions would fail.
+            indexDocs(indexName, numDocs, bulkRequest -> bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.NONE));
+            refresh(indexName);
             totalDocs += numDocs;
         }
         return new DocsAndCommits(totalDocs, numCommits);

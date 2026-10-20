@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.downsample;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.internal.hppc.IntArrayList;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.index.fielddata.HistogramValue;
@@ -43,6 +44,20 @@ abstract class TDigestHistogramFieldDownsampler extends AbstractFieldDownsampler
     TDigestHistogramFieldDownsampler(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
         super(name, fieldData);
         valueLabel = TDigestFieldMapper.CONTENT_TYPE.equals(fieldType.typeName()) ? CENTROIDS_FIELD : VALUES_FIELD;
+    }
+
+    @Override
+    public void collect(HistogramValues docValues, IntArrayList docIdBuffer) throws IOException {
+        if (isDone()) {
+            return;
+        }
+        for (int i = 0; i < docIdBuffer.size() && isDone() == false; i++) {
+            int docId = docIdBuffer.get(i);
+            if (docValues.advanceExact(docId) == false) {
+                continue;
+            }
+            collectCurrentValues(docValues);
+        }
     }
 
     @Override

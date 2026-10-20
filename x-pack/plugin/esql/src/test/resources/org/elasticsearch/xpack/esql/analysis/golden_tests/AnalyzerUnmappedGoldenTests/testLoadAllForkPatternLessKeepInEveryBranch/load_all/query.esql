@@ -1,0 +1,3 @@
+SET unmapped_fields="LOAD_ALL"; FROM employees
+| FORK (KEEP emp_no)
+       (KEEP first_name)

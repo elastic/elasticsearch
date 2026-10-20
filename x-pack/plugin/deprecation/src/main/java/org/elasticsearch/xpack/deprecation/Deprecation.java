@@ -72,7 +72,8 @@ public class Deprecation extends Plugin implements ActionPlugin {
             services.clusterService(),
             services.threadPool(),
             services.client(),
-            services.xContentRegistry()
+            services.xContentRegistry(),
+            services.featureService()
         );
         templateRegistry.initialize();
 

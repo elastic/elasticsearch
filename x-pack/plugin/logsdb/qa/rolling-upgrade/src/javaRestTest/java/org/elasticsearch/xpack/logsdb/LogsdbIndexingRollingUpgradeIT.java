@@ -13,7 +13,6 @@ import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -27,11 +26,12 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
 
     static String BULK_ITEM_TEMPLATE =
         """
-            {"@timestamp": "$now", "host.name": "$host", "method": "$method", "ip": "$ip", "message": "$message", "length": $length, "factor": $factor}
+            {"@timestamp": "$now", "host.name": "$host", "method": "$method", "ip": "$ip", "message": "$message", "length": $length, "factor": $factor, "tag": "$tag"}
             """;
 
     private static final String TEMPLATE = """
         {
+            %%settings%%
             "mappings": {
               "properties": {
                 "@timestamp" : {
@@ -51,44 +51,82 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
                 },
                 "factor": {
                   "type": "double"
+                },
+                "tag": {
+                  "type": "keyword"
+                  %%tag_keep_mode%%
                 }
               }
             }
         }""";
 
-    public void testIndexing() throws Exception {
+    // every bulkIndex call in this test sends 4 requests of 1024 documents
+    private static final int DOCS_PER_BULK_INDEX = 4 * 1024;
+
+    public void testIndexingLogsdb() throws Exception {
+        testIndexing("logs-bwc-logsdb-test", "logsdb");
+    }
+
+    public void testIndexingLogsdbColumnar() throws Exception {
+        final String oldVersion = System.getProperty("tests.old_cluster_version");
+        assumeTrue(
+            "logsdb_columnar requires an old cluster on 9.5.0 or later",
+            oldVersion != null && Version.fromString(oldVersion).onOrAfter(Version.fromString("9.5.0"))
+        );
+        testIndexing("logs-bwc-logsdb-columnar-test", "logsdb_columnar");
+    }
+
+    private void testIndexing(String dataStreamName, String indexMode) throws Exception {
+        final boolean columnarEnabled = indexMode.equals("logsdb_columnar");
+        final int[] docCount = new int[1];
         for (Map.Entry<Object, Object> entry : System.getProperties().entrySet()) {
             logger.info("system_property: {} / {}", entry.getKey(), entry.getValue());
         }
 
-        String dataStreamName = "logs-bwc-test";
         Instant time;
         {
             maybeEnableLogsdbByDefault();
 
-            String templateId = getClass().getSimpleName().toLowerCase(Locale.ROOT);
-            createTemplate(dataStreamName, templateId, TEMPLATE);
+            final String tagKeepMode = columnarEnabled ? "" : ",\"synthetic_source_keep\":\"all\"";
+            String template = TEMPLATE.replace("%%tag_keep_mode%%", tagKeepMode);
+            final Version oldVersion = System.getProperty("tests.old_cluster_version") != null
+                ? Version.fromString(System.getProperty("tests.old_cluster_version"))
+                : Version.CURRENT;
+            // 9.4.x nodes write _ignored_source using stored fields on release builds but doc values
+            // on snapshot builds, making the on-disk format ambiguous during a rolling upgrade.
+            // Disable the TSDB doc-values format so both old and new nodes use stored fields,
+            // eliminating the conflict while still exercising _ignored_source via synthetic_source_keep.
+            final boolean ignoredSourceFormatIsStable = oldVersion.before("9.4.0") || oldVersion.onOrAfter(Version.fromString("9.5.0"));
+            // Set the index mode explicitly rather than relying on cluster.logsdb_columnar.enabled to pick the
+            // default mode for logs-*-* data streams.
+            final String settingsJson = ignoredSourceFormatIsStable
+                ? "\"settings\": {\"index.mode\": \"" + indexMode + "\"},"
+                : "\"settings\": {\"index.mode\": \"" + indexMode + "\", \"index.use_time_series_doc_values_format\": false},";
+            template = template.replace("%%settings%%", settingsJson);
+
+            String templateId = dataStreamName;
+            createTemplate(dataStreamName, templateId, template);
 
             time = Instant.now().minusSeconds(60 * 60);
             bulkIndex(dataStreamName, 4, 1024, time, LogsdbIndexingRollingUpgradeIT::docSupplier);
+            docCount[0] += DOCS_PER_BULK_INDEX;
 
             String firstBackingIndex = getDataStreamBackingIndexNames(dataStreamName).getFirst();
             var settings = (Map<?, ?>) getIndexSettings(firstBackingIndex, true).get(firstBackingIndex);
-            assertThat(((Map<?, ?>) settings.get("settings")).get("index.mode"), equalTo("logsdb"));
+            assertThat(((Map<?, ?>) settings.get("settings")).get("index.mode"), equalTo(indexMode));
             assertThat(((Map<?, ?>) settings.get("defaults")).get("index.mapping.source.mode"), equalTo("SYNTHETIC"));
 
             // check prior to rollover
             assertDataStream(dataStreamName, templateId);
             ensureGreen(dataStreamName);
-            search(dataStreamName);
-            query(dataStreamName);
+            verify(dataStreamName, docCount[0]);
         }
         AtomicReference<Instant> timeRef = new AtomicReference<>(time);
         clusterRollingUpgrade(index -> {
             timeRef.set(timeRef.get().plusNanos(60 * 30));
             bulkIndex(dataStreamName, 4, 1024, timeRef.get(), LogsdbIndexingRollingUpgradeIT::docSupplier);
-            search(dataStreamName);
-            query(dataStreamName);
+            docCount[0] += DOCS_PER_BULK_INDEX;
+            verify(dataStreamName, docCount[0]);
             // verify index mode stats are serializable across mixed-version nodes
             assertOK(client().performRequest(new Request("GET", "/_xpack/usage")));
         });
@@ -98,9 +136,65 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
             assertOK(client().performRequest(forceMergeRequest));
 
             ensureGreen(dataStreamName);
-            search(dataStreamName);
-            query(dataStreamName);
+            verify(dataStreamName, docCount[0]);
         }
+        {
+            // roll over so the post-upgrade checks also cover a backing index created by the fully upgraded cluster
+            assertOK(client().performRequest(new Request("POST", "/" + dataStreamName + "/_rollover")));
+            var backingIndices = getDataStreamBackingIndexNames(dataStreamName);
+            assertThat(backingIndices, hasSize(2));
+            String newBackingIndex = backingIndices.getLast();
+            var newIndexSettings = (Map<?, ?>) getIndexSettings(newBackingIndex, true).get(newBackingIndex);
+            assertThat(((Map<?, ?>) newIndexSettings.get("settings")).get("index.mode"), equalTo(indexMode));
+
+            String indexedInto = bulkIndex(
+                dataStreamName,
+                4,
+                1024,
+                timeRef.get().plusSeconds(60),
+                LogsdbIndexingRollingUpgradeIT::docSupplier
+            );
+            assertThat(indexedInto, equalTo(newBackingIndex));
+            docCount[0] += DOCS_PER_BULK_INDEX;
+
+            // check the new backing index on its own, so the old backing index can't satisfy the assertions for it
+            ensureGreen(dataStreamName);
+            verify(newBackingIndex, DOCS_PER_BULK_INDEX);
+            verify(dataStreamName, docCount[0]);
+
+            var forceMergeRequest = new Request("POST", "/" + dataStreamName + "/_forcemerge");
+            forceMergeRequest.addParameter("max_num_segments", "1");
+            assertOK(client().performRequest(forceMergeRequest));
+
+            verify(newBackingIndex, DOCS_PER_BULK_INDEX);
+            verify(dataStreamName, docCount[0]);
+        }
+    }
+
+    private void verify(String target, int expectedDocCount) throws Exception {
+        assertDocCount(target, expectedDocCount);
+        search(target);
+        searchWithSource(target);
+        query(target);
+    }
+
+    /**
+     * Asserts the exact number of documents via both {@code _count} and ES|QL. An exact count, unlike a lower bound, fails if
+     * a shard is missing from the response.
+     */
+    static void assertDocCount(String target, int expectedDocCount) throws IOException {
+        var countResponse = entityAsMap(client().performRequest(new Request("GET", "/" + target + "/_count")));
+        assertThat(ObjectPath.evaluate(countResponse, "_shards.failed"), equalTo(0));
+        assertThat(ObjectPath.evaluate(countResponse, "count"), equalTo(expectedDocCount));
+
+        var queryRequest = new Request("POST", "/_query");
+        queryRequest.setJsonEntity("""
+            {
+                "query": "FROM $target | STATS c = count(*) | LIMIT 1"
+            }
+            """.replace("$target", target));
+        var queryResponse = entityAsMap(client().performRequest(queryRequest));
+        assertThat(ObjectPath.evaluate(queryResponse, "values.0.0"), equalTo(expectedDocCount));
     }
 
     static void assertDataStream(String dataStreamName, String templateId) throws IOException {
@@ -117,16 +211,22 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
         String hostName = "host" + j % 50; // Not realistic, but makes asserting search / query response easier.
         String methodName = "method" + j % 5;
         String ip = NetworkAddress.format(randomIp(true));
-        String message = randomAlphaOfLength(128);
+        // Every ~100th document uses a message that exceeds the binary doc-values block threshold
+        // (512 KB). The text field value is stored as binary doc values in its fallback field for
+        // synthetic source reconstruction, so the oversized value lands in a single-doc block and
+        // exercises the verbatim-copy path in addRawBlock during force merges.
+        String message = (j % 100 == 0) ? randomAlphaOfLength(1024 * 1024) : randomAlphaOfLength(128);
         long length = randomLong();
         double factor = randomDouble();
+        String tag = randomAlphaOfLengthBetween(3, 8);
         return BULK_ITEM_TEMPLATE.replace("$now", formatInstant(startTime))
             .replace("$host", hostName)
             .replace("$method", methodName)
             .replace("$ip", ip)
             .replace("$message", message)
             .replace("$length", Long.toString(length))
-            .replace("$factor", Double.toString(factor));
+            .replace("$factor", Double.toString(factor))
+            .replace("$tag", tag);
     }
 
     void search(String dataStreamName) throws Exception {
@@ -161,6 +261,7 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
         assertOK(response);
         var responseBody = entityAsMap(response);
 
+        assertThat(ObjectPath.evaluate(responseBody, "_shards.failed"), equalTo(0));
         Integer totalCount = ObjectPath.evaluate(responseBody, "hits.total.value");
         assertThat(totalCount, greaterThanOrEqualTo(4096));
         String key = ObjectPath.evaluate(responseBody, "aggregations.host_name.buckets.0.key");
@@ -171,6 +272,31 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
         assertThat(maxTx, notNullValue());
         Double maxRx = ObjectPath.evaluate(responseBody, "aggregations.host_name.buckets.0.max_factor.value");
         assertThat(maxRx, notNullValue());
+    }
+
+    /**
+     * Fetches actual documents to exercise the {@code _ignored_source} read path. The {@code tag} field is
+     * mapped with {@code synthetic_source_keep: all}, which unconditionally writes its value to
+     * {@code _ignored_source}.
+     */
+    void searchWithSource(String dataStreamName) throws Exception {
+        var searchRequest = new Request("POST", "/" + dataStreamName + "/_search");
+        searchRequest.addParameter("pretty", "true");
+        searchRequest.setJsonEntity("""
+            {
+                "size": 10
+            }
+            """);
+        var response = client().performRequest(searchRequest);
+        assertOK(response);
+        var responseBody = entityAsMap(response);
+
+        assertThat(ObjectPath.evaluate(responseBody, "_shards.failed"), equalTo(0));
+        Integer totalCount = ObjectPath.evaluate(responseBody, "hits.total.value");
+        assertThat(totalCount, greaterThanOrEqualTo(1024));
+        // tag has synthetic_source_keep:all so it is written to _ignored_source
+        String tag = ObjectPath.evaluate(responseBody, "hits.hits.0._source.tag");
+        assertThat(tag, notNullValue());
     }
 
     void query(String dataStreamName) throws Exception {

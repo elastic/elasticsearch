@@ -19,6 +19,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.time.ZoneOffset;
@@ -75,9 +76,8 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
         return true;
     }
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initializeCompositeFields() throws Exception {
         int numFields = randomIntBetween(1, 10);
         size = randomNumberOfBuckets();
         sourceNames = new ArrayList<>();
@@ -95,10 +95,8 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
         }
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void clearCompositeFields() throws Exception {
         sourceNames = null;
         formats = null;
         reverseMuls = null;

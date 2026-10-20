@@ -1,0 +1,5 @@
+area: Infra/Scripting
+issues: []
+pr: 153719
+summary: Add Painless allocation annotations for BigInteger, BigDecimal, and remaining java.util allocators
+type: enhancement

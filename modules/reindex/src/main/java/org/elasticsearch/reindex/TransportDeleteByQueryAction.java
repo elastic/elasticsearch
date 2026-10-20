@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -40,9 +41,10 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
     private final Client client;
     private final ScriptService scriptService;
     private final ClusterService clusterService;
+    private final ProjectResolver projectResolver;
     private final DeleteByQueryMetrics deleteByQueryMetrics;
     @Nullable
-    private final BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics;
+    private final BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics;
     private final TimeValue taskShutdownGracePeriod;
     private final ReindexSettings reindexSettings;
     private final CircuitBreaker requestBreaker;
@@ -55,8 +57,9 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
         TransportService transportService,
         ScriptService scriptService,
         ClusterService clusterService,
+        ProjectResolver projectResolver,
         @Nullable DeleteByQueryMetrics deleteByQueryMetrics,
-        @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
+        @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
         ReindexSettings reindexSettings,
         CircuitBreakerService circuitBreakerService
     ) {
@@ -65,8 +68,9 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
         this.client = client;
         this.scriptService = scriptService;
         this.clusterService = clusterService;
+        this.projectResolver = projectResolver;
         this.deleteByQueryMetrics = deleteByQueryMetrics;
-        this.bulkByScrollSearchContextMetrics = bulkByScrollSearchContextMetrics;
+        this.bulkByPaginatedSearchSearchContextMetrics = bulkByPaginatedSearchSearchContextMetrics;
         // todo: if relocations are added to delete-by-query and it gets its own timeout setting, this should be updated.
         // without this safe default, adding relocations to delete-by-query without updating this might open it up to race conditions.
         this.taskShutdownGracePeriod = ShutdownPrepareService.MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(clusterService.getSettings());
@@ -108,7 +112,7 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
                             deleteByQueryMetrics.recordTookTime(elapsedTime);
                         }
                     }),
-                    bulkByScrollSearchContextMetrics,
+                    bulkByPaginatedSearchSearchContextMetrics,
                     taskShutdownGracePeriod,
                     reindexSettings,
                     requestBreaker

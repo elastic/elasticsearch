@@ -30,6 +30,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.analysis.ReloadToken;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
@@ -51,7 +52,10 @@ public class TransportReloadAnalyzersAction extends TransportBroadcastByNodeActi
     ReloadAnalyzersRequest,
     ReloadAnalyzersResponse,
     TransportReloadAnalyzersAction.ReloadResult,
-    Void> {
+    // The node context is a per-node, per-request token: created once per request on each node and
+    // passed to every shard operation, it lets the registry rebuild an analyzer shared by several
+    // indices once per request rather than once per index.
+    ReloadToken> {
 
     public static final ActionType<ReloadAnalyzersResponse> TYPE = new ActionType<>("indices:admin/reload_analyzers");
     private static final Logger logger = LogManager.getLogger(TransportReloadAnalyzersAction.class);
@@ -119,18 +123,26 @@ public class TransportReloadAnalyzersAction extends TransportBroadcastByNodeActi
     }
 
     @Override
+    protected ReloadToken createNodeContext() {
+        // One token per request per node, shared across all of this node's shard operations below.
+        return new ReloadToken();
+    }
+
+    @Override
     protected void shardOperation(
         ReloadAnalyzersRequest request,
         ShardRouting shardRouting,
         Task task,
-        Void nodeContext,
+        ReloadToken nodeContext,
         ActionListener<ReloadResult> listener
     ) {
         ActionListener.completeWith(listener, () -> {
             logger.info("reloading analyzers for index shard " + shardRouting);
             IndexService indexService = indicesService.indexService(shardRouting.index());
+            // nodeContext is the per-node, per-request token: passing it lets the registry rebuild an
+            // analyzer shared by several indices once for this request rather than once per index.
             List<String> reloadedSearchAnalyzers = indexService.mapperService()
-                .reloadSearchAnalyzers(indicesService.getAnalysis(), request.resource(), request.preview());
+                .reloadSearchAnalyzers(indicesService.getAnalysis(), request.resource(), request.preview(), nodeContext);
             return new ReloadResult(shardRouting.index().getName(), shardRouting.currentNodeId(), reloadedSearchAnalyzers);
         });
     }

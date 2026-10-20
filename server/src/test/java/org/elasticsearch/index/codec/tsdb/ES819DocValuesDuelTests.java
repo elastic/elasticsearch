@@ -25,7 +25,7 @@ public class ES819DocValuesDuelTests extends AbstractTSDBDocValuesDuelTests {
     protected DocValuesFormat contenderFormat() {
         return randomBoolean()
             ? new ES819Version3TSDBDocValuesFormat(
-                randomIntBetween(1, 4096),
+                randomIntBetween(2, 4096),
                 randomIntBetween(1, 512),
                 random().nextBoolean(),
                 TSDBDocValuesTestUtil.randomBinaryCompressionMode(),

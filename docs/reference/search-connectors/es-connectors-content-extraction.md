@@ -5,7 +5,7 @@ mapped_pages:
 
 # Content extraction [es-connectors-content-extraction]
 
-Connectors use the [Elastic ingest attachment processor^](/reference/enrich-processor/attachment.md) to extract file contents. The processor extracts files using the [Apache Tika](https://tika.apache.org) text extraction library. The logic for content extraction is defined in [utils.py](https://github.com/elastic/connectors/tree/main/connectors/utils.py).
+Connectors use the [Elastic ingest attachment processor](/reference/ingest-processor/attachment.md) to extract file contents. The processor extracts files using the [Apache Tika](https://tika.apache.org) text extraction library. The logic for content extraction is defined in [utils.py](https://github.com/elastic/connectors/tree/main/connectors/utils.py).
 
 While intended primarily for PDF and Microsoft Office formats, you can use any of the [supported formats](#es-connectors-content-extraction-supported-file-types).
 
@@ -81,6 +81,7 @@ Local content extraction is available for the following self-managed connectors:
 * [Azure Blob Storage](/reference/search-connectors/es-connectors-azure-blob.md)
 * [Confluence](/reference/search-connectors/es-connectors-confluence.md)
 * [Dropbox](/reference/search-connectors/es-connectors-dropbox.md)
+* [Exchange Server](/reference/search-connectors/es-connectors-exchange-server.md)
 * [GitHub](/reference/search-connectors/es-connectors-github.md)
 * [Google Cloud Storage](/reference/search-connectors/es-connectors-google-cloud.md)
 * [Google Drive](/reference/search-connectors/es-connectors-google-drive.md)

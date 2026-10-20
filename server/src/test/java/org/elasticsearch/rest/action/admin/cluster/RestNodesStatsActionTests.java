@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -31,9 +32,8 @@ public class RestNodesStatsActionTests extends ESTestCase {
 
     private RestNodesStatsAction action;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initAction() throws Exception {
         action = new RestNodesStatsAction(() -> ProjectId.DEFAULT);
     }
 

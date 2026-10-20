@@ -16,7 +16,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -36,6 +36,10 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.sourcebatch.SourceBatch;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -58,7 +62,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * Note that we only support refresh on the bulk request not per item.
  * @see org.elasticsearch.client.internal.Client#bulk(BulkRequest)
  */
-public class BulkRequest extends LegacyActionRequest
+public class BulkRequest extends UntypedActionRequest
     implements
         CompositeIndicesRequest,
         WriteRequest<BulkRequest>,
@@ -92,6 +96,8 @@ public class BulkRequest extends LegacyActionRequest
     private Boolean globalRequireDatsStream;
     private boolean includeSourceOnError = true;
     private Set<String> paramsUsed = emptySet();
+    @Nullable
+    private Map<String, SourceBatch> preBuiltBatches;
 
     private long sizeInBytes = 0;
 
@@ -465,6 +471,24 @@ public class BulkRequest extends LegacyActionRequest
         return this;
     }
 
+    /**
+     * Attaches pre-built ESCF batches to this request, keyed by the name its items target — index, alias, or
+     * data stream.
+     *
+     * <p>TODO: implement serialization for ingest-node forwarding.
+     */
+    public void setPreBuiltBatches(Map<String, SourceBatch> batches) {
+        this.preBuiltBatches = batches;
+    }
+
+    /**
+     * Returns the pre-built ESCF batches set via {@link #setPreBuiltBatches}, or {@code null} if none were set.
+     */
+    @Nullable
+    public Map<String, SourceBatch> getPreBuiltBatches() {
+        return preBuiltBatches;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
@@ -596,6 +620,13 @@ public class BulkRequest extends LegacyActionRequest
         bulkRequest.requireAlias(requireAlias());
         bulkRequest.requireDataStream(requireDataStream());
         bulkRequest.requestParamsUsed(requestParamsUsed());
+        bulkRequest.setPreBuiltBatches(getPreBuiltBatches());
         return bulkRequest;
     }
+
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
+    }
+
 }

@@ -33,6 +33,8 @@ import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -48,16 +50,14 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
     private ThreadPool threadPool;
     private Executor executor;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void startThreadPool() throws Exception {
         threadPool = new TestThreadPool("test");
         executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void stopThreadPool() throws Exception {
         TestThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
     }
 

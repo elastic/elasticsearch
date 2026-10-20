@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.transport.TransportService;
@@ -30,6 +31,7 @@ public record TransportActionServices(
     UsageService usageService,
     InferenceService inferenceService,
     UserAgentParserRegistry userAgentParserRegistry,
+    IpLocationService ipLocationService,
     BlockFactoryProvider blockFactoryProvider,
     PlannerSettings.Holder plannerSettings,
     CrossProjectModeDecider crossProjectModeDecider

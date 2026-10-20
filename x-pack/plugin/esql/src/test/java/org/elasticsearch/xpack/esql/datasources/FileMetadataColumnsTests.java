@@ -13,7 +13,10 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.time.Instant;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -39,7 +42,8 @@ public class FileMetadataColumnsTests extends ESTestCase {
         assertEquals(DataType.KEYWORD, FileMetadataColumns.COLUMNS.get("_file.directory"));
         assertEquals(DataType.LONG, FileMetadataColumns.COLUMNS.get("_file.size"));
         assertEquals(DataType.DATETIME, FileMetadataColumns.COLUMNS.get("_file.modified"));
-        assertEquals(5, FileMetadataColumns.COLUMNS.size());
+        assertEquals(DataType.LONG, FileMetadataColumns.COLUMNS.get("_file.record_ref"));
+        assertEquals(6, FileMetadataColumns.COLUMNS.size());
     }
 
     public void testExtractValuesFromStorageEntry() {
@@ -100,12 +104,13 @@ public class FileMetadataColumnsTests extends ESTestCase {
     }
 
     public void testNamesSet() {
-        assertEquals(5, FileMetadataColumns.NAMES.size());
+        assertEquals(6, FileMetadataColumns.NAMES.size());
         assertTrue(FileMetadataColumns.NAMES.contains("_file.path"));
         assertTrue(FileMetadataColumns.NAMES.contains("_file.name"));
         assertTrue(FileMetadataColumns.NAMES.contains("_file.directory"));
         assertTrue(FileMetadataColumns.NAMES.contains("_file.size"));
         assertTrue(FileMetadataColumns.NAMES.contains("_file.modified"));
+        assertTrue(FileMetadataColumns.NAMES.contains("_file.record_ref"));
     }
 
     public void testDotNamingCannotCollideWithHivePartitions() {
@@ -114,5 +119,37 @@ public class FileMetadataColumnsTests extends ESTestCase {
         for (String name : FileMetadataColumns.NAMES) {
             assertTrue("File metadata column [" + name + "] must contain a dot for Hive collision safety", name.contains("."));
         }
+    }
+
+    public void testOverlayLocationLeavesSharedMapAndSizeAlone() {
+        StoragePath path = StoragePath.of("s3://bucket/data/events.parquet");
+        LinkedHashMap<String, Object> shared = new LinkedHashMap<>();
+        shared.put(FileMetadataColumns.SIZE, 999L);
+        shared.put(FileMetadataColumns.MODIFIED, 5L);
+        shared.put(FileMetadataColumns.PATH, new BytesRef("already"));
+        Map<String, Object> frozen = Collections.unmodifiableMap(shared);
+
+        Map<String, Object> untouched = FileMetadataColumns.overlayLocation(frozen, path, Set.of(FileMetadataColumns.SIZE));
+        assertSame(frozen, untouched);
+
+        // A span split's length is not an argument here, so a stored file size stays put.
+        Map<String, Object> filled = FileMetadataColumns.overlayLocation(
+            frozen,
+            path,
+            Set.of(FileMetadataColumns.PATH, FileMetadataColumns.NAME, FileMetadataColumns.DIRECTORY)
+        );
+        assertNotSame(frozen, filled);
+        assertEquals(new BytesRef("already"), filled.get(FileMetadataColumns.PATH));
+        assertEquals(new BytesRef("events.parquet"), filled.get(FileMetadataColumns.NAME));
+        assertEquals(new BytesRef("s3://bucket/data"), filled.get(FileMetadataColumns.DIRECTORY));
+        assertEquals(999L, filled.get(FileMetadataColumns.SIZE));
+        assertEquals(5L, filled.get(FileMetadataColumns.MODIFIED));
+        assertFalse(frozen.containsKey(FileMetadataColumns.NAME));
+        assertFalse(frozen.containsKey(FileMetadataColumns.DIRECTORY));
+        assertEquals(999L, frozen.get(FileMetadataColumns.SIZE));
+        assertEquals(new BytesRef("already"), frozen.get(FileMetadataColumns.PATH));
+
+        Map<String, Object> complete = FileMetadataColumns.extractValues(path, 1L, Instant.EPOCH);
+        assertSame(complete, FileMetadataColumns.overlayLocation(complete, path, FileMetadataColumns.LOCATION_NAMES));
     }
 }

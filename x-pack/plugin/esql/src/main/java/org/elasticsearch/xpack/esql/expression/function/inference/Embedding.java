@@ -67,6 +67,7 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
             + "with the `embedding` task type. "
             + "Use this function to generate query vectors for KNN searches from multimodal inputs against your vectorized data "
             + "or other dense vector based operations.",
+        preview = true,
         appliesTo = { @FunctionAppliesTo(version = "9.5.0", lifeCycle = FunctionAppliesToLifecycle.PREVIEW), },
         examples = {
             @Example(

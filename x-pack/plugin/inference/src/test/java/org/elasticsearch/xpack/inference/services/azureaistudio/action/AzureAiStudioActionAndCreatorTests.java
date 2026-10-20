@@ -7,8 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.azureaistudio.action;
 
-import org.apache.http.HttpHeaders;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -19,12 +20,11 @@ import org.elasticsearch.test.http.MockRequest;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResultsTests;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
-import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
+import org.elasticsearch.xpack.inference.external.http.sender.CompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
@@ -45,7 +45,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.core.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
+import static org.elasticsearch.xpack.core.inference.results.CompletionResultsTests.buildExpectationCompletion;
 import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
@@ -70,7 +70,13 @@ public class AzureAiStudioActionAndCreatorTests extends ESTestCase {
     public void init() throws Exception {
         webServer.start();
         threadPool = createThreadPool(inferenceUtilityExecutors());
-        clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
+        clientManager = HttpClientManager.create(
+            Settings.EMPTY,
+            threadPool,
+            mockClusterServiceEmpty(),
+            mock(ThrottlerManager.class),
+            new TestCircuitBreaker()
+        );
     }
 
     @After
@@ -105,7 +111,7 @@ public class AzureAiStudioActionAndCreatorTests extends ESTestCase {
             final var action = creator.create(model, Map.of());
             final PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             final var inputType = InputTypeTests.randomSearchAndIngestWithNull();
-            action.execute(new EmbeddingsInput(List.of("abc"), inputType), null, listener);
+            action.execute(EmbeddingsInput.fromStrings(List.of("abc"), inputType), null, listener);
 
             final var result = listener.actionGet(TIMEOUT);
 
@@ -142,7 +148,7 @@ public class AzureAiStudioActionAndCreatorTests extends ESTestCase {
             final var action = creator.create(model, Map.of());
 
             final PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new ChatCompletionInput(List.of("abc")), null, listener);
+            action.execute(new CompletionInput(List.of("abc")), null, listener);
 
             final var result = listener.actionGet(TIMEOUT);
 
@@ -223,7 +229,7 @@ public class AzureAiStudioActionAndCreatorTests extends ESTestCase {
     private void assertWebServerRequest(String authorization, String authorizationHeaderValue) {
         assertThat(webServer.requests(), hasSize(1));
         assertNull(webServer.requests().get(0).getUri().getQuery());
-        assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+        assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo("application/json; charset=UTF-8"));
         assertThat(webServer.requests().get(0).getHeader(authorization), equalTo(authorizationHeaderValue));
     }
 
@@ -233,7 +239,13 @@ public class AzureAiStudioActionAndCreatorTests extends ESTestCase {
             TimeValue.timeValueMinutes(1),
             TimeValue.timeValueSeconds(0)
         );
-        return new ServiceComponents(threadPool, mock(ThrottlerManager.class), timeoutSettings, TruncatorTests.createTruncator());
+        return new ServiceComponents(
+            threadPool,
+            mock(ThrottlerManager.class),
+            timeoutSettings,
+            TruncatorTests.createTruncator(),
+            new TestCircuitBreaker()
+        );
     }
 
     private final String testEmbeddingsTokenResponseJson = """

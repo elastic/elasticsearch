@@ -1,0 +1,6 @@
+pr: 155035
+summary: Honor an explicit `format` on multi-file external reads, and report why an
+  external object could not be read
+area: ES|QL
+type: bug
+issues: []

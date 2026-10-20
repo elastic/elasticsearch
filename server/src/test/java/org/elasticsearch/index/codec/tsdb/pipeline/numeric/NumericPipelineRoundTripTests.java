@@ -202,6 +202,30 @@ public class NumericPipelineRoundTripTests extends ESTestCase {
         }
     }
 
+    public void testSplitDeltaRoundTripAcrossBlockSizes() throws IOException {
+        // splitDelta kMax scales with block size (up to 64), so a large block can hold more than
+        // DEFAULT_K_MAX=16 splits; the decoder, rebuilt from the stage id, must fit them.
+        for (int blockSize : new int[] { 128, 512, 1024, 2048 }) {
+            final int kMax = Math.clamp((long) blockSize / 32, 4, 64);
+            final long[] values = piecewiseDescendingRuns(blockSize, 64);
+            final PipelineConfig config = PipelineConfig.forLongs(blockSize).splitDelta(kMax).delta().offset().gcd().bitPack();
+            final NumericEncoder encoder = NumericCodecFactory.DEFAULT.createEncoder(config);
+            final NumericBlockEncoder blockEncoder = encoder.newBlockEncoder();
+
+            final ByteBuffersDataOutput bufferOut = new ByteBuffersDataOutput();
+            try (IndexOutput out = new ByteBuffersIndexOutput(bufferOut, "test", "test")) {
+                blockEncoder.encode(Arrays.copyOf(values, blockSize), blockSize, out);
+            }
+
+            final NumericDecoder decoder = NumericCodecFactory.DEFAULT.createDecoder(encoder.descriptor());
+            final NumericBlockDecoder blockDecoder = decoder.newBlockDecoder();
+            final long[] decoded = new long[blockSize];
+            blockDecoder.decode(decoded, blockSize, bufferOut.toDataInput());
+
+            assertArrayEquals("bs=" + blockSize, values, decoded);
+        }
+    }
+
     private void assertRoundTrip(long[] values, int blockSize, int count) throws IOException {
         assertRoundTripAndReturnSize(values, blockSize, count);
     }
@@ -226,5 +250,22 @@ public class NumericPipelineRoundTripTests extends ESTestCase {
             assertEquals("index " + i, original[i], decoded[i]);
         }
         return bufferOut.size();
+    }
+
+    // Descends within each run, jumps up at each boundary; splitDelta emits one split per boundary.
+    private static long[] piecewiseDescendingRuns(int size, int runLength) {
+        final long[] values = new long[size];
+        long base = 1_000_000L;
+        long current = base;
+        for (int i = 0; i < size; i++) {
+            if (i > 0 && i % runLength == 0) {
+                base += 1_000_000L;
+                current = base;
+            } else if (i > 0) {
+                current -= 10L;
+            }
+            values[i] = current;
+        }
+        return values;
     }
 }

@@ -16,6 +16,10 @@ DROP columns
 `columns`
 :   A comma-separated list of columns to remove. Supports wildcards.
 
+:::::{note}
+A wildcard pattern that matches no columns causes the query to fail with an error such as `No matches found for pattern [columns*]`. The exception is when [`SET unmapped_fields`](/reference/query-languages/esql/directives/set.md#esql-unmapped_fields) is set to `"nullify"` or `"load"`: in that case, a pattern that matches no columns is ignored.
+:::::
+
 ## Examples
 
 The following examples show how to remove columns by name and by pattern.

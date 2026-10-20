@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
@@ -21,6 +22,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -37,6 +39,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.index.store.StoreMetrics;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
@@ -46,6 +49,12 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.SearchTimeoutException;
+import org.elasticsearch.tasks.TaskCancelHelper;
+import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -53,7 +62,6 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
-import org.mockito.Mockito;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -71,8 +79,16 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 
+import static org.elasticsearch.action.search.AbstractSearchAsyncAction.ALL_SHARDS_FAILED_DUE_TO_INTERNAL_CANCEL;
+import static org.elasticsearch.action.search.AbstractSearchAsyncAction.INTERNAL_PARTIAL_RESULTS_CANCEL_REASON;
+import static org.elasticsearch.rest.action.search.SearchResponseMetrics.STORE_BYTES_READ_HISTOGRAM_NAME;
+import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class AbstractSearchAsyncActionTests extends ESTestCase {
@@ -81,6 +97,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
     private final Set<ShardSearchContextId> releasedContexts = new CopyOnWriteArraySet<>();
     private TestThreadPool threadPool;
     private TransportService mockTransportService;
+    private RecordingMeterRegistry meterRegistry;
 
     @After
     public void cleanTransportService() {
@@ -105,6 +122,69 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         final AtomicLong expected,
         Runnable onExecutePhase,
         Runnable onGroupFailure
+    ) {
+        return createAction(
+            request,
+            results,
+            listener,
+            controlled,
+            expected,
+            onExecutePhase,
+            onGroupFailure,
+            Collections.singletonList(
+                new SearchShardIterator(null, new ShardId("index", "_na", 0), Collections.emptyList(), null, SplitShardCountSummary.UNSET)
+            ),
+            new SearchTask(
+                randomLong(),
+                randomAlphaOfLength(6),
+                randomAlphaOfLength(6),
+                () -> randomAlphaOfLength(6),
+                TaskId.EMPTY_TASK_ID,
+                Map.of()
+            )
+        );
+    }
+
+    private AbstractSearchAsyncAction<SearchPhaseResult> createAction(
+        SearchRequest request,
+        ArraySearchPhaseResults<SearchPhaseResult> results,
+        ActionListener<SearchResponse> listener,
+        final boolean controlled,
+        final AtomicLong expected,
+        Runnable onExecutePhase,
+        Runnable onGroupFailure,
+        final List<SearchShardIterator> shardsIterators
+    ) {
+        return createAction(
+            request,
+            results,
+            listener,
+            controlled,
+            expected,
+            onExecutePhase,
+            onGroupFailure,
+            shardsIterators,
+            new SearchTask(
+                randomLong(),
+                randomAlphaOfLength(6),
+                randomAlphaOfLength(6),
+                () -> randomAlphaOfLength(6),
+                TaskId.EMPTY_TASK_ID,
+                Map.of()
+            )
+        );
+    }
+
+    private AbstractSearchAsyncAction<SearchPhaseResult> createAction(
+        SearchRequest request,
+        ArraySearchPhaseResults<SearchPhaseResult> results,
+        ActionListener<SearchResponse> listener,
+        final boolean controlled,
+        final AtomicLong expected,
+        Runnable onExecutePhase,
+        Runnable onGroupFailure,
+        final List<SearchShardIterator> shardsIterators,
+        final SearchTask task
     ) {
         final Runnable runnable;
         final TransportSearchAction.SearchTimeProvider timeProvider;
@@ -134,8 +214,11 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         );
         SearchTransportService searchTransportService = new SearchTransportService(mockTransportService, null, null);
 
-        return new AbstractSearchAsyncAction<SearchPhaseResult>(
-            "test",
+        this.meterRegistry = new RecordingMeterRegistry();
+        SearchResponseMetrics searchResponseMetrics = new SearchResponseMetrics(meterRegistry);
+
+        return new AbstractSearchAsyncAction<>(
+            "query",
             logger,
             null,
             searchTransportService,
@@ -146,17 +229,16 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             null,
             request,
             listener,
-            Collections.singletonList(
-                new SearchShardIterator(null, new ShardId("index", "_na", 0), Collections.emptyList(), null, SplitShardCountSummary.UNSET)
-            ),
+            shardsIterators,
             Collections.emptyMap(),
             timeProvider,
             ClusterState.EMPTY_STATE,
-            null,
+            task,
             results,
+            NoopCircuitBreaker.INSTANCE,
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
-            Mockito.mock(SearchResponseMetrics.class),
+            searchResponseMetrics,
             Map.of(),
             false
         ) {
@@ -320,7 +402,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         assertThat(exception.get(), instanceOf(SearchPhaseExecutionException.class));
         SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException) exception.get();
         assertEquals("Partial shards failure (" + (numShards - 1) + " shards unavailable)", searchPhaseExecutionException.getMessage());
-        assertEquals("test", searchPhaseExecutionException.getPhaseName());
+        assertEquals("query", searchPhaseExecutionException.getPhaseName());
         assertEquals(0, searchPhaseExecutionException.shardFailures().length);
         assertEquals(0, searchPhaseExecutionException.getSuppressed().length);
     }
@@ -347,16 +429,16 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
         Arrays.stream(nodeIds).forEach(id -> nodesBuilder.add(DiscoveryNodeUtils.create(id)));
         DiscoveryNodes nodes = nodesBuilder.build();
-        final Set<ShardSearchContextId> freedContexts = new CopyOnWriteArraySet<>();
+        final Set<ShardSearchContextId> markedContexts = new CopyOnWriteArraySet<>();
         SearchTransportService searchTransportService = new SearchTransportService(mockTransportService, null, null) {
 
             @Override
-            public void sendFreeContext(
+            public void sendMarkContextAsRelocating(
                 Transport.Connection connection,
                 ShardSearchContextId contextId,
                 ActionListener<SearchFreeContextResponse> listener
             ) {
-                freedContexts.add(contextId);
+                markedContexts.add(contextId);
             }
 
             @Override
@@ -394,10 +476,10 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                 nodes,
                 logger
             );
-            assertEquals(0, freedContexts.size());
+            assertEquals(0, markedContexts.size());
             assertSame(reEncodedId, pointInTimeBuilder.getEncodedId());
         }
-        freedContexts.clear();
+        markedContexts.clear();
         {
             // case 2, some results are from different nodes but have same context Ids
             ArrayList<SearchPhaseResult> results = new ArrayList<>();
@@ -449,15 +531,15 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                 assertNotNull(reEncoded);
                 if (shardsWithSwappedNodes.contains(shardId)) {
                     assertNotEquals(original.getNode(), reEncoded.getNode());
-                    assertTrue(freedContexts.contains(reEncoded.getSearchContextId()));
+                    assertTrue(markedContexts.contains(reEncoded.getSearchContextId()));
                 } else {
                     assertEquals(original.getNode(), reEncoded.getNode());
-                    assertFalse(freedContexts.contains(reEncoded.getSearchContextId()));
+                    assertFalse(markedContexts.contains(reEncoded.getSearchContextId()));
                 }
                 assertEquals(original.getSearchContextId(), reEncoded.getSearchContextId());
             }
         }
-        freedContexts.clear();
+        markedContexts.clear();
         {
             // case 3, result shard ids are identical to original PIT id but some are missing. Stay with original PIT id in this case
             ArrayList<SearchPhaseResult> results = new ArrayList<>();
@@ -580,6 +662,158 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         assertFalse("onShardGroupFailure must not fire when retrying", groupFailureFired.get());
     }
 
+    public void testOnShardFailure_IgnoresInternalTaskCancelledException() {
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(false);
+        AtomicReference<Exception> exception = new AtomicReference<>();
+        ActionListener<SearchResponse> listener = ActionListener.wrap(response -> fail("onResponse should not be called"), exception::set);
+        Set<ShardSearchContextId> requestIds = new HashSet<>();
+        List<Tuple<String, String>> nodeLookups = new ArrayList<>();
+        int numFailures = randomIntBetween(2, 5);
+        ArraySearchPhaseResults<SearchPhaseResult> phaseResults = phaseResults(requestIds, nodeLookups, numFailures);
+        var shardIterators = createShardIterators(numFailures);
+
+        AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(
+            searchRequest,
+            phaseResults,
+            listener,
+            false,
+            new AtomicLong(),
+            null,
+            null,
+            shardIterators
+        );
+
+        // Add a non-TaskCancelledException to confirm that it is not ignored
+        SearchShardIterator firstShardIterator = shardIterators.getFirst();
+        var nonInternalException = new IllegalArgumentException("not cancel exception");
+        action.onShardFailure(firstShardIterator.shardId().id(), firstShardIterator.nextOrNull(), firstShardIterator, nonInternalException);
+
+        // Add failures due to internal TaskCancelledException for the rest of the shards to confirm we ignore them
+        for (int i = 1; i < numFailures; i++) {
+            SearchShardIterator shardIterator = shardIterators.get(i);
+            action.onShardFailure(
+                shardIterator.shardId().id(),
+                shardIterator.nextOrNull(),
+                shardIterator,
+                new TaskCancelledException(INTERNAL_PARTIAL_RESULTS_CANCEL_REASON)
+            );
+        }
+
+        assertThat(exception.get(), instanceOf(SearchPhaseExecutionException.class));
+        SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException) exception.get();
+        assertThat(searchPhaseExecutionException.getSuppressed(), emptyArray());
+        // Confirm that we include the non-TaskCancelledException and use the appropriate status code
+        assertThat(searchPhaseExecutionException.shardFailures(), arrayWithSize(1));
+        assertThat(searchPhaseExecutionException.shardFailures()[0].getCause(), equalTo(nonInternalException));
+        assertThat(searchPhaseExecutionException.getMessage(), containsString("Partial shards failure"));
+        assertThat(searchPhaseExecutionException.status(), equalTo(ExceptionsHelper.status(nonInternalException)));
+        assertEquals(nodeLookups, resolvedNodes);
+        assertEquals(requestIds, releasedContexts);
+    }
+
+    public void testOnShardFailure_HandlesNonInternalTaskCancelledException() {
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(false);
+        AtomicReference<Exception> exception = new AtomicReference<>();
+        ActionListener<SearchResponse> listener = ActionListener.wrap(response -> fail("onResponse should not be called"), exception::set);
+        Set<ShardSearchContextId> requestIds = new HashSet<>();
+        List<Tuple<String, String>> nodeLookups = new ArrayList<>();
+        int numFailures = randomIntBetween(2, 5);
+        ArraySearchPhaseResults<SearchPhaseResult> phaseResults = phaseResults(requestIds, nodeLookups, numFailures);
+        var shardIterators = createShardIterators(numFailures);
+
+        AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(
+            searchRequest,
+            phaseResults,
+            listener,
+            false,
+            new AtomicLong(),
+            null,
+            null,
+            shardIterators
+        );
+
+        AtomicReference<TaskCancelledException> nonInternalCancel = new AtomicReference<>();
+        // Add non-internal TaskCancelledExceptions. The first will trigger the internal cancel, after which all further
+        // TaskCancelledExceptions will be ignored
+        for (int i = 0; i < numFailures; i++) {
+            TaskCancelledException anException = new TaskCancelledException("non-internal cancel " + i);
+            if (i == 0) {
+                nonInternalCancel.set(anException);
+            }
+            SearchShardIterator shardIterator = shardIterators.get(i);
+            action.onShardFailure(shardIterator.shardId().id(), shardIterator.nextOrNull(), shardIterator, anException);
+        }
+
+        assertThat(exception.get(), instanceOf(SearchPhaseExecutionException.class));
+        SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException) exception.get();
+        assertThat(searchPhaseExecutionException.getSuppressed(), emptyArray());
+        // Confirm that we include only the first non-internal TaskCancelledException and use its status code
+        assertThat(searchPhaseExecutionException.shardFailures(), arrayWithSize(1));
+        assertThat(searchPhaseExecutionException.shardFailures()[0].getCause(), equalTo(nonInternalCancel.get()));
+        assertThat(searchPhaseExecutionException.getMessage(), containsString("Partial shards failure"));
+        assertThat(searchPhaseExecutionException.status(), equalTo(nonInternalCancel.get().status()));
+        assertEquals(nodeLookups, resolvedNodes);
+        assertEquals(requestIds, releasedContexts);
+    }
+
+    public void testOnShardFailure_HandlesAllShardsFailedDueToInternalTaskCancelledException() {
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(false);
+        AtomicReference<Exception> exception = new AtomicReference<>();
+        ActionListener<SearchResponse> listener = ActionListener.wrap(response -> fail("onResponse should not be called"), exception::set);
+        Set<ShardSearchContextId> requestIds = new HashSet<>();
+        List<Tuple<String, String>> nodeLookups = new ArrayList<>();
+        int numFailures = randomIntBetween(1, 5);
+        ArraySearchPhaseResults<SearchPhaseResult> phaseResults = new ArraySearchPhaseResults<>(numFailures);
+        var shardIterators = createShardIterators(numFailures);
+
+        SearchTask task = new SearchTask(
+            randomLong(),
+            randomAlphaOfLength(6),
+            randomAlphaOfLength(6),
+            () -> randomAlphaOfLength(6),
+            TaskId.EMPTY_TASK_ID,
+            Map.of()
+        );
+        AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(
+            searchRequest,
+            phaseResults,
+            listener,
+            false,
+            new AtomicLong(),
+            null,
+            null,
+            shardIterators,
+            task
+        );
+
+        // Set the task cancellation reason so that all the internal TaskCancelledExceptions are ignored
+        TaskCancelHelper.cancel(task, INTERNAL_PARTIAL_RESULTS_CANCEL_REASON);
+
+        for (int i = 0; i < numFailures; i++) {
+            SearchShardIterator shardIterator = shardIterators.get(i);
+            action.onShardFailure(
+                i,
+                new SearchShardTarget(
+                    shardIterator.getTargetNodeIds().getFirst(),
+                    shardIterator.shardId(),
+                    shardIterator.getClusterAlias()
+                ),
+                shardIterator,
+                new TaskCancelledException(INTERNAL_PARTIAL_RESULTS_CANCEL_REASON)
+            );
+        }
+        assertThat(exception.get(), instanceOf(SearchPhaseExecutionException.class));
+        SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException) exception.get();
+        assertThat(searchPhaseExecutionException.getSuppressed(), emptyArray());
+        assertThat(searchPhaseExecutionException.shardFailures(), emptyArray());
+        // Confirm that the placeholder exception is used as the cause and that the status is INTERNAL_SERVER_ERROR
+        assertThat(searchPhaseExecutionException.getCause().getMessage(), equalTo(ALL_SHARDS_FAILED_DUE_TO_INTERNAL_CANCEL));
+        assertThat(searchPhaseExecutionException.getMessage(), containsString(ALL_SHARDS_FAILED_DUE_TO_INTERNAL_CANCEL));
+        assertThat(searchPhaseExecutionException.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
+        assertEquals(nodeLookups, resolvedNodes);
+        assertEquals(requestIds, releasedContexts);
+    }
+
     public void testAccumulateDirectoryMetricsMergesAcrossShards() {
         int numShards = 5;
         long expectedBytesRead = 0;
@@ -654,6 +888,46 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         }
     }
 
+    public void testRecordStoreMetricsReportsMergedBytesRead() {
+        int numShards = randomIntBetween(1, 5);
+        long expectedBytesRead = 0;
+        try (ArraySearchPhaseResults<SearchPhaseResult> results = new ArraySearchPhaseResults<>(numShards)) {
+            AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(
+                new SearchRequest(),
+                results,
+                ActionListener.noop(),
+                true,
+                new AtomicLong()
+            );
+            for (int i = 0; i < numShards; i++) {
+                long shardBytes = (i + 1) * 13L;
+                expectedBytesRead += shardBytes;
+                action.accumulateDirectoryMetrics(storeMetrics(shardBytes));
+            }
+            action.recordStoreMetrics(action.getMergedDirectoryMetrics());
+            List<Measurement> measurements = meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, STORE_BYTES_READ_HISTOGRAM_NAME);
+            assertThat(measurements, hasSize(1));
+            assertThat(measurements.get(0).value(), equalTo(expectedBytesRead));
+        }
+    }
+
+    public void testRecordStoreMetricsSkipsEmpty() {
+        try (ArraySearchPhaseResults<SearchPhaseResult> results = new ArraySearchPhaseResults<>(1)) {
+            AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(
+                new SearchRequest(),
+                results,
+                ActionListener.noop(),
+                true,
+                new AtomicLong()
+            );
+            action.recordStoreMetrics(DirectoryMetrics.EMPTY);
+            List<Measurement> measurements = meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, STORE_BYTES_READ_HISTOGRAM_NAME);
+            assertThat(measurements, empty());
+        }
+    }
+
     private static DirectoryMetrics storeMetrics(long bytesRead) {
         DirectoryMetrics.Builder builder = new DirectoryMetrics.Builder();
         builder.add(StoreMetrics.NAME, new StoreMetrics(bytesRead));
@@ -698,6 +972,27 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             phaseResults.consumeResult(phaseResult, () -> {});
         }
         return phaseResults;
+    }
+
+    private static ArrayList<SearchShardIterator> createShardIterators(int numFailures) {
+        var shardIterators = new ArrayList<SearchShardIterator>();
+        for (int i = 0; i < numFailures; i++) {
+            ShardId shardId = new ShardId("index", "index-uuid", i);
+            String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
+            SearchShardIterator shardIterator = new SearchShardIterator(
+                clusterAlias,
+                shardId,
+                List.of("node1", "node2"),
+                null,
+                null,
+                null,
+                false,
+                false,
+                SplitShardCountSummary.UNSET
+            );
+            shardIterators.add(shardIterator);
+        }
+        return shardIterators;
     }
 
     private static final class PhaseResult extends SearchPhaseResult {

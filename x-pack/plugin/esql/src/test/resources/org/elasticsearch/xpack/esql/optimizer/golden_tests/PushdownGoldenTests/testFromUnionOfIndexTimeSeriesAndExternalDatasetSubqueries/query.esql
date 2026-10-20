@@ -1,0 +1,5 @@
+FROM (FROM employees | EVAL name = first_name | KEEP name),
+     (FROM k8s | EVAL name = cluster | KEEP name),
+     (FROM golden_salaries | KEEP name)
+| WHERE name == "staging"
+| SORT name

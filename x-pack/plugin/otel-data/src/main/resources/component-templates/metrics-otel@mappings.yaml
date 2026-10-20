@@ -6,6 +6,7 @@ template:
   settings:
     index.mapping.ignore_malformed: true
     index.mapping.total_fields.limit: 10000
+    index.time_series.temporality_field: temporality
   mappings:
     properties:
       start_timestamp:

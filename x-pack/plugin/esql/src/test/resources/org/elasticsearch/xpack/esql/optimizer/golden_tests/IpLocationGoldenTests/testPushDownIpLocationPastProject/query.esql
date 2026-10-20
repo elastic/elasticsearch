@@ -1,0 +1,4 @@
+FROM employees
+| rename first_name as x
+| keep x
+| ip_location g = x

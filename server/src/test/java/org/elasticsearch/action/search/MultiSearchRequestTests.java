@@ -22,6 +22,7 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
+import org.elasticsearch.rest.action.search.SearchParamsParser;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
@@ -213,7 +214,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         MultiSearchRequest request = parseMultiSearchRequestFromStringAndParams("""
             {}
             {"query":{"match_all":{}}}
-            """, Map.of(SliceIndexing.PARAM_NAME, "s1,s2"));
+            """, Map.of(SliceIndexing.FIELD_NAME, "s1,s2"));
         assertThat(request.requests().size(), equalTo(1));
         SearchRequest searchRequest = request.requests().getFirst();
         assertThat(searchRequest.routing(), equalTo("s1,s2"));
@@ -244,7 +245,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> parseMultiSearchRequestFromStringAndParams("""
             {"routing":"r1"}
             {"query":{"match_all":{}}}
-            """, Map.of(SliceIndexing.PARAM_NAME, "s1")));
+            """, Map.of(SliceIndexing.FIELD_NAME, "s1")));
         assertEquals("[routing] and [_slice] cannot be combined in the same _msearch request", ex.getMessage());
     }
 
@@ -276,6 +277,32 @@ public class MultiSearchRequestTests extends ESTestCase {
         assertThat(sliceRequest.searchSlice(), equalTo("s1"));
     }
 
+    public void testParseRequestIgnoresMrtInCpsAndWarns() throws IOException {
+        final String requestContent = """
+            {"index":"test","ccs_minimize_roundtrips":true}
+            {"query":{"match_all":{}}}
+            {"index":"test2"}
+            {"query":{"match_all":{}}}
+            """;
+        FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(
+            new BytesArray(requestContent),
+            XContentType.JSON
+        ).withParams(Map.of("ccs_minimize_roundtrips", "true")).build();
+
+        MultiSearchRequest request = RestMultiSearchAction.parseRequest(
+            restRequest,
+            true,
+            new UsageService().getSearchUsageHolder(),
+            nf -> false,
+            Optional.of(true)
+        );
+        assertThat(request.requests().size(), equalTo(2));
+        for (SearchRequest searchRequest : request.requests()) {
+            assertFalse(searchRequest.isCcsMinimizeRoundtrips());
+        }
+        assertWarnings(SearchParamsParser.MRT_SET_IN_CPS_WARN);
+    }
+
     public void testWriteSearchRequestParamsUsesSliceFieldWhenRoutingFromSlice() throws IOException {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         SearchRequest request = new SearchRequest();
@@ -288,7 +315,7 @@ public class MultiSearchRequestTests extends ESTestCase {
                 BytesReference.bytes(builder).streamInput(),
                 false
             );
-            assertThat(map.get(SliceIndexing.PARAM_NAME), equalTo("s1"));
+            assertThat(map.get(SliceIndexing.FIELD_NAME), equalTo("s1"));
             assertNull(map.get("routing"));
         }
     }
@@ -690,7 +717,7 @@ public class MultiSearchRequestTests extends ESTestCase {
             assertThat(
                 e.getMessage(),
                 containsString(
-                    "Unexpected close marker '}': expected ']' (for root starting at "
+                    "Unexpected close marker '}': no open Object to close\n at "
                         + "[Source: (byte[])\"{ \"query\": {\"match_all\": {}}}}}}different error message\""
                 )
             );

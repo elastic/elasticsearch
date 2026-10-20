@@ -134,7 +134,8 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
         TaskId parentTaskId,
         Map<String, String> headers,
         Map<String, String> originHeaders,
-        AsyncExecutionId asyncExecutionId
+        AsyncExecutionId asyncExecutionId,
+        TimeValue keepAlive
     ) {
         return new EqlSearchTask(
             id,
@@ -145,7 +146,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
             headers,
             originHeaders,
             asyncExecutionId,
-            request.keepAlive()
+            keepAlive
         );
     }
 
@@ -294,6 +295,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
             );
             planExecutor.eql(cfg, request.query(), params, wrap(r -> {
                 EqlSearchResponse response = createResponse(r, task.getExecutionId());
+                response.setDirectoryMetrics(r.directoryMetrics());
                 // Async: listener is wrapStoringListener → completion uses AsyncTaskManagementService.respondWithRelease (decRef after
                 // onResponse). Sync: release here so the response is not leaked after the REST/transport listener returns.
                 if (requestIsAsync(request)) {

@@ -1,0 +1,6 @@
+area: ES|QL
+issues: []
+pr: 158621
+summary: Report undeterminizable `_source` filters as a bad request and reuse the
+  ES|QL source loader while the shard and requested source paths are unchanged
+type: bug

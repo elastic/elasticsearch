@@ -95,8 +95,7 @@ public class FileSettingsServiceTests extends ESTestCase {
     private Path watchedFile;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void startFileSettingsService() throws Exception {
         // TODO remove me once https://github.com/elastic/elasticsearch/issues/115280 is closed
         Loggers.setLevel(LogManager.getLogger(AbstractFileWatchingService.class), Level.DEBUG);
 
@@ -145,7 +144,7 @@ public class FileSettingsServiceTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void stopFileSettingsService() throws Exception {
         try {
             if (fileSettingsService.lifecycleState() == Lifecycle.State.STARTED) {
                 logger.info("Stopping file settings service");
@@ -156,7 +155,6 @@ public class FileSettingsServiceTests extends ESTestCase {
                 fileSettingsService.close();
             }
 
-            super.tearDown();
             clusterService.close();
             threadpool.shutdownNow();
         } finally {

@@ -532,13 +532,11 @@ public class AugmentationCancellationTests extends ScriptTestCase {
     }
 
     /**
-     * The adversarial intersection: a typed static lambda (which gets {@link
-     * org.elasticsearch.painless.symbol.IRDecorations.IRCStaticCancellationCheck} for its own
-     * loop) that <em>also</em> contains a cancellation-aware {@code each} call (which pushes the
-     * script receiver). Both rely on the script being reachable; the lambda is realized as an
-     * instance method capturing the script as {@code this}, so the loop's {@code _getCancellationCheck}
-     * and the each call's {@code loadThis()} both resolve to it.  Verifies the runnable fires from
-     * the nested each.
+     * The adversarial intersection: a typed lambda with its own loop that <em>also</em> contains a
+     * cancellation-aware {@code each} call (which pushes the script receiver). Both rely on the
+     * script being reachable; under cancellation the lambda is realized as an instance method
+     * capturing the script as {@code this}, so the loop's {@code _getCancellationCheck} and the each
+     * call's {@code loadThis()} both resolve to it.  Verifies the runnable fires from the nested each.
      */
     public void testEachInsideStaticLoopLambdaFiresCancelRunnable() {
         ScriptedMetricAggContexts.InitScript script = compileInit(
@@ -728,9 +726,14 @@ public class AugmentationCancellationTests extends ScriptTestCase {
         assertFires(compileFillThen("", "big.sum(x -> 1.0d);"), "cancelled-sum-fn");
     }
 
+    /** {@code count(Predicate)} scans the whole iterable counting matches and must poll. */
+    public void testCountAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.count(x -> true);"), "cancelled-count");
+    }
+
     /**
      * Each new Iterable script-aware augmentation must take the no-poll fast path when the script has
-     * no cancellation check installed.  Exercises all six new methods in one script execution.
+     * no cancellation check installed.  Exercises all seven new methods in one script execution.
      */
     public void testIterableAugmentationsNoRunnable() {
         ScriptedMetricAggContexts.InitScript script = compileFillThen(
@@ -740,7 +743,8 @@ public class AugmentationCancellationTests extends ScriptTestCase {
                 + "big.eachWithIndex((x, i) -> x.toString()); "
                 + "big.findResults(x -> x.toString()); "
                 + "big.groupBy(x -> x % 3); "
-                + "big.sum(x -> 1.0d);"
+                + "big.sum(x -> 1.0d); "
+                + "big.count(x -> true);"
         );
         // No runnable set — _getCancellationCheck() returns null; fast paths must not throw.
         script.execute();

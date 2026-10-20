@@ -1,0 +1,5 @@
+area: Indices APIs
+issues: []
+pr: 158497
+summary: Allow .ai-index-* in dot-prefix validation
+type: enhancement

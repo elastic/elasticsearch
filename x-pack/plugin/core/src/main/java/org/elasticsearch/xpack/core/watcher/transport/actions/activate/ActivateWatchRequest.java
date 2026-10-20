@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.watcher.transport.actions.activate;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,7 +18,7 @@ import java.io.IOException;
 /**
  * A ack watch request to ack a watch by name (id)
  */
-public class ActivateWatchRequest extends LegacyActionRequest {
+public class ActivateWatchRequest extends UntypedActionRequest {
 
     private String watchId;
     private boolean activate;

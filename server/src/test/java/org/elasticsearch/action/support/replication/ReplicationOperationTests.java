@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.action.shard.NoLongerPrimaryShardException;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -33,6 +34,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ReplicationGroup;
@@ -44,6 +46,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.SendRequestTransportException;
+import org.junit.After;
+import org.junit.Before;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
@@ -74,16 +78,14 @@ public class ReplicationOperationTests extends ESTestCase {
 
     private ThreadPool threadPool;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initThreadPool() throws Exception {
         threadPool = new TestThreadPool(getTestName());
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void closeThreadPool() throws Exception {
         terminate(threadPool);
-        super.tearDown();
     }
 
     public void testReplication() throws Exception {
@@ -320,7 +322,7 @@ public class ReplicationOperationTests extends ESTestCase {
                 new NodeClosedException(node)
             );
         } else {
-            shardActionFailure = new ShardStateAction.NoLongerPrimaryShardException(failedReplica.shardId(), "the king is dead");
+            shardActionFailure = new NoLongerPrimaryShardException(failedReplica.shardId(), "the king is dead");
         }
         final TestReplicaProxy replicasProxy = new TestReplicaProxy(expectedFailures) {
             @Override
@@ -357,7 +359,7 @@ public class ReplicationOperationTests extends ESTestCase {
         final TestPrimary primary = new TestPrimary(primaryShard, () -> replicationGroup, threadPool) {
             @Override
             public void failShard(String message, Exception exception) {
-                assertThat(exception, instanceOf(ShardStateAction.NoLongerPrimaryShardException.class));
+                assertThat(exception, instanceOf(NoLongerPrimaryShardException.class));
                 assertTrue(primaryFailed.compareAndSet(false, true));
             }
         };
@@ -373,11 +375,76 @@ public class ReplicationOperationTests extends ESTestCase {
             ).getMessage(),
             anyOf(containsString("demoted while failing replica shard"), containsString("shutting down while failing replica shard"))
         );
-        if (shardActionFailure instanceof ShardStateAction.NoLongerPrimaryShardException) {
+        if (shardActionFailure instanceof NoLongerPrimaryShardException) {
             assertTrue(primaryFailed.get());
         } else {
             assertFalse(primaryFailed.get());
         }
+    }
+
+    /**
+     * The master demotes a primary (NoLongerPrimaryShardException) while its node is closing, so the write executor that
+     * {@link ReplicationOperation} forks onto to fail the shard has already been shut down. The rejection is expected
+     * in that situation and must complete the operation with RetryOnPrimaryException rather than trip an assertion.
+     */
+    public void testNoLongerPrimaryWhileWriteExecutorShutDown() throws Exception {
+        final String index = "test";
+        final ShardId shardId = new ShardId(index, "_na_", 0);
+
+        final ClusterState initialState = stateWithActivePrimary(index, true, 1, 0);
+        final IndexMetadata indexMetadata = initialState.getMetadata().getProject().index(index);
+        final long primaryTerm = indexMetadata.primaryTerm(0);
+        final IndexShardRoutingTable indexShardRoutingTable = initialState.getRoutingTable().shardRoutingTable(shardId);
+        final ShardRouting primaryShard = indexShardRoutingTable.primaryShard();
+        final Set<String> trackedShards = indexShardRoutingTable.getPromotableAllocationIds();
+        final ReplicationGroup replicationGroup = new ReplicationGroup(
+            indexShardRoutingTable,
+            indexMetadata.inSyncAllocationIds(0),
+            trackedShards,
+            0
+        );
+
+        final Set<ShardRouting> expectedReplicas = getExpectedReplicas(shardId, initialState, trackedShards);
+        final ShardRouting failedReplica = randomFrom(new ArrayList<>(expectedReplicas));
+        final Map<ShardRouting, Exception> expectedFailures = Map.of(failedReplica, new CorruptIndexException("simulated", (String) null));
+
+        final TestReplicaProxy replicasProxy = new TestReplicaProxy(expectedFailures) {
+            @Override
+            public void failShardIfNeeded(
+                ShardRouting replica,
+                long primaryTerm,
+                String message,
+                Exception exception,
+                ActionListener<Void> shardActionListener
+            ) {
+                assertThat(replica, equalTo(failedReplica));
+                shardActionListener.onFailure(new NoLongerPrimaryShardException(replica.shardId(), "the king is dead"));
+            }
+        };
+        final AtomicBoolean primaryFailed = new AtomicBoolean();
+        final TestPrimary primary = new TestPrimary(primaryShard, () -> replicationGroup, threadPool) {
+            @Override
+            public void failShard(String message, Exception exception) {
+                primaryFailed.set(true);
+            }
+        };
+
+        // a real executor that is shut down rejects force-executed tasks with EsRejectedExecutionException#isExecutorShutdown
+        threadPool.executor(ThreadPool.Names.WRITE).shutdown();
+
+        final Request request = new Request(shardId);
+        final PlainActionFuture<TestPrimary.Result> listener = new PlainActionFuture<>();
+        new TestReplicationOperation(request, primary, listener, replicasProxy, primaryTerm).execute();
+
+        assertThat(
+            expectThrows(
+                ExecutionException.class,
+                ReplicationOperation.RetryOnPrimaryException.class,
+                () -> listener.get(10, TimeUnit.SECONDS)
+            ).getMessage(),
+            containsString("shutting down while failing replica shard")
+        );
+        assertFalse("primary cannot be failed once the executor is shut down", primaryFailed.get());
     }
 
     public void testAddedReplicaAfterPrimaryOperation() throws Exception {
@@ -546,6 +613,7 @@ public class ReplicationOperationTests extends ESTestCase {
 
         final Thread testThread = Thread.currentThread();
         final boolean fatal = randomBoolean();
+        final boolean shutdown = fatal && randomBoolean();
         final PlainActionFuture<Void> primaryFailedFuture = new PlainActionFuture<>();
         final ReplicationOperation.Primary<Request, Request, TestPrimary.Result> primary = new TestPrimary(
             primaryRouting,
@@ -568,8 +636,10 @@ public class ReplicationOperationTests extends ESTestCase {
                 } else {
                     if (fatal) {
                         throw new NullPointerException();
-                    } else {
+                    } else if (randomBoolean()) {
                         throw new AlreadyClosedException("already closed");
+                    } else {
+                        throw new IndexShardClosedException(shardId);
                     }
                 }
             }
@@ -579,10 +649,17 @@ public class ReplicationOperationTests extends ESTestCase {
         final PlainActionFuture<TestPrimary.Result> listener = new PlainActionFuture<>();
         final ReplicationOperation.Replicas<Request> replicas = new TestReplicaProxy(Collections.emptyMap());
         TestReplicationOperation operation = new TestReplicationOperation(request, primary, listener, replicas, primaryTerm);
+
+        if (shutdown) {
+            // exercise rejection path
+            threadPool.executor(ThreadPool.Names.WRITE).shutdown();
+        }
         operation.execute();
 
-        if (fatal) {
-            primaryFailedFuture.get(10, TimeUnit.SECONDS);
+        if (fatal && shutdown == false) {
+            safeGet(primaryFailedFuture);
+        } else {
+            assertFalse(primaryFailedFuture.isDone());
         }
 
         final ShardInfo shardInfo = listener.actionGet().getShardInfo();

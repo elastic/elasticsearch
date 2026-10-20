@@ -19,10 +19,10 @@ public class TimeSeriesMetadataAttributeTests extends ESTestCase {
         assertThat(attr.toString(), equalTo("_timeseries{f}#" + attr.id()));
     }
 
-    public void testWithoutFields() {
+    public void testExcludedFields() {
         Set<String> without = Set.of("foo", "bar");
         TimeSeriesMetadataAttribute attr = new TimeSeriesMetadataAttribute(Source.EMPTY, without);
-        assertEquals(without, attr.withoutFields());
+        assertEquals(without, attr.excludedFields());
     }
 
     public void testEqualsSameId() {
@@ -32,23 +32,9 @@ public class TimeSeriesMetadataAttributeTests extends ESTestCase {
         assertEquals(a.hashCode(), b.hashCode());
     }
 
-    public void testNotEqualWithDifferentWithoutFields() {
+    public void testNotEqualWithDifferentExcludedFields() {
         TimeSeriesMetadataAttribute a = new TimeSeriesMetadataAttribute(Source.EMPTY, Set.of("x"));
-        TimeSeriesMetadataAttribute b = TimeSeriesMetadataAttribute.from(a, Set.of("y"));
+        TimeSeriesMetadataAttribute b = new TimeSeriesMetadataAttribute(Source.EMPTY, Set.of("y"));
         assertNotEquals(a, b);
-    }
-
-    public void testFrom() {
-        TimeSeriesMetadataAttribute original = new TimeSeriesMetadataAttribute(Source.EMPTY, Set.of("x"));
-        Set<String> newWithout = Set.of("y");
-        TimeSeriesMetadataAttribute derived = TimeSeriesMetadataAttribute.from(original, newWithout);
-        assertEquals(newWithout, derived.withoutFields());
-        assertEquals(original.id(), derived.id());
-    }
-
-    public void testFromReturnsSameInstanceWhenUnchanged() {
-        Set<String> without = Set.of("x");
-        TimeSeriesMetadataAttribute original = new TimeSeriesMetadataAttribute(Source.EMPTY, without);
-        assertSame(original, TimeSeriesMetadataAttribute.from(original, without));
     }
 }

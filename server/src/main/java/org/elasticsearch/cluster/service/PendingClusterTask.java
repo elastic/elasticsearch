@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.service;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,12 +19,22 @@ import org.elasticsearch.xcontent.Text;
 
 import java.io.IOException;
 
-public record PendingClusterTask(long insertOrder, Priority priority, Text source, long timeInQueue, boolean executing)
+public record PendingClusterTask(long insertOrder, Priority priority, String source, long timeInQueue, boolean executing)
     implements
         Writeable {
 
+    public static final TransportVersion PENDING_CLUSTER_TASK_SOURCE_STRING = TransportVersion.fromName(
+        "pending_cluster_task_source_string"
+    );
+
     public PendingClusterTask(StreamInput in) throws IOException {
-        this(in.readVLong(), Priority.readFrom(in), in.readText(), in.readLong(), in.readBoolean());
+        this(
+            in.readVLong(),
+            Priority.readFrom(in),
+            in.getTransportVersion().supports(PENDING_CLUSTER_TASK_SOURCE_STRING) ? in.readString() : in.readText().string(),
+            in.readLong(),
+            in.readBoolean()
+        );
     }
 
     public PendingClusterTask {
@@ -39,7 +50,7 @@ public record PendingClusterTask(long insertOrder, Priority priority, Text sourc
         return priority;
     }
 
-    public Text getSource() {
+    public String getSource() {
         return source;
     }
 
@@ -59,7 +70,11 @@ public record PendingClusterTask(long insertOrder, Priority priority, Text sourc
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(insertOrder);
         Priority.writeTo(priority, out);
-        out.writeText(source);
+        if (out.getTransportVersion().supports(PENDING_CLUSTER_TASK_SOURCE_STRING)) {
+            out.writeString(source);
+        } else {
+            out.writeText(new Text(source));
+        }
         out.writeLong(timeInQueue);
         out.writeBoolean(executing);
     }

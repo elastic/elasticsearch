@@ -1,7 +1,12 @@
 ---
 setup:
   - requires:
-      cluster_features: ["mapper.text.doc_values_prefix_wildcard_regexp"]
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: ["mapper.text.doc_values_prefix_wildcard_regexp", "mapper.keyword.columnar_default_high_cardinality"]
       reason: "prefix/wildcard/regexp queries on doc-values-only text fields require mapper.text.doc_values_prefix_wildcard_regexp"
 
   - do:
@@ -16,8 +21,7 @@ setup:
               text_field:
                 type: text
                 index: false
-                doc_values:
-                  cardinality: low
+                doc_values: true
 
   - do:
       index:
@@ -49,14 +53,14 @@ setup:
         body:
           settings:
             number_of_shards: 1
+            index:
+              mode: columnar
           mappings:
             dynamic: false
             properties:
               text_field:
                 type: text
                 index: false
-                doc_values:
-                  cardinality: high
 
   - do:
       index:
@@ -144,11 +148,22 @@ setup:
 ---
 "Test prefix query on binary doc-values-only text field":
 
+  - requires:
+      cluster_features: ["mapper.text.search_without_terms"]
+      reason: "a columnar text field that indexes no terms is searched over the tokens of its values"
+
+  # The pattern matches a token, as it does on an indexed field, and the analyzer lowercased them.
+  - do:
+      search:
+        index: test_text_dv_high
+        body: { query: { prefix: { text_field: { value: "london" } } } }
+  - length: { hits.hits: 2 }
+
   - do:
       search:
         index: test_text_dv_high
         body: { query: { prefix: { text_field: { value: "London" } } } }
-  - length: { hits.hits: 2 }
+  - length: { hits.hits: 0 }
 
 ---
 "Test case-insensitive prefix query on binary doc-values-only text field":
@@ -162,12 +177,29 @@ setup:
 ---
 "Test wildcard query on binary doc-values-only text field":
 
+  - requires:
+      cluster_features: ["mapper.text.search_without_terms"]
+      reason: "a columnar text field that indexes no terms is searched over the tokens of its values"
+
+  - do:
+      search:
+        index: test_text_dv_high
+        body: { query: { wildcard: { text_field: { value: "*changi*" } } } }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: "3" }
+
   - do:
       search:
         index: test_text_dv_high
         body: { query: { wildcard: { text_field: { value: "*Changi*" } } } }
-  - length: { hits.hits: 1 }
-  - match: { hits.hits.0._id: "3" }
+  - length: { hits.hits: 0 }
+
+  # A pattern spanning two tokens matches neither, which is also what it does with the tokens indexed.
+  - do:
+      search:
+        index: test_text_dv_high
+        body: { query: { wildcard: { text_field: { value: "london*airport" } } } }
+  - length: { hits.hits: 0 }
 
 ---
 "Test case-insensitive wildcard query on binary doc-values-only text field":
@@ -182,11 +214,21 @@ setup:
 ---
 "Test regexp query on binary doc-values-only text field":
 
+  - requires:
+      cluster_features: ["mapper.text.search_without_terms"]
+      reason: "a columnar text field that indexes no terms is searched over the tokens of its values"
+
+  - do:
+      search:
+        index: test_text_dv_high
+        body: { query: { regexp: { text_field: { value: "london.*" } } } }
+  - length: { hits.hits: 2 }
+
   - do:
       search:
         index: test_text_dv_high
         body: { query: { regexp: { text_field: { value: "London.*" } } } }
-  - length: { hits.hits: 2 }
+  - length: { hits.hits: 0 }
 
 ---
 "Test case-insensitive regexp query on binary doc-values-only text field":

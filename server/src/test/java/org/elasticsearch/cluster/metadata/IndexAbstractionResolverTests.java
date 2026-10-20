@@ -21,6 +21,7 @@ import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -49,10 +50,8 @@ public class IndexAbstractionResolverTests extends ESTestCase {
     // Only used when resolving wildcard expressions
     private final Set<String> defaultMask = Set.of("index1", "index2", "data-stream1");
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-
+    @Before
+    public void initResolvers() throws Exception {
         // Try to resist failing at midnight on the first/last day of the month. Time generally moves forward, so make a timestamp for
         // the next day and if they're different, add both to the cluster state. Check for either in date math tests.
         long timeMillis = System.currentTimeMillis();
@@ -76,7 +75,6 @@ public class IndexAbstractionResolverTests extends ESTestCase {
             TestProjectResolvers.singleProject(projectMetadata.id())
         );
         indexAbstractionResolver = new IndexAbstractionResolver(indexNameExpressionResolver);
-
     }
 
     public void testResolveIndexAbstractions() {

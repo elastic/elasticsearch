@@ -20,6 +20,5 @@
   "examples" : [
     "stddev(http_requests_total)"
   ],
-  "preview" : true,
   "snapshot_only" : false
 }

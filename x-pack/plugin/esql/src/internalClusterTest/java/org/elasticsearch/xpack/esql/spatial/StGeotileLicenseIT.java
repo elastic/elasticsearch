@@ -21,7 +21,7 @@ import java.util.List;
 public class StGeotileLicenseIT extends SpatialGridLicenseTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(SpatialPlugin.class, EsqlPluginWithEnterpriseOrTrialLicense.class, TestEncryptionServicePlugin.class);
+        return List.of(SpatialPlugin.class, TestEncryptionServicePlugin.class, EsqlPluginWithEnterpriseOrTrialLicense.class);
     }
 
     @Override

@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
+import org.junit.Before;
 
 import java.util.Collections;
 import java.util.List;
@@ -41,9 +42,8 @@ public class RetryFailedAllocationTests extends ESAllocationTestCase {
     private ClusterState clusterState;
     private final String INDEX_NAME = "index";
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initClusterState() throws Exception {
         projectId = randomProjectIdOrDefault();
         ProjectMetadata project = ProjectMetadata.builder(projectId)
             .put(IndexMetadata.builder(INDEX_NAME).settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))

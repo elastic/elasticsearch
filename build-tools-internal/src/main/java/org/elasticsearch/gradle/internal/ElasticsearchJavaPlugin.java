@@ -16,7 +16,6 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
-import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.gradle.api.Action;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.Plugin;
@@ -34,6 +33,7 @@ import org.gradle.api.tasks.javadoc.Javadoc;
 import org.gradle.external.javadoc.CoreJavadocOptions;
 import org.gradle.jvm.toolchain.JavaLanguageVersion;
 import org.gradle.jvm.toolchain.JavaToolchainService;
+import org.gradle.jvm.toolchain.JvmVendorSpec;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
 import java.io.File;
@@ -42,6 +42,7 @@ import java.util.Map;
 import javax.inject.Inject;
 
 import static org.elasticsearch.gradle.internal.conventions.util.Util.toStringable;
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.applyGlobalBuildInfoIfRoot;
 import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 
 /**
@@ -59,7 +60,7 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
+        applyGlobalBuildInfoIfRoot(project);
         Property<BuildParameterExtension> buildParams = loadBuildParams(project);
         project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
         project.getPluginManager().apply(JavaLibraryPlugin.class);
@@ -152,6 +153,7 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
 
             javadoc.getJavadocTool().set(javaToolchains.javadocToolFor(spec -> {
                 spec.getLanguageVersion().set(JavaLanguageVersion.of(buildParams.getMinimumRuntimeVersion().getMajorVersion()));
+                spec.getVendor().set(JvmVendorSpec.ORACLE);
             }));
         });
 

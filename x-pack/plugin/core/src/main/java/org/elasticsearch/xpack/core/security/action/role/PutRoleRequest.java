@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.security.action.role;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.Strings;
@@ -33,7 +33,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Request object for adding a role to the security index
  */
-public class PutRoleRequest extends LegacyActionRequest {
+public class PutRoleRequest extends UntypedActionRequest {
 
     private String name;
     private String[] clusterPrivileges = Strings.EMPTY_ARRAY;

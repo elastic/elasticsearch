@@ -15,13 +15,14 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 
 /**
  * Clone of {@link SortedNumericDocValues} for double values.
  */
-public abstract class SortedNumericDoubleValues implements ProcessedDocValues {
+public abstract class SortedNumericDoubleValues {
 
     private final boolean isSingleton;
     private final DocIdSetIterator docIdSetIterator;
@@ -35,6 +36,21 @@ public abstract class SortedNumericDoubleValues implements ProcessedDocValues {
         this.isSingleton = isSingleton;
         this.docIdSetIterator = docIdSetIterator;
     }
+
+    /** Advance the iterator to exactly {@code target} and return whether
+     *  {@code target} has a value.
+     *  {@code target} must be greater than or equal to the current
+     *  doc ID and must be a valid doc ID, ie. &ge; 0 and
+     *  &lt; {@code maxDoc}.*/
+    public abstract boolean advanceExact(int target) throws IOException;
+
+    /**
+     * Retrieves the number of values for the current document.  This must always
+     * be greater than zero.
+     * It is illegal to call this method after {@link #advanceExact(int)}
+     * returned {@code false}.
+     */
+    public abstract int docValueCount();
 
     /**
      * Iterates to the next value in the current document. Do not call this more than
@@ -69,10 +85,10 @@ public abstract class SortedNumericDoubleValues implements ProcessedDocValues {
     }
 
     /**
-     * @return an iterator over doc ids working togerther with {@link #advanceExact(int)} and {@link #nextValue()}
+     * @return an iterator over doc ids working together with {@link #advanceExact(int)} and {@link #nextValue()}
      *         or null if not supported.
      */
-    @Override
+    @Nullable
     public DocIdSetIterator docIdIterator() {
         return docIdSetIterator;
     }
@@ -86,10 +102,32 @@ public abstract class SortedNumericDoubleValues implements ProcessedDocValues {
     }
 
     /**
-     * Converts a {@link DoubleValues} to a {@link SortedNumericDoubleValues}
+     * Converts a {@link DoubleValues} to a {@link SortedNumericDoubleValues} that has no
+     * {@link DocIdSetIterator}, so {@link #docIdIterator()} returns {@code null}.
+     *
+     * <p> Only use this when nothing backs {@code values} with a doc id iterator, for example when the
+     * values are computed by a script. If {@code values} is derived from another doc-values instance,
+     * use {@link #singleton(DoubleValues, DocIdSetIterator)} and pass that instance's iterator.
      */
-    public static SortedNumericDoubleValues singleton(DoubleValues values) {
-        return new SortedNumericDoubleValues(true, null) {
+    public static SortedNumericDoubleValues singletonWithoutDocIdIterator(DoubleValues values) {
+        return singleton(values, null);
+    }
+
+    /**
+     * Converts a {@link DoubleValues} to a {@link SortedNumericDoubleValues} preserving the
+     * given {@link DocIdSetIterator}.
+     *
+     * <p> Callers that derive a singleton view from another doc-values instance must pass that
+     * instance's {@link #docIdIterator()}, otherwise the returned view reports no iterator. The
+     * iterator is deliberately a required argument so that dropping it is always an explicit choice;
+     * use {@link #singletonWithoutDocIdIterator(DoubleValues)} when there is genuinely no iterator
+     * backing {@code values}.
+     *
+     * <p> The iterator is forward-only and is returned as-is (never copied) by {@link #docIdIterator()}.
+     * It must be the iterator that backs {@code values}.
+     */
+    public static SortedNumericDoubleValues singleton(DoubleValues values, @Nullable DocIdSetIterator docIdSetIterator) {
+        return new SortedNumericDoubleValues(true, docIdSetIterator) {
             @Override
             public boolean advanceExact(int target) throws IOException {
                 return values.advanceExact(target);
@@ -121,7 +159,26 @@ public abstract class SortedNumericDoubleValues implements ProcessedDocValues {
      */
     public static SortedNumericDoubleValues wrap(SortedNumericDocValues values) {
         NumericDocValues singleton = DocValues.unwrapSingleton(values);
-        return new SortedNumericDoubleValues(singleton != null, values) {
+        if (singleton != null) {
+            // It's more efficient to access singleton doc values via the unwrapped singleton
+            return new SortedNumericDoubleValues(true, singleton) {
+                @Override
+                public boolean advanceExact(int target) throws IOException {
+                    return singleton.advanceExact(target);
+                }
+
+                @Override
+                public int docValueCount() {
+                    return 1;
+                }
+
+                @Override
+                public double nextValue() throws IOException {
+                    return NumericUtils.sortableLongToDouble(singleton.longValue());
+                }
+            };
+        }
+        return new SortedNumericDoubleValues(false, values) {
             @Override
             public boolean advanceExact(int target) throws IOException {
                 return values.advanceExact(target);
@@ -134,7 +191,7 @@ public abstract class SortedNumericDoubleValues implements ProcessedDocValues {
 
             @Override
             public int docValueCount() {
-                return singleton != null ? 1 : values.docValueCount();
+                return values.docValueCount();
             }
         };
     }

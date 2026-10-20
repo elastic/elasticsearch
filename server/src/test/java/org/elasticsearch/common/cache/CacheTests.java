@@ -46,8 +46,7 @@ public class CacheTests extends ESTestCase {
     private int numberOfEntries;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initNumberOfEntries() throws Exception {
         numberOfEntries = randomIntBetween(1000, 10000);
         logger.debug("numberOfEntries: {}", numberOfEntries);
     }

@@ -60,3 +60,13 @@ FROM employees
 stack: ga 9.3
 ```
 
+```{applies_to}
+stack: ga 9.6
+```
+The pattern can also be any constant expression, such as a call to `CONCAT` or `TO_LOWER`.
+
+```esql
+from employees | where first_name like concat("Eber", "*") | keep emp_no, first_name
+```
+
+

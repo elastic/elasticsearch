@@ -36,21 +36,17 @@ public class ChannelsTests extends ESTestCase {
     byte[] randomBytes;
     FileChannel fileChannel;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void createFileChannel() throws Exception {
         Path tmpFile = createTempFile();
         FileChannel randomAccessFile = FileChannel.open(tmpFile, StandardOpenOption.READ, StandardOpenOption.WRITE);
         fileChannel = new MockFileChannel(randomAccessFile);
         randomBytes = randomUnicodeOfLength(scaledRandomIntBetween(10, 100000)).getBytes(StandardCharsets.UTF_8);
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
+    public void closeFileChannel() throws Exception {
         fileChannel.close();
-        super.tearDown();
     }
 
     public void testReadWriteThoughArrays() throws Exception {

@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.eql.analysis.Analyzer;
 import org.elasticsearch.xpack.eql.analysis.AnalyzerContext;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.ql.util.ActionListeners.map;
 import static org.elasticsearch.xpack.ql.util.StringUtils.WILDCARD;
@@ -45,6 +47,8 @@ public class EqlSession {
     private final Optimizer optimizer;
     private final Planner planner;
     private final CircuitBreaker circuitBreaker;
+    // accumulates per-query directory read metrics across all sub-searches issued during this session's execution
+    private final AtomicReference<DirectoryMetrics> directoryMetrics = new AtomicReference<>(DirectoryMetrics.EMPTY);
 
     public EqlSession(
         Client client,
@@ -86,8 +90,20 @@ public class EqlSession {
         return circuitBreaker;
     }
 
+    public void accumulateDirectoryMetrics(DirectoryMetrics metrics) {
+        DirectoryMetrics.accumulate(directoryMetrics, metrics);
+    }
+
+    public DirectoryMetrics directoryMetrics() {
+        return directoryMetrics.get();
+    }
+
     public void eql(String eql, ParserParams params, ActionListener<Results> listener) {
-        eqlExecutable(eql, params, listener.delegateFailureAndWrap((l, e) -> e.execute(this, map(l, Results::fromPayload))));
+        eqlExecutable(
+            eql,
+            params,
+            listener.delegateFailureAndWrap((l, e) -> e.execute(this, map(l, payload -> Results.fromPayload(payload, directoryMetrics()))))
+        );
     }
 
     public void eqlExecutable(String eql, ParserParams params, ActionListener<PhysicalPlan> listener) {

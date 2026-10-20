@@ -48,6 +48,23 @@ public interface DataSourcePlugin {
     }
 
     /**
+     * Maps logical data-source type names (as accepted by PUT /_query/data_source) to the primary URI
+     * scheme used to look up this plugin's storage provider factory for test-connection purposes.
+     *
+     * <p>Override when the PUT type name differs from the URI scheme. For example, the GCS plugin
+     * uses type {@code "gcs"} for PUT but registers its factory under scheme {@code "gs"}; the Azure
+     * plugin uses type {@code "azure"} but registers under {@code "wasbs"}; the HTTP plugin uses type
+     * {@code "local"} but registers under {@code "file"}.
+     *
+     * <p>Plugins whose type name already matches a URI scheme (e.g. S3 type {@code "s3"} → scheme
+     * {@code "s3"}, or HTTP type {@code "http"} → scheme {@code "http"}) do not need to override —
+     * the direct lookup in {@code DataSourceModule.testConnection} already finds the correct factory.
+     */
+    default Map<String, String> testConnectionSchemes() {
+        return Map.of();
+    }
+
+    /**
      * URI schemes handled by this plugin's connectors (e.g. "flight", "grpc").
      * Separate from {@link #supportedSchemes()} which is for storage providers.
      */
@@ -78,6 +95,24 @@ public interface DataSourcePlugin {
 
     default Map<String, StorageProviderFactory> storageProviders(Settings settings, ExecutorService executor) {
         return storageProviders(settings);
+    }
+
+    /**
+     * Storage providers with access to node-level services ({@link StorageProviderServices}).
+     * Plugins that need the node {@link org.elasticsearch.env.Environment} or
+     * {@link org.elasticsearch.watcher.ResourceWatcherService} — e.g. to resolve or watch
+     * operator-managed token symlinks under {@code ${ES_PATH_CONF}} — should override this method.
+     *
+     * <p>The default delegates to {@link #storageProviders(Settings, ExecutorService)}, so plugins
+     * with no node-context needs can keep overriding the simpler signatures unchanged.
+     *
+     * <p>Lifecycle: this method may allocate node-level resources (file watchers, clients). The
+     * {@code DataSourceModule} closes every {@link java.io.Closeable} {@code DataSourcePlugin} when it
+     * shuts down, so implementations must release those resources in {@code close()} and tolerate a
+     * {@code close()} that runs without any prior {@code storageProviders} call.
+     */
+    default Map<String, StorageProviderFactory> storageProviders(StorageProviderServices services) {
+        return storageProviders(services.settings(), services.executor());
     }
 
     default Map<String, FormatReaderFactory> formatReaders(Settings settings) {
@@ -133,5 +168,18 @@ public interface DataSourcePlugin {
      */
     default Map<String, DataSourceValidator> datasourceValidators(Settings settings) {
         return Map.of();
+    }
+
+    /**
+     * Names of credential (secret) settings this plugin's data source type accepts on a PUT request.
+     * Used by the REST layer to filter these values from the security audit log body.
+     * <p>
+     * This method is called unconditionally at startup — do not gate it on feature flags. A plugin that
+     * is disabled at runtime may still have its type submitted in a request body, and SecurityRestFilter
+     * wraps the request (filtering the body) before the handler can reject an unknown type. Omitting names
+     * here when the plugin is disabled would leave those credential fields unfiltered.
+     */
+    default Set<String> datasourceSecretSettingNames() {
+        return Set.of();
     }
 }

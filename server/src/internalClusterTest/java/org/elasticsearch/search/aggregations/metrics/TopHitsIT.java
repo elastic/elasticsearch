@@ -83,6 +83,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xcontent.XContentFactory.smileBuilder;
 import static org.elasticsearch.xcontent.XContentFactory.yamlBuilder;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -1067,6 +1068,38 @@ public class TopHitsIT extends ESIntegTestCase {
         });
     }
 
+    /**
+     * Two buckets fetch through the single inner hits context the aggregator forks. The articles own disjoint comment
+     * dates, so a leak across buckets shows up as a bucket reporting the other article's dates.
+     */
+    public void testTopHitsWithInnerHitsInsideTerms() {
+        QueryBuilder nestedQuery = nestedQuery("comments", matchQuery("comments.message", "comment"), ScoreMode.Avg).innerHit(
+            new InnerHitBuilder().setSize(5)
+        );
+        assertNoFailuresAndResponse(
+            prepareSearch("articles").setQuery(nestedQuery)
+                .addAggregation(terms("title").field("title.keyword").subAggregation(topHits("top").size(1))),
+            response -> {
+                Terms terms = response.getAggregations().get("title");
+                assertThat(terms.getBuckets().size(), equalTo(2));
+                assertArticleInnerHits(terms, "title 1", "1", 1L, 2L);
+                assertArticleInnerHits(terms, "title 2", "2", 3L, 4L);
+            }
+        );
+    }
+
+    private static void assertArticleInnerHits(Terms terms, String bucketKey, String articleId, Long... commentDates) {
+        SearchHits hits = ((TopHits) terms.getBucketByKey(bucketKey).getAggregations().get("top")).getHits();
+        assertThat(hits.getHits().length, equalTo(1));
+        assertThat(hits.getAt(0).getId(), equalTo(articleId));
+        SearchHits innerHits = hits.getAt(0).getInnerHits().get("comments");
+        List<Long> dates = new ArrayList<>();
+        for (SearchHit innerHit : innerHits) {
+            dates.add(((Number) innerHit.getSourceAsMap().get("date")).longValue());
+        }
+        assertThat(dates, containsInAnyOrder(commentDates));
+    }
+
     public void testUseMaxDocInsteadOfSize() throws Exception {
         updateIndexSettings(
             Settings.builder().put(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), ArrayUtil.MAX_ARRAY_LENGTH),
@@ -1137,6 +1170,7 @@ public class TopHitsIT extends ESIntegTestCase {
     }
 
     public void testNoStoredFields() throws Exception {
+        assumeNoColumnarId("test relies on not loading id by setting stored field spect to _none_", "idx");
         assertNoFailuresAndResponse(
             prepareSearch("idx").addAggregation(
                 terms("terms").executionHint(randomExecutionHint())

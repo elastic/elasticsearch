@@ -10,6 +10,7 @@
 package org.elasticsearch.index;
 
 import org.apache.logging.log4j.Level;
+import org.apache.lucene.index.IndexWriter;
 import org.elasticsearch.Build;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
@@ -260,18 +261,6 @@ public class IndexSettingsTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString("unknown setting [index.slice.enabled]"));
     }
 
-    public void testSliceEnabledSettingRequiresValidation() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> new IndexSettings(
-                newIndexMeta("index", Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build()),
-                Settings.EMPTY
-            )
-        );
-        assertThat(exception.getMessage(), containsString("index.slice.enabled"));
-    }
-
     public void testSliceEnabledSettingRejectedForTimeSeriesMode() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         IllegalArgumentException exception = expectThrows(
@@ -282,7 +271,6 @@ public class IndexSettingsTests extends ESTestCase {
                     Settings.builder()
                         .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
                         .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
-                        .put(IndexSettings.SLICE_VALIDATED.getKey(), true)
                         .put(IndexSettings.SLICE_ENABLED.getKey(), true)
                         .build()
                 ),
@@ -862,6 +850,65 @@ public class IndexSettingsTests extends ESTestCase {
         assertThat(error.getMessage(), equalTo("final index setting [index.soft_deletes.enabled], not updateable"));
     }
 
+    public void testUpdateNonIndexedFieldMaxValueLengthFails() {
+        IndexScopedSettings settings = new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+        IllegalArgumentException error = expectThrows(
+            IllegalArgumentException.class,
+            () -> settings.updateSettings(
+                Settings.builder().put(IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.getKey(), "20mb").build(),
+                Settings.builder(),
+                Settings.builder(),
+                "index"
+            )
+        );
+        assertThat(error.getMessage(), equalTo("final index setting [index.mapping.non_indexed_field.max_value_length], not updateable"));
+    }
+
+    public void testNonIndexedFieldMaxValueLengthSetting() {
+        assertThat(
+            newIndexSettings(newIndexMeta("index", Settings.EMPTY), Settings.EMPTY).getNonIndexedFieldMaxValueLength(),
+            equalTo(1024 * 1024)
+        );
+        Settings custom = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.getKey(), "2mb")
+            .build();
+        assertThat(
+            newIndexSettings(newIndexMeta("index", custom), Settings.EMPTY).getNonIndexedFieldMaxValueLength(),
+            equalTo(2 * 1024 * 1024)
+        );
+
+        Settings belowTermLimit = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.getKey(), IndexWriter.MAX_TERM_LENGTH - 1 + "b")
+            .build();
+        expectThrows(IllegalArgumentException.class, () -> IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.get(belowTermLimit));
+    }
+
+    public void testNonIndexedFieldMaxValueLengthRequiresColumnarMode() {
+        IndexMode nonColumnarMode = randomFrom(IndexMode.STANDARD, IndexMode.LOGSDB);
+        Settings explicit = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), nonColumnarMode.getName())
+            .put(IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.getKey(), "2mb")
+            .build();
+        IllegalArgumentException error = expectThrows(
+            IllegalArgumentException.class,
+            () -> IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.get(explicit)
+        );
+        assertThat(
+            error.getMessage(),
+            equalTo(
+                "The setting [index.mapping.non_indexed_field.max_value_length] is only permitted when [index.mode] is a columnar "
+                    + "index mode. Current mode: ["
+                    + nonColumnarMode.getName()
+                    + "]."
+            )
+        );
+
+        Settings defaulted = Settings.builder().put(IndexSettings.MODE.getKey(), nonColumnarMode.getName()).build();
+        assertThat(IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.get(defaulted), equalTo(ByteSizeValue.ofMb(1)));
+    }
+
     public void testSoftDeletesDefaultSetting() {
         // enabled by default on 7.0+ or later
         IndexVersion createdVersion = IndexVersionUtils.randomCompatibleVersion();
@@ -939,6 +986,7 @@ public class IndexSettingsTests extends ESTestCase {
         IndexMetadata idxMetaData = newIndexMeta("test", settings);
         IndexMetadataVerifier indexMetadataVerifier = new IndexMetadataVerifier(
             Settings.EMPTY,
+            null,
             null,
             xContentRegistry(),
             new MapperRegistry(
@@ -1218,9 +1266,7 @@ public class IndexSettingsTests extends ESTestCase {
         IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
 
         List<IndexMode> modes = new ArrayList<>(List.of(IndexMode.TIME_SERIES, IndexMode.LOGSDB));
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
-            modes.addAll(List.of(IndexMode.LOGSDB_COLUMNAR, IndexMode.COLUMNAR));
-        }
+        modes.addAll(List.of(IndexMode.LOGSDB_COLUMNAR, IndexMode.COLUMNAR));
         IndexMode mode = randomFrom(modes);
         Settings.Builder builder = Settings.builder()
             .put(IndexSettings.MODE.getKey(), mode.getName())
@@ -1267,40 +1313,42 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testDisableSequenceNumbersDefaultForColumnarModes() {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
-
-        // Test COLUMNAR mode
-        Settings columnarSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
-        IndexMetadata columnarMetadata = newIndexMeta("columnar-index", columnarSettings, indexVersion);
-        IndexSettings columnarIndexSettings = new IndexSettings(columnarMetadata, Settings.EMPTY);
-        assertThat("DISABLE_SEQUENCE_NUMBERS should be true for COLUMNAR mode", columnarIndexSettings.sequenceNumbersDisabled(), is(true));
-
-        // Test LOGSDB_COLUMNAR mode
-        Settings columnarLogsdbSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName()).build();
-        IndexMetadata columnarLogsdbMetadata = newIndexMeta("columnar-logsdb-index", columnarLogsdbSettings, indexVersion);
-        IndexSettings columnarLogsdbIndexSettings = new IndexSettings(columnarLogsdbMetadata, Settings.EMPTY);
-        assertThat(
-            "DISABLE_SEQUENCE_NUMBERS should be true for LOGSDB_COLUMNAR mode",
-            columnarLogsdbIndexSettings.sequenceNumbersDisabled(),
-            is(true)
+        // BWC: below the gate, columnar modes disable sequence numbers by default.
+        IndexVersion beforeGate = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.DISABLE_SEQUENCE_NUMBERS,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_DISABLE_SEQUENCE_NUMBERS_DATA_STREAMS_ONLY)
         );
+        for (IndexMode columnarMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), columnarMode.getName()).build();
+            IndexSettings indexSettings = new IndexSettings(
+                newIndexMeta(columnarMode.getName() + "-index", settings, beforeGate),
+                Settings.EMPTY
+            );
+            assertThat(columnarMode + " disables sequence numbers below the gate", indexSettings.sequenceNumbersDisabled(), is(true));
+        }
 
-        // Test that STANDARD mode does not have sequence numbers disabled by default
+        // From the gate, columnar modes keep sequence numbers by default; only data-stream backing indices disable them (set at creation).
+        IndexVersion fromGate = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.COLUMNAR_DISABLE_SEQUENCE_NUMBERS_DATA_STREAMS_ONLY,
+            IndexVersion.current()
+        );
+        for (IndexMode columnarMode : Arrays.stream(IndexMode.availableModes()).filter(IndexMode::isStrictColumnar).toList()) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), columnarMode.getName()).build();
+            IndexSettings indexSettings = new IndexSettings(
+                newIndexMeta(columnarMode.getName() + "-index", settings, fromGate),
+                Settings.EMPTY
+            );
+            assertThat(columnarMode + " keeps sequence numbers from the gate", indexSettings.sequenceNumbersDisabled(), is(false));
+        }
+
+        // STANDARD mode never disables sequence numbers by default.
         Settings standardSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.getName()).build();
-        IndexMetadata standardMetadata = newIndexMeta("standard-index", standardSettings, indexVersion);
-        IndexSettings standardIndexSettings = new IndexSettings(standardMetadata, Settings.EMPTY);
-        assertThat(
-            "DISABLE_SEQUENCE_NUMBERS should be false for STANDARD mode",
-            standardIndexSettings.sequenceNumbersDisabled(),
-            is(false)
-        );
+        IndexSettings standardIndexSettings = new IndexSettings(newIndexMeta("standard-index", standardSettings, fromGate), Settings.EMPTY);
+        assertThat(standardIndexSettings.sequenceNumbersDisabled(), is(false));
     }
 
     public void testDynamicStringsAutoTextDefaultByIndexMode() {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-
-        // COLUMNAR and LOGSDB_COLUMNAR default to false (keyword, high-cardinality)
+        // General columnar modes default to false (keyword, high-cardinality).
         for (IndexMode columnarMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), columnarMode.getName()).build();
             IndexSettings indexSettings = new IndexSettings(newIndexMeta(columnarMode.getName() + "-index", settings), Settings.EMPTY);
@@ -1310,8 +1358,10 @@ public class IndexSettingsTests extends ESTestCase {
             );
         }
 
-        // All other modes default to true (text + keyword subfield)
-        for (IndexMode otherMode : List.of(IndexMode.STANDARD, IndexMode.LOGSDB, IndexMode.TIME_SERIES)) {
+        // All other modes, including vector columnar, default to true (text).
+        for (IndexMode otherMode : Arrays.stream(IndexMode.availableModes())
+            .filter(m -> m != IndexMode.COLUMNAR && m != IndexMode.LOGSDB_COLUMNAR)
+            .toList()) {
             Settings.Builder builder = Settings.builder().put(IndexSettings.MODE.getKey(), otherMode.getName());
             if (otherMode == IndexMode.TIME_SERIES) {
                 builder.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo");
@@ -1320,6 +1370,36 @@ public class IndexSettingsTests extends ESTestCase {
             assertTrue(
                 "dynamic_strings.auto_text should default to true for " + otherMode.getName() + " mode",
                 indexSettings.getDynamicStringsAutoText()
+            );
+        }
+    }
+
+    public void testDynamicStringsAutoKeywordSubfieldDefaultByIndexMode() {
+        // Strict columnar modes already store every field in a doc-values column, so they do not add the keyword multi-field.
+        for (IndexMode columnarMode : Arrays.stream(IndexMode.availableModes()).filter(IndexMode::isStrictColumnar).toList()) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), columnarMode.getName()).build();
+            IndexSettings indexSettings = new IndexSettings(newIndexMeta(columnarMode.getName() + "-index", settings), Settings.EMPTY);
+            assertFalse(
+                "dynamic_strings.auto_keyword_subfield should default to false for " + columnarMode.getName() + " mode",
+                indexSettings.getDynamicStringsAutoKeywordSubfield()
+            );
+        }
+
+        for (IndexMode otherMode : List.of(
+            IndexMode.STANDARD,
+            IndexMode.LOGSDB,
+            IndexMode.TIME_SERIES,
+            IndexMode.LOOKUP,
+            IndexMode.VECTORDB_DOCUMENT
+        )) {
+            Settings.Builder builder = Settings.builder().put(IndexSettings.MODE.getKey(), otherMode.getName());
+            if (otherMode == IndexMode.TIME_SERIES) {
+                builder.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo");
+            }
+            IndexSettings indexSettings = new IndexSettings(newIndexMeta(otherMode.getName() + "-index", builder.build()), Settings.EMPTY);
+            assertTrue(
+                "dynamic_strings.auto_keyword_subfield should default to true for " + otherMode.getName() + " mode",
+                indexSettings.getDynamicStringsAutoKeywordSubfield()
             );
         }
     }

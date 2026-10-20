@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -256,11 +257,9 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
             return;
         }
 
-        String stateIndexName = AnomalyDetectorsIndex.jobStateIndexPattern();
-
         List<String> idsToDelete = new ArrayList<>();
         Set<String> indices = new HashSet<>();
-        indices.add(stateIndexName);
+        Collections.addAll(indices, AnomalyDetectorsIndex.jobStateIndexPatterns());
         indices.add(AnnotationIndex.READ_ALIAS_NAME);
         for (ModelSnapshot modelSnapshot : modelSnapshots) {
             idsToDelete.addAll(modelSnapshot.stateDocumentIds());

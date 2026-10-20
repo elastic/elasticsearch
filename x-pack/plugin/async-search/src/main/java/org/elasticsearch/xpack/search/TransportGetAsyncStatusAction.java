@@ -72,6 +72,12 @@ public class TransportGetAsyncStatusAction extends HandledTransportAction<GetAsy
 
     @Override
     protected void doExecute(Task task, GetAsyncStatusRequest request, ActionListener<AsyncStatusResponse> listener) {
+        try {
+            store.ensureValidKeepAliveExtension(request.getKeepAlive());
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
         AsyncExecutionId searchId = AsyncExecutionId.decode(request.getId());
         DiscoveryNode node = clusterService.state().nodes().get(searchId.getTaskId().getNodeId());
         DiscoveryNode localNode = clusterService.state().getNodes().getLocalNode();

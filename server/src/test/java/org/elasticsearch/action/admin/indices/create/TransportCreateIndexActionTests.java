@@ -123,9 +123,7 @@ public class TransportCreateIndexActionTests extends ESTestCase {
     private ThreadContext threadContext;
 
     @Before
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initAction() throws Exception {
         threadContext = new ThreadContext(Settings.EMPTY);
         final var projectResolver = TestProjectResolvers.usingRequestHeader(threadContext);
         this.metadataCreateIndexService = mock(MetadataCreateIndexService.class);

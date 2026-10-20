@@ -24,6 +24,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.xcontent.ToXContent;
 
@@ -193,6 +194,18 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
      */
     public TimeValue getTook() {
         return new TimeValue(tookInMillis);
+    }
+
+    public DirectoryMetrics mergeDirectoryMetrics() {
+        assert hasReferences();
+        DirectoryMetrics merged = DirectoryMetrics.EMPTY;
+        for (Item item : items) {
+            SearchResponse response = item.getResponse();
+            if (response != null) {
+                merged = merged.merge(response.getDirectoryMetrics());
+            }
+        }
+        return merged;
     }
 
     @Override

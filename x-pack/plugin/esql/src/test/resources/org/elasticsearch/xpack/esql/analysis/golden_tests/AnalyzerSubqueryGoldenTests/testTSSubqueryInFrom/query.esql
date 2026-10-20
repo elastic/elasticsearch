@@ -1,0 +1,1 @@
+FROM employees, (TS k8s-downsampled | WHERE @timestamp > "2025-10-07")

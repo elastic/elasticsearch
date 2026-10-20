@@ -67,7 +67,11 @@ EXPORT f32_t vec_cosi8(const int8_t* a, const int8_t* b, const int32_t dims) {
     return cosi8_inner(a, b, dims);
 }
 
-template <typename TData, const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t), int batches = 2>
+template <
+    typename TData,
+    const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t),
+    int batches = 2,
+    int32_t(*out_mapper)(const int32_t*, const int32_t) = compact_output>
 static inline void cosi8_inner_bulk(
     const TData* a,
     const int8_t* b,
@@ -153,7 +157,7 @@ static inline void cosi8_inner_bulk(
 
         // Vectorized cosine finalization: results[i] = sum[i] / sqrt(a_norm[i] * b_norm)
         // __m128 holds 4 floats; process full groups of 4, then a remaining
-        // pair (if batches % 4 != 0) with masked store.
+        // pair (if batches % 4 != 0); each lane is stored to its own result slot.
         constexpr int full_quads = batches / 4;
         constexpr int has_remainder = (batches % 4) != 0;
 
@@ -163,7 +167,9 @@ static inline void cosi8_inner_bulk(
             __m128 a_norm_ps = _mm_setr_ps(a_norm[j], a_norm[j + 1], a_norm[j + 2], a_norm[j + 3]);
             __m128 b_norm_ps = _mm_set1_ps(b_norm);
             __m128 res = _mm_div_ps(sum_ps, _mm_sqrt_ps(_mm_mul_ps(a_norm_ps, b_norm_ps)));
-            _mm_storeu_ps(results + c + j, res);
+            apply_indexed<4>([&](auto K) {
+                results[out_mapper(offsets, c + j + K)] = _mm_cvtss_f32(_mm_shuffle_ps(res, res, decltype(K)::value));
+            });
         });
 
         if constexpr (has_remainder) {
@@ -172,7 +178,8 @@ static inline void cosi8_inner_bulk(
             __m128 a_norm_ps = _mm_setr_ps(a_norm[j], a_norm[j + 1], 0.0f, 0.0f);
             __m128 b_norm_ps = _mm_setr_ps(b_norm, b_norm, 0.0f, 0.0f);
             __m128 res = _mm_div_ps(sum_ps, _mm_sqrt_ps(_mm_mul_ps(a_norm_ps, b_norm_ps)));
-            _mm_maskstore_ps(results + c + j, _mm_setr_epi32(-1, -1, 0, 0), res);
+            results[out_mapper(offsets, c + j)] = _mm_cvtss_f32(res);
+            results[out_mapper(offsets, c + j + 1)] = _mm_cvtss_f32(_mm_shuffle_ps(res, res, 1));
         }
 
         if (has_next) {
@@ -183,23 +190,12 @@ static inline void cosi8_inner_bulk(
     // Tail-handling: remaining vectors
     for (; c < count; c++) {
         const int8_t* a0 = mapper(a, c, offsets, pitch);
-        results[c] = cosi8_inner(a0, b, dims);
+        results[out_mapper(offsets, c)] = cosi8_inner(a0, b, dims);
     }
 }
 
 EXPORT void vec_cosi8_bulk(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
     cosi8_inner_bulk<int8_t, sequential_mapper>(a, b, dims, dims, NULL, count, results);
-}
-
-EXPORT void vec_cosi8_bulk_offsets(
-    const int8_t* a,
-    const int8_t* b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results) {
-    cosi8_inner_bulk<int8_t, offsets_mapper>(a, b, dims, pitch, offsets, count, results);
 }
 
 EXPORT void vec_cosi8_bulk_sparse(
@@ -209,16 +205,6 @@ EXPORT void vec_cosi8_bulk_sparse(
     const int32_t count,
     f32_t* results) {
     cosi8_inner_bulk<const int8_t*, sparse_mapper>((const int8_t* const*)addresses, b, dims, 0, NULL, count, results);
-}
-
-EXPORT void vec_cosi8_bulk8(
-    const int8_t* a0, const int8_t* a1, const int8_t* a2, const int8_t* a3,
-    const int8_t* a4, const int8_t* a5, const int8_t* a6, const int8_t* a7,
-    const int8_t* b, const int32_t dims, f32_t* results
-) {
-    const int8_t* ptrs[8] = {a0, a1, a2, a3, a4, a5, a6, a7};
-    cosi8_inner_bulk<const int8_t*, sparse_mapper, 4>(
-        ptrs, b, dims, 0, NULL, 8, results);
 }
 
 // Accumulates acc += dot(pa, pb) for signed int8. Loads 16 bytes at compile-time offset,
@@ -301,25 +287,6 @@ EXPORT void vec_doti8_bulk(const int8_t* a, const int8_t* b, const int32_t dims,
     );
 }
 
-EXPORT void vec_doti8_bulk_offsets(
-    const int8_t* a,
-    const int8_t* b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results) {
-    call_i8_bulk<int8_t, offsets_mapper, doti8_inner>(
-        a,
-        b,
-        dims,
-        pitch,
-        offsets,
-        count,
-        results
-    );
-}
-
 EXPORT void vec_doti8_bulk_sparse(
     const void* const* addresses,
     const int8_t* b,
@@ -335,16 +302,6 @@ EXPORT void vec_doti8_bulk_sparse(
         count,
         results
     );
-}
-
-EXPORT void vec_doti8_bulk8(
-    const int8_t* a0, const int8_t* a1, const int8_t* a2, const int8_t* a3,
-    const int8_t* a4, const int8_t* a5, const int8_t* a6, const int8_t* a7,
-    const int8_t* b, const int32_t dims, f32_t* results
-) {
-    const int8_t* ptrs[8] = {a0, a1, a2, a3, a4, a5, a6, a7};
-    call_i8_bulk<const int8_t*, sparse_mapper, doti8_inner, 4>(
-        ptrs, b, dims, 0, NULL, 8, results);
 }
 
 // Accumulates acc += sqr_distance(pa, pb) for signed int8. Sign-extends to 16-bit,
@@ -428,25 +385,6 @@ EXPORT void vec_sqri8_bulk(const int8_t* a, const int8_t* b, const int32_t dims,
     );
 }
 
-EXPORT void vec_sqri8_bulk_offsets(
-    const int8_t* a,
-    const int8_t* b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results) {
-    call_i8_bulk<int8_t, offsets_mapper, sqri8_inner>(
-        a,
-        b,
-        dims,
-        pitch,
-        offsets,
-        count,
-        results
-    );
-}
-
 EXPORT void vec_sqri8_bulk_sparse(
     const void* const* addresses,
     const int8_t* b,
@@ -462,14 +400,4 @@ EXPORT void vec_sqri8_bulk_sparse(
         count,
         results
     );
-}
-
-EXPORT void vec_sqri8_bulk8(
-    const int8_t* a0, const int8_t* a1, const int8_t* a2, const int8_t* a3,
-    const int8_t* a4, const int8_t* a5, const int8_t* a6, const int8_t* a7,
-    const int8_t* b, const int32_t dims, f32_t* results
-) {
-    const int8_t* ptrs[8] = {a0, a1, a2, a3, a4, a5, a6, a7};
-    call_i8_bulk<const int8_t*, sparse_mapper, sqri8_inner, 4>(
-        ptrs, b, dims, 0, NULL, 8, results);
 }

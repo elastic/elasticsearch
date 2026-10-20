@@ -50,6 +50,10 @@ public class RestGetDatasetAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        return Set.of(EsqlDataSourcesCapabilities.DATA_SOURCES);
+        return Set.of(
+            EsqlDataSourcesCapabilities.DATA_SOURCES,
+            EsqlDataSourcesCapabilities.DATASET_DECLARED_SCHEMA,
+            EsqlDataSourcesCapabilities.DATA_SOURCES_SERVERLESS_SCOPE
+        );
     }
 }

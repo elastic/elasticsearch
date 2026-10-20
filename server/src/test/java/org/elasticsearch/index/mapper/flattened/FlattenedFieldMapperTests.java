@@ -35,8 +35,10 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
+import org.elasticsearch.index.mapper.DummyBlockLoaderContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -417,8 +419,6 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
 
     @Override
     public void testDisableDefaultIndex() throws IOException {
-        assumeTrue("feature under test must be enabled", IndexSettings.INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled());
-
         var settings = Settings.builder().put(IndexSettings.INDEX_DISABLED_BY_DEFAULT.getKey(), true).build();
         var mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "flattened")));
         var documentMapper = mapperService.documentMapper();
@@ -769,6 +769,18 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             assertThat(mapper.preserveLeafArrays(), equalTo(FlattenedFieldMapper.PreserveLeafArrays.EXACT));
         }
 
+        for (var mode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            DocumentMapper documentMapper = createMapperService(
+                Settings.builder().put(IndexSettings.MODE.getKey(), mode.getName()).build(),
+                fieldMapping(this::minimalMapping)
+            ).documentMapper();
+            var mapper = (FlattenedFieldMapper) documentMapper.mappers().getMapper("field");
+            assertThat(
+                "preserve_leaf_arrays should default to exact in strict columnar mode [" + mode + "]",
+                mapper.preserveLeafArrays(),
+                equalTo(FlattenedFieldMapper.PreserveLeafArrays.EXACT)
+            );
+        }
     }
 
     public void testIgnoreAbove() throws IOException {
@@ -818,7 +830,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
      * using a key:value pair above the Lucene term length limit would throw an error on indexing
      * that we pre-empt with a nices exception
      */
-    public void testImmenseKeyedTermException() throws IOException {
+    public void testOverLimitSizeKeyedValueException() throws IOException {
         DocumentMapper newMapper = createDocumentMapper(fieldMapping(b -> { b.field("type", "flattened"); }));
 
         String longKey = "x".repeat(32800);
@@ -830,7 +842,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             b.endArray();
         })));
         assertEquals(
-            "Flattened field [field] contains one immense field whose keyed encoding is longer "
+            "Flattened field [field] contains a field whose keyed encoding is longer "
                 + "than the allowed max length of 32766 bytes. Key length: "
                 + longKey.length()
                 + ", value length: 5 for key starting with [xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx]",
@@ -846,12 +858,84 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             b.endArray();
         })));
         assertEquals(
-            "Flattened field [field] contains one immense field whose keyed encoding is longer "
+            "Flattened field [field] contains a field whose keyed encoding is longer "
                 + "than the allowed max length of 32766 bytes. Key length: 3, value length: "
                 + value.length()
                 + " for key starting with [key]",
             ex.getCause().getMessage()
         );
+    }
+
+    /**
+     * A non-indexed flattened field in strictly columnar mode writes only binary doc values, which Lucene does not limit in
+     * length, so a keyed value longer than {@link IndexWriter#MAX_TERM_LENGTH} is accepted and round-trips.
+     */
+    public void testKeyedValueLongerThan32766NotIndexedInColumnarModeIsAccepted() throws IOException {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> b.field("type", "flattened").field("index", false)));
+        String value = "x".repeat(IndexWriter.MAX_TERM_LENGTH + 100);
+        assertEquals("{\"field\":{\"key\":\"" + value + "\"}}", syntheticSource(mapper, b -> b.field("field", Map.of("key", value))));
+    }
+
+    public void testKeyedValueLongerThan32766IndexedInColumnarModeIsRejected() throws IOException {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> b.field("type", "flattened").field("index", true)));
+        String value = "x".repeat(IndexWriter.MAX_TERM_LENGTH + 100);
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.field("field", Map.of("key", value))))
+        );
+        assertThat(e.getCause().getMessage(), containsString("allowed max length of " + IndexWriter.MAX_TERM_LENGTH + " bytes"));
+    }
+
+    /**
+     * A non-indexed flattened field that does not use the time series doc values format writes sorted-set doc values, which
+     * Lucene limits to {@link IndexWriter#MAX_TERM_LENGTH}, so it keeps that limit rather than the binary doc values limit.
+     */
+    public void testKeyedValueLongerThan32766NotIndexedSortedSetIsRejected() throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), false).build();
+        DocumentMapper mapper = createMapperService(settings, fieldMapping(b -> b.field("type", "flattened").field("index", false)))
+            .documentMapper();
+        String value = "x".repeat(IndexWriter.MAX_TERM_LENGTH + 100);
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.field("field", Map.of("key", value))))
+        );
+        assertThat(e.getCause().getMessage(), containsString("allowed max length of " + IndexWriter.MAX_TERM_LENGTH + " bytes"));
+    }
+
+    /**
+     * Logsdb uses binary doc values for flattened fields, but the non-indexed field limit applies only in columnar index modes, so
+     * a non-indexed flattened field keeps Lucene's term limit. Logsdb defaults {@code ignore_above} to 8191, which would drop the
+     * value before the limit is checked, so it is raised here.
+     */
+    public void testKeyedValueLongerThan32766NotIndexedInLogsdbModeIsRejected() throws IOException {
+        DocumentMapper mapper = createLogsModeDocumentMapper(
+            fieldMapping(b -> b.field("type", "flattened").field("index", false).field("ignore_above", Integer.MAX_VALUE))
+        );
+        String value = "x".repeat(IndexWriter.MAX_TERM_LENGTH + 100);
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.field("@timestamp", "2026-01-01T00:00:00Z").field("field", Map.of("key", value))))
+        );
+        assertThat(e.getCause().getMessage(), containsString("allowed max length of " + IndexWriter.MAX_TERM_LENGTH + " bytes"));
+    }
+
+    public void testKeyedValueLongerThanNonIndexedFieldLimitIsRejected() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.getKey(), "64kb")
+            .build();
+        DocumentMapper mapper = createMapperService(settings, fieldMapping(b -> b.field("type", "flattened").field("index", false)))
+            .documentMapper();
+        // The keyed encoding "key\0" + value adds 4 bytes to the value.
+        String valueAtLimit = "x".repeat(64 * 1024 - 4);
+        mapper.parse(source(b -> b.field("field", Map.of("key", valueAtLimit))));
+
+        String valueOverLimit = valueAtLimit + "x";
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.field("field", Map.of("key", valueOverLimit))))
+        );
+        assertThat(e.getCause().getMessage(), containsString("allowed max length of 65536 bytes"));
     }
 
     public void testNullValues() throws Exception {
@@ -973,6 +1057,37 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         // The unmapped key should NOT produce a sub-field
         List<IndexableField> unmappedSubFields = parsedDoc.rootDoc().getFields("field.other");
         assertEquals(0, unmappedSubFields.size());
+    }
+
+    /**
+     * The {@code field_extract} block-loader fuse must not fire for an explicitly mapped sub-key: the
+     * keyed channel never stores mapped sub-fields, so a fused keyed load would return null while the
+     * per-row evaluator over the merged root returns the value. The flattened root therefore advertises
+     * {@code ExtractFlattenedSubfieldConfig} as supported only for unmapped (keyed) sub-keys, keeping
+     * {@code field_extract}'s result the same regardless of which path the optimizer picks.
+     */
+    public void testSupportsBlockLoaderConfigExcludesMappedSubfield() throws Exception {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "flattened");
+            b.startObject("properties");
+            {
+                b.startObject("host.name").field("type", "keyword").endObject();
+            }
+            b.endObject();
+        }));
+        RootFlattenedFieldType ft = (RootFlattenedFieldType) mapperService.fieldType("field");
+
+        assertTrue("the declared sub-field must be recognised as mapped", ft.isMappedSubField("host.name"));
+        assertFalse("an unmapped keyed sub-key must not be recognised as mapped", ft.isMappedSubField("other"));
+
+        assertFalse(
+            "the fuse must be refused for a mapped sub-key so field_extract falls back to the evaluator",
+            ft.supportsBlockLoaderConfig(new ExtractFlattenedSubfieldConfig("host.name"), MappedFieldType.FieldExtractPreference.NONE)
+        );
+        assertTrue(
+            "the fuse stays available for an unmapped keyed sub-key",
+            ft.supportsBlockLoaderConfig(new ExtractFlattenedSubfieldConfig("other"), MappedFieldType.FieldExtractPreference.NONE)
+        );
     }
 
     public void testPropertiesNestedObjectNotation() throws Exception {
@@ -1769,6 +1884,36 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         assertThat(syntheticSource(mapper, example), equalTo("{\"field\":{\"sub1\":{\"sub2\":[\"foo\",\"bar\",\"baz\",\"bat\"]}}}"));
     }
 
+    /**
+     * With {@code preserve_leaf_arrays: exact}, array-order offsets for a key are encoded relative to the
+     * values seen by a single {@code parseCreateField} call. When the flattened field's top-level value is an
+     * array of objects (field multiplicity), {@code parseCreateField} runs once per array element, each time
+     * with a fresh offsets-tracking context, while the keyed values across all elements are merged into one
+     * document-wide sorted-unique set. The offsets from one element are then decoded against a value set they
+     * were never computed against, silently dropping values from other elements. See
+     * <a href="https://github.com/elastic/elasticsearch/issues/153014">#153014</a>.
+     */
+    public void testPreserveLeafArraysExactWithFieldMultiplicity() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("field").field("type", "flattened").field("preserve_leaf_arrays", "exact").endObject();
+        })).documentMapper();
+
+        CheckedConsumer<XContentBuilder, IOException> example = b -> {
+            b.startArray("field");
+            {
+                b.startObject();
+                b.array("key", "b", "a");
+                b.endObject();
+                b.startObject();
+                b.field("key", "c");
+                b.endObject();
+            }
+            b.endArray();
+        };
+
+        assertThat(syntheticSource(mapper, example), equalTo("{\"field\":{\"key\":[\"b\",\"a\",\"c\"]}}"));
+    }
+
     public void testPreserveLeafArraysExactWithAllNulls() throws IOException {
         DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field").field("type", "flattened").field("preserve_leaf_arrays", "exact").endObject();
@@ -2077,7 +2222,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         });
     }
 
-    public void testBlockLoaderIncludesMappedProperties() throws IOException {
+    public void testBlockLoaderForMappedRootLoadsFromSource() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             b.field("type", "flattened");
             b.startObject("properties");
@@ -2088,85 +2233,16 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             b.endObject();
         }));
 
-        MappedFieldType.BlockLoaderContext blContext = mock(MappedFieldType.BlockLoaderContext.class);
-        when(blContext.fieldExtractPreference()).thenReturn(MappedFieldType.FieldExtractPreference.DOC_VALUES);
-
         MappedFieldType fieldType = mapperService.fieldType("field");
         assertThat(fieldType, instanceOf(RootFlattenedFieldType.class));
-        BlockLoader blockLoader = fieldType.blockLoader(blContext);
-        assertThat(blockLoader, instanceOf(RootFlattenedDocValuesBlockLoader.class));
 
-        withLuceneIndex(mapperService, iw -> {
-            iw.addDocument(
-                mapperService.documentMapper()
-                    .parse(
-                        source(
-                            b -> b.startObject("field")
-                                .field("status", "ok")
-                                .field("code", 200)
-                                .field("unmapped_key", "some_value")
-                                .endObject()
-                        )
-                    )
-                    .rootDoc()
-            );
-        }, reader -> {
-            LeafReaderContext leaf = reader.leaves().get(0);
-            BlockLoader.ColumnAtATimeReader columnReader = blockLoader.columnAtATimeReader(leaf)
-                .apply(newLimitedBreaker(ByteSizeValue.ofMb(1)));
-            try {
-                TestBlock block = (TestBlock) columnReader.read(TestBlock.factory(), TestBlock.docs(0), 0, false);
-                assertThat(block.size(), equalTo(1));
-
-                BytesRef bytesRef = (BytesRef) block.get(0);
-                assertNotNull("block loader should return non-null value for doc with mapped properties", bytesRef);
-
-                assertThat(
-                    "fields must be returned in alphabetical order",
-                    bytesRef.utf8ToString(),
-                    equalTo("{\"code\":200,\"status\":\"ok\",\"unmapped_key\":\"some_value\"}")
-                );
-            } finally {
-                columnReader.close();
+        BlockLoader blockLoader = fieldType.blockLoader(new DummyBlockLoaderContext.MapperServiceBlockLoaderContext(mapperService) {
+            @Override
+            public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
+                return MappedFieldType.FieldExtractPreference.DOC_VALUES;
             }
         });
-    }
-
-    public void testBlockLoaderWithMappedPropertiesOnly() throws IOException {
-        MapperService mapperService = createMapperService(fieldMapping(b -> {
-            b.field("type", "flattened");
-            b.startObject("properties");
-            {
-                b.startObject("status").field("type", "keyword").endObject();
-            }
-            b.endObject();
-        }));
-
-        MappedFieldType.BlockLoaderContext blContext = mock(MappedFieldType.BlockLoaderContext.class);
-        when(blContext.fieldExtractPreference()).thenReturn(MappedFieldType.FieldExtractPreference.DOC_VALUES);
-
-        BlockLoader blockLoader = mapperService.fieldType("field").blockLoader(blContext);
-
-        withLuceneIndex(mapperService, iw -> {
-            iw.addDocument(
-                mapperService.documentMapper().parse(source(b -> b.startObject("field").field("status", "active").endObject())).rootDoc()
-            );
-        }, reader -> {
-            LeafReaderContext leaf = reader.leaves().get(0);
-            BlockLoader.ColumnAtATimeReader columnReader = blockLoader.columnAtATimeReader(leaf)
-                .apply(newLimitedBreaker(ByteSizeValue.ofMb(1)));
-            try {
-                TestBlock block = (TestBlock) columnReader.read(TestBlock.factory(), TestBlock.docs(0), 0, false);
-                assertThat(block.size(), equalTo(1));
-
-                BytesRef bytesRef = (BytesRef) block.get(0);
-                assertNotNull("block loader should not return null when only mapped properties have values", bytesRef);
-
-                assertThat("fields must be returned in alphabetical order", bytesRef.utf8ToString(), equalTo("{\"status\":\"active\"}"));
-            } finally {
-                columnReader.close();
-            }
-        });
+        assertThat(blockLoader, instanceOf(BlockSourceReader.BytesRefsBlockLoader.class));
     }
 
     @Override
@@ -2418,7 +2494,8 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
                     true,
                     List.of(),
                     false,
-                    FlattenedFieldMapper.PreserveLeafArrays.LOSSY
+                    FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
+                    false
                 );
 
                 // when: load from first segment which has the flattened field
@@ -2483,7 +2560,8 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
                     true,
                     List.of(),
                     true,
-                    FlattenedFieldMapper.PreserveLeafArrays.LOSSY
+                    FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
+                    false
                 );
 
                 // when: load from first segment which has ignored values
@@ -2514,7 +2592,8 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
                 false,
                 List.of(),
                 true,
-                FlattenedFieldMapper.PreserveLeafArrays.LOSSY
+                FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
+                false
             )
         );
         assertThat(e.getMessage(), containsString("storeIgnoredFieldsInBinaryDocValues requires usesBinaryDocValues"));

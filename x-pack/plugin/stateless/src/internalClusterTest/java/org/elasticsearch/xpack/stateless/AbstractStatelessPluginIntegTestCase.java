@@ -81,10 +81,12 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
+import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeoutCalculationService;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
 import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessElectionStrategy;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
@@ -95,6 +97,7 @@ import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicatorReader;
+import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicatorTestUtils;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreTestUtils;
@@ -116,6 +119,7 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -171,10 +175,14 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
     }
 
     @After
-    public void waitForMerges() throws Exception {
+    public void waitForMergesAndFlushTranslogBuffers() throws Exception {
         // This works for stateless as we build a new cluster for each TEST. However, if we move to SUITE this might need to be in
         // AfterClass depending on the test's needs.
         waitForMergesToFinish();
+        // Release translog buffer pages left by shards that closed before their post-write sync, else the breaker check fails
+        for (StatelessComponents components : internalCluster().getInstances(StatelessComponents.class)) {
+            TranslogReplicatorTestUtils.requestSyncFlush(components.getTranslogReplicator());
+        }
     }
 
     private static void waitForMergesToFinish() throws Exception {
@@ -249,9 +257,9 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
             StatelessSharedBlobCacheService cacheService,
             ThreadPool threadPool,
             ClusterSettings clusterSettings,
-            WarmingRatioProvider warmingRatioProvider
+            SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
         ) {
-            super(cacheService, threadPool, TelemetryProvider.NOOP, clusterSettings, warmingRatioProvider);
+            super(cacheService, threadPool, TelemetryProvider.NOOP, clusterSettings, searchRecoveryTimeoutCalculationService);
         }
 
         @Override
@@ -260,7 +268,8 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
             IndexShard indexShard,
             StatelessCompoundCommit commit,
             BlobStoreCacheDirectory blobStoreCacheDirectory,
-            @Nullable Map<BlobFile, Long> endOffsetsToWarm,
+            WarmingRatioProvider warmingRatioProvider,
+            @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
             boolean preWarmForIdLookup,
             ActionListener<Void> listener
         ) {
@@ -374,7 +383,7 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
             .put(RecoverySettings.INDICES_RECOVERY_USE_SNAPSHOTS_SETTING.getKey(), false)
             .put(ObjectStoreService.BUCKET_SETTING.getKey(), getFsRepoSanitizedBucketName())
             .put(StoreHeartbeatService.MAX_MISSED_HEARTBEATS.getKey(), DEFAULT_TEST_MAX_MISSED_HEARTBEATS)
-            .put(StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), randomBoolean());
+            .put(StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true);
         // Defines a default object store type, which can be overridden by test suites
         if (addMockFsRepository() && randomBoolean()) {
             builder.put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK);
@@ -396,12 +405,10 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
             builder.put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), randomBoolean());
         }
         builder.put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), randomBoolean());
-        // Sometimes explicitly set the setting to the default value, which doubles as a test for the setting being registered
+        // Sometimes explicitly set the setting to its default value, which doubles as a test for the setting being registered.
         if (randomBoolean()) {
-            builder.put(
-                StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(),
-                StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getDefault(Settings.EMPTY)
-            );
+            var cacheBoostPreference = StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING;
+            builder.put(cacheBoostPreference.getKey(), cacheBoostPreference.getDefault(Settings.EMPTY));
         }
         return builder;
     }
@@ -643,12 +650,13 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
                 String blobName,
                 long blobSize,
                 BlobContainer.BlobMultiPartInputStreamProvider provider,
-                boolean failIfAlreadyExists
+                boolean failIfAlreadyExists,
+                Executor executor
             ) throws IOException {
                 if (failWrites) {
                     failIfNeeded(purpose, blobName);
                 }
-                super.blobContainerWriteBlobAtomic(originalRunnable, purpose, blobName, blobSize, provider, failIfAlreadyExists);
+                super.blobContainerWriteBlobAtomic(originalRunnable, purpose, blobName, blobSize, provider, failIfAlreadyExists, executor);
             }
 
             @Override
@@ -1225,8 +1233,8 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
             var primaryTerm = Long.parseLong(entry.getKey());
             Set<String> statelessCompoundCommits = entry.getValue().listBlobs(operationPurpose).keySet();
             statelessCompoundCommits.forEach(filename -> {
-                if (StatelessCompoundCommit.startsWithBlobPrefix(filename)) {
-                    set.add(new PrimaryTermAndGeneration(primaryTerm, StatelessCompoundCommit.parseGenerationFromBlobName(filename)));
+                if (BatchedCompoundCommit.startsWithBlobPrefix(filename)) {
+                    set.add(new PrimaryTermAndGeneration(primaryTerm, BatchedCompoundCommit.parseGenerationFromBlobName(filename)));
                 }
             });
         }
@@ -1270,6 +1278,11 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
 
     protected static long getLastLongGaugeValue(String name, TestTelemetryPlugin telemetryPlugin) {
         List<Measurement> measurements = telemetryPlugin.getLongGaugeMeasurement(name);
+        return measurements.isEmpty() ? 0L : measurements.get(measurements.size() - 1).getLong();
+    }
+
+    protected static long getLastLongAsyncGaugeValue(String name, TestTelemetryPlugin telemetryPlugin) {
+        List<Measurement> measurements = telemetryPlugin.getLongAsyncGaugeMeasurement(name);
         return measurements.isEmpty() ? 0L : measurements.get(measurements.size() - 1).getLong();
     }
 

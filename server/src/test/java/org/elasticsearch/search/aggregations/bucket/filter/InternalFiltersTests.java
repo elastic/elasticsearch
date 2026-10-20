@@ -17,6 +17,7 @@ import org.elasticsearch.search.aggregations.bucket.filter.InternalFilters.Inter
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -39,9 +40,8 @@ public class InternalFiltersTests extends InternalMultiBucketAggregationTestCase
         return true;
     }
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initializeFilterKeys() throws Exception {
         keyed = randomBoolean();
         keyedBucket = randomBoolean();
         keys = new ArrayList<>();

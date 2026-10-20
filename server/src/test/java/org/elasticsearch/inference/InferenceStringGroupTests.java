@@ -131,7 +131,7 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
             exception.getMessage(),
             is(
                 Strings.format(
-                    "Field [content] contains unsupported [type] value [%s]. Supported values are [text, image, audio, video, pdf]",
+                    "Data type [%s] is not supported for embedding inputs, supported data types are [text, image, audio, video, pdf]",
                     unsupportedDataType
                 )
             )
@@ -151,7 +151,7 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
                 rootCause = rootCause.getCause();
             }
             assertThat(rootCause, instanceOf(IllegalArgumentException.class));
-            assertThat(rootCause.getMessage(), containsString("Field [content] contains unsupported [type] value [html]"));
+            assertThat(rootCause.getMessage(), containsString("Data type [html] is not supported for embedding inputs"));
         }
     }
 

@@ -87,21 +87,23 @@ public final class InferenceStringGroup implements Accountable, Writeable, ToXCo
         if (this.inferenceStrings.isEmpty()) {
             throw new IllegalArgumentException("InferenceStringGroup constructor argument cannot be an empty list");
         }
+        boolean nonTextEntryFound = false;
+        boolean pdfEntryFound = false;
         for (InferenceString inferenceString : inferenceStrings) {
             if (SUPPORTED_EMBEDDING_DATA_TYPES.contains(inferenceString.dataType()) == false) {
                 throw new IllegalArgumentException(
                     Strings.format(
-                        "Field [%s] contains unsupported [%s] value [%s]. Supported values are %s",
-                        CONTENT_FIELD,
-                        InferenceString.TYPE_FIELD,
+                        "Data type [%s] is not supported for embedding inputs, supported data types are %s",
                         inferenceString.dataType(),
                         SUPPORTED_EMBEDDING_DATA_TYPES
                     )
                 );
             }
+            nonTextEntryFound |= inferenceString.isNonText();
+            pdfEntryFound |= inferenceString.isPdf();
         }
-        containsNonTextEntry = inferenceStrings.stream().anyMatch(InferenceString::isNonText);
-        containsPdfEntry = inferenceStrings.stream().anyMatch(InferenceString::isPdf);
+        containsNonTextEntry = nonTextEntryFound;
+        containsPdfEntry = pdfEntryFound;
     }
 
     public InferenceStringGroup(StreamInput in) throws IOException {

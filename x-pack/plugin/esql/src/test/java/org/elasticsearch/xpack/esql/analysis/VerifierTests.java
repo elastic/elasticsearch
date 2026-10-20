@@ -4629,6 +4629,14 @@ public class VerifierTests extends AnalyzerTestCase {
             EMBEDDING_INFERENCE_ID
         );
 
+        // html is a valid data type, but only for document extraction
+        analyzer.error(
+            "from test | EVAL embedding = EMBEDDING(?, ?, {\"type\": \"html\"})",
+            equalTo("1:30: Invalid options for EMBEDDING: Unsupported type [html], must be one of [text, image, audio, video, pdf]"),
+            "https://example.com/page.html",
+            EMBEDDING_INFERENCE_ID
+        );
+
         // invalid timeout value
         analyzer.error(
             "from test | EVAL embedding = EMBEDDING(?, ?, {\"timeout\": \"invalid\"})",

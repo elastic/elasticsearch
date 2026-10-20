@@ -594,6 +594,18 @@ public class IndexPrivilegeTests extends ESTestCase {
         // the cache key is the set of names, regardless of the set implementation used by the caller
         assertThat(IndexPrivilege.resolveBySelectorAccess(new HashSet<>(names)), sameInstance(resolved));
         assertThat(IndexPrivilege.resolveBySelectorAccess(new TreeSet<>(names)), sameInstance(resolved));
+
+        final Set<IndexPrivilege> emptyNamesResolved = IndexPrivilege.resolveBySelectorAccess(Set.of());
+        assertThat(emptyNamesResolved, equalTo(Set.of(IndexPrivilege.NONE)));
+        final Cache<Set<String>, IndexPrivilege.CachedPrivileges> cache = IndexPrivilege.getCache();
+        final long weight = cache.weight();
+        for (int i = 0; i < 3; i++) {
+            // alternate lookups so each entry is promoted in the LRU list
+            assertThat(IndexPrivilege.resolveBySelectorAccess(names), sameInstance(resolved));
+            assertThat(cache.weight(), equalTo(weight));
+            assertThat(IndexPrivilege.resolveBySelectorAccess(Set.of()), sameInstance(emptyNamesResolved));
+            assertThat(cache.weight(), equalTo(weight));
+        }
     }
 
     public void testCacheIsBoundedByMemory() {
@@ -601,7 +613,7 @@ public class IndexPrivilegeTests extends ESTestCase {
         // large enough to hold a few resolved privilege sets, small enough that 100 distinct sets do not fit
         final ByteSizeValue maxSize = ByteSizeValue.ofKb(randomIntBetween(100, 500));
         IndexPrivilege.updateConfiguration(Settings.builder().put(IndexPrivilege.CACHE_SIZE_SETTING.getKey(), maxSize).build());
-        final Cache<Set<String>, Set<IndexPrivilege>> cache = IndexPrivilege.getCache();
+        final Cache<Set<String>, IndexPrivilege.CachedPrivileges> cache = IndexPrivilege.getCache();
         assertThat(cache.count(), equalTo(0));
 
         final Set<Set<String>> distinctNames = new HashSet<>();
@@ -630,7 +642,7 @@ public class IndexPrivilegeTests extends ESTestCase {
     }
 
     public void testCacheWeightIsEstimatedMemoryOfResolvedPrivileges() {
-        final Cache<Set<String>, Set<IndexPrivilege>> cache = IndexPrivilege.getCache();
+        final Cache<Set<String>, IndexPrivilege.CachedPrivileges> cache = IndexPrivilege.getCache();
         assertThat(cache.count(), equalTo(0));
 
         final Set<String> names = Set.of("read", "write", "manage_failure_store");
@@ -638,8 +650,9 @@ public class IndexPrivilegeTests extends ESTestCase {
         // one privilege for the data selector (read + write) and one for the failures selector, both built for this entry
         assertThat(resolved, hasSize(2));
         assertThat(cache.count(), equalTo(1));
-        // the key, the value set and the privileges, which sizeOfCollection sums through their ramBytesUsed
-        final long expectedWeight = RamUsageEstimator.sizeOfCollection(names) + RamUsageEstimator.sizeOfCollection(resolved);
+        // the key, the cached value wrapper, the value set and the privileges, which sizeOfCollection sums through their ramBytesUsed
+        final long expectedWeight = RamUsageEstimator.shallowSizeOfInstance(IndexPrivilege.CachedPrivileges.class) + RamUsageEstimator
+            .sizeOfCollection(names) + RamUsageEstimator.sizeOfCollection(resolved);
         assertThat(cache.weight(), equalTo(expectedWeight));
         for (IndexPrivilege privilege : resolved) {
             // the run automaton backing the predicate dominates the footprint and must be accounted for

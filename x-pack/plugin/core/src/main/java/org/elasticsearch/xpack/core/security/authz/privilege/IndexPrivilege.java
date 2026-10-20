@@ -362,7 +362,7 @@ public final class IndexPrivilege extends Privilege {
         Setting.Property.NodeScope
     );
 
-    private static volatile Cache<Set<String>, Set<IndexPrivilege>> cache = buildCache(Settings.EMPTY);
+    private static volatile Cache<Set<String>, CachedPrivileges> cache = buildCache(Settings.EMPTY);
 
     private final IndexComponentSelectorPredicate selectorPredicate;
 
@@ -419,12 +419,9 @@ public final class IndexPrivilege extends Privilege {
     public static Set<IndexPrivilege> resolveBySelectorAccess(Set<String> names) {
         try {
             return cache.computeIfAbsent(names, (theName) -> {
-                if (theName.isEmpty()) {
-                    return Set.of(NONE);
-                } else {
-                    return resolve(theName);
-                }
-            });
+                final Set<IndexPrivilege> privileges = theName.isEmpty() ? Set.of(NONE) : resolve(theName);
+                return new CachedPrivileges(privileges, weigh(theName, privileges));
+            }).privileges();
         } catch (ExecutionException e) {
             throw FutureUtils.rethrowExecutionException(e);
         }
@@ -438,23 +435,30 @@ public final class IndexPrivilege extends Privilege {
         cache = buildCache(settings);
     }
 
-    private static Cache<Set<String>, Set<IndexPrivilege>> buildCache(Settings settings) {
-        return CacheBuilder.<Set<String>, Set<IndexPrivilege>>builder()
+    private static Cache<Set<String>, CachedPrivileges> buildCache(Settings settings) {
+        return CacheBuilder.<Set<String>, CachedPrivileges>builder()
             .setMaximumWeight(CACHE_SIZE_SETTING.get(settings).getBytes())
-            .weigher(IndexPrivilege::weigh)
+            .weigher((names, cached) -> cached.weight())
             .build();
     }
 
     /**
-     * Estimates the heap a cache entry retains: the key with its names, and the value set with its privileges, which account for their
-     * automata through {@link Privilege#ramBytesUsed()}.
+     * Caches the estimated entry weight so LRU updates do not repeat memory accounting.
+     */
+    record CachedPrivileges(Set<IndexPrivilege> privileges, long weight) {
+        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(CachedPrivileges.class);
+    }
+
+    /**
+     * Estimates the heap a cache entry retains: the key with its names, the cached value wrapper, and the value set with its privileges,
+     * which account for their automata through {@link Privilege#ramBytesUsed()}.
      */
     private static long weigh(Set<String> names, Set<IndexPrivilege> privileges) {
-        return RamUsageEstimator.sizeOfCollection(names) + RamUsageEstimator.sizeOfCollection(privileges);
+        return CachedPrivileges.SHALLOW_SIZE + RamUsageEstimator.sizeOfCollection(names) + RamUsageEstimator.sizeOfCollection(privileges);
     }
 
     // visible for testing
-    static Cache<Set<String>, Set<IndexPrivilege>> getCache() {
+    static Cache<Set<String>, CachedPrivileges> getCache() {
         return cache;
     }
 

@@ -94,7 +94,6 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
      *       \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
      * }
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100634")
     public void testEliminateDuplicateAggsCountAll() {
         var plan = plan("""
               from test

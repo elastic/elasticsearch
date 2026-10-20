@@ -525,3 +525,6 @@ tests:
 - class: org.elasticsearch.painless.heappressure.RuntimeFieldHighlightHeapPressureIT
   method: testDoubleRuntimeFieldFromFreeTextSearch
   issue: https://github.com/elastic/elasticsearch/issues/162593
+- class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=search.vectors/46_knn_search_bbq_ivf_byte/Test knn search with visit_percentage}
+  issue: https://github.com/elastic/elasticsearch/issues/162596

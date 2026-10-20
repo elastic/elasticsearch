@@ -1628,7 +1628,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
 
     private static final String LOAD_ALL_SUPPORTED_COMMANDS =
         "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, IP_LOCATION, "
-            + "REGISTERED_DOMAIN, URI_PARTS, USER_AGENT, MV_EXPAND, SAMPLE, DEDUP, WHERE, SORT, LIMIT, "
+            + "REGISTERED_DOMAIN, URI_PARTS, USER_AGENT, MV_EXPAND, SAMPLE, CHANGE_POINT, DEDUP, WHERE, SORT, LIMIT, "
             + "LIMIT BY, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; ";
 
     /**

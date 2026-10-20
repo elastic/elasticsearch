@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -22,6 +23,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -129,7 +131,12 @@ public class ExternalSourceAuthorizerTests extends ESTestCase {
             new TaskCancelledException("by test"),
             new EsRejectedExecutionException("shutting down", true),
             new NodeClosedException(randomDiscoveryNode()),
-            new ClusterBlockException(Set.of(NoMasterBlockService.NO_MASTER_BLOCK_ALL))
+            new ClusterBlockException(Set.of(NoMasterBlockService.NO_MASTER_BLOCK_ALL)),
+            // a retryable block the resolve action waited on until its timeout
+            new ElasticsearchTimeoutException(
+                "timed out while waiting for cluster to unblock",
+                new ClusterBlockException(Set.of(GatewayService.STATE_NOT_RECOVERED_BLOCK))
+            )
         )) {
             client.answer = request -> { throw unrelated; };
             PlainActionFuture<Void> future = new PlainActionFuture<>();

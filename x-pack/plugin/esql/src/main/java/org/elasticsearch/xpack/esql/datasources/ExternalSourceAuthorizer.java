@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
@@ -165,14 +166,16 @@ public final class ExternalSourceAuthorizer {
     /**
      * A failure the round-trip can end with that carries nothing about the names asked for, so passing it on as is
      * reveals nothing and tells the coordinator what actually happened: the task was cancelled, the node is shutting
-     * down, or the cluster state cannot be read. Anything else, the security filter's and the interceptor's rejections
-     * included, is folded into the one refusal.
+     * down, the cluster state cannot be read, or waiting for it to become readable timed out (a retryable block, such
+     * as the state not yet recovered, is reported as a timeout wrapping the block). Anything else, the security
+     * filter's and the interceptor's rejections included, is folded into the one refusal.
      */
     static boolean isUnrelatedToNames(Exception e) {
         return e instanceof TaskCancelledException
             || e instanceof EsRejectedExecutionException
             || e instanceof NodeClosedException
-            || e instanceof ClusterBlockException;
+            || e instanceof ClusterBlockException
+            || e instanceof ElasticsearchTimeoutException;
     }
 
     /**

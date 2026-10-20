@@ -102,7 +102,9 @@ public class ColumnarIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTes
         }
         ensureGreen(DATA_STREAM);
         verify(DATA_STREAM, 0, OLD_CLUSTER_BULKS * DOCS_PER_BULK);
-        oldBackingIndexHasColumnarFiles = hasColumnarFiles(getDataStreamBackingIndexNames(DATA_STREAM).getFirst());
+        // Read off a merged control index rather than the backing index, whose unmerged segments are compound files that hide the
+        // codec's files, and which the upgraded cluster merges later.
+        oldBackingIndexHasColumnarFiles = controlIndexHasColumnarFiles();
     }
 
     private void mergeRolloverAndVerify(int docs) throws IOException {

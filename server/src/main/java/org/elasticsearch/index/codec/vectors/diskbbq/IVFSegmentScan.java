@@ -13,10 +13,13 @@ import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.IOSupplier;
-import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader.PostingVisitor;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Decides which posting lists one segment's IVF search visits: the centroid iterator's best-first order, cut by the visit
@@ -24,8 +27,9 @@ import java.io.IOException;
  * <p>
  * The decision lives here, apart from the visitors that score postings, so that several threads ("parts") can search one
  * segment through a shared scan and still visit exactly the postings a single-threaded search visits. Each part has its
- * own visitor and collector; the scan hands out postings in order and charges each one's size when it is claimed. A part
- * waits only when the next decision depends on postings other parts are still visiting, and never for a part to start.
+ * own visitor and collector. A shared scan lists the postings within its budget once, when the first part arrives, and
+ * parts then claim them by index without a lock. What follows the budget depends on how many docs were scored, so the
+ * part that finishes the last listed posting continues alone (the "tail"). No part ever waits for another to finish.
  */
 public final class IVFSegmentScan {
 
@@ -38,30 +42,30 @@ public final class IVFSegmentScan {
         DONE
     }
 
-    private enum Decision {
-        CLAIM,
-        WAIT,
-        STOP
-    }
+    /** The ticket of a posting claimed past the listed budget, or by a search on its own. */
+    private static final int UNLISTED = Integer.MAX_VALUE;
 
     private final boolean shared;
     private final int parts;
     private Plan plan;
     private boolean empty;
     private boolean wholeClaimed;
-    private boolean failed;
+    private volatile boolean failed;
+    private volatile boolean stopped;
+    // the sequential loop: a search on its own, or a shared scan's listing and tail; guarded by this
     private Phase phase = Phase.BUDGET;
     private long charged;
-    private long scored;
-    private int inFlight;
-    private long inFlightSize;
     private float expectedScored;
-    private float pauseFraction = Float.POSITIVE_INFINITY;
-    // per claimed posting, in claim order: where it starts in the budget, its size and best score
-    private long[] starts = new long[16];
-    private int[] sizes = new int[16];
-    private float[] maxScores = new float[16];
-    private int claimed;
+    private final AtomicLong scored = new AtomicLong();
+    // a shared scan's budget, listed once: where each posting starts in the budget, and its best score
+    private volatile PostingMetadata[] listed;
+    private long[] starts;
+    private float[] maxScores;
+    private float pauseFraction = Float.POSITIVE_INFINITY; // guarded by this
+    private volatile int claimLimit; // parts claim listed postings below this index
+    private final AtomicInteger nextListed = new AtomicInteger();
+    private final AtomicInteger completedListed = new AtomicInteger();
+    private final AtomicReference<PostingVisitor> tail = new AtomicReference<>();
 
     /**
      * A scan shared by {@code parts} searches of one segment (sizing how far ahead posting lists are prefetched); parts must
@@ -102,9 +106,14 @@ public final class IVFSegmentScan {
         return empty == false && failed == false;
     }
 
-    /** True once no part will claim another posting list, so a part starting now need not prepare to visit any. */
-    synchronized boolean isDone() {
-        return failed || phase == Phase.DONE;
+    /**
+     * True once no part starting now could claim a posting list, so it need not prepare to visit any: the search is over, or
+     * every posting it may claim is taken and the tail is not its to take (a listed posting is unfinished, or paused).
+     */
+    boolean isDone() {
+        PostingMetadata[] postings = listed;
+        boolean nothingToClaim = postings != null && nextListed.get() >= claimLimit && completedListed.get() < postings.length;
+        return failed || stopped || tail.get() != null || nothingToClaim;
     }
 
     /** The docs the search may score, shared read-only by every visitor of this segment. */
@@ -123,67 +132,63 @@ public final class IVFSegmentScan {
      * Moves {@code visitor} onto the next posting list if the search should still visit one. Returns a ticket to pass back
      * to {@link #complete}, or -1 when the search is done or paused.
      */
-    synchronized int claim(PostingVisitor visitor, KnnCollector collector) throws IOException {
-        Decision decision;
-        while ((decision = decide(collector)) == Decision.WAIT) {
-            try {
-                wait();
-            } catch (InterruptedException e) {
-                fail();
-                throw new ThreadInterruptedException(e);
-            }
-        }
-        if (decision == Decision.STOP) {
+    int claim(PostingVisitor visitor, KnnCollector collector) throws IOException {
+        if (failed || stopped) {
             return -1;
         }
-        final int size;
-        try {
-            size = visitor.resetPostingsScorer(plan.postings().nextPosting());
-        } catch (IOException | RuntimeException e) {
-            fail();
-            throw e;
+        if (shared == false) {
+            return claimNext(visitor, collector);
         }
-        if (claimed == sizes.length) {
-            starts = ArrayUtil.growExact(starts, claimed * 2);
-            sizes = ArrayUtil.growExact(sizes, claimed * 2);
-            maxScores = ArrayUtil.growExact(maxScores, claimed * 2);
+        PostingMetadata[] postings = listed != null ? listed : list(visitor);
+        if (postings == null) {
+            return -1; // listing failed
         }
-        starts[claimed] = charged;
-        sizes[claimed] = size;
-        if (phase == Phase.BUDGET) {
-            charged += size;
-        }
-        inFlight++;
-        inFlightSize += size;
-        return claimed++;
+        int i;
+        do {
+            i = nextListed.get();
+            if (i >= claimLimit) {
+                return claimTail(visitor, collector);
+            }
+        } while (nextListed.compareAndSet(i, i + 1) == false);
+        reset(visitor, postings[i]);
+        return i;
     }
 
     /** Records that the posting of {@code ticket} was visited, scoring {@code scoredDocs} docs, the best {@code maxScore}. */
-    synchronized void complete(int ticket, int scoredDocs, float maxScore) {
-        maxScores[ticket] = maxScore;
-        inFlight--;
-        inFlightSize -= sizes[ticket];
-        scored += scoredDocs;
-        notifyAll();
+    void complete(int ticket, int scoredDocs, float maxScore) {
+        scored.addAndGet(scoredDocs);
+        if (ticket != UNLISTED) {
+            maxScores[ticket] = maxScore;
+            completedListed.incrementAndGet();
+        }
     }
 
-    /** Pauses the budget phase once {@code fraction} of the budget is claimed; parts then stop until {@link #resume}. */
+    /**
+     * Pauses parts once {@code fraction} of the budget is claimed, until {@link #resume}. Must not be called while parts
+     * run; 0 lets the first part list the budget without claiming any of it.
+     */
     public synchronized void pauseAt(float fraction) {
         pauseFraction = fraction;
+        if (listed != null) {
+            claimLimit = limitAt(fraction, listed.length);
+        }
     }
 
-    public synchronized void resume() {
-        pauseFraction = Float.POSITIVE_INFINITY;
+    public void resume() {
+        pauseAt(Float.POSITIVE_INFINITY);
     }
 
     /** Ends the search of this segment: no part claims another posting list. */
-    public synchronized void stop() {
-        phase = Phase.DONE;
+    public void stop() {
+        stopped = true;
     }
 
     /** The visit budget not yet claimed, in posting entries; 0 if the segment has nothing (more) to search. */
     public synchronized long remainingBudget() {
-        return plan == null || phase != Phase.BUDGET ? 0 : Math.max(0, plan.budget() - charged);
+        if (plan == null || stopped || phase != Phase.BUDGET) {
+            return 0;
+        }
+        return Math.max(0, plan.budget() - claimedBudget());
     }
 
     /**
@@ -192,10 +197,11 @@ public final class IVFSegmentScan {
      * best score of at least {@code bar}. A posting whose best score is unknown counts as worth continuing for.
      */
     public synchronized boolean worthContinuing(float window, int minPostings, float bar, int kLeaf) {
-        if (plan == null || phase != Phase.BUDGET || scored < kLeaf) {
+        if (plan == null || listed == null || phase != Phase.BUDGET || scored.get() < kLeaf) {
             return true;
         }
-        long windowStart = (long) (charged - window * plan.budget());
+        int claimed = nextListed.get();
+        long windowStart = (long) (claimedBudget() - window * plan.budget());
         int first = claimed;
         while (first > 0 && (starts[first - 1] >= windowStart || claimed - first < minPostings)) {
             first--;
@@ -209,59 +215,116 @@ public final class IVFSegmentScan {
     }
 
     /** Stops every part: a part failed, so the search fails and the others should not keep scanning. */
-    synchronized void fail() {
+    void fail() {
         failed = true;
-        notifyAll();
+    }
+
+    /** Lists the postings within the budget, in order and charging their sizes, so that parts can claim them by index. */
+    private synchronized PostingMetadata[] list(PostingVisitor visitor) throws IOException {
+        if (listed == null && failed == false) {
+            PostingMetadata[] postings = new PostingMetadata[16];
+            long[] listedStarts = new long[16];
+            int count = 0;
+            while (plan.postings().hasNext() && charged < plan.budget()) {
+                PostingMetadata posting = next();
+                if (count == postings.length) {
+                    postings = ArrayUtil.growExact(postings, count * 2);
+                    listedStarts = ArrayUtil.growExact(listedStarts, count * 2);
+                }
+                postings[count] = posting;
+                listedStarts[count++] = charged;
+                charged += reset(visitor, posting);
+            }
+            starts = listedStarts;
+            maxScores = new float[count];
+            claimLimit = limitAt(pauseFraction, count);
+            listed = Arrays.copyOf(postings, count); // published last: parts read the arrays above after reading it
+        }
+        return listed;
+    }
+
+    /** The index of the first of {@code count} listed postings that starts at or after {@code fraction} of the budget. */
+    private int limitAt(float fraction, int count) {
+        int limit = 0;
+        while (limit < count && starts[limit] < fraction * plan.budget()) {
+            limit++;
+        }
+        return limit;
+    }
+
+    /** The budget charged by the postings claimed so far: all listed ones, or those before a pause. */
+    private long claimedBudget() {
+        int claimed = listed == null ? 0 : nextListed.get();
+        return listed != null && claimed < listed.length ? starts[claimed] : charged;
     }
 
     /**
-     * The search loop's conditions, evaluated on the scan's counters. While other parts are visiting postings, the number
-     * of docs scored so far is only known within {@code [scored, scored + inFlightSize]}; wait if that range straddles a
-     * threshold.
+     * Past the parts' share of the listed budget. Once every listed posting is finished (a pause holds some back), what
+     * comes next depends only on how many docs they scored: the first part to get here continues alone.
      */
-    private Decision decide(KnnCollector collector) {
-        if (failed) {
-            return Decision.STOP;
+    private int claimTail(PostingVisitor visitor, KnnCollector collector) throws IOException {
+        boolean owner = tail.get() == visitor || (completedListed.get() == listed.length && tail.compareAndSet(null, visitor));
+        return owner ? claimNext(visitor, collector) : -1;
+    }
+
+    /** The sequential loop's next posting, if its conditions say to visit one. */
+    private synchronized int claimNext(PostingVisitor visitor, KnnCollector collector) throws IOException {
+        if (failed || decide(collector) == false) {
+            return -1;
         }
+        int size = reset(visitor, next());
+        if (phase == Phase.BUDGET) {
+            charged += size;
+        }
+        return UNLISTED;
+    }
+
+    private PostingMetadata next() throws IOException {
+        try {
+            return plan.postings().nextPosting();
+        } catch (IOException | RuntimeException e) {
+            fail();
+            throw e;
+        }
+    }
+
+    private int reset(PostingVisitor visitor, PostingMetadata posting) throws IOException {
+        try {
+            return visitor.resetPostingsScorer(posting);
+        } catch (IOException | RuntimeException e) {
+            fail();
+            throw e;
+        }
+    }
+
+    /** The search loop's conditions, evaluated on the scan's counters: whether to visit another posting. */
+    private boolean decide(KnnCollector collector) {
         // TODO do we need to handle nested doc counts similarly to how we handle
         // filtering? E.g. keep exploring until we hit an expected number of parent documents vs. child vectors?
         if (phase == Phase.BUDGET) {
-            if (plan.postings().hasNext() && charged < plan.budget()) {
-                return charged < pauseFraction * plan.budget() ? Decision.CLAIM : Decision.STOP;
-            }
-            Decision fill = plan.postings().hasNext() ? scoredBelow(collector.k(), collector) : Decision.STOP;
-            if (fill != Decision.STOP) {
-                return fill;
+            if (plan.postings().hasNext() && (charged < plan.budget() || scoredBelow(collector.k(), collector))) {
+                return true;
             }
             startCatchUp();
         }
         if (phase == Phase.CATCH_UP) {
-            if (plan.postings().hasNext() == false) {
-                phase = Phase.DONE;
-                return Decision.STOP;
+            if (plan.postings().hasNext() && scoredBelow(Math.max(expectedScored, collector.k()), null)) {
+                return true;
             }
-            Decision more = scoredBelow(Math.max(expectedScored, collector.k()), null);
-            if (more == Decision.STOP) {
-                phase = Phase.DONE;
-            }
-            return more;
+            phase = Phase.DONE;
         }
-        return Decision.STOP;
+        return false;
     }
 
     /**
-     * CLAIM if fewer than {@code threshold} docs were scored, STOP if at least that many were, WAIT if postings in flight
-     * decide it. A single search's fill check asks its {@code collector} instead, which may count differently (e.g. by
-     * parent for nested docs).
+     * Whether fewer than {@code threshold} docs were scored. A single search's fill check asks its {@code collector}
+     * instead, which may count differently (e.g. by parent for nested docs).
      */
-    private Decision scoredBelow(float threshold, KnnCollector collector) {
+    private boolean scoredBelow(float threshold, KnnCollector collector) {
         if (shared == false && collector != null) {
-            return collector.minCompetitiveSimilarity() == Float.NEGATIVE_INFINITY ? Decision.CLAIM : Decision.STOP;
+            return collector.minCompetitiveSimilarity() == Float.NEGATIVE_INFINITY;
         }
-        if (scored >= threshold) {
-            return Decision.STOP;
-        }
-        return scored + inFlightSize < threshold ? Decision.CLAIM : Decision.WAIT;
+        return scored.get() < threshold;
     }
 
     /** Filters and deletes skip docs, so keep going until about as many docs were scored as an unfiltered search scores. */

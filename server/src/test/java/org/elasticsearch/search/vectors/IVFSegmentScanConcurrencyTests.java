@@ -79,6 +79,7 @@ public class IVFSegmentScanConcurrencyTests extends ESTestCase {
             }
             try (DirectoryReader reader = DirectoryReader.open(writer)) {
                 LeafReader leaf = getOnlyLeafReader(reader);
+                warmUp(threads, leaf, dims);
                 for (int q = 0; q < 20; q++) {
                     float[] query = randomBoolean() ? repeated : randomVector(dims);
                     Bits accept = randomAcceptBits(leaf);
@@ -127,6 +128,17 @@ public class IVFSegmentScanConcurrencyTests extends ESTestCase {
     private record Result(long visited, int[] docs, float[] scores) {}
 
     /**
+     * Panama's float reductions don't fix their order of additions, so interpreted and compiled code can round the last bit
+     * differently. Searching first lets the bit-exact comparisons compare compiled code with compiled code.
+     */
+    private static void warmUp(ExecutorService threads, LeafReader leaf, int dims) throws Exception {
+        for (int q = 0; q < 30; q++) {
+            float visitRatio = randomBoolean() ? 0f : randomFloatBetween(0.01f, 0.3f, true);
+            searchInParts(threads, leaf, randomVector(dims), randomAcceptBits(leaf), visitRatio, randomIntBetween(1, 8), -1);
+        }
+    }
+
+    /**
      * Re-entry pauses a scan between rounds: pausing and resuming must change nothing, and whether a paused scan is worth
      * continuing must not depend on how many parts ran its first round.
      */
@@ -148,10 +160,12 @@ public class IVFSegmentScanConcurrencyTests extends ESTestCase {
         pausedAlone.pauseAt(pauseAt);
         runParts(threads, leaf, query, accept, visitRatio, pausedAlone, 1, -1);
         float bar = unpaused.scores.length == 0 ? 0f : unpaused.scores[unpaused.scores.length / 2];
-        assertEquals(pausedAlone.remainingBudget(), paused.remainingBudget());
+        long remaining = paused.remainingBudget();
+        assertEquals(pausedAlone.remainingBudget(), remaining);
         assertEquals(pausedAlone.worthContinuing(0.1f, 10, bar, K), paused.worthContinuing(0.1f, 10, bar, K));
 
         paused.resume();
+        assertEquals("the second round is sliced by the work left after resuming", remaining, paused.remainingBudget());
         collectors.addAll(runParts(threads, leaf, query, accept, visitRatio, paused, parts, -1));
         Result resumed = merge(collectors);
         assertEquals("visited", unpaused.visited, resumed.visited);

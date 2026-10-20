@@ -438,7 +438,11 @@ public class KnnSearcher {
                 logger.debug("Segment layout: {}", segmentInfo);
                 finalResults.numSegments = segCount;
                 finalResults.totalIndexVectors = totalIndexVectors;
-                IndexSearcher searcher = newSearcher(reader, searchParameters.searchThreads() > 1 ? executorService : null);
+                IndexSearcher searcher = newSearcher(
+                    reader,
+                    searchParameters.searchThreads() > 1 ? executorService : null,
+                    searchParameters.searchThreads()
+                );
 
                 boolean sliced = indexType == KnnIndexTester.IndexType.IVF && this.sliced && !searchParameters.exact();
 
@@ -774,9 +778,10 @@ public class KnnSearcher {
     /**
      * A plain {@link IndexSearcher}, or, when {@code -Dbench.ivf_slices} is set, the {@link ContextIndexSearcher} Elasticsearch
      * searches with, with DiskBBQ slices (and, with {@code -Dbench.ivf_reentry}, optimistic re-entry) turned on or off;
-     * comparing slices must use the same searcher in both arms.
+     * comparing slices must use the same searcher in both arms. Like Elasticsearch, it runs at most as many slices in parallel
+     * as the pool has threads, unless {@code -Dbench.max_slices} says otherwise.
      */
-    private static IndexSearcher newSearcher(DirectoryReader reader, ExecutorService executor) throws IOException {
+    private static IndexSearcher newSearcher(DirectoryReader reader, ExecutorService executor, int searchThreads) throws IOException {
         String slices = System.getProperty("bench.ivf_slices");
         if (slices == null) {
             return executor == null ? new IndexSearcher(reader) : new IndexSearcher(reader, executor);
@@ -791,15 +796,16 @@ public class KnnSearcher {
                 plain.getQueryCachingPolicy(),
                 false,
                 executor,
-                Integer.MAX_VALUE,
+                Integer.getInteger("bench.max_slices", searchThreads),
                 1
             );
         searcher.setIvfSlicesEnabled(Boolean.parseBoolean(slices));
         searcher.setIvfReentryEnabled(Boolean.getBoolean("bench.ivf_reentry"));
         logger.info(
-            "searching with ContextIndexSearcher, ivf slices: {}, re-entry: {}",
+            "searching with ContextIndexSearcher, ivf slices: {}, re-entry: {}, max parallel slices: {}",
             Boolean.parseBoolean(slices),
-            Boolean.getBoolean("bench.ivf_reentry")
+            Boolean.getBoolean("bench.ivf_reentry"),
+            ContextIndexSearcher.maximumParallelSlices(searcher)
         );
         return searcher;
     }

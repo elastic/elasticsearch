@@ -214,7 +214,14 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         int mergeK = leafSearches.isEmpty() ? k : IvfSegmentConfig.shardMergeBudget(k, maxRescoreOversampleAcrossLeaves);
         int reentryMergeK = ContextIndexSearcher.ivfReentryEnabled(indexSearcher) ? mergeK : 0;
         TopDocs[] perLeafResults = slices
-            ? new IVFScoringManager(this, filterWeight, visitRatio, leafSearches, reentryMergeK).search(taskExecutor)
+            ? new IVFScoringManager(
+                this,
+                filterWeight,
+                visitRatio,
+                leafSearches,
+                reentryMergeK,
+                ContextIndexSearcher.maximumParallelSlices(indexSearcher)
+            ).search(taskExecutor)
             : searchLeaves(taskExecutor, filterWeight, visitRatio, leafSearches);
         if (postFilterDelegate) {
             this.rawPerLeafResults = perLeafResults;

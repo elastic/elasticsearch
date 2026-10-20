@@ -26,29 +26,31 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.codec.vectors.cluster.BulkNeighborQueue;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFSegmentScan;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.vectors.AbstractIVFKnnVectorQuery.IVFCollectorManager;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.function.ToLongFunction;
+import java.util.stream.IntStream;
 
 /**
- * Runs one IVF query over a shard's leaves the way Lucene slices a search: small leaves are grouped into one task, and a
- * leaf with a lot of work is split into parts, separate tasks that share the leaf's {@link IVFSegmentScan}. Owns the
- * per-part collectors and reduces them to one {@link TopDocs} per leaf, in leaf order.
+ * Runs one IVF query over a shard's leaves the way Elasticsearch slices a search, in slices of about equal work: small leaves
+ * are grouped into one task, and a leaf with a lot of work is split into parts, separate tasks that share the leaf's
+ * {@link IVFSegmentScan}. Owns the per-part collectors and reduces them to one {@link TopDocs} per leaf, in leaf order.
  */
 final class IVFScoringManager {
 
-    /** Posting entries a slice should scan; Lucene's equivalent is 250k docs. */
-    static final long MAX_WORK_PER_SLICE = 8_192;
-    /** Lucene splits a segment into at most 5 partitions. */
-    static final int MAX_PARTS_PER_LEAF = 5;
-    /** Lucene groups at most 5 segments into a slice. */
-    static final int MAX_LEAVES_PER_SLICE = 5;
+    /**
+     * No more slices than cores: more cannot run at once and only add per-slice work. The search pool has more threads than
+     * that (1.5 per core), so its size alone is not enough.
+     */
+    private static final int PROCESSORS = Runtime.getRuntime().availableProcessors();
     /** With re-entry, the first round scans this fraction of each splittable leaf's budget. */
     static final float PAUSE_AT = 0.6f;
     /** ... and a leaf continues if a posting in this last fraction of its budget beat the shard bar. */
@@ -63,23 +65,28 @@ final class IVFScoringManager {
     private final Weight filterWeight;
     private final float visitRatio;
     private final int reentryMergeK;
+    private final int parallelism;
     private final Leaf[] leaves;
 
     /**
      * @param reentryMergeK the size of the shard's rescore pool if leaves should re-enter optimistically (scan part of their
      *                      budget, then continue only if still producing competitive hits), or 0 to scan full budgets
+     * @param maxParallelSlices how many slices the searcher runs in parallel (1 without an executor): the query is cut into
+     *                          at most that many slices, and no more than there are cores
      */
     IVFScoringManager(
         AbstractIVFKnnVectorQuery query,
         Weight filterWeight,
         float visitRatio,
         List<LeafSearch> leafSearches,
-        int reentryMergeK
+        int reentryMergeK,
+        int maxParallelSlices
     ) throws IOException {
         this.query = query;
         this.filterWeight = filterWeight;
         this.visitRatio = visitRatio;
         this.reentryMergeK = filterWeight == null ? reentryMergeK : 0; // filtered searches always scan their full budget
+        this.parallelism = Math.min(maxParallelSlices, PROCESSORS);
         this.leaves = new Leaf[leafSearches.size()];
         for (int i = 0; i < leaves.length; i++) {
             LeafReaderContext ctx = leafSearches.get(i).ctx();
@@ -89,9 +96,11 @@ final class IVFScoringManager {
     }
 
     /**
-     * Searches every leaf and returns one result per leaf, in leaf order, with SOAR duplicates removed. With re-entry, like
-     * Lucene's optimistic kNN collection, it runs two rounds: every leaf scans part of its budget, then only leaves that
-     * are not tapped out continue. Decisions are taken between rounds, so they don't depend on thread timing.
+     * Searches every leaf and returns one result per leaf, in leaf order, with SOAR duplicates removed. A leaf split into
+     * parts is opened first (planned, and its budget listed), so that its parts start with work instead of waiting for the
+     * plan. With re-entry, like Lucene's optimistic kNN collection, it runs two rounds: every leaf scans part of its budget,
+     * then only leaves that are not tapped out continue. Decisions are taken between rounds, so they don't depend on thread
+     * timing.
      */
     TopDocs[] search(TaskExecutor executor) throws IOException {
         int[] all = new int[leaves.length];
@@ -103,10 +112,20 @@ final class IVFScoringManager {
                 parts[leaf]++;
             }
         }
+        List<int[]> split = new ArrayList<>();
         for (int i = 0; i < leaves.length; i++) {
             leaves[i].scan = new IVFSegmentScan(Math.max(1, parts[i]));
-            if (reentryMergeK > 0 && leaves[i].splittable) {
-                leaves[i].scan.pauseAt(PAUSE_AT);
+            if (parts[i] > 1) {
+                leaves[i].scan.pauseAt(0f); // opening claims nothing
+                split.add(new int[] { i });
+            }
+        }
+        run(executor, split.toArray(int[][]::new));
+        for (Leaf leaf : leaves) {
+            if (reentryMergeK > 0 && leaf.splittable) {
+                leaf.scan.pauseAt(PAUSE_AT);
+            } else {
+                leaf.scan.resume();
             }
         }
         run(executor, slices);
@@ -141,7 +160,7 @@ final class IVFScoringManager {
             w[i] = work.applyAsLong(leaves[leafIndices[i]]);
             splittable[i] = leaves[leafIndices[i]].splittable;
         }
-        int[][] slices = slices(w, splittable, MAX_WORK_PER_SLICE, MAX_PARTS_PER_LEAF, MAX_LEAVES_PER_SLICE);
+        int[][] slices = slices(w, splittable, parallelism);
         for (int[] slice : slices) {
             for (int j = 0; j < slice.length; j++) {
                 slice[j] = leafIndices[slice[j]];
@@ -184,38 +203,66 @@ final class IVFScoringManager {
     }
 
     /**
-     * Lucene's {@code IndexSearcher#slices} with posting entries instead of docs. Leaves are taken by decreasing work. A
-     * splittable leaf whose work exceeds {@code maxWorkPerSlice} gets {@code ceil(work / maxWorkPerSlice)} slices of its own,
-     * at most {@code maxPartsPerLeaf}; the other leaves are grouped until a slice exceeds {@code maxWorkPerSlice} or holds
-     * {@code maxLeavesPerSlice} leaves. Returns the leaf indices of each slice; a split leaf appears in several.
+     * Elasticsearch's slicing rule ({@code ContextIndexSearcher#computeSlices}) with posting entries instead of docs, plus
+     * Lucene's partitions of big leaves: aim for {@code parallelism} slices of equal work, none with less than
+     * {@link ContextIndexSearcher#MINIMUM_DOCS_PERCENT_PER_SLICE} of the total. A leaf with at least a slice's work gets its
+     * share of the slices, rounded, as parts of its own (one if it cannot be split). The other leaves are grouped, by
+     * decreasing work, until a group has a slice's work; what is left over makes a slice of its own if it has the minimum
+     * share and a slice is free, else joins the least loaded slices. Returns the leaf indices of each slice; a split leaf
+     * appears in several.
      */
-    static int[][] slices(long[] work, boolean[] splittable, long maxWorkPerSlice, int maxPartsPerLeaf, int maxLeavesPerSlice) {
+    static int[][] slices(long[] work, boolean[] splittable, int parallelism) {
+        double minShare = ContextIndexSearcher.MINIMUM_DOCS_PERCENT_PER_SLICE;
+        int maxSlices = (int) Math.min(parallelism, Math.round(1 / minShare));
+        long total = Arrays.stream(work).sum();
+        if (total == 0 || maxSlices == 1) {
+            return new int[][] { IntStream.range(0, work.length).toArray() };
+        }
+        double sliceWork = (double) total / maxSlices;
         Integer[] order = new Integer[work.length];
         Arrays.setAll(order, i -> i);
         Arrays.sort(order, Comparator.comparingLong((Integer i) -> work[i]).reversed());
-        List<int[]> slices = new ArrayList<>();
+        List<List<Integer>> slices = new ArrayList<>();
+        List<Long> loads = new ArrayList<>();
+        List<Integer> rest = new ArrayList<>();
+        for (int leaf : order) {
+            long parts = work[leaf] < sliceWork
+                ? 0
+                : Math.min(Math.round(work[leaf] / sliceWork), (long) (work[leaf] / (minShare * total)));
+            parts = Math.min(splittable[leaf] ? parts : Math.min(parts, 1), maxSlices - slices.size());
+            if (parts == 0) {
+                rest.add(leaf);
+            }
+            for (long p = 0; p < parts; p++) {
+                slices.add(new ArrayList<>(List.of(leaf)));
+                loads.add(work[leaf] / parts);
+            }
+        }
         List<Integer> group = new ArrayList<>();
         long groupWork = 0;
-        for (int leaf : order) {
-            if (splittable[leaf] && work[leaf] > maxWorkPerSlice) {
-                int parts = (int) Math.min(maxPartsPerLeaf, (work[leaf] + maxWorkPerSlice - 1) / maxWorkPerSlice);
-                for (int p = 0; p < parts; p++) {
-                    slices.add(new int[] { leaf });
-                }
-                continue;
-            }
+        for (int leaf : rest) {
             group.add(leaf);
             groupWork += work[leaf];
-            if (group.size() >= maxLeavesPerSlice || groupWork > maxWorkPerSlice) {
-                slices.add(group.stream().mapToInt(Integer::intValue).toArray());
-                group.clear();
+            if (groupWork > sliceWork && slices.size() < maxSlices) {
+                slices.add(group);
+                loads.add(groupWork);
+                group = new ArrayList<>();
                 groupWork = 0;
             }
         }
-        if (group.isEmpty() == false) {
-            slices.add(group.stream().mapToInt(Integer::intValue).toArray());
+        if (slices.isEmpty() || (groupWork >= minShare * total && slices.size() < maxSlices)) {
+            slices.add(group);
+        } else {
+            for (int leaf : group) {
+                int least = loads.indexOf(Collections.min(loads));
+                slices.get(least).add(0, leaf); // ahead of the part, which then claims what the other parts left
+                loads.set(least, loads.get(least) + work[leaf]);
+            }
         }
-        return slices.toArray(int[][]::new);
+        return slices.stream()
+            .filter(slice -> slice.isEmpty() == false)
+            .map(slice -> slice.stream().mapToInt(i -> i).toArray())
+            .toArray(int[][]::new);
     }
 
     /** The posting entries the search will scan in this leaf; 0 if it has no vectors for the field. */

@@ -73,7 +73,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     // make sure each slice has at least 10% of the documents as a way to limit memory usage and
     // to keep the error margin of terms aggregation low
-    static final double MINIMUM_DOCS_PERCENT_PER_SLICE = 0.1;
+    public static final double MINIMUM_DOCS_PERCENT_PER_SLICE = 0.1;
 
     private AggregatedDfs aggregatedDfs;
     private QueryProfiler profiler;
@@ -227,6 +227,14 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      */
     public static boolean ivfReentryEnabled(IndexSearcher searcher) {
         return searcher instanceof ContextIndexSearcher cis && cis.ivfReentryEnabled;
+    }
+
+    /**
+     * How many slices a search on {@code searcher} may run in parallel: its maximum number of slices (Elasticsearch sets it to
+     * the search pool's size while the pool's queue is short), or 1 when it has no executor.
+     */
+    public static int maximumParallelSlices(IndexSearcher searcher) {
+        return searcher instanceof ContextIndexSearcher cis && cis.hasExecutor ? Math.max(1, cis.maximumNumberOfSlices) : 1;
     }
 
     /**

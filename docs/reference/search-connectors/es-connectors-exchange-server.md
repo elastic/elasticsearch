@@ -114,7 +114,7 @@ With `auth_method: kerberos`, the connector uses GSSAPI for LDAP and EWS. You mu
 
 ### FIPS mode [es-connectors-exchange-server-client-fips]
 
-When [FIPS mode](https://github.com/elastic/connectors/blob/main/docs/FIPS.md) is enabled in the connector service, `auth_method: ntlm` is rejected because NTLM relies on non-FIPS algorithms. Configure `auth_method: kerberos` and ensure a valid Kerberos ticket is available for the connector process.
+When FIPS mode is enabled in the [connector service](https://github.com/elastic/connectors/blob/main/docs/FIPS.md), `auth_method: ntlm` is rejected because NTLM relies on non-FIPS algorithms. Configure `auth_method: kerberos` and ensure a valid Kerberos ticket is available for the connector process.
 
 The legacy Outlook connector in `outlook_server` mode uses the same authentication settings.
 

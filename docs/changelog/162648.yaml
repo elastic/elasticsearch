@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 162648
+summary: Document Exchange Server Kerberos authentication and FIPS mode
+type: enhancement

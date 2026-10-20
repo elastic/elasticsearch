@@ -170,9 +170,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/162106
 - class: org.elasticsearch.upgrades.UpgradeXpackClusterClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/162100
-- class: org.elasticsearch.xpack.esql.action.LookupJoinTypesIT
-  method: testLookupJoinUnsupported
-  issue: https://github.com/elastic/elasticsearch/issues/162403
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/delete_expired_data/Test delete expired data with no body}
   issue: https://github.com/elastic/elasticsearch/issues/162417

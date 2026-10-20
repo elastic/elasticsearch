@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -105,7 +106,8 @@ public class DataNodeRequestDatasetRebindIT extends AbstractExternalDataSourceIT
         Path outside = createTempDir().resolve("secret.csv");
         Files.writeString(outside, "a\n3\n", StandardCharsets.UTF_8);
         String dataset = registerDataset("rebind_shard", StoragePath.fileUri(csv), Map.of("format", "csv"));
-        String node = randomFrom(internalCluster().getNodeNames());
+        // The index is pinned to this node, so it has to be one that can hold shards (a dedicated master cannot).
+        String node = randomFrom(clusterService().state().nodes().getDataNodes().values().stream().map(DiscoveryNode::getName).toList());
         String index = "rebind_shard_idx";
         assertAcked(
             client().admin()

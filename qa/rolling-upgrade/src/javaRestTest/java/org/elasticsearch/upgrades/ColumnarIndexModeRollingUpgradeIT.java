@@ -40,12 +40,34 @@ import static org.hamcrest.Matchers.is;
 public class ColumnarIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
 
     private static final String DATA_STREAM = "rolling-columnar";
+    private static final String CONTROL_INDEX = "rolling-columnar-control";
+    private static final String INDEX_SETTINGS = """
+        {
+          "index.mode": "columnar",
+          "index.compound_format": false,
+          "index.number_of_shards": 1,
+          "index.number_of_replicas": 0
+        }""";
+    private static final String INDEX_MAPPINGS = """
+        {
+          "properties": {
+            "@timestamp": { "type": "date" },
+            "host.name": { "type": "keyword" },
+            "method": { "type": "keyword" },
+            "tags": { "type": "keyword" },
+            "message": { "type": "text" },
+            "body": { "type": "match_only_text" },
+            "length": { "type": "long" }
+          }
+        }""";
     private static final int DOCS_PER_BULK = 500;
     private static final int OLD_CLUSTER_BULKS = 3;
     private static final int NEW_INDEX_BULKS = 2;
     private static final int HOSTS = 10;
     private static final int METHODS = 5;
     private static final Instant BASE_TIMESTAMP = Instant.parse("2024-01-01T00:00:00Z");
+
+    private static boolean oldBackingIndexHasColumnarFiles;
 
     private final int upgradedNodes;
 
@@ -69,7 +91,7 @@ public class ColumnarIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTes
         ensureGreen(DATA_STREAM);
         final String oldBackingIndex = getDataStreamBackingIndexNames(DATA_STREAM).getFirst();
         verify(DATA_STREAM, 0, docs);
-        assertThat(bulkIndex(docs, DOCS_PER_BULK), equalTo(oldBackingIndex));
+        assertThat(bulkIndex(DATA_STREAM, docs, DOCS_PER_BULK), equalTo(oldBackingIndex));
         docs += DOCS_PER_BULK;
         verify(DATA_STREAM, 0, docs);
         if (isUpgradedCluster()) {
@@ -81,16 +103,22 @@ public class ColumnarIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTes
         putTemplate();
         assertOK(client().performRequest(new Request("PUT", "/_data_stream/" + DATA_STREAM)));
         for (int bulk = 0; bulk < OLD_CLUSTER_BULKS; bulk++) {
-            bulkIndex(bulk * DOCS_PER_BULK, DOCS_PER_BULK);
+            bulkIndex(DATA_STREAM, bulk * DOCS_PER_BULK, DOCS_PER_BULK);
         }
         ensureGreen(DATA_STREAM);
         verify(DATA_STREAM, 0, OLD_CLUSTER_BULKS * DOCS_PER_BULK);
+        oldBackingIndexHasColumnarFiles = hasColumnarFiles(getDataStreamBackingIndexNames(DATA_STREAM).getFirst());
     }
 
     private void mergeRolloverAndVerify(String oldBackingIndex, int docs) throws IOException {
         assertEsqlText(DATA_STREAM, 0);
         forceMerge(oldBackingIndex);
         verify(oldBackingIndex, 0, docs);
+        assertThat(
+            "ColumNAR files in [" + oldBackingIndex + "]",
+            hasColumnarFiles(oldBackingIndex),
+            equalTo(oldBackingIndexHasColumnarFiles)
+        );
 
         assertOK(client().performRequest(new Request("POST", "/" + DATA_STREAM + "/_rollover")));
         final List<String> backingIndices = getDataStreamBackingIndexNames(DATA_STREAM);
@@ -98,13 +126,18 @@ public class ColumnarIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTes
         final String newBackingIndex = backingIndices.getLast();
         assertThat(getIndexSettingsAsMap(newBackingIndex).get("index.mode"), equalTo("columnar"));
         for (int bulk = 0; bulk < NEW_INDEX_BULKS; bulk++) {
-            assertThat(bulkIndex(docs + bulk * DOCS_PER_BULK, DOCS_PER_BULK), equalTo(newBackingIndex));
+            assertThat(bulkIndex(DATA_STREAM, docs + bulk * DOCS_PER_BULK, DOCS_PER_BULK), equalTo(newBackingIndex));
         }
         final int totalDocs = docs + NEW_INDEX_BULKS * DOCS_PER_BULK;
         ensureGreen(DATA_STREAM);
         verify(newBackingIndex, docs, totalDocs);
 
         forceMerge(newBackingIndex);
+        assertThat(
+            "ColumNAR files in [" + newBackingIndex + "]",
+            hasColumnarFiles(newBackingIndex),
+            equalTo(controlIndexHasColumnarFiles())
+        );
         verify(oldBackingIndex, 0, docs);
         verify(newBackingIndex, docs, totalDocs);
         verify(DATA_STREAM, 0, totalDocs);
@@ -120,34 +153,30 @@ public class ColumnarIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTes
               "index_patterns": [ "%s" ],
               "data_stream": {},
               "priority": 500,
-              "template": {
-                "settings": {
-                  "index.mode": "columnar",
-                  "index.number_of_shards": 1,
-                  "index.number_of_replicas": 0
-                },
-                "mappings": {
-                  "properties": {
-                    "@timestamp": { "type": "date" },
-                    "host.name": { "type": "keyword" },
-                    "method": { "type": "keyword" },
-                    "tags": { "type": "keyword" },
-                    "message": { "type": "text" },
-                    "body": { "type": "match_only_text" },
-                    "length": { "type": "long" }
-                  }
-                }
-              }
-            }""", DATA_STREAM));
+              "template": { "settings": %s, "mappings": %s }
+            }""", DATA_STREAM, INDEX_SETTINGS, INDEX_MAPPINGS));
         assertOK(client().performRequest(request));
     }
 
-    private static String bulkIndex(int firstDoc, int count) throws IOException {
+    private static boolean controlIndexHasColumnarFiles() throws IOException {
+        final Request request = new Request("PUT", "/" + CONTROL_INDEX);
+        request.setJsonEntity(Strings.format("""
+            { "settings": %s, "mappings": %s }""", INDEX_SETTINGS, INDEX_MAPPINGS));
+        assertOK(client().performRequest(request));
+        try {
+            bulkIndex(CONTROL_INDEX, 0, DOCS_PER_BULK);
+            return hasColumnarFiles(CONTROL_INDEX);
+        } finally {
+            deleteIndex(CONTROL_INDEX);
+        }
+    }
+
+    private static String bulkIndex(String target, int firstDoc, int count) throws IOException {
         final StringBuilder bulk = new StringBuilder();
         for (int doc = firstDoc; doc < firstDoc + count; doc++) {
             bulk.append("{\"create\":{}}\n").append(doc(doc)).append('\n');
         }
-        final Request request = new Request("POST", "/" + DATA_STREAM + "/_bulk");
+        final Request request = new Request("POST", "/" + target + "/_bulk");
         request.addParameter("refresh", "true");
         request.setJsonEntity(bulk.toString());
         final Response response = client().performRequest(request);
@@ -188,8 +217,18 @@ public class ColumnarIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTes
     }
 
     private static int segmentCount(String index) throws IOException {
-        final Map<String, Object> stats = entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_stats/segments")));
-        return ObjectPath.evaluate(stats, "_all.primaries.segments.count");
+        return ObjectPath.evaluate(segmentStats(index), "_all.primaries.segments.count");
+    }
+
+    private static boolean hasColumnarFiles(String index) throws IOException {
+        final Map<String, Object> fileSizes = ObjectPath.evaluate(segmentStats(index), "_all.primaries.segments.file_sizes");
+        return fileSizes.containsKey("cnd");
+    }
+
+    private static Map<String, Object> segmentStats(String index) throws IOException {
+        final Request request = new Request("GET", "/" + index + "/_stats/segments");
+        request.addParameter("include_segment_file_sizes", "true");
+        return entityAsMap(client().performRequest(request));
     }
 
     private static void verify(String target, int firstDoc, int lastDoc) throws IOException {

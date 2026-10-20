@@ -51,6 +51,8 @@ public class HighlightExec extends UnaryExec {
     /** See {@link org.elasticsearch.xpack.esql.plan.logical.Highlight#fieldMappings()}. */
     private final Map<String, TextEsField> fieldMappings;
 
+    private List<Attribute> lazyOutput;
+
     public HighlightExec(
         Source source,
         PhysicalPlan child,
@@ -138,7 +140,10 @@ public class HighlightExec extends UnaryExec {
 
     @Override
     public List<Attribute> output() {
-        return mergeOutputAttributes(generatedFields, child().output());
+        if (lazyOutput == null) {
+            lazyOutput = mergeOutputAttributes(generatedFields, child().output());
+        }
+        return lazyOutput;
     }
 
     @Override

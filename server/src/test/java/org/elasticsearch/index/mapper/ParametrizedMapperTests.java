@@ -411,7 +411,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             {"type":"test_mapper","fixed":true,"fixed2":true,"required":"value"}""");
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> existingBuilder.mergeWith(badMergeBuilder, MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE))
+            () -> existingBuilder.mergeWith(badMergeBuilder, new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).build())
         );
         String expectedError = """
             Mapper for [field] conflicts with existing mapper:
@@ -424,7 +424,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         Builder existingBuilder2 = builderFromMapping(mapping);
         Builder goodMergeBuilder = builderFromMapping("""
             {"type":"test_mapper","fixed":false,"variable":"updated","required":"value"}""");
-        MapperMergeContext mergeContext = MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE);
+        MapperMergeContext mergeContext = new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).build();
         TestMapper merged = (TestMapper) existingBuilder2.mergeWith(goodMergeBuilder, mergeContext)
             .build(mergeContext.getMapperBuilderContext());
 
@@ -443,7 +443,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
 
         String addSubField = """
             {"type":"test_mapper","variable":"foo","required":"value","fields":{"sub2":{"type":"keyword"}}}""";
-        MapperMergeContext mergeContext = MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE);
+        MapperMergeContext mergeContext = new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).build();
         Builder existingBuilder = builderFromMapping(mapping);
         Builder toMergeBuilder = builderFromMapping(addSubField);
         TestMapper merged = (TestMapper) existingBuilder.mergeWith(toMergeBuilder, mergeContext)
@@ -473,7 +473,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         Builder badToMergeBuilder = builderFromMapping(badSubField);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> mergedBuilder.mergeWith(badToMergeBuilder, MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE))
+            () -> mergedBuilder.mergeWith(badToMergeBuilder, new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).build())
         );
         assertEquals("mapper [field.sub2] cannot be changed from type [keyword] to [binary]", e.getMessage());
     }
@@ -485,7 +485,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         TestMapper mapper = fromMapping(mapping);
         assertEquals("{\"field\":" + mapping + "}", Strings.toString(mapper));
 
-        MapperMergeContext mergeContext = MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE);
+        MapperMergeContext mergeContext = new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).build();
 
         Builder existingBuilder = builderFromMapping(mapping);
         Builder toMergeBuilder = builderFromMapping("""
@@ -590,7 +590,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         Builder conflictBuilder = builderFromMapping(conflict);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> existingBuilder.mergeWith(conflictBuilder, MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE))
+            () -> existingBuilder.mergeWith(conflictBuilder, new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).build())
         );
         assertEquals(
             "Mapper for [field] conflicts with existing mapper:\n"
@@ -650,7 +650,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         Builder toMergeBuilder = builderFromMapping(mapping);
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> originalBuilder.mergeWith(toMergeBuilder, MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE))
+            () -> originalBuilder.mergeWith(toMergeBuilder, new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).build())
         );
         assertEquals(
             "Mapper for [field] conflicts with existing mapper:\n" + "\tCannot update parameter [analyzer] from [default] to [_standard]",

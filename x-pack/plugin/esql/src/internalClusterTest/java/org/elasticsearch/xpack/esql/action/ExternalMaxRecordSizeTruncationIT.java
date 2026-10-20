@@ -57,7 +57,7 @@ import static org.hamcrest.Matchers.greaterThan;
  * propagates back through the normal response-header collection to the client; this test proves that
  * end-to-end by running the query through a chosen coordinator and reading that node's response
  * {@code Warning} headers (mirroring {@code ExternalCsvHivePartitionedIT} and {@code WarningsIT}).
- * Follow-up to the record-boundary livelock fix (capped grow loop). See elastic/esql-planning#835.
+ * Follow-up to the record-boundary livelock fix (capped grow loop).
  */
 public class ExternalMaxRecordSizeTruncationIT extends AbstractExternalDataSourceIT {
 

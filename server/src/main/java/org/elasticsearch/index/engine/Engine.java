@@ -99,6 +99,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transports;
@@ -2506,6 +2507,14 @@ public abstract class Engine implements Closeable {
      * @return the number of translog operations have been recovered
      */
     public abstract int restoreLocalHistoryFromTranslog(TranslogRecoveryRunner translogRecoveryRunner) throws IOException;
+
+    /**
+     * Returns the decorator to use for parsing documents that are indexed by this engine. Engines that meter documents as they are
+     * indexed can override this to record size information, this includes operations that are replayed from the translog.
+     */
+    public XContentMeteringParserDecorator newMeteringParserDecorator() {
+        return XContentMeteringParserDecorator.NOOP;
+    }
 
     /**
      * Fills up the local checkpoints history with no-ops until the local checkpoint

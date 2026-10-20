@@ -458,6 +458,8 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/162240
 - class: org.elasticsearch.search.heappressure.FuzzyHighlightHeapPressureIT
   issue: https://github.com/elastic/elasticsearch/issues/149983
+- class: org.elasticsearch.search.heappressure.QueryCacheDenseClauseHeapPressureIT
+  issue: https://github.com/elastic/elasticsearch/issues/139398
 - class: org.elasticsearch.painless.heappressure.PainlessFieldAllocationIT
   issue: https://github.com/elastic/elasticsearch/issues/162575
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT

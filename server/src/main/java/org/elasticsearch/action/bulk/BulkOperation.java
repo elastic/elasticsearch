@@ -11,6 +11,7 @@ package org.elasticsearch.action.bulk;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
@@ -45,11 +46,13 @@ import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -128,7 +131,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         FailureStoreMetrics failureStoreMetrics,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
         boolean clusterHasFailureStoreFeature,
-        BatchIndexingEnabled batchIndexingEnabled
+        BatchIndexingEnabled batchIndexingEnabled,
+        Recycler<BytesRef> recycler
     ) {
         this(
             task,
@@ -148,7 +152,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             failureStoreMetrics,
             dataStreamFailureStoreSettings,
             clusterHasFailureStoreFeature,
-            batchIndexingEnabled
+            batchIndexingEnabled,
+            recycler
         );
     }
 
@@ -170,7 +175,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         FailureStoreMetrics failureStoreMetrics,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
         boolean clusterHasFailureStoreFeature,
-        BatchIndexingEnabled batchIndexingEnabled
+        BatchIndexingEnabled batchIndexingEnabled,
+        Recycler<BytesRef> recycler
     ) {
         super(listener);
         this.task = task;
@@ -192,7 +198,11 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         this.failureStoreMetrics = failureStoreMetrics;
         this.dataStreamFailureStoreSettings = dataStreamFailureStoreSettings;
         this.clusterHasFailureStoreFeature = clusterHasFailureStoreFeature;
-        this.router = BatchModeRouter.create(bulkRequest, ShardBatchIndexer.isBatchIndexingSupported(batchIndexingEnabled, clusterService));
+        this.router = BatchModeRouter.create(
+            bulkRequest,
+            ShardBatchIndexer.isBatchIndexingSupported(batchIndexingEnabled, clusterService),
+            recycler
+        );
     }
 
     @Override
@@ -203,7 +213,30 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             return;
         }
         Map<ShardId, List<BulkItemRequest>> requestsByShard = groupBulkRequestsByShards(clusterState);
-        executeBulkRequestsByShard(requestsByShard, clusterState, router, this::redirectFailuresOrCompleteBulkOperation);
+        Map<ShardId, SourceBatch> shardBatches = takeShardBatches();
+        executeBulkRequestsByShard(requestsByShard, shardBatches, clusterState, this::redirectFailuresOrCompleteBulkOperation);
+    }
+
+    /** Releases the router, then fails the bulk. */
+    @Override
+    public void onFailure(Exception e) {
+        try {
+            Releasables.close(router);
+        } finally {
+            super.onFailure(e);
+        }
+    }
+
+    /** Takes the per-shard batches out of the router and releases it. The caller owns the returned batches. */
+    private Map<ShardId, SourceBatch> takeShardBatches() {
+        if (router == null) {
+            return Map.of();
+        }
+        // Build per-shard source batches. For the inline-encoder path, batches are finalized here
+        // (rows were accumulated during routing). For provided-batch mode the source is scattered here.
+        try (router) {
+            return router.shardBatches();
+        }
     }
 
     private void doRedirectFailures() {
@@ -221,7 +254,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             // Get new cluster state that includes any potential failure store rollovers.
             var rolledOverState = observer.setAndGetObservedState();
             Map<ShardId, List<BulkItemRequest>> requestsByShard = drainAndGroupRedirectsByShards(rolledOverState);
-            executeBulkRequestsByShard(requestsByShard, rolledOverState, null, this::completeBulkOperation);
+            executeBulkRequestsByShard(requestsByShard, Map.of(), rolledOverState, this::completeBulkOperation);
         };
         rollOverFailureStores(executeRedirectRequests);
     }
@@ -362,10 +395,14 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                     requestsByShard.computeIfAbsent(new ShardId(concreteIndex, shardId), shard -> new ArrayList<>()).add(bulkItemRequest);
                 }
             } catch (DataStream.TimestampError timestampError) {
-                IndexDocFailureStoreStatus failureStoreStatus = processFailure(bulkItemRequest, project, timestampError);
+                String name = ia != null ? ia.getName() : docWriteRequest.index();
+                BulkItemResponse.Failure failure = new BulkItemResponse.Failure(name, docWriteRequest.id(), timestampError);
+                IndexDocFailureStoreStatus failureStoreStatus = processFailure(bulkItemRequest, project, failure);
                 if (IndexDocFailureStoreStatus.USED.equals(failureStoreStatus) == false) {
-                    String name = ia != null ? ia.getName() : docWriteRequest.index();
-                    addFailureAndDiscardRequest(docWriteRequest, bulkItemRequest.id(), name, timestampError, failureStoreStatus);
+                    failure.setFailureStoreStatus(failureStoreStatus);
+                    addFailure(BulkItemResponse.failure(bulkItemRequest.id(), docWriteRequest.opType(), failure));
+                    // make sure the request is never processed again
+                    bulkRequest.requests.set(bulkItemRequest.id(), null);
                 }
             } catch (ElasticsearchParseException | IllegalArgumentException | RoutingMissingException | ResourceNotFoundException e) {
                 String name = ia != null ? ia.getName() : docWriteRequest.index();
@@ -408,70 +445,74 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     }
 
     /**
-     * @param batchRouter the router whose batches back these requests, or {@code null} when the requests carry inline source. Only the
-     *                    initial pass has batches to build; the failure-store redirect pass passes {@code null}, since redirected
-     *                    items are new requests that were never batch-encoded.
+     * Sends one shard request per entry of {@code requestsByShard}. Takes ownership of {@code shardBatches}: each batch is released
+     * when its shard request completes, or before returning if it is never dispatched.
      */
     private void executeBulkRequestsByShard(
         Map<ShardId, List<BulkItemRequest>> requestsByShard,
+        Map<ShardId, SourceBatch> shardBatches,
         ClusterState clusterState,
-        @Nullable BatchModeRouter batchRouter,
         Runnable onRequestsCompleted
     ) {
         if (requestsByShard.isEmpty()) {
-            closeBatchEncoders();
+            assert shardBatches.isEmpty() : "no shard requests but " + shardBatches.size() + " shard batches";
             onRequestsCompleted.run();
             return;
         }
 
-        // Build per-shard source batches. For the inline-encoder path, batches are finalized here
-        // (rows were accumulated during routing). For provided-batch mode the source is scattered here.
-        Map<ShardId, SourceBatch> shardBatches = batchRouter != null ? batchRouter.shardBatches() : Map.of();
-        BatchModeRouter.validateBatchAlignment(requestsByShard, shardBatches);
+        Map<ShardId, SourceBatch> undispatchedBatches = new HashMap<>(shardBatches);
+        try {
+            BatchModeRouter.validateBatchAlignment(requestsByShard, shardBatches);
 
-        String nodeId = clusterService.localNode().getId();
-        ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
-        try (RefCountingRunnable bulkItemRequestCompleteRefCount = new RefCountingRunnable(onRequestsCompleted)) {
-            for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
-                final ShardId shardId = entry.getKey();
-                final List<BulkItemRequest> requests = entry.getValue();
+            String nodeId = clusterService.localNode().getId();
+            ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
+            try (RefCountingRunnable bulkItemRequestCompleteRefCount = new RefCountingRunnable(onRequestsCompleted)) {
+                for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
+                    final ShardId shardId = entry.getKey();
+                    final List<BulkItemRequest> requests = entry.getValue();
 
-                // Get effective shardCount for shardId and pass it on as parameter to new BulkShardRequest
-                var indexMetadata = project.getIndexSafe(shardId.getIndex());
-                SplitShardCountSummary splitShardCountSummary = SplitShardCountSummary.forIndexing(indexMetadata, shardId.getId());
+                    // Get effective shardCount for shardId and pass it on as parameter to new BulkShardRequest
+                    var indexMetadata = project.getIndexSafe(shardId.getIndex());
+                    SplitShardCountSummary splitShardCountSummary = SplitShardCountSummary.forIndexing(indexMetadata, shardId.getId());
 
-                BulkShardRequest bulkShardRequest = new BulkShardRequest(
-                    shardId,
-                    splitShardCountSummary,
-                    bulkRequest.getRefreshPolicy(),
-                    requests.toArray(new BulkItemRequest[0]),
-                    bulkRequest.isSimulated()
-                );
+                    BulkShardRequest bulkShardRequest = new BulkShardRequest(
+                        shardId,
+                        splitShardCountSummary,
+                        bulkRequest.getRefreshPolicy(),
+                        requests.toArray(new BulkItemRequest[0]),
+                        bulkRequest.isSimulated()
+                    );
 
-                SourceBatch shardBatch = shardBatches.get(shardId);
-                if (shardBatch != null) {
-                    bulkShardRequest.setBulkShardBatch(new BulkShardBatch(shardBatch));
+                    SourceBatch shardBatch = shardBatches.get(shardId);
+                    if (shardBatch != null) {
+                        bulkShardRequest.setBulkShardBatch(new BulkShardBatch(shardBatch));
+                    }
+
+                    if (indexMetadata.getInferenceFields().isEmpty() == false) {
+                        bulkShardRequest.setInferenceFieldMap(indexMetadata.getInferenceFields());
+                    }
+                    bulkShardRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
+                    bulkShardRequest.timeout(bulkRequest.timeout());
+                    bulkShardRequest.routedBasedOnClusterVersion(clusterState.version());
+                    if (task != null) {
+                        bulkShardRequest.setParentTask(nodeId, task.getId());
+                    }
+                    boolean redactSeqNo = IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(indexMetadata.getSettings());
+                    // Releases the batch when its shard request completes, ahead of the ref that may start the next phase.
+                    undispatchedBatches.remove(shardId);
+                    Releasable ref = bulkItemRequestCompleteRefCount.acquire();
+                    Releasable releaseOnFinish = () -> {
+                        try {
+                            Releasables.close(shardBatch);
+                        } finally {
+                            ref.close();
+                        }
+                    };
+                    executeBulkShardRequest(bulkShardRequest, project.id(), releaseOnFinish, redactSeqNo);
                 }
-
-                if (indexMetadata.getInferenceFields().isEmpty() == false) {
-                    bulkShardRequest.setInferenceFieldMap(indexMetadata.getInferenceFields());
-                }
-                bulkShardRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
-                bulkShardRequest.timeout(bulkRequest.timeout());
-                bulkShardRequest.routedBasedOnClusterVersion(clusterState.version());
-                if (task != null) {
-                    bulkShardRequest.setParentTask(nodeId, task.getId());
-                }
-                boolean redactSeqNo = IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(indexMetadata.getSettings());
-                executeBulkShardRequest(bulkShardRequest, project.id(), bulkItemRequestCompleteRefCount.acquire(), redactSeqNo);
             }
-        }
-        closeBatchEncoders();
-    }
-
-    private void closeBatchEncoders() {
-        if (router != null) {
-            router.close();
+        } finally {
+            Releasables.close(undispatchedBatches.values());
         }
     }
 
@@ -499,8 +540,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
 
     /**
      * Discards all failure store redirections and completes the bulk request.
-     * @param exception any documents that could have been redirected will have this exception added as a suppressed exception
-     *                  on their original failure information.
+     * @param exception any documents that could have been redirected will have this exception recorded as their failure store failure,
+     *                  see {@link #addFailureStoreFailure}.
      */
     private void discardRedirectsAndFinish(Exception exception) {
         assert failureStoreRedirects.isEmpty() != true : "Attempting to discard redirects, but there were none to discard";
@@ -510,8 +551,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             int slot = cancelledRedirectBulkItem.id();
             BulkItemResponse originalFailure = responses.get(slot);
             if (originalFailure.isFailed()) {
-                originalFailure.getFailure().getCause().addSuppressed(exception);
-                originalFailure.getFailure().setFailureStoreStatus(IndexDocFailureStoreStatus.FAILED);
+                addFailureStoreFailure(originalFailure.getFailure(), exception, IndexDocFailureStoreStatus.FAILED);
             }
             // Always replace the item in the responses for thread visibility of any mutations
             responses.set(slot, originalFailure);
@@ -519,6 +559,10 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         completeBulkOperation();
     }
 
+    /**
+     * Item failures are processed before {@code releaseOnFinish} runs, so a failure-store redirect can still materialize its row from
+     * the shard batch.
+     */
     private void executeBulkShardRequest(
         BulkShardRequest bulkShardRequest,
         ProjectId projectId,
@@ -566,7 +610,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                             IndexDocFailureStoreStatus failureStoreStatus = processFailure(
                                 bulkItemRequest,
                                 getProjectMetadata(),
-                                bulkItemResponse.getFailure().getCause()
+                                bulkItemResponse.getFailure()
                             );
                             bulkItemResponse.getFailure().setFailureStoreStatus(failureStoreStatus);
                             addFailure(bulkItemResponse);
@@ -604,10 +648,11 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     private void handleShardFailure(BulkShardRequest bulkShardRequest, ProjectMetadata projectMetadata, Exception e) {
         // create failures for all relevant requests
         for (BulkItemRequest request : bulkShardRequest.items()) {
-            final String indexName = request.index();
             DocWriteRequest<?> docWriteRequest = request.request();
-            IndexDocFailureStoreStatus failureStoreStatus = processFailure(request, projectMetadata, e);
-            addFailure(docWriteRequest, request.id(), indexName, e, failureStoreStatus);
+            BulkItemResponse.Failure failure = new BulkItemResponse.Failure(request.index(), docWriteRequest.id(), e);
+            IndexDocFailureStoreStatus failureStoreStatus = processFailure(request, projectMetadata, failure);
+            failure.setFailureStoreStatus(failureStoreStatus);
+            addFailure(BulkItemResponse.failure(request.id(), docWriteRequest.opType(), failure));
         }
     }
 
@@ -618,9 +663,14 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
      * @return the status:
      * - NOT_ENABLED, if the data stream didn't have the data store enabled and
      * - FAILED if something went wrong in the preparation of the failure store request.
+     * - USED if the document was successfully redirected to the failure store.
      */
-    private IndexDocFailureStoreStatus processFailure(BulkItemRequest bulkItemRequest, ProjectMetadata projectMetadata, Exception cause) {
-        var error = ExceptionsHelper.unwrapCause(cause);
+    private IndexDocFailureStoreStatus processFailure(
+        BulkItemRequest bulkItemRequest,
+        ProjectMetadata projectMetadata,
+        BulkItemResponse.Failure failure
+    ) {
+        var error = ExceptionsHelper.unwrapCause(failure.getCause());
         var errorType = ElasticsearchException.getExceptionName(error);
         DocWriteRequest<?> docWriteRequest = bulkItemRequest.request();
         DataStream failureStoreCandidate = getRedirectTargetCandidate(docWriteRequest, projectMetadata);
@@ -634,7 +684,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 maybeMarkFailureStoreForRollover(failureStoreCandidate);
 
                 // Enqueue the redirect to failure store.
-                boolean added = addDocumentToRedirectRequests(bulkItemRequest, cause, failureStoreCandidate.getName());
+                boolean added = addDocumentToRedirectRequests(bulkItemRequest, failure, failureStoreCandidate.getName());
                 if (added) {
                     failureStoreMetrics.incrementFailureStore(bulkItemRequest.index(), errorType, FailureStoreMetrics.ErrorLocation.SHARD);
                     return IndexDocFailureStoreStatus.USED;
@@ -715,11 +765,11 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
      * redirect list are processed to their final destinations.
      *
      * @param request The bulk item request that failed
-     * @param cause The exception for the experienced the failure
+     * @param failure The failure that this request experienced
      * @param failureStoreReference The data stream that contains the failure store for this item
      * @return true, if adding the request to the queue was successful, false otherwise.
      */
-    private boolean addDocumentToRedirectRequests(BulkItemRequest request, Exception cause, String failureStoreReference) {
+    private boolean addDocumentToRedirectRequests(BulkItemRequest request, BulkItemResponse.Failure failure, String failureStoreReference) {
         // Convert the document into a failure document
         IndexRequest failureStoreRequest;
         try {
@@ -731,7 +781,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             }
             failureStoreRequest = failureStoreDocumentConverter.transformFailedRequest(
                 writeRequest,
-                cause,
+                failure.getCause(),
                 failureStoreReference,
                 threadPool::absoluteTimeInMillis
             );
@@ -748,8 +798,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                     + "] Proceeding with failing the original.",
                 exception
             );
-            // Suppress and do not redirect
-            cause.addSuppressed(exception);
+            // Record and do not redirect
+            addFailureStoreFailure(failure, exception, IndexDocFailureStoreStatus.FAILED);
             return false;
         }
 
@@ -913,8 +963,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
 
     /**
      * Checks if a bulk item response exists for this entry. If none exists, a failure response is created and set in the response array.
-     * If a response exists already, the failure information provided to this call will be added to the existing failure as a suppressed
-     * exception.
+     * If a response exists already, the failure information provided to this call will be recorded on the existing failure as its failure
+     * store failure, see {@link #addFailureStoreFailure}.
      *
      * @param request The document write request that should be failed
      * @param idx The slot of the bulk entry this request corresponds to
@@ -938,8 +988,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             // Response already recorded. We should only be here if the existing response is a failure and
             // we are encountering a new failure while redirecting.
             assert bulkItemResponse.isFailed() : "Attempting to overwrite successful bulk item result with a failure";
-            bulkItemResponse.getFailure().getCause().addSuppressed(exception);
-            bulkItemResponse.getFailure().setFailureStoreStatus(failureStoreStatus);
+            addFailureStoreFailure(bulkItemResponse.getFailure(), exception, failureStoreStatus);
         }
         // Always replace the item in the responses for thread visibility of any mutations
         responses.set(idx, bulkItemResponse);
@@ -947,7 +996,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
 
     /**
      * Checks if a bulk item response exists for this entry. If none exists, the failure is set in the response array. If a response exists
-     * already, the failure information provided to this call will be added to the existing failure as a suppressed exception.
+     * already, the failure information provided to this call will be recorded on the existing failure as its failure store failure, see
+     * {@link #addFailureStoreFailure}.
      *
      * @param bulkItemResponse the item response to add to the overall result array
      * @see BulkOperation#addFailure(DocWriteRequest, int, String, Exception, IndexDocFailureStoreStatus) BulkOperation.addFailure which
@@ -960,12 +1010,32 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             // Response already recorded. We should only be here if the existing response is a failure and
             // we are encountering a new failure while redirecting.
             assert existingBulkItemResponse.isFailed() : "Attempting to overwrite successful bulk item result with a failure";
-            existingBulkItemResponse.getFailure().getCause().addSuppressed(bulkItemResponse.getFailure().getCause());
-            existingBulkItemResponse.getFailure().setFailureStoreStatus(bulkItemResponse.getFailure().getFailureStoreStatus());
+            addFailureStoreFailure(
+                existingBulkItemResponse.getFailure(),
+                bulkItemResponse.getFailure().getCause(),
+                bulkItemResponse.getFailure().getFailureStoreStatus()
+            );
             bulkItemResponse = existingBulkItemResponse;
         }
         // Always replace the item in the responses for thread visibility of any mutations
         responses.set(bulkItemResponse.getItemId(), bulkItemResponse);
+    }
+
+    /**
+     * Records that handling an already failed document with the failure store also failed. The cause of the original failure may be
+     * shared by every item of a failed shard bulk, so adding to it once per item grows the response quadratically (see #157859). Older
+     * nodes receive it as a suppressed exception of the cause, see {@link BulkItemResponse.Failure#writeTo}.
+     */
+    private void addFailureStoreFailure(
+        BulkItemResponse.Failure failure,
+        Exception failureStoreException,
+        IndexDocFailureStoreStatus failureStoreStatus
+    ) {
+        assert failure.getFailureStoreCause() == null : "Document already has a failure store failure recorded";
+        if (failure.getFailureStoreCause() == null) {
+            failure.setFailureStoreCause(failureStoreException);
+            failure.setFailureStoreStatus(failureStoreStatus);
+        }
     }
 
     /**

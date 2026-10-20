@@ -20,6 +20,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThrottledIterator;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.compute.operator.ThreadCpuTimer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -65,7 +66,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
-import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 import org.elasticsearch.xpack.esql.datasources.utils.BoundedParallelGather;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCompare;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
@@ -280,7 +280,8 @@ public class FileSplitProvider implements SplitProvider {
      * records outgrow the default raises it here and every query over that dataset resolves the offsets the
      * default lost.
      * <p>
-     * It bounds the probes of a strided scan (NDJSON, plain CSV/TSV). Quoted or escaped CSV/TSV is not probed at
+     * It bounds the probes of a strided scan (NDJSON, plain CSV/TSV, and quoted or escaped CSV/TSV not declared
+     * {@code multiline_fields: true}). Quoted or escaped CSV/TSV declared {@code multiline_fields: true} is not probed at
      * a fixed offset at all but walked, and what bounds that walk is the splitter's own convergence window
      * together with {@code external_max_record_size}; neither of those is this key.
      * <p>
@@ -3190,12 +3191,14 @@ public class FileSplitProvider implements SplitProvider {
 
     /**
      * Whether the file's config-resolved record splitter forces one sequential whole-file stream instead of any
-     * start-anywhere split. A strided splitter (plain CSV/TSV, NDJSON) is always splittable. A non-strided
-     * splitter (quoted or escaped CSV/TSV, whose records may span a raw newline) is splittable only when it can
+     * start-anywhere split. A strided splitter (plain CSV/TSV, NDJSON, CSV not declared
+     * {@code multiline_fields: true}) is always splittable. A non-strided
+     * splitter (other quoted or escaped CSV/TSV, whose records may span a raw newline) is splittable only when it can
      * <em>prove</em> a record start at an arbitrary offset ({@link RecordSplitter#supportsProvenProbing()}) and it
      * is not a compression-delegating reader (a quoted {@code .csv.bz2} stays whole-file: the probe would run
-     * against compressed bytes). Returns {@code false} (splitting allowed) when the reader could not be resolved,
-     * so an unresolvable reader is treated as splittable.
+     * against compressed bytes; a strided one is cut at compressed block offsets and its reader drops the partial
+     * leading record). Returns {@code false} (splitting allowed) when the reader could not be resolved, so an
+     * unresolvable reader is treated as splittable.
      * <p>
      * A file with a header line ({@link FormatReader#readsHeaderLine()}) is also kept whole while
      * {@code minTransportVersion} predates {@link #ESQL_EXTERNAL_TEXT_HEADER_EVERY_SPLIT}.

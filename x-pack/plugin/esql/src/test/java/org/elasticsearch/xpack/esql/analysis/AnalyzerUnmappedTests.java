@@ -1638,10 +1638,11 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         for (var commandAndLabel : List.of(
             Tuple.tuple("| RERANK \"food\" ON first_name WITH { \"inference_id\" : \"reranking-inference-id\" }", "RERANK")
         )) {
-            test().statementError(
-                setUnmappedLoadAll("FROM test " + commandAndLabel.v1()),
-                containsString(LOAD_ALL_SUPPORTED_COMMANDS + "[" + commandAndLabel.v2() + "] is not supported yet")
-            );
+            test().addAnalysisTestsInferenceResolution()
+                .statementError(
+                    setUnmappedLoadAll("FROM test METADATA _score " + commandAndLabel.v1()),
+                    containsString(LOAD_ALL_SUPPORTED_COMMANDS + "[" + commandAndLabel.v2() + "] is not supported yet")
+                );
         }
     }
 

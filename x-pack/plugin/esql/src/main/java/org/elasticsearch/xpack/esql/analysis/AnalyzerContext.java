@@ -50,6 +50,7 @@ public class AnalyzerContext {
     private final UnmappedResolution unmappedResolution;
     private final Set<String> deferredHeaderWarnings;
     private final Set<String> subqueryNonLoadableNullFills;
+    private final Set<ViewBoundaryNullFill> viewBoundaryNullFills;
     private final TimestampBounds timestampBounds;
     private final IpLocationResolution ipLocationResolution;
     private final boolean preserveViewBoundaries;
@@ -92,6 +93,7 @@ public class AnalyzerContext {
         this.unmappedResolution = unmappedResolution;
         this.deferredHeaderWarnings = new LinkedHashSet<>();
         this.subqueryNonLoadableNullFills = new LinkedHashSet<>();
+        this.viewBoundaryNullFills = new LinkedHashSet<>();
         this.timestampBounds = timestampBounds;
         this.ipLocationResolution = ipLocationResolution;
         this.preserveViewBoundaries = preserveViewBoundaries;
@@ -128,6 +130,7 @@ public class AnalyzerContext {
         this.unmappedResolution = unmappedResolution;
         this.deferredHeaderWarnings = other.deferredHeaderWarnings;
         this.subqueryNonLoadableNullFills = other.subqueryNonLoadableNullFills;
+        this.viewBoundaryNullFills = other.viewBoundaryNullFills;
         this.timestampBounds = other.timestampBounds;
         this.ipLocationResolution = other.ipLocationResolution;
         this.preserveViewBoundaries = other.preserveViewBoundaries;
@@ -248,6 +251,21 @@ public class AnalyzerContext {
     public Set<String> subqueryNonLoadableNullFills() {
         return subqueryNonLoadableNullFills;
     }
+
+    /**
+     * Outer references null-filled at a view's output under a loading {@code unmapped_fields} mode that the view would have
+     * surfaced had the mode applied inside it. Warned about once analysis succeeds, since a user who knows the view's contents
+     * may expect the caller's {@code SET} to reach them.
+     */
+    public Set<ViewBoundaryNullFill> viewBoundaryNullFills() {
+        return viewBoundaryNullFills;
+    }
+
+    /**
+     * {@code fieldName} was answered with null at the output of view {@code viewName} because {@code resolution}, the mode of
+     * the scope referencing it, does not apply inside that view.
+     */
+    public record ViewBoundaryNullFill(UnmappedResolution resolution, String viewName, String fieldName) {}
 
     /**
      * Returns the {@code @timestamp} bounds extracted from the query DSL filter, or {@code null} if not available.

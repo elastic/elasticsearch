@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -391,7 +392,44 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         LogicalPlan verified = verify(analyzed, gatherPreAnalysisMetrics(plan, partialMetrics));
         // verify throws on failure, so we only reach here once the plan is valid: flush the warnings deferred during analysis.
         context().deferredHeaderWarnings().forEach(HeaderWarning::addWarning);
+        viewBoundaryNullFillWarnings(context().viewBoundaryNullFills()).forEach(HeaderWarning::addWarning);
         return verified;
+    }
+
+    /**
+     * One warning per view whose output null-filled outer references because the referencing scope's {@code unmapped_fields}
+     * mode does not apply inside it.
+     */
+    static List<String> viewBoundaryNullFillWarnings(Set<AnalyzerContext.ViewBoundaryNullFill> nullFills) {
+        Map<Tuple<UnmappedResolution, String>, List<String>> fieldsByView = new LinkedHashMap<>();
+        for (AnalyzerContext.ViewBoundaryNullFill fill : nullFills) {
+            fieldsByView.computeIfAbsent(new Tuple<>(fill.resolution(), fill.viewName()), k -> new ArrayList<>()).add(fill.fieldName());
+        }
+        List<String> warnings = new ArrayList<>(fieldsByView.size());
+        fieldsByView.forEach((key, fields) -> warnings.add(viewBoundaryNullFillWarning(key.v1(), key.v2(), fields)));
+        return warnings;
+    }
+
+    static String viewBoundaryNullFillWarning(UnmappedResolution resolution, String viewName, List<String> fieldNames) {
+        assert fieldNames.isEmpty() == false : "no fields to warn about";
+        int listed = Math.min(fieldNames.size(), MAX_LISTED_NON_LOADABLE_PUNKS);
+        StringBuilder fields = new StringBuilder();
+        for (int i = 0; i < listed; i++) {
+            fields.append(i == 0 ? "[" : ", [").append(fieldNames.get(i)).append("]");
+        }
+        if (fieldNames.size() > listed) {
+            fields.append(" and [").append(fieldNames.size() - listed).append("] more");
+        }
+        boolean one = fieldNames.size() == 1;
+        return Strings.format(
+            "SET unmapped_fields=\"%s\" does not affect the contents of view [%s], so field%s %s %s null in its rows; "
+                + "use that setting inside the view definition if you wish to change the view behaviour",
+            resolution.settingValue(),
+            viewName,
+            one ? "" : "s",
+            fields,
+            one ? "is" : "are"
+        );
     }
 
     public LogicalPlan verify(LogicalPlan plan, BitSet partialMetrics) {
@@ -2450,7 +2488,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * collapses the rows, so neither can surface it. {@link InlineStats} keeps those input rows, so the check continues at the
          * aggregate's input.
          */
-        private static boolean branchCanSurfaceLoadedField(LogicalPlan plan, String name) {
+        public static boolean branchCanSurfaceLoadedField(LogicalPlan plan, String name) {
             return canSurfaceFromSource(plan, name, true);
         }
 

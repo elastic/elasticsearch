@@ -59,6 +59,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -1788,6 +1789,36 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             equalTo(
                 "Fields [a], [b] are unmapped in some indices and have no implicit conversion from KEYWORD; they are null in those indices"
             )
+        );
+    }
+
+    /**
+     * One warning per view and mode, in the order the fills were recorded, each naming a bounded list of fields.
+     */
+    public void testViewBoundaryNullFillWarnings() {
+        Set<AnalyzerContext.ViewBoundaryNullFill> fills = new LinkedHashSet<>();
+        fills.add(new AnalyzerContext.ViewBoundaryNullFill(UnmappedResolution.LOAD, "v1", "a"));
+        fills.add(new AnalyzerContext.ViewBoundaryNullFill(UnmappedResolution.LOAD, "v2", "c"));
+        fills.add(new AnalyzerContext.ViewBoundaryNullFill(UnmappedResolution.LOAD, "v1", "b"));
+        String suffix = " null in its rows; use that setting inside the view definition if you wish to change the view behaviour";
+        assertThat(
+            Analyzer.viewBoundaryNullFillWarnings(fills),
+            equalTo(
+                List.of(
+                    "SET unmapped_fields=\"load\" does not affect the contents of view [v1], so fields [a], [b] are" + suffix,
+                    "SET unmapped_fields=\"load\" does not affect the contents of view [v2], so field [c] is" + suffix
+                )
+            )
+        );
+
+        List<String> names = new ArrayList<>();
+        int extra = randomIntBetween(1, 100);
+        for (int i = 0; i < MAX_LISTED_NON_LOADABLE_PUNKS + extra; i++) {
+            names.add("f" + i);
+        }
+        assertThat(
+            Analyzer.viewBoundaryNullFillWarning(UnmappedResolution.LOAD_ALL, "v", names),
+            containsString("[f" + (MAX_LISTED_NON_LOADABLE_PUNKS - 1) + "] and [" + extra + "] more are null in its rows")
         );
     }
 

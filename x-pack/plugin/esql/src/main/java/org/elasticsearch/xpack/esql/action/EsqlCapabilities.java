@@ -1706,6 +1706,11 @@ public class EsqlCapabilities {
          */
         SET_IN_VIEW_DEFINITIONS,
         /**
+         * A warning when an outer reference is null at a view's output because the caller's loading
+         * {@code unmapped_fields} mode does not reach inside the view, but would have loaded it there.
+         */
+        WARN_UNMAPPED_FIELDS_STOPPED_AT_VIEW,
+        /**
          * Fixed a bug where views are incorrectly de-duplicated.
          */
         VIEWS_DEDUPLICATION_BUGFIX,

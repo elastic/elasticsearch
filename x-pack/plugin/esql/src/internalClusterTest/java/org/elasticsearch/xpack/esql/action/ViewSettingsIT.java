@@ -633,6 +633,73 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * A caller who knows a view's contents may expect their {@code SET unmapped_fields="load"} to load from the view's indices.
+     * When an outer reference is null-filled at the view's output for that reason, the response says so, naming the view.
+     */
+    public void testLoadWarnsWhenViewBoundaryNullFillsReference() throws Exception {
+        setupUnmappedIndices();
+        assertAcked(createView("pass_through_view", "FROM view_source"));
+        assertAcked(createView("filtered_view", "FROM view_source | WHERE id > 0"));
+        assertAcked(createView("stats_view", "FROM view_source | STATS c = COUNT(*) BY id"));
+        assertAcked(createView("keep_view", "FROM view_source | KEEP id"));
+        assertAcked(createView("load_view", """
+            SET unmapped_fields="load";
+            FROM view_source
+            """));
+        assertAcked(createView("inner_plain", "FROM view_source | WHERE id > 0"));
+        assertAcked(createView("outer_load", """
+            SET unmapped_fields="load";
+            FROM inner_plain | KEEP id, extra
+            """));
+
+        assertThat(
+            warningHeaders("SET unmapped_fields=\"load\"; FROM pass_through_view | KEEP id, extra"),
+            hasItem(viewBoundaryWarning("load", "pass_through_view", "field [extra] is"))
+        );
+        List<String> mixed = warningHeaders("SET unmapped_fields=\"load\"; FROM caller_idx, filtered_view | KEEP id, extra, other");
+        assertThat(mixed, hasItem(viewBoundaryWarning("load", "filtered_view", "fields [extra], [other] are")));
+        assertThat(mixed, not(hasItem(containsString("caller_idx"))));
+        if (EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()) {
+            assertThat(
+                warningHeaders("SET unmapped_fields=\"load_all\"; FROM filtered_view | KEEP id, extra"),
+                hasItem(viewBoundaryWarning("load_all", "filtered_view", "field [extra] is"))
+            );
+        }
+        // The enclosing view's SET stops at the nested view in the same way.
+        assertThat(warningHeaders("FROM outer_load"), hasItem(viewBoundaryWarning("load", "inner_plain", "field [extra] is")));
+
+        for (String query : List.of(
+            // No loading mode at the caller: nothing would have been loaded.
+            "SET unmapped_fields=\"nullify\"; FROM filtered_view | KEEP id, extra",
+            // The view already SETs load; its body does not reference extra, so adding the SET would change nothing.
+            "SET unmapped_fields=\"load\"; FROM load_view | KEEP id, extra",
+            // The view aggregates the field away, so it would be null whatever the mode inside.
+            "SET unmapped_fields=\"load\"; FROM stats_view | KEEP id, extra",
+            // The view's KEEP hides the field, whether alone or under the alignment of a union with the caller's index.
+            "SET unmapped_fields=\"load\"; FROM keep_view | KEEP id, extra",
+            "SET unmapped_fields=\"load\"; FROM caller_idx, keep_view | KEEP id, extra",
+            // The caller references nothing the view lacks.
+            "SET unmapped_fields=\"load\"; FROM filtered_view | KEEP id",
+            // The caller drops the field, so it is not in the result either way.
+            "SET unmapped_fields=\"load\"; FROM caller_idx, filtered_view | DROP extra"
+        )) {
+            assertThat(query, warningHeaders(query), not(hasItem(containsString("does not affect the contents of view"))));
+        }
+    }
+
+    private static org.hamcrest.Matcher<String> viewBoundaryWarning(String mode, String viewName, String fields) {
+        return containsString(
+            "SET unmapped_fields=\""
+                + mode
+                + "\" does not affect the contents of view ["
+                + viewName
+                + "], so "
+                + fields
+                + " null in its rows; use that setting inside the view definition if you wish to change the view behaviour"
+        );
+    }
+
     public void testLoadSetInsideViewLoadsPartiallyUnmappedField() {
         setupPunkIndices();
         assertAcked(createView("punk_load", """

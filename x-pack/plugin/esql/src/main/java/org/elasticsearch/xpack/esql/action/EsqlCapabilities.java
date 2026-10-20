@@ -1711,6 +1711,11 @@ public class EsqlCapabilities {
          */
         WARN_UNMAPPED_FIELDS_STOPPED_AT_VIEW,
         /**
+         * A warning when the caller's {@code wildcards_match_views=true} or {@code wildcards_match_datasets=true} does
+         * not reach inside a view whose wildcards would have matched more views or datasets with it.
+         */
+        WARN_WILDCARDS_STOPPED_AT_VIEW,
+        /**
          * Fixed a bug where views are incorrectly de-duplicated.
          */
         VIEWS_DEDUPLICATION_BUGFIX,

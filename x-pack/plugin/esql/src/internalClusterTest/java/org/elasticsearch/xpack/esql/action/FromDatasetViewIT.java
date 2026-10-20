@@ -8,14 +8,17 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.View;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -34,13 +37,18 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -749,6 +757,85 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
         try (var response = run(syncEsqlQueryRequest("FROM outer_plain | KEEP emp_no | SORT emp_no"))) {
             assertThat(getValuesList(response), equalTo(List.of(List.of(1), List.of(2), List.of(3), List.of(10), List.of(11))));
         }
+    }
+
+    /**
+     * A caller who knows a view's contents may expect their {@code SET wildcards_match_datasets=true} to reach the view's
+     * wildcards. When a view's wildcard would then have matched datasets, the response says so, naming the view and the datasets.
+     */
+    public void testWildcardsMatchDatasetsWarnsWhenViewBoundaryStopsIt() throws Exception {
+        registerEmployees();
+        registerEmployeesAlt();
+        createView("emp_star_view", "FROM employees*");
+        createView("emp_mixed_view", "FROM employees*, employees_alt");
+        createView("emp_exact_view", "FROM employees, employees_alt");
+        createView("emp_star_on", """
+            SET wildcards_match_datasets = true;
+            FROM employees*
+            """);
+        createView("inner_plain", "FROM employees*");
+        createView("outer_on", """
+            SET wildcards_match_datasets = true;
+            FROM inner_plain
+            """);
+
+        assertThat(
+            warningHeaders("SET wildcards_match_datasets = true; FROM emp_star_view"),
+            hasItem(wildcardsStoppedWarning("emp_star_view", "datasets [employees], [employees_alt]"))
+        );
+        // A dataset the view also names exactly is read anyway, so only the other one is missed.
+        assertThat(
+            warningHeaders("SET wildcards_match_datasets = true; FROM emp_mixed_view"),
+            hasItem(wildcardsStoppedWarning("emp_mixed_view", "dataset [employees]"))
+        );
+        // The enclosing view's SET stops at the nested view in the same way.
+        assertThat(
+            warningHeaders("FROM outer_on"),
+            hasItem(wildcardsStoppedWarning("inner_plain", "datasets [employees], [employees_alt]"))
+        );
+
+        for (String query : List.of(
+            // The caller did not SET it, so nothing would have matched.
+            "FROM emp_star_view",
+            // The view SETs it itself.
+            "SET wildcards_match_datasets = true; FROM emp_star_on",
+            // The view names the datasets it reads exactly.
+            "SET wildcards_match_datasets = true; FROM emp_exact_view"
+        )) {
+            assertThat(query, warningHeaders(query), not(hasItem(containsString("does not affect the contents of view"))));
+        }
+    }
+
+    private static org.hamcrest.Matcher<String> wildcardsStoppedWarning(String viewName, String matched) {
+        return equalTo(
+            "SET wildcards_match_datasets=true does not affect the contents of view ["
+                + viewName
+                + "], so its wildcards did not match "
+                + matched
+                + "; use that setting inside the view definition if you wish to change the view behaviour"
+        );
+    }
+
+    /** The response {@code Warning} headers of {@code query}, decoded. */
+    private List<String> warningHeaders(String query) throws InterruptedException {
+        List<String> warnings = new CopyOnWriteArrayList<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        client().execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query), ActionListener.running(() -> {
+            try {
+                internalCluster().getInstance(TransportService.class)
+                    .getThreadPool()
+                    .getThreadContext()
+                    .getResponseHeaders()
+                    .getOrDefault("Warning", List.of())
+                    .stream()
+                    .map(w -> HeaderWarning.decodeAndUnescape(HeaderWarning.extractWarningValueFromWarningHeader(w, false)))
+                    .forEach(warnings::add);
+            } finally {
+                latch.countDown();
+            }
+        }));
+        assertTrue("query did not complete", latch.await(30, TimeUnit.SECONDS));
+        return warnings;
     }
 
     public void testWildcardInNestedViewBodyDoesNotMatchDatasets() {

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.view;
 
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
@@ -118,5 +119,34 @@ public record ViewQuerySettings(UnmappedResolution unmappedFields, boolean wildc
      */
     public boolean requiresViewIdentity() {
         return ViewBoundaryPreservation.settingsRequireViewIdentity(unmappedFields, wildcardsMatchDatasets);
+    }
+
+    /** At most this many names are listed in one {@link #wildcardsStoppedAtViewWarning}; the rest are counted. */
+    static final int MAX_LISTED_IN_WILDCARDS_WARNING = 20;
+
+    /**
+     * The warning for a caller's {@code SET <setting>=true} that stopped at {@code viewName}, whose body has wildcards that
+     * would otherwise have matched {@code names}, which are views or datasets as {@code kind} says. A user who knows the
+     * view's contents may expect the caller's setting to widen them.
+     */
+    public static String wildcardsStoppedAtViewWarning(String setting, String viewName, String kind, List<String> names) {
+        assert names.isEmpty() == false : "nothing to warn about";
+        int listed = Math.min(names.size(), MAX_LISTED_IN_WILDCARDS_WARNING);
+        StringBuilder list = new StringBuilder();
+        for (int i = 0; i < listed; i++) {
+            list.append(i == 0 ? "[" : ", [").append(names.get(i)).append("]");
+        }
+        if (names.size() > listed) {
+            list.append(" and [").append(names.size() - listed).append("] more");
+        }
+        return Strings.format(
+            "SET %s=true does not affect the contents of view [%s], so its wildcards did not match %s%s %s; "
+                + "use that setting inside the view definition if you wish to change the view behaviour",
+            setting,
+            viewName,
+            kind,
+            names.size() == 1 ? "" : "s",
+            list
+        );
     }
 }

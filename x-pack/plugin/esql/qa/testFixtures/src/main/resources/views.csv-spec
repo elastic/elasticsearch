@@ -142,10 +142,12 @@ required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: views_match_wildcards
 required_capability: settings_scoped_at_view_boundaries
+required_capability: warn_wildcards_stopped_at_view
 
 SET wildcards_match_views=true\;
 FROM view_country_wildcard
 ;
+warning:SET wildcards_match_views=true does not affect the contents of view [view_country_wildcard], so its wildcards did not match views [country_addresses], [country_airports]; use that setting inside the view definition if you wish to change the view behaviour
 
 c:long
 0

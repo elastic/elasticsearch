@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -259,17 +260,46 @@ public final class DatasetRewriter {
         Map<String, ViewQuerySettings> viewSettings,
         BiConsumer<UnresolvedRelation, Boolean> action
     ) {
+        forEachRelation(plan, wildcardsMatchDatasets, null, viewSettings, (relation, wildcards, stoppedAtView) -> {
+            action.accept(relation, wildcards);
+        });
+    }
+
+    /** Receives a relation from {@link #forEachRelation}. */
+    @FunctionalInterface
+    interface ScopedRelationVisitor {
+        /**
+         * @param wildcardsMatchDatasets the relation's effective {@code wildcards_match_datasets}
+         * @param stoppedAtView the view whose definition turned off the enclosing scope's {@code true} for this relation,
+         *                      or {@code null} if the enclosing scope's setting was not stopped
+         */
+        void accept(UnresolvedRelation relation, boolean wildcardsMatchDatasets, @Nullable String stoppedAtView);
+    }
+
+    /**
+     * Like {@link #forEachRelation(LogicalPlan, boolean, Map, BiConsumer)}, also telling the visitor which view, if any,
+     * kept the enclosing scope's {@code wildcards_match_datasets=true} from applying to the relation.
+     */
+    static void forEachRelation(
+        LogicalPlan plan,
+        boolean wildcardsMatchDatasets,
+        @Nullable String stoppedAtView,
+        Map<String, ViewQuerySettings> viewSettings,
+        ScopedRelationVisitor visitor
+    ) {
         if (plan instanceof UnresolvedRelation relation) {
-            action.accept(relation, wildcardsMatchDatasets);
+            visitor.accept(relation, wildcardsMatchDatasets, stoppedAtView);
         }
         List<LogicalPlan> children = plan.children();
         for (int i = 0; i < children.size(); i++) {
             boolean effective = wildcardsMatchDatasets;
+            String stopped = stoppedAtView;
             if (plan instanceof BranchPlan branchPlan && branchPlan.isViewBranch(i)) {
-                effective = ViewQuerySettings.forView(branchPlan.branchIdentity(i).settingsViewName(), viewSettings)
-                    .wildcardsMatchDatasets();
+                String viewName = branchPlan.branchIdentity(i).settingsViewName();
+                effective = ViewQuerySettings.forView(viewName, viewSettings).wildcardsMatchDatasets();
+                stopped = wildcardsMatchDatasets && effective == false ? viewName : null;
             }
-            forEachRelation(children.get(i), effective, viewSettings, action);
+            forEachRelation(children.get(i), effective, stopped, viewSettings, visitor);
         }
     }
 
@@ -521,7 +551,7 @@ public final class DatasetRewriter {
     }
 
     /** The exact (non-wildcard, non-exclusion) names in {@code patterns}, with date math evaluated. */
-    private static Set<String> exactNames(List<String> patterns) {
+    static Set<String> exactNames(List<String> patterns) {
         Set<String> exact = new LinkedHashSet<>();
         for (String pattern : patterns) {
             if (isWildcardOrExclusion(pattern)) {

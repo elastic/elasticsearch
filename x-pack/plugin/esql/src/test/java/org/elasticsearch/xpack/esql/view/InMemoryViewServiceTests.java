@@ -704,16 +704,26 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
 
         // The outer SET resolves a_view. a_view did not SET the flag, so b* matches the index pattern and not b_view.
         assertThat(relationPatterns(replaceViews(query("FROM a*"), true)), equalTo(Set.of("a*", "b*")));
+        assertWarnings(wildcardsStoppedWarning("a_view", "view [b_view]"));
 
         // a_view opts in. b* now matches b_view, whose own body (no SET) matches c* and not c_view.
         addView("a_view", "SET wildcards_match_views=true; FROM b*");
         assertThat(relationPatterns(replaceViews(query("FROM a*"), true)), equalTo(Set.of("a*", "b*", "c*")));
+        assertWarnings(wildcardsStoppedWarning("b_view", "view [c_view]"));
         // The outer SET is what opened a_view. Turning it off hides a_view again, even though a_view itself opted in.
         assertThat(relationPatterns(replaceViews(query("FROM a*"), false)), equalTo(Set.of("a*")));
 
         // b_view opts in too, so c* matches c_view and contributes c_only. Each definition stands alone.
         addView("b_view", "SET wildcards_match_views=true; FROM c*");
         assertThat(relationPatterns(replaceViews(query("FROM a*"), true)), equalTo(Set.of("a*", "b*", "c*", "c_only")));
+    }
+
+    private static String wildcardsStoppedWarning(String viewName, String matched) {
+        return "SET wildcards_match_views=true does not affect the contents of view ["
+            + viewName
+            + "], so its wildcards did not match "
+            + matched
+            + "; use that setting inside the view definition if you wish to change the view behaviour";
     }
 
     public void testViewDefinitionAllowsOnlyBoundaryScopedSettings() {
@@ -1640,6 +1650,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         // The body wildcard no longer matches the sibling view v_2 (SETTINGS_SCOPED_AT_VIEW_BOUNDARIES), so v_1
         // resolves to the index pattern as written — same as the sibling self-exclusion tests above.
         assertThat(replaceViews(plan), matchesPlan(query("FROM v_*")));
+        assertWarnings(wildcardsStoppedWarning("v_1", "view [v_2]"));
     }
 
     public void testWildcardNonCircularReferenceFromViewSibling() {

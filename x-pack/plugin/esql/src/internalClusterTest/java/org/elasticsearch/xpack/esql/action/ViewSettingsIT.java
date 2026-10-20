@@ -461,6 +461,62 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
+     * A caller who knows a view's contents may expect their {@code SET wildcards_match_views=true} to reach the view's wildcards.
+     * When a view's wildcard would then have matched more views, the response says so, naming the view and what was missed.
+     */
+    public void testWildcardsMatchViewsWarnsWhenViewBoundaryStopsIt() throws Exception {
+        setupWildcardViewsData();
+        assertAcked(createView("wcv_other", "FROM wcv_data"));
+        assertAcked(createView("body_view", "FROM wcv_* | WHERE id > 0"));
+        assertAcked(createView("exact_view", "FROM wcv_data, wcv_leak"));
+        assertAcked(createView("index_only_view", "FROM wcv_d*"));
+        assertAcked(createView("opted_in_view", """
+            SET wildcards_match_views=true;
+            FROM wcv_* | KEEP id
+            """));
+        assertAcked(createView("inner_plain_view", "FROM wcv_* | KEEP id"));
+        assertAcked(createView("outer_opted_in_view", """
+            SET wildcards_match_views=true;
+            FROM inner_plain_view
+            """));
+
+        assertThat(
+            warningHeaders("SET wildcards_match_views=true; FROM body_view"),
+            hasItem(wildcardsStoppedWarning("views", "body_view", "views [wcv_leak], [wcv_other]"))
+        );
+        // The enclosing view's SET stops at the nested view in the same way.
+        assertThat(
+            warningHeaders("FROM outer_opted_in_view"),
+            hasItem(wildcardsStoppedWarning("views", "inner_plain_view", "views [wcv_leak], [wcv_other]"))
+        );
+
+        for (String query : List.of(
+            // The caller did not SET it, so nothing would have matched.
+            "FROM body_view",
+            // The view SETs it itself.
+            "SET wildcards_match_views=true; FROM opted_in_view",
+            // The view names the views it reads exactly.
+            "SET wildcards_match_views=true; FROM exact_view",
+            // The view's wildcard matches no view.
+            "SET wildcards_match_views=true; FROM index_only_view"
+        )) {
+            assertThat(query, warningHeaders(query), not(hasItem(containsString("does not affect the contents of view"))));
+        }
+    }
+
+    private static org.hamcrest.Matcher<String> wildcardsStoppedWarning(String kind, String viewName, String matched) {
+        return equalTo(
+            "SET wildcards_match_"
+                + kind
+                + "=true does not affect the contents of view ["
+                + viewName
+                + "], so its wildcards did not match "
+                + matched
+                + "; use that setting inside the view definition if you wish to change the view behaviour"
+        );
+    }
+
+    /**
      * A cluster default of {@code unmapped_fields=nullify} applies to a query run on its own. The same text stored as a
      * view does not pick it up: a definition that does not {@code SET} the mode keeps the registry default, so the
      * view does not change if the cluster default later changes.

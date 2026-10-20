@@ -1,0 +1,5 @@
+area: Authorization
+issues: []
+pr: 162038
+summary: Grant `kibana_system` read-only access to service accounts
+type: enhancement

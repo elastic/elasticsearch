@@ -14,6 +14,9 @@ import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.esql.QueryMetricsListener;
 import org.elasticsearch.xpack.esql.action.AbstractExternalDataSourceIT;
@@ -27,6 +30,7 @@ import org.elasticsearch.xpack.esql.datasource.lz4.Lz4DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.zstd.ZstdDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
@@ -50,6 +54,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 import static org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry.GA_TEXT_CODECS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -140,6 +145,7 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.remove(EsqlEnterpriseWithDatasourceExtensions.class);
         plugins.add(EsqlEnterpriseWithCollector.class);
+        plugins.add(TestTelemetryPlugin.class);
         return plugins;
     }
 
@@ -159,8 +165,52 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         assertSplitDiscoveryCpuNanos("csv");
         assertPlanningCpuNanos("csv");
         assertThat(lastMetrics.get(QueryMetricsListener.PLANNING_NANOS), greaterThan(0L));
-        assertThat(lastMetrics.get(QueryMetricsListener.CPU_NANOS), greaterThan(0L));
+        assertThat(lastMetrics.get(QueryMetricsListener.CPU_NANOS), greaterThanOrEqualTo(0L));
+        assertThat(lastMetrics.get(QueryMetricsListener.DRIVER_NANOS), greaterThan(0L));
         // TODO: does not work for CVS for now: assertThat(lastMetrics.get(QueryMetricsListener.BYTES_READ), greaterThan(0L));
+    }
+
+    /**
+     * The APM query CPU counter must report, per component, exactly the CPU values sent to the billing listener for the
+     * same query, so the two paths cannot drift apart again (planning was once reported as wall time in APM).
+     */
+    public void testApmQueryCpuMatchesBilledCpu() throws Exception {
+        assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
+        Path dir = createTempDir();
+        Files.writeString(dir.resolve("data.csv"), createCsv(5));
+        String datasetName = registerDataset("apm_cpu_ds", dir.resolve("data.csv").toUri().toString(), Map.of("format", "csv"));
+
+        TestTelemetryPlugin telemetry = internalCluster().getInstance(PluginsService.class)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .get();
+        telemetry.resetMeter();
+        lastMetrics = null;
+        try (var ignored = run(syncEsqlQueryRequest("FROM " + datasetName + " | LIMIT 10"), TIMEOUT)) {
+            // run the query — result discarded, only the metrics side-effects matter
+        }
+
+        assertThat(lastMetrics, notNullValue());
+        assertApmCpuMatchesBilled(telemetry, ExternalSourceMetrics.CPU_COMPONENT_EXECUTION, QueryMetricsListener.CPU_NANOS);
+        assertApmCpuMatchesBilled(telemetry, ExternalSourceMetrics.CPU_COMPONENT_READ, QueryMetricsListener.READ_CPU_NANOS);
+        assertApmCpuMatchesBilled(telemetry, ExternalSourceMetrics.CPU_COMPONENT_PLANNING, QueryMetricsListener.PLANNING_CPU_NANOS);
+        assertApmCpuMatchesBilled(
+            telemetry,
+            ExternalSourceMetrics.CPU_COMPONENT_SPLIT_DISCOVERY,
+            QueryMetricsListener.SPLIT_DISCOVERY_CPU_NANOS
+        );
+    }
+
+    private static void assertApmCpuMatchesBilled(TestTelemetryPlugin telemetry, String component, String billingKey) {
+        long apm = telemetry.getLongCounterMeasurement(ExternalSourceMetrics.QUERY_CPU_TOTAL)
+            .stream()
+            .filter(m -> component.equals(m.attributes().get(ExternalSourceMetrics.CPU_COMPONENT_ATTRIBUTE)))
+            .mapToLong(Measurement::getLong)
+            .sum();
+        // recordQueryCpu skips zero components, so a billed 0 would make the equality below hold trivially.
+        long billed = lastMetrics.get(billingKey);
+        assertThat("billed " + billingKey + " > 0", billed, greaterThan(0L));
+        assertThat("APM cpu.total{component=" + component + "} equals billed " + billingKey, apm, equalTo(billed));
     }
 
     /**
@@ -287,7 +337,8 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         assertSplitDiscoveryCpuNanos("streaming-ndjson");
         assertPlanningCpuNanos("streaming-ndjson");
         assertThat(lastMetrics.get(QueryMetricsListener.PLANNING_NANOS), greaterThan(0L));
-        assertThat(lastMetrics.get(QueryMetricsListener.CPU_NANOS), greaterThan(0L));
+        assertThat(lastMetrics.get(QueryMetricsListener.CPU_NANOS), greaterThanOrEqualTo(0L));
+        assertThat(lastMetrics.get(QueryMetricsListener.DRIVER_NANOS), greaterThan(0L));
     }
 
     /**

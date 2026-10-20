@@ -150,6 +150,12 @@ final class GenericFileList implements FileList {
         return files.get(i).lastModified().toEpochMilli();
     }
 
+    @Override
+    @Nullable
+    public String version(int i) {
+        return files.get(i).version();
+    }
+
     /**
      * Computed once at construction, for the reason the sibling implementations give: the shared {@code Cache}
      * runs its weigher twice on every hit that is not already at the LRU head. The per-entry term is O(1), but

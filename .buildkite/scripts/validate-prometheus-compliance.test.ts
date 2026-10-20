@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, test } from "vitest";
 const SCRIPT = resolve(`${import.meta.dirname}/validate-prometheus-compliance.sh`);
 const CORPUS = "grafanalabs-top100";
 const JQ = execFileSync("sh", ["-c", "command -v jq"], { encoding: "utf8" }).trim();
-const VERSION = "0.10.0+prometheus-3.13.1";
+const VERSION = "0.11.0+prometheus-3.13.1";
 
 type Status = "match" | "mismatch" | "error" | "error4xx" | "error5xx" | "flaky" | "filtered";
 type Case = [id: string, status: Status, expr: string];

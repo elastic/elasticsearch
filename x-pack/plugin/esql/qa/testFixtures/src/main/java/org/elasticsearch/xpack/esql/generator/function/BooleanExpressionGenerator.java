@@ -173,7 +173,7 @@ public final class BooleanExpressionGenerator {
      * column, and similar). {@link QueryExecutor#isAllowedFailure} only treats that message as allowed for injected
      * unmapped names, so it must be recognized here as well.
      */
-    static boolean isUnknownColumnFailure(Exception e) {
+    private static boolean isUnknownColumnFailure(Exception e) {
         String message = e.getMessage();
         return message != null && message.contains("Unknown column");
     }
@@ -202,7 +202,7 @@ public final class BooleanExpressionGenerator {
      * Wraps an IN subquery in a specific supported boolean expression shape. Package-private so
      * fixture tests can verify every shape deterministically while production generation remains random.
      */
-    static String wrapInSubqueryExpression(String expression, InSubqueryVariant variant) {
+    private static String wrapInSubqueryExpression(String expression, InSubqueryVariant variant) {
         return switch (variant) {
             case BARE -> expression;
             case CASE_CONDITION -> "case(" + expression + ", true, false)";

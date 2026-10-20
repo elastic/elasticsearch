@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.generator;
 
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Context threaded through the random query generator.
@@ -25,13 +24,13 @@ public final class GenerationContext {
      * Set to {@code true} the first time an {@code IN (subquery)} predicate is successfully generated in this context.
      * When {@link GenerativeFeature#IN_SUBQUERY} is enabled, the probability gate in {@code maybeInSubqueryBooleanExpression} is bypassed
      * until this flag is set, so the first suitable boolean-expression position attempts generation. Child contexts created by
-     * {@link #withSubqueryDepth(int)} copy the current value into a new flag so speculative inner generation cannot leak back to the
-     * parent.
+     * {@link #withSubqueryDepth(int)} copy the current value onto a new instance so speculative inner generation cannot leak back to
+     * the parent.
      */
-    private final AtomicBoolean hasGeneratedInSubquery;
+    private boolean hasGeneratedInSubquery;
     private final Set<GenerativeFeature> features;
 
-    private GenerationContext(int subqueryDepth, AtomicBoolean hasGeneratedInSubquery, Set<GenerativeFeature> features) {
+    private GenerationContext(int subqueryDepth, boolean hasGeneratedInSubquery, Set<GenerativeFeature> features) {
         this.subqueryDepth = subqueryDepth;
         this.hasGeneratedInSubquery = hasGeneratedInSubquery;
         this.features = features;
@@ -41,7 +40,7 @@ public final class GenerationContext {
      * Root context for a top-level query with the given opt-in features.
      */
     public static GenerationContext root(Set<GenerativeFeature> features) {
-        return new GenerationContext(0, new AtomicBoolean(false), features);
+        return new GenerationContext(0, false, features);
     }
 
     /**
@@ -63,21 +62,21 @@ public final class GenerationContext {
      * Returns {@code true} if an {@code IN (subquery)} predicate has already been generated in this context.
      */
     public boolean hasGeneratedInSubquery() {
-        return hasGeneratedInSubquery.get();
+        return hasGeneratedInSubquery;
     }
 
     /**
      * Marks that an IN subquery has been generated in this context.
      */
     public void setHasGeneratedInSubquery() {
-        hasGeneratedInSubquery.set(true);
+        hasGeneratedInSubquery = true;
     }
 
     /**
      * Restores {@link #hasGeneratedInSubquery()} after a speculative command was generated but not kept.
      */
     public void restoreHasGeneratedInSubquery(boolean value) {
-        hasGeneratedInSubquery.set(value);
+        hasGeneratedInSubquery = value;
     }
 
     /**
@@ -88,10 +87,10 @@ public final class GenerationContext {
     }
 
     /**
-     * Returns a copy of this context with the given subquery nesting depth. The child starts with the parent's current
-     * {@code hasGeneratedInSubquery} value but uses its own flag, so discarded inner generation cannot mark the parent.
+     * Returns a copy of this context with the given subquery nesting depth. The child copies the parent's current
+     * {@code hasGeneratedInSubquery} value onto a new instance, so discarded inner generation cannot mark the parent.
      */
     public GenerationContext withSubqueryDepth(int subqueryDepth) {
-        return new GenerationContext(subqueryDepth, new AtomicBoolean(hasGeneratedInSubquery.get()), features);
+        return new GenerationContext(subqueryDepth, hasGeneratedInSubquery, features);
     }
 }

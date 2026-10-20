@@ -176,11 +176,6 @@ public class EsqlQueryGenerator {
             throw new IllegalArgumentException("Clearing command history is not allowed");
         }
 
-        /**
-         * Returns {@code true} if the last command passed to {@link #run} was retained in the generated query.
-         * The default is {@code true}: the main generative loop keeps even a failing last command in the query text.
-         * Fork branch generation overrides this to {@code false} when a command is discarded for changing the schema.
-         */
         default boolean lastCommandKept() {
             return true;
         }

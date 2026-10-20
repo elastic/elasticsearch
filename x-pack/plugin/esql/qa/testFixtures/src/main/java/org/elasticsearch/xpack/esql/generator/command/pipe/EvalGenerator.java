@@ -14,10 +14,8 @@ import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
@@ -70,9 +68,8 @@ public class EvalGenerator implements CommandGenerator {
             cmd.append(" ");
             cmd.append(name);
             String rawName = unquote(name);
-            if (newColumns.contains(rawName) == false) {
-                newColumns.add(rawName);
-            }
+            newColumns.remove(rawName);
+            newColumns.add(rawName);
             cmd.append(" = ");
             cmd.append(expression);
 
@@ -95,21 +92,19 @@ public class EvalGenerator implements CommandGenerator {
         List<Column> columns,
         List<List<Object>> output
     ) {
-        List<String> assignedColumns = (List<String>) commandDescription.context().get(NEW_COLUMNS);
+        List<String> expectedColumns = (List<String>) commandDescription.context().get(NEW_COLUMNS);
         List<String> resultColNames = columns.stream().map(Column::name).toList();
-        if (isUnmappedFieldsEnabled(previousCommands) == false) {
-            Set<String> resultNames = new HashSet<>(resultColNames);
-            List<String> missing = assignedColumns.stream().filter(name -> resultNames.contains(name) == false).toList();
-            if (missing.isEmpty() == false) {
-                return new ValidationResult(
-                    false,
-                    "EVAL output is missing columns ["
-                        + String.join(", ", missing)
-                        + "] but got ["
-                        + String.join(", ", resultColNames)
-                        + "]"
-                );
-            }
+        List<String> lastColumns = resultColNames.subList(resultColNames.size() - expectedColumns.size(), resultColNames.size());
+        if (isUnmappedFieldsEnabled(previousCommands) == false
+            && (columns.size() < expectedColumns.size() || lastColumns.equals(expectedColumns) == false)) {
+            return new ValidationResult(
+                false,
+                "Expecting the following as last columns ["
+                    + String.join(", ", expectedColumns)
+                    + "] but got ["
+                    + String.join(", ", resultColNames)
+                    + "]"
+            );
         }
 
         return CommandGenerator.expectSameRowCount(previousCommands, previousOutput, output);

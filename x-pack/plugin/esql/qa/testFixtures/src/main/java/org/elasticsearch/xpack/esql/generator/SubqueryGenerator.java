@@ -46,7 +46,7 @@ public final class SubqueryGenerator {
             }
             logger.warn(() -> "Subquery generation failed for inner query [" + last.query() + "]", last.exception());
             throw new RuntimeException(
-                "Subquery generation failed for inner query [" + last.query() + "]" + last.exception().getMessage(),
+                "Subquery generation failed for inner query [" + last.query() + "], " + last.exception().getMessage(),
                 last.exception()
             );
         }

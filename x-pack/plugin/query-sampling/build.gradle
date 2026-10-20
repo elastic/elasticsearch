@@ -1,6 +1,4 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
-apply plugin: 'elasticsearch.internal-java-rest-test'
 
 esplugin {
   name = 'x-pack-query-sampling'
@@ -16,11 +14,4 @@ base {
 dependencies {
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
-  clusterModules project(':modules:reindex')
-}
-
-restResources {
-  restApi {
-    include '_common', 'cluster', 'indices', 'index', 'search', 'query_sampling'
-  }
 }

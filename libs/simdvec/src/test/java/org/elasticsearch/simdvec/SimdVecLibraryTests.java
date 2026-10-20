@@ -139,7 +139,7 @@ public abstract class SimdVecLibraryTests extends ESTestCase {
     }
 
     /** A native segment of {@code count} scores, all {@link #UNSELECTED_SCORE}. */
-    protected static MemorySegment unselectedScoresSegment(int count) {
+    protected MemorySegment unselectedScoresSegment(int count) {
         MemorySegment scores = arena.allocate((long) count * Float.BYTES);
         MemorySegment.copy(unselectedScores(count), 0, scores, JAVA_FLOAT_UNALIGNED, 0L, count);
         return scores;

@@ -119,7 +119,7 @@ public class SimdVecLibraryBBQTests extends SimdVecLibraryTests {
         int indexVectorBytes
     ) {}
 
-    static TestData createTestData(final int numVecs, final int dims, final SimdVecLibrary.BBQType type, final long extraData) {
+    TestData createTestData(final int numVecs, final int dims, final SimdVecLibrary.BBQType type, final long extraData) {
         final byte maxIndexValue = (byte) ((1 << type.dataBits()) - 1);
         final byte maxQueryValue = (byte) ((1 << type.queryBits()) - 1);
 

@@ -67,6 +67,7 @@ import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.lucene.IndexDirectory;
+import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import java.io.FileNotFoundException;
@@ -1595,6 +1596,75 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
         getVBCCChunkBlocked.countDown();
         assertResponse(searchRequest, ElasticsearchAssertions::assertNoFailures);
         primaryContextHandoffBlocked.countDown();
+    }
+
+    /**
+     * Appends several commits to one virtual batched compound commit, flushes it, and checks that the search directory
+     * tracked that blob's furthest file byte. A force merge then replaces those segments, and the old blob is dropped.
+     */
+    public void testBlobLengthFollowsVirtualCommitAndDropsAfterForceMerge() throws Exception {
+        startMasterOnlyNode();
+        final String indexNode = startIndexNode();
+        startSearchNode();
+
+        final String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
+        ensureGreen(indexName);
+
+        final var searchShard = findSearchShard(indexName);
+        final var searchDirectory = SearchDirectory.unwrapDirectory(searchShard.store().directory());
+        final var commitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
+
+        final int commits = randomIntBetween(2, 4);
+        long previousLength = -1L;
+        String blobName = null;
+        long primaryTerm = -1L;
+        for (int i = 0; i < commits; i++) {
+            final String bytes = "x".repeat(i + 1);
+            final int docs = randomIntBetween(1, 10);
+            var bulkRequest = client().prepareBulk(indexName);
+            for (int n = 0; n < docs; n++) {
+                bulkRequest.add(client().prepareIndex(indexName).setSource("value", n, "bytes", bytes));
+            }
+            assertNoFailures(bulkRequest.get());
+            refresh(indexName);
+
+            final var virtualBcc = commitService.getCurrentVirtualBcc(searchShard.shardId());
+            assertNotNull(virtualBcc);
+            if (blobName == null) {
+                blobName = virtualBcc.getBlobName();
+                primaryTerm = virtualBcc.getPrimaryTermAndGeneration().primaryTerm();
+            } else {
+                assertThat(virtualBcc.getBlobName(), equalTo(blobName));
+            }
+            final long length = searchDirectory.blobLength(primaryTerm, blobName).getAsLong();
+            assertThat(length, equalTo(virtualBcc.getTotalSizeInBytes()));
+            if (previousLength >= 0) {
+                assertThat(length, greaterThan(previousLength));
+            }
+            previousLength = length;
+        }
+
+        flush(indexName);
+        final var uploaded = commitService.getLatestUploadedBcc(searchShard.shardId());
+        assertNotNull(uploaded);
+        assertThat(BatchedCompoundCommit.blobNameFromGeneration(uploaded.primaryTermAndGeneration().generation()), equalTo(blobName));
+        final long flushedLength = searchDirectory.blobLength(primaryTerm, blobName).getAsLong();
+        assertThat(flushedLength, greaterThanOrEqualTo(previousLength));
+        assertThat(flushedLength, equalTo(uploaded.calculateBccBlobLength()));
+
+        client().admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).get();
+        refresh(indexName);
+        assertThat(searchDirectory.blobLength(primaryTerm, blobName).isPresent(), equalTo(false));
+
+        final var merged = commitService.getLatestUploadedBcc(searchShard.shardId());
+        assertNotNull(merged);
+        final String mergedBlobName = BatchedCompoundCommit.blobNameFromGeneration(merged.primaryTermAndGeneration().generation());
+        assertNotEquals(blobName, mergedBlobName);
+        assertThat(
+            searchDirectory.blobLength(merged.primaryTermAndGeneration().primaryTerm(), mergedBlobName).getAsLong(),
+            equalTo(merged.calculateBccBlobLength())
+        );
     }
 
     private void assertMeasurement(Measurement measurement, long value) {

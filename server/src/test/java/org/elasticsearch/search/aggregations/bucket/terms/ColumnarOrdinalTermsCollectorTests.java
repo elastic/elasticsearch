@@ -281,11 +281,34 @@ public class ColumnarOrdinalTermsCollectorTests extends ESTestCase {
         assertThat(outcome.counts(1).size(), greaterThan(0));
     }
 
-    /** A document with several values has no ordinal, so the collector leaves the column to the per-document one. */
-    public void testMultiValuedColumnIsNotReadByOrdinal() throws IOException {
-        final String[] docs = new String[2000];
+    /**
+     * A document with several values goes to the per-document collector, and the rest of the segment keeps the cache.
+     * A document of several slots with one value, the others null, is one value.
+     */
+    public void testMultiValuedDocumentsGoToTheFallback() throws IOException {
+        final String[] docs = new String[3000];
         for (int i = 0; i < docs.length; i++) {
-            docs[i] = COMMON[i % COMMON.length] + (i % 3 == 0 ? "|" + COMMON[(i + 1) % COMMON.length] : "");
+            final String value = COMMON[i % COMMON.length];
+            docs[i] = switch (i % 6) {
+                case 0 -> value + "|" + COMMON[(i + 1) % COMMON.length];
+                case 1 -> NULL_SLOT + "|" + value;
+                case 2 -> NULL_SLOT + "|" + NULL_SLOT;
+                case 3, 4, 5 -> value;
+                default -> throw new IllegalStateException();
+            };
+        }
+        final Search search = new Search(docs);
+        final Outcome outcome = search(search);
+        assertThat("the segment is still read from its ordinals", outcome.ordinalLeaves, equalTo(1));
+        assertThat(outcome.counts(0), equalTo(expected(search, null)));
+        assertThat("the documents of one value used the cache", outcome.knownBucket, greaterThan(0));
+    }
+
+    /** A column with no dictionary is left to the per-document collector. */
+    public void testColumnWithoutADictionaryIsNotReadByOrdinal() throws IOException {
+        final String[] docs = new String[3000];
+        for (int i = 0; i < docs.length; i++) {
+            docs[i] = "unique-" + i;
         }
         final Search search = new Search(docs);
         final Outcome outcome = search(search);
@@ -399,7 +422,7 @@ public class ColumnarOrdinalTermsCollectorTests extends ESTestCase {
                 continue;
             }
             for (String term : docs[doc].split("\\|")) {
-                if (accepts(filter, term)) {
+                if (term.equals(NULL_SLOT) == false && accepts(filter, term)) {
                     counts.merge(term, 1L, Long::sum);
                 }
             }

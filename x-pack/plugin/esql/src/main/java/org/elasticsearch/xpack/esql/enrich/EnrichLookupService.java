@@ -267,7 +267,7 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
         }
     }
 
-    private static class LookupResponse extends AbstractLookupService.LookupResponse {
+    static class LookupResponse extends AbstractLookupService.LookupResponse {
         // Gated behind the same transport version as the per-driver warnings feature (DriverCompletionInfo#warnings).
         private static final TransportVersion ESQL_LOOKUP_RESPONSE_WARNINGS = TransportVersion.fromName("esql_driver_warnings");
 
@@ -281,7 +281,7 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             this.warnings = warnings == null ? List.of() : warnings;
         }
 
-        private LookupResponse(StreamInput in, BlockFactory blockFactory, ThreadContext threadContext) throws IOException {
+        LookupResponse(StreamInput in, BlockFactory blockFactory, ThreadContext threadContext) throws IOException {
             super(blockFactory);
             try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
                 this.page = new Page(bsi);

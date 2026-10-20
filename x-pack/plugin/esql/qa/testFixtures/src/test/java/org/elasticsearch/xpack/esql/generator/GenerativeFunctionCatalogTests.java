@@ -8,11 +8,14 @@
 package org.elasticsearch.xpack.esql.generator;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 
 public class GenerativeFunctionCatalogTests extends ESTestCase {
@@ -63,5 +66,16 @@ public class GenerativeFunctionCatalogTests extends ESTestCase {
             .flatMap(fn -> catalog.satisfiableSignatures(fn, columnTypes).stream())
             .count();
         assertThat("expected at least one satisfiable signature for datetime columns", satisfiable, not(equalTo(0L)));
+    }
+
+    /**
+     * {@link GenerativeFunctionCatalog#restrictToCluster} keeps a function only if the cluster advertises its capability,
+     * so a name that doesn't match the registry would silently drop that function from every run.
+     */
+    public void testEveryFunctionHasClusterCapability() {
+        Set<String> capabilities = EsqlCapabilities.capabilities(new EsqlFunctionRegistry(), true).capabilities();
+        for (GenerativeFunctionDefinition fn : GenerativeFunctionCatalog.all()) {
+            assertThat(fn.name(), capabilities, hasItem(GenerativeFunctionCatalog.capabilityName(fn)));
+        }
     }
 }

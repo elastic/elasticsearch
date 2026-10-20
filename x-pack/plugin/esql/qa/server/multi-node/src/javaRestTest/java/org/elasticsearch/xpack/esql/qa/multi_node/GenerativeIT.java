@@ -42,12 +42,8 @@ public class GenerativeIT extends PerFeatureGenerativeRestTest {
     public static DataSourcesS3HttpFixture s3Fixture = new DataSourcesS3HttpFixture();
 
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> {
+    public static ElasticsearchCluster cluster = Clusters.generativeCluster(spec -> {
         spec.plugin("inference-service-test");
-        // PUT /_query/data_source stores access_key/secret_key as secure cluster-state settings;
-        // encryption must be enabled or the registration returns 503.
-        spec.keystore("cluster.state.encryption.password.test", "esql-generative-encryption-password");
-        spec.keystore("cluster.state.encryption.active_password_id", "test");
         spec.setting("esql.query.settings.wildcards_match_datasets", randomFrom("false", "true"));
         spec.setting("esql.query.settings.wildcards_match_views", randomFrom("false", "true"));
     });

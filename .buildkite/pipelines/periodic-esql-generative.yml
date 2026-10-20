@@ -18,3 +18,23 @@ steps:
       machineType: n4-standard-16
       diskType: hyperdisk-balanced
       buildDirectory: /dev/shm/bk
+
+  - label: esql-generative-single-node-bwc
+    command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true :x-pack:plugin:esql:qa:server:single-node:bwcGenerativeTests
+    timeout_in_minutes: 180
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2404
+      machineType: n4-standard-16
+      diskType: hyperdisk-balanced
+      buildDirectory: /dev/shm/bk
+
+  - label: esql-generative-multi-node-bwc
+    command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true :x-pack:plugin:esql:qa:server:multi-node:bwcGenerativeTests
+    timeout_in_minutes: 180
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2404
+      machineType: n4-standard-16
+      diskType: hyperdisk-balanced
+      buildDirectory: /dev/shm/bk

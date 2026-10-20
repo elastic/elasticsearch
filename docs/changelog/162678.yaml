@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 162678
+summary: Read rescore-only vectors in order for brute-force scans
+type: bug

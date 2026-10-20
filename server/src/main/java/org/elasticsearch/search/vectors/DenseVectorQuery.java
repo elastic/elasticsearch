@@ -37,6 +37,7 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.codec.vectors.SequentialVectorValues;
 import org.elasticsearch.index.mapper.vectors.DenormalizedCosineFloatVectorValues;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
@@ -123,6 +124,11 @@ public abstract class DenseVectorQuery extends Query {
      */
     abstract VectorScorer vectorScorer(LeafReaderContext leafReaderContext) throws IOException;
 
+    /** {@link #vectorScorer} for brute force over the leaf: reads the vectors sequentially, see {@link SequentialVectorValues}. */
+    VectorScorer sequentialVectorScorer(LeafReaderContext leafReaderContext) throws IOException {
+        return vectorScorer(leafReaderContext);
+    }
+
     /**
      * Indicates if weight is cacheable given the query. Doc values require a careful override due to them being updatable.
      */
@@ -192,7 +198,9 @@ public abstract class DenseVectorQuery extends Query {
 
                 @Override
                 public BulkScorer bulkScorer() throws IOException {
-                    return new DenseVectorBulkScorer(get(Long.MAX_VALUE), cost);
+                    // brute force over the leaf; a conjunction advancing this scorer reads at random
+                    VectorScorer sequentialScorer = query.sequentialVectorScorer(context);
+                    return new DenseVectorBulkScorer(new DenseVectorScorer(sequentialScorer, filterIterator, boost), cost);
                 }
 
                 @Override
@@ -257,7 +265,17 @@ public abstract class DenseVectorQuery extends Query {
 
         @Override
         VectorScorer vectorScorer(LeafReaderContext leafReaderContext) throws IOException {
+            return vectorScorer(leafReaderContext, leafReaderContext.reader().getFloatVectorValues(field));
+        }
+
+        @Override
+        VectorScorer sequentialVectorScorer(LeafReaderContext leafReaderContext) throws IOException {
             FloatVectorValues vectorValues = leafReaderContext.reader().getFloatVectorValues(field);
+            // the codec-bound scorer reads the quantized vectors
+            return vectorScorer(leafReaderContext, function == null ? vectorValues : SequentialVectorValues.sequential(vectorValues));
+        }
+
+        private VectorScorer vectorScorer(LeafReaderContext leafReaderContext, FloatVectorValues vectorValues) throws IOException {
             if (vectorValues == null) {
                 return null;
             }

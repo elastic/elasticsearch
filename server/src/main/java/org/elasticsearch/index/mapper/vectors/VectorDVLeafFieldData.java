@@ -18,6 +18,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.codec.vectors.SequentialVectorValues;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
@@ -74,8 +75,12 @@ final class VectorDVLeafFieldData implements LeafFieldData {
             if (indexed) {
                 return switch (elementType) {
                     case BYTE -> new ByteKnnDenseVectorDocValuesField(reader.getByteVectorValues(field), name, dims);
-                    // bfloat16 is hidden by the FloatVectorValues implementation
-                    case FLOAT, BFLOAT16 -> new KnnDenseVectorDocValuesField(reader.getFloatVectorValues(field), name, dims);
+                    // bfloat16 is hidden by the FloatVectorValues implementation; scripts brute force, so read sequentially
+                    case FLOAT, BFLOAT16 -> new KnnDenseVectorDocValuesField(
+                        SequentialVectorValues.sequential(reader.getFloatVectorValues(field)),
+                        name,
+                        dims
+                    );
                     case BIT -> new BitKnnDenseVectorDocValuesField(reader.getByteVectorValues(field), name, dims);
                 };
             } else {

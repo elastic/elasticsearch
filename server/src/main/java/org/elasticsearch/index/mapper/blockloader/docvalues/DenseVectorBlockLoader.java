@@ -16,6 +16,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.codec.vectors.SequentialVectorValues;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -67,7 +68,10 @@ public class DenseVectorBlockLoader<B extends BlockLoader.Builder> extends Block
         try {
             switch (fieldType.getElementType()) {
                 case FLOAT, BFLOAT16 -> {
-                    FloatVectorValues floatVectorValues = context.reader().getFloatVectorValues(fieldName);
+                    // blocks load in doc order, so read sequentially
+                    FloatVectorValues floatVectorValues = SequentialVectorValues.sequential(
+                        context.reader().getFloatVectorValues(fieldName)
+                    );
                     if (floatVectorValues != null) {
                         if (fieldType.isNormalized()) {
                             NumericDocValues magnitudeDocValues = context.reader()

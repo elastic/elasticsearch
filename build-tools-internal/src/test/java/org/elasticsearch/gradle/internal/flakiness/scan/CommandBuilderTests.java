@@ -284,8 +284,8 @@ public class CommandBuilderTests {
         assertThat(
             cmds.get(0).command(),
             equalTo(
-                "__GRADLE__ -Dtests.iters=100 -Dtests.timeoutSuite=3600000! "
-                    + ":s:testA --tests org.A :s:testB --tests org.A"
+                ".buildkite/scripts/flakiness-detection/runners/repeat-gradle-run.sh 4 __GRADLE__ -Dtests.iters=25 "
+                    + "-Dtests.timeoutSuite=3600000! :s:testA --tests org.A --rerun :s:testB --tests org.A --rerun"
             )
         );
     }

@@ -219,6 +219,19 @@ NOTE: The `always_sign_requests` setting is not supported by versions `9.0`,
 `9.1`, `9.2`, `9.3` or `9.4`. If you configure this setting, do not upgrade to
 any of these versions.
 
+`legacy_content_md5`::
+
+    Whether to send a `Content-MD5` header with requests that need a checksum,
+    such as `DeleteObjects`. AWS S3 does not require this header and recent
+    versions of the AWS Java SDK no longer send it by default, but some
+    third-party storage services that claim to be S3-compatible still reject
+    requests without it, which prevents snapshots from being deleted. Set this
+    to `true` only as a temporary workaround while you obtain an update for your
+    storage service that restores S3 compatibility. Use the
+    {ref}/repo-analysis-api.html[repository analysis API] to verify that your
+    repository behaves correctly. This setting was added and deprecated in
+    8.19.24 and will be removed in a future major version. Defaults to `false`.
+
 [[repository-s3-repository]]
 ==== Repository settings
 

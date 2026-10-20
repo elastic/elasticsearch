@@ -71,7 +71,17 @@ interleaved. Use `SORT _fork` to group results by branch.
 ::::
 
 - In versions older than 9.3.0 using remote cluster references and `FORK` is not supported.
+
+::::{applies-switch}
+:::{applies-item} { "stack": "ga 9.6+", "serverless": "ga" }
+- Two user-written `FORK` commands can't occur along the same uninterrupted
+  pipeline. Multiple `FORK` commands are supported when a merge created by a
+  view or `FROM` subquery separates their pipelines.
+:::
+:::{applies-item} stack: preview 9.1-9.3, ga 9.4-9.5
 - Using more than one `FORK` command in a query is not supported.
+:::
+::::
 
 ## Examples
 

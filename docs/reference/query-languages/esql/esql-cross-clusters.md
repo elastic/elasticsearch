@@ -540,6 +540,24 @@ A cross-cluster `LOOKUP JOIN` cannot follow a command that runs on the querying 
 
 ### Views across clusters [ccq-views]
 
+A view defined on the local cluster can reference remote indices. A view
+defined on a remote cluster can't be queried from the local cluster.
+
+::::{applies-switch}
+:::{applies-item} stack: preview 9.6+
+Remote views are invisible to source resolution. An exact remote view reference
+returns an `Unknown index` error, and wildcard expressions don't match remote
+views.
+:::
+:::{applies-item} stack: preview 9.4-9.5
+A query fails if its source expression matches a remote view. It also fails if a
+remote index matches the name of a local view.
+:::
+::::
+
+For the complete view restrictions, refer to
+[Cross-cluster and serverless view limitations](/reference/query-languages/esql/esql-views.md#esql-views-cross-cluster-serverless).
+
 ### Datasets across clusters
 ```{applies_to}
 stack: experimental 9.5

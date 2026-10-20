@@ -316,54 +316,6 @@ public final class CalibrationUtils {
     }
 
     /**
-     * Presents a sample of on-heap byte vectors as {@link FloatVectorValues}, widening each vector exactly into a
-     * reusable scratch buffer on read. This keeps the sample at one byte per dimension instead of four.
-     *
-     * <p>Like the other calibration sources, the returned array is a live buffer that is overwritten by the next
-     * {@link #vectorValue(int)} call on this instance; use {@link #copy()} for an independent reader.
-     */
-    private static final class WidenedByteVectorValues extends FloatVectorValues {
-        private final List<byte[]> vectors;
-        private final int dimension;
-        private final float[] scratch;
-
-        WidenedByteVectorValues(List<byte[]> vectors, int dimension) {
-            this.vectors = vectors;
-            this.dimension = dimension;
-            this.scratch = new float[dimension];
-        }
-
-        @Override
-        public float[] vectorValue(int ord) {
-            byte[] bytes = vectors.get(ord);
-            for (int i = 0; i < dimension; i++) {
-                scratch[i] = bytes[i];
-            }
-            return scratch;
-        }
-
-        @Override
-        public FloatVectorValues copy() {
-            return new WidenedByteVectorValues(vectors, dimension);
-        }
-
-        @Override
-        public int dimension() {
-            return dimension;
-        }
-
-        @Override
-        public int size() {
-            return vectors.size();
-        }
-
-        @Override
-        public DocIndexIterator iterator() {
-            return createDenseIterator();
-        }
-    }
-
-    /**
      * Total live (non-deleted) vectors for {@code fieldInfo} across merge inputs. Segments without deletes
      * ({@code liveDocs == null}) contribute {@link FloatVectorValues#size()} directly; segments with deletes
      * are counted by intersecting their vector doc ids with {@code liveDocs} (one pass over the segment's
@@ -459,7 +411,9 @@ public final class CalibrationUtils {
             }
         }
 
-        return isByte ? new WidenedByteVectorValues(byteResult, dim) : KMeansFloatVectorValues.build(floatResult, null, dim);
+        return isByte
+            ? new WidenedByteVectorValues(ByteVectorValues.fromBytes(byteResult, dim))
+            : KMeansFloatVectorValues.build(floatResult, null, dim);
     }
 
     /**

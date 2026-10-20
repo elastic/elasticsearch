@@ -38,8 +38,8 @@ import java.util.function.Supplier;
  * A {@link StatelessCommitService} that writes a merge blob in the blob container of the shard for each BCC it uploads.
  * <p>
  * Nothing writes merge blobs in production yet, but nodes must already cope with them being present in the object store next to BCCs: this
- * service makes integration tests exercise that. It is installed by {@code TestUtils.MergeBlobInjectingStatelessPluginWithTrialLicense},
- * which {@code AbstractStatelessPluginIntegTestCase} uses when running the {@code internalClusterTestWithMergeBlobs} Gradle task.
+ * service makes integration tests exercise that. {@code TestUtils.StatelessPluginWithTrialLicense} installs it instead of the default
+ * commit service when running the {@code internalClusterTestWithMergeBlobs} Gradle task.
  * <p>
  * For each BCC, a merge blob is written either right before the upload starts, right after it completes, or a bit later (whatever the
  * state of the shard is by then, it may even be closed). The moment is chosen randomly, and it is part of the merge blob name (see

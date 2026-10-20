@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.TimeProvider;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
@@ -99,23 +100,24 @@ public class TestUtils {
     }
 
     public static class StatelessPluginWithTrialLicense extends StatelessPlugin {
+
+        /**
+         * Whether a merge blob is written in the object store next to each BCC uploaded by the plugin, to make sure that merge blobs have
+         * no impact on nodes while nothing writes them yet, see {@link MergeBlobInjectingStatelessCommitService}. It is only enabled by the
+         * {@code internalClusterTestWithMergeBlobs} Gradle task.
+         *
+         * TODO: remove it once merge blobs are written in production
+         */
+        private static final boolean MERGE_BLOBS_INJECTION_ENABLED = Booleans.parseBoolean(
+            System.getProperty("es.test.stateless.merge_blobs.injection.enabled", "false")
+        );
+
         public StatelessPluginWithTrialLicense(Settings settings) {
             super(settings);
         }
 
         protected XPackLicenseState getLicenseState() {
             return new XPackLicenseState(System::currentTimeMillis, new XPackLicenseStatus(License.OperationMode.TRIAL, true, null));
-        }
-    }
-
-    /**
-     * A {@link StatelessPluginWithTrialLicense} that writes merge blobs in the object store next to the BCCs it uploads, to make sure that
-     * merge blobs have no impact on nodes while nothing writes them yet. See {@link MergeBlobInjectingStatelessCommitService}.
-     */
-    public static class MergeBlobInjectingStatelessPluginWithTrialLicense extends StatelessPluginWithTrialLicense {
-
-        public MergeBlobInjectingStatelessPluginWithTrialLicense(Settings settings) {
-            super(settings);
         }
 
         @Override
@@ -130,6 +132,19 @@ public class TestUtils {
             SharedBlobCacheWarmingService cacheWarmingService,
             TelemetryProvider telemetryProvider
         ) {
+            if (MERGE_BLOBS_INJECTION_ENABLED == false) {
+                return super.createStatelessCommitService(
+                    settings,
+                    objectStoreService,
+                    clusterService,
+                    indicesService,
+                    client,
+                    commitCleaner,
+                    cacheService,
+                    cacheWarmingService,
+                    telemetryProvider
+                );
+            }
             return new MergeBlobInjectingStatelessCommitService(
                 settings,
                 objectStoreService,

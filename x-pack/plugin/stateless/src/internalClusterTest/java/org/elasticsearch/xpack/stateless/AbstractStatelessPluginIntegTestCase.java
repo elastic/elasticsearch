@@ -45,7 +45,6 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
@@ -90,7 +89,6 @@ import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessElectionS
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
-import org.elasticsearch.xpack.stateless.commits.MergeBlobInjectingStatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
@@ -245,11 +243,7 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
     public static Collection<Class<? extends Plugin>> getRequiredNodePlugins(boolean addMockFsRepository) {
         var plugins = new ArrayList<Class<? extends Plugin>>();
         plugins.add(BlobCachePlugin.class);
-        if (MERGE_BLOBS_INJECTION_ENABLED) {
-            plugins.add(TestUtils.MergeBlobInjectingStatelessPluginWithTrialLicense.class);
-        } else {
-            plugins.add(TestUtils.StatelessPluginWithTrialLicense.class);
-        }
+        plugins.add(TestUtils.StatelessPluginWithTrialLicense.class);
         plugins.add(MockTransportService.TestPlugin.class);
         plugins.add(SystemIndexTestPlugin.class);
         if (addMockFsRepository) {
@@ -302,18 +296,6 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
     public static void setupClass() {
         operationPurpose = randomFrom(OperationPurpose.values());
     }
-
-    /**
-     * Whether a merge blob is written next to each uploaded BCC, by installing
-     * {@link TestUtils.MergeBlobInjectingStatelessPluginWithTrialLicense} instead of {@link TestUtils.StatelessPluginWithTrialLicense},
-     * see {@link MergeBlobInjectingStatelessCommitService}. It is only enabled by the {@code internalClusterTestWithMergeBlobs} Gradle
-     * task.
-     *
-     * TODO: remove it once merge blobs are written in production
-     */
-    private static final boolean MERGE_BLOBS_INJECTION_ENABLED = Booleans.parseBoolean(
-        System.getProperty("es.test.stateless.merge_blobs.injection.enabled", "false")
-    );
 
     private boolean useBasePath;
     private boolean hollowIndexShardsDisabled;

@@ -195,7 +195,7 @@ $$$esql-external-cache-size$$$
 
 $$$esql-source-cache-schema-ttl$$$
 
-`esql.source.cache.schema.ttl`
+`esql.source.cache.schema.ttl` {applies_to}`stack: deprecated 9.5+`
 :   Deprecated and ignored.
 
     {applies_to}`stack: experimental 9.6+` Use `esql.external.cache.schema.ttl` instead. It doesn't inherit this key's value.

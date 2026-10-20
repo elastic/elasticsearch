@@ -227,36 +227,24 @@ esac
     expect(r.output).toContain('"flaky":1');
   });
 
-  test("the binary gets the checkout, the timeout in seconds, JSONL output, concurrency, the remote build cache, and all agent CPUs", () => {
+  test("the binary gets the checkout, the timeout, JSONL output, the remote build cache, and a node sized for the agent", () => {
     const r = run(STABLE, STABLE);
     expect(r.status).toBe(0);
+    const cpus = execFileSync("getconf", ["_NPROCESSORS_ONLN"]).toString().trim();
     const lines = r.args.trim().split("\n");
     expect(lines).toHaveLength(2);
     for (const args of lines) {
       expect(args).toContain("--elasticsearch ");
       expect(args).toContain("--elasticsearch-timeout 900s");
       expect(args).toContain("--output json");
-      expect(args).toContain("--concurrency 8 --");
+      expect(args).toContain(`--concurrency ${cpus} --`);
       expect(args).toMatch(
-        / -- --build-cache --scan -I \S+\/\.ci\/init\.gradle -I \S+\/\.buildkite\/scripts\/validate-prometheus-compliance\.init\.gradle -Dorg\.elasticsearch\.build\.cache\.url=https:\/\/gradle-enterprise\.elastic\.co\/cache\/ -Dtests\.es\.node\.processors=8 -Drun\.distribution=integ-test -Dpromcheck\.modules=\S+$/,
+        / -- --build-cache --scan --configuration-cache -I \S+\/\.ci\/init\.gradle -Dorg\.elasticsearch\.build\.cache\.url=https:\/\/gradle-enterprise\.elastic\.co\/cache\/ /,
       );
+      expect(args).toContain(` -Dtests.es.node.processors=${cpus} `);
+      expect(args).toMatch(/ -Dtests\.heap\.size=[1-9]\d*m /);
+      expect(args).toMatch(/ -Drun\.license_type=trial -Dtests\.es\.xpack\.ml\.enabled=false$/);
     }
-  });
-
-  test("both runs build the minimal PromQL distribution with this checkout's init script", () => {
-    const r = run(STABLE, STABLE);
-    expect(r.status).toBe(0);
-    const [control, tested] = r.args.trim().split("\n");
-    // The merge base has no init script of its own; both runs use the absolute path to this one.
-    const init = (args: string) => args.match(/-I (\S+validate-prometheus-compliance\.init\.gradle)/)?.[1] ?? "";
-    expect(init(control)).toBe(init(tested));
-    expect(init(control).startsWith("/")).toBe(true);
-    expect(existsSync(init(control))).toBe(true);
-    const modules = (args: string) => args.match(/-Dpromcheck\.modules=(\S+)$/)?.[1].split(",") ?? [];
-    expect(modules(control)).toEqual(modules(tested));
-    expect(modules(tested)).toContain(":x-pack:plugin:prometheus");
-    expect(modules(tested)).toContain(":x-pack:plugin:esql");
-    expect(new Set(modules(tested)).size).toBe(modules(tested).length);
   });
 
   test("a regression next to a fix is reported even when the number of passing queries holds", () => {

@@ -38,7 +38,7 @@ configure() {
   for var in PROMCHECK_VER PROMCHECK_TEST_INSTANCE_TIMEOUT GITHUB_PR_TARGET_BRANCH; do
     [[ -n "${!var:-}" ]] || die "$var must be set"
   done
-  for cmd in curl git jq tee sort mkfifo; do
+  for cmd in curl getconf git jq tee sort mkfifo; do
     command -v "$cmd" >/dev/null 2>&1 || die "$cmd must be on the PATH"
   done
   if [[ ! "$PROMCHECK_TEST_INSTANCE_TIMEOUT" =~ ^[1-9][0-9]*$ ]]; then
@@ -56,37 +56,16 @@ configure() {
   # Changed queries listed per section; the full list is the changes artifact.
   declare -gr MAX_ROWS=50
   declare -gr MAX_QUERY_CHARS=200
-  # vCPUs of the agent (n1-standard-8 in the pipeline). promcheck keeps this many cases in flight, which gives the
-  # same results as a sequential run, only sooner. Elasticsearch gets all of them: test clusters default to
-  # node.processors=2, which sizes its thread pools and caps the JVM at two CPUs for seeding and queries.
-  declare -gr AGENT_CPUS=8
-  # The Prometheus plugin and the plugins it extends, transitively, plus the modules its data stream templates and
-  # the test cluster settings need. Any missing one fails the node on boot.
-  local -a promql_modules=(
-    :x-pack:plugin:prometheus
-    :x-pack:plugin:core
-    :x-pack:plugin:esql
-    :x-pack:plugin:esql-core
-    :x-pack:plugin:ml
-    :x-pack:plugin:autoscaling
-    :x-pack:plugin:encryption
-    :modules:lang-painless
-    :x-pack:plugin:stack
-    :x-pack:plugin:wildcard
-    :x-pack:plugin:ilm
-    :x-pack:plugin:mapper-constant-keyword
-    :modules:ingest-common
-    :modules:mapper-extras
-    :modules:data-streams
-    :modules:apm
-  )
-  local modules
-  printf -v modules '%s,' "${promql_modules[@]}"
-  declare -gr PROMQL_MODULES="${modules%,}"
-  # From this checkout for both runs, since a merge base may predate it. Absolute: Gradle runs in each workspace.
-  local script_dir
-  script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
-  declare -gr PROMQL_INIT_SCRIPT="$script_dir/validate-prometheus-compliance.init.gradle"
+  # Size the node for the agent. promcheck keeps one case in flight per CPU, which gives the same results as a
+  # sequential run, only sooner, and the node gets every CPU: test clusters default to node.processors=2, which also
+  # caps the JVM at two. The heap gets a quarter of the memory; the rest is for the Gradle daemon, promcheck's
+  # in-process Prometheus, the page cache, and the checkouts on the ramdisk.
+  local cpus pages page_size
+  cpus=$(getconf _NPROCESSORS_ONLN)
+  pages=$(getconf _PHYS_PAGES)
+  page_size=$(getconf PAGESIZE)
+  declare -gr AGENT_CPUS="$cpus"
+  declare -gr ES_HEAP="$(( pages * page_size / 4 / 1024 / 1024 ))m"
 
   # The pipeline uploads OUTPUT_DIR as artifacts. Tests point TMP_ROOT at a scratch directory.
   declare -gr TMP_ROOT="${PROMETHEUS_COMPLIANCE_TMPDIR:-/tmp}"
@@ -173,9 +152,8 @@ download_asset() {
 # Runs promcheck against Elasticsearch built from the given checkout. promcheck exits 1 when queries fail, which
 # is a result; any other exit code means the run itself failed.
 # Arguments after -- go to promcheck's ./gradlew run. They pull task outputs from the remote build cache that main
-# CI pushes to, which is only configured by .ci/init.gradle, and publish a build scan for each run. Both checkouts
-# build the integ-test distribution with only the modules PromQL needs, added by this script's own init script, which
-# works the same on any merge base.
+# CI pushes to, which is only configured by .ci/init.gradle, and publish a build scan for each run. promcheck fixes only
+# what every run needs; the node's size and settings are this job's.
 run_promcheck() {
   local workspace="$1" log_file="$2"
   local stderr_log="${2%.log}.stderr.log" fifo="$WORK_DIR/promcheck-stderr.fifo"
@@ -183,12 +161,13 @@ run_promcheck() {
   local -a statuses gradle_args=(
     --build-cache
     --scan
+    --configuration-cache
     -I "$workspace/.ci/init.gradle"
-    -I "$PROMQL_INIT_SCRIPT"
     -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
     "-Dtests.es.node.processors=$AGENT_CPUS"
-    -Drun.distribution=integ-test
-    "-Dpromcheck.modules=$PROMQL_MODULES"
+    "-Dtests.heap.size=$ES_HEAP"
+    -Drun.license_type=trial
+    -Dtests.es.xpack.ml.enabled=false
   )
   mkfifo -- "$fifo" || return
   tee -- "$stderr_log" < "$fifo" >&2 &

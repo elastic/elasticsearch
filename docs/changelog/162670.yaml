@@ -2,4 +2,4 @@ area: Downsampling
 issues: []
 pr: 162670
 summary: Skip already indexed buckets on downsample resume
-type: enhancement
+type: bug

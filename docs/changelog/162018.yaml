@@ -1,5 +1,6 @@
 area: ES|QL
-issues: []
+issues:
+ - 162615
 pr: 162018
 summary: Improve index resolution
 type: enhancement

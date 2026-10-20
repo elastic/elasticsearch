@@ -81,6 +81,21 @@ public class ElasticInferenceServiceDocumentExtractionRequestEntityTests extends
             """, modelId, pdfDocValue1, imageDocValue, pdfDocValue2)));
     }
 
+    public void testToXContent_HtmlUrlDocument() throws IOException {
+        var htmlUrl = "https://example.com/" + randomAlphanumericOfLength(8) + ".html";
+        var entity = new ElasticInferenceServiceDocumentExtractionRequestEntity(
+            List.of(new InferenceString(DataType.HTML, DataFormat.URL, htmlUrl)),
+            modelId,
+            ElasticInferenceServiceDocumentExtractionTaskSettings.EMPTY_SETTINGS
+        );
+        String xContentString = xContentEntityToString(entity);
+        assertThat(xContentString, equalToIgnoringWhitespaceInJsonString(Strings.format("""
+            {
+                "model": "%s",
+                "input": [{"content": {"type":"html","format":"url","value":"%s"}}]
+            }""", modelId, htmlUrl)));
+    }
+
     public void testToXContent_WithTaskSettings() throws IOException {
         var entity = new ElasticInferenceServiceDocumentExtractionRequestEntity(
             List.of(new InferenceString(DataType.PDF, DataFormat.BASE64, pdfDocValue1)),

@@ -186,6 +186,18 @@ public final class OtelSdkSettings {
         NodeScope
     );
 
+    /** Maximum number of spans recorded under a local root span, not counting the root. Spans beyond it, and their
+     * children, are not recorded. Defaults to the legacy {@code telemetry.agent.transaction_max_spans} when set,
+     * otherwise 500. */
+    public static final Setting<Integer> TELEMETRY_TRACING_MAX_SPANS = Setting.intSetting(
+        "telemetry.tracing.max_spans",
+        settings -> String.valueOf(Math.max(0, settings.getAsInt("telemetry.agent.transaction_max_spans", 500))),
+        0,
+        Integer.MAX_VALUE,
+        OperatorDynamic,
+        NodeScope
+    );
+
     /** Per-trace sample rate applied to locally-started traces. Defaults to the legacy
      * {@code telemetry.agent.transaction_sample_rate} when set, otherwise 0.001. */
     public static final Setting<Double> TELEMETRY_TRACING_SAMPLE_RATE = new Setting<>(

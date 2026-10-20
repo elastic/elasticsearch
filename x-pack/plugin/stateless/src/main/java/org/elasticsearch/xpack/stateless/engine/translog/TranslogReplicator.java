@@ -486,8 +486,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         private long firstAttemptStartMillis = UNSET;
         private volatile boolean isUploaded = false;
         private volatile boolean hedged = false;
-        private final AtomicReference<Boolean> completedByHedge = new AtomicReference<>();
-        private volatile boolean completed = false;
+        private final AtomicReference<Boolean> firstUploadWasHedge = new AtomicReference<>(); // null if not yet uploaded
         private volatile Scheduler.ScheduledCancellable hedgeTimer;
 
         private UploadTranslogTask(CompoundTranslog translog, ActionListener<UploadTranslogTask> listener) {
@@ -517,7 +516,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
         // used to keep track of the successful hedges and to guarantee we only complete the `listener` once in case of 2 parallel uploads
         private void uploaded(boolean byHedge, ActionListener<UploadTranslogTask> listener) {
-            if (completedByHedge.compareAndSet(null, byHedge)) {
+            if (firstUploadWasHedge.compareAndSet(null, byHedge)) {
                 listener.onResponse(this);
             }
         }
@@ -531,7 +530,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         // then `onFinished` is called, `hedgeTimer` is canceled and hence the hedge upload is never fired.
         private void hedge(ActionListener<UploadTranslogTask> listener) {
             translogUploadHedgesCounter.increment();
-            if (completed || uploadRefs.tryIncRef() == false) {
+            if (firstUploadWasHedge.get() != null || uploadRefs.tryIncRef() == false) {
                 return;
             }
 
@@ -602,7 +601,6 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
         @Override
         public void onFinished() {
-            completed = true;
             if (hedgeTimer != null) {
                 hedgeTimer.cancel();
             }
@@ -635,7 +633,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                 assert task.uploadTryNumber.get() >= 1 && task.firstAttemptStartMillis != UploadTranslogTask.UNSET;
                 translogUploadAttemptsHistogram.record(task.uploadTryNumber.get() + (task.hedged ? 1 : 0));
                 translogUploadTotalDurationHistogram.record(threadPool.relativeTimeInMillis() - task.firstAttemptStartMillis);
-                if (task.completedByHedge.get()) {
+                if (task.firstUploadWasHedge.get()) {
                     translogUploadHedgesWonCounter.increment();
                 }
                 nodeState.markUploadFinished(task);

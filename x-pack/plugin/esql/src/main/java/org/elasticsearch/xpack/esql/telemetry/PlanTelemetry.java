@@ -15,7 +15,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
+import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -33,6 +35,8 @@ public class PlanTelemetry {
     private final Map<String, Integer> functions = new HashMap<>();
     private final Map<String, Integer> settings = new HashMap<>();
     private final Map<String, String> resolvedSettings = new HashMap<>();
+    private final Map<String, Integer> viewSettings = new HashMap<>();
+    private final Map<String, Set<String>> viewResolvedSettings = new HashMap<>();
     private Integer linkedProjectsCount = null;
     private final Set<String> externalStorageTypes = new TreeSet<>();
     private final Set<String> externalFormats = new TreeSet<>();
@@ -117,6 +121,25 @@ public class PlanTelemetry {
         }
     }
 
+    /**
+     * Records the settings the definitions of the views the query resolved {@code SET} explicitly, apart from the caller's:
+     * one usage of a setting per view whose definition sets it, and every value it was set to. A setting a definition
+     * leaves at its default is not recorded.
+     */
+    public void viewSettings(Collection<ViewQuerySettings> views) {
+        for (ViewQuerySettings view : views) {
+            ResolvedSettings resolved = view.asResolvedSettings();
+            for (QuerySettingDef<?> def : ViewQuerySettings.SETTINGS) {
+                if (applicableSettings.contains(def) == false || view.supplied().contains(def.name()) == false) {
+                    continue;
+                }
+                add(viewSettings, def.name());
+                viewResolvedSettings.computeIfAbsent(def.name().toUpperCase(Locale.ROOT), k -> new TreeSet<>())
+                    .add(def.telemetryLabel(resolved));
+            }
+        }
+    }
+
     public Map<String, Integer> commands() {
         return commands;
     }
@@ -131,5 +154,15 @@ public class PlanTelemetry {
 
     public Map<String, String> resolvedSettings() {
         return resolvedSettings;
+    }
+
+    /** Number of resolved views whose definition {@code SET}s each setting. */
+    public Map<String, Integer> viewSettings() {
+        return viewSettings;
+    }
+
+    /** Every value resolved view definitions {@code SET} each setting to; a query with several such views may have several. */
+    public Map<String, Set<String>> viewResolvedSettings() {
+        return viewResolvedSettings;
     }
 }

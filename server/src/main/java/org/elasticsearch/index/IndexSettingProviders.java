@@ -76,7 +76,7 @@ public final class IndexSettingProviders {
      * index will end up with should go through this method, so they all agree with what {@link MetadataCreateIndexService} does when
      * the index is actually created.
      *
-     * @throws IllegalArgumentException if two providers contribute the same setting, or a provider sets the index created version
+     * @throws IllegalArgumentException if two providers contribute the same setting
      */
     public static AdditionalSettings collectAdditionalSettings(
         Collection<IndexSettingProvider> providers,

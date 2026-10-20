@@ -648,11 +648,11 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
     }
 
     /**
-     * Attaches an operand's pending filter to the time-series functions of its aggregates. The selector matchers reference
-     * source fields, which exist in the per-series first phase of the time-series aggregate but not in its second phase:
-     * a filter on the outer aggregate ({@code count} of {@code count by (k) (m{l="v"})}) would reference vanished
-     * columns. Filtering the per-series value leaves the outer aggregate over the matching series only. An aggregate
-     * without a time-series function keeps the filter on its own functions.
+     * Applies selector filters to the time-series functions within each operand's aggregate expressions.
+     * In {@code count by (cluster) (m{pod="one"})}, the filter belongs on {@code LastOverTime(m)}. Adding it
+     * to the enclosing {@code Count} also introduces a {@code pod} reference into the second aggregation phase,
+     * whose input does not contain that source field. Expressions without time-series functions use ordinary
+     * aggregate filtering.
      */
     private static List<? extends Expression> addFilter(List<? extends Expression> aggregates, Expression filter) {
         if (filter == null) {

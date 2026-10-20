@@ -727,8 +727,7 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
     }
 
     /**
-     * Fused with the other operand's aggregate, a selector's matchers filter its own series: {@code rx{host="a"}} has only
-     * a {@code prod} element, so the operator pairs {@code prod} alone, (10 + 30) - 2.
+     * The host matcher selects rx=2 in prod. The prod tx sum is 40, giving 38; clusters without matching rx are omitted.
      */
     public void testInstantFusedOperandKeepsItsMatchers() throws Exception {
         ingestTestDataUsingRemoteWrite(QUERY_TIME);

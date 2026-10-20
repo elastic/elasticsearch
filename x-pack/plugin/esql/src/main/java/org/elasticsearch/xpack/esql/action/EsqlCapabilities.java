@@ -3916,8 +3916,8 @@ public class EsqlCapabilities {
         FIX_PROMQL_FUSED_BINARY_OP_LABELS,
 
         /**
-         * Apply a fused PromQL operand's selector matchers to its per-series functions so the outer aggregate
-         * does not reference source labels that the first aggregation phase has removed.
+         * Fix missing source-label references caused by applying a fused PromQL operand's selector filter
+         * to the outer aggregate as well as its time-series functions.
          */
         FIX_PROMQL_FUSED_OPERAND_FILTER,
 

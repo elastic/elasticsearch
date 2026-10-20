@@ -903,8 +903,8 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
     }
 
     /**
-     * Fused with another aggregate, an operand's matchers filter its per-series function: they reference source fields
-     * that only the first phase of the time-series aggregate reads, not the outer aggregate.
+     * The right operand's pod filter must appear on LastOverTime only. A filter on Count would reference pod
+     * after the per-series aggregation has removed it.
      */
     public void testFusedOperandFiltersItsSeriesFunction() {
         LogicalPlan plan = planPromql(

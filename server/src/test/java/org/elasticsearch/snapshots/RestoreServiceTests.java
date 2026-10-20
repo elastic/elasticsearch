@@ -1091,6 +1091,10 @@ public class RestoreServiceTests extends ESTestCase {
 
     /** Builds a minimal mocked {@link RestoreService} so instance methods can be exercised without a full cluster. */
     private RestoreService createMinimalRestoreService() {
+        return createMinimalRestoreService(RestoreLifecycleListener.NOOP);
+    }
+
+    private RestoreService createMinimalRestoreService(RestoreLifecycleListener restoreLifecycleListener) {
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         when(clusterService.getClusterSettings()).thenReturn(
@@ -1111,7 +1115,8 @@ public class RestoreServiceTests extends ESTestCase {
             threadPool,
             false,
             IndexMetadataRestoreTransformer.NoOpRestoreTransformer.getInstance(),
-            mock(FeatureService.class)
+            mock(FeatureService.class),
+            restoreLifecycleListener
         );
     }
 
@@ -1163,9 +1168,8 @@ public class RestoreServiceTests extends ESTestCase {
         };
     }
 
-    public void testSetLifecycleListenerRejectsNull() {
-        RestoreService service = createMinimalRestoreService();
-        expectThrows(NullPointerException.class, () -> service.setLifecycleListener(null));
+    public void testSetLifecycleListenerCannotBeNull() {
+        expectThrows(NullPointerException.class, () -> createMinimalRestoreService(null));
     }
 
     public void testRestoreSnapshotRejectsInvalidRestoreUUID() {
@@ -1188,9 +1192,8 @@ public class RestoreServiceTests extends ESTestCase {
     }
 
     public void testOnRestoreCompletedCalledForCompletedEntry() {
-        RestoreService service = createMinimalRestoreService();
         AtomicInteger callCount = new AtomicInteger(0);
-        service.setLifecycleListener(completionListener((entry, state) -> {
+        RestoreService service = createMinimalRestoreService(completionListener((entry, state) -> {
             callCount.incrementAndGet();
             return state;
         }));
@@ -1202,9 +1205,8 @@ public class RestoreServiceTests extends ESTestCase {
     }
 
     public void testOnRestoreCompletedNotCalledForActiveEntry() {
-        RestoreService service = createMinimalRestoreService();
         AtomicInteger callCount = new AtomicInteger(0);
-        service.setLifecycleListener(completionListener((entry, state) -> {
+        RestoreService service = createMinimalRestoreService(completionListener((entry, state) -> {
             callCount.incrementAndGet();
             return state;
         }));
@@ -1254,9 +1256,9 @@ public class RestoreServiceTests extends ESTestCase {
     }
 
     public void testOnRestoreCompletedReceivesEntryAndCanModifyState() {
-        RestoreService service = createMinimalRestoreService();
+
         List<RestoreInProgress.Entry> capturedEntries = new ArrayList<>();
-        service.setLifecycleListener(completionListener((entry, state) -> {
+        RestoreService service = createMinimalRestoreService(completionListener((entry, state) -> {
             capturedEntries.add(entry);
             return ClusterState.builder(state).version(state.version() + 1).build();
         }));
@@ -1278,10 +1280,10 @@ public class RestoreServiceTests extends ESTestCase {
      * next cleanup pass.
      */
     public void testOnRestoreCompletedRetriedAfterException() {
-        RestoreService service = createMinimalRestoreService();
+
         AtomicInteger callCount = new AtomicInteger(0);
         RuntimeException boom = new RuntimeException("transient failure");
-        service.setLifecycleListener(completionListener((entry, state) -> {
+        RestoreService service = createMinimalRestoreService(completionListener((entry, state) -> {
             if (callCount.incrementAndGet() == 1) {
                 throw boom;
             }
@@ -1319,9 +1321,8 @@ public class RestoreServiceTests extends ESTestCase {
     }
 
     public void testApplyRestoreInitializedListenerCallsListenerWhenEntryNonNull() {
-        RestoreService service = createMinimalRestoreService();
         AtomicInteger callCount = new AtomicInteger(0);
-        service.setLifecycleListener(new RestoreLifecycleListener() {
+        RestoreService service = createMinimalRestoreService(new RestoreLifecycleListener() {
             @Override
             public ClusterState onRestoreInitialized(RestoreInProgress.Entry entry, ClusterState state) {
                 callCount.incrementAndGet();
@@ -1338,9 +1339,8 @@ public class RestoreServiceTests extends ESTestCase {
     }
 
     public void testApplyRestoreInitializedListenerSkipsListenerWhenEntryNull() {
-        RestoreService service = createMinimalRestoreService();
         AtomicInteger callCount = new AtomicInteger(0);
-        service.setLifecycleListener(new RestoreLifecycleListener() {
+        RestoreService service = createMinimalRestoreService(new RestoreLifecycleListener() {
             @Override
             public ClusterState onRestoreInitialized(RestoreInProgress.Entry entry, ClusterState state) {
                 callCount.incrementAndGet();
@@ -1352,13 +1352,6 @@ public class RestoreServiceTests extends ESTestCase {
 
         assertEquals(0, callCount.get());
         assertSame(ClusterState.EMPTY_STATE, result);
-    }
-
-    public void testSetLifecycleListenerRejectsDoubleRegistration() {
-        RestoreService service = createMinimalRestoreService();
-        RestoreLifecycleListener realListener = new RestoreLifecycleListener() {};
-        service.setLifecycleListener(realListener);
-        expectThrows(IllegalStateException.class, () -> service.setLifecycleListener(realListener));
     }
 
     public void testRestoreWithDifferentShardCountsRequiresNodeSupport() {
@@ -1823,7 +1816,8 @@ public class RestoreServiceTests extends ESTestCase {
                 threadPool,
                 false,
                 IndexMetadataRestoreTransformer.NoOpRestoreTransformer.getInstance(),
-                featureService
+                featureService,
+                RestoreLifecycleListener.NOOP
             );
 
             final Snapshot snapshot = new Snapshot(ProjectId.DEFAULT, "test-repo", new SnapshotId("test-snap", randomUUID()));

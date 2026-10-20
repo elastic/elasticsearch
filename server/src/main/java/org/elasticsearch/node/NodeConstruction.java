@@ -1302,10 +1302,7 @@ class NodeConstruction {
             threadPool,
             projectResolver.supportsMultipleProjects(),
             pluginsService.loadSingletonServiceProvider(IndexMetadataRestoreTransformer.class, NoOpRestoreTransformer::getInstance),
-            featureService
-        );
-
-        restoreService.setLifecycleListener(
+            featureService,
             pluginsService.loadSingletonServiceProvider(RestoreLifecycleListener.class, () -> RestoreLifecycleListener.NOOP)
         );
 

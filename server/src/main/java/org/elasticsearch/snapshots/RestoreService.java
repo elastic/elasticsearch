@@ -221,7 +221,7 @@ public final class RestoreService implements ClusterStateApplier {
 
     private volatile boolean refreshRepositoryUuidOnRestore;
 
-    private volatile RestoreLifecycleListener lifecycleListener = RestoreLifecycleListener.NOOP;
+    private final RestoreLifecycleListener lifecycleListener;
 
     public RestoreService(
         ClusterService clusterService,
@@ -236,7 +236,8 @@ public final class RestoreService implements ClusterStateApplier {
         ThreadPool threadPool,
         boolean deserializeProjectMetadata,
         IndexMetadataRestoreTransformer indexMetadataRestoreTransformer,
-        FeatureService featureService
+        FeatureService featureService,
+        RestoreLifecycleListener restoreLifecycleListener
     ) {
         this.clusterService = clusterService;
         this.repositoriesService = repositoriesService;
@@ -259,16 +260,7 @@ public final class RestoreService implements ClusterStateApplier {
             .addSettingsUpdateConsumer(REFRESH_REPO_UUID_ON_RESTORE_SETTING, this::setRefreshRepositoryUuidOnRestore);
         this.indexMetadataRestoreTransformer = indexMetadataRestoreTransformer;
         this.featureService = featureService;
-    }
-
-    /**
-     * Registers the single {@link RestoreLifecycleListener} during node construction.
-     */
-    public void setLifecycleListener(RestoreLifecycleListener listener) {
-        if (lifecycleListener != RestoreLifecycleListener.NOOP) {
-            throw new IllegalStateException("Lifecycle listener already set. Cannot change lifecycle listener");
-        }
-        this.lifecycleListener = Objects.requireNonNull(listener);
+        this.lifecycleListener = Objects.requireNonNull(restoreLifecycleListener);
     }
 
     /**

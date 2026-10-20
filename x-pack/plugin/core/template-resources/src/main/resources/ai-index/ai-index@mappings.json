@@ -100,6 +100,34 @@
                   "type": "keyword"
                 }
               }
+            },
+            "verification": {
+              "type": "object",
+              "properties": {
+                "passed": {
+                  "type": "boolean"
+                },
+                "verified_at": {
+                  "type": "date"
+                },
+                "failed_verifier_ids": {
+                  "type": "keyword"
+                },
+                "results": {
+                  "type": "object",
+                  "properties": {
+                    "verifier": {
+                      "type": "keyword"
+                    },
+                    "passed": {
+                      "type": "boolean"
+                    },
+                    "reason": {
+                      "type": "text"
+                    }
+                  }
+                }
+              }
             }
           }
         }

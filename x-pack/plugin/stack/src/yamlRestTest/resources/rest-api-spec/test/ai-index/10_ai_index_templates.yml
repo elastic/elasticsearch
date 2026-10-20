@@ -47,6 +47,7 @@ teardown:
   - match: { ai-index-idx-foo.mappings.properties.tags.normalizer: lowercase }
   - match: { ai-index-idx-foo.mappings.properties.expires_at.type: date }
   - match: { ai-index-idx-foo.mappings.properties.governance.properties.lifecycle.properties.status.type: keyword }
+  - match: { ai-index-idx-foo.mappings.properties.governance.properties.verification.properties.failed_verifier_ids.type: keyword }
   - match: { ai-index-idx-foo.mappings.properties.governance.properties.provenance.properties.created_by.properties.metadata.type: flattened }
 
 ---

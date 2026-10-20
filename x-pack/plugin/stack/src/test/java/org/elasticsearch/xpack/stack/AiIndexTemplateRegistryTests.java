@@ -158,6 +158,14 @@ public class AiIndexTemplateRegistryTests extends ESTestCase {
         }
         Map<String, Object> lifecycle = subProperties(governance, "lifecycle");
         assertThat(propertyType(lifecycle, "status"), equalTo("keyword"));
+        Map<String, Object> verification = subProperties(governance, "verification");
+        assertThat(propertyType(verification, "passed"), equalTo("boolean"));
+        assertThat(propertyType(verification, "verified_at"), equalTo("date"));
+        assertThat(propertyType(verification, "failed_verifier_ids"), equalTo("keyword"));
+        Map<String, Object> results = subProperties(verification, "results");
+        assertThat(propertyType(results, "verifier"), equalTo("keyword"));
+        assertThat(propertyType(results, "passed"), equalTo("boolean"));
+        assertThat(propertyType(results, "reason"), equalTo("text"));
     }
 
     public void testDataStreamSettingsComponent() {

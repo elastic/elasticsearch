@@ -134,7 +134,7 @@ For more examples of acceptable date formats, refer to [Date Math](/reference/el
 
 ## Match documents using wildcards [_filter_for_documents_using_wildcards]
 
-To match a pattern, use a wildcard. Wildcards work on `keyword`, `text`, and `wildcard` fields. They don't work on numeric, `date`, or `boolean` fields. KQL supports only `*`, which matches zero or more characters.
+To match a pattern, use a wildcard. Wildcards work on string-based fields, such as `keyword`, `text`, `match_only_text`, `constant_keyword`, `flattened`, and `wildcard` fields. KQL supports only `*`, which matches zero or more characters.
 
 For example, documents where `machine.os` begins with `win`:
 
@@ -182,6 +182,8 @@ To require both conditions, use `AND`. For example, documents where `http.reques
 http.request.method: GET AND http.response.status_code: 400
 ```
 
+### Set the order of conditions [kql-condition-order]
+
 To set precedence, use parentheses. For example, documents where `http.request.method` is GET and `http.response.status_code` is 200, or `http.request.method` is POST and `http.response.status_code` is 400:
 
 ```yaml
@@ -197,7 +199,9 @@ http.request.method: GET OR http.request.method: POST AND http.response.status_c
 
 In the Query DSL `kql` clause and the {{esql}} `KQL` function, `AND` and `OR` have the same precedence and group from right to left. In those places, `a: 1 AND b: 2 OR c: 3` means `a: 1 AND (b: 2 OR c: 3)`. In {{kib}}, it means `(a: 1 AND b: 2) OR c: 3`. To get the same result everywhere, use parentheses.
 
-You can also use parentheses to match several values on one field. For example, documents where `http.request.method` is GET, POST, or DELETE:
+### Match several values on one field [kql-multiple-values]
+
+To match several values on one field, put them in parentheses. For example, documents where `http.request.method` is GET, POST, or DELETE:
 
 ```yaml
 http.request.method: (GET OR POST OR DELETE)

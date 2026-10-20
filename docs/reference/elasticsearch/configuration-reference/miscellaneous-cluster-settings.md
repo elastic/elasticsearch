@@ -143,6 +143,11 @@ PUT /_cluster/settings
 ```
 
 
+## Telemetry [cluster-telemetry]
+
+{{es}} can export metrics and traces about its own operation, configured with the `telemetry.*` settings. This exists mainly for Elastic's own observability of {{es}}. The `telemetry.*` settings, their defaults, and the exported metrics and traces can change in any version. Do not rely on them staying the same between versions.
+
+
 ## Persistent tasks allocation [persistent-tasks-allocation]
 
 Plugins can create a kind of tasks called persistent tasks. Those tasks are usually long-lived tasks and are stored in the cluster state, allowing the tasks to be revived after a full cluster restart.

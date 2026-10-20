@@ -110,8 +110,8 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
     /// the translog to be uploaded).
     public static final Setting<TimeValue> UPLOAD_HEDGE_DELAY_SETTING = Setting.timeSetting(
         "stateless.translog.upload.hedge_delay",
-        timeValueSeconds(2),
-        timeValueMillis(100),
+        timeValueSeconds(50),
+        timeValueMillis(50),
         Setting.Property.NodeScope
     );
 

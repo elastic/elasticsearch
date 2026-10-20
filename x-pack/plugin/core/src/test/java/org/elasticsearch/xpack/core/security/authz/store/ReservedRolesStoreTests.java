@@ -621,10 +621,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 "feature_agentBuilder.minimal_all",
                 "feature_actions.read"
             )
-        ),
-        Map.entry(
-            "nightshift_detection",
-            Set.of("feature_nightshift.all", "feature_alerting_v2_rules.all", "feature_agentBuilder.read", "feature_actions.read")
         )
     );
 
@@ -684,24 +680,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 Map.entry("unrelated-index", Set.of()),
                 Map.entry(".kibana", Set.of())
             )
-        ),
-        Map.entry(
-            "nightshift_detection",
-            Map.ofEntries(
-                Map.entry("logs-sample", Set.of()),
-                Map.entry("metrics-sample", Set.of()),
-                Map.entry("traces-sample", Set.of()),
-                Map.entry("apm-sample", Set.of()),
-                Map.entry("ai-index-idx-nightshift-cortex", Set.of()),
-                Map.entry("ai-index-idx-nightshift-semantic-memory", Set.of()),
-                Map.entry("ai-index-idx-nightshift-decision-trees", Set.of()),
-                Map.entry(".significant_events-detections", Set.of("read", "view_index_metadata")),
-                Map.entry("$.nightshift.sources.space.source", Set.of("read", "read_view_metadata")),
-                Map.entry("$.nightshift.other", Set.of()),
-                Map.entry("ai-index-idx-security-investigations", Set.of()),
-                Map.entry("unrelated-index", Set.of()),
-                Map.entry(".kibana", Set.of())
-            )
         )
     );
 
@@ -747,7 +725,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(ReservedRolesStore.isReserved("alertzero_rule_coverage"), is(true));
         assertThat(ReservedRolesStore.isReserved("nightshift_agent"), is(true));
         assertThat(ReservedRolesStore.isReserved("nightshift_automations"), is(true));
-        assertThat(ReservedRolesStore.isReserved("nightshift_detection"), is(true));
     }
 
     public void testSnapshotUserRole() {
@@ -4898,7 +4875,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             .map(privilege -> new ApplicationPrivilegeDescriptor(applicationName, privilege, Set.of("action:" + privilege), Map.of()))
             .toList();
 
-        assertThat(NIGHTSHIFT_FEATURE_PRIVILEGES.size(), is(3));
+        assertThat(NIGHTSHIFT_FEATURE_PRIVILEGES.size(), is(2));
         for (String roleName : NIGHTSHIFT_FEATURE_PRIVILEGES.keySet()) {
             assertThat(ReservedRolesStore.isReserved(roleName), is(true));
             final RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor(roleName);

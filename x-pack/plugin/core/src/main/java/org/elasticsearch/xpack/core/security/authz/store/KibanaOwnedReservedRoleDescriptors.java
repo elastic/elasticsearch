@@ -1119,9 +1119,9 @@ class KibanaOwnedReservedRoleDescriptors {
 
     /*
      * Roles for the service accounts of Nightshift (Kibana Observability). Kibana creates one account of each kind per
-     * deployment (kibana/nightshift_agent, kibana/nightshift_automations, kibana/nightshift_detection) and binds per-space
-     * workflows to them. Serverless ships the same grants as the predefined roles _nightshift_agent,
-     * _nightshift_automations and _nightshift_detection in elasticsearch-controller; keep both in sync.
+     * deployment (kibana/nightshift_agent, kibana/nightshift_automations) and binds per-space workflows to them.
+     * Serverless ships the same grants as the predefined roles _nightshift_agent and _nightshift_automations in
+     * elasticsearch-controller; keep both in sync.
      */
     private static final String[] NIGHTSHIFT_CLUSTER_PRIVILEGES = { "monitor_inference" };
 
@@ -1163,27 +1163,6 @@ class KibanaOwnedReservedRoleDescriptors {
             "feature_agenticInvestigations.minimal_read",
             "feature_agenticInvestigations.investigations_all",
             "feature_agentBuilder.minimal_all",
-            "feature_actions.read"
-        );
-    }
-
-    // package-private to expose to ReservedRoleStore
-    static RoleDescriptor nightshiftDetection(String name) {
-        return nightshiftRole(
-            name,
-            "detection engines (knowledge indicator discovery, onboarding and detection)",
-            new RoleDescriptor.IndicesPrivileges[] {
-                RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(".significant_events-detections")
-                    .privileges("read", "view_index_metadata")
-                    .build(),
-                RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(ReservedRolesStore.NIGHTSHIFT_SOURCE_VIEWS)
-                    .privileges("read", "read_view_metadata")
-                    .build() },
-            "feature_nightshift.all",
-            "feature_alerting_v2_rules.all",
-            "feature_agentBuilder.read",
             "feature_actions.read"
         );
     }

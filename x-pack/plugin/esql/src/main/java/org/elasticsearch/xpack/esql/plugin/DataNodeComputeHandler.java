@@ -52,6 +52,7 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.datasources.DatasetConfigResolver;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
@@ -898,18 +899,35 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         // Run localPlan() to expand FragmentExec(ExternalRelation) -> ExternalSourceExec
         // This runs LocalLogicalPlanOptimizer, LocalMapper, and LocalPhysicalPlanOptimizer
         // (including filter pushdown via FormatReader.filterPushdownSupport())
-        // Splits are injected before physical optimization so rules like PushStatsToExternalSource see them.
-        PhysicalPlan planWithSplits = PlannerUtils.localPlan(
-            plannerSettings,
-            flags,
-            configuration,
-            configuration.newFoldContext(),
-            sinkExec,
-            SearchStats.EMPTY,
-            computeService.formatReaderRegistry(),
-            request.externalSplits(),
-            planTimeProfile
-        );
+        // Splits are injected before physical optimization so rules like PushStatsToExternalSource see them, and
+        // every external source is rebound to this node's own dataset definition (DatasetConfigResolver): the plan
+        // came over the wire and does not get to choose what is read or with which credentials.
+        // Kept outside the ComputeListener below: a throw before any acquire, followed by close(), would
+        // complete the request successfully and leave the sink registered when sourcesFinished was never sent.
+        final PhysicalPlan planWithSplits;
+        try {
+            planWithSplits = PlannerUtils.localPlan(
+                plannerSettings,
+                flags,
+                configuration,
+                configuration.newFoldContext(),
+                sinkExec,
+                SearchStats.EMPTY,
+                computeService.formatReaderRegistry(),
+                request.externalSplits(),
+                planTimeProfile,
+                DatasetConfigResolver.forProduction(projectResolver.getProjectMetadata(clusterService.state()))
+            );
+        } catch (Exception e) {
+            LOGGER.warn(
+                "failed to plan external source compute on data node [{}], session [{}]",
+                transportService.getLocalNode().getName(),
+                sessionId,
+                e
+            );
+            failWithoutStarting(request, listener, e);
+            return;
+        }
 
         try (
             ComputeListener computeListener = new ComputeListener(

@@ -13,6 +13,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.RemoteException;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
@@ -63,6 +64,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.datasources.DatasetConfigResolver;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
@@ -1367,6 +1369,10 @@ public class ComputeService {
             var parallelWorkerExecutor = workerThreadPool.executor(EsqlPlugin.computePool());
             int esqlWorkerPoolSize = workerThreadPool.info(EsqlPlugin.computePool()).getMax();
 
+            // The dataset rebind below reads datasets from this snapshot. The external request handler rebinds under its
+            // own snapshot before calling here, and the rebind is idempotent.
+            ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
+            DatasetConfigResolver datasetConfigResolver = DatasetConfigResolver.forProduction(projectMetadata);
             LocalExecutionPlanner planner = new LocalExecutionPlanner(
                 context.sessionId(),
                 context.clusterAlias(),
@@ -1385,6 +1391,7 @@ public class ComputeService {
                 projectResolver,
                 physicalOperationProviders,
                 operatorFactoryRegistry,
+                datasetConfigResolver.snapshotBuild(),
                 parallelWorkerExecutor,
                 esqlWorkerPoolSize,
                 grokMatcherWatchdog.get()
@@ -1410,7 +1417,8 @@ public class ComputeService {
                         SearchContextStats.from(localContexts),
                         formatReaderRegistry,
                         coordinatorExternalSplits,
-                        planTimeProfile
+                        planTimeProfile,
+                        datasetConfigResolver
                     );
                     logicalPlanString = null;
                 } else {
@@ -1427,7 +1435,10 @@ public class ComputeService {
                     logicalPlanString = localPlanResult.logicalPlanString();
                 }
             } else {
-                localPlan = plan;
+                // No reduce plan carries an external source today (reductionPlan replaces the breaker's children with
+                // an exchange source), and the external request handler rebinds before it gets here; the rebind is
+                // idempotent and free on a plan without external sources, so apply it rather than rely on that.
+                localPlan = plan.transformUp(ExternalSourceExec.class, datasetConfigResolver::rebind);
                 logicalPlanString = null;
             }
             if (LOGGER.isDebugEnabled()) {

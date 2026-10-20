@@ -602,6 +602,109 @@ public class ReservedRolesStoreTests extends ESTestCase {
         "feature_workflowsManagement.workflow_read_managed"
     );
 
+    private static final Map<String, Set<String>> NIGHTSHIFT_FEATURE_PRIVILEGES = Map.ofEntries(
+        Map.entry(
+            "nightshift_agent",
+            Set.of(
+                "feature_nightshift.minimal_all",
+                "feature_agentBuilder.minimal_all",
+                "feature_actions.read",
+                "feature_workflowsManagement.read"
+            )
+        ),
+        Map.entry(
+            "nightshift_automations",
+            Set.of(
+                "feature_nightshift.read",
+                "feature_agenticInvestigations.minimal_read",
+                "feature_agenticInvestigations.investigations_all",
+                "feature_agentBuilder.minimal_all",
+                "feature_actions.read"
+            )
+        ),
+        Map.entry(
+            "nightshift_detection",
+            Set.of("feature_nightshift.all", "feature_alerting_v2_rules.all", "feature_agentBuilder.read", "feature_actions.read")
+        )
+    );
+
+    private static final Set<String> NIGHTSHIFT_ALL_FEATURE_PRIVILEGES = Set.of(
+        "feature_nightshift.all",
+        "feature_nightshift.minimal_all",
+        "feature_nightshift.read",
+        "feature_nightshift.configure",
+        "feature_agentBuilder.all",
+        "feature_agentBuilder.minimal_all",
+        "feature_agentBuilder.read",
+        "feature_actions.all",
+        "feature_actions.read",
+        "feature_workflowsManagement.all",
+        "feature_workflowsManagement.read",
+        "feature_agenticInvestigations.all",
+        "feature_agenticInvestigations.minimal_read",
+        "feature_agenticInvestigations.investigations_all",
+        "feature_alerting_v2_rules.all",
+        "feature_alerting_v2_rules.read",
+        "feature_streams.all",
+        "feature_discover.all"
+    );
+
+    // "write" grants both index and delete.
+    private static final Map<String, Map<String, Set<String>>> NIGHTSHIFT_INDEX_PRIVILEGES = Map.ofEntries(
+        Map.entry(
+            "nightshift_agent",
+            Map.ofEntries(
+                Map.entry("logs-sample", Set.of("read", "view_index_metadata")),
+                Map.entry("metrics-sample", Set.of("read", "view_index_metadata")),
+                Map.entry("traces-sample", Set.of("read", "view_index_metadata")),
+                Map.entry("apm-sample", Set.of("read", "view_index_metadata")),
+                Map.entry("ai-index-idx-nightshift-cortex", Set.of("read", "view_index_metadata", "write", "auto_configure")),
+                Map.entry("ai-index-idx-nightshift-semantic-memory", Set.of("read", "view_index_metadata", "write", "auto_configure")),
+                Map.entry("ai-index-idx-nightshift-decision-trees", Set.of("read", "view_index_metadata", "write", "auto_configure")),
+                Map.entry(".significant_events-detections", Set.of()),
+                Map.entry("$.nightshift.sources.space.source", Set.of()),
+                Map.entry("ai-index-idx-security-investigations", Set.of()),
+                Map.entry("unrelated-index", Set.of()),
+                Map.entry(".kibana", Set.of())
+            )
+        ),
+        Map.entry(
+            "nightshift_automations",
+            Map.ofEntries(
+                Map.entry("logs-sample", Set.of()),
+                Map.entry("metrics-sample", Set.of()),
+                Map.entry("traces-sample", Set.of()),
+                Map.entry("apm-sample", Set.of()),
+                Map.entry("ai-index-idx-nightshift-cortex", Set.of()),
+                Map.entry("ai-index-idx-nightshift-semantic-memory", Set.of()),
+                Map.entry("ai-index-idx-nightshift-decision-trees", Set.of()),
+                Map.entry(".significant_events-detections", Set.of()),
+                Map.entry("$.nightshift.sources.space.source", Set.of()),
+                Map.entry("ai-index-idx-security-investigations", Set.of()),
+                Map.entry("unrelated-index", Set.of()),
+                Map.entry(".kibana", Set.of())
+            )
+        ),
+        Map.entry(
+            "nightshift_detection",
+            Map.ofEntries(
+                Map.entry("logs-sample", Set.of()),
+                Map.entry("metrics-sample", Set.of()),
+                Map.entry("traces-sample", Set.of()),
+                Map.entry("apm-sample", Set.of()),
+                Map.entry("ai-index-idx-nightshift-cortex", Set.of()),
+                Map.entry("ai-index-idx-nightshift-semantic-memory", Set.of()),
+                Map.entry("ai-index-idx-nightshift-decision-trees", Set.of()),
+                Map.entry(".significant_events-detections", Set.of("read", "view_index_metadata")),
+                Map.entry("$.nightshift.sources.space.source", Set.of("read", "read_view_metadata")),
+                Map.entry("$.nightshift.other", Set.of()),
+                Map.entry("ai-index-idx-security-investigations", Set.of()),
+                Map.entry("unrelated-index", Set.of()),
+                Map.entry(".kibana", Set.of())
+            )
+        )
+    );
+
     public void testIsReserved() {
         assertThat(ReservedRolesStore.isReserved("kibana_system"), is(true));
         assertThat(ReservedRolesStore.isReserved("superuser"), is(true));
@@ -642,6 +745,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(ReservedRolesStore.isReserved("alertzero_threat_hunt"), is(true));
         assertThat(ReservedRolesStore.isReserved("alertzero_rule_tuning"), is(true));
         assertThat(ReservedRolesStore.isReserved("alertzero_rule_coverage"), is(true));
+        assertThat(ReservedRolesStore.isReserved("nightshift_agent"), is(true));
+        assertThat(ReservedRolesStore.isReserved("nightshift_automations"), is(true));
+        assertThat(ReservedRolesStore.isReserved("nightshift_detection"), is(true));
     }
 
     public void testSnapshotUserRole() {
@@ -4778,6 +4884,104 @@ public class ReservedRolesStoreTests extends ESTestCase {
                     role.application()
                         .grants(ApplicationPrivilegeTests.createPrivilege(applicationName, privilege, "action:" + privilege), space),
                     is(ALERTZERO_WORKER_FEATURE_PRIVILEGES.get(roleName).contains(privilege))
+                );
+            }
+        }
+    }
+
+    public void testNightshiftServiceAccountRoles() {
+        final TransportRequest request = mock(TransportRequest.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
+        final String applicationName = "kibana-.kibana";
+        // One action per feature privilege, so a grant can only come from that exact privilege.
+        final List<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors = NIGHTSHIFT_ALL_FEATURE_PRIVILEGES.stream()
+            .map(privilege -> new ApplicationPrivilegeDescriptor(applicationName, privilege, Set.of("action:" + privilege), Map.of()))
+            .toList();
+
+        assertThat(NIGHTSHIFT_FEATURE_PRIVILEGES.size(), is(3));
+        for (String roleName : NIGHTSHIFT_FEATURE_PRIVILEGES.keySet()) {
+            assertThat(ReservedRolesStore.isReserved(roleName), is(true));
+            final RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor(roleName);
+            assertNotNull(roleDescriptor);
+            assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
+            assertThat(roleDescriptor.getDescription(), containsString("Nightshift"));
+            assertThat(roleDescriptor.getRunAs().length, is(0));
+
+            final Role role = Role.buildFromRoleDescriptor(
+                roleDescriptor,
+                new FieldPermissionsCache(Settings.EMPTY),
+                RESTRICTED_INDICES,
+                applicationPrivilegeDescriptors
+            );
+
+            // Only the monitor_inference cluster privilege
+            assertThat(role.cluster().check(GetInferenceModelAction.NAME, request, authentication), is(true));
+            assertThat(role.cluster().check(PutInferenceModelAction.NAME, request, authentication), is(false));
+            assertThat(role.cluster().check(PutRoleAction.NAME, request, authentication), is(false));
+            assertThat(role.cluster().check(TransportClusterHealthAction.NAME, request, authentication), is(false));
+            assertFalse(role.runAs().check(randomAlphaOfLengthBetween(1, 30)));
+
+            // Index privileges
+            NIGHTSHIFT_INDEX_PRIVILEGES.get(roleName).forEach((index, privileges) -> {
+                final IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
+                final String reason = roleName + " on " + index;
+                assertThat(
+                    reason,
+                    role.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction),
+                    is(privileges.contains("read"))
+                );
+                assertThat(
+                    reason,
+                    role.indices().allowedIndicesMatcher(GetMappingsAction.NAME).test(indexAbstraction),
+                    is(privileges.contains("view_index_metadata"))
+                );
+                assertThat(
+                    reason,
+                    role.indices().allowedIndicesMatcher(EsqlViewActionNames.ESQL_GET_VIEW_ACTION_NAME).test(indexAbstraction),
+                    is(privileges.contains("read_view_metadata"))
+                );
+                assertThat(
+                    reason,
+                    role.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(indexAbstraction),
+                    is(privileges.contains("write"))
+                );
+                assertThat(
+                    reason,
+                    role.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(indexAbstraction),
+                    is(privileges.contains("write"))
+                );
+                assertThat(
+                    reason,
+                    role.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(indexAbstraction),
+                    is(privileges.contains("auto_configure"))
+                );
+                assertThat(
+                    reason,
+                    role.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction),
+                    is(false)
+                );
+                assertThat(
+                    reason,
+                    role.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(indexAbstraction),
+                    is(false)
+                );
+                assertThat(
+                    reason,
+                    role.indices().allowedIndicesMatcher(EsqlViewActionNames.ESQL_PUT_VIEW_ACTION_NAME).test(indexAbstraction),
+                    is(false)
+                );
+            });
+            assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
+            assertNoAccessAllowed(role, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
+
+            // Kibana feature privileges, in every space
+            final String space = "space:" + randomAlphaOfLengthBetween(1, 8);
+            for (String privilege : NIGHTSHIFT_ALL_FEATURE_PRIVILEGES) {
+                assertThat(
+                    roleName + " " + privilege,
+                    role.application()
+                        .grants(ApplicationPrivilegeTests.createPrivilege(applicationName, privilege, "action:" + privilege), space),
+                    is(NIGHTSHIFT_FEATURE_PRIVILEGES.get(roleName).contains(privilege))
                 );
             }
         }

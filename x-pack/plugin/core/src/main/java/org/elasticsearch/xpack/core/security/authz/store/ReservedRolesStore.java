@@ -803,6 +803,10 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             entry("alertzero_threat_hunt", KibanaOwnedReservedRoleDescriptors.alertZeroThreatHunt("alertzero_threat_hunt")),
             entry("alertzero_rule_tuning", KibanaOwnedReservedRoleDescriptors.alertZeroRuleTuning("alertzero_rule_tuning")),
             entry("alertzero_rule_coverage", KibanaOwnedReservedRoleDescriptors.alertZeroRuleCoverage("alertzero_rule_coverage")),
+            // Nightshift service accounts
+            entry("nightshift_agent", KibanaOwnedReservedRoleDescriptors.nightshiftAgent("nightshift_agent")),
+            entry("nightshift_automations", KibanaOwnedReservedRoleDescriptors.nightshiftAutomations("nightshift_automations")),
+            entry("nightshift_detection", KibanaOwnedReservedRoleDescriptors.nightshiftDetection("nightshift_detection")),
             entry("viewer", buildViewerRoleDescriptor()),
             entry("editor", buildEditorRoleDescriptor())
         );

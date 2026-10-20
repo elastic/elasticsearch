@@ -1116,4 +1116,104 @@ class KibanaOwnedReservedRoleDescriptors {
                 + " worker, in all Kibana spaces. Assign this role only to that service account."
         );
     }
+
+    /*
+     * Roles for the service accounts of Nightshift (Kibana Observability). Kibana creates one account of each kind per
+     * deployment (kibana/nightshift_agent, kibana/nightshift_automations, kibana/nightshift_detection) and binds per-space
+     * workflows to them. Serverless ships the same grants as the predefined roles _nightshift_agent,
+     * _nightshift_automations and _nightshift_detection in elasticsearch-controller; keep both in sync.
+     */
+    private static final String[] NIGHTSHIFT_CLUSTER_PRIVILEGES = { "monitor_inference" };
+
+    // package-private to expose to ReservedRoleStore
+    static RoleDescriptor nightshiftAgent(String name) {
+        return nightshiftRole(
+            name,
+            "agent, which runs investigations, their sandbox tools and their learning hooks",
+            new RoleDescriptor.IndicesPrivileges[] {
+                // Telemetry the investigation agent queries as itself.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("logs-*", "metrics-*", "traces-*", "apm-*")
+                    .privileges("read", "view_index_metadata")
+                    .build(),
+                // Cortex, semantic memory and decision trees, which the agent's hooks read and write.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(
+                        "ai-index-idx-nightshift-cortex",
+                        "ai-index-idx-nightshift-semantic-memory",
+                        "ai-index-idx-nightshift-decision-trees"
+                    )
+                    .privileges("read", "view_index_metadata", "write", "auto_configure")
+                    .build() },
+            "feature_nightshift.minimal_all",
+            "feature_agentBuilder.minimal_all",
+            "feature_actions.read",
+            "feature_workflowsManagement.read"
+        );
+    }
+
+    // package-private to expose to ReservedRoleStore
+    static RoleDescriptor nightshiftAutomations(String name) {
+        return nightshiftRole(
+            name,
+            "automations, which start investigations that then run as the Nightshift agent",
+            new RoleDescriptor.IndicesPrivileges[0],
+            "feature_nightshift.read",
+            // Starting an investigation claims its subjects, which needs the investigations sub-feature.
+            "feature_agenticInvestigations.minimal_read",
+            "feature_agenticInvestigations.investigations_all",
+            "feature_agentBuilder.minimal_all",
+            "feature_actions.read"
+        );
+    }
+
+    // package-private to expose to ReservedRoleStore
+    static RoleDescriptor nightshiftDetection(String name) {
+        return nightshiftRole(
+            name,
+            "detection engines (knowledge indicator discovery, onboarding and detection)",
+            new RoleDescriptor.IndicesPrivileges[] {
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".significant_events-detections")
+                    .privileges("read", "view_index_metadata")
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(ReservedRolesStore.NIGHTSHIFT_SOURCE_VIEWS)
+                    .privileges("read", "read_view_metadata")
+                    .build() },
+            "feature_nightshift.all",
+            "feature_alerting_v2_rules.all",
+            "feature_agentBuilder.read",
+            "feature_actions.read"
+        );
+    }
+
+    private static RoleDescriptor nightshiftRole(
+        String name,
+        String accountDescription,
+        RoleDescriptor.IndicesPrivileges[] indices,
+        String... featurePrivileges
+    ) {
+        return new RoleDescriptor(
+            name,
+            NIGHTSHIFT_CLUSTER_PRIVILEGES,
+            indices,
+            new RoleDescriptor.ApplicationResourcePrivileges[] {
+                RoleDescriptor.ApplicationResourcePrivileges.builder()
+                    .application("kibana-.kibana")
+                    .resources("*")
+                    .privileges(featurePrivileges)
+                    .build() },
+            null,
+            null,
+            MetadataUtils.DEFAULT_RESERVED_METADATA,
+            null,
+            null,
+            null,
+            null,
+            "Grants the privileges required by the service account of the Nightshift "
+                + accountDescription
+                + ", in all Kibana spaces. Assign this role only to that service account."
+        );
+    }
 }

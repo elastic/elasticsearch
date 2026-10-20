@@ -27,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.simdvec.SimdVecLibrary.ENABLE_JDK_VECTOR_LIBRARY;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 
 public class VectorSystemPropertyTests extends ESTestCase {
@@ -48,7 +49,7 @@ public class VectorSystemPropertyTests extends ESTestCase {
     public void testSystemPropertyDisabled() throws Exception {
         String output = run(System.getProperty("es.nativelibs.path"), "-D" + ENABLE_JDK_VECTOR_LIBRARY + "=false");
 
-        assertThat(output, containsString("SimdVecLibrary.instance=[Optional.empty]"));
+        assertFalse(isLibraryLoaded(output));
     }
 
     /**
@@ -64,7 +65,8 @@ public class VectorSystemPropertyTests extends ESTestCase {
     }
 
     private static boolean isLibraryLoaded(String output) {
-        return output.contains("SimdVecLibrary.instance=[Optional.empty]") == false;
+        assertThat(output, either(containsString("SimdVecLibrary.loaded=true")).or(containsString("SimdVecLibrary.loaded=false")));
+        return output.contains("SimdVecLibrary.loaded=true");
     }
 
     @SuppressForbidden(reason = "pathSeparator")
@@ -105,7 +107,7 @@ public class VectorSystemPropertyTests extends ESTestCase {
             }
 
             public static void main(String... args) {
-                System.out.println("SimdVecLibrary.instance=[" + SimdVecLibrary.instance() + "]");
+                System.out.println("SimdVecLibrary.loaded=" + SimdVecLibrary.instance().isPresent());
             }
         }
         """;

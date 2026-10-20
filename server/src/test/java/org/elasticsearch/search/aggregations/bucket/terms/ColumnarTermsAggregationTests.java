@@ -15,8 +15,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Before;
@@ -24,8 +26,10 @@ import org.junit.Before;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -80,6 +84,8 @@ public class ColumnarTermsAggregationTests extends ESSingleNodeTestCase {
         final Map<String, Object> source = new TreeMap<>();
         source.put("@timestamp", "2024-01-01T00:00:00Z");
         source.put("n", doc % 7);
+        // Some documents stand for several, which the buckets have to add up.
+        source.put("_doc_count", 1 + doc % 4);
         if (doc % 20 == 0) {
             return source; // no kw
         }
@@ -124,6 +130,56 @@ public class ColumnarTermsAggregationTests extends ESSingleNodeTestCase {
             .size(10_000)
             .includeExclude(new IncludeExclude("echo", null, null, null));
         assertThat(buckets(COLUMNAR, included, false, false), equalTo(buckets(PLAIN, included, false, false)));
+    }
+
+    /** A document that stands for several, through {@code _doc_count}, counts for all of them. */
+    public void testDocCountFieldIsAddedUp() {
+        final AggregationBuilder terms = AggregationBuilders.terms("t").field("kw").size(10_000);
+        final Map<String, Long> expected = buckets(PLAIN, terms, false, false);
+        final long[] documents = new long[1];
+        assertResponse(
+            client().prepareSearch(PLAIN).setSize(0).setTrackTotalHits(true),
+            response -> documents[0] = response.getHits().getTotalHits().value()
+        );
+        assertThat(
+            "some documents stand for several",
+            expected.values().stream().mapToLong(Long::longValue).sum(),
+            greaterThan(documents[0])
+        );
+        assertThat(buckets(COLUMNAR, terms, false, false), equalTo(expected));
+    }
+
+    /** {@code significant_terms} counts the foreground and the background of each term. */
+    public void testSignificantTermsCountTheSame() {
+        final AggregationBuilder significant = AggregationBuilders.significantTerms("s").field("kw").size(10_000).minDocCount(1);
+        final Consumer<SearchRequestBuilder> foreground = request -> request.setQuery(QueryBuilders.termQuery("n", 3));
+        final Map<String, Long> expected = counts(PLAIN, foreground, significant);
+        assertThat(expected.size(), greaterThan(COMMON_VALUES.length));
+        assertThat(counts(COLUMNAR, foreground, significant), equalTo(expected));
+    }
+
+    /** Several aggregations at the top share one collector, and each still counts every document. */
+    public void testTwoTopLevelAggregationsCountTheSame() {
+        final AggregationBuilder first = AggregationBuilders.terms("first").field("kw").size(10_000);
+        final AggregationBuilder second = AggregationBuilders.terms("second").field("kw").size(10_000);
+        final Map<String, Long> expected = counts(PLAIN, request -> {}, first, second);
+        assertThat(counts(COLUMNAR, request -> {}, first, second), equalTo(expected));
+    }
+
+    /** A profiled search wraps the collectors, and counts the same. */
+    public void testProfiledSearchCountsTheSame() {
+        final AggregationBuilder terms = AggregationBuilders.terms("t").field("kw").size(10_000);
+        final Consumer<SearchRequestBuilder> profile = request -> request.setProfile(true);
+        assertThat(counts(COLUMNAR, profile, terms), equalTo(counts(PLAIN, profile, terms)));
+    }
+
+    /** {@code min_score} and {@code terminate_after} wrap the collectors, and with neither cutting any off the counts are the same. */
+    public void testMinScoreAndTerminateAfterCountTheSame() {
+        final AggregationBuilder terms = AggregationBuilders.terms("t").field("kw").size(10_000);
+        final Consumer<SearchRequestBuilder> wrapped = request -> request.setMinScore(0.5f).setTerminateAfter(1_000_000);
+        final Map<String, Long> expected = counts(PLAIN, wrapped, terms);
+        assertThat(expected.size(), greaterThan(COMMON_VALUES.length));
+        assertThat(counts(COLUMNAR, wrapped, terms), equalTo(expected));
     }
 
     /** Deleted documents are left out. */
@@ -189,6 +245,33 @@ public class ColumnarTermsAggregationTests extends ESSingleNodeTestCase {
             }
         });
         return buckets;
+    }
+
+    /**
+     * Aggregation name and key to doc count, for terms and significant terms alike. Hits are not tracked, and a
+     * significant term has its subset and superset counts too.
+     */
+    private Map<String, Long> counts(String index, Consumer<SearchRequestBuilder> customize, AggregationBuilder... aggregations) {
+        final Map<String, Long> counts = new TreeMap<>();
+        final SearchRequestBuilder request = client().prepareSearch(index).setSize(0).setTrackTotalHits(false);
+        for (AggregationBuilder aggregation : aggregations) {
+            request.addAggregation(aggregation);
+        }
+        customize.accept(request);
+        assertNoFailuresAndResponse(request, response -> {
+            for (AggregationBuilder aggregation : aggregations) {
+                final MultiBucketsAggregation result = response.getAggregations().get(aggregation.getName());
+                for (MultiBucketsAggregation.Bucket bucket : result.getBuckets()) {
+                    final String key = aggregation.getName() + "/" + bucket.getKeyAsString();
+                    counts.put(key, bucket.getDocCount());
+                    if (bucket instanceof SignificantTerms.Bucket significant) {
+                        counts.put(key + "#subsetDf", significant.getSubsetDf());
+                        counts.put(key + "#supersetDf", significant.getSupersetDf());
+                    }
+                }
+            }
+        });
+        return counts;
     }
 
     /** Key to doc count, and with {@code withSum} the sub-aggregation's sum too. Hits are tracked only when asked. */

@@ -132,7 +132,8 @@ public class ColumnarIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTes
         verify(newBackingIndex, docs, totalDocs);
 
         forceMerge(newBackingIndex);
-        assertColumnarFiles(newBackingIndex, controlIndexHasColumnarFiles());
+        assertTrue("ColumNAR files in a control index created by the upgraded cluster", controlIndexHasColumnarFiles());
+        assertColumnarFiles(newBackingIndex, true);
         verify(oldBackingIndex, 0, firstMixedDoc);
         verify(mixedBackingIndex, firstMixedDoc, docs);
         verify(newBackingIndex, docs, totalDocs);
@@ -178,7 +179,10 @@ public class ColumnarIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTes
             { "settings": %s, "mappings": %s }""", INDEX_SETTINGS, INDEX_MAPPINGS));
         assertOK(client().performRequest(request));
         try {
+            // A flushed segment is always a compound file, which hides the codec's files, so the index is merged like the others.
             bulkIndex(CONTROL_INDEX, 0, DOCS_PER_BULK);
+            bulkIndex(CONTROL_INDEX, DOCS_PER_BULK, DOCS_PER_BULK);
+            forceMerge(CONTROL_INDEX);
             return hasColumnarFiles(CONTROL_INDEX);
         } finally {
             deleteIndex(CONTROL_INDEX);

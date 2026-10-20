@@ -61,7 +61,7 @@ public class StatsFilterByBucketIT extends ESRestTestCase {
         Request createIndex = new Request("PUT", "/" + INDEX);
         createIndex.setJsonEntity("""
             {
-              "settings": { "index.number_of_shards": 1, "index.number_of_replicas": 0 },
+              "settings": { "index.number_of_shards": 1 },
               "mappings": {
                 "properties": {
                   "@timestamp": { "type": "date" },

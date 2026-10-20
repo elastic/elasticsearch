@@ -528,7 +528,13 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         if (req.indexFilter() == null || req.indexFilter() instanceof MatchAllQueryBuilder) {
             return true;
         }
-        ShardSearchRequest searchRequest = new ShardSearchRequest(shardId, req.nodeStartedTimeMillis(), AliasFilter.EMPTY);
+        ShardSearchRequest searchRequest = new ShardSearchRequest(
+            shardId,
+            req.nodeStartedTimeMillis(),
+            AliasFilter.EMPTY,
+            null,
+            SplitShardCountSummary.IRRELEVANT
+        );
         searchRequest.source(new SearchSourceBuilder().query(req.indexFilter()));
         return searchService.canMatch(searchRequest).canMatch();
     }

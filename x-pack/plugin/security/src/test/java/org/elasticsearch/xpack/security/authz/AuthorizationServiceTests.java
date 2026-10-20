@@ -156,6 +156,8 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.esql.EsqlDataSourceActionNames;
+import org.elasticsearch.xpack.core.esql.EsqlDatasetActionNames;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyRequest;
@@ -188,6 +190,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
@@ -198,6 +201,7 @@ import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.security.action.MockDataSourceRequest;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
@@ -661,6 +665,9 @@ public class AuthorizationServiceTests extends ESTestCase {
         );
         roleMap.put("manage_security_role", role);
         for (String action : LoggingAuditTrail.SECURITY_CHANGE_ACTIONS) {
+            if (action.startsWith("cluster:admin/xpack/security") == false) {
+                continue;
+            }
             TransportRequest request = mock(TransportRequest.class);
             authorize(authentication, action, request);
             verify(auditTrail).accessGranted(
@@ -671,6 +678,61 @@ public class AuthorizationServiceTests extends ESTestCase {
                 authzInfoRoles(new String[] { role.getName() })
             );
         }
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    public void testAuthorizationForEsqlSecurityChange() {
+        final Authentication authentication = createAuthentication(new User("user", "manage_datasources_role"));
+        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+        RoleDescriptor role = new RoleDescriptor(
+            "manage_datasources_role",
+            null,
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("*").privileges("manage_dataset").build() },
+            null,
+            new ConfigurableClusterPrivilege[] {
+                new ConfigurableClusterPrivileges.DatasourcePrivileges(
+                    List.of(
+                        new ConfigurableClusterPrivileges.DatasourcePrivileges.DatasourcePermissionGroup(
+                            new String[] { "*" },
+                            new String[] { "manage" }
+                        )
+                    )
+                ) },
+            null,
+            null,
+            null
+        );
+        roleMap.put("manage_datasources_role", role);
+        for (String action : List.of(
+            EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME,
+            EsqlDatasetActionNames.ESQL_DELETE_DATASET_ACTION_NAME
+        )) {
+            var request = new MockIndicesRequest(null, "my_dataset");
+            authorize(authentication, action, request);
+            verify(auditTrail).accessGranted(
+                eq(requestId),
+                eq(authentication),
+                eq(action),
+                eq(request),
+                authzInfoRoles(new String[] { role.getName() })
+            );
+        }
+
+        for (String action : List.of(
+            EsqlDataSourceActionNames.ESQL_PUT_DATA_SOURCE_ACTION_NAME,
+            EsqlDataSourceActionNames.ESQL_DELETE_DATA_SOURCE_ACTION_NAME
+        )) {
+            var request = new MockDataSourceRequest(action, "my_datasource");
+            authorize(authentication, action, request);
+            verify(auditTrail).accessGranted(
+                eq(requestId),
+                eq(authentication),
+                eq(action),
+                eq(request),
+                authzInfoRoles(new String[] { role.getName() })
+            );
+        }
+
         verifyNoMoreInteractions(auditTrail);
     }
 

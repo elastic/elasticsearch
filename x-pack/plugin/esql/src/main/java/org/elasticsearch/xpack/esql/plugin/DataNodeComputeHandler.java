@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -56,6 +57,7 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.datasources.DatasetConfigResolver;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
@@ -846,6 +848,12 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         ActionListener<DataNodeComputeResponse> listener
     ) {
         final Map<ShardId, Exception> shardLevelFailures = new HashMap<>();
+        // Resolve before the compute listener. A sources-finished exchange completes this request with an empty
+        // result; opening the listener first would also complete it when that early return skips every acquire.
+        final ExchangeSinkHandler externalSink = sinkToRun(externalId, listener);
+        if (externalSink == null) {
+            return;
+        }
         try (
             ComputeListener computeListener = new ComputeListener(
                 computeService.cancelQueryOnFailure(task),
@@ -860,7 +868,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     || task.getParentTaskId().getNodeId().equals(transportService.getLocalNode().getId())
                     : "single node optimizations enabled but wrong parent task: " + task + " vs " + transportService.getLocalNode().getId();
                 // run compute with target shards
-                var externalSink = exchangeService.getSinkHandler(externalId);
                 task.addListener(() -> {
                     exchangeService.finishSinkHandler(externalId, new TaskCancelledException(task.getReasonCancelled()));
                     if (internalExchange != null) {
@@ -1003,6 +1010,26 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
     }
 
     /**
+     * Resolves the sink the coordinator opened before this request. When the coordinator has since finished
+     * that exchange, completes {@code listener} with an empty result so a {@link ResourceNotFoundException}
+     * cannot replace the query's own error. Returns {@code null} when {@code listener} has already been completed.
+     */
+    private ExchangeSinkHandler sinkToRun(String sessionId, ActionListener<DataNodeComputeResponse> listener) {
+        final ExchangeSinkHandler sink;
+        try {
+            sink = exchangeService.getSinkHandlerIfOpen(sessionId);
+        } catch (ResourceNotFoundException e) {
+            listener.onFailure(e);
+            return null;
+        }
+        if (sink == null) {
+            listener.onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of()));
+            return null;
+        }
+        return sink;
+    }
+
+    /**
      * Rejects an external request that never got as far as building a driver. The coordinator opened the exchange before
      * sending the request, so a sink handler is already registered here; it has to be failed explicitly or the
      * coordinator's exchange source only learns of the refusal through task cancellation and this node holds an
@@ -1064,22 +1091,54 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         final String sessionId = request.sessionId();
         EsqlFlags flags = computeService.createFlags();
         PlannerSettings plannerSettings = computeService.plannerSettings().get();
+        final ExchangeSinkHandler externalSink = sinkToRun(sessionId, listener);
+        if (externalSink == null) {
+            return;
+        }
+        // Cancellation during local planning has to drop the sink the coordinator already opened. Registered
+        // before localPlan so a cancel in that window does not wait for the inactive-sink reaper.
+        task.addListener(() -> exchangeService.finishSinkHandler(sessionId, new TaskCancelledException(task.getReasonCancelled())));
+        if (task.isCancelled()) {
+            listener.onFailure(new TaskCancelledException(task.getReasonCancelled()));
+            return;
+        }
 
         // Run localPlan() to expand FragmentExec(ExternalRelation) -> ExternalSourceExec
         // This runs LocalLogicalPlanOptimizer, LocalMapper, and LocalPhysicalPlanOptimizer
         // (including filter pushdown via FormatReader.filterPushdownSupport())
-        // Splits are injected before physical optimization so rules like PushStatsToExternalSource see them.
-        PhysicalPlan planWithSplits = PlannerUtils.localPlan(
-            plannerSettings,
-            flags,
-            configuration,
-            configuration.newFoldContext(),
-            sinkExec,
-            SearchStats.EMPTY,
-            computeService.formatReaderRegistry(),
-            request.externalSplits(),
-            planTimeProfile
-        );
+        // Splits are injected before physical optimization so rules like PushStatsToExternalSource see them, and
+        // every external source is rebound to this node's own dataset definition (DatasetConfigResolver): the plan
+        // came over the wire and does not get to choose what is read or with which credentials.
+        // Kept outside the ComputeListener below: a throw before any acquire, followed by close(), would
+        // complete the request successfully and leave the sink registered when sourcesFinished was never sent.
+        final PhysicalPlan planWithSplits;
+        try {
+            planWithSplits = PlannerUtils.localPlan(
+                plannerSettings,
+                flags,
+                configuration,
+                configuration.newFoldContext(),
+                sinkExec,
+                SearchStats.EMPTY,
+                computeService.formatReaderRegistry(),
+                request.externalSplits(),
+                planTimeProfile,
+                DatasetConfigResolver.forProduction(projectResolver.getProjectMetadata(clusterService.state()))
+            );
+        } catch (Exception e) {
+            LOGGER.warn(
+                "failed to plan external source compute on data node [{}], session [{}]",
+                transportService.getLocalNode().getName(),
+                sessionId,
+                e
+            );
+            failWithoutStarting(request, listener, e);
+            return;
+        }
+        if (task.isCancelled()) {
+            listener.onFailure(new TaskCancelledException(task.getReasonCancelled()));
+            return;
+        }
 
         try (
             ComputeListener computeListener = new ComputeListener(
@@ -1092,12 +1151,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 computeListener.acquireCompute()
             );
             try {
-                var externalSink = exchangeService.getSinkHandler(sessionId);
                 String internalSessionId = sessionId + "[n]";
-                task.addListener(
-                    () -> { exchangeService.finishSinkHandler(sessionId, new TaskCancelledException(task.getReasonCancelled())); }
-                );
-
                 var computeContext = new ComputeContext(
                     internalSessionId,
                     ComputeService.DATA_DESCRIPTION,

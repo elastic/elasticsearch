@@ -14,6 +14,7 @@ import io.opentelemetry.proto.logs.v1.SeverityNumber;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.mockito.ArgumentCaptor;
@@ -151,15 +153,47 @@ public class OTLPLogsTransportActionTests extends AbstractOTLPTransportActionTes
             )
         );
 
+        try (MockLog mockLog = MockLog.capture(AbstractOTLPTransportAction.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "first rejection is logged",
+                    AbstractOTLPTransportAction.class.getCanonicalName(),
+                    Level.WARN,
+                    "OTLP request rejected: expanded content would exceed limit [10240] bytes.*has [15] telemetry items selected for conversion*"
+                )
+            );
+            Exception exception = executeExpectingFailure(action, request);
+            assertThat(ExceptionsHelper.status(exception), equalTo(RestStatus.REQUEST_ENTITY_TOO_LARGE));
+            assertThat(exception.getMessage(), containsString("expanded content would exceed limit"));
+            assertThat(exception.getMessage(), containsString("[15] telemetry items selected for conversion"));
+            assertThat(exception.getMessage(), containsString("Estimated expanded size of the full request"));
+            mockLog.assertAllExpectationsMatched();
+        }
+
+        // subsequent rejections are not logged at warn level to avoid flooding the logs
+        try (MockLog mockLog = MockLog.capture(AbstractOTLPTransportAction.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "subsequent rejection is not logged",
+                    AbstractOTLPTransportAction.class.getCanonicalName(),
+                    Level.WARN,
+                    "*"
+                )
+            );
+            Exception exception = executeExpectingFailure(action, request);
+            assertThat(ExceptionsHelper.status(exception), equalTo(RestStatus.REQUEST_ENTITY_TOO_LARGE));
+            mockLog.assertAllExpectationsMatched();
+        }
+        verify(client, never()).execute(any(), any(), any());
+    }
+
+    private static Exception executeExpectingFailure(OTLPLogsTransportAction action, OTLPActionRequest request) {
         @SuppressWarnings("unchecked")
         ActionListener<OTLPActionResponse> responseListener = mock(ActionListener.class);
         action.doExecute(null, request, responseListener);
-
         ArgumentCaptor<Exception> exception = ArgumentCaptor.forClass(Exception.class);
         verify(responseListener).onFailure(exception.capture());
-        assertThat(ExceptionsHelper.status(exception.getValue()), equalTo(RestStatus.REQUEST_ENTITY_TOO_LARGE));
-        assertThat(exception.getValue().getMessage(), containsString("expanded content would exceed limit"));
-        verify(client, never()).execute(any(), any(), any());
+        return exception.getValue();
     }
 
     private IndexRequest prepareIndexRequestWithAttributes(List<KeyValue> attributes) throws Exception {

@@ -452,13 +452,14 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
         String largeValue = "x".repeat(1024);
         List<Metric> metrics = new ArrayList<>();
         for (int i = 0; i < 15; i++) {
-            metrics.add(
-                OtlpUtils.createGaugeMetric(
-                    "test.metric",
-                    "",
-                    List.of(OtlpUtils.createDoubleDataPoint(i, i, List.of(keyValue("series", String.valueOf(i)))))
-                )
+            Metric metric = OtlpUtils.createGaugeMetric(
+                "test.metric",
+                "",
+                List.of(OtlpUtils.createDoubleDataPoint(i, i, List.of(keyValue("series", String.valueOf(i)))))
             );
+            metrics.add(metric);
+            // Grouping discards duplicates, so only 15 of the 30 received points contribute to the size estimate.
+            metrics.add(metric);
         }
         OTLPActionRequest request = new OTLPActionRequest(
             new BytesArray(
@@ -477,6 +478,8 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
         verify(responseListener).onFailure(exception.capture());
         assertThat(ExceptionsHelper.status(exception.getValue()), equalTo(RestStatus.REQUEST_ENTITY_TOO_LARGE));
         assertThat(exception.getValue().getMessage(), containsString("expanded content would exceed limit"));
+        assertThat(exception.getValue().getMessage(), containsString("[15] telemetry items selected for conversion"));
+        assertThat(exception.getValue().getMessage(), containsString("Estimated expanded size of the full request"));
         verify(client, never()).execute(any(), any(), any());
     }
 

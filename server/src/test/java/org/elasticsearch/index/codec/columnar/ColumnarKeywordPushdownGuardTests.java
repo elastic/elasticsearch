@@ -41,6 +41,7 @@ import org.elasticsearch.columnar.string.StringColumnOptions;
 import org.elasticsearch.columnar.string.StringColumnOptionsSelector;
 import org.elasticsearch.columnar.string.StringColumnReader;
 import org.elasticsearch.columnar.string.StringColumnSource;
+import org.elasticsearch.columnar.string.StringDictionary;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -558,8 +559,14 @@ public class ColumnarKeywordPushdownGuardTests extends ESTestCase {
         }
 
         @Override
-        public long firstSlotAddress() throws IOException {
-            return column.firstSlotAddress();
+        public StringDictionary dictionary() throws IOException {
+            return column.dictionary();
+        }
+
+        @Override
+        public void visitValues(ValueVisitor visitor) throws IOException {
+            readsAValue();
+            column.visitValues(visitor);
         }
 
         @Override

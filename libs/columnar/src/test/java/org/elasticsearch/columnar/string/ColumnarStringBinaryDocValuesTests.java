@@ -16,10 +16,14 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 
 /**
  * The {@code BinaryDocValues} surface of a string column, beyond the {@code nextDoc} + {@code binaryValue} scan
@@ -175,6 +179,113 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
         final BytesRef[] docValues = sparse(between(100, 500));
         final int numDocsWithField = numDocsWithField(docValues);
         withSurface(docValues, dv -> assertEquals(numDocsWithField, dv.cost()));
+    }
+
+    /** What a visitor was told about one document. */
+    private static final class Recorder implements StringColumnSource.ValueVisitor {
+        int count = -1;
+        final List<Object> values = new ArrayList<>();
+
+        @Override
+        public void values(int nonNullCount) {
+            assertEquals("the count comes first, and once", -1, count);
+            count = nonNullCount;
+        }
+
+        @Override
+        public void term(int ordinal) {
+            values.add(ordinal);
+        }
+
+        @Override
+        public void escaped(BytesRef value) {
+            values.add(BytesRef.deepCopyOf(value));
+        }
+    }
+
+    /**
+     * Each document says how many values it holds and then hands over each one, as a dictionary ordinal or as bytes when it
+     * escaped. A null slot is no value, so a document of several slots with one non-null slot holds one value.
+     */
+    public void testVisitValuesHandsOverEachValue() throws IOException {
+        final String[] terms = { "alpha", "bravo", "charlie" };
+        final BytesRef[][] docSlots = new BytesRef[between(400, 1200)][];
+        for (int d = 0; d < docSlots.length; d++) {
+            final BytesRef term = new BytesRef(terms[d % terms.length]);
+            final BytesRef other = new BytesRef(terms[(d + 1) % terms.length]);
+            docSlots[d] = switch (d % 7) {
+                case 0 -> null;
+                case 1 -> new BytesRef[] { term };
+                case 2 -> new BytesRef[] { null };
+                case 3 -> new BytesRef[] { term, other };
+                case 4 -> new BytesRef[] { null, term };
+                case 5 -> new BytesRef[] { new BytesRef("escaped-" + d) };
+                case 6 -> new BytesRef[] { null, null };
+                default -> throw new IllegalStateException();
+            };
+        }
+        withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), ROOMY, (metadata, reader) -> {
+            final ColumnarStringBinaryDocValues dv = new ColumnarStringBinaryDocValues(reader, reader.iterator(), false);
+            final StringDictionary dictionary = dv.dictionary();
+            assertNotNull(dictionary);
+            assertEquals(reader.dictionarySize(), dictionary.size());
+            int escaped = 0;
+            int inDictionary = 0;
+            for (int doc = dv.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = dv.nextDoc()) {
+                final List<BytesRef> valued = Arrays.stream(docSlots[doc]).filter(slot -> slot != null).toList();
+                final Recorder recorder = new Recorder();
+                dv.visitValues(recorder);
+                assertEquals("count at doc " + doc, valued.size(), recorder.count);
+                assertEquals("values at doc " + doc, valued.size(), recorder.values.size());
+                for (int i = 0; i < valued.size(); i++) {
+                    if (recorder.values.get(i) instanceof BytesRef bytes) {
+                        escaped++;
+                        assertEquals("doc " + doc, valued.get(i), bytes);
+                    } else {
+                        inDictionary++;
+                        final int ordinal = (Integer) recorder.values.get(i);
+                        assertThat("an ordinal from zero", ordinal, greaterThanOrEqualTo(0));
+                        assertThat("and below the dictionary's size", ordinal, lessThan(dictionary.size()));
+                        assertEquals("doc " + doc, valued.get(i), dictionary.term(ordinal, new BytesRef()));
+                    }
+                }
+            }
+            assertThat("some values are in the dictionary", inDictionary, greaterThan(0));
+            assertThat("and some escaped", escaped, greaterThan(0));
+        });
+    }
+
+    /** The dictionary looks up any ordinal at any time, not only for the document just visited. */
+    public void testDictionaryLooksUpAnyOrdinal() throws IOException {
+        final BytesRef[] docValues = new BytesRef[between(100, 400)];
+        for (int d = 0; d < docValues.length; d++) {
+            docValues[d] = new BytesRef("term-" + (d % 5));
+        }
+        withColumn(
+            singleValued(docValues),
+            randomValidBlockSize(),
+            randomChunkCodec(),
+            randomTargetChunkBytes(),
+            ROOMY,
+            (metadata, reader) -> {
+                final ColumnarStringBinaryDocValues dv = new ColumnarStringBinaryDocValues(reader, reader.iterator(), true);
+                final StringDictionary dictionary = dv.dictionary();
+                assertEquals(5, dictionary.size());
+                for (int ordinal = dictionary.size() - 1; ordinal >= 0; ordinal--) {
+                    assertEquals(new BytesRef("term-" + ordinal), dictionary.term(ordinal, new BytesRef()));
+                }
+            }
+        );
+    }
+
+    /** A column with no dictionary has no ordinals, and says so. */
+    public void testNoDictionaryMeansNoOrdinals() throws IOException {
+        final BytesRef[] docValues = dense(between(20, 100));
+        withSurface(docValues, dv -> {
+            assertNull(dv.dictionary());
+            assertTrue(dv.advanceExact(0));
+            expectThrows(IllegalStateException.class, () -> dv.visitValues(new Recorder()));
+        });
     }
 
     private interface SurfaceCheck {

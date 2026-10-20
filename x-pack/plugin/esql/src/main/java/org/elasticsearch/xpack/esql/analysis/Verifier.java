@@ -750,7 +750,7 @@ public class Verifier {
             || plan instanceof Enrich
             || plan instanceof Fork
             // Every subquery union is a BranchPlan, view branches included: a view is a boundary the setting does not reach into,
-            // so nothing is loaded from _source inside it and its _unmapped_fields is null.
+            // so nothing is loaded from _source inside it. It has no _unmapped_fields column; unions null-fill it where a sibling has one.
             || plan instanceof BranchPlan
             || (plan instanceof UnionAll && plan instanceof BranchPlan == false)
             || (plan instanceof Subquery && plan instanceof NamedSubquery == false)

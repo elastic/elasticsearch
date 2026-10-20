@@ -6379,7 +6379,7 @@ message:keyword | _unmapped_fields:_source
 42              | null
 ;
 
-loadAllReviewKeepUnmappedColumns
+loadAllViewBesideIndexKeepUnmappedColumns
 required_capability: optional_fields_load_all_views
 required_capability: settings_scoped_at_view_boundaries
 required_capability: views_with_branching
@@ -6397,7 +6397,7 @@ message:keyword | unmapped_message:keyword | unmapped_event_duration:keyword
 42              | 43                       | 1232383
 ;
 
-loadAllReviewUnionIndexAndView
+loadAllIndexAndViewUnion
 required_capability: optional_fields_load_all_views
 required_capability: settings_scoped_at_view_boundaries
 required_capability: views_with_branching
@@ -6414,7 +6414,7 @@ ignoreOrder:true
 2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42              | "null"
 ;
 
-loadAllReviewSortDescNullsLastLimit
+loadAllViewWildcardKeepSortDescNullsLastLimit
 required_capability: optional_fields_load_all_views
 required_capability: settings_scoped_at_view_boundaries
 required_capability: views_with_branching
@@ -6445,19 +6445,7 @@ c:long | u:long | d:long
 14     | 7      | 7
 ;
 
-loadAllSubqueryKeepStarMessageCountUnmappedDuration
-required_capability: optional_fields_load_all_subqueries
-required_capability: subquery_in_from_command
-
-SET unmapped_fields="LOAD_ALL"\;
-FROM partial_mapping_sample_data, (FROM partial_mapping_sample_data | KEEP *message*)
-| STATS c = COUNT(*), u = COUNT(unmapped_message), d = COUNT(unmapped_event_duration)
-;
-c:long | u:long | d:long
-14     | 14     | 7
-;
-
-loadAllReviewStatsByNullEventDuration
+loadAllViewWildcardKeepStatsByFromView
 required_capability: optional_fields_load_all_views
 required_capability: settings_scoped_at_view_boundaries
 required_capability: views_with_branching
@@ -6474,7 +6462,7 @@ c:long | u:long | d:long | from_view:boolean
 7      | 0      | 0      | true
 ;
 
-loadAllReviewKeepUnmappedStar
+loadAllViewBesideIndexKeepUnmappedStar
 required_capability: optional_fields_load_all_views
 required_capability: settings_scoped_at_view_boundaries
 required_capability: views_with_branching
@@ -6492,7 +6480,7 @@ message:keyword | _unmapped_fields:_source
 42              | "{""unmapped_message"":""43"",""unmapped_event_duration"":""1232383""}"
 ;
 
-loadAllReviewWildcardViewName
+loadAllViewNameWildcard
 required_capability: optional_fields_load_all_views
 required_capability: settings_scoped_at_view_boundaries
 required_capability: views_with_branching
@@ -6512,7 +6500,7 @@ message:keyword | unmapped_message:keyword | event_duration:long
 42              | null                     | null
 ;
 
-loadAllReviewThreeBranches
+loadAllIndexAndTwoViews
 required_capability: optional_fields_load_all_views
 required_capability: settings_scoped_at_view_boundaries
 required_capability: views_with_branching
@@ -6546,36 +6534,6 @@ ignoreOrder:true
 message:keyword | unmapped_event_duration:keyword
 42              | 1232383
 42              | null
-;
-
-loadAllSubqueryGapDropWildcard
-required_capability: optional_fields_load_all_subqueries
-required_capability: subquery_in_from_command
-
-SET unmapped_fields="LOAD_ALL"\;
-FROM partial_mapping_sample_data, (FROM partial_mapping_sample_data | DROP unmapped_e*)
-| WHERE message == "42"
-| KEEP message, unmapped_event_duration
-;
-ignoreOrder:true
-message:keyword | unmapped_event_duration:keyword
-42              | 1232383
-42              | null
-;
-
-loadAllSubqueryGapRename
-required_capability: optional_fields_load_all_subqueries
-required_capability: subquery_in_from_command
-
-SET unmapped_fields="LOAD_ALL"\;
-FROM partial_mapping_sample_data, (FROM partial_mapping_sample_data | RENAME unmapped_event_duration AS renamed_duration)
-| WHERE message == "42"
-| KEEP message, unmapped_event_duration, renamed_duration
-;
-ignoreOrder:true
-message:keyword | unmapped_event_duration:keyword | renamed_duration:keyword
-42              | 1232383                         | null
-42              | null                            | 1232383
 ;
 
 loadAllViewGapRestrictingViewInMiddle

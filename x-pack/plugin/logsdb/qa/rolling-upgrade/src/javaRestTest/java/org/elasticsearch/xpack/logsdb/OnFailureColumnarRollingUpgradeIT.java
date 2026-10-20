@@ -43,7 +43,11 @@ public class OnFailureColumnarRollingUpgradeIT extends AbstractLogsdbRollingUpgr
 
     private static final String INDEX_NAME = "bwc-on-failure-columnar";
 
-    private static final String MAPPING = """
+    /**
+     * Older clusters only understand {@code multi_value}, {@code nullability} and {@code on_failure} nested inside {@code doc_values}.
+     * Newer ones take them at the top level of the field mapping and warn about the nested form as deprecated.
+     */
+    private static final String NESTED_MAPPING = """
         {
           "properties": {
             "single_kw": {
@@ -53,6 +57,23 @@ public class OnFailureColumnarRollingUpgradeIT extends AbstractLogsdbRollingUpgr
             "required_kw": {
               "type": "keyword",
               "doc_values": { "nullability": false, "on_failure": "ignore" }
+            }
+          }
+        }
+        """;
+
+    private static final String TOP_LEVEL_MAPPING = """
+        {
+          "properties": {
+            "single_kw": {
+              "type": "keyword",
+              "multi_value": false,
+              "on_failure": "ignore"
+            },
+            "required_kw": {
+              "type": "keyword",
+              "nullability": false,
+              "on_failure": "ignore"
             }
           }
         }
@@ -96,7 +117,11 @@ public class OnFailureColumnarRollingUpgradeIT extends AbstractLogsdbRollingUpgr
             .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic")
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             .build();
-        createIndex(INDEX_NAME, settings, MAPPING);
+        createIndex(
+            INDEX_NAME,
+            settings,
+            oldClusterHasFeature(MapperFeatures.DOC_VALUES_TOP_LEVEL_ATTRIBUTES) ? TOP_LEVEL_MAPPING : NESTED_MAPPING
+        );
 
         String ts = formatInstant(Instant.parse("2024-01-01T00:00:00Z"));
 

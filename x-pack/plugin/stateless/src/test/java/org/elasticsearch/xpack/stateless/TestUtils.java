@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.stateless;
 
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -22,15 +23,21 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.FillCacheMemoryPressure;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges;
+import org.elasticsearch.xpack.stateless.commits.MergeBlobInjectingStatelessCommitService;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitCleaner;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -98,6 +105,42 @@ public class TestUtils {
 
         protected XPackLicenseState getLicenseState() {
             return new XPackLicenseState(System::currentTimeMillis, new XPackLicenseStatus(License.OperationMode.TRIAL, true, null));
+        }
+    }
+
+    /**
+     * A {@link StatelessPluginWithTrialLicense} that writes merge blobs in the object store next to the BCCs it uploads, to make sure that
+     * merge blobs have no impact on nodes while nothing writes them yet. See {@link MergeBlobInjectingStatelessCommitService}.
+     */
+    public static class MergeBlobInjectingStatelessPluginWithTrialLicense extends StatelessPluginWithTrialLicense {
+
+        public MergeBlobInjectingStatelessPluginWithTrialLicense(Settings settings) {
+            super(settings);
+        }
+
+        @Override
+        protected StatelessCommitService createStatelessCommitService(
+            Settings settings,
+            ObjectStoreService objectStoreService,
+            ClusterService clusterService,
+            IndicesService indicesService,
+            Client client,
+            StatelessCommitCleaner commitCleaner,
+            StatelessSharedBlobCacheService cacheService,
+            SharedBlobCacheWarmingService cacheWarmingService,
+            TelemetryProvider telemetryProvider
+        ) {
+            return new MergeBlobInjectingStatelessCommitService(
+                settings,
+                objectStoreService,
+                clusterService,
+                indicesService,
+                client,
+                commitCleaner,
+                cacheService,
+                cacheWarmingService,
+                telemetryProvider
+            );
         }
     }
 

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
@@ -30,7 +31,6 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.Result;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -122,6 +122,44 @@ final class SubPlansExecutor {
         SubPlan.Merge rootPlan,
         ActionListener<Result> listener
     ) {
+        this(
+            computeService,
+            exchangeService,
+            sessionId,
+            rootTask,
+            flags,
+            configuration,
+            foldContext,
+            execInfo,
+            initialClusterStatuses,
+            warnIndexCoordinatorOnce,
+            planTimeProfile,
+            rootPlan,
+            null,
+            listener
+        );
+    }
+
+    /**
+     * @param maxCollectedBytes limit on the root's collected result pages, or {@code null} for no limit.
+     *                          See {@link BoundedPageCollector}.
+     */
+    SubPlansExecutor(
+        ComputeService computeService,
+        ExchangeService exchangeService,
+        String sessionId,
+        CancellableTask rootTask,
+        EsqlFlags flags,
+        Configuration configuration,
+        FoldContext foldContext,
+        EsqlExecutionInfo execInfo,
+        Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses,
+        Runnable warnIndexCoordinatorOnce,
+        PlanTimeProfile planTimeProfile,
+        SubPlan.Merge rootPlan,
+        ByteSizeValue maxCollectedBytes,
+        ActionListener<Result> listener
+    ) {
         this.computeService = computeService;
         this.sessionPrefix = computeService.newChildSession(sessionId);
         this.rootTask = rootTask;
@@ -135,7 +173,8 @@ final class SubPlansExecutor {
         this.executionPermits = new AtomicInteger(queryPragmas.branchParallelDegree());
         this.cancelOnFailure = new RunOnce(computeService.cancelQueryOnFailure(rootTask));
         this.rootPlanTimeProfile = planTimeProfile;
-        final List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
+        final BoundedPageCollector pageCollector = new BoundedPageCollector(maxCollectedBytes);
+        final List<Page> collectedPages = pageCollector.pages();
         final PageStreamPublisher streamPublisher = rootPlan.plan() instanceof StreamingOutputExec streaming
             ? streaming.pageStream()
             : null;
@@ -153,7 +192,7 @@ final class SubPlansExecutor {
         this.rootExecution = new ExecutionMerge(
             null,
             rootPlan,
-            rootPlan.plan() instanceof StreamingOutputExec ? rootPlan.plan() : new OutputExec(rootPlan.plan(), collectedPages::add),
+            rootPlan.plan() instanceof StreamingOutputExec ? rootPlan.plan() : new OutputExec(rootPlan.plan(), pageCollector),
             "main.final",
             rootPlanTimeProfile,
             null,

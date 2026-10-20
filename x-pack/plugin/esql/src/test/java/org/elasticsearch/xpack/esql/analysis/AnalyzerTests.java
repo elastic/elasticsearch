@@ -112,6 +112,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
@@ -138,6 +139,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoin;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.junit.After;
@@ -1974,6 +1976,35 @@ public class AnalyzerTests extends AnalyzerTestCase {
         analyzer.error("from test | ENRICH foo", containsString("foo-error-101"));
     }
 
+    public void testRemoteEnrichIgnoresCoordinatorCommandsInsideInSubquery() {
+        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        LogicalPlan plan = basic().addEnrichPolicy(
+            Enrich.Mode.REMOTE,
+            EnrichPolicy.MATCH_TYPE,
+            "languages",
+            "language_code",
+            "languages_idx",
+            "mapping-languages.json"
+        ).addLanguagesLookup().query("""
+            FROM test
+            | WHERE emp_no IN (
+                FROM test
+                | EVAL language_code = languages
+                | LOOKUP JOIN languages_lookup ON language_code
+                | STATS c = COUNT(*) BY emp_no
+                | KEEP emp_no
+            )
+            | EVAL language_code = languages
+            | ENRICH _remote:languages ON language_code
+            """);
+
+        assertTrue(plan.anyMatch(Enrich.class::isInstance));
+        List<LookupJoin> lookupJoins = new ArrayList<>();
+        plan.forEachDown(LookupJoin.class, lookupJoins::add);
+        assertThat(lookupJoins, hasSize(1));
+        assertThat(lookupJoins.getFirst().executesOn(), equalTo(ExecuteLocation.ANY));
+    }
+
     public void testEnrichPolicyMatchFieldName() {
         var mfv = multiFieldVariation().addEnrichPolicy("match", "languages", "language_code", "languages_idx", "mapping-languages.json");
         mfv.error("from test | enrich languages on bar", containsString("Unknown column [bar]"));
@@ -2517,6 +2548,21 @@ public class AnalyzerTests extends AnalyzerTestCase {
         );
     }
 
+    public void testLookupJoinIgnoresRemoteIndicesInsideInSubquery() {
+        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        LogicalPlan plan = basic().addIndex("remote:test", "mapping-basic.json").addLanguagesLookup().query("""
+            FROM test
+            | WHERE emp_no IN (FROM remote:test | STATS c = COUNT(*) BY emp_no | KEEP emp_no)
+            | EVAL language_code = languages
+            | LOOKUP JOIN languages_lookup ON language_code
+            """);
+
+        List<LookupJoin> lookupJoins = new ArrayList<>();
+        plan.forEachDown(LookupJoin.class, lookupJoins::add);
+        assertThat(lookupJoins, hasSize(1));
+        assertThat(lookupJoins.getFirst().executesOn(), equalTo(ExecuteLocation.ANY));
+    }
+
     public void testMultipleLookupJoinsGiveDifferentAttributes() {
         // The field attributes that get contributed by different LOOKUP JOIN commands must have different name ids,
         // even if they have the same names. Otherwise, things like dependency analysis - like in PruneColumns - cannot work based on
@@ -2803,6 +2849,16 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assertDefaultLimitForQuery("FROM test | STATS avg(to_long(network.bytes_in))", DEFAULT_LIMIT);
     }
 
+    public void testInSubquerySortDoesNotSuppressImplicitTimestampSort() {
+        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        LogicalPlan plan = tsdb().query("TS test | WHERE host IN (FROM test | SORT host | KEEP host)");
+
+        Limit limit = as(plan, Limit.class);
+        OrderBy orderBy = as(limit.child(), OrderBy.class);
+        assertThat(orderBy.order(), hasSize(1));
+        assertThat(as(orderBy.order().getFirst().child(), FieldAttribute.class).name(), equalTo("@timestamp"));
+    }
+
     public void testLimitForPromQL() {
         assertDefaultLimitForQuery("""
             PROMQL index=test
@@ -2863,6 +2919,25 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
         var orderChild = as(order.child(), FieldAttribute.class);
         assertThat(orderChild.name(), equalTo("@timestamp"));
+    }
+
+    public void testImplicitTimestampSortIsAddedToTsRightSubquery() {
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
+        assumeTrue("TS subqueries required", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+
+        LogicalPlan plan = tsdb().query("""
+            ROW host = "host"
+            | LEFT OUTER JOIN (
+                TS test
+                | KEEP @timestamp, host
+                | LIMIT 5
+            ) ON host
+            """);
+        SubqueryJoin join = as(plan.collect(SubqueryJoin.class::isInstance).getFirst(), SubqueryJoin.class);
+        OrderBy orderBy = as(join.right().collect(OrderBy.class::isInstance).getFirst(), OrderBy.class);
+        Order order = orderBy.order().getFirst();
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+        assertThat(as(order.child(), FieldAttribute.class).name(), equalTo("@timestamp"));
     }
 
     public void testNoImplicitTimestampSortWithStats() {
@@ -3527,6 +3602,26 @@ public class AnalyzerTests extends AnalyzerTestCase {
                 "TS test | STATS avg(rate(bytes_in)) BY status",
                 containsString("Time Series Metadata conflict.  Cannot merge [METRIC] with [DIMENSION].")
             );
+    }
+
+    public void testTsStatsInSubqueryJoinRightScopeEnforcesFieldRoleConflict() {
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
+        assumeTrue("TS subqueries required", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+
+        FieldCapabilitiesResponse caps = buildCapsWithConflictingTsTypes();
+        var preAnalysis = new PreAnalyzer().preAnalyze(EsqlTestUtils.TEST_PARSER.parseQuery("""
+            FROM employees
+            | LEFT OUTER JOIN (TS test | STATS avg(rate(bytes_in)) BY status) ON status
+            """));
+        assertThat(preAnalysis.hasTimeSeriesAggregation(), is(true));
+        IndexResolution resolution = IndexResolver.mergedMappings(
+            "test",
+            false,
+            fieldsInfoOnCurrentVersion(caps, preAnalysis.hasTimeSeriesAggregation()),
+            false,
+            (p, r) -> Map.of()
+        );
+        assertThat(resolution.get().mapping().get("status"), instanceOf(InvalidMappedTsField.class));
     }
 
     /**
@@ -6991,6 +7086,15 @@ public class AnalyzerTests extends AnalyzerTestCase {
 
     static IndexResolver.FieldsInfo fieldsInfoOnCurrentVersion(FieldCapabilitiesResponse caps, boolean hasTimeSeriesAggregation) {
         return new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, hasTimeSeriesAggregation, true, true);
+    }
+
+    public void testFullTextFilterAfterInSubqueryIgnoresSubqueryCommands() {
+        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        basic().query("""
+            FROM test
+            | WHERE emp_no IN (FROM test | STATS c = COUNT(*) BY emp_no | LIMIT 2 | KEEP emp_no)
+            | WHERE MATCH(first_name, "x")
+            """);
     }
 
     public void testHighlightCombinesImplicitQueriesFromMultipleWhereCommands() {

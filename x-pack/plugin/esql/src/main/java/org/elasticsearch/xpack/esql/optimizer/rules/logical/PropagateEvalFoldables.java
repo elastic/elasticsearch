@@ -19,8 +19,10 @@ import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -31,31 +33,52 @@ public final class PropagateEvalFoldables extends ParameterizedRule<LogicalPlan,
 
     @Override
     public LogicalPlan apply(LogicalPlan plan, LogicalOptimizerContext ctx) {
+        return propagateInScope(plan, ctx);
+    }
+
+    private static LogicalPlan propagateInScope(LogicalPlan plan, LogicalOptimizerContext ctx) {
         AttributeMap<Expression> collectRefs = RuleUtils.foldableReferencesSkipMVGroupings(plan, ctx);
+        return propagateInScope(plan, collectRefs, ctx);
+    }
+
+    private static LogicalPlan propagateInScope(LogicalPlan plan, AttributeMap<Expression> collectRefs, LogicalOptimizerContext ctx) {
+        List<LogicalPlan> children = plan.children();
+        List<LogicalPlan> transformedChildren = null;
+        for (int i = 0; i < children.size(); i++) {
+            LogicalPlan child = children.get(i);
+            LogicalPlan transformedChild = plan instanceof IndependentSubqueryJoin && i == 1
+                ? propagateInScope(child, ctx)
+                : propagateInScope(child, collectRefs, ctx);
+            if (child.equals(transformedChild) == false) {
+                if (transformedChildren == null) {
+                    transformedChildren = new ArrayList<>(children);
+                }
+                transformedChildren.set(i, transformedChild);
+            }
+        }
+        if (transformedChildren != null) {
+            plan = plan.replaceChildren(transformedChildren);
+        }
+
         if (collectRefs.isEmpty()) {
             return plan;
         }
-
         // Apply the replacement inside Filter, Eval, Row and LimitBy (groupings).
         // TODO: also allow aggregates once aggs on constants are supported.
         // C.f. https://github.com/elastic/elasticsearch/issues/100634
-        plan = plan.transformUp(p -> {
-            if (p instanceof Filter || p instanceof Eval || p instanceof Row || p instanceof LimitBy || p instanceof MMR) {
-                p = p.transformExpressionsOnly(ReferenceAttribute.class, r -> collectRefs.resolve(r, r));
-            } else if (p instanceof ChangePoint cp) {
-                // Among ChangePoint's fields, only `groupings` accepts arbitrary expressions;
-                // Applying replacement to `groupings` only
-                List<Expression> newGroupings = cp.groupings()
-                    .stream()
-                    .map(g -> g.transformUp(ReferenceAttribute.class, r -> collectRefs.resolve(r, r)))
-                    .toList();
-                if (newGroupings.equals(cp.groupings()) == false) {
-                    p = new ChangePoint(cp.source(), cp.child(), cp.value(), cp.key(), cp.targetType(), cp.targetPvalue(), newGroupings);
-                }
+        if (plan instanceof Filter || plan instanceof Eval || plan instanceof Row || plan instanceof LimitBy || plan instanceof MMR) {
+            plan = plan.transformExpressionsOnly(ReferenceAttribute.class, r -> collectRefs.resolve(r, r));
+        } else if (plan instanceof ChangePoint cp) {
+            // Among ChangePoint's fields, only `groupings` accepts arbitrary expressions;
+            // Applying replacement to `groupings` only
+            List<Expression> newGroupings = cp.groupings()
+                .stream()
+                .map(g -> g.transformUp(ReferenceAttribute.class, r -> collectRefs.resolve(r, r)))
+                .toList();
+            if (newGroupings.equals(cp.groupings()) == false) {
+                plan = new ChangePoint(cp.source(), cp.child(), cp.value(), cp.key(), cp.targetType(), cp.targetPvalue(), newGroupings);
             }
-            return p;
-        });
-
+        }
         return plan;
     }
 }

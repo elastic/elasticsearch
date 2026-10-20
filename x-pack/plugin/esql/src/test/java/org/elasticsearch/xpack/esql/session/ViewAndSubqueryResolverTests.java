@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoin;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.view.InMemoryViewResolver;
@@ -124,6 +125,35 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
         NamedSubquery namedSubquery = as(keep.child(), NamedSubquery.class);
         keep = as(namedSubquery.child(), Keep.class);
         assertUnresolvedRelation(keep.child(), "departments");
+    }
+
+    public void testLookupJoinSubqueryResolvesViewAndNestedInSubquery() {
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
+        addView("dept_view", "FROM departments | KEEP dept_id");
+        ViewResolver.ViewResolutionResult result = resolve("""
+            FROM employees
+            | LEFT OUTER JOIN (
+                FROM dept_view
+                | WHERE dept_id IN (FROM teams | KEEP dept_id)
+                | KEEP dept_id
+              ) ON dept_id
+            """);
+
+        assertTrue(result.hasInSubquery());
+        assertEquals(Set.of("dept_view"), result.viewQueries().keySet());
+
+        SubqueryJoin subqueryJoin = as(result.plan(), SubqueryJoin.class);
+        assertTrue(subqueryJoin.right().anyMatch(plan -> plan instanceof SemiJoin));
+        assertTrue(
+            subqueryJoin.right()
+                .anyMatch(
+                    plan -> plan instanceof UnresolvedRelation relation && relation.indexPattern().indexPattern().equals("departments")
+                )
+        );
+        assertTrue(
+            subqueryJoin.right()
+                .anyMatch(plan -> plan instanceof UnresolvedRelation relation && relation.indexPattern().indexPattern().equals("teams"))
+        );
     }
 
     /*

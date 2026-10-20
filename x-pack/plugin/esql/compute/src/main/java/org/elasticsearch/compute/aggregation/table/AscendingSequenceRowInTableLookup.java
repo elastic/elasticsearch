@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.ReleasableIterator;
 
 /**
@@ -30,27 +31,37 @@ public final class AscendingSequenceRowInTableLookup extends RowInTableLookup {
 
     @Override
     public ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize) {
+        return lookup(page, targetBlockSize, blockFactory, Warnings.NOOP_WARNINGS);
+    }
+
+    @Override
+    public ReleasableIterator<IntBlock> lookup(
+        Page page,
+        ByteSizeValue targetBlockSize,
+        BlockFactory resultBlockFactory,
+        Warnings warnings
+    ) {
         IntBlock block = page.getBlock(0);
         IntVector vector = block.asVector();
         int target = Math.toIntExact(targetBlockSize.getBytes());
         if (vector != null && vector.getPositionCount() * Integer.BYTES < target) {
-            return ReleasableIterator.single(lookupVector(vector));
+            return ReleasableIterator.single(lookupVector(vector, resultBlockFactory));
         }
-        return new Lookup(block, target);
+        return new Lookup(block, target, resultBlockFactory);
     }
 
-    private IntBlock lookupVector(IntVector vector) {
+    private IntBlock lookupVector(IntVector vector, BlockFactory blockFactory) {
         if (vector.min() >= min && vector.max() < max) {
             if (min == 0) {
                 vector.incRef();
                 return vector.asBlock();
             }
-            return lookupVectorInRange(vector).asBlock();
+            return lookupVectorInRange(vector, blockFactory).asBlock();
         }
-        return lookupVectorMaybeInRange(vector);
+        return lookupVectorMaybeInRange(vector, blockFactory);
     }
 
-    private IntVector lookupVectorInRange(IntVector vector) {
+    private IntVector lookupVectorInRange(IntVector vector, BlockFactory blockFactory) {
         try (IntVector.FixedBuilder builder = blockFactory.newIntVectorFixedBuilder(vector.getPositionCount())) {
             for (int i = 0; i < vector.getPositionCount(); i++) {
                 builder.appendInt(i, vector.getInt(i) - min);
@@ -59,7 +70,7 @@ public final class AscendingSequenceRowInTableLookup extends RowInTableLookup {
         }
     }
 
-    private IntBlock lookupVectorMaybeInRange(IntVector vector) {
+    private IntBlock lookupVectorMaybeInRange(IntVector vector, BlockFactory blockFactory) {
         try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(vector.getPositionCount())) {
             for (int i = 0; i < vector.getPositionCount(); i++) {
                 int v = vector.getInt(i);
@@ -81,12 +92,14 @@ public final class AscendingSequenceRowInTableLookup extends RowInTableLookup {
     private class Lookup implements ReleasableIterator<IntBlock> {
         private final IntBlock block;
         private final int target;
+        private final BlockFactory blockFactory;
 
         int p;
 
-        private Lookup(IntBlock block, int target) {
+        private Lookup(IntBlock block, int target, BlockFactory blockFactory) {
             this.block = block;
             this.target = target;
+            this.blockFactory = blockFactory;
             block.incRef();
         }
 

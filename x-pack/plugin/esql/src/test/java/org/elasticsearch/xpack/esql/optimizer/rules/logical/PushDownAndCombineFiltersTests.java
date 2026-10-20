@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 
@@ -432,6 +433,31 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         assertEquals(left, optimizedJoin.left());
         Filter rightFilter = as(optimizedJoin.right(), Filter.class);
         assertEquals(pushableCondition, rightFilter.condition());
+    }
+
+    public void testPushDownFilterPastSubqueryJoinRebindsRightAttributes() {
+        FieldAttribute leftKey = getFieldAttribute("left_key");
+        FieldAttribute rightKey = getFieldAttribute("right_key");
+        FieldAttribute rightValue = getFieldAttribute("right_value");
+        EsRelation left = relation(List.of(leftKey));
+        EsRelation right = relation(List.of(rightKey, rightValue));
+        JoinConfig config = new JoinConfig(JoinTypes.LEFT, List.of(leftKey), List.of(rightKey), null);
+        SubqueryJoin join = new SubqueryJoin(EMPTY, left, right, config, ExecuteLocation.ANY);
+        ReferenceAttribute joinedRightValue = (ReferenceAttribute) join.output()
+            .stream()
+            .filter(attribute -> attribute.name().equals("right_value"))
+            .findFirst()
+            .orElseThrow();
+
+        Expression pushableCondition = greaterThanOf(joinedRightValue, ONE);
+        Filter filter = new Filter(EMPTY, join, pushableCondition);
+        LogicalPlan optimized = new PushDownAndCombineFilters().apply(filter, optimizerContext);
+
+        Filter topFilter = as(optimized, Filter.class);
+        SubqueryJoin optimizedJoin = as(topFilter.child(), SubqueryJoin.class);
+        Filter rightFilter = as(optimizedJoin.right(), Filter.class);
+        assertEquals(greaterThanOf(rightValue, ONE), rightFilter.condition());
+        assertThat(rightFilter.condition().references().iterator().next(), instanceOf(FieldAttribute.class));
     }
 
     public void testPushDownFilterPastLeftJoinWithExistingFilter() {

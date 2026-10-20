@@ -19,29 +19,40 @@ import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEvalFoldables;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneConstantSortKeysFromOrderBy;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoin;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_SEARCH_STATS;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.rewriteDatasetsUnsecured;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
@@ -177,6 +188,80 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
                 "cannot yet have an unbounded SORT [SORT emp_no] before it: either move the SORT after it, or add a LIMIT after the SORT"
             )
         );
+    }
+
+    public void testUnboundedSortInsideJoinSubqueryIsPruned() {
+        LogicalPlan plan = planSubquery("""
+            FROM test
+            | LEFT OUTER JOIN (FROM test | SORT emp_no | KEEP languages) ON languages
+            | LIMIT 10
+            """, Settings.EMPTY);
+
+        SubqueryJoin join = findSubqueryJoin(plan);
+        assertFalse(join.right().anyMatch(OrderBy.class::isInstance));
+    }
+
+    public void testUnboundedSortInsideInSubqueryWithinJoinSubqueryIsRejected() {
+        VerificationException exception = expectThrows(VerificationException.class, () -> planSubquery("""
+            FROM test
+            | LEFT OUTER JOIN (
+                FROM test
+                | WHERE emp_no IN (FROM test | SORT emp_no | KEEP emp_no)
+                | KEEP languages
+              ) ON languages
+            | LIMIT 10
+            """, Settings.EMPTY));
+
+        assertThat(exception.getMessage(), containsString("Unbounded SORT not supported yet [SORT emp_no] please add a LIMIT"));
+    }
+
+    public void testPropagateEvalFoldablesDoesNotCrossSubqueryJoin() {
+        LogicalPlan analyzed = defaultAnalyzer().query("""
+            ROW key = 2
+            | LEFT OUTER JOIN (ROW key = 1, flag = true) ON key
+            | WHERE flag IS NULL
+            """);
+
+        LogicalPlan result = new PropagateEvalFoldables().apply(analyzed, logicalOptimizerCtx);
+
+        List<Filter> filters = new ArrayList<>();
+        result.forEachDown(Filter.class, filters::add);
+        assertThat(filters, hasSize(1));
+        assertThat(filters.get(0).condition().references().iterator().next(), instanceOf(ReferenceAttribute.class));
+    }
+
+    public void testPruneConstantSortKeysDoesNotCrossSubqueryJoin() {
+        LogicalPlan analyzed = defaultAnalyzer().query("""
+            ROW key = 2
+            | LEFT OUTER JOIN (ROW key = 1, flag = true) ON key
+            | SORT flag
+            | LIMIT 10
+            """);
+
+        LogicalPlan result = new PruneConstantSortKeysFromOrderBy().apply(analyzed, logicalOptimizerCtx);
+
+        List<OrderBy> orderBys = new ArrayList<>();
+        result.forEachDown(OrderBy.class, orderBys::add);
+        assertThat(orderBys, hasSize(1));
+    }
+
+    public void testSubqueryJoinSurvivesLogicalAndLocalRuleSweeps() {
+        LogicalPlan analyzed = defaultAnalyzer().query("""
+            FROM test
+            | EVAL language_name = 2 * salary
+            | KEEP languages, language_name
+            | RENAME language_name AS foo
+            | LEFT OUTER JOIN (FROM test | EVAL language_name = last_name | KEEP languages, language_name) ON languages
+            | KEEP foo, language_name
+            | LIMIT 10
+            """);
+
+        LogicalPlan optimized = new LogicalPlanOptimizer(logicalOptimizerCtx).optimize(analyzed);
+        findSubqueryJoin(optimized);
+
+        var localContext = new LocalLogicalOptimizerContext(TEST_CFG, FoldContext.small(), TEST_SEARCH_STATS);
+        LogicalPlan localOptimized = new LocalLogicalPlanOptimizer(localContext).localOptimize(optimized);
+        findSubqueryJoin(localOptimized);
     }
 
     public void testTotalBranchCountAtOrBeyondLimit() {
@@ -410,6 +495,13 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
 
     private void assertNestedSubqueryLimits(String query, int branches, int levels) {
         assertNestedLimits(branches, levels, settings -> planSubquery(query, settings));
+    }
+
+    private SubqueryJoin findSubqueryJoin(LogicalPlan plan) {
+        List<SubqueryJoin> joins = new ArrayList<>();
+        plan.forEachDown(SubqueryJoin.class, joins::add);
+        assertThat(joins, hasSize(1));
+        return joins.get(0);
     }
 
     private void assertNestedSubqueryWithViewLimits(String query, int branches, int levels) {

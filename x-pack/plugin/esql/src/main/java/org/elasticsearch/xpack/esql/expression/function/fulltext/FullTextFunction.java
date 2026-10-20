@@ -67,6 +67,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
@@ -333,8 +334,17 @@ public abstract class FullTextFunction extends Function
             // has run. Restricting the walk to right() keeps unrelated aggregates on the left branch (a preceding STATS) failing,
             // and nothing else can appear there because stubSource() cuts the aggregate's input down to a StubRelation.
             Set<Aggregate> inlineStatsAggregates = Collections.newSetFromMap(new IdentityHashMap<>());
-            plan.forEachDown(InlineStats.class, is -> inlineStatsAggregates.add(is.aggregate()));
-            plan.forEachDown(InlineJoin.class, ij -> ij.right().forEachDown(Aggregate.class, inlineStatsAggregates::add));
+            IndependentSubqueryJoin.forEachInMainScope(plan, node -> {
+                if (node instanceof InlineStats inlineStats) {
+                    inlineStatsAggregates.add(inlineStats.aggregate());
+                } else if (node instanceof InlineJoin inlineJoin) {
+                    IndependentSubqueryJoin.forEachInMainScope(inlineJoin.right(), child -> {
+                        if (child instanceof Aggregate aggregate) {
+                            inlineStatsAggregates.add(aggregate);
+                        }
+                    });
+                }
+            });
 
             checkCommandsBeforeExpression(
                 plan,
@@ -399,7 +409,11 @@ public abstract class FullTextFunction extends Function
         Failures failures
     ) {
         Set<String> inheritedSourceTexts = new HashSet<>();
-        plan.forEachDown(UnionAll.class, unionAll -> inheritedSourceTexts.add(unionAll.sourceText()));
+        IndependentSubqueryJoin.forEachInMainScope(plan, node -> {
+            if (node instanceof UnionAll unionAll) {
+                inheritedSourceTexts.add(unionAll.sourceText());
+            }
+        });
         // A filter pushed into a UnionAll branch is checked independently after optimization, when its ancestor
         // UnionAll is no longer visible from this subtree. Such a filter inherits the UnionAll branch source.
         inheritedSourceTexts.add(plan.sourceText());
@@ -409,7 +423,7 @@ public abstract class FullTextFunction extends Function
             if (exp instanceof FullTextFunction ftf && ftf.isRuntimeSearch()) {
                 return;
             }
-            plan.forEachDown(LogicalPlan.class, lp -> {
+            IndependentSubqueryJoin.forEachInMainScope(plan, lp -> {
                 if (commandCheck.test(lp) == false) {
                     if (lp instanceof ExternalRelation externalRelation) {
                         // Federated sources are never Lucene-backed, so functions gated to Lucene-only relations (e.g. KQL/QSTR)
@@ -557,7 +571,7 @@ public abstract class FullTextFunction extends Function
             // Fields from the right-hand side of a LOOKUP JOIN are not in the main index. A Lucene query on them
             // runs against the main index shards and silently matches nothing.
             // Traverse the plan to find the EsRelation outputting the field
-            plan.forEachDown(p -> {
+            IndependentSubqueryJoin.forEachInMainScope(plan, p -> {
                 if (p instanceof EsRelation esRelation && esRelation.indexMode() == IndexMode.LOOKUP) {
                     // Check if this EsRelation supplies the field
                     if (esRelation.outputSet().contains(fieldAttribute)) {
@@ -598,20 +612,20 @@ public abstract class FullTextFunction extends Function
 
         Holder<Attribute> current = new Holder<>((Attribute) fieldExpression);
         Holder<FieldAttribute> resolved = new Holder<>();
-        plan.forEachDownMayReturnEarly((p, breakEarly) -> {
+        IndependentSubqueryJoin.forEachInMainScopeUntil(plan, p -> {
             if (p instanceof Project project) {
                 for (NamedExpression ne : project.projections()) {
                     if (ne instanceof Alias alias && alias.toAttribute().id().equals(current.get().id())) {
                         FieldAttribute candidate = fieldAsFieldAttribute(alias.child());
                         if (candidate != null) {
                             resolved.set(candidate);
-                            breakEarly.set(true);
+                            return true;
                         } else if (alias.child() instanceof Attribute next) {
                             current.set(next);
                         } else {
-                            breakEarly.set(true);
+                            return true;
                         }
-                        return;
+                        return false;
                     }
                 }
             }
@@ -623,8 +637,7 @@ public abstract class FullTextFunction extends Function
                 // resolve when current field is part of the merge output
                 boolean inMergeOutput = mergePlan.output().stream().anyMatch(a -> a.id().equals(current.get().id()));
                 if (inMergeOutput == false) {
-                    breakEarly.set(true);
-                    return;
+                    return true;
                 }
 
                 // Every branch must contain this field, not just one
@@ -645,8 +658,7 @@ public abstract class FullTextFunction extends Function
                 if (candidate != null) {
                     resolved.set(candidate);
                 }
-                breakEarly.set(true);
-                return;
+                return true;
             }
 
             // Resolve the underlying FieldAttribute by stepping through MvExpand
@@ -655,15 +667,15 @@ public abstract class FullTextFunction extends Function
                 FieldAttribute candidate = fieldAsFieldAttribute(mvExpand.target());
                 if (candidate != null) {
                     resolved.set(candidate);
-                    breakEarly.set(true);
+                    return true;
                 } else if (mvExpand.target() instanceof Attribute next) {
                     current.set(next);
                 } else {
-                    breakEarly.set(true);
+                    return true;
                 }
-                return;
+                return false;
             }
-
+            return false;
         });
         return resolved.get();
     }

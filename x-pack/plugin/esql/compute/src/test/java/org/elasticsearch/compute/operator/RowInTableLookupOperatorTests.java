@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -23,6 +24,7 @@ import java.util.List;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.matchesRegex;
 
 public class RowInTableLookupOperatorTests extends OperatorTestCase {
@@ -92,7 +94,9 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
 
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
-        return matchesRegex("RowInTableLookup\\[keys=\\[\\{name=foo, type=LONG, positions=4, size=\\d+b}], mapping=\\[0]]");
+        return matchesRegex(
+            "RowInTableLookup\\[keys=\\[\\{name=foo, type=LONG, positions=4, size=\\d+b}], mapping=\\[0], repeatedKeys=false]"
+        );
     }
 
     @Override
@@ -121,5 +125,34 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
             )
         );
         assertSimpleOutput(runner.deepCopy(), results, 1, 2);
+    }
+
+    /**
+     * Operators created by one {@link RowInTableLookupOperator.Factory} share a single table, charged to the
+     * drivers' common parent breaker once, and released when the last of them closes.
+     */
+    public void testFactorySharesOneTable() {
+        BlockFactory blockFactory = blockFactory();
+        CircuitBreaker breaker = blockFactory.breaker();
+        Operator.OperatorFactory factory = simple();
+        long before = breaker.getUsed();
+
+        Operator first = factory.get(new DriverContext(blockFactory.bigArrays(), blockFactory, null));
+        long withTable = breaker.getUsed();
+        assertThat(withTable, greaterThan(before));
+
+        Operator second = factory.get(new DriverContext(blockFactory.bigArrays(), blockFactory, null));
+        assertThat("the second operator reuses the table", breaker.getUsed(), equalTo(withTable));
+
+        first.close();
+        assertThat("the table stays while the second operator uses it", breaker.getUsed(), equalTo(withTable));
+        second.close();
+        assertThat("the last close releases the table", breaker.getUsed(), equalTo(before));
+
+        // Once released, the next operator builds a fresh table rather than using the closed one.
+        Operator third = factory.get(new DriverContext(blockFactory.bigArrays(), blockFactory, null));
+        assertThat(breaker.getUsed(), equalTo(withTable));
+        third.close();
+        assertThat(breaker.getUsed(), equalTo(before));
     }
 }

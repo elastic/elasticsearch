@@ -25,10 +25,16 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoin;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.asLimit;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
 
 public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTests {
@@ -106,6 +112,24 @@ public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTe
 
         // Left join key should be updated to use an attribute from the main index directly
         assertLeftJoinConfig(join.config(), "languages", mainRel.outputSet(), "language_code", lookupRel.outputSet());
+    }
+
+    public void testSubqueryJoinKeepsItsTypeWhenPushedPastShadowingProject() {
+        String query = """
+            FROM test
+            | EVAL language_name = 2 * salary
+            | KEEP languages, language_name
+            | RENAME language_name AS foo
+            | LEFT OUTER JOIN (FROM test | EVAL language_name = last_name | KEEP languages, language_name) ON languages
+            """;
+
+        var analyzed = defaultAnalyzer().query(query);
+        var plan = new PushDownJoinPastProject().apply(analyzed);
+        List<SubqueryJoin> joins = new ArrayList<>();
+        plan.forEachDown(SubqueryJoin.class, joins::add);
+
+        assertThat(joins, hasSize(1));
+        assertThat(joins.get(0).left(), instanceOf(Eval.class));
     }
 
     // Expects

@@ -98,7 +98,9 @@ import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.MaterializedSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesReduction;
@@ -222,6 +224,8 @@ public class ApproximationSupportTests extends ESTestCase {
         Rename.class,
         ResolvingProject.class,
         SemiJoin.class,
+        MaterializedSubqueryJoin.class,
+        SubqueryJoin.class,
         SparklineGenerateEmptyBuckets.class,
 
         // internals

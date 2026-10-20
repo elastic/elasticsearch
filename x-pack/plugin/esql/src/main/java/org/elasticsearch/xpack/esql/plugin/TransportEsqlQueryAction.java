@@ -25,10 +25,12 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
 import org.elasticsearch.common.logging.activity.ActivityLogger;
 import org.elasticsearch.common.logging.activity.QueryLogger;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
+import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -64,6 +66,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryTask;
 import org.elasticsearch.xpack.esql.action.EsqlResponseListener;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
@@ -77,10 +80,12 @@ import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.querylog.EsqlLogContext;
 import org.elasticsearch.xpack.esql.querylog.EsqlLogContextBuilder;
 import org.elasticsearch.xpack.esql.querylog.EsqlLogProducer;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PlanRunner;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.session.Versioned;
@@ -394,17 +399,43 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         // async-query uses EsqlQueryTask, so pull the EsqlExecutionInfo out of the task
         // sync query uses CancellableTask which does not have EsqlExecutionInfo, so create one
         EsqlExecutionInfo executionInfo = getOrCreateExecutionInfo(task, request);
-        PlanRunner planRunner = (role, plan, configuration, foldCtx, planTimeProfile, resultListener) -> computeService.execute(
-            sessionId,
-            (CancellableTask) task,
-            flags,
-            plan,
-            configuration,
-            foldCtx,
-            executionInfo,
-            planTimeProfile,
-            resultListener
-        );
+        PlanRunner planRunner = new PlanRunner() {
+            @Override
+            public void run(
+                Role role,
+                PhysicalPlan plan,
+                Configuration configuration,
+                FoldContext foldCtx,
+                PlanTimeProfile planTimeProfile,
+                ActionListener<Result> resultListener
+            ) {
+                run(role, plan, configuration, foldCtx, planTimeProfile, null, resultListener);
+            }
+
+            @Override
+            public void run(
+                Role role,
+                PhysicalPlan plan,
+                Configuration configuration,
+                FoldContext foldCtx,
+                PlanTimeProfile planTimeProfile,
+                ByteSizeValue maxCollectedBytes,
+                ActionListener<Result> resultListener
+            ) {
+                computeService.execute(
+                    sessionId,
+                    (CancellableTask) task,
+                    flags,
+                    plan,
+                    configuration,
+                    foldCtx,
+                    executionInfo,
+                    planTimeProfile,
+                    maxCollectedBytes,
+                    resultListener
+                );
+            }
+        };
         planExecutor.esql(
             request,
             sessionId,

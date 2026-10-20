@@ -8,15 +8,12 @@
 package org.elasticsearch.compute.aggregation.table;
 
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.IntArrayBlock;
-import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.ReleasableIterator;
 
 import java.util.ArrayList;
@@ -38,54 +35,17 @@ final class BlockHashRowInTableLookup extends RowInTableLookup {
         );
         boolean success = false;
         try {
-            hash.add(new Page(keys), new GroupingAggregatorFunction.AddInput() {
+            hash.add(new Page(keys), new BlockHashGroupIdsAddInput() {
                 private int lastOrd = -1;
 
                 @Override
-                public void add(int positionOffset, IntArrayBlock groupIds) {
-                    for (int p = 0; p < groupIds.getPositionCount(); p++) {
-                        int first = groupIds.getFirstValueIndex(p);
-                        int end = groupIds.getValueCount(p) + first;
-                        for (int i = first; i < end; i++) {
-                            int ord = groupIds.getInt(i);
-                            if (ord != lastOrd + 1) {
-                                // TODO double check these errors over REST once we have LOOKUP
-                                throw new IllegalArgumentException("found a duplicate row");
-                            }
-                            lastOrd = ord;
-                        }
+                protected void processGroupId(int position, int ord) {
+                    if (ord != lastOrd + 1) {
+                        // TODO double check these errors over REST once we have LOOKUP
+                        throw new IllegalArgumentException("found a duplicate row");
                     }
+                    lastOrd = ord;
                 }
-
-                @Override
-                public void add(int positionOffset, IntBigArrayBlock groupIds) {
-                    for (int p = 0; p < groupIds.getPositionCount(); p++) {
-                        int first = groupIds.getFirstValueIndex(p);
-                        int end = groupIds.getValueCount(p) + first;
-                        for (int i = first; i < end; i++) {
-                            int ord = groupIds.getInt(i);
-                            if (ord != lastOrd + 1) {
-                                // TODO double check these errors over REST once we have LOOKUP
-                                throw new IllegalArgumentException("found a duplicate row");
-                            }
-                            lastOrd = ord;
-                        }
-                    }
-                }
-
-                @Override
-                public void add(int positionOffset, IntVector groupIds) {
-                    for (int p = 0; p < groupIds.getPositionCount(); p++) {
-                        int ord = groupIds.getInt(p);
-                        if (ord != lastOrd + 1) {
-                            throw new IllegalArgumentException("found a duplicate row");
-                        }
-                        lastOrd = ord;
-                    }
-                }
-
-                @Override
-                public void close() {}
             });
             success = true;
         } finally {
@@ -98,6 +58,16 @@ final class BlockHashRowInTableLookup extends RowInTableLookup {
     @Override
     public ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize) {
         return hash.lookup(page, targetBlockSize);
+    }
+
+    @Override
+    public ReleasableIterator<IntBlock> lookup(
+        Page page,
+        ByteSizeValue targetBlockSize,
+        BlockFactory resultBlockFactory,
+        Warnings warnings
+    ) {
+        return hash.concurrentLookup(page, targetBlockSize, resultBlockFactory);
     }
 
     @Override

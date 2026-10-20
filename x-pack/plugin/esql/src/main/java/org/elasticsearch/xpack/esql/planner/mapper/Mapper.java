@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.join.MaterializedSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.physical.DistinctByExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
@@ -92,6 +93,38 @@ public class Mapper {
 
     public static boolean isJoinMarker(Attribute attr) {
         return attr.name() != null && attr.name().startsWith(JOIN_MARKER_PREFIX);
+    }
+
+    static PhysicalPlan mapMaterializedSubqueryJoin(Join join, PhysicalPlan left, LocalSourceExec localData) {
+        List<Attribute> rightOutputFields = join.rightOutputFields();
+        if (join.config().type() == JoinTypes.INNER) {
+            var marker = newJoinMarker(join.source());
+            List<Attribute> addedFields = new ArrayList<>(rightOutputFields);
+            addedFields.add(marker);
+            PhysicalPlan mapped = new HashJoinExec(
+                join.source(),
+                left,
+                localData,
+                join.config().leftFields(),
+                join.config().rightFields(),
+                addedFields,
+                true
+            );
+            mapped = new FilterExec(join.source(), mapped, new IsNotNull(join.source(), marker));
+            return new ProjectExec(join.source(), mapped, join.output());
+        }
+        if (join.config().type() == JoinTypes.LEFT) {
+            return new HashJoinExec(
+                join.source(),
+                left,
+                localData,
+                join.config().leftFields(),
+                join.config().rightFields(),
+                rightOutputFields,
+                true
+            );
+        }
+        throw new EsqlIllegalArgumentException("unsupported join type [" + join.config().type() + "]");
     }
 
     public PhysicalPlan map(Versioned<LogicalPlan> versionedPlan) {
@@ -264,7 +297,8 @@ public class Mapper {
         }
         if (bp instanceof Join join) {
             JoinConfig config = join.config();
-            if (config.type() != JoinTypes.LEFT) {
+            boolean materializedSubqueryInnerJoin = join instanceof MaterializedSubqueryJoin && config.type() == JoinTypes.INNER;
+            if (config.type() != JoinTypes.LEFT && materializedSubqueryInnerJoin == false) {
                 throw new EsqlIllegalArgumentException("unsupported join type [" + config.type() + "]");
             }
 
@@ -291,13 +325,17 @@ public class Mapper {
             PhysicalPlan right = mapInner(bp.right());
             // if the right is data we can use a hash join directly
             if (right instanceof LocalSourceExec localData) {
+                if (join instanceof MaterializedSubqueryJoin) {
+                    return mapMaterializedSubqueryJoin(join, left, localData);
+                }
                 return new HashJoinExec(
                     join.source(),
                     left,
                     localData,
                     config.leftFields(),
                     config.rightFields(),
-                    join.rightOutputFields()
+                    join.rightOutputFields(),
+                    false
                 );
             }
             if (right instanceof FragmentExec fragment) {

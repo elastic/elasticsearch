@@ -70,8 +70,8 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
+import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.areTypesCompatible;
 import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType;
 
 public class Join extends BinaryPlan implements PostAnalysisVerificationAware, SortAgnostic, ExecutesOn, PostOptimizationVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Join", Join::new);
@@ -235,7 +235,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         JoinType joinType = config.type();
         List<NamedExpression> output;
         // TODO: make the other side nullable
-        if (LEFT.equals(joinType)) {
+        if (LEFT.equals(joinType) || JoinTypes.INNER.equals(joinType)) {
             if (config.joinOnConditions() == null) {
                 // right side becomes nullable and overrides left except for join keys, which we preserve from the left
                 AttributeSet rightKeys = AttributeSet.of(config.rightFields());
@@ -347,7 +347,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         }
     }
 
-    private static boolean comparableTypes(Attribute left, Attribute right) {
+    static boolean comparableTypes(Attribute left, Attribute right) {
         DataType leftType = left.dataType();
         DataType rightType = right.dataType();
         if (leftType == NULL) {
@@ -357,8 +357,8 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
             return true;
         }
         if (leftType.isNumeric() && rightType.isNumeric()) {
-            // Allow byte, short, integer, long, half_float, scaled_float, float and double to join against each other
-            return commonType(leftType, rightType) != null;
+            // Use binary-comparison compatibility so unsigned_long is not rounded through a floating-point type.
+            return areTypesCompatible(leftType, rightType);
         }
         return leftType.noText() == rightType.noText();
     }
@@ -373,7 +373,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
     }
 
     private void checkForRemoteJoinBlockers(LogicalPlan plan, Failures failures) {
-        if (plan instanceof AbstractSubqueryJoin subqueryJoin) {
+        if (plan instanceof IndependentSubqueryJoin subqueryJoin) {
             // The right side is an independent subquery; do not traverse into it.
             checkForRemoteJoinBlockers(subqueryJoin.left(), failures);
         } else {

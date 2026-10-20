@@ -8,10 +8,12 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.approximation.ApproximationVerifier;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
@@ -27,6 +29,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.hamcrest.Matcher;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +40,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -71,6 +75,26 @@ public class AnalyzerInSubqueryTests extends AnalyzerTestCase {
         Project rightProject = as(semiJoin.right(), Project.class);
         EsRelation rightRelation = as(rightProject.child(), EsRelation.class);
         assertEquals("employees", rightRelation.indexPattern());
+    }
+
+    public void testInnerLimitDoesNotChangeOuterDefaultLimit() {
+        LogicalPlan plan = analyzeInSubquery("""
+            FROM employees
+            | WHERE emp_no IN (FROM employees | KEEP emp_no | LIMIT 1)
+            """);
+
+        Limit outerLimit = as(plan, Limit.class);
+        assertThat(
+            as(outerLimit.limit(), Literal.class).value(),
+            equalTo(AnalyzerSettings.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY))
+        );
+        SemiJoin semiJoin = as(outerLimit.child(), SemiJoin.class);
+        assertTrue(
+            semiJoin.right()
+                .anyMatch(
+                    node -> node instanceof Limit innerLimit && innerLimit.limit() instanceof Literal literal && literal.value().equals(1)
+                )
+        );
     }
 
     public void testNotInSubquery() {
@@ -395,6 +419,30 @@ public class AnalyzerInSubqueryTests extends AnalyzerTestCase {
                 "Cannot use field [id] due to ambiguities being mapped as [2] incompatible types:"
                     + " [keyword] in [union_index_1], [integer] in [union_index_2]"
             )
+        );
+    }
+
+    public void testUnionTypeResolutionDoesNotCrossInSubqueryScope() {
+        LogicalPlan plan = analyzer().addIndex(unionIndexResolution()).addEmployees().query("""
+            FROM union_index*
+            | WHERE name IN (FROM employees | STATS c = COUNT(*) BY last_name | KEEP last_name)
+            | EVAL id_string = id::keyword
+            """);
+
+        assertThat(
+            plan.output().stream().filter(attribute -> attribute.name().equals("id_string")).findFirst().orElseThrow().dataType(),
+            equalTo(DataType.KEYWORD)
+        );
+
+        List<SemiJoin> semiJoins = new ArrayList<>();
+        plan.forEachDown(SemiJoin.class, semiJoins::add);
+        assertThat(semiJoins, hasSize(1));
+
+        List<EsRelation> subqueryRelations = new ArrayList<>();
+        semiJoins.getFirst().right().forEachDown(EsRelation.class, subqueryRelations::add);
+        assertThat(subqueryRelations, hasSize(1));
+        assertFalse(
+            subqueryRelations.getFirst().output().stream().anyMatch(attribute -> attribute.name().startsWith("$$id$converted_to$"))
         );
     }
 

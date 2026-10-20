@@ -55,6 +55,7 @@ public class CsvFormatSpecIT extends AbstractCsvExternalSpecTestCase {
             "/csv-*.csv-spec",
             "/datasources/external-declared-schema.csv-spec",
             "/datasources/external-heavy-aggregates.csv-spec",
+            "/datasources/external-subquery-join.csv-spec",
             "/datasources/external-metadata-collision.csv-spec"
         );
     }

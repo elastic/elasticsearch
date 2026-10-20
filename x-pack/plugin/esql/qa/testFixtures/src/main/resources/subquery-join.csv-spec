@@ -1,0 +1,212 @@
+leftOuterJoinSubqueryPreservesRepeatedMatches
+required_capability: join_on_subquery
+
+FROM employees
+| WHERE emp_no == 10092
+| EVAL language_code = emp_no % 10
+| LEFT OUTER JOIN (
+    FROM languages_lookup_non_unique_key
+    | WHERE language_code == 2
+    | KEEP language_code, language_name
+  ) ON language_code
+| KEEP emp_no, language_code, language_name
+| SORT language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10092          | 2                     | German
+10092          | 2                     | German
+10092          | 2                     | German
+10092          | 2                     | German
+;
+
+innerJoinStatsSubquery
+required_capability: join_on_subquery
+
+FROM employees
+| WHERE emp_no == 10092
+| EVAL language_code = emp_no % 10
+| INNER JOIN (
+    FROM languages_lookup_non_unique_key
+    | WHERE language_code == 2
+    | STATS match_count = COUNT(*) BY language_code
+  ) ON language_code
+| KEEP emp_no, language_code, match_count
+| SORT emp_no
+;
+
+emp_no:integer | language_code:integer | match_count:long
+10092          | 2                     | 4
+;
+
+leftOuterJoinWithSubqueriesOnBothSides
+required_capability: join_on_subquery
+required_capability: subquery_in_from_command
+
+FROM (
+    FROM employees
+    | WHERE emp_no == 10001
+    | EVAL language_code = languages
+    | KEEP emp_no, language_code
+  )
+| LEFT OUTER JOIN (
+    FROM languages_lookup
+    | WHERE language_code == 2
+    | KEEP language_code, language_name
+  ) ON language_code
+| KEEP emp_no, language_code, language_name
+| SORT emp_no
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10001          | 2                     | French
+;
+
+nestedLeftOuterJoinSubqueriesPreserveRowsAcrossBushyTree
+required_capability: join_on_subquery
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+
+FROM (
+    FROM (
+        FROM employees
+        | WHERE emp_no >= 10001 AND emp_no <= 10008
+        | EVAL id = emp_no, t1 = "table1"
+        | KEEP id, t1
+        | LEFT OUTER JOIN (
+            FROM employees
+            | WHERE emp_no == 10001
+            | EVAL id = emp_no, t2 = "table2"
+            | KEEP id, t2
+          ) ON id
+        | KEEP id, t1, t2
+    )
+    | LEFT OUTER JOIN (
+        FROM employees
+        | WHERE emp_no == 10001 OR emp_no == 10003
+        | EVAL id = emp_no, t3 = "table3"
+        | KEEP id, t3
+        | LEFT OUTER JOIN (
+            FROM employees
+            | WHERE emp_no == 10001
+            | EVAL id = emp_no, t4 = "table4"
+            | KEEP id, t4
+          ) ON id
+        | KEEP id, t3, t4
+    ) ON id
+    | KEEP id, t1, t2, t3, t4
+)
+| LEFT OUTER JOIN (
+    FROM (
+        FROM employees
+        | WHERE emp_no == 10001 OR emp_no == 10005 OR emp_no == 10006 OR emp_no == 10007
+        | EVAL id = emp_no, t5 = "table5"
+        | KEEP id, t5
+        | LEFT OUTER JOIN (
+            FROM employees
+            | WHERE emp_no == 10001
+            | EVAL id = emp_no, t6 = "table6"
+            | KEEP id, t6
+          ) ON id
+        | KEEP id, t5, t6
+    )
+    | LEFT OUTER JOIN (
+        FROM employees
+        | WHERE emp_no == 10001 OR emp_no == 10006
+        | EVAL id = emp_no, t7 = "table7"
+        | KEEP id, t7
+        | LEFT OUTER JOIN (
+            FROM employees
+            | WHERE emp_no == 10001
+            | EVAL id = emp_no, t8 = "table8"
+            | KEEP id, t8
+          ) ON id
+        | KEEP id, t7, t8
+    ) ON id
+    | KEEP id, t5, t6, t7, t8
+) ON id
+| KEEP id, t1, t2, t3, t4, t5, t6, t7, t8
+| SORT id
+;
+
+id:integer | t1:keyword | t2:keyword | t3:keyword | t4:keyword | t5:keyword | t6:keyword | t7:keyword | t8:keyword
+10001      | table1     | table2     | table3     | table4     | table5     | table6     | table7     | table8
+10002      | table1     | null       | null       | null       | null       | null       | null       | null
+10003      | table1     | null       | table3     | null       | null       | null       | null       | null
+10004      | table1     | null       | null       | null       | null       | null       | null       | null
+10005      | table1     | null       | null       | null       | table5     | null       | null       | null
+10006      | table1     | null       | null       | null       | table5     | null       | table7     | null
+10007      | table1     | null       | null       | null       | table5     | null       | null       | null
+10008      | table1     | null       | null       | null       | null       | null       | null       | null
+;
+
+nestedInnerJoinSubqueriesAcrossBushyTreeKeepsOnlyCommonId
+required_capability: join_on_subquery
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+
+FROM (
+    FROM (
+        FROM employees
+        | WHERE emp_no >= 10001 AND emp_no <= 10008
+        | EVAL id = emp_no, t1 = "table1"
+        | KEEP id, t1
+        | INNER JOIN (
+            FROM employees
+            | WHERE emp_no == 10001
+            | EVAL id = emp_no, t2 = "table2"
+            | KEEP id, t2
+          ) ON id
+        | KEEP id, t1, t2
+    )
+    | INNER JOIN (
+        FROM employees
+        | WHERE emp_no == 10001 OR emp_no == 10003
+        | EVAL id = emp_no, t3 = "table3"
+        | KEEP id, t3
+        | INNER JOIN (
+            FROM employees
+            | WHERE emp_no == 10001
+            | EVAL id = emp_no, t4 = "table4"
+            | KEEP id, t4
+          ) ON id
+        | KEEP id, t3, t4
+    ) ON id
+    | KEEP id, t1, t2, t3, t4
+)
+| INNER JOIN (
+    FROM (
+        FROM employees
+        | WHERE emp_no == 10001 OR emp_no == 10005 OR emp_no == 10006 OR emp_no == 10007
+        | EVAL id = emp_no, t5 = "table5"
+        | KEEP id, t5
+        | INNER JOIN (
+            FROM employees
+            | WHERE emp_no == 10001
+            | EVAL id = emp_no, t6 = "table6"
+            | KEEP id, t6
+          ) ON id
+        | KEEP id, t5, t6
+    )
+    | INNER JOIN (
+        FROM employees
+        | WHERE emp_no == 10001 OR emp_no == 10006
+        | EVAL id = emp_no, t7 = "table7"
+        | KEEP id, t7
+        | INNER JOIN (
+            FROM employees
+            | WHERE emp_no == 10001
+            | EVAL id = emp_no, t8 = "table8"
+            | KEEP id, t8
+          ) ON id
+        | KEEP id, t7, t8
+    ) ON id
+    | KEEP id, t5, t6, t7, t8
+) ON id
+| KEEP id, t1, t2, t3, t4, t5, t6, t7, t8
+| SORT id
+;
+
+id:integer | t1:keyword | t2:keyword | t3:keyword | t4:keyword | t5:keyword | t6:keyword | t7:keyword | t8:keyword
+10001      | table1     | table2     | table3     | table4     | table5     | table6     | table7     | table8
+;

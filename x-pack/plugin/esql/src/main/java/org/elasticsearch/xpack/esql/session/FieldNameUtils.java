@@ -62,8 +62,10 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedSourceRelation;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoin;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PreAnalysisResult;
 
 import java.util.ArrayList;
@@ -266,7 +268,7 @@ public class FieldNameUtils {
                     // Keep commands can reference the join columns with names that shadow aliases, so we block their removal
                     joinRefs.addAll(keepRefs);
                 }
-            } else if (p instanceof AbstractSubqueryJoin sj) {
+            } else if (p instanceof IndependentSubqueryJoin sj) {
                 // The top-down traversal has already collected references from plans above this join. For a MarkJoin, those references
                 // include the synthetic mark produced by the join itself, which must not be requested from field_caps as an index field.
                 if (sj instanceof MarkJoin markJoin) {
@@ -275,6 +277,7 @@ public class FieldNameUtils {
                 // The IN operand (left join key) is an ordinary outer-pipeline reference (like any WHERE reference), so it goes through
                 // the regular builder where outer aliases can shadow it.
                 referencesBuilder.get().addAll(sj.leftReferences());
+                List<Attribute> rightJoinRefs = sj instanceof SubqueryJoin subqueryJoin ? subqueryJoin.config().rightFields() : List.of();
                 // The subquery (right side) is an independent query: save all mutable traversal state, traverse it
                 // with a clean slate, then restore before traversing the left (main pipeline) side. Only joinRefs,
                 // wildcardJoinIndices, protectedSubqueryRefs, and projectAll accumulate across the boundary.
@@ -292,6 +295,7 @@ public class FieldNameUtils {
                 boolean savedReduceColumnsAfterMerge = reduceColumnsAfterMerge.get();
 
                 referencesBuilder.set(AttributeSet.builder());
+                referencesBuilder.get().addAll(rightJoinRefs);
                 keepRefs.clear();
                 currentBranchKeepRefs.set(AttributeSet.builder());
                 dropWildcardRefs.clear();
@@ -304,6 +308,7 @@ public class FieldNameUtils {
                 // Merge the subquery's collected references into the main-query builder and restore all state.
                 AttributeSet subqueryRefs = referencesBuilder.get().build();
                 allSubqueryRefs.addAll(subqueryRefs);
+                allSubqueryRefs.addAll(rightJoinRefs);
                 referencesBuilder.set(AttributeSet.builder());
                 referencesBuilder.get().addAll(savedRefs);
                 referencesBuilder.get().addAll(subqueryRefs);
@@ -472,7 +477,7 @@ public class FieldNameUtils {
     }
 
     /**
-     * Checks whether the main query (excluding subquery plans inside SemiJoin/AntiJoin right children)
+     * Checks whether the main query (excluding independent subquery right children)
      * contains a plan node that requires explicit field collection (e.g. KEEP, STATS).
      * Subquery plans are skipped because a KEEP inside a subquery should not force field collection
      * for the main query — the main query may still need all fields.
@@ -481,9 +486,9 @@ public class FieldNameUtils {
         if (shouldCollectReferencedFields(plan, inlinestatsAggs)) {
             return true;
         }
-        // Skip the right (subquery) child of SemiJoin/AntiJoin/MarkJoin — its KEEP/STATS should not
-        // force the main pipeline into explicit field collection.
-        if (plan instanceof AbstractSubqueryJoin subqueryJoin) {
+        // Skip the right (subquery) child of an independent join. Its KEEP/STATS should not force the main pipeline into explicit field
+        // collection.
+        if (plan instanceof IndependentSubqueryJoin subqueryJoin) {
             return mainQueryRequiresFieldCollection(subqueryJoin.left(), inlinestatsAggs);
         }
         for (LogicalPlan child : plan.children()) {
@@ -498,6 +503,11 @@ public class FieldNameUtils {
         Holder<Boolean> requireFieldCollection = new Holder<>(true);
         plan.forEachUp(AbstractSubqueryJoin.class, sj -> {
             if (sj.right().anyMatch(p -> shouldCollectReferencedFields(p, inlinestatsAggs)) == false) {
+                requireFieldCollection.set(false);
+            }
+        });
+        plan.forEachUp(SubqueryJoin.class, sj -> {
+            if (IndependentSubqueryJoin.anyMatchInMainScope(sj.right(), p -> shouldCollectReferencedFields(p, inlinestatsAggs)) == false) {
                 requireFieldCollection.set(false);
             }
         });

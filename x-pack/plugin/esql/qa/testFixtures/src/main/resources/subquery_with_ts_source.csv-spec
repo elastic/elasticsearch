@@ -4,6 +4,26 @@
 // from one of the k8s* time-series indices used by the k8s-timeseries-* csv-specs.
 //
 
+subqueryJoinWithTsLimitUsesImplicitTimestampSort
+required_capability: join_on_subquery
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: ts_implicit_timestamp_sort
+
+ROW cluster = "prod"
+| LEFT OUTER JOIN (
+    TS k8s
+    | WHERE cluster == "prod"
+    | KEEP @timestamp, cluster, pod
+    | LIMIT 1
+  ) ON cluster
+| KEEP @timestamp, pod
+;
+
+@timestamp:datetime      | pod:keyword
+2024-05-10T00:22:53.000Z | two
+;
+
 subqueryInFromWithTsSubqueryStatsByCluster
 required_capability: subquery_in_from_command
 required_capability: subquery_with_ts

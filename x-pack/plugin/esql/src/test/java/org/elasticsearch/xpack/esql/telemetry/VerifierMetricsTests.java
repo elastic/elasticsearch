@@ -30,6 +30,7 @@ import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.FROM;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.GROK;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.INLINE_STATS;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.IN_SUBQUERY;
+import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.JOIN_SUBQUERY;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.KEEP;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LIMIT;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LIMIT_BY;
@@ -243,6 +244,15 @@ public class VerifierMetricsTests extends ESTestCase {
             | stats m = max(salary) by language_code
             | lookup join languages_lookup on language_code""");
         assertMetrics(c, Map.of(EVAL, 1L, STATS, 1L, FROM, 1L, LOOKUP_JOIN, 1L), Map.of("max", 1L));
+    }
+
+    public void testLookupJoinSubquery() {
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
+        Counters c = esql("""
+            ROW key = 1, left_value = "left"
+            | LEFT OUTER JOIN (ROW key = 1, right_value = "right") ON key
+            """);
+        assertMetrics(c, Map.of(JOIN_SUBQUERY, 1L, ROW, 1L));
     }
 
     public void testBinaryPlanAfterStatsExpressionJoin() {

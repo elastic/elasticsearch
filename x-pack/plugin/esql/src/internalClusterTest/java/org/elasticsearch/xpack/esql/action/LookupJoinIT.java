@@ -388,6 +388,48 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testSubqueryLeftOuterJoin() throws IOException {
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
+        ensureIndices(List.of(EMPLOYEES_INDEX, LANGUAGES_LOOKUP_INDEX));
+
+        String query = String.format(Locale.ROOT, """
+            FROM %s
+            | WHERE emp_no == 10001
+            | EVAL language_code = languages
+            | LEFT OUTER JOIN (
+                FROM %s
+                | WHERE language_code == 2
+                | KEEP language_code, language_name
+              ) ON language_code
+            | KEEP emp_no, language_code, language_name
+            """, EMPLOYEES_INDEX, LANGUAGES_LOOKUP_INDEX);
+
+        try (EsqlQueryResponse response = runQuery(query)) {
+            assertValues(response.values(), List.of(List.of(10001, 2, "French")));
+        }
+    }
+
+    public void testSubqueryInnerJoinDropsUnmatchedRows() throws IOException {
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
+        ensureIndices(List.of(EMPLOYEES_INDEX, LANGUAGES_LOOKUP_INDEX));
+
+        String query = String.format(Locale.ROOT, """
+            FROM %s
+            | WHERE emp_no == 10001
+            | EVAL language_code = languages
+            | INNER JOIN (
+                FROM %s
+                | WHERE language_code == 999
+                | KEEP language_code, language_name
+              ) ON language_code
+            | KEEP emp_no, language_code, language_name
+            """, EMPLOYEES_INDEX, LANGUAGES_LOOKUP_INDEX);
+
+        try (EsqlQueryResponse response = runQuery(query)) {
+            assertValues(response.values(), List.of());
+        }
+    }
+
     /**
      * Tests that disabling {@code esql.query.lookup_join_streaming} falls back to the non-streaming lookup operator.
      */

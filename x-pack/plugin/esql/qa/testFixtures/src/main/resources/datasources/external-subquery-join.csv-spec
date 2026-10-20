@@ -1,0 +1,50 @@
+leftOuterJoinExternalDatasetExpandsMatchesAndPreservesUnmatchedRows
+required_capability: dataset_in_from_command
+required_capability: join_on_subquery
+dataset: subquery_join_employees: "{{employees_no_mv}}"
+
+FROM languages
+| LEFT OUTER JOIN (
+    FROM subquery_join_employees
+    | WHERE emp_no == 10001 OR emp_no == 10003 OR emp_no == 10005 OR emp_no == 10007
+    | EVAL language_code = languages
+    | EVAL right_emp_no = emp_no
+    | EVAL right_first_name = first_name
+    | KEEP language_code, right_emp_no, right_first_name
+  ) ON language_code
+| KEEP language_code, language_name, right_emp_no, right_first_name
+| SORT language_code, right_emp_no
+;
+
+language_code:integer | language_name:keyword | right_emp_no:integer | right_first_name:keyword
+1                  | English                 | 10005        | Kyoichi
+2                  | French                  | 10001        | Georgi
+3                  | Spanish                 | null         | null
+4                  | German                  | 10003        | Parto
+4                  | German                  | 10007        | Tzvetan
+;
+
+innerJoinExternalDatasetExpandsMatchesAndDropsUnmatchedRows
+required_capability: dataset_in_from_command
+required_capability: join_on_subquery
+dataset: subquery_join_employees: "{{employees_no_mv}}"
+
+FROM languages
+| INNER JOIN (
+    FROM subquery_join_employees
+    | WHERE emp_no == 10001 OR emp_no == 10003 OR emp_no == 10005 OR emp_no == 10007
+    | EVAL language_code = languages
+    | EVAL right_emp_no = emp_no
+    | EVAL right_first_name = first_name
+    | KEEP language_code, right_emp_no, right_first_name
+  ) ON language_code
+| KEEP language_code, language_name, right_emp_no, right_first_name
+| SORT language_code, right_emp_no
+;
+
+language_code:integer | language_name:keyword | right_emp_no:integer | right_first_name:keyword
+1                  | English                 | 10005        | Kyoichi
+2                  | French                  | 10001        | Georgi
+4                  | German                  | 10003        | Parto
+4                  | German                  | 10007        | Tzvetan
+;

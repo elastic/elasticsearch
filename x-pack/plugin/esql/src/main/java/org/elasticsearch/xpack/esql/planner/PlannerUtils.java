@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
@@ -768,6 +769,7 @@ public class PlannerUtils {
                 }
                 case UnaryPlan unaryPlan -> plan = unaryPlan.child();
                 case LookupJoin lookupJoin -> plan = lookupJoin.left();
+                case IndependentSubqueryJoin subqueryJoin -> plan = subqueryJoin.left();
                 case Row ignored -> {
                     return true;
                 }

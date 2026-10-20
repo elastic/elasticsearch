@@ -16,7 +16,11 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.join.MaterializedSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.DistinctByExec;
@@ -75,6 +79,47 @@ public class InnerJoinMapperTests extends ESTestCase {
 
         HashJoinExec join = as(filter.child(), HashJoinExec.class);
         assertThat(join.addedFields(), hasItem(sameInstance(ordinal)));
+    }
+
+    public void testOnlyMaterializedSubqueryJoinEnablesRepeatedKeyMode() {
+        var blockFactory = TestBlockFactory.getNonBreakingInstance();
+        ReferenceAttribute leftKey = new ReferenceAttribute(Source.EMPTY, "k", DataType.LONG);
+        ReferenceAttribute rightKey = new ReferenceAttribute(Source.EMPTY, "k", DataType.LONG);
+        ReferenceAttribute value = new ReferenceAttribute(Source.EMPTY, "v", DataType.LONG);
+        LocalRelation left = new LocalRelation(
+            Source.EMPTY,
+            List.of(leftKey),
+            LocalSupplier.of(new Page(blockFactory.newLongArrayVector(new long[] { 1, 2 }, 2).asBlock()))
+        );
+        LocalRelation right = new LocalRelation(
+            Source.EMPTY,
+            List.of(rightKey, value),
+            LocalSupplier.of(
+                new Page(
+                    blockFactory.newLongArrayVector(new long[] { 1, 1 }, 2).asBlock(),
+                    blockFactory.newLongArrayVector(new long[] { 10, 11 }, 2).asBlock()
+                )
+            )
+        );
+        MaterializedSubqueryJoin materialized = new MaterializedSubqueryJoin(
+            Source.EMPTY,
+            left,
+            right,
+            JoinTypes.LEFT,
+            List.of(leftKey),
+            List.of(rightKey),
+            null,
+            ExecuteLocation.ANY
+        );
+
+        HashJoinExec mapped = as(new Mapper().map(new Versioned<>(materialized, TransportVersion.current())), HashJoinExec.class);
+        HashJoinExec localMapped = as(LocalMapper.INSTANCE.map(materialized), HashJoinExec.class);
+        assertTrue(mapped.repeatedKeys());
+        assertTrue(localMapped.repeatedKeys());
+
+        Join ordinary = new Join(Source.EMPTY, left, right, JoinTypes.LEFT, List.of(leftKey), List.of(rightKey), null, ExecuteLocation.ANY);
+        assertFalse(as(new Mapper().map(new Versioned<>(ordinary, TransportVersion.current())), HashJoinExec.class).repeatedKeys());
+        assertFalse(as(LocalMapper.INSTANCE.map(ordinary), HashJoinExec.class).repeatedKeys());
     }
 
     private static InnerJoin innerJoin(boolean unique) {

@@ -95,6 +95,7 @@ setup:
   - set: { esql.features.where: where_counter }
   - set: { esql.features.lookup_join: lookup_join_counter }
   - set: { esql.features.lookup_join_on_expression: lookup_join_on_expression_counter }
+  - set: { esql.features.lookup_join_subquery: lookup_join_subquery_counter }
   - set: { esql.features.lookup: lookup_counter }
   - set: { esql.features.change_point: change_point_counter }
   - set: { esql.features.inline_stats: inline_stats_counter }
@@ -156,6 +157,7 @@ setup:
   - gt: { esql.features.where: $where_counter }
   - match: { esql.features.lookup_join: $lookup_join_counter }
   - match: { esql.features.lookup_join_on_expression: $lookup_join_on_expression_counter }
+  - match: { esql.features.lookup_join_subquery: $lookup_join_subquery_counter }
   - match: { esql.features.lookup: $lookup_counter }
   - match: { esql.features.change_point: $change_point_counter }
   - match: { esql.features.inline_stats: $inline_stats_counter }
@@ -216,6 +218,7 @@ setup:
   - match: { esql.features.where: $where_counter }
   - match: { esql.features.lookup_join: $lookup_join_counter }
   - match: { esql.features.lookup_join_on_expression: $lookup_join_on_expression_counter }
+  - match: { esql.features.lookup_join_subquery: $lookup_join_subquery_counter }
   - match: { esql.features.lookup: $lookup_counter }
   - match: { esql.features.change_point: $change_point_counter }
   - match: { esql.features.inline_stats: $inline_stats_counter }
@@ -317,6 +320,7 @@ setup:
   - set: { esql.features.where: where_counter }
   - set: { esql.features.lookup_join: lookup_join_counter }
   - set: { esql.features.lookup_join_on_expression: lookup_join_on_expression_counter }
+  - set: { esql.features.lookup_join_subquery: lookup_join_subquery_counter }
   - set: { esql.features.lookup: lookup_counter }
   - set: { esql.features.change_point: change_point_counter }
   - set: { esql.features.inline_stats: inline_stats_counter }
@@ -377,6 +381,7 @@ setup:
   - gt: { esql.features.where: $where_counter }
   - match: { esql.features.lookup_join: $lookup_join_counter }
   - match: { esql.features.lookup_join_on_expression: $lookup_join_on_expression_counter }
+  - match: { esql.features.lookup_join_subquery: $lookup_join_subquery_counter }
   - match: { esql.features.lookup: $lookup_counter }
   - match: { esql.features.change_point: $change_point_counter }
   - match: { esql.features.inline_stats: $inline_stats_counter }
@@ -435,6 +440,7 @@ setup:
   - match: { esql.features.where: $where_counter }
   - match: { esql.features.lookup_join: $lookup_join_counter }
   - match: { esql.features.lookup_join_on_expression: $lookup_join_on_expression_counter }
+  - match: { esql.features.lookup_join_subquery: $lookup_join_subquery_counter }
   - match: { esql.features.lookup: $lookup_counter }
   - match: { esql.features.change_point: $change_point_counter }
   - match: { esql.features.inline_stats: $inline_stats_counter }

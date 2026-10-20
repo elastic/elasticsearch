@@ -339,6 +339,28 @@ public class PlainRangePresenceTests extends ESTestCase {
         }
     }
 
+    public void testARunReadAfterAGapInsideAKeptEntryEndsPastTheDocument() throws IOException {
+        final BytesRef[][] docSlots = new BytesRef[34][];
+        for (int start : new int[] { 0, 10, 20, 30 }) {
+            for (int doc = start; doc < start + 4; doc++) {
+                docSlots[doc] = new BytesRef[] { new BytesRef("a") };
+            }
+        }
+        try (Directory dir = newDirectory(); PlainSkipFixture fixture = PlainSkipFixture.build(dir, docSlots, 8)) {
+            final PlainRangePresence presence = fixture.presence(PlainSkipBounds.Query.range(null, true, null, true));
+            assertEquals(0, presence.nextDoc());
+            assertEquals(4, presence.docIDRunEnd());
+            for (int doc = 1; doc < 4; doc++) {
+                assertEquals(doc, presence.nextDoc());
+            }
+            assertEquals(10, presence.nextDoc());
+            assertEquals(14, presence.docIDRunEnd());
+            assertEquals(11, presence.nextDoc());
+            assertEquals(14, presence.docIDRunEnd());
+            assertEquals(List.of(12, 13, 20, 21, 22, 23, 30, 31, 32, 33), collect(presence));
+        }
+    }
+
     public void testTheRankIsThatOfTheWrappedIterator() throws IOException {
         final BytesRef[][] docSlots = new BytesRef[40][];
         for (int doc = 0; doc < docSlots.length; doc += 3) {

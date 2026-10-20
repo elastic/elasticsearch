@@ -40,6 +40,7 @@ final class PlainRangePresence extends ColumnIterator {
     private final boolean oneSlotADocument;
 
     private int keptEntry = -1;
+    private long keptEndSlot;
     private int runLimit;
     private int currentEntry = -1;
     private long currentFirstSlot;
@@ -70,7 +71,12 @@ final class PlainRangePresence extends ColumnIterator {
 
     @Override
     public int nextDoc() throws IOException {
-        return settle(presence.nextDoc());
+        final int doc = presence.nextDoc();
+        if (oneSlotADocument && doc != NO_MORE_DOCS && keptEntry >= 0 && presence.rank() < keptEndSlot) {
+            runLimit = runLimit(doc, presence.rank());
+            return doc;
+        }
+        return settle(doc);
     }
 
     @Override
@@ -116,7 +122,7 @@ final class PlainRangePresence extends ColumnIterator {
             final int firstEntry = entryOf(first);
             final int lastEntry = count == 1 ? firstEntry : entryOf(first + count - 1);
             if (firstEntry == lastEntry && firstEntry == keptEntry) {
-                runLimit = runLimit(doc, first, lastEntry);
+                runLimit = runLimit(doc, first);
                 return doc;
             }
             if (keptIn(firstEntry, lastEntry)) {
@@ -178,10 +184,11 @@ final class PlainRangePresence extends ColumnIterator {
             return;
         }
         keptEntry = lastEntry;
-        runLimit = runLimit(doc, first, lastEntry);
+        keptEndSlot = lastEntry == currentEntry ? currentEndSlot : bounds.endSlot(lastEntry);
+        runLimit = runLimit(doc, first);
     }
 
-    private int runLimit(int doc, long first, int lastEntry) throws IOException {
-        return (int) Math.min((long) doc + bounds.endSlot(lastEntry) - first, NO_MORE_DOCS);
+    private int runLimit(int doc, long slot) {
+        return (int) Math.min((long) doc + keptEndSlot - slot, NO_MORE_DOCS);
     }
 }

@@ -383,10 +383,12 @@ public final class QuantileStates {
                         state = TDigestState.create(breaker, tDigestStateCompression);
                         closeState = true;
                     }
-                    builder.appendBytesRef(serialize(state, allowNonFinite ? out -> writeNonFiniteCounts(out, group) : null));
-
-                    if (closeState) {
-                        state.close();
+                    try {
+                        builder.appendBytesRef(serialize(state, allowNonFinite ? out -> writeNonFiniteCounts(out, group) : null));
+                    } finally {
+                        if (closeState) {
+                            state.close();
+                        }
                     }
                 }
                 blocks[offset] = builder.build();

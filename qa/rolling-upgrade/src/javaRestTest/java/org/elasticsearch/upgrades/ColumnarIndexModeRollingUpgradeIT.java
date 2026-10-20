@@ -25,6 +25,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
@@ -34,13 +35,14 @@ import static org.hamcrest.Matchers.is;
  *
  * <p>The old cluster writes a data stream and every later phase adds one bulk of documents to it, so the document counts follow from
  * the phase. Once every node is upgraded the old backing index is force merged, the data stream is rolled over, and the backing index
- * created by the upgraded cluster is written to and merged with the old one.
+ * created by the upgraded cluster is written to and force merged.
  */
 public class ColumnarIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
 
     private static final String DATA_STREAM = "rolling-columnar";
     private static final int DOCS_PER_BULK = 500;
     private static final int OLD_CLUSTER_BULKS = 3;
+    private static final int NEW_INDEX_BULKS = 2;
     private static final int HOSTS = 10;
     private static final int METHODS = 5;
     private static final Instant BASE_TIMESTAMP = Instant.parse("2024-01-01T00:00:00Z");
@@ -95,12 +97,14 @@ public class ColumnarIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTes
         assertThat(backingIndices, hasSize(2));
         final String newBackingIndex = backingIndices.getLast();
         assertThat(getIndexSettingsAsMap(newBackingIndex).get("index.mode"), equalTo("columnar"));
-        assertThat(bulkIndex(docs, DOCS_PER_BULK), equalTo(newBackingIndex));
-        final int totalDocs = docs + DOCS_PER_BULK;
+        for (int bulk = 0; bulk < NEW_INDEX_BULKS; bulk++) {
+            assertThat(bulkIndex(docs + bulk * DOCS_PER_BULK, DOCS_PER_BULK), equalTo(newBackingIndex));
+        }
+        final int totalDocs = docs + NEW_INDEX_BULKS * DOCS_PER_BULK;
         ensureGreen(DATA_STREAM);
         verify(newBackingIndex, docs, totalDocs);
 
-        forceMerge(DATA_STREAM);
+        forceMerge(newBackingIndex);
         verify(oldBackingIndex, 0, docs);
         verify(newBackingIndex, docs, totalDocs);
         verify(DATA_STREAM, 0, totalDocs);
@@ -173,10 +177,19 @@ public class ColumnarIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTes
         );
     }
 
-    private static void forceMerge(String target) throws IOException {
-        final Request request = new Request("POST", "/" + target + "/_forcemerge");
+    private static void forceMerge(String index) throws IOException {
+        assertThat("segments of [" + index + "] before the merge", segmentCount(index), greaterThan(1));
+        final Request request = new Request("POST", "/" + index + "/_forcemerge");
         request.addParameter("max_num_segments", "1");
-        assertOK(client().performRequest(request));
+        final Map<String, Object> response = entityAsMap(client().performRequest(request));
+        assertThat("force merge response: " + response, ObjectPath.evaluate(response, "_shards.failed"), equalTo(0));
+        assertThat("force merge response: " + response, ObjectPath.evaluate(response, "_shards.successful"), equalTo(1));
+        assertThat("segments of [" + index + "] after the merge", segmentCount(index), equalTo(1));
+    }
+
+    private static int segmentCount(String index) throws IOException {
+        final Map<String, Object> stats = entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_stats/segments")));
+        return ObjectPath.evaluate(stats, "_all.primaries.segments.count");
     }
 
     private static void verify(String target, int firstDoc, int lastDoc) throws IOException {

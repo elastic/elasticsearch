@@ -3539,6 +3539,18 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    public void testRamBufferSizeCappedForSyntheticIdDownsampleTargets() {
+        double huge = ByteSizeValue.ofGb(15).getMbFrac();
+        double small = 64;
+        double cap = InternalEngine.MAX_DOWNSAMPLE_SYNTHETIC_ID_RAM_BUFFER_MB;
+        for (var status : IndexMetadata.DownsampleTaskStatus.values()) {
+            boolean downsample = status != IndexMetadata.DownsampleTaskStatus.UNKNOWN;
+            assertEquals(downsample ? cap : huge, InternalEngine.ramBufferSizeMB(huge, true, status), 0.0);
+            assertEquals(huge, InternalEngine.ramBufferSizeMB(huge, false, status), 0.0);
+            assertEquals(small, InternalEngine.ramBufferSizeMB(small, true, status), 0.0);
+        }
+    }
+
     public void testSettings() {
         CodecService codecService = newCodecService();
         LiveIndexWriterConfig currentIndexWriterConfig = engine.getCurrentIndexWriterConfig();

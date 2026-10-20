@@ -50,6 +50,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterApplierService;
@@ -3515,6 +3516,21 @@ public class InternalEngine extends Engine {
     }
 
     // with tests.verbose, lucene sets this up: plumb to align with filesystem stream
+    /**
+     * Upper bound for the IndexWriter RAM buffer of downsample target shards that use synthetic ids. Retried downsample bulks overwrite
+     * existing documents, and each overwrite copies the (potentially large) synthetic _id into Lucene's global buffer of pending
+     * soft-delete updates, which can't grow beyond 2GB. With a very large indexing buffer Lucene would not apply that buffer in time.
+     * TODO: remove once Lucene enforces a hard limit on this buffer itself.
+     */
+    static final double MAX_DOWNSAMPLE_SYNTHETIC_ID_RAM_BUFFER_MB = 1024;
+
+    static double ramBufferSizeMB(double configuredMB, boolean useSyntheticId, IndexMetadata.DownsampleTaskStatus downsampleStatus) {
+        if (useSyntheticId && downsampleStatus != IndexMetadata.DownsampleTaskStatus.UNKNOWN) {
+            return Math.min(configuredMB, MAX_DOWNSAMPLE_SYNTHETIC_ID_RAM_BUFFER_MB);
+        }
+        return configuredMB;
+    }
+
     private static final boolean TESTS_VERBOSE = Booleans.parseBoolean(System.getProperty("tests.verbose", "false"));
 
     private static final boolean SHUFFLE_FORCE_MERGE = Booleans.parseBoolean(
@@ -3562,7 +3578,13 @@ public class InternalEngine extends Engine {
         // TODO: Introduce an index setting for setMaxFullFlushMergeWaitMillis
         iwc.setMaxFullFlushMergeWaitMillis(-1);
         iwc.setSimilarity(engineConfig.getSimilarity());
-        iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().getMbFrac());
+        iwc.setRAMBufferSizeMB(
+            ramBufferSizeMB(
+                engineConfig.getIndexingBufferSize().getMbFrac(),
+                useTsdbSyntheticId,
+                IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(engineConfig.getIndexSettings().getSettings())
+            )
+        );
 
         Codec codec = engineConfig.getCodec();
         if (DiscoveryNode.isStateless(engineConfig.getIndexSettings().getNodeSettings())) {

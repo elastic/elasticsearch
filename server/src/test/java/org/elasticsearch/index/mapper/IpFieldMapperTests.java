@@ -591,4 +591,9 @@ public class IpFieldMapperTests extends MapperTestCase {
             new SortShortcutSupport(IndexVersion.fromId(5000099), this::minimalMapping, this::writeField, false)
         );
     }
+
+    @Override
+    protected Object[] getThreeSampleValues() {
+        return new Object[] { "192.168.0.1", "192.168.0.2", "192.168.0.3" };
+    }
 }

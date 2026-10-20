@@ -533,11 +533,15 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
         DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) fieldType;
 
         List<Query> filtersInitial = doFiltersToQuery(context);
+        Query aliasFilter = buildAliasFilterQuery(context);
 
         String parentPath = context.nestedLookup().getNestedParent(fieldName);
         BitSetProducer parentBitSet = null;
         Query filterQuery;
         if (parentPath == null) {
+            if (aliasFilter != null) {
+                filtersInitial.add(aliasFilter);
+            }
             filterQuery = buildFilterQuery(filtersInitial);
         } else {
             final Query parentFilter;
@@ -569,6 +573,11 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
                 }
                 filterAdjusted.add(f);
             }
+            if (aliasFilter != null) {
+                // Alias filters match root documents, so join them from the root level, not the immediate parent.
+                Query nonNested = Queries.newNonNestedFilter(context.indexVersionCreated());
+                filterAdjusted.add(new ToChildBlockJoinQuery(Queries.filtered(aliasFilter, nonNested), context.bitsetFilter(nonNested)));
+            }
             filterQuery = buildFilterQuery(filterAdjusted);
         }
 
@@ -597,17 +606,23 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
         final List<Query> allFilters = new ArrayList<>(
             filterQueries.size() + autoPrefilters.size() + (context.getAliasFilter() == null ? 0 : 1)
         );
+
         allFilters.addAll(autoPrefilters);
         for (QueryBuilder queryBuilder : filterQueries) {
             allFilters.add(queryBuilder.toQuery(context));
         }
-        if (context.getAliasFilter() != null) {
-            // Alias filters target root documents, so they must not be built in this knn query's nested scope.
-            try (Releasable ignored = context.nestedScope().unwindTo(null)) {
-                allFilters.add(context.getAliasFilter().toQuery(context));
-            }
-        }
         return allFilters;
+    }
+
+    private static Query buildAliasFilterQuery(SearchExecutionContext context) throws IOException {
+        if (context.getAliasFilter() == null) {
+            return null;
+        }
+
+        // Alias filters target root documents, so they must not be built in this knn query's nested scope.
+        try (Releasable ignored = context.nestedScope().unwindTo(null)) {
+            return context.getAliasFilter().toQuery(context);
+        }
     }
 
     private List<Query> applyAutoPrefilteringIfEnabled(SearchExecutionContext context) throws IOException {

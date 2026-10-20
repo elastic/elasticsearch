@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.columnar.string.StringColumnOptions;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.collect.Iterators;
@@ -24,7 +25,10 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.escf.EscfColumn;
+import org.elasticsearch.escf.EscfColumnKind;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -80,6 +84,22 @@ public abstract class FieldMapper extends Mapper {
         false,
         Property.IndexScope,
         Property.ServerlessPublic
+    );
+
+    /**
+     * Index-level rule for how a {@code keyword} field reads an empty string. When {@code true}, a field given
+     * {@code ""} is parsed as though the document had given it {@code null}: {@code null_value} applies where the
+     * field configures one, and otherwise the field holds no value there. A search for an empty string then asks
+     * for the documents that hold no value.
+     *
+     * <p>It is final because it governs what is written rather than how what is written is read, so a document
+     * indexed under one setting cannot be reinterpreted under the other.
+     */
+    public static final Setting<Boolean> EMPTY_KEYWORD_STRING_AS_NULL_SETTING = Setting.boolSetting(
+        "index.mapping.empty_keyword_string_as_null",
+        false,
+        Property.IndexScope,
+        Property.Final
     );
 
     /**
@@ -231,7 +251,7 @@ public abstract class FieldMapper extends Mapper {
     }
 
     /**
-     * Whether this mapper can be driven through the columnar bulk batch-mapping path (see
+     * Whether this mapper including its multi-fields can be driven through the columnar bulk batch-mapping path (see
      * {@code ShardBatchMapper}), which invokes each mapper once per batch over whole columns rather
      * than once per document. Defaults to {@code false}; supported mappers override once they
      * implement the columnar mapping entry point.
@@ -239,7 +259,86 @@ public abstract class FieldMapper extends Mapper {
      * @param indexSettings the settings of the index being mapped, for mappers whose columnar
      *                       support depends on index-level configuration
      */
-    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+    public final boolean supportsColumnarParse(IndexSettings indexSettings) {
+        // Cross-cutting pre-conditions that apply to every mapper, mirroring how parse() handles script
+        // enforcement and copyTo before delegating to parseCreateField().
+        if (hasScript() || copyTo().copyToFields().isEmpty() == false) {
+            return false;
+        }
+        // The mode and legacy-version gates are data-field concerns only: metadata mappers (_id, _seq_no,
+        // _routing, etc.) must support the columnar path in any index mode that the shard batch mapper runs.
+        if (isMetadataFieldMapper() == false) {
+            if (indexSettings.getMode().isStrictColumnar() == false && indexSettings.getMode().isTsdb() == false) {
+                return false;
+            }
+            if (indexSettings.getIndexVersionCreated().isLegacyIndexVersion()) {
+                return false;
+            }
+            // Outside strict-columnar modes (which reject the setting), the row path copies every value of a field under
+            // synthetic_source_keep: all, scalars included, into _ignored_source, as it does for a field with no synthetic source of its
+            // own (SYNTHETIC_FALLBACK). The batch path writes neither, so such a field must stay on the row path. No mapper that gets
+            // this far reports FALLBACK today (copy_to, scripts and normalizers are refused above or by the mapper), so that half of the
+            // check guards mappers added later.
+            if (indexSettings.getMode().isStrictColumnar() == false
+                && FallbackPostMapper.capturesScalarValues(
+                    syntheticSourceMode() == SyntheticSourceMode.FALLBACK,
+                    FallbackPostMapper.effectiveKeepMode(sourceKeepMode(), indexSettings)
+                )) {
+                return false;
+            }
+        }
+        if (doSupportsColumnarParse(indexSettings) == false) {
+            return false;
+        }
+        if (resolvesColumnGroup()) {
+            // A group mapper is dispatched through mapColumnGroupBatch, which — unlike mapColumnBatch below —
+            // never fans out to multi-fields, so a group mapper carrying [fields] would index the parent column
+            // and silently skip every sub-field. Load-bearing for geo_point, which accepts [fields] at
+            // mapping-parse time; flattened rejects them there already (FlattenedFieldMapper.Builder#build).
+            return builderParams.multiFields.mappers.length == 0;
+        }
+        for (FieldMapper subMapper : builderParams.multiFields) {
+            // The recursive call covers mul.
+            if (subMapper.resolvesColumnGroup() || subMapper.supportsColumnarParse(indexSettings) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+        return false;
+    }
+
+    /**
+     * How this field's values are written when the ColumNAR codec stores them as a string column, or
+     * {@code null} when this field's doc values are not stored as one.
+     *
+     * <p>Answering both at once keeps the two in step: a field is routed to the codec exactly when it writes
+     * the payload the codec reads, and the options it is routed with are the ones it asked for. What suits a
+     * field of a handful of repeated terms is not what suits one whose values are long and all different, and
+     * the field is what tells them apart.
+     */
+    @Nullable
+    public StringColumnOptions columnarStringOptions() {
+        return null;
+    }
+
+    /**
+     * How an internal doc-values field this mapper writes under its own path, such as {@code <field>.input}, is written as a
+     * ColumNAR string column, or {@code null} when it is not one. Such a field has no mapper of its own, so its owner answers.
+     */
+    @Nullable
+    public StringColumnOptions internalColumnarStringOptions(String fieldName) {
+        return null;
+    }
+
+    /**
+     * Returns {@code true} for metadata field mappers ({@link MetadataFieldMapper} subclasses),
+     * {@code false} for all user-defined data field mappers. Used by {@link #supportsColumnarParse}
+     * to skip the index-mode and legacy-version gates, which are data-field concerns only.
+     */
+    protected boolean isMetadataFieldMapper() {
         return false;
     }
 
@@ -253,19 +352,46 @@ public abstract class FieldMapper extends Mapper {
     }
 
     /**
-     * Maps all documents in a batch for this field from the supplied ESCF source column. Called by
-     * the columnar bulk batch driver once per field per batch, only for mappers whose
+     * Maps all documents in a batch for this field from the supplied ESCF source column, then hands the same column to each
+     * multi-field sub-mapper. Called by the columnar bulk batch driver once per field per batch, only for mappers whose
      * {@link #supportsColumnarParse(IndexSettings)} returned {@code true}. Attaches the resulting
      * output columns to {@code ctx} via {@link BatchMappingContext#addColumn}.
      *
      * @param ctx    the batch mapping context; receives output columns via {@code addColumn}
      * @param source the Escf column holding the field's source values for the batch
      */
-    // TODO: See FieldMapper#parse. We need to migrate over multi-value and nullability restricts.
-    // This should be straightforward. We would reject array columns for multi-value and force
-    // dense columns or null replacement for no nullability. We might need to do a check if multi-value
-    // is false and there is an array column scan down the array counts because size 0 or 1 is still valid
-    public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+    public final void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+        if (shouldEnforceSingleValueBatch() && source.hasMultiValueDoc()) {
+            throw new UnsupportedOperationException(
+                "mapColumnBatch: multi_value=false field [" + fullPath() + "] has more than one value per document"
+            );
+        }
+        if (isNullable() == false && source.hasNullOrAbsentDoc()) {
+            throw new UnsupportedOperationException(
+                "mapColumnBatch: nullability=false field [" + fullPath() + "] has a null or absent value"
+            );
+        }
+        // Outside strict-columnar modes (which reject the setting), a non-default synthetic_source_keep makes the row path keep array
+        // source as-is, either as positional offsets or in _ignored_source, neither of which the batch path writes.
+        // Fields under keep: all are kept off the batch path by supportsColumnarParse, and ShardBatchMapper does the same for
+        // objects with keep: all; arrays under keep: arrays are the case that can only be recognised per batch, here.
+        if (source.kind() == EscfColumnKind.ARRAY
+            && ctx.indexSettings().getMode().isStrictColumnar() == false
+            && FallbackPostMapper.mayKeepArraySource(
+                syntheticSourceMode() == SyntheticSourceMode.FALLBACK,
+                FallbackPostMapper.effectiveKeepMode(sourceKeepMode(), ctx.indexSettings())
+            )) {
+            throw new UnsupportedOperationException(
+                "mapColumnBatch: field [" + fullPath() + "] may keep array source outside a strict-columnar index mode"
+            );
+        }
+        doMapColumnBatch(ctx, source);
+        for (FieldMapper subMapper : builderParams.multiFields) {
+            subMapper.mapColumnBatch(ctx, source);
+        }
+    }
+
+    protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         throw new UnsupportedOperationException(
             "mapColumnBatch not implemented for mapper [" + typeName() + "] on field [" + fullPath() + "]"
         );
@@ -318,7 +444,7 @@ public abstract class FieldMapper extends Mapper {
                 redirectedToFailureColumn = context.enforceSingleValue(fullPath(), onFailureBehavior());
             }
             if (redirectedToFailureColumn == false) {
-                if (isNullable() == false && context.parser().currentToken().isValue()) {
+                if (isNullable() == false && context.parser().currentToken().isValue() && valueSatisfiesRequired(context)) {
                     // A non-null value satisfies the [nullability=false] requirement for this Lucene doc.
                     context.markRequiredSatisfied(fullPath());
                 }
@@ -413,6 +539,14 @@ public abstract class FieldMapper extends Mapper {
      * Implementations of this method should ensure that on failing to parse parser.currentToken() must be the
      * current failing token
      */
+    /**
+     * Whether the value the parser is on satisfies a {@code [doc_values.nullability: false]} requirement. A value the
+     * field reads as a null does not: the document then holds no value for a field that promised one.
+     */
+    protected boolean valueSatisfiesRequired(DocumentParserContext context) throws IOException {
+        return true;
+    }
+
     protected abstract void parseCreateField(DocumentParserContext context) throws IOException;
 
     /**
@@ -423,6 +557,17 @@ public abstract class FieldMapper extends Mapper {
      * {@code [value]}. Mappers without {@code null_value} support (eg. text) should exempt {@code VALUE_NULL} unconditionally.
      */
     protected boolean shouldEnforceSingleValue(XContentParser.Token token) {
+        return false;
+    }
+
+    /**
+     * Whether this mapper enforces single-value semantics on the columnar batch path, analogous to
+     * {@link #shouldEnforceSingleValue(XContentParser.Token)} for the row path. When {@code true},
+     * {@link #mapColumnBatch} scans the source column upfront and throws {@link UnsupportedOperationException}
+     * if any document carries more than one value, causing {@code ShardBatchMapper} to fall back the whole
+     * batch to the row path.
+     */
+    protected boolean shouldEnforceSingleValueBatch() {
         return false;
     }
 
@@ -576,19 +721,6 @@ public abstract class FieldMapper extends Mapper {
      * {@code return new MyBuilder(simpleName()).init(this); }
      */
     public abstract Builder getMergeBuilder();
-
-    protected void checkIncomingMergeType(FieldMapper mergeWith) {
-        if (Objects.equals(this.getClass(), mergeWith.getClass()) == false) {
-            throw new IllegalArgumentException(
-                "mapper [" + fullPath() + "] cannot be changed from type [" + contentType() + "] to [" + mergeWith.contentType() + "]"
-            );
-        }
-        if (Objects.equals(contentType(), mergeWith.contentType()) == false) {
-            throw new IllegalArgumentException(
-                "mapper [" + fullPath() + "] cannot be changed from type [" + contentType() + "] to [" + mergeWith.contentType() + "]"
-            );
-        }
-    }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -808,27 +940,11 @@ public abstract class FieldMapper extends Mapper {
             }
 
             private void add(FieldMapper mapper) {
-                FieldMapper.Builder builder = mapper.getMergeBuilder();
-                if (builder != null) {
-                    fieldBuilders.put(mapper.leafName(), builder);
-                } else {
-                    fieldBuilders.put(mapper.leafName(), new FieldMapper.Builder(mapper.leafName()) {
-                        @Override
-                        protected Parameter<?>[] getParameters() {
-                            return EMPTY_PARAMETERS;
-                        }
-
-                        @Override
-                        public String contentType() {
-                            return mapper.contentType();
-                        }
-
-                        @Override
-                        public FieldMapper build(MapperBuilderContext context) {
-                            return mapper;
-                        }
-                    });
-                }
+                FieldMapper.Builder builder = Objects.requireNonNull(
+                    mapper.getMergeBuilder(),
+                    () -> "multi-field mapper [" + mapper.fullPath() + "] must provide a merge builder"
+                );
+                fieldBuilders.put(mapper.leafName(), builder);
 
                 if (mapper instanceof KeywordFieldMapper kwd) {
                     if (kwd.hasNormalizer() == false && (kwd.fieldType().hasDocValues() || kwd.fieldType().isStored())) {
@@ -847,7 +963,7 @@ public abstract class FieldMapper extends Mapper {
                             updateSyntheticSourceCompatibleKeywordField(incomingBuilder);
                         }
                     } else {
-                        MapperMergeContext childContext = MapperMergeContext.from(mergeContext.getMapperBuilderContext(), Long.MAX_VALUE);
+                        MapperMergeContext childContext = mergeContext.withUnlimitedParseFieldLimitsBudget();
                         Mapper.Builder merged = existingBuilder.mergeWith(incomingBuilder, childContext);
                         fieldBuilders.put(entry.getKey(), (FieldMapper.Builder) merged);
                     }
@@ -1016,6 +1132,7 @@ public abstract class FieldMapper extends Mapper {
         private SerializerCheck<T> serializerCheck = (includeDefaults, isConfigured, value) -> includeDefaults || isConfigured;
         private final Function<T, String> conflictSerializer;
         private boolean deprecated;
+        private List<NodeFeature> requiredFeatures = List.of();
         private MergeValidator<T> mergeValidator;
         private T value;
         private boolean isSet;
@@ -1122,6 +1239,14 @@ public abstract class FieldMapper extends Mapper {
          */
         public Parameter<T> deprecated() {
             this.deprecated = true;
+            return this;
+        }
+
+        /**
+         * Only allows a value to be set for this parameter once all nodes in the cluster support all of {@code features}.
+         */
+        public Parameter<T> requiresFeatures(NodeFeature... features) {
+            this.requiredFeatures = CollectionUtils.appendToCopyNoNullElements(this.requiredFeatures, features);
             return this;
         }
 
@@ -2208,6 +2333,19 @@ public abstract class FieldMapper extends Mapper {
                         "Parameter [{}] is deprecated and will be removed in a future version",
                         propName
                     );
+                }
+                for (NodeFeature feature : parameter.requiredFeatures) {
+                    if (parserContext.clusterHasFeature(feature) == false) {
+                        throw new MapperParsingException(
+                            "parameter ["
+                                + propName
+                                + "] on mapper ["
+                                + name
+                                + "] of type ["
+                                + type
+                                + "] is not supported until all nodes in the cluster support it"
+                        );
+                    }
                 }
                 if (propNode == null && parameter.acceptsNull == false) {
                     throw new MapperParsingException(

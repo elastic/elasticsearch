@@ -309,6 +309,17 @@ Segments containing fewer than 10,000 vectors after merging are not calibrated. 
 
   Query-time oversample affects rerank depth only. Preconditioning and quantization encoding continue to follow each segment's stored configuration when `auto_calibrate` is enabled.
 
+### Changing `auto_calibrate` on an existing field [bbq-auto-calibration-update]
+
+```{applies_to}
+stack: ga 9.6
+```
+
+You can turn auto-calibration on or off on an existing `bbq_disk` field with the [update mapping API]({{es-apis}}operation/operation-indices-put-mapping). Existing segments are not rewritten, so the new value applies from the next merge:
+
+- If you turn it on, later merges that produce at least 10,000 vectors are calibrated. Segments written before the change are calibrated when they are merged.
+- If you turn it off, later merges use the codec default encoding. When you search, segments are scored using the `bits` and `rescore_vector.oversample` values from the mapping instead of their calibrated values. Preconditioning is the exception. It is a property of how each segment was written, so a segment that was preconditioned during calibration continues to be searched that way.
+
 ### Example
 
 ```console
@@ -353,7 +364,7 @@ GET bbq-index/_search
 By default, oversampling is set to 3×, meaning if you request k:10, {{es}} retrieves 30 candidates for re-ranking. You don’t need to configure this behavior; it’s applied automatically for BBQ searches.
 
 :::{note}
-You can change oversampling from the default 3× to another value. Refer to [Oversampling and rescoring for quantized vectors](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) for details.
+You can change oversampling from the default 3× to another value. Refer to [Oversampling and rescoring for quantized vectors](docs-content://solutions/search/vector/knn/optimize-performance-accuracy.md#dense-vector-knn-search-rescoring) for details.
 :::
 
 ## Learn more [bbq-learn-more]

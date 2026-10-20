@@ -1,0 +1,7 @@
+area: ES|QL
+issues:
+ - 161319
+ - 148398
+pr: 161338
+summary: Count only distinct warnings towards the cap
+type: bug

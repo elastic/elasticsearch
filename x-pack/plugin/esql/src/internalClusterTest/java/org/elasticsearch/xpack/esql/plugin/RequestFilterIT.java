@@ -52,8 +52,7 @@ public class RequestFilterIT extends AbstractEsqlIntegTestCase {
             )
         ) {
             // filter is executed against final view output as if it is index. This must take into account fields added/changed by evals
-            // Uncomment once https://github.com/elastic/elasticsearch/pull/156879 is merged
-            // assertColumnContainsInAnyOrder(response, "source", "index-3");
+            assertColumnContainsInAnyOrder(response, "source", "index-3");
         }
     }
 

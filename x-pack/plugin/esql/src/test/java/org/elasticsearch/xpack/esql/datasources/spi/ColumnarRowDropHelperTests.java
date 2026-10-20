@@ -172,18 +172,68 @@ public class ColumnarRowDropHelperTests extends ESTestCase {
         helper.markFailed(0);
         helper.markFailed(1); // 2 errors, budget is 1
         helper.addToTotals(3, 2);
-        expectThrows(ParsingException.class, () -> helper.checkBudget(SkipWarnings.NOOP));
+        ParsingException e = expectThrows(ParsingException.class, () -> helper.checkBudget());
+        assertThat(e.getErrorMessage(), equalTo("[2] dropped rows in [3] rows of [test.parquet]; over [max_errors] of [1]"));
+    }
+
+    /** Only the limit that tripped is named, never the unset one's sentinel. */
+    public void testRatioBudgetExceededNamesTheRatio() {
+        ColumnarRowDropHelper helper = ColumnarRowDropHelper.forPolicy(
+            new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, Long.MAX_VALUE, 0.1, false),
+            "test.parquet"
+        );
+        helper.beginBatch(3);
+        helper.markFailed(0);
+        helper.markFailed(1);
+        helper.addToTotals(3, 2);
+        ParsingException e = expectThrows(ParsingException.class, () -> helper.checkBudget());
+        assertThat(e.getErrorMessage(), equalTo("[2] dropped rows in [3] rows of [test.parquet]; over [max_error_ratio] of [0.1]"));
     }
 
     /** A reader with no live warning collector (strict paths, or one that never lazily created one) must
-     *  still get the exception rather than an NPE on the way to emitting the warning. */
+     *  still get the exception. */
     public void testBudgetExceededWithNoWarningCollectorStillThrows() {
         ColumnarRowDropHelper helper = helper(1);
         helper.beginBatch(3);
         helper.markFailed(0);
         helper.markFailed(1);
         helper.addToTotals(3, 2);
-        expectThrows(ParsingException.class, () -> helper.checkBudget(null));
+        expectThrows(ParsingException.class, () -> helper.checkBudget());
+    }
+
+    /**
+     * A whole-read drop makes every row of the read malformed, so the read is over any {@code max_error_ratio} below
+     * {@code 1.0}, as a read whose rows all fail one by one would be.
+     */
+    public void testDropWholeReadChargesEveryRowAgainstTheRatio() {
+        double ratio = randomDoubleBetween(0.01, 0.99, true);
+        ParsingException e = expectThrows(
+            ParsingException.class,
+            () -> ColumnarRowDropHelper.dropWholeRead(
+                null,
+                new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, Long.MAX_VALUE, ratio, false),
+                "test.parquet",
+                100,
+                "column [flag]: [integer] in the file, [boolean] in the query"
+            )
+        );
+        assertThat(
+            e.getErrorMessage(),
+            equalTo(
+                "[100] dropped rows (column [flag]: [integer] in the file, [boolean] in the query) in [100] rows of [test.parquet];"
+                    + " over [max_error_ratio] of ["
+                    + ratio
+                    + "]"
+            )
+        );
+
+        ColumnarRowDropHelper.dropWholeRead(
+            null,
+            new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, Long.MAX_VALUE, 1.0, false),
+            "test.parquet",
+            100,
+            "column [flag]: [integer] in the file, [boolean] in the query"
+        );
     }
 
     public void testBudgetNotExceededDoesNotThrow() {
@@ -191,7 +241,7 @@ public class ColumnarRowDropHelperTests extends ESTestCase {
         helper.beginBatch(3);
         helper.markFailed(0);
         helper.addToTotals(3, 1);
-        helper.checkBudget(SkipWarnings.NOOP); // should not throw
+        helper.checkBudget(); // should not throw
     }
 
     // ---- beginBatch resets state between batches ----

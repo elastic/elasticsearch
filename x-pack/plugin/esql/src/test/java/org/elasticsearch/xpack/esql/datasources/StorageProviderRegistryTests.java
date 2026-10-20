@@ -8,15 +8,22 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -42,6 +49,69 @@ public class StorageProviderRegistryTests extends ESTestCase {
             registry.registerFactory("stub", StorageProviderFactory.noConfigKeys(StubStorageProvider::new));
             StorageProvider wrapped = registry.provider(StoragePath.of("stub://bucket/file.csv"));
             assertThat(wrapped, org.hamcrest.Matchers.instanceOf(RetryableStorageProvider.class));
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    /**
+     * Covers the registry's wrapping ({@code Retryable -> ConcurrencyLimited -> leaf}) plus a
+     * {@link QueryBudgetedStorageProvider} built by hand over it, with a {@link RangeStorageObject} view on top.
+     * That hand-built wrap mirrors {@code FileSourceFactory#operatorFactory()}, but this test does not exercise
+     * that wiring; a change that drops or reorders the real wrap would not fail here. Attaching metrics on the
+     * outermost object must reach the metered leaf. A decorator that does not forward {@code attachMetrics} stops
+     * the attach at that layer, so no {@code storage.*} metric is published for that remote scheme.
+     */
+    public void testAttachMetricsReachesMeteredLeafThroughProductionChain() throws Exception {
+        RecordingMeterRegistry meters = new RecordingMeterRegistry();
+        byte[] data = "hello".getBytes(StandardCharsets.UTF_8);
+        StoragePath path = StoragePath.of("s3://bucket/file.csv");
+        Settings settings = Settings.builder().put(ExternalSourceSettings.MAX_CONCURRENT_REQUESTS.getKey(), 4).build();
+        try (StorageProviderRegistry registry = new StorageProviderRegistry(settings)) {
+            StorageObject leaf = TestStorageObjects.meteredLeaf(path, data);
+            registry.registerFactory("s3", StorageProviderFactory.noConfigKeys(() -> new MeteredStubStorageProvider(leaf)));
+            ConcurrencyBudgetAllocator allocator = registry.allocatorForScheme("s3");
+            assertNotNull("explicit permits must yield a per-query allocator", allocator);
+            QueryBudgetedStorageProvider budgeted = new QueryBudgetedStorageProvider(registry.provider(path), allocator.register());
+            // Operators read through a split's RangeStorageObject view (FileSplitProvider#storageObjectForSplit), so the
+            // outermost layer here is the range view, as in production.
+            StorageObject obj = new RangeStorageObject(budgeted.newObject(path, data.length), 0, data.length);
+
+            obj.attachMetrics(new ExternalSourceMetrics(meters), "s3");
+            try (InputStream stream = obj.newStream(0, data.length)) {
+                assertArrayEquals(data, stream.readAllBytes());
+            }
+
+            Measurement requests = TestStorageObjects.singleMeasurement(
+                meters,
+                InstrumentType.LONG_COUNTER,
+                ExternalSourceMetrics.STORAGE_REQUESTS_TOTAL
+            );
+            assertEquals(1L, requests.getLong());
+            assertEquals("s3", requests.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE));
+        }
+    }
+
+    public void testLimiterForSchemeCarriesSchemeAndRaisableCarrier() {
+        Settings settings = Settings.builder().put("esql.external.max_concurrent_requests", 2).build();
+        try (StorageProviderRegistry registry = new StorageProviderRegistry(settings)) {
+            ConcurrencyLimiter limiter = registry.limiterForScheme("gs");
+            assertEquals("gs", limiter.scheme());
+            assertEquals(2, limiter.maxPermits());
+            assertTrue(limiter.settingCanRaiseLimit());
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    public void testLimiterForSchemeExplicitMaxIsUnraisable() {
+        Settings settings = Settings.builder().put("esql.external.max_concurrent_requests", 500).build();
+        ExternalSourceSettings.BlobStoreConcurrency expected = ExternalSourceSettings.blobStoreConcurrencyInfo(settings);
+        try (StorageProviderRegistry registry = new StorageProviderRegistry(settings)) {
+            ConcurrencyLimiter limiter = registry.limiterForScheme("gs");
+            assertEquals("gs", limiter.scheme());
+            assertEquals(expected.permits(), limiter.maxPermits());
+            assertFalse(limiter.settingCanRaiseLimit());
         } catch (IOException e) {
             throw new AssertionError(e);
         }
@@ -78,8 +148,30 @@ public class StorageProviderRegistryTests extends ESTestCase {
         assertEquals(1, closes.get());
     }
 
+    /**
+     * Stub whose {@link #newObject(StoragePath, long)} hands back a real metered leaf, so the registry's wrapping chain is
+     * exercised end to end instead of stopping at the stub's throwing defaults.
+     */
+    private static class MeteredStubStorageProvider extends StubStorageProvider {
+        private final StorageObject leaf;
+
+        MeteredStubStorageProvider(StorageObject leaf) {
+            this.leaf = leaf;
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length) {
+            return leaf;
+        }
+    }
+
     /** Minimal no-op storage provider; only the scheme + lifecycle matter for the wrap-order assertion. */
     private static class StubStorageProvider implements StorageProvider {
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to this test double
+        }
+
         @Override
         public StorageObject newObject(StoragePath path) {
             throw new UnsupportedOperationException();
@@ -150,6 +242,11 @@ public class StorageProviderRegistryTests extends ESTestCase {
 
     // A no-op StorageProviderFactory / StorageProvider for the file scheme used by gate tests.
     private static final StorageProvider NOOP_PROVIDER = new StorageProvider() {
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to this test double
+        }
+
         @Override
         public StorageObject newObject(StoragePath path) {
             throw new UnsupportedOperationException("noop");

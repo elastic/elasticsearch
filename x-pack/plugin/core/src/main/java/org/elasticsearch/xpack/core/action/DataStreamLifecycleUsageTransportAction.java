@@ -13,8 +13,8 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -33,7 +33,7 @@ import java.util.Map;
 
 public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTransportAction {
 
-    private final DataStreamGlobalRetentionSettings globalRetentionSettings;
+    private final DataStreamLifecycleSettings dataStreamLifecycleSettings;
     private final ProjectResolver projectResolver;
     private final boolean isStateless;
 
@@ -43,11 +43,11 @@ public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTr
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        DataStreamGlobalRetentionSettings globalRetentionSettings,
+        DataStreamLifecycleSettings dataStreamLifecycleSettings,
         ProjectResolver projectResolver
     ) {
         super(XPackUsageFeatureAction.DATA_STREAM_LIFECYCLE.name(), transportService, clusterService, threadPool, actionFilters);
-        this.globalRetentionSettings = globalRetentionSettings;
+        this.dataStreamLifecycleSettings = dataStreamLifecycleSettings;
         this.projectResolver = projectResolver;
         this.isStateless = DiscoveryNode.isStateless(clusterService.getSettings());
     }
@@ -63,8 +63,9 @@ public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTr
         DataStreamLifecycleFeatureSetUsage.LifecycleStats lifecycleStats = calculateStats(
             dataStreams,
             clusterService.getClusterSettings().get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING),
-            globalRetentionSettings.get(),
-            isStateless
+            dataStreamLifecycleSettings.getGlobalRetention(),
+            isStateless,
+            dataStreamLifecycleSettings.minimumLifecycleEnabled()
         );
         listener.onResponse(new XPackUsageFeatureResponse(new DataStreamLifecycleFeatureSetUsage(lifecycleStats)));
     }
@@ -72,23 +73,30 @@ public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTr
     /**
      * Counts the number of data streams that have a lifecycle configured (and enabled),
      * computes the min/max/average summary of the data and effective retention and tracks the usage of global retention.
+     * It also counts the data streams that are affected by the minimum lifecycle, these are the time series data streams that do not
+     * have a lifecycle configured and are managed by the default lifecycle because the minimum lifecycle is enabled.
      */
     public static DataStreamLifecycleFeatureSetUsage.LifecycleStats calculateStats(
         Collection<DataStream> dataStreams,
         RolloverConfiguration rolloverConfiguration,
         DataStreamGlobalRetention globalRetention,
-        boolean isStateless
+        boolean isStateless,
+        boolean minimumLifecycleEnabled
     ) {
         // Initialise counters of associated data streams
         long dataStreamsWithLifecycles = 0;
         long dataStreamsWithDefaultRetention = 0;
         long dataStreamsWithMaxRetention = 0;
+        long dataStreamsWithMinimumLifecycle = 0;
 
         LongSummaryStatistics dataRetentionStats = new LongSummaryStatistics();
         LongSummaryStatistics effectiveRetentionStats = new LongSummaryStatistics();
         LongSummaryStatistics frozenAfterStats = isStateless ? null : new LongSummaryStatistics();
 
         for (DataStream dataStream : dataStreams) {
+            if (dataStream.isMinimumLifecycleApplicable(minimumLifecycleEnabled)) {
+                dataStreamsWithMinimumLifecycle++;
+            }
             if (dataStream.getDataLifecycle() != null && dataStream.getDataLifecycle().enabled()) {
                 dataStreamsWithLifecycles++;
                 // Track data retention
@@ -127,7 +135,8 @@ public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTr
             DataStreamLifecycleFeatureSetUsage.TimeThresholdStats.create(dataRetentionStats),
             DataStreamLifecycleFeatureSetUsage.TimeThresholdStats.create(effectiveRetentionStats),
             isStateless ? null : DataStreamLifecycleFeatureSetUsage.TimeThresholdStats.create(frozenAfterStats),
-            globalRetentionStats
+            globalRetentionStats,
+            isStateless ? null : dataStreamsWithMinimumLifecycle
         );
     }
 }

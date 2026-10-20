@@ -12,6 +12,7 @@ package org.elasticsearch.datastreams;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
@@ -41,6 +42,7 @@ import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.IndexMetadataRestoreTransformer;
 import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -67,6 +69,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Tests the atomic delete-and-restore of an existing data stream: the destination data stream and its backing/failure-store
@@ -115,6 +118,230 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
         indexDoc();
         refresh(DATA_STREAM_NAME);
         assertHitCount(prepareSearch(DATA_STREAM_NAME).setSize(0), docCount + 1);
+    }
+
+    /**
+     * The ordinary public restore API ({@link RestoreService#restoreSnapshot}) reaches the existing-data-stream path, but only when the
+     * caller explicitly opts in via {@link RestoreSnapshotRequest#restoreOverExisting()}. The default behavior (fail because the data
+     * stream's backing index already exists) must be unchanged.
+     */
+    public void testOrdinaryRestoreCanTargetExistingDataStreamWhenRequested() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+
+        final int docCount = createRepositoryAndSnapshottedDataStream();
+        final Index oldBackingIndex = currentDataStream().getIndices().get(0);
+
+        // without opting in, restoring a snapshot whose data stream already exists must fail and leave the destination unchanged
+        final PlainActionFuture<RestoreService.RestoreCompletionResponse> rejected = new PlainActionFuture<>();
+        restoreService().restoreSnapshot(
+            ProjectId.DEFAULT,
+            new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, REPOSITORY_NAME, SNAPSHOT_NAME).indices(DATA_STREAM_NAME),
+            rejected
+        );
+        expectThrows(SnapshotRestoreException.class, () -> rejected.actionGet(TEST_REQUEST_TIMEOUT));
+        assertThat(
+            "the default (opted-out) behavior must leave the destination unchanged",
+            currentDataStream().getIndices().get(0),
+            equalTo(oldBackingIndex)
+        );
+
+        // opting in restores over the existing data stream in place with the same name and new backing-index identity
+        final PlainActionFuture<RestoreService.RestoreCompletionResponse> future = new PlainActionFuture<>();
+        restoreService().restoreSnapshot(
+            ProjectId.DEFAULT,
+            new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, REPOSITORY_NAME, SNAPSHOT_NAME).indices(DATA_STREAM_NAME)
+                .restoreOverExisting(true),
+            future
+        );
+        future.actionGet(TEST_REQUEST_TIMEOUT);
+        awaitRestoreCompleted();
+
+        final DataStream restored = currentDataStream();
+        assertThat(restored.getIndices(), hasSize(1));
+        assertThat(
+            "the restored backing index must keep the same name",
+            restored.getIndices().get(0).getName(),
+            equalTo(oldBackingIndex.getName())
+        );
+        assertThat(
+            "the restored backing index must be a new identity, not the deleted one",
+            restored.getIndices().get(0),
+            not(equalTo(oldBackingIndex))
+        );
+        assertHitCount(prepareSearch(DATA_STREAM_NAME).setSize(0), docCount);
+
+        // genuinely functional afterward: indexing goes to the newly-restored backing index
+        indexDoc();
+        refresh(DATA_STREAM_NAME);
+        assertHitCount(prepareSearch(DATA_STREAM_NAME).setSize(0), docCount + 1);
+    }
+
+    /**
+     * A single restore_over_existing restore can cover both kinds of destination at once: an existing open plain index and an existing data
+     * stream. The two are overwritten by different mechanisms in the same cluster-state update. The plain index is restored over in place,
+     * keeping its index identity (only its history UUID changes), while the data stream is deleted and recreated with a new backing-index
+     * identity. This exercises the partition where {@code openIndexTargets} and {@code existingDataStreamTargets} are both non-empty, and
+     * proves that a data stream's backing indices are handled only by the data-stream path, not double-handled by the open-index path.
+     */
+    public void testRestoreOverExistingCoversAnOpenIndexAndADataStreamInOneRequest() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+
+        createRepository(REPOSITORY_NAME, "mock");
+
+        // A plain index
+        final String plainIndex = "plain-idx";
+        assertAcked(indicesAdmin().prepareCreate(plainIndex).setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 0)));
+        final int plainDocCount = randomIntBetween(5, 20);
+        for (int i = 0; i < plainDocCount; i++) {
+            prepareIndex(plainIndex).setSource("field", "value").get();
+        }
+
+        // A data stream.
+        final ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(DATA_STREAM_NAME))
+            .template(new Template(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 0).build(), null, null))
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .build();
+        assertAcked(
+            client().execute(
+                TransportPutComposableIndexTemplateAction.TYPE,
+                new TransportPutComposableIndexTemplateAction.Request(TEMPLATE_ID).indexTemplate(template)
+            ).get()
+        );
+        assertAcked(
+            client().execute(
+                CreateDataStreamAction.INSTANCE,
+                new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, DATA_STREAM_NAME)
+            ).get()
+        );
+        final int dataStreamDocCount = randomIntBetween(5, 20);
+        for (int i = 0; i < dataStreamDocCount; i++) {
+            indexDoc();
+        }
+        refresh(plainIndex, DATA_STREAM_NAME);
+        ensureGreen(plainIndex, DATA_STREAM_NAME);
+
+        // Snapshot both destinations at this point.
+        createFullSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME);
+
+        // Remember the pre-restore identities, then diverge from the snapshot so a successful restore is observable as a rollback.
+        final Index plainIndexBeforeRestore = currentIndex(plainIndex);
+        final Index oldBackingIndex = currentDataStream().getIndices().get(0);
+        prepareIndex(plainIndex).setSource("field", "extra").get();
+        indexDoc();
+        refresh(plainIndex, DATA_STREAM_NAME);
+        assertHitCount(prepareSearch(plainIndex).setSize(0), plainDocCount + 1);
+        assertHitCount(prepareSearch(DATA_STREAM_NAME).setSize(0), dataStreamDocCount + 1);
+
+        // One restore_over_existing restore covering both destinations.
+        final PlainActionFuture<RestoreService.RestoreCompletionResponse> future = new PlainActionFuture<>();
+        restoreService().restoreSnapshot(
+            ProjectId.DEFAULT,
+            new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, REPOSITORY_NAME, SNAPSHOT_NAME).indices(plainIndex, DATA_STREAM_NAME)
+                .restoreOverExisting(true),
+            future
+        );
+        future.actionGet(TEST_REQUEST_TIMEOUT);
+        awaitRestoreCompleted();
+        ensureGreen(plainIndex);
+
+        // The plain index was restored over in place with the same identity, rolled back to the snapshot.
+        assertThat(
+            "the plain index keeps its identity when restored over in place",
+            currentIndex(plainIndex),
+            equalTo(plainIndexBeforeRestore)
+        );
+        assertHitCount(prepareSearch(plainIndex).setSize(0), plainDocCount);
+
+        // The data stream was deleted and recreated with the same name and new backing-index identity, rolled back to the snapshot.
+        final DataStream restored = currentDataStream();
+        assertThat(restored.getIndices(), hasSize(1));
+        assertThat("the restored backing index keeps its name", restored.getIndices().get(0).getName(), equalTo(oldBackingIndex.getName()));
+        assertThat(
+            "the restored backing index is a new identity, not the deleted one",
+            restored.getIndices().get(0),
+            not(equalTo(oldBackingIndex))
+        );
+        assertHitCount(prepareSearch(DATA_STREAM_NAME).setSize(0), dataStreamDocCount);
+    }
+
+    /**
+     * A {@code restore_over_existing} restore covering more than one existing data stream is all-or-nothing. A conflict on any one
+     * destination (here, an active snapshot of one stream) must leave every destination unchanged, not just the conflicting one. This is
+     * the data-stream counterpart of {@code RestoreOverOpenIndexIT#testRestoreOverMultipleOpenIndicesIsAllOrNothing}.
+     */
+    public void testRestoreOverMultipleExistingDataStreamsIsAllOrNothing() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+
+        final String otherDataStream = DATA_STREAM_NAME + "-2";
+        createRepository(REPOSITORY_NAME, "mock");
+        final ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(DATA_STREAM_NAME, otherDataStream))
+            .template(new Template(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 0).build(), null, null))
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .build();
+        assertAcked(
+            client().execute(
+                TransportPutComposableIndexTemplateAction.TYPE,
+                new TransportPutComposableIndexTemplateAction.Request(TEMPLATE_ID).indexTemplate(template)
+            ).get()
+        );
+        for (String name : List.of(DATA_STREAM_NAME, otherDataStream)) {
+            assertAcked(
+                client().execute(
+                    CreateDataStreamAction.INSTANCE,
+                    new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, name)
+                ).get()
+            );
+            prepareIndex(name).setOpType(DocWriteRequest.OpType.CREATE)
+                .setSource("@timestamp", "2020-01-01T00:00:00Z", "field", "value")
+                .get();
+        }
+        refresh(DATA_STREAM_NAME, otherDataStream);
+        ensureGreen(DATA_STREAM_NAME, otherDataStream);
+        createFullSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME);
+
+        final Index backingIndex = currentDataStream(DATA_STREAM_NAME).getIndices().get(0);
+        final Index otherBackingIndex = currentDataStream(otherDataStream).getIndices().get(0);
+
+        // Only otherDataStream conflicts (its backing index is mid-snapshot); DATA_STREAM_NAME would restore cleanly on its own, so leaving
+        // it unchanged too demonstrates the restore is genuinely all-or-nothing rather than skipping just the conflicting target.
+        blockNodeOnAnyFiles(REPOSITORY_NAME, dataNode);
+        final ActionFuture<CreateSnapshotResponse> blockingSnapshot = clusterAdmin().prepareCreateSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            REPOSITORY_NAME,
+            "blocking-snap"
+        ).setIndices(otherDataStream).setWaitForCompletion(true).execute();
+        waitForBlock(dataNode, REPOSITORY_NAME);
+        try {
+            final PlainActionFuture<RestoreService.RestoreCompletionResponse> future = new PlainActionFuture<>();
+            restoreService().restoreSnapshot(
+                ProjectId.DEFAULT,
+                new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, REPOSITORY_NAME, SNAPSHOT_NAME).indices(DATA_STREAM_NAME, otherDataStream)
+                    .restoreOverExisting(true),
+                future
+            );
+            expectThrows(SnapshotInProgressException.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
+        } finally {
+            unblockAllDataNodes(REPOSITORY_NAME);
+            blockingSnapshot.actionGet(TEST_REQUEST_TIMEOUT);
+        }
+
+        // A successful restore-over would have replaced each backing index with a new identity, so unchanged identities prove neither
+        // destination was touched.
+        assertThat(
+            "the target unrelated to the conflict must be left unchanged",
+            currentDataStream(DATA_STREAM_NAME).getIndices().get(0),
+            equalTo(backingIndex)
+        );
+        assertThat(
+            "the conflicting target must be left unchanged",
+            currentDataStream(otherDataStream).getIndices().get(0),
+            equalTo(otherBackingIndex)
+        );
     }
 
     /**
@@ -434,6 +661,77 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
         );
     }
 
+    /**
+     * While the restore is held in flight, the restored data stream's backing index is reported with the UUID the caller passed, and
+     * nothing is reported once the restore is over.
+     */
+    public void testRestoreOverExistingDataStreamReportsTheRestoreWhileItIsInFlight() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+        createRepositoryAndSnapshottedDataStream();
+        final RestoreTarget restoreTarget = resolveRestoreTarget();
+        final String restoreUuid = UUIDs.randomBase64UUID();
+
+        final InFlightLookup inFlight = lookupWhileInFlight(
+            REPOSITORY_NAME,
+            dataNode,
+            this::reportableRestoreException,
+            future -> restoreService().restoreOverExistingDataStreams(
+                ProjectId.DEFAULT,
+                restoreTarget.snapshot(),
+                restoreTarget.snapshotInfo(),
+                TEST_REQUEST_TIMEOUT,
+                restoreUuid,
+                true,
+                List.of(restoreTarget.target()),
+                restoreTarget.snapshotDataStreamAliases(),
+                future
+            )
+        );
+
+        assertReportsShardRestoring(inFlight.exception(), currentDataStream().getIndices().get(0).getName(), restoreUuid);
+        assertEveryRestoreEntryReports(inFlight.reportShardRestoring(), true);
+        assertThat("nothing is reported once the restore is over", reportableRestoreException(), nullValue());
+    }
+
+    /**
+     * A restore keeps the generic shard-unavailable errors unless its caller explicitly asks for
+     * {@link org.elasticsearch.snapshots.ShardRestoringException}, so the {@code restoreOverExistingDataStreams} overload without the
+     * parameter never sets {@link RestoreInProgress.Entry#reportShardRestoring()} on the restore's entry, and the lookup reports nothing
+     * while the restore is in flight.
+     */
+    public void testRestoreOverExistingDataStreamDoesNotReportTheRestoreWhileItIsInFlightByDefault() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+        createRepositoryAndSnapshottedDataStream();
+        final RestoreTarget restoreTarget = resolveRestoreTarget();
+
+        final InFlightLookup inFlight = lookupWhileInFlight(
+            REPOSITORY_NAME,
+            dataNode,
+            this::reportableRestoreException,
+            future -> restoreService().restoreOverExistingDataStreams(
+                ProjectId.DEFAULT,
+                restoreTarget.snapshot(),
+                restoreTarget.snapshotInfo(),
+                TEST_REQUEST_TIMEOUT,
+                UUIDs.randomBase64UUID(),
+                List.of(restoreTarget.target()),
+                restoreTarget.snapshotDataStreamAliases(),
+                future
+            )
+        );
+
+        assertThat(inFlight.exception(), nullValue());
+        assertEveryRestoreEntryReports(inFlight.reportShardRestoring(), false);
+    }
+
+    private ShardRestoringException reportableRestoreException() {
+        return reportableRestoreExceptionOnMaster(
+            state -> state.metadata().getProject(ProjectId.DEFAULT).dataStreams().get(DATA_STREAM_NAME).getIndices().get(0)
+        );
+    }
+
     private int createRepositoryAndSnapshottedDataStream() throws Exception {
         return createRepositoryAndSnapshottedDataStream(null);
     }
@@ -568,8 +866,17 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
     }
 
     private DataStream currentDataStream() {
+        return currentDataStream(DATA_STREAM_NAME);
+    }
+
+    private DataStream currentDataStream(String name) {
         final ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        return state.metadata().getProject(ProjectId.DEFAULT).dataStreams().get(DATA_STREAM_NAME);
+        return state.metadata().getProject(ProjectId.DEFAULT).dataStreams().get(name);
+    }
+
+    private Index currentIndex(String indexName) {
+        final ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        return state.metadata().getProject(ProjectId.DEFAULT).index(indexName).getIndex();
     }
 
     private Map<String, DataStreamAlias> currentDataStreamAliases() {

@@ -13,6 +13,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -61,6 +62,47 @@ public class S3GlobDiscoveryTests extends ESTestCase {
             provider.close();
             provider = null;
         }
+    }
+
+    /**
+     * The name-prefix overload narrows at the store, which is the only place this saving is real: S3 indexes on
+     * the key prefix, so a key the prefix excludes never crosses the wire. The two-argument form returns every
+     * object under the directory and leaves the caller to filter, so the pair below is the before and after.
+     */
+    public void testS3NamePrefixNarrowsTheListingAtTheStore() throws IOException {
+        StoragePath prefix = StoragePath.of("s3://" + BUCKET + "/" + DISCOVER_PREFIX + "/flat");
+
+        List<String> all = collectAll(provider.listObjects(prefix, false)).stream().map(e -> e.path().objectName()).sorted().toList();
+        assertEquals("the unnarrowed listing is the baseline", List.of("a.bin", "b.bin", "c.txt"), all);
+
+        List<String> narrowed = collectAll(provider.listObjects(prefix, "a", false)).stream()
+            .map(e -> e.path().objectName())
+            .sorted()
+            .toList();
+        assertEquals("only the key the prefix selects comes back", List.of("a.bin"), narrowed);
+    }
+
+    /** An empty name prefix must behave exactly as the two-argument form, which delegates to it. */
+    public void testS3EmptyNamePrefixReturnsEverything() throws IOException {
+        StoragePath prefix = StoragePath.of("s3://" + BUCKET + "/" + DISCOVER_PREFIX + "/flat");
+
+        List<String> withEmpty = collectAll(provider.listObjects(prefix, "", false)).stream()
+            .map(e -> e.path().objectName())
+            .sorted()
+            .toList();
+        assertEquals(List.of("a.bin", "b.bin", "c.txt"), withEmpty);
+    }
+
+    /**
+     * A name prefix that matches nothing returns nothing rather than everything. What this catches is a narrowing
+     * that ignores the prefix: that returns every key under the directory, and this asserts the empty list. The
+     * opposite failure -- a comparison that never matches -- would pass here, since the expectation is empty; the
+     * test that catches that one is the sibling asserting a prefix narrows to the keys it names.
+     */
+    public void testS3NamePrefixMatchingNothingReturnsNothing() throws IOException {
+        StoragePath prefix = StoragePath.of("s3://" + BUCKET + "/" + DISCOVER_PREFIX + "/flat");
+
+        assertEquals(List.of(), collectAll(provider.listObjects(prefix, "zzz-no-such-key", false)));
     }
 
     public void testS3FlatListing() throws IOException {
@@ -132,6 +174,31 @@ public class S3GlobDiscoveryTests extends ESTestCase {
         }
 
         assertEquals(3, matched.size());
+    }
+
+    public void testS3ListChildrenSeparatesFilesFromDirectories() throws IOException {
+        // The prefix holds only "subdirectories" (common prefixes of the delimiter listing), no direct objects.
+        StorageChildren children = provider.listChildren(StoragePath.of("s3://" + BUCKET + "/" + DISCOVER_PREFIX), 10_000);
+        assertEquals(List.of(), children.files());
+        assertEquals(
+            List.of("s3://" + BUCKET + "/" + DISCOVER_PREFIX + "/flat", "s3://" + BUCKET + "/" + DISCOVER_PREFIX + "/nested"),
+            children.directories().stream().map(StoragePath::toString).sorted().toList()
+        );
+
+        // A leaf directory holds only objects, no common prefixes.
+        StorageChildren flat = provider.listChildren(StoragePath.of("s3://" + BUCKET + "/" + DISCOVER_PREFIX + "/flat"), 10_000);
+        assertEquals(List.of(), flat.directories());
+        assertEquals(List.of("a.bin", "b.bin", "c.txt"), flat.files().stream().map(e -> e.path().objectName()).sorted().toList());
+    }
+
+    /**
+     * A directory wider than {@code limit} withdraws to {@code null} rather than buffering; exactly {@code limit}
+     * is allowed (S3 checks after each page, so the boundary is inclusive like the other providers').
+     */
+    public void testS3ListChildrenPastLimitReturnsNull() throws IOException {
+        StoragePath flat = StoragePath.of("s3://" + BUCKET + "/" + DISCOVER_PREFIX + "/flat");
+        assertNotNull("exactly the child count must be allowed", provider.listChildren(flat, 3));
+        assertNull("one child over the limit must withdraw", provider.listChildren(flat, 2));
     }
 
     private static void addBlob(String key, byte[] content) {

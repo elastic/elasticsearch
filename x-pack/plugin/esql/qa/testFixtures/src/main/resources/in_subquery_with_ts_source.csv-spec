@@ -1187,7 +1187,7 @@ required_capability: where_in_subquery_without_view
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
 required_capability: tbucket
-required_capability: rate_with_interpolation_v2
+required_capability: rate_with_interpolation_v4
 required_capability: where_in_subquery_with_ts
 
 TS k8s
@@ -1201,7 +1201,7 @@ TS k8s
 ;
 
 max_rate:double | cluster:keyword | tb:datetime
-19.6625         | prod            | 2024-05-10T00:22:00.000Z
+12.996143       | prod            | 2024-05-10T00:22:00.000Z
 64.5            | prod            | 2024-05-10T00:20:00.000Z
 19.460943       | prod            | 2024-05-10T00:19:00.000Z
 34.448121       | prod            | 2024-05-10T00:18:00.000Z

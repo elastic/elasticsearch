@@ -162,7 +162,7 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
                         + "Defaults to true."
                 ),
                 @MapParam.MapParamEntry(
-                    name = "allow_wildcard",
+                    name = "analyze_wildcard",
                     type = "boolean",
                     valueHint = { "false", "true" },
                     description = "If true, the query attempts to analyze wildcard terms in the query string. Defaults to false."
@@ -360,6 +360,12 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
             QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()).getId()
         );
         return queryStringOptions;
+    }
+
+    /** QSTR resolves the fields to search from the query string against the index, so it has no expression to search. */
+    @Override
+    public boolean supportsRuntimeSearch() {
+        return false;
     }
 
     @Override

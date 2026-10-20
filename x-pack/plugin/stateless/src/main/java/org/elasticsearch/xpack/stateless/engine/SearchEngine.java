@@ -138,6 +138,11 @@ public class SearchEngine extends Engine {
 
     // Guarded by the openReaders monitor
     private final Map<DirectoryReader, OpenReaderInfo> openReaders = new HashMap<>();
+    // Guarded by the openReaders monitor. Set whenever a reader is removed from openReaders (e.g. a PIT or a
+    // superseded refresh reader closes) and cleared whenever retainOpenReaderFiles() recomputes filesToRetain from
+    // the current openReaders state. Lets a reader-close listener know whether a retain pass is already "owed" so
+    // it only enqueues one coalesced retainOpenReaderFiles task per batch of closes.
+    private boolean openReadersChanged = false;
 
     // Keyed by segments file name. Insertions happen only on the processCommitTaskRunner thread;
     // removals are driven by SharedPITCommitState's refcount reaching zero (any thread).
@@ -348,6 +353,17 @@ public class SearchEngine extends Engine {
             for (ReferenceManager.RefreshListener refreshListener : config.getInternalRefreshListener()) {
                 readerManager.addListener(refreshListener);
             }
+            readerManager.addListener(new ReferenceManager.RefreshListener() {
+                @Override
+                public void beforeRefresh() {}
+
+                @Override
+                public void afterRefresh(boolean didRefresh) {
+                    if (didRefresh) {
+                        warmReaderCacheAfterResharding();
+                    }
+                }
+            });
             this.prefetcherDynamicSettings = prefetcherDynamicSettings;
             this.commitPrefetcher = new SearchCommitPrefetcher(
                 searchDirectory.getShardId(),
@@ -360,6 +376,7 @@ public class SearchEngine extends Engine {
                 clusterSettings,
                 prefetcherDynamicSettings
             );
+            warmReaderCacheAfterResharding();
             success = true;
         } catch (Exception e) {
             throw new EngineCreationFailureException(config.getShardId(), "Failed to create a search engine", e);
@@ -379,14 +396,68 @@ public class SearchEngine extends Engine {
         Set<PrimaryTermAndGeneration> bccDependencies
     ) throws IOException {
         ElasticsearchDirectoryReader.addReaderCloseListener(directoryReader, ignored -> {
+            boolean shouldEnqueueRetain;
             synchronized (openReaders) {
                 openReaders.remove(directoryReader);
+                shouldEnqueueRetain = openReadersChanged == false && isClosed.get() == false;
+                openReadersChanged = true;
+            }
+            if (shouldEnqueueRetain) {
+                processCommitTaskRunner.enqueueTask(new ActionListener<>() {
+                    @Override
+                    public void onResponse(Releasable releasable) {
+                        try (releasable) {
+                            retainOpenReaderFiles();
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // The retain pass never ran (e.g. the task was rejected on shutdown), so clear the flag to let
+                        // a subsequent reader close enqueue another retain rather than leaving the retain owed forever.
+                        synchronized (openReaders) {
+                            openReadersChanged = false;
+                        }
+                        logger.warn(() -> shardId + " failed to retain open reader files after reader close", e);
+                    }
+                });
             }
         });
 
         synchronized (openReaders) {
             openReaders.put(directoryReader, new OpenReaderInfo(commit.getFileNames(), reservation, bccDependencies));
         }
+    }
+
+    /**
+     * Recomputes the set of files referenced by currently open readers (including PIT-held ones) and retains only
+     * those in the search directory's metadata, triggering eviction of cache regions that are no longer referenced
+     * (see {@link SearchDirectory#retainFiles}). Called both when processing a new commit notification and, via
+     * {@link #trackLocalOpenReader}'s reader-close listener, when a reader (e.g. a closed PIT) stops referencing
+     * files that a subsequent commit notification might be slow to arrive and clean up on its own.
+     * <p>
+     * Both call sites enqueue this on the {@link #processCommitTaskRunner}, which runs a single task at a time, so the
+     * two paths never interleave and each invocation observes a consistent view of {@code openReaders}.
+     */
+    private void retainOpenReaderFiles() {
+        // A commit notification first calls SearchDirectory#updateCommit (adding the new commit's files to the
+        // directory metadata) and only then refreshes the reader that references those files. If that refresh was
+        // deferred by the reader-heap breaker, the directory metadata already contains the deferred commit's files
+        // but openReaders does not reference them yet. Recomputing filesToRetain now would prematurely evict those
+        // files. Leave the retain "owed" (openReadersChanged stays set); processing the deferred notification clears
+        // pendingDeferredNotification and calls this method again, which recomputes once the reader has advanced.
+        if (pendingDeferredNotification != null) {
+            return;
+        }
+        Set<String> filesToRetain;
+        synchronized (openReaders) {
+            filesToRetain = openReaders.values()
+                .stream()
+                .flatMap(openReaderInfo -> openReaderInfo.files().stream())
+                .collect(Collectors.toSet());
+            openReadersChanged = false;
+        }
+        searchDirectory.retainFiles(filesToRetain);
     }
 
     /**
@@ -557,6 +628,7 @@ public class SearchEngine extends Engine {
     private void processCommitNotifications() {
         AbstractRunnable processCommitNotification = new AbstractRunnable() {
             private final RefCounted finish = AbstractRefCounted.of(this::finish);
+            NewCommitNotification latestNotification;
             int batchSize = 0;
 
             @Override
@@ -567,19 +639,19 @@ public class SearchEngine extends Engine {
 
                 assert assertCurrentPrimaryTermGeneration(segmentInfosAndCommit, currentPrimaryTermGeneration);
                 final SegmentInfos current = segmentInfosAndCommit.segmentInfos();
-                NewCommitNotification latestNotification = findLatestNotification(current);
+                latestNotification = findLatestNotification(current);
                 if (latestNotification == null) {
                     logger.trace("directory is on most recent commit generation [{}]", current.getGeneration());
                     // TODO should we assert that we have no segment listeners with minGen <= current.getGeneration()?
                     return;
                 }
-                StatelessCompoundCommit latestCommit = latestNotification.compoundCommit();
                 if (searchDirectory.isMarkedAsCorrupted()) {
                     logger.trace("directory is marked as corrupted, ignoring all future commit notifications");
                     failSegmentGenerationListeners();
                     return;
                 }
 
+                final var latestCommit = latestNotification.compoundCommit();
                 ListenableFuture<Map<String, BlobFileRanges>> listenableFuture = new ListenableFuture<>();
                 if (prefetcherDynamicSettings.internalFilesReplicatedContentForSearchShardsEnabled()) {
                     var newCommitFiles = new HashMap<>(latestCommit.commitFiles());
@@ -657,7 +729,11 @@ public class SearchEngine extends Engine {
             @Override
             public void onFailure(Exception e) {
                 if (e instanceof AlreadyClosedException == false) {
-                    failEngine("failed to refresh segments", e);
+                    var reason = "failed to refresh segments";
+                    if (latestNotification != null) {
+                        reason += " from commit notification " + latestNotification.toShortDescription();
+                    }
+                    failEngine(reason, e);
                 } else {
                     logger.debug("failed to process commit notification, engine is closed", e);
                 }
@@ -757,14 +833,7 @@ public class SearchEngine extends Engine {
                 var reader = readerManager.acquire();
                 try {
                     assert assertSegmentInfosAndCommits(reader, latestCommit, current, next);
-                    Set<String> filesToRetain;
-                    synchronized (openReaders) {
-                        filesToRetain = openReaders.values()
-                            .stream()
-                            .flatMap(openReaderInfo -> openReaderInfo.files().stream())
-                            .collect(Collectors.toSet());
-                    }
-                    searchDirectory.retainFiles(filesToRetain);
+                    retainOpenReaderFiles();
                     logger.debug("segments updated from generation [{}] to [{}]", current.getGeneration(), next.getGeneration());
                     callSegmentGenerationListeners(
                         new PrimaryTermAndGeneration(primaryTerm(reader.getIndexCommit()), reader.getIndexCommit().getGeneration())
@@ -1130,6 +1199,19 @@ public class SearchEngine extends Engine {
         return readerManager;
     }
 
+    /**
+     * Schedules warming of the current reader's resharding unowned-document bitsets when this shard is in an active split.
+     */
+    public void warmReaderCacheAfterResharding() {
+        reshardSearchFilters.warmReaderCacheAfterResharding(
+            shardId,
+            engineConfig.getIndexSettings().getIndexMetadata(),
+            engineConfig.getMapperService(),
+            engineConfig.getThreadPool().executor(ThreadPool.Names.WARMER),
+            () -> acquireSearcher("reshard_unowned_bitset_warming", SearcherScope.INTERNAL)
+        );
+    }
+
     @Override
     public boolean isTranslogSyncNeeded() {
         return false;
@@ -1236,7 +1318,7 @@ public class SearchEngine extends Engine {
     }
 
     @Override
-    public List<Segment> segments(boolean includeVectorFormatsInfo) {
+    public List<Segment> segments(boolean includeVectorFormatsInfo, boolean includeAutoCalibration) {
         // TODO : include vector formats, when required
         return segments();
     }

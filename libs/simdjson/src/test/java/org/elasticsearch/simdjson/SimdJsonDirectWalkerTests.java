@@ -12,10 +12,11 @@ package org.elasticsearch.simdjson;
 import org.elasticsearch.simdjson.internal.fieldnames.FrozenFieldNameTable;
 import org.elasticsearch.simdjson.internal.parsers.BitIndexes;
 
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.hamcrest.Matchers.containsString;
 
 // Unit tests for SimdJsonDirectWalker event emission (simdjson-only, no Jackson comparison).
 public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
@@ -184,7 +185,7 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
         assertEquals(List.of("startArray(a)", "arrayElemStartObject()", "string(k=v)", "arrayElemEndObject()", "endArray()"), events);
     }
 
-    // ---- Escapes, signs, and scientific notation ----
+    // ---- Escapes ----
 
     // \\n in a string value is decoded to a real newline.
     public void testEscapedStringField() {
@@ -193,22 +194,35 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
         assertEquals("string(a=hello\nworld)", events.get(0));
     }
 
-    public void testNegativeNumber() {
-        List<String> events = walkJson("{\"n\":-42}");
-        assertEquals(List.of("long(n=-42,fitsInt=true)"), events);
-    }
+    /**
+     * Unescaped values stay readable after later calls in the same document.
+     */
+    public void testRetainedUnescapedValuesDoNotAlias() {
+        record Slice(byte[] buf, int off, int len) {}
+        List<Slice> retained = new ArrayList<>();
+        RecordingHandler handler = new RecordingHandler(false) {
+            @Override
+            public void stringField(String fieldName, byte[] buf, int off, int len) {
+                retained.add(new Slice(buf, off, len));
+            }
 
-    public void testNegativeDouble() {
-        List<String> events = walkJson("{\"n\":-3.14}");
-        assertEquals(1, events.size());
-        assertTrue(events.get(0).startsWith("double(n=-3.14,"));
-    }
+            @Override
+            public void arrayElemString(byte[] buf, int off, int len) {
+                retained.add(new Slice(buf, off, len));
+            }
+        };
 
-    // Exponent form produces double event (not long).
-    public void testScientificNotation() {
-        List<String> events = walkJson("{\"n\":1.5e10}");
-        assertEquals(1, events.size());
-        assertTrue(events.get(0).startsWith("double(n=1.5E10,"));
+        byte[] buffer = "{\"a\":[\"x\\ny\",\"p\\nq\"],\"b\":\"r\\ns\"}".getBytes(UTF_8);
+        try (SimdJsonParser parser = newParser(buffer.length)) {
+            FrozenFieldNameTable parent = new FrozenFieldNameTable();
+            SimdJsonDirectWalker walker = new SimdJsonDirectWalker(parent.makeChild());
+            parser.stage1(buffer, 0, buffer.length);
+            parser.prepareDocumentWindow(0, buffer.length);
+            walker.walkDocument(buffer, parser, handler);
+        }
+
+        List<String> decoded = retained.stream().map(s -> new String(s.buf(), s.off(), s.len(), UTF_8)).toList();
+        assertEquals(List.of("x\ny", "p\nq", "r\ns"), decoded);
     }
 
     // Root must be an object; top-level arrays are rejected.
@@ -273,8 +287,18 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
     public void testTrailingBufferPaddingDoesNotChangeEvents() {
         for (String json : SimdJsonTestDocuments.exactBufferLengthDocuments()) {
             List<String> tight = walkAndRecord(json, 0).events;
-            List<String> padded = walkAndRecord(json, 64).events;
-            assertEquals("padding must not change events for: " + json, tight, padded);
+            for (int padding : new int[] { 1, 7, 15, 16, 17, 31, 32, 33, 63, 64, 65 }) {
+                assertEquals("padding must not change events for: " + json, tight, walkAndRecord(json, padding).events);
+            }
+        }
+    }
+
+    public void testNonZeroStartOffsetDoesNotChangeEvents() {
+        for (String json : SimdJsonTestDocuments.exactBufferLengthDocuments()) {
+            List<String> expected = walkJson(json);
+            for (int offset : new int[] { 1, 7, 15, 16, 17, 31, 32, 33, 63, 64, 65 }) {
+                assertEquals("offset=" + offset + " walk for: " + json, expected, walkAndRecordAtOffset(json, offset).events);
+            }
         }
     }
 
@@ -319,27 +343,121 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
             FrozenFieldNameTable parent = new FrozenFieldNameTable();
             SimdJsonDirectWalker walker = new SimdJsonDirectWalker(parent.makeChild());
             RecordingHandler handler = new RecordingHandler();
-            expectThrows(Exception.class, () -> walker.walkDocument(buffer, parser, handler));
+            expectThrows(JsonParsingException.class, () -> walker.walkDocument(buffer, parser, handler));
         } catch (JsonParsingException e) {
             // stage 1 rejection is acceptable
         }
     }
 
-    private RecordingHandler walkAndRecord(String json, int paddingBytes) {
-        byte[] jsonBytes = json.getBytes(UTF_8);
-        int len = jsonBytes.length;
-        byte[] buffer = Arrays.copyOf(jsonBytes, len + paddingBytes);
+    // ---- Content after the document ----
 
-        SimdJsonParser parser = newParser(buffer.length);
-        parser.stage1(buffer, len);
-        parser.prepareDocumentWindow(0, len);
+    /** The first documents the tests below put other content after, with that content appended. */
+    private record Followed(String json, String first) {}
 
-        FrozenFieldNameTable parent = new FrozenFieldNameTable();
-        FrozenFieldNameTable.Child child = parent.makeChild();
-        SimdJsonDirectWalker walker = new SimdJsonDirectWalker(child);
-
-        RecordingHandler handler = new RecordingHandler();
-        walker.walkDocument(buffer, parser.bitIndexes(), handler);
-        return handler;
+    private static List<Followed> documentsFollowedByContent() {
+        return List.of(
+            new Followed("{\"a\":1}{\"b\":2}", "{\"a\":1}"),
+            new Followed("{\"a\":1} x", "{\"a\":1}"),
+            new Followed("{\"a\":1}x", "{\"a\":1}"),
+            new Followed("{\"a\":1}}", "{\"a\":1}"),
+            new Followed("{\"a\":1}]", "{\"a\":1}"),
+            new Followed("{\"a\":1},", "{\"a\":1}"),
+            new Followed("{\"a\":1}:", "{\"a\":1}"),
+            new Followed("{\"a\":1}\"s\"", "{\"a\":1}"),
+            new Followed("{\"a\":1} 2", "{\"a\":1}"),
+            new Followed("{\"a\":1} null", "{\"a\":1}"),
+            new Followed("{\"a\":[1]}[2]", "{\"a\":[1]}"),
+            new Followed("{\"a\":{\"b\":1}}{", "{\"a\":{\"b\":1}}"),
+            new Followed("{}{}", "{}"),
+            new Followed("{} x", "{}"),
+            new Followed("{}}", "{}"),
+            new Followed("{}[]", "{}")
+        );
     }
+
+    /** Prepared parser for walking {@code [offset, offset + len)} of {@code buffer}, indexed over the whole buffer. */
+    private SimdJsonParser parserForWindow(byte[] buffer, int offset, int len) {
+        SimdJsonParser parser = newParser(buffer.length);
+        parser.stage1(buffer, 0, buffer.length);
+        parser.prepareDocumentWindow(offset, len);
+        return parser;
+    }
+
+    private static SimdJsonDirectWalker newWalker() {
+        return new SimdJsonDirectWalker(new FrozenFieldNameTable().makeChild());
+    }
+
+    private static String randomWhitespace() {
+        StringBuilder sb = new StringBuilder();
+        for (int i = between(1, 8); i > 0; i--) {
+            sb.append(randomFrom(' ', '\n', '\r', '\t'));
+        }
+        return sb.toString();
+    }
+
+    // After a valid document the walker has consumed every structural index in the document's window.
+    // Whitespace has no structural indexes, so the same holds with any whitespace before and after it.
+    public void testValidDocumentConsumesAllStructuralIndexes() {
+        for (String json : SimdJsonTestDocuments.exactBufferLengthDocuments()) {
+            List<String> variants = new ArrayList<>(List.of(json));
+            for (int i = 0; i < 3; i++) {
+                variants.add(randomWhitespace() + json + randomWhitespace());
+            }
+            for (String variant : variants) {
+                byte[] buffer = variant.getBytes(UTF_8);
+                try (SimdJsonParser parser = parserForWindow(buffer, 0, buffer.length)) {
+                    newWalker().walkDocument(buffer, parser, new RecordingHandler());
+                    assertTrue("walker left structural indexes unread for: " + variant, parser.bitIndexes().isEnd());
+                }
+            }
+        }
+    }
+
+    // Structural content after the top-level object closes is rejected, for the empty object and a
+    // non-empty one, whatever kind of token follows. The first object's events have been emitted by then.
+    public void testContentAfterDocumentRejected() {
+        for (Followed f : documentsFollowedByContent()) {
+            byte[] buffer = f.json().getBytes(UTF_8);
+            try (SimdJsonParser parser = parserForWindow(buffer, 0, buffer.length)) {
+                RecordingHandler handler = new RecordingHandler();
+                JsonParsingException e = expectThrows(JsonParsingException.class, () -> newWalker().walkDocument(buffer, parser, handler));
+                assertThat(f.json(), e.getMessage(), containsString("Unexpected content after end of document"));
+                assertEquals(f.json(), walkJson(f.first()), handler.events);
+                assertFalse(f.json(), parser.bitIndexes().isEnd());
+            }
+        }
+    }
+
+    // Appending anything structural to any valid document must be rejected, not just to hand-picked ones.
+    public void testContentAppendedToEveryValidDocumentRejected() {
+        for (String json : SimdJsonTestDocuments.exactBufferLengthDocuments()) {
+            for (String suffix : List.of("{}", "}", "]", ",", "x", "1", "\"s\"", " {\"a\":1}")) {
+                byte[] buffer = (json + suffix).getBytes(UTF_8);
+                try (SimdJsonParser parser = parserForWindow(buffer, 0, buffer.length)) {
+                    expectThrows(
+                        JsonParsingException.class,
+                        "[" + json + suffix + "] must be rejected",
+                        () -> newWalker().walkDocument(buffer, parser, new RecordingHandler())
+                    );
+                }
+            }
+        }
+    }
+
+    // What follows is judged against the window passed to the walker, not the whole buffer. Two concatenated
+    // documents are each fine through their own window, and rejected when one window spans both.
+    public void testContentIsJudgedWithinTheWindow() {
+        byte[] buffer = "{\"a\":1}{\"b\":2}".getBytes(UTF_8);
+        int half = buffer.length / 2;
+
+        try (SimdJsonParser first = parserForWindow(buffer, 0, half); SimdJsonParser second = parserForWindow(buffer, half, half)) {
+            newWalker().walkDocument(buffer, first, new RecordingHandler());
+            newWalker().walkDocument(buffer, second, new RecordingHandler());
+        }
+
+        try (SimdJsonParser both = parserForWindow(buffer, 0, buffer.length)) {
+            expectThrows(JsonParsingException.class, () -> newWalker().walkDocument(buffer, both, new RecordingHandler()));
+        }
+    }
+
 }

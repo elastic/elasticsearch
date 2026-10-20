@@ -80,7 +80,8 @@ dependencies {
   runtimeOnly "software.amazon.awssdk:aws-query-protocol:${versions.awsv2sdk}"
   runtimeOnly "software.amazon.awssdk:checksums-spi:${versions.awsv2sdk}"
   runtimeOnly "software.amazon.awssdk:checksums:${versions.awsv2sdk}"
-  runtimeOnly "software.amazon.awssdk:endpoints-spi:${versions.awsv2sdk}"
+  // Compile-time, not runtimeOnly: S3ResourceCheck resolves a bucket name through the endpoint provider.
+  implementation "software.amazon.awssdk:endpoints-spi:${versions.awsv2sdk}"
   runtimeOnly "software.amazon.awssdk:http-auth:${versions.awsv2sdk}"
   runtimeOnly "software.amazon.awssdk:http-auth-aws:${versions.awsv2sdk}"
   runtimeOnly "software.amazon.awssdk:http-auth-spi:${versions.awsv2sdk}"
@@ -122,6 +123,10 @@ dependencies {
 tasks.named('javaRestTestTestingConventions').configure {
   baseClass 'org.elasticsearch.test.rest.ESRestTestCase'
   baseClass 'org.elasticsearch.test.ESTestCase'
+}
+
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.parquet'
 }
 
 tasks.named('javaRestTest') {
@@ -183,6 +188,10 @@ tasks.named("test").configure {
   // trace at the offending allocation instead of surfacing as a flaky native corruption later
   // in the same JVM.
   systemProperty 'arrow.memory.debug.allocator', 'true'
+  // S3DataSourceSettingsDocCoverageTests reads this page, so a docs-only edit must rerun the tests.
+  inputs.file("${rootDir}/docs/reference/query-languages/esql/esql-data-federation-data-source-settings.md")
+    .withPropertyName('dataSourceSettingsDoc')
+    .withPathSensitivity(PathSensitivity.RELATIVE)
 }
 
 tasks.named("thirdPartyAudit").configure {

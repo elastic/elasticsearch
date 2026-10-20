@@ -23,10 +23,12 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
@@ -44,6 +46,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -692,10 +695,9 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         List<IndexableField> modified = new ArrayList<>();
         for (IndexableField field : parsed.rootDoc()) {
             if (field instanceof MultiValuedBinaryDocValuesField && field.name().equals("kwd")) {
-                var replacement = new MultiValuedBinaryDocValuesField.SeparateCount(
-                    "kwd",
-                    MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
-                );
+                MultiValuedBinaryDocValuesField replacement = ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled()
+                    ? new ColumnarBinaryDocValuesField("kwd", MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED)
+                    : new MultiValuedBinaryDocValuesField.SeparateCount("kwd", MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE);
                 replacement.add(new BytesRef("docvalues_value"));
                 modified.add(replacement);
             } else {
@@ -714,6 +716,85 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
                 // Source comes from the _ignored_source blob, not from kwd doc values
                 assertThat(source.internalSourceRef().utf8ToString(), equalTo("{\"kwd\":\"blob_value\"}"));
             }
+        });
+    }
+
+    /**
+     * Verifies that synthetic source reads back right when documents with and without values in {@code _ignored_source} follow each
+     * other, as the source loader (and so the objects in it) is reused for all of them. A document with an ignored value has
+     * to merge it with the values of the other fields of its object, while one without can write its fields in the order of the
+     * mapping.
+     */
+    public void testSyntheticSourceWithAndWithoutIgnoredValuesInTurn() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC.toString())
+            .build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {
+            b.startObject("a_plain").field("type", "keyword").endObject();
+            b.startObject("b_ignored").field("type", "keyword").field("ignore_above", 3).endObject();
+            b.startObject("z_id").field("type", "keyword").endObject();
+            b.startObject("obj");
+            {
+                b.startObject("properties");
+                b.startObject("c_plain").field("type", "keyword").endObject();
+                b.startObject("d_ignored").field("type", "keyword").field("ignore_above", 3).endObject();
+                b.startObject("e_num").field("type", "long").endObject();
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        int numDocs = between(20, 50);
+        List<Map<String, Object>> expectedSources = new ArrayList<>();
+        List<ParsedDocument> parsedDocs = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            // The index may end up in several segments, and in any order, so every document says which one it is.
+            Map<String, Object> doc = new LinkedHashMap<>();
+            doc.put("z_id", Integer.toString(i));
+            Map<String, Object> obj = new LinkedHashMap<>();
+            if (randomBoolean()) {
+                doc.put("a_plain", randomAlphaOfLengthBetween(1, 3));
+            }
+            if (randomBoolean()) {
+                // Longer than ignore_above half of the time, which moves the value to _ignored_source.
+                doc.put("b_ignored", randomAlphaOfLengthBetween(1, 6));
+            }
+            if (randomBoolean()) {
+                obj.put("c_plain", randomAlphaOfLengthBetween(1, 3));
+            }
+            if (randomBoolean()) {
+                obj.put("d_ignored", randomAlphaOfLengthBetween(1, 6));
+            }
+            if (randomBoolean()) {
+                obj.put("e_num", randomIntBetween(0, 1000));
+            }
+            if (obj.isEmpty() == false) {
+                doc.put("obj", obj);
+            }
+            expectedSources.add(doc);
+            parsedDocs.add(mapperService.documentMapper().parse(source(b -> b.mapContents(doc))));
+        }
+
+        withLuceneIndex(mapperService, iw -> {
+            for (ParsedDocument parsed : parsedDocs) {
+                iw.addDocument(parsed.rootDoc());
+            }
+        }, reader -> {
+            SourceLoader loader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP, null);
+            int checked = 0;
+            for (LeafReaderContext leaf : reader.leaves()) {
+                int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
+                SourceLoader.Leaf sourceLeaf = loader.leaf(leaf, docIds);
+                LeafStoredFieldLoader sfLoader = StoredFieldLoader.create(false, loader.requiredStoredFields()).getLoader(leaf, docIds);
+                for (int docId : docIds) {
+                    sfLoader.advanceTo(docId);
+                    Map<String, Object> source = sourceLeaf.source(sfLoader, docId).source();
+                    int id = Integer.parseInt((String) source.get("z_id"));
+                    assertThat("doc " + id, source, equalTo(expectedSources.get(id)));
+                    checked++;
+                }
+            }
+            assertThat(checked, equalTo(numDocs));
         });
     }
 
@@ -834,9 +915,12 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             b.field("kwd", "long_ignored_value");
         }));
         LuceneDocument rootDoc = doc.rootDoc();
-        // Fallback fields for synthetic-source reconstruction must have been pruned
+        // Fallback fields for synthetic-source reconstruction must have been pruned.
+        // In COLUMNAR mode, ignore_malformed routes to ._on_failure (not ._ignore_malformed), and COLUMNAR_STORED prunes both.
         assertNull("._ignore_malformed field should have been pruned", rootDoc.getField("num._ignore_malformed"));
         assertNull("._ignore_malformed.counts field should have been pruned", rootDoc.getField("num._ignore_malformed.counts"));
+        assertNull("._on_failure field should have been pruned", rootDoc.getField("num._on_failure"));
+        assertNull("._on_failure.counts field should have been pruned", rootDoc.getField("num._on_failure.counts"));
         assertNull("._original field should have been pruned", rootDoc.getField("kwd._original"));
         assertNull("._original.counts field should have been pruned", rootDoc.getField("kwd._original.counts"));
         // The whole-document _ignored_source blob and the queryable _ignored meta-field must still be present
@@ -1355,33 +1439,35 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             new IndexRequest("index").id("1").source(new BytesArray(doc1Source), XContentType.JSON),
             new IndexRequest("index").id("2").source(new BytesArray(doc2Source), XContentType.JSON) };
         IndexOperationBatch batch = EngineTestCase.initFromRequests(requests);
-        BatchMappingContext context = new BatchMappingContext(
-            batch,
-            mapperService.mappingLookup(),
-            mapperService.getIndexSettings(),
-            BytesRefRecycler.NON_RECYCLING_INSTANCE
-        );
+        try (
+            BatchMappingContext context = new BatchMappingContext(
+                batch,
+                mapperService.mappingLookup(),
+                mapperService.getIndexSettings(),
+                new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))
+            )
+        ) {
+            mapper.preColumnarParse(context);
 
-        mapper.preColumnarParse(context);
-
-        final MappedColumns mappedColumns = context.columns();
-        Column sizeColumn = null;
-        for (Column column : mappedColumns.toColumnBatch().columns()) {
-            if (column.name().equals(SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME)) {
-                sizeColumn = column;
+            final MappedColumns mappedColumns = context.columns();
+            Column sizeColumn = null;
+            for (Column column : mappedColumns.toColumnBatch().columns()) {
+                if (column.name().equals(SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME)) {
+                    sizeColumn = column;
+                }
             }
-        }
-        assertNotNull("expected a _recovery_source_size column", sizeColumn);
-        assertEquals("doc values type must be NUMERIC", DocValuesType.NUMERIC, sizeColumn.fieldType().docValuesType());
-        assertEquals("must have no inverted index", IndexOptions.NONE, sizeColumn.fieldType().indexOptions());
-        assertFalse("must not be stored", sizeColumn.fieldType().stored());
+            assertNotNull("expected a _recovery_source_size column", sizeColumn);
+            assertEquals("doc values type must be NUMERIC", DocValuesType.NUMERIC, sizeColumn.fieldType().docValuesType());
+            assertEquals("must have no inverted index", IndexOptions.NONE, sizeColumn.fieldType().indexOptions());
+            assertFalse("must not be stored", sizeColumn.fieldType().stored());
 
-        LongColumn longColumn = (LongColumn) sizeColumn;
-        var cursor = longColumn.tuples();
-        assertEquals(0, cursor.nextDoc());
-        assertTrue("size estimate for doc1 must be positive", cursor.longValue() > 0);
-        assertEquals(1, cursor.nextDoc());
-        assertTrue("size estimate for doc2 must be positive", cursor.longValue() > 0);
-        assertEquals(DocIdSetIterator.NO_MORE_DOCS, cursor.nextDoc());
+            LongColumn longColumn = (LongColumn) sizeColumn;
+            var cursor = longColumn.tuples();
+            assertEquals(0, cursor.nextDoc());
+            assertTrue("size estimate for doc1 must be positive", cursor.longValue() > 0);
+            assertEquals(1, cursor.nextDoc());
+            assertTrue("size estimate for doc2 must be positive", cursor.longValue() > 0);
+            assertEquals(DocIdSetIterator.NO_MORE_DOCS, cursor.nextDoc());
+        }
     }
 }

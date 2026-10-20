@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.fleet;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.settings.SecureString;
@@ -20,7 +21,7 @@ import org.junit.ClassRule;
 
 public class FleetRestIT extends ESClientYamlSuiteTestCase {
 
-    public FleetRestIT(final ClientYamlTestCandidate testCandidate) {
+    public FleetRestIT(@Name("yaml") final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

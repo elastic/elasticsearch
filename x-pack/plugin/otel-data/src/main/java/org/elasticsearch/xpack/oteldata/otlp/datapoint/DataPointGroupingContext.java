@@ -18,13 +18,19 @@ import io.opentelemetry.proto.resource.v1.Resource;
 
 import com.google.protobuf.ByteString;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.cluster.routing.TsidBuilder;
 import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
 import org.elasticsearch.common.hash.MurmurHash3.Hash128;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xpack.oteldata.otlp.AbstractOTLPTransportAction;
+import org.elasticsearch.xpack.oteldata.otlp.docbuilder.ExemplarDocumentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
+import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MetricDocumentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 import org.elasticsearch.xpack.oteldata.otlp.tsid.DataPointTsidFunnel;
 import org.elasticsearch.xpack.oteldata.otlp.tsid.ResourceTsidFunnel;
@@ -48,6 +54,14 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
 
     private int totalDataPoints = 0;
     private int ignoredDataPoints = 0;
+    private int firstExemplarDocumentPosition = -1;
+
+    private int duplicateExemplars = 0;
+    private int exemplarsWithoutTarget = 0;
+    private int exemplarsWithoutValue = 0;
+    private int exemplarFailureStoreRedirects = 0;
+    private int exemplarFailures = 0;
+    private String exemplarFailureMessageSample;
 
     public DataPointGroupingContext(BufferedByteStringAccessor byteStringAccessor, MappingHints defaultMappingHints) {
         this.byteStringAccessor = byteStringAccessor;
@@ -143,6 +157,74 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
             }
         }
         return sb.toString();
+    }
+
+    /** Records an exemplar dropped without rejecting its parent data point. */
+    public void recordDuplicateExemplar() {
+        duplicateExemplars++;
+    }
+
+    /** Records exemplars dropped because their parent metric has no corresponding exemplar target. */
+    public void recordExemplarsWithoutTarget(int count) {
+        exemplarsWithoutTarget += count;
+    }
+
+    /** Records an exemplar dropped because it does not have a value. */
+    public void recordExemplarWithoutValue() {
+        exemplarsWithoutValue++;
+    }
+
+    /** Records the first bulk-item position occupied by an exemplar document. */
+    public void recordFirstExemplarDocument(int bulkItemPosition) {
+        assert firstExemplarDocumentPosition == -1;
+        firstExemplarDocumentPosition = bulkItemPosition;
+    }
+
+    @Override
+    public boolean isPrimaryTelemetryDoc(int bulkItemPosition) {
+        return firstExemplarDocumentPosition == -1 || bulkItemPosition < firstExemplarDocumentPosition;
+    }
+
+    @Override
+    public void recordNonPrimaryTelemetryDocFailure(BulkItemResponse bulkItemResponse) {
+        BulkItemResponse.Failure failure = bulkItemResponse.getFailure();
+        if (bulkItemResponse.getFailureStoreStatus() == IndexDocFailureStoreStatus.USED) {
+            exemplarFailureStoreRedirects++;
+        } else {
+            assert failure != null;
+            exemplarFailures++;
+            if (exemplarFailureMessageSample == null) {
+                exemplarFailureMessageSample = failure.getMessage();
+            }
+        }
+    }
+
+    @Override
+    public String getWarningMessage() {
+        StringBuilder warningMessage = new StringBuilder();
+        if (exemplarFailureStoreRedirects > 0) {
+            warningMessage.append("Redirected ")
+                .append(exemplarFailureStoreRedirects)
+                .append(" exemplar documents to the failure store.\n");
+        }
+        if (exemplarFailures > 0) {
+            warningMessage.append("Failed to index ")
+                .append(exemplarFailures)
+                .append(" exemplar documents. Sample error message: ")
+                .append(exemplarFailureMessageSample)
+                .append("\n");
+        }
+        if (exemplarsWithoutTarget > 0) {
+            warningMessage.append(exemplarsWithoutTarget)
+                .append(" exemplars were dropped because no exemplar data stream can be derived from an explicit index target.\n");
+        }
+        if (exemplarsWithoutValue > 0) {
+            warningMessage.append(exemplarsWithoutValue).append(" exemplars were dropped because they have no value.\n");
+        }
+        if (duplicateExemplars > 0) {
+            warningMessage.append(duplicateExemplars).append(" exemplars were dropped due to duplicate timestamps and series identity");
+        }
+        return warningMessage.toString();
     }
 
     private ResourceGroup getOrCreateResourceGroup(ResourceMetrics resourceMetrics) {
@@ -330,6 +412,24 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
             return metricNamesHash;
         }
 
+        /**
+         * Builds the metric document TSID using the hash of its grouped metric names.
+         */
+        public BytesRef buildMetricTsid(String metricNamesHash, IndexVersion indexVersion) {
+            TsidBuilder finalTsidBuilder = new TsidBuilder(tsidBuilder.size() + 1).addAll(tsidBuilder)
+                .addStringDimension(MetricDocumentBuilder.METRIC_NAMES_HASH_FIELD, metricNamesHash);
+            return finalTsidBuilder.buildTsid(indexVersion);
+        }
+
+        /**
+         * Builds an exemplar document TSID using its metric name.
+         */
+        public BytesRef buildExemplarTsid(String metricName, IndexVersion indexVersion) {
+            TsidBuilder finalTsidBuilder = new TsidBuilder(tsidBuilder.size() + 1).addAll(tsidBuilder)
+                .addStringDimension(ExemplarDocumentBuilder.METRIC_NAME_FIELD, metricName);
+            return finalTsidBuilder.buildTsid(indexVersion);
+        }
+
         public boolean addDataPoint(Set<String> ignoredDataPointMessages, DataPoint dataPoint) {
             metricNamesHash = null; // reset the hash when adding a new data point
             if (metricNames.add(dataPoint.getMetricName()) == false) {
@@ -357,10 +457,6 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
 
         public ByteString scopeSchemaUrl() {
             return scopeSchemaUrl;
-        }
-
-        public TsidBuilder tsidBuilder() {
-            return tsidBuilder;
         }
 
         public List<KeyValue> dataPointAttributes() {

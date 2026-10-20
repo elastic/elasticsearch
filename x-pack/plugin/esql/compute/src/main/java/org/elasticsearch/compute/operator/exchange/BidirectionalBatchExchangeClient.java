@@ -123,6 +123,8 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     // Resolves when all worker channels have completed (all sink + status refs released).
     // Used by stop() to trigger final cleanup and by waitForServerResponse() to block the driver.
     private final SubscribableListener<Void> allWorkersCompleted = new SubscribableListener<>();
+    // Stable listener shared by every terminal wait so callers can identify and deduplicate the same pending wait.
+    private final SubscribableListener<Void> serverResponseReady = new SubscribableListener<>();
 
     // Server setup callback - called lazily when first page is sent
     private final ServerSetupCallback serverSetupCallback;
@@ -169,6 +171,8 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         this.lookupPlanConsumer = lookupPlanConsumer;
         this.maxWorkers = maxWorkers;
         this.serverNodeSupplier = serverNodeSupplier;
+        allWorkersCompleted.addListener(serverResponseReady);
+        failureNotified.addListener(serverResponseReady);
         logger.debug(
             "Created BidirectionalBatchExchangeClient: sharedExchangeId={}, maxBufferSize={}, maxWorkers={}",
             sharedExchangeId,
@@ -627,14 +631,8 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
      * success/failure confirmation.
      */
     public IsBlockedResult waitForServerResponse() {
-        if (allWorkersCompleted.isDone() == false) {
-            if (failureNotified.isDone()) {
-                return NOT_BLOCKED;
-            }
-            SubscribableListener<Void> either = new SubscribableListener<>();
-            allWorkersCompleted.addListener(either);
-            failureNotified.addListener(either);
-            return new IsBlockedResult(either, "waiting for all workers to complete or failure");
+        if (serverResponseReady.isDone() == false) {
+            return new IsBlockedResult(serverResponseReady, "waiting for all workers to complete or failure");
         }
         return NOT_BLOCKED;
     }

@@ -12,7 +12,6 @@ package org.elasticsearch.index.engine;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -21,8 +20,8 @@ import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.BytesSource;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.Translog;
@@ -564,18 +563,9 @@ public final class IndexOperationBatch {
     public Engine.Index toIndexOp(int i) {
         final int absIdx = abs(i);
         final String routing = routings != null && routings[absIdx] != null ? routings[absIdx].utf8ToString() : null;
-        // TODO: The SourceToParse using a size of 0 makes estimated sizes off in index listeners.
+        // TODO: BytesSource.EMPTY reports a size of 0, which makes estimated sizes off in index listeners.
         // We will eventually replace those listeners with batch calls.
-        final ParsedDocument doc = new ParsedDocument(
-            null,
-            null,
-            ids[absIdx],
-            routing,
-            List.of(),
-            SourceToParse.Source.fromBytes(BytesArray.EMPTY, XContentType.JSON),
-            null,
-            0
-        );
+        final ParsedDocument doc = new ParsedDocument(null, null, ids[absIdx], routing, List.of(), BytesSource.EMPTY, null, 0);
         return new Engine.Index(
             uids[absIdx],
             doc,

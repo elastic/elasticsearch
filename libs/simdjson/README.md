@@ -21,26 +21,28 @@ cache, direct walker) lives in the exported API and sibling `internal` packages.
 ```
 libs/simdjson/
 ├── src/                              # Java module (org.elasticsearch.simdjson)
-│   └── main/java/
-│       ├── module-info.java          #   Exports org.elasticsearch.simdjson only
-│       └── org/elasticsearch/simdjson/
-│           ├── SimdJsonParserPool.java   # Public entry point (thread-local document parsers)
-│           ├── JsonDocumentParser.java   # Single-document parser (stage 1 indexer + walker)
-│           ├── SimdJsonParser.java       # Stage 1 + per-document index windows
-│           ├── SimdJsonDirectWalker.java # Fused stage 2 / token walk
-│           ├── JsonDocumentHandler.java  # Callback API for field events
-│           └── internal/
-│               ├── StructuralIndexer.java    # Native stage 1 wrapper
-│               ├── SimdJsonLibrary.java      # FFM binding to libsimdjson
-│               ├── parsers/                  # Vendored from simdjson-java
-│               └── fieldnames/               # Per-batch field name cache
+│   ├── main/java/
+│   │   ├── module-info.java          #   Exports org.elasticsearch.simdjson only
+│   │   └── org/elasticsearch/simdjson/
+│   │       ├── SimdJsonParserPool.java   # Public entry point (thread-local document parsers)
+│   │       ├── JsonDocumentParser.java   # Single-document parser (stage 1 indexer + walker)
+│   │       ├── SimdJsonParser.java       # Stage 1 + per-document index windows
+│   │       ├── SimdJsonDirectWalker.java # Fused stage 2 / token walk
+│   │       ├── JsonDocumentHandler.java  # Callback API for field events
+│   │       └── internal/
+│   │           ├── StructuralIndexer.java    # Native stage 1 wrapper
+│   │           ├── SimdJsonLibrary.java      # FFM binding to libsimdjson
+│   │           ├── parsers/                  # Vendored from simdjson-java
+│   │           └── fieldnames/               # Per-batch field name cache
+│   └── benchmark/java/               # JMH benchmarks (gradlew :libs:simdjson:benchmark)
+│       └── org/elasticsearch/benchmark/xcontent/
+│           └── SimdJsonParserBenchmark.java  # simdjson vs Jackson through EscfEncoder
 ├── native/                           # Native C++ library (libsimdjson)
 │   ├── src/
 │   │   ├── es_simdjson.cpp           #   Elasticsearch stage 1 FFI surface
 │   │   ├── simdjson.cpp              #   Vendored simdjson amalgamation
 │   │   └── simdjson.h
-│   ├── Makefile                      #   Cross-compilation build (all platforms)
-│   └── publish_simdjson_binaries.sh  #   Build + Artifactory upload
+│   └── Makefile                      #   Cross-compilation build (all platforms)
 ├── licenses/                         # Vendored simdjson C++ notices
 └── build.gradle
 ```
@@ -51,9 +53,8 @@ libs/simdjson/
   - `org.elasticsearch.escf.EscfDocumentHandler` — `JsonDocumentHandler` implementation
   - `org.elasticsearch.escf.EscfEncoder` — feature flag, simdjson vs Jackson encode path; resolves
     its thread's `JsonDocumentParser` once at construction
-- **`libs/native/libraries`** — downloads `org.elasticsearch:libsimdjson` native zips at
-     build time.
-- **`benchmarks`** — `SimdJsonParserBenchmark` JMH harness
+- **`libs/native/libraries`** — collects the built (or published) libsimdjson alongside the other
+  native libraries, for tests and the distribution.
 
 ## Parsing pipeline
 
@@ -79,17 +80,14 @@ available). Windows x64 and Intel macOS are excluded at the FFM binding layer.
 ## Building the native library
 
 The native library is built via the `Makefile` in `native/`. For cross-compilation
-of all three platform binaries (darwin-aarch64, linux-aarch64, linux-x64), use the
-shared Docker-based toolchain image (`es-native-cross-toolchain`, shared with
-`libs/simdvec`):
+of all four platform binaries (darwin-aarch64, linux-aarch64, linux-x64, windows-x64), use the
+shared Docker-based toolchain image (`es-native-cross-toolchain`, see
+[`libs/native-toolchain`](../native-toolchain/README.md)).
 
-```bash
-# Build the cross-compilation toolchain image (from libs/simdvec/native)
-../../simdvec/native/build_cross_toolchain_image.sh
-
-# Build and publish binaries
-./publish_simdjson_binaries.sh
-```
+Gradle fetches the binaries published for the current sources, and builds them only when there are
+none. CI publishes the binaries for new sources on its own. To publish from your machine, or to
+build every platform even though the binaries are already published, see *Publish a library* in
+[`libs/native-toolchain`](../native-toolchain/README.md#publish-a-library).
 
 For local development on the current platform:
 

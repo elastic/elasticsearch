@@ -30,7 +30,7 @@ import java.util.List;
  * The node itself does not need to escape the coordinator, so it is not registered
  * with the {@code NamedWriteableRegistry}.
  */
-public class Dedup extends UnaryPlan implements SurrogateLogicalPlan, TelemetryAware, PostAnalysisVerificationAware {
+public class Dedup extends UnaryPlan implements SurrogateLogicalPlan, TelemetryAware, PostAnalysisVerificationAware, DocPreserving {
 
     public Dedup(Source source, LogicalPlan child) {
         super(source, child);
@@ -61,7 +61,7 @@ public class Dedup extends UnaryPlan implements SurrogateLogicalPlan, TelemetryA
         Literal one = new Literal(source(), 1, DataType.INTEGER);
         List<Expression> groupings = new ArrayList<>();
         for (Attribute attr : child().output()) {
-            if (attr.dataType() == DataType.DOC_DATA_TYPE || attr instanceof UnsupportedAttribute) {
+            if (attr.dataType() == DataType.DOC_DATA_TYPE || attr instanceof UnsupportedAttribute || attr.synthetic()) {
                 continue;
             }
             groupings.add(attr);
@@ -75,7 +75,11 @@ public class Dedup extends UnaryPlan implements SurrogateLogicalPlan, TelemetryA
     @Override
     public void postAnalysisVerification(Failures failures) {
         for (Attribute attr : child().output()) {
-            Aggregate.checkUnsupportedGroupingType(attr, failures);
+            // Synthetic attributes (e.g. union-type conversions pushed into UnionAll branches) are dropped before the final output,
+            // so the user never groups by them.
+            if (attr.synthetic() == false) {
+                Aggregate.checkUnsupportedGroupingType(attr, failures);
+            }
         }
     }
 

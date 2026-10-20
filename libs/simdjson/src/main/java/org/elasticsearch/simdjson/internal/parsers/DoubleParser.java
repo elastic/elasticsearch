@@ -36,6 +36,22 @@ import static org.elasticsearch.simdjson.internal.parsers.NumberParserTables.NUM
 import static org.elasticsearch.simdjson.internal.parsers.NumberParserTables.POWERS_OF_FIVE;
 import static org.elasticsearch.simdjson.internal.parsers.NumberParserTables.POWER_OF_FIVE_DIGITS;
 
+/**
+ * Parses a JSON number's pre-scanned sign/digits/exponent components into a {@code double}.
+ *
+ * <p>Originally derived from
+ * <a href="https://github.com/simdjson/simdjson-java">simdjson-java</a>'s {@code DoubleParser}.
+ * Elasticsearch changes:
+ * <ul>
+ *   <li>Split the Eisel-Lemire path out into its own {@link #computeDoubleEiselLemire} method,
+ *       keeping {@link #computeDouble} (dispatch plus fast path) small enough for the JIT to
+ *       inline it into its caller (upstream fuses both paths into a single ~435-byte method,
+ *       which never inlines); see the comment on {@link #computeDouble} for detail.</li>
+ * </ul>
+ *
+ * <p>Otherwise unchanged from upstream: the fast-path, Eisel-Lemire, and slow-path algorithms
+ * below are a faithful, line-for-line port.
+ */
 public final class DoubleParser {
 
     // When parsing doubles, we assume that a long used to store digits is unsigned. Thus, it can safely accommodate
@@ -114,21 +130,24 @@ public final class DoubleParser {
         return significantDigitCount > FAST_PATH_MAX_DIGIT_COUNT;
     }
 
+    // Kept tiny, and separate from computeDoubleEiselLemire below, so that it stays under the JIT's inlining budget
+    // and can be inlined into parse(): the fast path has been described in
+    // https://www.exploringbinary.com/fast-path-decimal-to-floating-point-conversion/. The two branches below share
+    // a single array load (and thus a single bounds check) on Math.abs(exp10), rather than indexing the table
+    // separately as exp10 and -exp10, which otherwise defeats the JIT's ability to prove the two accesses are
+    // already range-checked by the same guard.
     private static double computeDouble(boolean negative, long significand10, long exp10) {
         if (abs(exp10) < POWERS_OF_TEN.length && compareUnsigned(significand10, MAX_LONG_REPRESENTED_AS_DOUBLE_EXACTLY) <= 0) {
-            // This path has been described in https://www.exploringbinary.com/fast-path-decimal-to-floating-point-conversion/.
-            double result = significand10;
-            if (exp10 < 0) {
-                result = result / POWERS_OF_TEN[(int) -exp10];
-            } else {
-                result = result * POWERS_OF_TEN[(int) exp10];
-            }
+            double powerOfTen = POWERS_OF_TEN[(int) abs(exp10)];
+            double result = (exp10 < 0) ? significand10 / powerOfTen : significand10 * powerOfTen;
             return negative ? -result : result;
         }
+        return computeDoubleEiselLemire(negative, significand10, exp10);
+    }
 
-        // The following path is an implementation of the Eisel-Lemire algorithm described by Daniel Lemire in
-        // "Number Parsing at a Gigabyte per Second" (https://arxiv.org/abs/2101.11408).
-
+    // The following path is an implementation of the Eisel-Lemire algorithm described by Daniel Lemire in
+    // "Number Parsing at a Gigabyte per Second" (https://arxiv.org/abs/2101.11408).
+    private static double computeDoubleEiselLemire(boolean negative, long significand10, long exp10) {
         if (exp10 < FAST_PATH_MIN_POWER_OF_TEN || significand10 == 0) {
             return zero(negative);
         } else if (exp10 > FAST_PATH_MAX_POWER_OF_TEN) {

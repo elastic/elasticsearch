@@ -523,5 +523,11 @@ public class SearchRequestAttributesExtractorTests extends ESTestCase {
             "older_than_14_days",
             SearchRequestAttributesExtractor.introspectTimeRange(randomLongBetween(0, fourteenDaysAgo), nowInMillis)
         );
+
+        // Future "from" timestamps have a negative age and share the first bucket with 15 minutes.
+        assertEquals(
+            "15_minutes",
+            SearchRequestAttributesExtractor.introspectTimeRange(nowInMillis + randomLongBetween(1, 60_000), nowInMillis)
+        );
     }
 }

@@ -14,6 +14,7 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.exponentialhistogram.CompressedExponentialHistogram;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.hamcrest.Matcher;
@@ -75,6 +76,11 @@ public class TestBlock implements BlockLoader.Block {
                     }
 
                     @Override
+                    public BytesRefsFromDocValuesBuilder appendBytesReference(BytesReference value) {
+                        return appendBytesRef(value.toBytesRef());
+                    }
+
+                    @Override
                     public BytesRefsFromDocValuesBuilder appendBytesRef(BytesRef value) {
                         add(BytesRef.deepCopyOf(value));
                         return this;
@@ -103,6 +109,11 @@ public class TestBlock implements BlockLoader.Block {
                 class BytesRefsBuilder extends TestBlock.Builder implements BlockLoader.BytesRefBuilder {
                     private BytesRefsBuilder() {
                         super(expectedCount);
+                    }
+
+                    @Override
+                    public BytesRefsBuilder appendBytesReference(BytesReference value) {
+                        return appendBytesRef(value.toBytesRef());
                     }
 
                     @Override
@@ -497,6 +508,37 @@ public class TestBlock implements BlockLoader.Block {
             @Override
             public BlockLoader.DoubleRangeBuilder doubleRangeBuilder(int expectedSize) {
                 return new DoubleRangeBuilder(expectedSize);
+            }
+
+            @Override
+            public BlockLoader.Block buildOrdinalBytesRefDirect(
+                int[] ordinals,
+                int valueCount,
+                int[] valueCounts,
+                int positionCount,
+                BytesRef[] dictionary,
+                int dictionarySize
+            ) {
+                // Resolved here rather than kept as ordinals: a test block holds the values a position has, and a
+                // caller comparing against one should not have to know which shape the page happened to arrive in.
+                BlockLoader.BytesRefBuilder builder = bytesRefs(positionCount);
+                int at = 0;
+                for (int position = 0; position < positionCount; position++) {
+                    int held = valueCounts == null ? 1 : valueCounts[position];
+                    if (held == 0) {
+                        builder.appendNull();
+                    } else if (held == 1) {
+                        builder.appendBytesRef(dictionary[ordinals[at++]]);
+                    } else {
+                        builder.beginPositionEntry();
+                        for (int i = 0; i < held; i++) {
+                            builder.appendBytesRef(dictionary[ordinals[at++]]);
+                        }
+                        builder.endPositionEntry();
+                    }
+                }
+                assert at == valueCount : "read " + at + " ordinals, was given " + valueCount;
+                return builder.build();
             }
 
             @Override

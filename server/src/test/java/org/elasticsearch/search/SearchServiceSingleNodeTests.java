@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.search;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
@@ -49,6 +50,7 @@ import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -80,6 +82,7 @@ import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.settings.InternalOrPrivateSettingsPlugin;
 import org.elasticsearch.inference.VectorType;
 import org.elasticsearch.plugins.Plugin;
@@ -134,6 +137,7 @@ import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -2345,6 +2349,80 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         assertTrue(searchService.freeReaderContext(future.actionGet()));
     }
 
+    public void testFindReaderContextRejectsMismatchedShard() {
+        createIndex("index-a");
+        createIndex("index-b");
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        ShardId shardA = new ShardId(resolveIndex("index-a"), 0);
+        ShardId shardB = new ShardId(resolveIndex("index-b"), 0);
+        ShardSearchContextId readerA = openReaderContext(searchService, shardA);
+        ShardSearchContextId readerB = openReaderContext(searchService, shardB);
+        try {
+            assertThat(searchService.getActiveContexts(), equalTo(2));
+
+            try (var mockLog = MockLog.capture(SearchService.class)) {
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "rejected search context id that does not match the expected shard",
+                        SearchService.class.getCanonicalName(),
+                        Level.INFO,
+                        "Rejecting search context id "
+                            + readerB
+                            + " because it does not match expected shard "
+                            + shardA
+                            + "; reader context is on shard "
+                            + shardB
+                    )
+                );
+                IllegalArgumentException mismatch = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> searchService.createOrGetReaderContext(shardSearchRequest(shardA, readerB), null)
+                );
+                assertThat(mismatch.getMessage(), equalTo("search context id is not valid"));
+                mockLog.assertAllExpectationsMatched();
+            }
+            assertThat(searchService.getActiveContexts(), equalTo(2));
+
+            ReaderContext matched = searchService.createOrGetReaderContext(shardSearchRequest(shardA, readerA), null);
+            assertThat(matched.id(), equalTo(readerA));
+            assertThat(matched.indexShard().shardId(), equalTo(shardA));
+
+            ShardSearchContextId missing = new ShardSearchContextId(readerA.getSessionId(), Long.MAX_VALUE);
+            expectThrows(
+                SearchContextMissingException.class,
+                () -> searchService.createOrGetReaderContext(shardSearchRequest(shardA, missing), null)
+            );
+            assertThat(searchService.getActiveContexts(), equalTo(2));
+        } finally {
+            assertTrue(searchService.freeReaderContext(readerA));
+            assertTrue(searchService.freeReaderContext(readerB));
+        }
+    }
+
+    private static ShardSearchContextId openReaderContext(SearchService searchService, ShardId shardId) {
+        PlainActionFuture<ShardSearchContextId> future = new PlainActionFuture<>();
+        searchService.openReaderContext(shardId, TimeValue.timeValueMinutes(1), null, SplitShardCountSummary.IRRELEVANT, future);
+        return future.actionGet();
+    }
+
+    private static ShardSearchRequest shardSearchRequest(ShardId shardId, ShardSearchContextId readerId) {
+        return new ShardSearchRequest(
+            OriginalIndices.NONE,
+            new SearchRequest().allowPartialSearchResults(true),
+            shardId,
+            0,
+            1,
+            AliasFilter.EMPTY,
+            1.0f,
+            -1,
+            null,
+            readerId,
+            TimeValue.timeValueMinutes(1),
+            SplitShardCountSummary.IRRELEVANT,
+            true
+        );
+    }
+
     public void testCancelQueryPhaseEarly() throws Exception {
         createIndex("index");
         final MockSearchService service = (MockSearchService) getInstanceFromNode(SearchService.class);
@@ -2553,6 +2631,56 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             l.onResponse(null);
         }));
         future.get();
+    }
+
+    public void testFetchChargeIsReleasedWhenTheSearchFailsAfterCharging() {
+        createIndex("index");
+        prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+
+        MockSearchService service = (MockSearchService) getInstanceFromNode(SearchService.class);
+        CircuitBreaker breaker = getInstanceFromNode(CircuitBreakerService.class).getBreaker(CircuitBreaker.REQUEST);
+
+        // Single-session reader contexts are freed right after the fetch phase charged the breaker and before the result
+        // reaches anyone who would release it, which is the window the deallocate backstop covers.
+        AtomicBoolean armed = new AtomicBoolean(true);
+        service.setOnRemoveContext(readerContext -> {
+            if (armed.compareAndSet(true, false)) {
+                // freeReaderContext never binds its resource when this throws, so close the context here instead.
+                MockSearchService.removeActiveContext(readerContext);
+                readerContext.close();
+                throw new IllegalStateException("injected failure after the fetch charge");
+            }
+        });
+
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+        // Script fields are charged with no size threshold, unlike source, which only counts past a 1mb buffer.
+        searchRequest.source(
+            new SearchSourceBuilder().scriptField(
+                "test_field",
+                new Script(ScriptType.INLINE, MockScriptEngine.NAME, CustomScriptPlugin.DUMMY_SCRIPT, emptyMap())
+            )
+        );
+
+        long usedBeforeSearch = breaker.getUsed();
+        PlainActionFuture<SearchPhaseResult> future = new PlainActionFuture<>();
+        service.executeQueryPhase(
+            new ShardSearchRequest(
+                OriginalIndices.NONE,
+                searchRequest,
+                new ShardId(resolveIndex("index"), 0),
+                0,
+                1,
+                AliasFilter.EMPTY,
+                1.0f,
+                -1,
+                null
+            ),
+            new SearchShardTask(123L, "", "", "", null, emptyMap()),
+            future
+        );
+        expectThrows(IllegalStateException.class, future::actionGet);
+
+        assertThat(breaker.getUsed(), equalTo(usedBeforeSearch));
     }
 
     public void testWaitOnRefreshFailsWithRefreshesDisabled() {
@@ -2775,6 +2903,63 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         } catch (Exception exc) {
             Releasables.closeWhileHandlingException(readerContext1.get(), readerContext2.get());
             throw new RuntimeException(exc);
+        }
+    }
+
+    public void testCreateAndPutRelocatedPitContextRejectsDifferentShard() {
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        IndexService indexA = createIndex("index-a");
+        IndexService indexB = createIndex("index-b");
+        IndexShard shardA = indexA.getShard(0);
+        IndexShard shardB = indexB.getShard(0);
+        ShardSearchContextId id = new ShardSearchContextId("otherSessionId", randomNonNegativeLong(), null);
+
+        Engine.SearcherSupplier searcherA = shardA.acquireExternalSearcherSupplier(SplitShardCountSummary.IRRELEVANT);
+        ReaderContext relocated = searchService.createAndPutRelocatedPitContext(
+            id,
+            indexA,
+            shardA,
+            searcherA,
+            TimeValue.timeValueMinutes(5).millis(),
+            null,
+            SplitShardCountSummary.IRRELEVANT
+        );
+        Engine.SearcherSupplier searcherB = shardB.acquireExternalSearcherSupplier(SplitShardCountSummary.IRRELEVANT);
+        try {
+            try (var mockLog = MockLog.capture(SearchService.class)) {
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "rejected relocated search context id that does not match the expected shard",
+                        SearchService.class.getCanonicalName(),
+                        Level.INFO,
+                        "Rejecting search context id "
+                            + id
+                            + " because it does not match expected shard "
+                            + shardB.shardId()
+                            + "; reader context is on shard "
+                            + shardA.shardId()
+                    )
+                );
+                IllegalArgumentException mismatch = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> searchService.createAndPutRelocatedPitContext(
+                        id,
+                        indexB,
+                        shardB,
+                        searcherB,
+                        TimeValue.timeValueMinutes(5).millis(),
+                        null,
+                        SplitShardCountSummary.IRRELEVANT
+                    )
+                );
+                assertThat(mismatch.getMessage(), equalTo("search context id is not valid"));
+                mockLog.assertAllExpectationsMatched();
+            }
+            assertEquals(1, searchService.getActiveContexts());
+            assertEquals(1, searchService.getRelocationMapSize());
+            assertThat(relocated.indexShard().shardId(), equalTo(shardA.shardId()));
+        } finally {
+            searchService.freeReaderContext(relocated.id());
         }
     }
 

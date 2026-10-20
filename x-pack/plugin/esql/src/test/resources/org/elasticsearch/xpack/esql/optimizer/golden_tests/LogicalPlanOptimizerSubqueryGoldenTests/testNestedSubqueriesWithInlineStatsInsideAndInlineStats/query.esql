@@ -1,0 +1,4 @@
+FROM employees,
+     (FROM (FROM employees | WHERE emp_no <= 10005 | INLINE STATS max_sal = MAX(salary)),
+           (FROM employees | WHERE emp_no > 10095))
+| INLINE STATS c = COUNT(*)

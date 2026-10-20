@@ -23,6 +23,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberTypeOutOfRangeSpec;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SyntheticSourceMalformedValueSorter;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.WholeNumberFieldMapperTests;
@@ -36,7 +37,6 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -492,12 +492,12 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
 
             Stream<BigInteger> nonMalformedOutputs = values.stream().filter(v -> v.malformedOutput == null).map(Value::output);
             List<BigInteger> outputFromDocValues = (isColumnar ? nonMalformedOutputs : nonMalformedOutputs.sorted()).toList();
-            // Malformed values are stored as BytesRef with a type-prefix byte and sorted lexicographically.
-            List<Object> malformedOutput = values.stream()
-                .filter(v -> v.malformedOutput != null)
-                .map(Value::malformedOutput)
-                .sorted(Comparator.comparing(Object::toString))
-                .toList();
+            // Columnar indices route malformed values to the UNSORTED ._on_failure column (encounter order);
+            // non-columnar indices use the SORTED ._ignore_malformed column.
+            Stream<Object> malformedStream = values.stream().filter(v -> v.malformedOutput != null).map(Value::malformedOutput);
+            List<Object> malformedOutput = (isColumnar
+                ? malformedStream
+                : malformedStream.sorted(SyntheticSourceMalformedValueSorter.comparator())).toList();
 
             // Malformed values are always last in the implementation.
             List<Object> outList = Stream.concat(outputFromDocValues.stream(), malformedOutput.stream()).toList();

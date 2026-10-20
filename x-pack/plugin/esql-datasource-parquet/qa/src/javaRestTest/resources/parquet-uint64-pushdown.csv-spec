@@ -5,8 +5,8 @@
 // {{uint64_pushdown}} has u64:uint64 values straddling both Long.MAX_VALUE (9223372036854775807)
 // and the unsigned maximum (18446744073709551615).
 //
-// Authored as FROM <dataset>: on dataset-capable backends (S3) ParquetFormatSpecIT registers the
-// dataset and runs the FROM query verbatim; other backends rebuild the equivalent EXTERNAL query.
+// Authored as FROM <dataset>: ParquetFormatSpecIT registers the dataset and runs the FROM query
+// verbatim on every storage backend.
 
 uint64AggregatePushdownSignFlipEncodes
 required_capability: external_command

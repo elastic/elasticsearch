@@ -20,7 +20,7 @@ import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class SumIntGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
+public class SumIntGroupingAggregatorFunctionTests extends PartitionedGroupingAggregatorFunctionTestCase {
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction() {
         return new SumIntAggregatorFunctionSupplier();

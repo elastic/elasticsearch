@@ -7,9 +7,9 @@ allow_auto_create: true
 _meta:
   description: default OpenTelemetry metric exemplars template installed by x-pack
   managed: true
-# Exemplar data streams reuse the metrics mappings so that the time series dimensions
-# and the exemplar value field names exactly match the corresponding metrics data stream.
-# This is required to navigate from a metrics query to the corresponding exemplars.
+# Exemplar data streams reuse the metrics mappings so that their time series dimensions
+# match the corresponding metrics data stream. The additional metric_name dimension identifies the
+# metric associated with the value field.
 composed_of:
   - exemplars@settings
   - otel@mappings

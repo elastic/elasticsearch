@@ -28,4 +28,9 @@ public class SimpleAnalyzerProvider extends AbstractIndexAnalyzerProvider<Simple
     public SimpleAnalyzer get() {
         return this.simpleAnalyzer;
     }
+
+    @Override
+    public Object sharingKey() {
+        return getClass();
+    }
 }

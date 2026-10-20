@@ -10,6 +10,7 @@
 package org.elasticsearch.test.cluster.local;
 
 import org.elasticsearch.test.cluster.SystemPropertyProvider;
+import org.elasticsearch.test.cluster.util.Version;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -42,6 +43,31 @@ public class DefaultSystemPropertyProvider implements SystemPropertyProvider {
             properties.put(dlmFlagProperty, "false");
         }
 
+        // The ColumNAR doc-values format is unreleased and carries no version, so a segment one build writes is not
+        // necessarily readable by another, and an upgrade cluster runs two builds over one data path. The flag is
+        // turned off there; the columnar index modes stay under test, on the released doc-values format.
+        // Temporary: goes with the columnar_codec flag, which ColumnarCodecUpgradeTestFlagTests pins this to.
+        // An explicit feature(FeatureFlag.X) request still wins, as for the flag above.
+        if (isUpgradeTest() || upgradesFromAnotherBuild(nodeSpec)) {
+            String columnarCodecFlagProperty = "es.columnar_codec_feature_flag_enabled";
+            boolean requested = nodeSpec.getFeatures().stream().anyMatch(f -> f.systemProperty.startsWith(columnarCodecFlagProperty + "="));
+            if (requested == false) {
+                properties.put(columnarCodecFlagProperty, "false");
+            }
+        }
+
         return Collections.unmodifiableMap(properties);
+    }
+
+    /** Whether this JVM upgrades a cluster from another build, which it says by naming the build to upgrade from. */
+    private static boolean isUpgradeTest() {
+        return System.getProperty("tests.old_cluster_version") != null
+            || System.getProperty("tests.bwc.main.version") != null
+            || System.getProperty("tests.bwc.refspec.main") != null;
+    }
+
+    /** The same question asked of the cluster, for a suite that names no build but asks for a node of another one. */
+    private static boolean upgradesFromAnotherBuild(LocalClusterSpec.LocalNodeSpec nodeSpec) {
+        return nodeSpec.getCluster().getNodes().stream().anyMatch(n -> n.getVersion().equals(Version.CURRENT) == false);
     }
 }

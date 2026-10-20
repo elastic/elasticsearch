@@ -317,7 +317,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      * without recording a persistent error.
      */
     public void testDeleteBackingIndexDuringMarkReadOnly() throws Exception {
-        String candidateIndex = setupClusterAndInfrastructure(1);
+        Index candidateIndex = setupClusterAndInfrastructure(1);
         CountDownLatch latch = registerDeleteIndexInterceptor(TransportAddIndexBlockAction.TYPE.name(), candidateIndex, false);
         triggerRollover();
 
@@ -335,7 +335,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      * steps silently, so no persistent error is recorded in the error store.
      */
     public void testDeleteBackingIndexDuringClone() throws Exception {
-        String candidateIndex = setupClusterAndInfrastructure(1);
+        Index candidateIndex = setupClusterAndInfrastructure(1);
         CountDownLatch latch = registerDeleteIndexInterceptor(TransportResizeAction.TYPE.name(), candidateIndex, false);
         triggerRollover();
 
@@ -353,7 +353,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      * a persistent error.
      */
     public void testDeleteBackingIndexDuringSnapshot() throws Exception {
-        String candidateIndex = setupClusterAndInfrastructure(1);
+        Index candidateIndex = setupClusterAndInfrastructure(1);
         CountDownLatch latch = registerDeleteIndexInterceptor(TransportGetSnapshotsAction.TYPE.name(), candidateIndex, false);
         triggerRollover();
 
@@ -371,7 +371,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      * gracefully without recording a persistent error.
      */
     public void testDeleteBackingIndexDuringForceMerge() throws Exception {
-        String candidateIndex = setupClusterAndInfrastructure(1);
+        Index candidateIndex = setupClusterAndInfrastructure(1);
         // Force merge runs on the data node thread — must delete asynchronously to avoid deadlock
         CountDownLatch latch = registerDeleteIndexInterceptor("indices:admin/forcemerge", candidateIndex, true);
         triggerRollover();
@@ -390,7 +390,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      * without recording a persistent error.
      */
     public void testDeleteBackingIndexDuringMountSnapshot() throws Exception {
-        String candidateIndex = setupClusterAndInfrastructure(1);
+        Index candidateIndex = setupClusterAndInfrastructure(1);
         CountDownLatch latch = registerDeleteIndexInterceptor("cluster:admin/snapshot/mount", candidateIndex, false);
         triggerRollover();
 
@@ -408,7 +408,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      * The service handles this gracefully without recording a persistent error.
      */
     public void testDeleteBackingIndexDuringCleanup() throws Exception {
-        String candidateIndex = setupClusterAndInfrastructure(1);
+        Index candidateIndex = setupClusterAndInfrastructure(1);
         CountDownLatch latch = registerDeleteIndexInterceptor("indices:admin/data_stream/modify", candidateIndex, false);
         triggerRollover();
 
@@ -422,8 +422,8 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      * deletes the newly mounted frozen index. The swap then references a non-existent index.
      */
     public void testDeleteMountedFrozenIndexBeforeSwap() throws Exception {
-        String candidateIndex = setupClusterAndInfrastructure(1);
-        String expectedFrozenIndexName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + candidateIndex;
+        Index candidateIndex = setupClusterAndInfrastructure(1);
+        String expectedFrozenIndexName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + candidateIndex.getName();
 
         CountDownLatch latch = registerDisruptionInterceptor(
             "indices:admin/data_stream/modify",
@@ -443,7 +443,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      * The transition should still complete for the original backing index.
      */
     public void testConcurrentRolloverDuringTransition() throws Exception {
-        String candidateIndex = setupClusterAndInfrastructure(1);
+        Index candidateIndex = setupClusterAndInfrastructure(1);
 
         CountDownLatch latch = registerDisruptionInterceptor(
             "indices:admin/forcemerge",
@@ -454,12 +454,12 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
 
         // The second backing index (created by triggerRollover) will also become a candidate
         // after the concurrent rollover creates a third backing index.
-        String secondBackingIndex = backingIndexNames().get(1);
+        Index secondBackingIndex = backingIndices().get(1);
 
         assertTrue("ForceMerge request was never seen by the interceptor", latch.await(30, TimeUnit.SECONDS));
 
-        String expectedFrozenIndexName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + candidateIndex;
-        String expectedFrozenIndexName2 = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + secondBackingIndex;
+        String expectedFrozenIndexName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + candidateIndex.getName();
+        String expectedFrozenIndexName2 = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + secondBackingIndex.getName();
         assertBusy(() -> {
             var projectMetadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
                 .get()
@@ -490,7 +490,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      * eventually appears in the data stream.
      */
     public void testMasterFailoverDuringSnapshotPhase() throws Exception {
-        String candidateIndex = setupClusterAndInfrastructure(3);
+        Index candidateIndex = setupClusterAndInfrastructure(3);
 
         CountDownLatch latch = registerDisruptionInterceptor(TransportGetSnapshotsAction.TYPE.name(), () -> {
             try {
@@ -504,7 +504,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
         assertTrue("GetSnapshots request was never seen by the interceptor", latch.await(60, TimeUnit.SECONDS));
         assertNoErrorRecorded(candidateIndex);
 
-        String expectedFrozenIndexName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + candidateIndex;
+        String expectedFrozenIndexName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + candidateIndex.getName();
         assertBusy(() -> {
             var projectMetadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
                 .get()
@@ -526,7 +526,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      * policy to remove the frozenAfter setting. The service should not crash.
      */
     public void testLifecyclePolicyUpdatedDuringTransition() throws Exception {
-        String candidateIndex = setupClusterAndInfrastructure(1);
+        Index candidateIndex = setupClusterAndInfrastructure(1);
 
         CountDownLatch latch = registerDisruptionInterceptor("indices:admin/forcemerge", () -> {
             // no frozenAfter policy
@@ -565,7 +565,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      * the frozen transition and complete it successfully.
      */
     public void testMasterFailoverDuringMarkReadOnly() throws Exception {
-        String candidateIndex = setupClusterAndInfrastructure(3);
+        Index candidateIndex = setupClusterAndInfrastructure(3);
         CountDownLatch latch = registerMasterFailoverInterceptor(TransportAddIndexBlockAction.TYPE.name());
         triggerRollover();
 
@@ -581,7 +581,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      * and resume the frozen transition.
      */
     public void testMasterFailoverDuringClone() throws Exception {
-        String candidateIndex = setupClusterAndInfrastructure(3);
+        Index candidateIndex = setupClusterAndInfrastructure(3);
         CountDownLatch latch = registerMasterFailoverInterceptor(TransportResizeAction.TYPE.name());
         triggerRollover();
 
@@ -596,7 +596,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      * the segment count and retry if needed.
      */
     public void testMasterFailoverDuringForceMerge() throws Exception {
-        String candidateIndex = setupClusterAndInfrastructure(3);
+        Index candidateIndex = setupClusterAndInfrastructure(3);
         CountDownLatch latch = registerMasterFailoverInterceptor("indices:admin/forcemerge");
         triggerRollover();
 
@@ -612,7 +612,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      * in-progress snapshot and wait for it or restart the snapshot.
      */
     public void testMasterFailoverDuringSnapshot() throws Exception {
-        String candidateIndex = setupClusterAndInfrastructure(3);
+        Index candidateIndex = setupClusterAndInfrastructure(3);
         CountDownLatch latch = registerMasterFailoverInterceptor(TransportGetSnapshotsAction.TYPE.name());
         triggerRollover();
 
@@ -627,7 +627,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      * should check if the mount already exists before retrying.
      */
     public void testMasterFailoverDuringMountSnapshot() throws Exception {
-        String candidateIndex = setupClusterAndInfrastructure(3);
+        Index candidateIndex = setupClusterAndInfrastructure(3);
         CountDownLatch latch = registerMasterFailoverInterceptor("cluster:admin/snapshot/mount");
         triggerRollover();
 
@@ -643,7 +643,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      * should detect the mounted frozen index and complete the swap.
      */
     public void testMasterFailoverDuringCleanup() throws Exception {
-        String candidateIndex = setupClusterAndInfrastructure(3);
+        Index candidateIndex = setupClusterAndInfrastructure(3);
         CountDownLatch latch = registerMasterFailoverInterceptor("indices:admin/data_stream/modify");
         triggerRollover();
 
@@ -659,7 +659,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      * Starts the required cluster nodes and sets up the data stream infrastructure.
      * Returns the name of the first backing index (candidate for frozen transition after rollover).
      */
-    private String setupClusterAndInfrastructure() {
+    private Index setupClusterAndInfrastructure() {
         return setupClusterAndInfrastructure(1);
     }
 
@@ -669,7 +669,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      * Use {@code numMasterNodes >= 3} for master-failover tests so the cluster retains quorum
      * after stopping the current master.
      */
-    private String setupClusterAndInfrastructure(int numMasterNodes) {
+    private Index setupClusterAndInfrastructure(int numMasterNodes) {
         internalCluster().startMasterOnlyNodes(numMasterNodes);
         internalCluster().startDataOnlyNodes(2);
         startFrozenOnlyNode();
@@ -725,9 +725,10 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      * Asserts that the frozen transition completes successfully for the given candidate index.
      * Verifies that the frozen index exists and is part of the data stream.
      */
-    private void assertFrozenTransitionCompletesSuccessfully(String candidateIndex) throws Exception {
-        String expectedFrozenIndexName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + candidateIndex;
-        String cloneIndexName = DLMConvertToFrozen.CLONE_INDEX_PREFIX + candidateIndex;
+    private void assertFrozenTransitionCompletesSuccessfully(Index candidateIndex) throws Exception {
+        String candidateIndexName = candidateIndex.getName();
+        String expectedFrozenIndexName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + candidateIndexName;
+        String cloneIndexName = DLMConvertToFrozen.CLONE_INDEX_PREFIX + candidateIndexName;
         assertBusy(() -> {
             final ProjectMetadata projectMetadata;
             try {
@@ -742,7 +743,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
 
             // Verify the original index has been cleaned up (removed from cluster state)
             assertThat(
-                "Original index [" + candidateIndex + "] should have been deleted",
+                "Original index [" + candidateIndexName + "] should have been deleted",
                 projectMetadata.index(candidateIndex),
                 nullValue()
             );
@@ -763,7 +764,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
             DataStream ds = projectMetadata.dataStreams().get(DATA_STREAM_NAME);
             assertThat("Data stream should still exist", ds, notNullValue());
             List<String> backingNames = ds.getIndices().stream().map(Index::getName).toList();
-            assertThat("Original index should no longer be in the data stream", backingNames.contains(candidateIndex), is(false));
+            assertThat("Original index should no longer be in the data stream", backingNames.contains(candidateIndexName), is(false));
             assertTrue(
                 "Frozen index should be part of the data stream, but backing indices are: " + backingNames,
                 backingNames.contains(expectedFrozenIndexName)
@@ -778,11 +779,11 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      *
      * @return a latch that counts down when the interceptor first fires
      */
-    private CountDownLatch registerDeleteIndexInterceptor(String actionName, String indexToDelete, boolean async) {
+    private CountDownLatch registerDeleteIndexInterceptor(String actionName, Index indexToDelete, boolean async) {
         return registerDisruptionInterceptor(actionName, () -> {
             try {
-                client().admin().indices().delete(new DeleteIndexRequest(indexToDelete)).actionGet();
-                logger.info("--> deleted [{}] while [{}] was in flight", indexToDelete, actionName);
+                client().admin().indices().delete(new DeleteIndexRequest(indexToDelete.getName())).actionGet();
+                logger.info("--> deleted [{}] while [{}] was in flight", indexToDelete.getName(), actionName);
             } catch (Exception e) {
                 logger.warn("Could not delete index during disruption", e);
             }
@@ -838,12 +839,12 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
     /**
      * Waits until the frozen transition for the given index has completed (no longer submitted).
      */
-    private void awaitTransitionCompletion(String candidateIndex) throws Exception {
+    private void awaitTransitionCompletion(Index candidateIndex) throws Exception {
         assertBusy(() -> {
             DLMFrozenTransitionService transitionService = internalCluster().getCurrentMasterNodeInstance(DLMFrozenTransitionService.class);
             assertFalse(
-                "Transition should have completed for [" + candidateIndex + "]",
-                transitionService.getTransitionExecutor().transitionSubmitted(ProjectId.DEFAULT, candidateIndex)
+                "Transition should have completed for [" + candidateIndex.getName() + "]",
+                transitionService.getTransitionExecutor().transitionSubmitted(ProjectId.DEFAULT, candidateIndex.getName())
             );
         }, 60, TimeUnit.SECONDS);
     }
@@ -859,7 +860,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      * entries are unrelated to the frozen transition under test and are tolerated here; any other
      * error entry fails the assertion.
      */
-    private void assertNoErrorRecorded(String candidateIndex) throws Exception {
+    private void assertNoErrorRecorded(Index candidateIndex) throws Exception {
         awaitTransitionCompletion(candidateIndex);
         DLMFrozenTransitionService transitionService = internalCluster().getCurrentMasterNodeInstance(DLMFrozenTransitionService.class);
         DataStreamLifecycleErrorStore errorStore = transitionService.getTransitionExecutor().getErrorStore();
@@ -876,7 +877,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
     /**
      * Asserts that an error has been recorded in the DLM error store for the given index.
      */
-    private void assertErrorRecorded(String candidateIndex) throws Exception {
+    private void assertErrorRecorded(Index candidateIndex) throws Exception {
         assertBusy(() -> {
             DLMFrozenTransitionService transitionService = internalCluster().getCurrentMasterNodeInstance(DLMFrozenTransitionService.class);
             DataStreamLifecycleErrorStore errorStore = transitionService.getTransitionExecutor().getErrorStore();
@@ -896,7 +897,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      * Tests should register their interceptors after calling this method, then call
      * {@link #triggerRollover()} to make the index eligible for frozen transition.
      */
-    private String setupDataStreamInfrastructure() {
+    private Index setupDataStreamInfrastructure() {
         // Create repository and set as default so DLM can use it for snapshots
         assertAcked(
             client().execute(
@@ -948,8 +949,8 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
         assertThat(bulkResponse.getItems()[0].status(), equalTo(RestStatus.CREATED));
         client().admin().indices().refresh(new RefreshRequest(DATA_STREAM_NAME)).actionGet();
 
-        String candidateIndex = backingIndexNames().getFirst();
-        logger.info("--> candidate index (pre-rollover): {}", candidateIndex);
+        Index candidateIndex = backingIndices().getFirst();
+        logger.info("--> candidate index (pre-rollover): {}", candidateIndex.getName());
         return candidateIndex;
     }
 
@@ -965,7 +966,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
     /**
      * Returns the names of the backing indices for the test data stream.
      */
-    private List<String> backingIndexNames() {
+    private List<Index> backingIndices() {
         var clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         DataStream ds = clusterState.metadata()
             .getProject(Metadata.DEFAULT_PROJECT_ID)
@@ -974,6 +975,6 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
         if (ds == null) {
             return List.of();
         }
-        return ds.getIndices().stream().map(Index::getName).toList();
+        return ds.getIndices();
     }
 }

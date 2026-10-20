@@ -314,20 +314,20 @@ max_rate:double | cluster:keyword
 
 notEnoughSamples
 required_capability: ts_command_v0
-required_capability: rate_with_interpolation
+required_capability: rate_with_interpolation_v4
 
 TS k8s | WHERE @timestamp <= "2024-05-10T00:06:14.000Z" | STATS max_rate=max(rate(network.total_bytes_in)) BY pod, time_bucket = bucket(@timestamp,1minute) | EVAL max_rate=ROUND(max_rate, 6) | KEEP max_rate, pod, time_bucket | SORT pod, time_bucket DESC | LIMIT 10;
 
 max_rate:double | pod:keyword | time_bucket:datetime    
 4.25            | one         | 2024-05-10T00:06:00.000Z
 8.760294        | one         | 2024-05-10T00:05:00.000Z
-49.352941       | one         | 2024-05-10T00:04:00.000Z
+7.088725        | one         | 2024-05-10T00:04:00.000Z
 16.45           | one         | 2024-05-10T00:03:00.000Z
-null            | one         | 2024-05-10T00:01:00.000Z
+8.584071        | one         | 2024-05-10T00:01:00.000Z
 10.685714       | three       | 2024-05-10T00:06:00.000Z
-10.685714       | three       | 2024-05-10T00:05:00.000Z
-3.633842        | three       | 2024-05-10T00:03:00.000Z
-10.25           | three       | 2024-05-10T00:02:00.000Z
+3.996296        | three       | 2024-05-10T00:05:00.000Z
+2.383878        | three       | 2024-05-10T00:03:00.000Z
+5.431373        | three       | 2024-05-10T00:02:00.000Z
 18.934896       | three       | 2024-05-10T00:01:00.000Z
 ;
 
@@ -1521,6 +1521,15 @@ TS k8s | STATS max_rate = max(rate(network.total_bytes_in)) BY bucket = bucket(@
 max_rate:double | bucket:datetime
 ;
 
+rateWithTBucketTargetCountAndLimitZero
+required_capability: fix_limit_zero_in_stats_by_all
+required_capability: tbucket_from_to
+required_capability: fix_ts_tbucket_missing_bounds
+TS k8s | STATS sum_rate = SUM(RATE(network.total_bytes_in)) BY bucket = TBUCKET(20, "2024-05-10T00:00:00Z", "2024-05-10T01:00:00Z") | LIMIT 0;
+
+sum_rate:double | bucket:datetime
+;
+
 tsRateWithWindowAndTBucketTargetCount
 required_capability: ts_command_v0
 required_capability: tbucket_from_to
@@ -1659,4 +1668,16 @@ cnt:long | metric_type:keyword | cluster:keyword
 3        | cost                | prod
 3        | cost                | qa
 3        | cost                | staging
+;
+
+// STATS with multiple input fields
+tsStatsWithMultipleInputFields
+required_capability: fix_aggs_multiple_input_fields
+
+TS k8s
+| STATS avg = WEIGHTED_AVG(network.bytes_in, network.cost)
+;
+
+avg:double
+616.5983606557377
 ;

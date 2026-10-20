@@ -10,6 +10,7 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.codecs.lucene104.Lucene104Codec;
+import org.apache.lucene.codecs.lucene90.compressing.Lucene90CompressingStoredFieldsReader;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -646,9 +647,8 @@ public class PruningMergePolicyTests extends ESTestCase {
                         );
                         var forcedMerges = mp.findForcedDeletesMerges(Lucene.readSegmentInfos(reader.getIndexCommit()), newMergeContext());
                         var wrappedForMerge = forcedMerges.merges.get(0).wrapForMerge(codecReader);
-                        // Should Lucene90CompressingStoredFieldsReader or newer
-                        assertThat(wrappedForMerge.getFieldsReader(), not(instanceOf(TSDBStoredFieldsFormat.TSDBStoredFieldsReader.class)));
-                        assertThat(wrappedForMerge.getFieldsReader(), not(instanceOf(TSDBSyntheticIdStoredFieldsReader.class)));
+                        // The reader Lucene tests for when it picks a stored fields merge strategy
+                        assertThat(wrappedForMerge.getFieldsReader(), instanceOf(Lucene90CompressingStoredFieldsReader.class));
                     }
 
                 }
@@ -704,8 +704,7 @@ public class PruningMergePolicyTests extends ESTestCase {
                 );
                 var forcedMerges = mp.findForcedDeletesMerges(Lucene.readSegmentInfos(reader.getIndexCommit()), newMergeContext());
                 var wrappedForMerge = forcedMerges.merges.get(0).wrapForMerge(codecReader);
-                assertThat(wrappedForMerge.getFieldsReader(), not(instanceOf(TSDBStoredFieldsFormat.TSDBStoredFieldsReader.class)));
-                assertThat(wrappedForMerge.getFieldsReader(), not(instanceOf(TSDBSyntheticIdStoredFieldsReader.class)));
+                assertThat(wrappedForMerge.getFieldsReader(), instanceOf(Lucene90CompressingStoredFieldsReader.class));
             }
         }
     }
@@ -760,15 +759,14 @@ public class PruningMergePolicyTests extends ESTestCase {
                 )
             );
         }
-        var sortOnTsId = new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING);
-        sortOnTsId.setMissingValue(SortField.STRING_LAST);
+        var sortOnTsId = new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING, false, SortField.STRING_LAST);
         var sortOnTimestamp = new SortedNumericSortField(
             DataStreamTimestampFieldMapper.DEFAULT_PATH,
             SortField.Type.LONG,
             true,
-            SortedNumericSelector.Type.MAX
+            SortedNumericSelector.Type.MAX,
+            Long.MIN_VALUE
         );
-        sortOnTimestamp.setMissingValue(Long.MIN_VALUE);
         iwc.setIndexSort(new Sort(sortOnTsId, sortOnTimestamp));
         iwc.setMergedSegmentWarmer(reader -> {});
         return iwc;

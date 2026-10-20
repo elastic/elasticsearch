@@ -13,7 +13,6 @@ import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.ImpactsEnum;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.OrdinalMap;
@@ -51,6 +50,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.escf.EscfColumnBuilder;
+import org.elasticsearch.escf.EscfColumnData;
 import org.elasticsearch.escf.EscfColumnKind;
 import org.elasticsearch.escf.EscfColumnTransforms;
 import org.elasticsearch.escf.LuceneBinaryColumn;
@@ -68,7 +68,7 @@ import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.KeyFilteredSortingArrayOrderBinaryDocValues;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
@@ -134,7 +134,6 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Function;
 
-import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_SETTING;
 import static org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.RootFlattenedFieldType.toSubFieldLoaders;
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
@@ -176,7 +175,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
     public static final FeatureFlag UNMAPPED_FIELDS_FEATURE_FLAG = new FeatureFlag("flattened_unmapped_fields");
 
     /**
-     * Name of the implicit, non-serialized flattened sink injected under root to absorb unmapped fields as full dotted keys.
+     * Name of the implicit flattened sink that absorbs unmapped fields as full dotted keys. See {@link UnmappedSinkFieldMapper}.
      */
     public static final String UNMAPPED_SINK_NAME = "_unmapped";
 
@@ -330,7 +329,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         private Builder(String name, MappingParserContext mappingParserContext) {
             this(
                 name,
-                IGNORE_ABOVE_SETTING.get(mappingParserContext.getSettings()),
+                mappingParserContext.getIndexSettings().getIgnoreAbove(),
                 mappingParserContext.getIndexSettings(),
                 usesBinaryDocValues(mappingParserContext.getIndexSettings()),
                 mappingParserContext.indexVersionCreated().before(IndexVersions.FLATTENED_FIELD_NO_ROOT_DOC_VALUES),
@@ -472,7 +471,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         protected void mergeFromBuilder(FieldMapper.Builder incoming, Conflicts conflicts, MapperMergeContext mergeContext) {
             Map<String, FieldMapper.Builder> currentProperties = new TreeMap<>(properties.getValue());
             super.mergeFromBuilder(incoming, conflicts, mergeContext);
-            MapperMergeContext childContext = MapperMergeContext.from(mergeContext.getMapperBuilderContext(), Long.MAX_VALUE);
+            MapperMergeContext childContext = mergeContext.withUnlimitedParseFieldLimitsBudget();
             for (Map.Entry<String, FieldMapper.Builder> entry : ((Builder) incoming).properties.getValue().entrySet()) {
                 currentProperties.merge(
                     entry.getKey(),
@@ -895,10 +894,9 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
 
             Automaton a = Automata.makeString(key + FlattenedFieldParser.SEPARATOR);
             if (caseInsensitive) {
-                a = Operations.concatenate(a, AutomatonQueries.caseInsensitivePrefix(prefix));
+                a = Operations.concatenate(List.of(a, AutomatonQueries.caseInsensitivePrefix(prefix)));
             } else {
-                a = Operations.concatenate(a, Automata.makeString(prefix));
-                a = Operations.concatenate(a, Automata.makeAnyString());
+                a = Operations.concatenate(List.of(a, Automata.makeString(prefix), Automata.makeAnyString()));
             }
             assert a.isDeterministic();
 
@@ -1202,13 +1200,13 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
     public static final class BinaryKeyedFlattenedFieldData implements IndexFieldData<LeafFieldData> {
         private final String key;
         private final BytesBinaryIndexFieldData delegate;
-        private final ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory;
+        private final ToScriptFieldFactory<SortableBinaryDocValues> toScriptFieldFactory;
         private final boolean usesArrayOrderBinaryDocValues;
 
         private BinaryKeyedFlattenedFieldData(
             String key,
             BytesBinaryIndexFieldData delegate,
-            ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory,
+            ToScriptFieldFactory<SortableBinaryDocValues> toScriptFieldFactory,
             boolean usesArrayOrderBinaryDocValues
         ) {
             this.delegate = delegate;
@@ -1287,7 +1285,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                     }
 
                     @Override
-                    public SortedBinaryDocValues getBytesValues() {
+                    public SortableBinaryDocValues getBytesValues() {
                         return dv;
                     }
                 };
@@ -1299,14 +1297,14 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         public static class Builder implements IndexFieldData.Builder {
             private final String fieldName;
             private final String key;
-            private final ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory;
+            private final ToScriptFieldFactory<SortableBinaryDocValues> toScriptFieldFactory;
             private final IndexVersion indexVersion;
             private final boolean usesArrayOrderBinaryDocValues;
 
             Builder(
                 String fieldName,
                 String key,
-                ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory,
+                ToScriptFieldFactory<SortableBinaryDocValues> toScriptFieldFactory,
                 IndexVersion indexVersion,
                 boolean usesArrayOrderBinaryDocValues
             ) {
@@ -1684,6 +1682,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
     private final boolean passthrough;
     private final PreserveLeafArrays preserveLeafArrays;
     private final boolean writeDimensionRouting;
+    private final int maxKeyedValueLength;
 
     private FlattenedFieldMapper(
         String leafName,
@@ -1701,13 +1700,15 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         this.writeDimensionRouting = builder.dimensions.getValue().isEmpty() == false
             && builder.indexSettings.getIndexRouting() instanceof IndexRouting.ExtractFromSource efs
             && efs.extractDimensionsWhileMapping();
+        boolean useLuceneMaxTermLength = mappedFieldType.indexType().hasTerms() || builder.usesBinaryDocValues == false;
+        this.maxKeyedValueLength = builder.indexSettings.maxValueLength(useLuceneMaxTermLength);
         this.fieldParser = new FlattenedFieldParser(
             mappedFieldType.name(),
             mappedFieldType.name() + KEYED_FIELD_SUFFIX,
             mappedFieldType.name() + KEYED_IGNORED_VALUES_FIELD_SUFFIX,
             mappedFieldType,
             builder.depthLimit.get(),
-            builder.ignoreAbove.get(),
+            ((RootFlattenedFieldType) mappedFieldType).ignoreAbove().limit(),
             builder.nullValue.get(),
             builder.usesBinaryDocValues,
             builder.hasRootDocValues(),
@@ -1716,7 +1717,8 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             builder.preserveLeafArrays.get(),
             builder.indexSettings.getIndexVersionCreated(),
             this.writeDimensionRouting,
-            ((RootFlattenedFieldType) mappedFieldType).usesArrayOrderBinaryDocValues()
+            ((RootFlattenedFieldType) mappedFieldType).usesArrayOrderBinaryDocValues(),
+            maxKeyedValueLength
         );
         this.preserveLeafArrays = builder.preserveLeafArrays.get();
     }
@@ -1739,6 +1741,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         return builder.depthLimit.get();
     }
 
+    @Override
     public boolean isPassthrough() {
         return passthrough;
     }
@@ -1831,20 +1834,16 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
      * multi-fields — falls back to the row path.
      */
     @Override
-    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         // hasTerms()/hasRootDocValues assert the index=false, root-doc-values-free shape that strict columnar defaults to; the terms
         // and root channels have no columnar writer. mappedSubFields must be empty because those keys are indexed by their own
         // mappers, which the driver resolves as ordinary leaves rather than as part of this group.
-        return indexSettings.getMode().isStrictColumnar()
-            && fieldType().usesArrayOrderBinaryDocValues()
+        return fieldType().usesArrayOrderBinaryDocValues()
             && fieldType().hasDocValues()
             && fieldType().indexType().hasTerms() == false
             && fieldType().hasRootDocValues == false
             && mappedSubFields.isEmpty()
-            && dimensionAllowsColumnarParse(fieldType(), writeDimensionRouting)
-            && hasScript() == false
-            && copyTo().copyToFields().isEmpty()
-            && multiFields().iterator().hasNext() == false;
+            && dimensionAllowsColumnarParse(fieldType(), writeDimensionRouting);
     }
 
     @Override
@@ -1859,7 +1858,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
      * ({@link #parseCreateField} returns early on {@code VALUE_NULL}; an empty object has no leaves to index).
      */
     @Override
-    public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+    protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         if (EscfColumnTransforms.allNullOrEmptyObject(source) == false) {
             throw new UnsupportedOperationException(
                 "mapColumnBatch: flattened field ["
@@ -1940,75 +1939,85 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             cursorDocs[k] = cursor.nextDoc();
         }
 
-        final EscfColumnBuilder keyed = mergeStringColumn();
-        final EscfColumnBuilder counts = mergeLongColumn();
         final BytesRef nullValueBytes = builder.nullValue.get() != null ? new BytesRef(builder.nullValue.get()) : null;
 
-        final BytesRefBuilder docBlob = new BytesRefBuilder();
-        int seedEstimate = 0;
-        for (int k = 0; k < columnCount; k++) {
-            if (cursorDocs[k] != DocIdSetIterator.NO_MORE_DOCS) {
-                final BytesRef first = cursors.get(k).value();
-                seedEstimate += MultiValuedBinaryDocValuesField.VINT_MAX_BYTES + keyPrefixes[k].length + (first == null ? 0 : first.length);
-            }
-        }
-        // ~1.25x headroom for documents a little wider than the first.
-        docBlob.grow(seedEstimate + (seedEstimate >> 2));
-
-        for (int doc = 0; doc < docCount; doc++) {
-            int slotCount = 0;
-            int pos = 0;
-            // Column-minor within a document: all of key[0]'s values, then key[1]'s, ... See the slot-order note above.
+        try (EscfColumnBuilder keyed = mergeStringColumn(); EscfColumnBuilder counts = mergeLongColumn()) {
+            final BytesRefBuilder docBlob = new BytesRefBuilder();
+            int seedEstimate = 0;
             for (int k = 0; k < columnCount; k++) {
-                final BytesRef keyPrefix = keyPrefixes[k];
-                final ObjectTupleCursor<BytesRef> cursor = cursors.get(k);
-                while (cursorDocs[k] == doc) {
-                    BytesRef value = cursor.value();
-                    if (value == null && nullValueBytes != null) {
-                        // null_value substitution, mirroring FlattenedFieldParser#addNull.
-                        value = nullValueBytes;
-                    }
-                    if (value != null) {
-                        if (fieldType().ignoreAbove().isIgnored(value)) {
-                            throw new UnsupportedOperationException(
-                                "mapColumnGroupBatch: value for key ["
-                                    + relativeKeys[k]
-                                    + "] of flattened field ["
-                                    + fullPath()
-                                    + "] in doc ["
-                                    + doc
-                                    + "] exceeds ignore_above; the ignored-values channel is not yet supported"
-                            );
-                        }
-                        if (keyPrefix.length + value.length > IndexWriter.MAX_TERM_LENGTH) {
-                            throw immenseKeyedValueException(relativeKeys[k], value.length);
-                        }
-                    }
+                if (cursorDocs[k] != DocIdSetIterator.NO_MORE_DOCS) {
+                    final BytesRef first = cursors.get(k).value();
+                    seedEstimate += MultiValuedBinaryDocValuesField.VINT_MAX_BYTES + keyPrefixes[k].length + (first == null
+                        ? 0
+                        : first.length);
+                }
+            }
+            // ~1.25x headroom for documents a little wider than the first.
+            docBlob.grow(seedEstimate + (seedEstimate >> 2));
 
-                    pos = MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull.appendSlot(docBlob, pos, keyPrefix, value);
-                    slotCount++;
+            final boolean checkIgnoreAbove = fieldType().ignoreAbove().valuesPotentiallyIgnored();
 
-                    // The value's bytes are already in docBlob, so advancing past it is safe.
-                    cursorDocs[k] = cursor.nextDoc();
+            for (int doc = 0; doc < docCount; doc++) {
+                int slotCount = 0;
+                int pos = 0;
+                // Column-minor within a document: all of key[0]'s values, then key[1]'s, ... See the slot-order note above.
+                for (int k = 0; k < columnCount; k++) {
+                    final BytesRef keyPrefix = keyPrefixes[k];
+                    final ObjectTupleCursor<BytesRef> cursor = cursors.get(k);
+                    while (cursorDocs[k] == doc) {
+                        BytesRef value = cursor.value();
+                        if (value == null && nullValueBytes != null) {
+                            // null_value substitution, mirroring FlattenedFieldParser#addNull.
+                            value = nullValueBytes;
+                        }
+                        if (value != null) {
+                            if (checkIgnoreAbove && fieldType().ignoreAbove().isIgnored(value)) {
+                                throw new UnsupportedOperationException(
+                                    "mapColumnGroupBatch: value for key ["
+                                        + relativeKeys[k]
+                                        + "] of flattened field ["
+                                        + fullPath()
+                                        + "] in doc ["
+                                        + doc
+                                        + "] exceeds ignore_above; the ignored-values channel is not yet supported"
+                                );
+                            }
+                            if (keyPrefix.length + value.length > maxKeyedValueLength) {
+                                throw FlattenedFieldParser.overLimitSizeKeyedValueException(
+                                    fieldType().name(),
+                                    relativeKeys[k],
+                                    value.length,
+                                    maxKeyedValueLength
+                                );
+                            }
+                        }
+
+                        pos = MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull.appendSlot(docBlob, pos, keyPrefix, value);
+                        slotCount++;
+
+                        // The value's bytes are already in docBlob, so advancing past it is safe.
+                        cursorDocs[k] = cursor.nextDoc();
+                    }
+                }
+
+                if (slotCount > 0) {
+                    // Unlike the non-keyed ArrayOrderInlineNull, an all-null document still writes a blob: its null slots carry keys.
+                    keyed.setString(doc, docBlob.bytes(), 0, pos);
+                    counts.setLong(doc, slotCount);
                 }
             }
 
-            if (slotCount > 0) {
-                // Unlike the non-keyed ArrayOrderInlineNull, an all-null document still writes a blob: its null slots carry keys.
-                keyed.setString(doc, docBlob.bytes(), 0, pos);
-                counts.setLong(doc, slotCount);
+            if (keyed.isEmpty()) {
+                return;
             }
-        }
 
-        if (keyed.isEmpty()) {
-            counts.discard();
-            keyed.discard();
-            return;
+            final String keyedFieldName = fieldType().name() + KEYED_FIELD_SUFFIX;
+            // Both builders own recycler-backed buffers; register their output for release with the batch.
+            final EscfColumnData keyedData = keyed.finish(docCount);
+            ctx.addColumn(LuceneBinaryColumn.of(keyedData, keyedFieldName, CustomDocValuesField.TYPE), keyedData);
+            final EscfColumnData countsData = counts.finish(docCount);
+            ctx.addColumn(LuceneLongColumn.counts(countsData, keyedFieldName), countsData);
         }
-
-        final String keyedFieldName = fieldType().name() + KEYED_FIELD_SUFFIX;
-        ctx.addColumn(LuceneBinaryColumn.of(keyed.finish(docCount), keyedFieldName, CustomDocValuesField.TYPE));
-        ctx.addColumn(LuceneLongColumn.counts(counts.finish(docCount), keyedFieldName));
     }
 
     // TODO: make the batch supply a recycler to wire up recycling instead of NON_RECYCLING_INSTANCE.
@@ -2033,34 +2042,6 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             }
         }
         return count;
-    }
-
-    /** Mirrors the row path's immense-keyed-value error in {@link FlattenedFieldParser}. */
-    private IllegalArgumentException immenseKeyedValueException(String key, int valueLength) {
-        return new IllegalArgumentException(
-            "Flattened field ["
-                + fieldType().name()
-                + "] contains one immense field"
-                + " whose keyed encoding is longer than the allowed max length of "
-                + IndexWriter.MAX_TERM_LENGTH
-                + " bytes. Key length: "
-                + key.length()
-                + ", value length: "
-                + valueLength
-                + " for key starting with ["
-                + key.substring(0, Math.min(key.length(), 50))
-                + "]"
-        );
-    }
-
-    /**
-     * Whether this mapper is the implicit {@code _unmapped} sink; other flattened fields (including user-declared ones) return false.
-     * Computed on demand rather than stored: sink-ness is a pure function of the index setting and the field name, both fixed for the
-     * life of the mapper. The setting gate is load-bearing, since a user may declare a flattened field named {@code _unmapped} on a
-     * non-feature index and it must stay a normal field.
-     */
-    public boolean isUnmappedSink() {
-        return builder.indexSettings.isFlattenedUnmappedFieldsEnabled() && UNMAPPED_SINK_NAME.equals(mappedFieldType.name());
     }
 
     /**

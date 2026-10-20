@@ -28,6 +28,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -112,6 +113,7 @@ public class BatchBulkTSDBIT extends ESIntegTestCase {
                             .put("index.number_of_shards", 1)
                             .put("index.number_of_replicas", 0)
                             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                            .put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), randomBoolean())
                             .build(),
                         CompressedXContent.fromJSON(mapping),
                         null
@@ -217,16 +219,7 @@ public class BatchBulkTSDBIT extends ESIntegTestCase {
         });
     }
 
-    /**
-     * Documents the remaining gap: a {@code keyword} dimension still forces the batch onto the row path. The routing
-     * gate accepts it — the coordinating node computes the tsid, so no dimension routing is written during mapping —
-     * but every keyword field in a {@code time_series} index resolves to {@code DocValuesDiskFormat.SORTED_SET}, which
-     * {@code KeywordFieldMapper#mapColumnBatch} cannot emit yet.
-     *
-     * <p>Invert this assertion when SORTED_SET emission lands. Documents must index correctly either way, which is
-     * what makes the fallback safe rather than merely undetected.
-     */
-    public void testKeywordDimensionTsdbFallsBackToRowPath() throws IOException {
+    public void testKeywordDimensionTsdbTakesColumnarPath() throws IOException {
         String dataStreamName = "test-tsdb-batch-keyword-dim";
         createTsdbTemplate(dataStreamName, """
             {
@@ -257,20 +250,7 @@ public class BatchBulkTSDBIT extends ESIntegTestCase {
             bulkRequest.add(keywordDimensionDoc(dataStreamName, baseTime.plusSeconds(i).toEpochMilli(), i));
         }
 
-        withBatchLoggingEnabled(mockLog -> {
-            mockLog.addExpectation(
-                new MockLog.SeenEventExpectation(
-                    "keyword dimension falls back to the row path",
-                    ShardBatchMapper.class.getName(),
-                    Level.DEBUG,
-                    "columnar batch mapping disabled: mapper at [host] of type [keyword]*"
-                )
-            );
-
-            BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
-            assertNoFailures(bulkResponse);
-            assertThat(bulkResponse.getItems().length, equalTo(numDocs));
-        });
+        assertBulkTakesColumnarPath(coordinatingNode, bulkRequest, numDocs, "tsdb keyword dimension columnar batch indexed on primary");
 
         refresh(dataStreamName);
 

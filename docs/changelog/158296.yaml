@@ -1,7 +1,0 @@
-area: Search
-issues:
- - 157951
-pr: 158296
-summary: Update knn query automatic pre-filtering to handle exists queries on inference
-  fields
-type: bug

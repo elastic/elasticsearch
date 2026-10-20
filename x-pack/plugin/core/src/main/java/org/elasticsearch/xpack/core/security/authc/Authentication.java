@@ -133,9 +133,13 @@ public final class Authentication implements ToXContentObject {
         "security_cloud_service_account_and_limited_by_roles"
     );
 
+    public static final TransportVersion SECURITY_ENRICH_INTERNAL_USER = TransportVersion.fromName("security_enrich_internal_user");
+
     private final AuthenticationType type;
     private final Subject authenticatingSubject;
     private final Subject effectiveSubject;
+    // null = not yet computed; non-null (including empty map) = already computed
+    private volatile Map<String, Object> parsedApiKeyMetadata;
 
     private Authentication(Subject subject, AuthenticationType type) {
         this(subject, subject, type);
@@ -254,6 +258,26 @@ public final class Authentication implements ToXContentObject {
     }
 
     /**
+     * Returns the parsed API key metadata for this authentication, or an empty map if no metadata
+     * is present. The result is lazily computed and cached on first access. The assignment is a
+     * benign race: two threads may both parse on first access, but both produce equivalent maps
+     * and only visibility, not atomicity, is required.
+     */
+    public Map<String, Object> getApiKeyMetadata() {
+        if (false == this.isAuthenticatedAsApiKey()) {
+            return Map.of();
+        }
+        Map<String, Object> result = parsedApiKeyMetadata;
+        if (result != null) {
+            return result;
+        }
+        final BytesReference raw = (BytesReference) getEffectiveSubject().getMetadata().get(AuthenticationField.API_KEY_METADATA_KEY);
+        result = raw == null ? Map.of() : XContentHelper.convertToMap(raw, false, XContentType.JSON).v2();
+        parsedApiKeyMetadata = result;
+        return result;
+    }
+
+    /**
      * Whether the authentication contains a subject run-as another subject. That is, the authentication subject
      * is different from the effective subject.
      */
@@ -325,6 +349,12 @@ public final class Authentication implements ToXContentObject {
                     + olderVersion.toReleaseVersion()
                     + "]"
             );
+        }
+
+        // _enrich internal user is unknown to older nodes; downgrade to _xpack so they can decode it
+        if (InternalUsers.ENRICH_USER.equals(getEffectiveSubject().getUser())
+            && olderVersion.supports(SECURITY_ENRICH_INTERNAL_USER) == false) {
+            return newInternalAuthentication(InternalUsers.XPACK_USER, olderVersion, getEffectiveSubject().getRealm().getNodeName());
         }
 
         final Map<String, Object> newMetadata = maybeRewriteMetadata(olderVersion, this);
@@ -470,7 +500,9 @@ public final class Authentication implements ToXContentObject {
      */
     public Authentication token() {
         assert false == isAuthenticatedInternally();
-        assert false == isServiceAccount();
+        // Built-in service accounts must not derive OAuth2 tokens, but user-managed service accounts may, through the
+        // privileged [_user_managed_service_account] grant of the create token API.
+        assert false == isServiceAccount() || isUserManagedServiceAccount();
         assert false == isCrossClusterAccess();
         final Authentication newTokenAuthentication = new Authentication(effectiveSubject, authenticatingSubject, AuthenticationType.TOKEN);
         return newTokenAuthentication;

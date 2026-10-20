@@ -12,10 +12,16 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
+import org.apache.lucene.store.MergeInfo;
 import org.apache.lucene.store.NIOFSDirectory;
+import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.store.NoLockFactory;
 import org.apache.lucene.store.SleepingLockWrapper;
+import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
+import org.apache.lucene.tests.mockfile.FilterPath;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -23,21 +29,40 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.codec.vectors.DirectIOContext;
+import org.elasticsearch.index.codec.vectors.es818.DirectIOHint;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.nio.channels.FileChannel;
+import java.nio.file.AccessDeniedException;
+import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.FileSystemException;
 import java.nio.file.Files;
+import java.nio.file.OpenOption;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileAttribute;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiPredicate;
+import java.util.zip.CRC32;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.not;
 
 public class FsDirectoryFactoryTests extends ESTestCase {
 
@@ -180,6 +205,309 @@ public class FsDirectoryFactoryTests extends ESTestCase {
                     break;
                 default:
                     fail();
+            }
+        }
+    }
+
+    /** A merge-context write of raw vectors with the direct I/O hint, as the codec issues it. */
+    private static IOContext directIOMergeContext() {
+        return DirectIOContext.mergeWrite(
+            IOContext.merge(new MergeInfo(randomIntBetween(1, 1000), randomLongBetween(1, 1 << 20), false, -1))
+        );
+    }
+
+    /**
+     * Whether merge-hinted creates through the given directory come out as direct I/O outputs: they
+     * do exactly when the directory has its merge delegate and the filesystem accepts direct I/O
+     * writes. The probe is a raw vector file: only those reach the merge delegate. Decides which of the two
+     * paths through {@code HybridDirectory#createOutput} a test exercises: the direct one where
+     * supported, the fallback to a buffered output where not.
+     * Neither outcome is skipped: both paths have to work.
+     */
+    private static boolean mergeCreatesAreDirect(FsDirectoryFactory.HybridDirectory dir) throws IOException {
+        boolean direct;
+        try (IndexOutput probe = dir.createOutput("_sample.vec", directIOMergeContext())) {
+            probe.writeInt(42);
+            // DirectIOIndexOutput is package-private in Lucene, so the class name in toString() is the only handle.
+            // If a Lucene upgrade renames it, this probe silently turns false and the direct-only assertions that
+            // depend on it are skipped rather than failed: check here first when they stop running
+            direct = probe.toString().contains("DirectIOIndexOutput");
+        }
+        dir.deleteFile("_sample.vec");
+        return direct;
+    }
+
+    public void testOnlyRawVectorFilesGoToTheMergeDelegate() {
+        for (String name : new String[] { "_0.vec", "_0_ES93HnswVectorsFormat_0.vec" }) {
+            assertTrue(name, FsDirectoryFactory.HybridDirectory.isRawVectorFile(name));
+        }
+        // a .vec.tmp is a temp file, not raw vector data: HybridDirectory#getExtension reports "tmp"
+        for (String name : new String[] { "_0.vemf", "_0.veq", "_0.veb", "_0.vex", "_0.mivf", "_0_x.vec.tmp", "_0" }) {
+            assertFalse(name, FsDirectoryFactory.HybridDirectory.isRawVectorFile(name));
+        }
+    }
+
+    public void testHybridDirectoryDirectIOWriteRoundTrip() throws IOException {
+        Path path = createTempDir("directIOWriteRoundTrip");
+        try (
+            // a prefetch limit, so that the rescore delegate's inputs differ in class from the merge delegate's
+            FsDirectoryFactory.HybridDirectory dir = new FsDirectoryFactory.HybridDirectory(
+                NativeFSLockFactory.INSTANCE,
+                new MMapDirectory(path),
+                64
+            )
+        ) {
+            boolean direct = mergeCreatesAreDirect(dir);
+
+            // these assertions only mean something where the raw vector file itself does go direct
+            if (direct) {
+                try (IndexOutput meta = dir.createOutput("_0.vemf", directIOMergeContext())) {
+                    assertThat(
+                        "only raw vector files take the merge delegate",
+                        meta,
+                        hasToString(not(containsString("DirectIOIndexOutput")))
+                    );
+                    meta.writeInt(7);
+                }
+                try (IndexOutput ctrl = dir.createOutput("_0_ctrl.vec", directIOMergeContext())) {
+                    ctrl.writeInt(7);
+                }
+                try (IndexInput meta = dir.openInput("_0.vemf", directIOMergeContext())) {
+                    assertThat(
+                        "only raw vector files take the merge delegate on open too",
+                        meta,
+                        hasToString(not(containsString("DirectIOIndexInput")))
+                    );
+                    assertEquals(7, meta.readInt());
+                }
+                try (IndexInput ctrl = dir.openInput("_0_ctrl.vec", directIOMergeContext())) {
+                    assertEquals(
+                        "a merge-hinted raw vector open takes the merge delegate, not the prefetching rescore one",
+                        "DirectIOIndexInput",
+                        ctrl.getClass().getSimpleName()
+                    );
+                    assertEquals(7, ctrl.readInt());
+                }
+            }
+            try (IndexOutput plain = dir.createOutput("_0_plain.vec", IOContext.merge(new MergeInfo(10, 1024, false, -1)))) {
+                assertThat(plain, hasToString(not(containsString("DirectIOIndexOutput"))));
+            }
+            try (IndexOutput plain = dir.createOutput("_0_flush.vec", IOContext.DEFAULT.withHints(DirectIOHint.INSTANCE))) {
+                assertThat(plain, hasToString(not(containsString("DirectIOIndexOutput"))));
+            }
+
+            // deliberately not a multiple of any block or buffer size, to exercise the unaligned
+            // final block (written as a full aligned buffer and then truncated on close)
+            byte[] data = new byte[randomIntBetween(1, 4) * 256 * 1024 + (randomBoolean() ? 0 : randomIntBetween(1, 4095))];
+            random().nextBytes(data);
+
+            long checksum;
+            Matcher<String> directOutput = containsString("DirectIOIndexOutput");
+            try (IndexOutput out = dir.createOutput("_0_direct.vec", directIOMergeContext())) {
+                assertThat(
+                    "a merge-hinted create must take the same path as every other on this directory",
+                    out,
+                    hasToString(direct ? directOutput : not(directOutput))
+                );
+                out.writeBytes(data, data.length);
+                assertEquals(data.length, out.getFilePointer());
+                checksum = out.getChecksum();
+            }
+
+            // logical length must be the truncated length, not the last aligned write
+            assertEquals(data.length, dir.fileLength("_0_direct.vec"));
+
+            try (IndexInput in = dir.openInput("_0_direct.vec", IOContext.DEFAULT)) {
+                assertEquals(data.length, in.length());
+                byte[] read = new byte[data.length];
+                in.readBytes(read, 0, read.length);
+                assertArrayEquals(data, read);
+            }
+
+            CRC32 crc = new CRC32();
+            crc.update(data);
+            assertEquals("checksum must cover logical bytes only", crc.getValue(), checksum);
+        }
+    }
+
+    public void testHybridDirectoryDirectIOWriteExistingFile() throws IOException {
+        Path path = createTempDir("directIOWriteExisting");
+        try (
+            FsDirectoryFactory.HybridDirectory dir = new FsDirectoryFactory.HybridDirectory(
+                NativeFSLockFactory.INSTANCE,
+                new MMapDirectory(path),
+                0
+            )
+        ) {
+            byte[] existing = new byte[randomIntBetween(1, 512)];
+            random().nextBytes(existing);
+            try (IndexOutput out = dir.createOutput("_0.vec", IOContext.DEFAULT)) {
+                out.writeBytes(existing, existing.length);
+            }
+
+            // the rejection may come from the direct create or, when the probe fails, from the buffered path
+            expectThrows(FileAlreadyExistsException.class, () -> dir.createOutput("_0.vec", directIOMergeContext()));
+
+            try (IndexInput in = dir.openInput("_0.vec", IOContext.DEFAULT)) {
+                assertEquals(existing.length, in.length());
+                byte[] read = new byte[existing.length];
+                in.readBytes(read, 0, read.length);
+                assertArrayEquals(existing, read);
+            }
+        }
+    }
+
+    /**
+     * A failed direct open can leave the file behind: the JDK creates it and only then sets up direct I/O on the
+     * descriptor, so the directory probes with a file of its own before it creates a merge file.
+     */
+    public void testHybridDirectoryDirectIOWriteFallsBackWhenTheProbeFails() throws IOException {
+        assumeTrue("needs the direct open option to intercept", AsyncDirectIOIndexInput.ExtendedOpenOption_DIRECT != null);
+        Path path = createTempDir("directIOWriteFallback");
+        List<String> directAttempts = new CopyOnWriteArrayList<>();
+        // the JDK reports a failed descriptor setup as UnsupportedOperationException; a file system that rejects
+        // O_DIRECT fails the open with a FileSystemException: both leave the created file behind
+        boolean rejectedByTheFileSystem = randomBoolean();
+        FilterFileSystemProvider failing = new FilterFileSystemProvider("faildirect://", path.getFileSystem()) {
+            @Override
+            public FileChannel newFileChannel(Path p, Set<? extends OpenOption> options, FileAttribute<?>... attrs) throws IOException {
+                if (options.contains(AsyncDirectIOIndexInput.ExtendedOpenOption_DIRECT)) {
+                    directAttempts.add(p.getFileName().toString());
+                    // what FileChannelImpl does: the open, and with it the create, succeed; the direct setup fails after
+                    Set<OpenOption> plain = new HashSet<>(options);
+                    plain.remove(AsyncDirectIOIndexInput.ExtendedOpenOption_DIRECT);
+                    super.newFileChannel(p, plain, attrs).close();
+                    if (rejectedByTheFileSystem) {
+                        throw new FileSystemException(p.toString(), null, "Invalid argument");
+                    }
+                    throw new UnsupportedOperationException("Error setting up DirectIO");
+                }
+                return super.newFileChannel(p, options, attrs);
+            }
+        };
+        Path root = failing.wrapPath(path);
+        try (
+            FsDirectoryFactory.HybridDirectory dir = new FsDirectoryFactory.HybridDirectory(
+                NativeFSLockFactory.INSTANCE,
+                new MMapDirectory(root),
+                0
+            )
+        ) {
+            try (IndexOutput out = dir.createOutput("_0.vec", directIOMergeContext())) {
+                assertThat(
+                    "the probe failed, so this must be the buffered path",
+                    out,
+                    hasToString(not(containsString("DirectIOIndexOutput")))
+                );
+                out.writeInt(3);
+            }
+            assertEquals("the probe is the one direct attempt", 1, directAttempts.size());
+            assertTrue("the probe file is removed", Arrays.stream(dir.listAll()).noneMatch(f -> f.startsWith("_directio_probe_")));
+            assertEquals(4, dir.fileLength("_0.vec"));
+            try (IndexInput in = dir.openInput("_0.vec", IOContext.DEFAULT)) {
+                assertEquals(3, in.readInt());
+            }
+
+            // a create over the existing name still fails, and the probe is repeated
+            expectThrows(FileAlreadyExistsException.class, () -> dir.createOutput("_0.vec", directIOMergeContext()));
+            assertEquals("the probe is repeated", 2, directAttempts.size());
+            assertTrue(
+                "the merge file is never opened directly: " + directAttempts,
+                directAttempts.stream().allMatch(f -> f.startsWith("_directio_probe_"))
+            );
+        }
+    }
+
+    /** One successful probe settles direct I/O support for the directory. */
+    public void testHybridDirectoryDirectIOWriteProbesOnce() throws IOException {
+        assumeTrue("needs the direct open option to intercept", AsyncDirectIOIndexInput.ExtendedOpenOption_DIRECT != null);
+        Path path = createTempDir("directIOWriteProbe");
+        AtomicInteger directOpens = new AtomicInteger();
+        // counts the direct opens and strips the option, so that a direct create "works" on any file system
+        FilterFileSystemProvider counting = new FilterFileSystemProvider("countdirect://", path.getFileSystem()) {
+            @Override
+            public FileChannel newFileChannel(Path p, Set<? extends OpenOption> options, FileAttribute<?>... attrs) throws IOException {
+                if (options.contains(AsyncDirectIOIndexInput.ExtendedOpenOption_DIRECT)) {
+                    directOpens.incrementAndGet();
+                    Set<OpenOption> plain = new HashSet<>(options);
+                    plain.remove(AsyncDirectIOIndexInput.ExtendedOpenOption_DIRECT);
+                    return super.newFileChannel(p, plain, attrs);
+                }
+                return super.newFileChannel(p, options, attrs);
+            }
+        };
+        Path root = counting.wrapPath(path);
+        try (
+            FsDirectoryFactory.HybridDirectory dir = new FsDirectoryFactory.HybridDirectory(
+                NativeFSLockFactory.INSTANCE,
+                new MMapDirectory(root),
+                0
+            )
+        ) {
+            try (IndexOutput out = dir.createOutput("_0.vec", directIOMergeContext())) {
+                out.writeInt(1);
+            }
+            assertEquals("the probe and then the file", 2, directOpens.get());
+            assertTrue("the probe file is removed", Arrays.stream(dir.listAll()).noneMatch(f -> f.startsWith("_directio_probe_")));
+            try (IndexOutput out = dir.createOutput("_1.vec", directIOMergeContext())) {
+                out.writeInt(2);
+            }
+            assertEquals("the answer is settled: only the file", 3, directOpens.get());
+        }
+    }
+
+    /**
+     * A name whose delete keeps failing stays in FSDirectory's pending-delete set, even once its file is
+     * gone. FSDirectory#createOutput takes the name off that set before creating, so a later retry of the
+     * pending deletes cannot remove the live file; a direct create that skipped that bookkeeping would
+     * leave the live merged file pending, and the next retry would delete it.
+     */
+    public void testHybridDirectoryDirectIOWritePendingDelete() throws IOException {
+        Path path = createTempDir("directIOWritePendingDelete");
+        // refuses to delete the file under test while the flag is set, whether or not it still exists:
+        // the shape of a delete that keeps failing
+        AtomicBoolean refuseDelete = new AtomicBoolean();
+        FilterFileSystemProvider refusing = new FilterFileSystemProvider("refusedelete://", path.getFileSystem()) {
+            @Override
+            public void delete(Path p) throws IOException {
+                if (refuseDelete.get() && p.getFileName().toString().equals("_0.vec")) {
+                    throw new AccessDeniedException(p.toString());
+                }
+                super.delete(p);
+            }
+        };
+        Path root = refusing.wrapPath(path);
+        try (
+            FsDirectoryFactory.HybridDirectory dir = new FsDirectoryFactory.HybridDirectory(
+                NativeFSLockFactory.INSTANCE,
+                new MMapDirectory(root),
+                0
+            )
+        ) {
+            try (IndexOutput out = dir.createOutput("_0.vec", directIOMergeContext())) {
+                out.writeInt(1);
+            }
+            refuseDelete.set(true);
+            dir.deleteFile("_0.vec");
+            assertTrue("a refused delete must be pending", dir.getPendingDeletions().contains("_0.vec"));
+
+            // the stale file goes away past every filesystem wrapper while its name stays pending
+            Path real = path;
+            while (real instanceof FilterPath filtered) {
+                real = filtered.unwrap();
+            }
+            Files.delete(real.resolve("_0.vec"));
+            try (IndexOutput out = dir.createOutput("_0.vec", directIOMergeContext())) {
+                out.writeInt(2);
+            }
+            assertFalse("a live file must not stay pending delete", dir.getPendingDeletions().contains("_0.vec"));
+
+            // once deletes work again, a retry of the pending deletes has nothing left to remove
+            refuseDelete.set(false);
+            assertTrue(dir.getPendingDeletions().isEmpty());
+            assertEquals(4, dir.fileLength("_0.vec"));
+            try (IndexInput in = dir.openInput("_0.vec", IOContext.DEFAULT)) {
+                assertEquals(2, in.readInt());
             }
         }
     }

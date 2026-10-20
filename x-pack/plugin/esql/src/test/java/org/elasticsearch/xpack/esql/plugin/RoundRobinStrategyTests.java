@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
@@ -134,6 +135,21 @@ public class RoundRobinStrategyTests extends ESTestCase {
         assertTrue(plan.distributed());
         assertEquals(Set.of("search-1"), plan.nodeAssignments().keySet());
         assertEquals(5, plan.nodeAssignments().get("search-1").size());
+    }
+
+    public void testPlanDistributionRotatesFirstSplitBySiblingIndex() {
+        List<ExternalSplit> splits = createSplits(1);
+        DiscoveryNodes nodes = createNodes(4);
+        SiblingPlacement placement = new SiblingPlacement(2, 4, true);
+        ExternalDistributionContext context = new ExternalDistributionContext(createPlan(), splits, nodes, QueryPragmas.EMPTY, placement);
+
+        ExternalDistributionPlan plan = strategy.planDistribution(context);
+
+        List<DiscoveryNode> eligible = NodeEligibilityStrategy.EXTERNAL_WORKER_NODES.eligibleNodes(nodes);
+        int stride = placement.stride(splits.size(), eligible.size());
+        assertTrue(plan.distributed());
+        assertEquals(List.of(splits.getFirst()), plan.nodeAssignments().get(eligible.get(stride).getId()));
+        assertTrue(plan.nodeAssignments().get(eligible.get(0).getId()).isEmpty());
     }
 
     public void testIndexOnlyClusterReturnsLocal() {

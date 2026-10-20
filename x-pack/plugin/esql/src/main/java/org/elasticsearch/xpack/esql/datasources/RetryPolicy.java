@@ -245,6 +245,11 @@ class RetryPolicy {
         return maxTotalDurationMs;
     }
 
+    /** Monotonic clock used by duration-budget checks. Production is {@code System::nanoTime}. */
+    long nanoTime() {
+        return clockNanos.getAsLong();
+    }
+
     /** Whether a fault warrants a retry, and the backoff to wait first. */
     record RetryDecision(boolean retry, long delayMillis) {
         static final RetryDecision GIVE_UP = new RetryDecision(false, 0L);

@@ -25,6 +25,9 @@ public interface BlockBytesCodec {
     /** Identity codec id: the block bytes are stored verbatim. */
     byte IDENTITY_ID = 0;
 
+    /** Zstd codec id: the packed block bytes are compressed before they are stored. */
+    byte ZSTD_ID = 1;
+
     /** Frozen identifier persisted in column metadata. Never reuse or repurpose an id. */
     byte id();
 
@@ -37,6 +40,9 @@ public interface BlockBytesCodec {
     /**
      * Returns a {@link DataInput} over one block's bytes, given {@code in} positioned at the block's
      * first byte and the block region's byte {@code length}.
+     *
+     * <p>The input is only good until the next block is read through the same codec, which may hand back
+     * storage it reuses. A caller keeping the bytes past that has to copy them.
      */
     DataInput read(IndexInput in, int length) throws IOException;
 
@@ -46,10 +52,17 @@ public interface BlockBytesCodec {
         void encode(DataOutput out) throws IOException;
     }
 
-    /** Resolves a codec from its persisted id. */
+    /**
+     * Resolves a codec from its persisted id. A codec that holds scratch is handed out new each time, so a
+     * reader and a writer never share one; a stateless codec is shared.
+     */
     static BlockBytesCodec forId(byte id) {
         if (id == IDENTITY_ID) {
             return IdentityBlockBytesCodec.INSTANCE;
+        }
+        if (id == ZSTD_ID) {
+            // Holds scratch, so every caller takes its own rather than sharing one.
+            return new ZstdBlockBytesCodec();
         }
         throw new IllegalArgumentException("Unknown block-bytes codec id: " + id);
     }

@@ -280,10 +280,12 @@ public class DatasetConfigResolverTests extends ESTestCase {
         assertFalse(isWithin("wasbs://secrets@acct.blob.core.windows.net/data/x.parquet", azure));
         assertFalse(isWithin("wasbs://acct.blob.core.windows.net/data/x.parquet", azure));
 
-        // A parent segment steps out of a directory while still starting with it.
+        // A parent segment steps out of a directory while still starting with it. Against a glob the matcher already
+        // refuses it, since `*` cannot cross `/`; against a directory resource only the parent-segment guard does.
         StoragePath local = StoragePath.of("file:///srv/data/*.csv");
         assertTrue(isWithin("file:///srv/data/a.csv", local));
         assertFalse(isWithin("file:///srv/data/../private/a.csv", local));
+        assertFalse(isWithin("file:///srv/data/../private/a.csv", StoragePath.of("file:///srv/data/")));
 
         // A single object admits only itself; a directory admits everything under it.
         assertTrue(isWithin("s3://bucket/data/file.parquet", StoragePath.of("s3://bucket/data/file.parquet")));

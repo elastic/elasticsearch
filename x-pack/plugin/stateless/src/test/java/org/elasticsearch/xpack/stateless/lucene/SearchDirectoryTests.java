@@ -837,10 +837,7 @@ public class SearchDirectoryTests extends ESTestCase {
             final var locationWithoutTs = createBlobLocation(1L, 2L, 0L, regionSize.getBytes());
             final var withTimestamp = new BlobFileRanges(locationWithTs, range);
             final var withoutTimestamp = new BlobFileRanges(locationWithoutTs, null);
-            searchDirectory.updateMetadata(
-                Map.of("file-with-ts", withTimestamp, "file-without-ts", withoutTimestamp),
-                2 * regionSize.getBytes()
-            );
+            searchDirectory.mergeMetadata(Map.of("file-with-ts", withTimestamp, "file-without-ts", withoutTimestamp), false);
             // Mark the latest BCC as uploaded so the cache reader routes both files through the object store path
             searchDirectory.updateLatestUploadedBcc(new PrimaryTermAndGeneration(1L, 2L));
 
@@ -873,8 +870,9 @@ public class SearchDirectoryTests extends ESTestCase {
             final var metadataBlobName = BccBlobFile.blobNameFromGeneration(3L);
             final var metadataTermAndGen = new PrimaryTermAndGeneration(1L, 3L);
             searchDirectory.updateLatestUploadedBcc(metadataTermAndGen);
-            var metadataReadDirectory = searchDirectory.createMetadataReadDirectory(true);
-            metadataReadDirectory.updateMetadata(
+            var metadataReadDirectory = searchDirectory.createNewInstance(
+                searchDirectory.blobContainer.get(),
+                true,
                 Map.of(
                     metadataBlobName,
                     new BlobFileRanges(new BlobLocation(new BccBlobFile(metadataBlobName, metadataTermAndGen), 0L, regionSize.getBytes()))

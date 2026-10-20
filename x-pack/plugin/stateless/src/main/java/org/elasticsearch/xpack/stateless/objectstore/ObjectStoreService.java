@@ -1024,8 +1024,10 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 blobTermAndGen
             )
         );
-        var dir = directory.createPerBccMetadataReadDirectory();
-        dir.updateMetadata(Map.of(bcc.blobName(), new BlobFileRanges(new BlobLocation(bcc, 0L, maxBlobLength))), maxBlobLength);
+        var dir = directory.createPerBccMetadataReadDirectory(
+            Map.of(bcc.blobName(), new BlobFileRanges(new BlobLocation(bcc, 0L, maxBlobLength))),
+            maxBlobLength
+        );
 
         return (ignored, offset, length) -> {
             assert offset + length <= maxBlobLength : offset + " + " + length + " > " + maxBlobLength;

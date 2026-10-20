@@ -73,15 +73,21 @@ plugins {
 
     filter("tokens": TokenExpansions.forProject(project, type, false), ReplaceTokens.class)
 
-    doLast {
-      // create empty dirs, we set the permissions when configuring the packages
-      mkdir "${packagingFiles}/var/log/elasticsearch"
-      mkdir "${packagingFiles}/var/lib/elasticsearch"
-      mkdir "${packagingFiles}/usr/share/elasticsearch/plugins"
-
+    // create empty dirs, we set the permissions when configuring the packages. The task's own destination directory is
+    // used rather than the script's mkdir() so that the action does not reference the build script at execution time,
+    // which the configuration cache does not support.
+    List<String> emptyDirectories = [
+      'var/log/elasticsearch',
+      'var/lib/elasticsearch',
+      'usr/share/elasticsearch/plugins',
       // bare empty dir for /etc/elasticsearch and /etc/elasticsearch/jvm.options.d
-      mkdir "${packagingFiles}/elasticsearch"
-      mkdir "${packagingFiles}/elasticsearch/jvm.options.d"
+      'elasticsearch',
+      'elasticsearch/jvm.options.d'
+    ]
+    doLast { Copy copyTask ->
+      emptyDirectories.each { String directory ->
+        Files.createDirectories(copyTask.destinationDir.toPath().resolve(directory))
+      }
     }
   }
 }
@@ -211,7 +217,7 @@ def commonPackageConfig(String type, String architecture) {
       createDirectoryEntry true
       fileType CONFIG | NOREPLACE
     }
-    String envFile = TokenExpansions.forProject(project, type, false)['path.env']
+    String envFile = metadata.type().envFile()
     configurationFile envFile
     into(new File(envFile).getParent()) {
       fileType CONFIG | NOREPLACE

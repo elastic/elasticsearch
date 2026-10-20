@@ -16,6 +16,7 @@ import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -94,8 +95,10 @@ public class CoordinatorHeapPressureIT extends SearchHeapPressureTestCase {
 
     /** Multi-search reports a failed search in its response rather than failing the request. */
     private void assertMultiSearchSucceeds(Request multiSearch) throws IOException {
-        Map<String, Object> body = entityAsMap(client().performRequest(multiSearch));
-        assertFalse("expected every search to succeed, but got: " + body, body.toString().contains("error"));
+        List<?> responses = (List<?>) entityAsMap(client().performRequest(multiSearch)).get("responses");
+        for (Object response : responses) {
+            assertEquals("expected every search to succeed, but got: " + response, 200, ((Map<?, ?>) response).get("status"));
+        }
         assertNodeAlive();
     }
 

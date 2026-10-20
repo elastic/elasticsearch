@@ -73,7 +73,10 @@ public abstract class SearchHeapPressureTestCase extends HeapPressureTestCase {
         return heapConstrainedCluster().nodes(1).jvmArg("-Xms" + heapSize).jvmArg("-Xmx" + heapSize);
     }
 
-    /** Fixtures are expensive to index, so every case of the class shares them. */
+    /**
+     * Fixtures are expensive to index, so the first case indexes them ({@link #indexDocuments} skips an existing index) and the rest
+     * reuse them. No other class sees them, since each class has its own cluster.
+     */
     @Override
     protected boolean preserveIndicesUponCompletion() {
         return true;

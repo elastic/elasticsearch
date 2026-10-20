@@ -51,6 +51,8 @@ public abstract class HeapPressureTestCase extends ESRestTestCase {
     @After
     public void unblockPausableField() throws IOException {
         if (pauseFieldBlocked) {
+            // Cleared first so that the flag never outlives this test, even if the request fails.
+            pauseFieldBlocked = false;
             unblockPauseField();
         }
     }

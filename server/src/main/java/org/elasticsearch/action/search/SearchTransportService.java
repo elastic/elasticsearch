@@ -788,6 +788,11 @@ public class SearchTransportService {
             // coordinator and data node have different feature flag states or versions.
             if (fetchPhaseChunkedEnabled && versionSupported && coordinatorSupportsChunkedFetch) {
                 ShardFetchSearchRequest fetchSearchReq = (ShardFetchSearchRequest) request;
+                final CircuitBreaker chunkBreaker = chunkPagesBreaker(
+                    transportService.getLocalNode(),
+                    fetchSearchReq.getCoordinatingNode(),
+                    searchService.getCircuitBreaker()
+                );
 
                 // Capture the current ThreadContext to preserve authentication headers
                 final Supplier<ThreadContext.StoredContext> contextSupplier = transportService.getThreadPool()
@@ -830,7 +835,7 @@ public class SearchTransportService {
 
                     @Override
                     public RecyclerBytesStreamOutput newNetworkBytesStream() {
-                        return transportService.newNetworkBytesStream(searchService.getCircuitBreaker());
+                        return transportService.newNetworkBytesStream(chunkBreaker);
                     }
                 };
             }
@@ -910,6 +915,17 @@ public class SearchTransportService {
             result.setLastChunkSequenceStart(0);
             result.setLastChunkBytes(out.bytes(), hits.length);
         }
+    }
+
+    /**
+     * The breaker for the pages of fetch chunks written for {@code coordinatingNode}. A coordinator on this node reads the hits as slices
+     * of these pages and charges the hits itself, so charging the pages too would count them twice. The pages go uncharged until the
+     * coordinator takes the hits, at most {@link SearchService#FETCH_PHASE_MAX_IN_FLIGHT_CHUNKS} chunks plus the last one per shard, and
+     * after that are charged only as the estimated size of the hits.
+     */
+    // package-private for testing
+    static CircuitBreaker chunkPagesBreaker(DiscoveryNode localNode, DiscoveryNode coordinatingNode, CircuitBreaker breaker) {
+        return localNode.equals(coordinatingNode) ? null : breaker;
     }
 
     // package-private for testing

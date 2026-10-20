@@ -9,6 +9,10 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -22,6 +26,8 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class SearchTransportServiceTests extends ESTestCase {
 
@@ -45,6 +51,17 @@ public class SearchTransportServiceTests extends ESTestCase {
 
     private static Settings settings(int processors) {
         return Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), processors).build();
+    }
+
+    /** Chunk pages are charged here only for a coordinator on another node, since a local one charges the hits it reads from them. */
+    public void testChunkPagesBreaker() {
+        CircuitBreaker breaker = new NoopCircuitBreaker(CircuitBreaker.REQUEST);
+        DiscoveryNode localNode = DiscoveryNodeUtils.create("local");
+        assertThat(
+            SearchTransportService.chunkPagesBreaker(localNode, DiscoveryNodeUtils.create("remote"), breaker),
+            sameInstance(breaker)
+        );
+        assertThat(SearchTransportService.chunkPagesBreaker(localNode, localNode, breaker), nullValue());
     }
 
     /**

@@ -52,6 +52,17 @@ public record PackageMetadata(Type type, Architecture architecture) {
         }
 
         /**
+         * The environment file sourced by the service before starting Elasticsearch, which the package installs as a
+         * configuration file.
+         */
+        public String envFile() {
+            return switch (this) {
+                case DEB -> "/etc/default/elasticsearch";
+                case RPM -> "/etc/sysconfig/elasticsearch";
+            };
+        }
+
+        /**
          * Parses the lower case name of a format, e.g. {@code deb}.
          */
         public static Type fromExtension(String extension) {
@@ -81,25 +92,33 @@ public record PackageMetadata(Type type, Architecture architecture) {
      * Parses the name of a package distribution project, e.g. {@code aarch64-deb} or {@code rpm}.
      */
     public static PackageMetadata fromProjectName(String projectName) {
-        String aarch64Prefix = Architecture.AARCH64.javaClassifier + "-";
-        if (projectName.startsWith(aarch64Prefix)) {
-            return new PackageMetadata(Type.fromExtension(projectName.substring(aarch64Prefix.length())), Architecture.AARCH64);
-        }
-        return new PackageMetadata(Type.fromExtension(projectName), Architecture.X64);
+        return Arrays.stream(Type.values())
+            .flatMap(type -> Arrays.stream(Architecture.values()).map(architecture -> new PackageMetadata(type, architecture)))
+            .filter(metadata -> metadata.projectName().equals(projectName))
+            .findFirst()
+            .orElseThrow(() -> new IllegalArgumentException("Unknown package project [" + projectName + "]"));
     }
 
     /**
      * The name of the project publishing this package, e.g. {@code aarch64-deb}.
      */
     public String projectName() {
-        return (architecture == Architecture.AARCH64 ? architecture.javaClassifier + "-" : "") + type.extension();
+        String architecturePrefix = switch (architecture) {
+            case X64 -> "";
+            case AARCH64 -> architecture.javaClassifier + "-";
+        };
+        return architecturePrefix + type.extension();
     }
 
     /**
      * The name of the task building this package, e.g. {@code buildAarch64Deb}.
      */
     public String buildTaskName() {
-        return "build" + (architecture == Architecture.AARCH64 ? "Aarch64" : "") + capitalize(type.extension());
+        String architectureName = switch (architecture) {
+            case X64 -> "";
+            case AARCH64 -> "Aarch64";
+        };
+        return "build" + architectureName + capitalize(type.extension());
     }
 
     /**
@@ -107,8 +126,14 @@ public record PackageMetadata(Type type, Architecture architecture) {
      */
     public String packageArchitecture() {
         return switch (type) {
-            case DEB -> architecture == Architecture.X64 ? "amd64" : "arm64";
-            case RPM -> architecture == Architecture.X64 ? "X86_64" : "aarch64";
+            case DEB -> switch (architecture) {
+                case X64 -> "amd64";
+                case AARCH64 -> "arm64";
+            };
+            case RPM -> switch (architecture) {
+                case X64 -> "X86_64";
+                case AARCH64 -> "aarch64";
+            };
         };
     }
 

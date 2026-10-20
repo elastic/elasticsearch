@@ -79,6 +79,11 @@ public final class SearchFeatures implements FeatureSpecification {
      */
     public static final NodeFeature PROFILE_COORDINATOR_REQUEST_METADATA = new NodeFeature("search.profile.coordinator_request_metadata");
     /**
+     * Test-only gate for REST tests that assert the per-shard {@code profile.shards.*.rescore} section; it depends on
+     * {@code TransportVersion} {@code rescore_profile}, so it is not serialized by nodes that do not have it.
+     */
+    public static final NodeFeature PROFILE_RESCORE = new NodeFeature("search.profile.rescore");
+    /**
      * Scroll requests whose scroll id encodes zero shard contexts (empty index pattern, all shards skipped by
      * can_match) now return an empty 200 response instead of a 503 {@code SearchPhaseExecutionException}.
      */
@@ -168,7 +173,8 @@ public final class SearchFeatures implements FeatureSpecification {
                 NESTED_EXTRACT_SOURCE_EMPTY_LIST_FIX,
                 COMPOSITE_AGG_DOC_VALUES_SKIPPER_FIX,
                 COLUMNAR_DEFAULT_FIELD_LENIENCY,
-                KNN_NESTED_ALIAS_FILTER_ROOT_SCOPE
+                KNN_NESTED_ALIAS_FILTER_ROOT_SCOPE,
+                PROFILE_RESCORE
             )
         );
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {

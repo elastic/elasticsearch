@@ -1305,12 +1305,9 @@ class NodeConstruction {
             featureService
         );
 
-        getSinglePlugin(
-            pluginsService.filterPlugins(RepositoryPlugin.class)
-                .map(RepositoryPlugin::getRestoreLifecycleListener)
-                .filter(Objects::nonNull),
-            RestoreLifecycleListener.class
-        ).ifPresent(restoreService::setLifecycleListener);
+        restoreService.setLifecycleListener(
+            pluginsService.loadSingletonServiceProvider(RestoreLifecycleListener.class, () -> RestoreLifecycleListener.NOOP)
+        );
 
         DiscoveryModule discoveryModule = createDiscoveryModule(
             settings,

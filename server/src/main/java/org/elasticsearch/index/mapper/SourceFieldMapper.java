@@ -21,6 +21,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesRefStreamOutput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ByteUtils;
@@ -54,7 +55,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -559,18 +559,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     }
 
     /**
-     * The buffer the batch path builds every blob of one batch in: {@link ByteArrayOutputStream} already grows and
-     * {@link ByteArrayOutputStream#reset() resets}, and the subclass exposes the written bytes in place, where
-     * {@link ByteArrayOutputStream#toByteArray()} would copy them. In-place exposure is safe because the consumer
-     * ({@link EscfColumnBuilder#setBinary}) copies the bytes before the next document overwrites them.
-     */
-    private static final class ReusableBlobBuffer extends ByteArrayOutputStream {
-        BytesRef bytesRef() {
-            return new BytesRef(buf, 0, count);
-        }
-    }
-
-    /**
      * Returns {@code true} for Lucene fields that exist only to support per-field synthetic-source reconstruction and are therefore
      * redundant once {@link #postParse}, or {@link #postColumnarParse} on the batch path, has materialized the whole-document source blob
      * into {@code _ignored_source}.
@@ -741,22 +729,23 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         try (blobs) {
             final MappedColumns.RowCursor rows = context.rowCursor(SourceFieldMapper::isReadByColumnarSourceWriter);
             // Every blob of the batch is built in this one buffer: the constant entry prefix is written first, the JSON streams in
-            // behind it, and the finished bytes are handed to the column builder, which copies them before the next document
-            // overwrites the buffer. This collapses the two intermediate copies that encoding the builder bytes
-            // (XContentDataHelper.encodeXContentBuilder) and wrapping them in the entry header (SingularIgnoredSourceEncoding.encode)
-            // would make per document, and reuses the buffer that XContentFactory.jsonBuilder() would allocate per document.
+            // behind it, and the finished bytes are exposed in place (BytesRefStreamOutput.get) and handed to the column builder,
+            // which copies them before the next document overwrites the buffer. This collapses the two intermediate copies that
+            // encoding the builder bytes (XContentDataHelper.encodeXContentBuilder) and wrapping them in the entry header
+            // (SingularIgnoredSourceEncoding.encode) would make per document, and reuses the buffer that
+            // XContentFactory.jsonBuilder() would allocate per document.
             final byte[] blobPrefix = columnarStoredBlobPrefix();
-            final ReusableBlobBuffer blobBuffer = new ReusableBlobBuffer();
+            final BytesRefStreamOutput blobBuffer = new BytesRefStreamOutput();
             for (int d = 0; d < docCount; d++) {
                 rows.advance();
                 // The cursor's field list is only valid until the next advance(), which is fine: the blob is built before then.
                 final LuceneDocument doc = new LuceneDocument(rows.fields());
                 blobBuffer.reset();
-                blobBuffer.write(blobPrefix, 0, blobPrefix.length);
+                blobBuffer.writeBytes(blobPrefix, 0, blobPrefix.length);
                 try (var builder = new XContentBuilder(XContentType.JSON.xContent(), blobBuffer)) {
                     columnarSourceWriter.write(context.mappingLookup(), List.of(doc), doc, builder);
                 }
-                blobs.setBinary(d, blobBuffer.bytesRef());
+                blobs.setBinary(d, blobBuffer.get());
             }
             // Same pruning as postParse: the blob subsumes the per-field fallback columns, and the leftover _ignored_source columns
             // would otherwise collide with the blob's.

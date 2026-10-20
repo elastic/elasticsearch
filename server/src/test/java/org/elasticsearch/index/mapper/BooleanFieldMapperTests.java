@@ -459,4 +459,10 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         String src = syntheticSource(mapper, b -> b.array("field", v1, v2, v3, v4));
         assertThat(src, containsString("\"field\":[" + v1 + "," + v2 + "," + v3 + "," + v4 + "]"));
     }
+
+    @Override
+    protected boolean supportsIndexSortRangeTest() {
+        // NOTE: The test needs three distinct ordered values and a boolean has two.
+        return false;
+    }
 }

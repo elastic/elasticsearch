@@ -564,6 +564,26 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         }
     }
 
+    public void testUnifiedCompletionInference_WithTemplate() throws Exception {
+        String modelId = "streaming-template";
+        putModel(modelId, mockCompletionServiceModelConfig(TaskType.CHAT_COMPLETION, "streaming_completion_test_service"));
+
+        try {
+            var events = unifiedCompletionTemplateInferOnMockService(modelId, ".attack-discovery", 3, Map.of("time_range", "24h"));
+            var expectedResponses = Stream.concat(
+                Stream.of(expectedResult("template [.attack-discovery] version [3] variables [{time_range=24h}]")),
+                Stream.of("[DONE]")
+            ).iterator();
+            assertThat(events.size(), equalTo(2));
+            events.forEach(event -> {
+                assertThat(event.type(), equalToIgnoringCase("message"));
+                assertThat(event.data(), equalTo(expectedResponses.next()));
+            });
+        } finally {
+            deleteModel(modelId);
+        }
+    }
+
     public void testEmbeddingInference() throws IOException {
         String modelId = "embedding_model";
         int dimensions = 128;

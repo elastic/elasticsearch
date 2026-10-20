@@ -13,6 +13,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.xpack.prometheus.proto.RemoteWrite;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -157,6 +158,28 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         ObjectPath responsePath = executeInstantQuery("test_gauge_iq{job=\"test_job\"}", "2026-01-01T00:08:00Z", null);
         assertThat(responsePath.evaluate("data.result"), hasSize(1));
         assertThat(responsePath.evaluate("data.result.0.value"), equalTo(List.of(1767226080.0 /*=2026-01-01T00:08:00Z*/, "40.0")));
+    }
+
+    public void testInstantQueryChangesCountsValueTransitions() throws Exception {
+        assumePromqlChangesSupported();
+
+        String metric = "test_gauge_changes_iq";
+        RemoteWrite.TimeSeries series = RemoteWrite.TimeSeries.newBuilder()
+            .addLabels(label("__name__", metric))
+            .addLabels(label("job", "test_job"))
+            .addLabels(label("instance", "localhost:9090"))
+            .addSamples(sample(0.0, 1767225600000L))
+            .addSamples(sample(0.0, 1767225660000L))
+            .addSamples(sample(1.0, 1767225720000L))
+            .addSamples(sample(1.0, 1767225780000L))
+            .addSamples(sample(2.0, 1767225840000L))
+            .build();
+        ingestTestData(RemoteWrite.WriteRequest.newBuilder().addTimeseries(series).build());
+
+        assertThat(
+            PromqlResponseSeries.ofInstant(executeInstantQuery("changes(" + metric + "[5m])", "2026-01-01T00:04:00Z", null)),
+            contains(new PromqlResponseSeries(Map.of("job", "test_job", "instance", "localhost:9090"), 2.0))
+        );
     }
 
     /**
@@ -671,6 +694,22 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertBinopInstantValues("count without (host) (sum by (host) (tx) / sum by (host) (rx))", 3);
     }
 
+    /**
+     * Prometheus reads {@code {__name__="tx",host="a"}} the same as {@code tx{host="a"}}: the position of the {@code __name__}
+     * matcher among the label matchers does not change which labels the other matchers filter on.
+     */
+    public void testInstantNameMatcherPositionDoesNotChangeTheResult() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        for (String query : List.of(
+            "tx{host=\"a\"}",
+            "{host=\"a\",__name__=\"tx\"}",
+            "{__name__=\"tx\",host=\"a\"}",
+            "{\"tx\",host=\"a\"}"
+        )) {
+            assertBinopInstantValues(query, 10);
+        }
+    }
+
     /** Prometheus converts k with an integer cast: {@code topk(1.5, tx)} keeps one series and {@code topk(0.5, tx)} none. */
     public void testInstantFractionalKIsTruncated() throws Exception {
         ingestTestDataUsingRemoteWrite(QUERY_TIME);
@@ -678,5 +717,28 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertBinopInstantValues("bottomk(1.5, tx)", 10);
         assertBinopInstantValues("topk(2.9, tx)", 30, 12);
         assertBinopInstantValues("topk(0.5, tx)");
+    }
+
+    /**
+     * A count over no element is no element, not 0: {@code count by (cluster) (rx{host="a"})} has no {@code qa} group, so the
+     * operator has no {@code qa} pair; two counts over nothing pair nothing.
+     */
+    public void testInstantCountOverNothingIsNoElement() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantGroups("count by (cluster) (tx) - count by (cluster) (rx{host=\"a\"})", "cluster", Map.of("prod", 1.0));
+        assertBinopInstantValues("count(tx{host=~\"nope\"}) - count(rx{host=~\"nope\"})");
+        assertBinopInstantValues("count by (cluster) (tx{cluster=~\"nope\"}) - count by (cluster) (rx{cluster=~\"nope\"})");
+        assertBinopInstantValues("count_over_time(tx{host=~\"nope\"}[5m]) - count_over_time(tx{cluster=~\"nope\"}[5m])");
+    }
+
+    /**
+     * A series without a partner leaves the operator's result before an enclosing aggregate sees it: host c has no
+     * {@code rx{host!="c"}} partner, so {@code count by (cluster)} has no {@code qa} group rather than a count of 0.
+     */
+    public void testInstantUnmatchedPairsNeverReachTheEnclosingCount() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        String pairs = "sum by (host, cluster) (tx) / sum by (host, cluster) (rx{host!=\"c\"})";
+        assertBinopInstantGroups("count by (cluster) (" + pairs + ")", "cluster", Map.of("prod", 2.0));
+        assertBinopInstantValues("count(sum by (host) (tx) / sum by (host) (rx{host=~\"nope\"}))");
     }
 }

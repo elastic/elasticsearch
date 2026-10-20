@@ -97,6 +97,14 @@ public final class HttpStorageProvider implements StorageProvider {
     }
 
     @Override
+    public StorageObject newObject(StoragePath path, long length, Instant lastModified, String version) {
+        validateHttpScheme(path);
+        HttpStorageObject object = new HttpStorageObject(storageIdentity, httpClient, path, config, length, lastModified, idleScheduler);
+        object.seedVersion(version);
+        return object;
+    }
+
+    @Override
     public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
         throw new UnsupportedOperationException("HTTP does not support directory listing");
     }

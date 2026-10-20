@@ -465,9 +465,6 @@ tests:
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=cluster.state/20_filtering/Filtering the cluster state by indices should work in routing table and metadata}
   issue: https://github.com/elastic/elasticsearch/issues/162277
-- class: org.elasticsearch.columnar.StringColumnMergeTests
-  method: testSegmentsOfOneFieldInBothFramingsMergeIntoEitherFraming
-  issue: https://github.com/elastic/elasticsearch/issues/162245
 - class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/162282
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecPrometheusK8sDeltaIT
@@ -533,12 +530,6 @@ tests:
 - class: org.elasticsearch.xpack.search.AsyncSearchActionIT
   method: testRestartAfterCompletion
   issue: https://github.com/elastic/elasticsearch/issues/162607
-- class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=search.vectors/46_knn_search_bbq_ivf_byte/Test knn search with filter}
-  issue: https://github.com/elastic/elasticsearch/issues/162612
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {yaml=search.vectors/46_knn_search_bbq_ivf_byte/Test knn search}
-  issue: https://github.com/elastic/elasticsearch/issues/162632
 - class: org.elasticsearch.xpack.analytics.topmetrics.TopMetricsColumnarIT
   method: testKeywordOnColumnarIndex
   issue: https://github.com/elastic/elasticsearch/issues/162510

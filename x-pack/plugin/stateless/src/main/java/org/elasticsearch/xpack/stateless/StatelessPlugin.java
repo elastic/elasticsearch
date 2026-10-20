@@ -1931,7 +1931,7 @@ public class StatelessPlugin extends Plugin
         } else if (warmingRatioProviderFactories.size() == 1) {
             warmingRatioProviderFactoryRef.set(warmingRatioProviderFactories.get(0));
         } else {
-            warmingRatioProviderFactoryRef.set(new DefaultWarmingRatioProviderFactory());
+            warmingRatioProviderFactoryRef.set(new DefaultWarmingRatioProviderFactory(() -> getClusterService().getClusterSettings()));
         }
 
         var evictionPolicyFactories = loader.loadExtensions(EvictionPolicyFactory.class);

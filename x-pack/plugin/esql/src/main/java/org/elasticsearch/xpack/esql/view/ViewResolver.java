@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.analysis.PlanSize;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.Federation;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -193,6 +194,7 @@ public class ViewResolver {
     public record ViewResolutionResult(
         LogicalPlan plan,
         Map<String, String> viewQueries,
+        Map<String, ViewQuerySettings> viewSettings,
         boolean hasInSubquery,
         IndexViewOrigins indexViewOrigins
     ) {}
@@ -203,7 +205,7 @@ public class ViewResolver {
         String projectRouting,
         boolean wildcardsMatchViews,
         boolean wildcardsMatchDatasets,
-        BiFunction<String, String, LogicalPlan> parser,
+        BiFunction<String, String, EsqlStatement> parser,
         ViewBoundaryPreservation boundaryPreservation,
         ActionListener<ViewResolutionResult> listener
     ) {
@@ -249,12 +251,14 @@ public class ViewResolver {
         String projectRouting,
         boolean wildcardsMatchViews,
         boolean wildcardsMatchDatasets,
-        BiFunction<String, String, LogicalPlan> parser,
+        BiFunction<String, String, EsqlStatement> parser,
         ViewBoundaryPreservation boundaryPreservation,
         int maxPlanNodesCount,
         ActionListener<ViewResolutionResult> listener
     ) {
         Map<String, String> viewQueries = new HashMap<>();
+        // The per-view SET settings, recorded as each view definition is parsed (see ViewQuerySettings).
+        Map<String, ViewQuerySettings> viewSettings = new HashMap<>();
         IndexViewOrigins.Builder indexViewOrigins = new IndexViewOrigins.Builder();
         // Set when the traversal below rewrites an InSubquery (in the query or in a view body) into a Semi/Anti/MarkJoin; reported in
         // the result so the session can count IN_SUBQUERY telemetry even for IN subqueries that only exist inside a view definition.
@@ -265,7 +269,7 @@ public class ViewResolver {
         PlanSize planSize = new PlanSize(PlanSize.countNodes(plan), maxPlanNodesCount);
         boolean noViews = viewsFeatureEnabled() == false || getMetadata().views().isEmpty();
         if (noViews && InSubqueryResolver.hasInSubquery(plan) == false) {
-            listener.onResponse(new ViewResolutionResult(plan, viewQueries, false, IndexViewOrigins.EMPTY));
+            listener.onResponse(new ViewResolutionResult(plan, viewQueries, Map.of(), false, IndexViewOrigins.EMPTY));
             return;
         }
         // Note: this returns the uncompacted nested plan. Compaction (UnionAll/BranchPlan
@@ -282,6 +286,7 @@ public class ViewResolver {
             parser,
             new LinkedHashSet<>(),
             viewQueries,
+            viewSettings,
             indexViewOrigins,
             hasInSubquery,
             0,
@@ -289,7 +294,7 @@ public class ViewResolver {
             planSize,
             listener.delegateFailureAndWrap(
                 (l, rewritten) -> l.onResponse(
-                    new ViewResolutionResult(rewritten, viewQueries, hasInSubquery.get(), indexViewOrigins.build())
+                    new ViewResolutionResult(rewritten, viewQueries, viewSettings, hasInSubquery.get(), indexViewOrigins.build())
                 )
             )
         );
@@ -300,9 +305,10 @@ public class ViewResolver {
         String projectRouting,
         boolean wildcardsMatchViews,
         boolean resolveDatasets,
-        BiFunction<String, String, LogicalPlan> parser,
+        BiFunction<String, String, EsqlStatement> parser,
         LinkedHashSet<String> seenViews,
         Map<String, String> viewQueries,
+        Map<String, ViewQuerySettings> viewSettings,
         IndexViewOrigins.Builder indexViewOrigins,
         Holder<Boolean> hasInSubquery,
         int depth,
@@ -339,6 +345,7 @@ public class ViewResolver {
                     parser,
                     seenInner,
                     viewQueries,
+                    viewSettings,
                     indexViewOrigins,
                     hasInSubquery,
                     depth,
@@ -367,6 +374,7 @@ public class ViewResolver {
                             parser,
                             seenInner,
                             viewQueries,
+                            viewSettings,
                             indexViewOrigins,
                             hasInSubquery,
                             depth,
@@ -396,6 +404,7 @@ public class ViewResolver {
                             parser,
                             seenInner,
                             viewQueries,
+                            viewSettings,
                             indexViewOrigins,
                             hasInSubquery,
                             depth,
@@ -425,6 +434,7 @@ public class ViewResolver {
                             parser,
                             seenInner,
                             viewQueries,
+                            viewSettings,
                             indexViewOrigins,
                             hasInSubquery,
                             depth,
@@ -445,6 +455,7 @@ public class ViewResolver {
                     parser,
                     seenInner,
                     viewQueries,
+                    viewSettings,
                     indexViewOrigins,
                     hasInSubquery,
                     depth,
@@ -464,6 +475,7 @@ public class ViewResolver {
                     seenInner,
                     seenWildcards,
                     viewQueries,
+                    viewSettings,
                     indexViewOrigins,
                     hasInSubquery,
                     depth,
@@ -487,9 +499,10 @@ public class ViewResolver {
         String projectRouting,
         boolean wildcardsMatchViews,
         boolean resolveDatasets,
-        BiFunction<String, String, LogicalPlan> parser,
+        BiFunction<String, String, EsqlStatement> parser,
         LinkedHashSet<String> seenViews,
         Map<String, String> viewQueries,
+        Map<String, ViewQuerySettings> viewSettings,
         IndexViewOrigins.Builder indexViewOrigins,
         Holder<Boolean> hasInSubquery,
         int depth,
@@ -511,6 +524,7 @@ public class ViewResolver {
                     parser,
                     seenViews,
                     viewQueries,
+                    viewSettings,
                     indexViewOrigins,
                     hasInSubquery,
                     depth + 1,
@@ -544,9 +558,10 @@ public class ViewResolver {
         String projectRouting,
         boolean wildcardsMatchViews,
         boolean resolveDatasets,
-        BiFunction<String, String, LogicalPlan> parser,
+        BiFunction<String, String, EsqlStatement> parser,
         LinkedHashSet<String> seenViews,
         Map<String, String> viewQueries,
+        Map<String, ViewQuerySettings> viewSettings,
         IndexViewOrigins.Builder indexViewOrigins,
         Holder<Boolean> hasInSubquery,
         int depth,
@@ -565,6 +580,7 @@ public class ViewResolver {
                 parser,
                 seenViews,
                 viewQueries,
+                viewSettings,
                 indexViewOrigins,
                 hasInSubquery,
                 depth + 1,
@@ -587,6 +603,7 @@ public class ViewResolver {
                 parser,
                 seenViews,
                 viewQueries,
+                viewSettings,
                 indexViewOrigins,
                 hasInSubquery,
                 depth + 1,
@@ -611,10 +628,11 @@ public class ViewResolver {
         String projectRouting,
         boolean wildcardsMatchViews,
         boolean resolveDatasets,
-        BiFunction<String, String, LogicalPlan> parser,
+        BiFunction<String, String, EsqlStatement> parser,
         LinkedHashSet<String> seenViews,
         HashSet<String> seenWildcards,
         Map<String, String> viewQueries,
+        Map<String, ViewQuerySettings> viewSettings,
         IndexViewOrigins.Builder indexViewOrigins,
         Holder<Boolean> hasInSubquery,
         int depth,
@@ -747,38 +765,40 @@ public class ViewResolver {
                             }
                         }
                     }
-                    LogicalPlan viewBody = resolve(
+                    LogicalPlan body = resolve(
                         view,
                         parser,
                         viewQueries,
+                        viewSettings,
                         MetadataAttribute.requestsRelationColumn(unresolvedRelation.metadataFields())
                             || boundaryPreservation.keepsPassThroughIdentity()
                     );
-                    planSize.add(PlanSize.countNodes(viewBody));
+                    planSize.add(PlanSize.countNodes(body));
+                    // The view's own SET statements govern its body — the caller's never do. The SET's scope ends at
+                    // the view boundary: a caller's setting must not change which sources a stored view definition
+                    // resolves to (a wildcard inside the body could otherwise expand to views or datasets its author
+                    // never referenced, and a materialized view would have baked its source list in). A definition
+                    // without SETs resolves its body at the registry defaults: wildcards match nothing but indices.
+                    ViewQuerySettings bodySettings = viewSettings.getOrDefault(view.name(), ViewQuerySettings.DEFAULTS);
                     replaceViews(
-                        viewBody,
+                        body,
                         projectRouting,
-                        // Resolving a view's *body*: wildcards inside it never match views or datasets, whatever
-                        // the caller's wildcards_match_views/wildcards_match_datasets say. The SET's scope ends at the
-                        // view boundary — a caller's setting must not change which sources a stored view definition
-                        // resolves to (a wildcard inside the body could otherwise expand to views or datasets its
-                        // author never referenced, and a materialized view would have baked its source list in).
-                        false,
-                        false,
+                        bodySettings.wildcardsMatchViews(),
+                        bodySettings.wildcardsMatchDatasets() && federationAvailable,
                         parser,
                         branchSeenViews,
                         viewQueries,
+                        viewSettings,
                         indexViewOrigins,
                         hasInSubquery,
                         depth + 1,
-                        // Resolving a view's *body*: never preserve boundaries in here. The request filter applies to
-                        // this view's output, not to the outputs of views nested inside its definition — those are an
-                        // implementation detail of this view. Keeping their wrappers would block compaction for no
-                        // benefit, and nested wrappers are what produce unexecutable nested MergePlans. Settings
-                        // scoping needs no per-branch identity inside a body either: everything in the body (nested
-                        // views included) already belongs to this view, and ResolveUnmapped skips this view's branch
-                        // wholesale, nested views and all.
-                        ViewBoundaryPreservation.NONE,
+                        // The request filter applies to this view's output, not to the outputs of views nested inside
+                        // its definition — those are an implementation detail of this view, so the caller's
+                        // boundary-preservation level never propagates in here. The body's own settings can still
+                        // demand nested view identity: when this view's SETs re-enable a boundary-scoped setting for
+                        // its body, the nested views inside it are boundaries for that setting, exactly as views are
+                        // for the caller's query.
+                        bodySettings.requiresViewIdentity() ? ViewBoundaryPreservation.KEEP_VIEW_IDENTITY : ViewBoundaryPreservation.NONE,
                         planSize,
                         l2.delegateFailureAndWrap((l3, fullyResolved) -> {
                             ViewPlan viewPlan = new ViewPlan(view.name(), fullyResolved);
@@ -818,10 +838,11 @@ public class ViewResolver {
                 // too: a plain UnionAll nested under the BranchPlan boundary verifies and executes like any other
                 // nested subquery, and the wrapper is what lets the request filter apply to the view's *output* while
                 // the boundary marking blocks the raw DSL from the leaves inside. See ViewRequestFilterIT for the shape.
-                if (subqueries.size() == 1 && boundaryPreservation.keepsViewBranches() == false) {
+                ViewBoundaryPreservation effectivePreservation = effectivePreservation(boundaryPreservation, subqueries, viewSettings);
+                if (subqueries.size() == 1 && effectivePreservation.keepsViewBranches() == false) {
                     return subqueries.getFirst().plan();
                 }
-                return buildPlanFromBranches(unresolvedRelation, subqueries, depth, boundaryPreservation);
+                return buildPlanFromBranches(unresolvedRelation, subqueries, depth, effectivePreservation);
             }).addListener(listener);
         }));
     }
@@ -1105,6 +1126,29 @@ public class ViewResolver {
 
     record ViewPlan(String name, LogicalPlan plan) {}
 
+    /**
+     * The preservation level for one resolved relation: the caller's level, raised to
+     * {@link ViewBoundaryPreservation#KEEP_VIEW_IDENTITY} when any of these views' own definition {@code SET} a
+     * boundary-scoped setting. A lone view would otherwise collapse, and {@code ResolveUnmapped} and the dataset
+     * rewrite could no longer tell that view's body from the caller's query.
+     */
+    private static ViewBoundaryPreservation effectivePreservation(
+        ViewBoundaryPreservation boundaryPreservation,
+        List<ViewPlan> subqueries,
+        Map<String, ViewQuerySettings> viewSettings
+    ) {
+        if (boundaryPreservation.keepsPassThroughIdentity()) {
+            return boundaryPreservation;
+        }
+        for (ViewPlan viewPlan : subqueries) {
+            ViewQuerySettings settings = viewSettings.get(viewPlan.name);
+            if (settings != null && settings.requiresViewIdentity()) {
+                return ViewBoundaryPreservation.KEEP_VIEW_IDENTITY;
+            }
+        }
+        return boundaryPreservation;
+    }
+
     private LogicalPlan buildPlanFromBranches(
         UnresolvedRelation ur,
         List<ViewPlan> subqueries,
@@ -1283,8 +1327,9 @@ public class ViewResolver {
 
     private LogicalPlan resolve(
         View view,
-        BiFunction<String, String, LogicalPlan> parser,
+        BiFunction<String, String, EsqlStatement> parser,
         Map<String, String> viewQueries,
+        Map<String, ViewQuerySettings> viewSettings,
         boolean keepViewIdentity
     ) {
         log.debug("Resolving view '{}'", view.name());
@@ -1293,7 +1338,14 @@ public class ViewResolver {
 
         // Parse the view query with the view name, which causes all Source objects
         // to be tagged with the view name during parsing
-        LogicalPlan parsed = parser.apply(view.query(), view.name());
+        EsqlStatement statement = parser.apply(view.query(), view.name());
+        ViewQuerySettings settings = ViewQuerySettings.from(statement);
+        viewSettings.put(view.name(), settings);
+        // A view whose own SETs must stop at ITS boundary (a body-scoped unmapped_fields or dataset-wildcard
+        // setting) keeps its identity like a caller-side setting would make it: the analyzer and the dataset
+        // rewrite find the body as this view's branch.
+        keepViewIdentity = keepViewIdentity || settings.requiresViewIdentity();
+        LogicalPlan parsed = statement.plan();
         LogicalPlan subquery = parsed instanceof UnresolvedMetadata fs ? fs.child() : parsed;
         if (keepViewIdentity == false && subquery instanceof UnresolvedRelation ur && containsExclusion(ur) == false) {
             // Simple UnresolvedRelation subqueries are not kept as views, so we can compact them

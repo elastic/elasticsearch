@@ -564,7 +564,7 @@ public class CsvTestsDataLoader {
         new ViewConfig("view_sample_data"),
         new ViewConfig("view_country_wildcard"),
         new ViewConfig("no_mapping_view"),
-        new ViewConfig("drop_unmapped_duration_wildcard_partial_mapping_view"),
+        new ViewConfig("drop_unmapped_duration_wildcard_partial_mapping_view", List.of(EsqlCapabilities.Cap.SET_IN_VIEW_DEFINITIONS)),
         new ViewConfig("nested_message_wildcard_view"),
         new ViewConfig("nested_partial_mapping_view"),
         new ViewConfig("view_partially_unmapped_sample_data"),

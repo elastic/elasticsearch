@@ -6656,14 +6656,14 @@ message:keyword | _unmapped_fields:_source
 ;
 
 ###########################################################################
-# Compound-output commands, FILL_NULL, LIMIT BY and DEDUP (#157189)       #
+# Compound-output commands, LIMIT BY and DEDUP (#157189)                  #
 ###########################################################################
 
 // URI_PARTS adds parts.* columns. They shadow the unmapped parts.domain and parts.port leaves, so those drop out of _unmapped_fields while
 // the others stay. The wildcards parts.* and oth* both keep columns and narrow _unmapped_fields to the leaves they match.
 uriPartsOutputShadowsUnmappedFields
 required_capability: optional_fields_load_all_single_source_column
-required_capability: optional_fields_load_all_compound_output_fill_null_limit_by_dedup
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
 required_capability: uri_parts_command
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -6682,7 +6682,7 @@ id:keyword | parts.domain:keyword | parts.port:integer | parts.fragment:keyword 
 // REGISTERED_DOMAIN shadows the unmapped rd.domain leaf in the same way.
 registeredDomainOutputShadowsUnmappedField
 required_capability: optional_fields_load_all_single_source_column
-required_capability: optional_fields_load_all_compound_output_fill_null_limit_by_dedup
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
 required_capability: registered_domain_command
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -6701,7 +6701,7 @@ id:keyword | rd.domain:keyword | rd.registered_domain:keyword | rd.top_level_dom
 // USER_AGENT shadows the unmapped ua.name leaf.
 userAgentOutputShadowsUnmappedField
 required_capability: optional_fields_load_all_single_source_column
-required_capability: optional_fields_load_all_compound_output_fill_null_limit_by_dedup
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
 required_capability: user_agent_command
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -6720,7 +6720,7 @@ id:keyword | ua.name:keyword | ua.version:keyword | ua.os.name:keyword | ua.os.v
 // IP_LOCATION shadows the unmapped g.country_iso_code leaf.
 ipLocationOutputShadowsUnmappedField
 required_capability: optional_fields_load_all_single_source_column
-required_capability: optional_fields_load_all_compound_output_fill_null_limit_by_dedup
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
 required_capability: ip_location_command
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -6736,30 +6736,10 @@ id:keyword | g.country_iso_code:keyword | g.country_name:keyword | g.continent_n
 3          | FR                         | France                 | Europe                   | null                      | null                  | null                | POINT (2.338700 48.858200)    | null
 ;
 
-// FILL_NULL names an unmapped field, which becomes a real column: it is filled where the row has no value and drops out of
-// _unmapped_fields, while the other leaves matching pa* stay.
-fillNullOnUnmappedField
-required_capability: optional_fields_load_all_single_source_column
-required_capability: optional_fields_load_all_compound_output_fill_null_limit_by_dedup
-required_capability: fillnull
-
-SET unmapped_fields="LOAD_ALL"\;
-FROM unmapped_compound_outputs
-| FILLNULL "none" ON other
-| KEEP id, other, pa*
-| SORT id
-;
-
-id:keyword | other:keyword | _unmapped_fields:_source
-1          | x             | "{""parts.domain"":""old.example"",""parts.port"":""80""}"
-2          | x             | "{""parts.domain"":""old.example2"",""parts.port"":""81""}"
-3          | none          | null
-;
-
 // LIMIT BY groups by an unmapped field and keeps _unmapped_fields on the surviving rows.
 limitByUnmappedField
 required_capability: optional_fields_load_all_single_source_column
-required_capability: optional_fields_load_all_compound_output_fill_null_limit_by_dedup
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
 required_capability: esql_limit_by
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -6775,10 +6755,10 @@ id:keyword | other:keyword | _unmapped_fields:_source
 3          | null          | null
 ;
 
-// DEDUP compares _unmapped_fields like any other column: rows 1 and 2 hold the same other and tag, so they collapse into one.
+// Rows 1 and 2 share other, so they collapse into one.
 dedupOnUnmappedField
 required_capability: optional_fields_load_all_single_source_column
-required_capability: optional_fields_load_all_compound_output_fill_null_limit_by_dedup
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
 required_capability: dedup_command
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -6793,6 +6773,154 @@ x             | "{""tag"":""t""}"
 null          | null
 ;
 
+dedupIgnoresUnmappedFieldsColumn
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
+required_capability: dedup_command
+required_capability: optional_fields_load_all_inline_stats
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs
+| WHERE id != "3"
+| KEEP other, pa*
+| DEDUP
+| INLINE STATS c = COUNT(*)
+;
+
+other:keyword | _unmapped_fields:_source | c:long
+x             | {any}                    | 1
+;
+
+dedupIgnoresUnmappedFieldsColumnThenKeep
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
+required_capability: dedup_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs
+| WHERE id != "3"
+| KEEP other, pa*
+| DEDUP
+| KEEP other
+;
+
+other:keyword
+x
+;
+
+dedupIgnoresUnmappedFieldsColumnThenStats
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
+required_capability: dedup_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs
+| WHERE id != "3"
+| KEEP other, pa*
+| DEDUP
+| STATS c = COUNT(*)
+;
+
+c:long
+1
+;
+
+dedupOnlyUnmappedFieldsColumn
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
+required_capability: dedup_command
+required_capability: optional_fields_load_all_inline_stats
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs
+| KEEP pa*
+| DEDUP
+| INLINE STATS c = COUNT(*)
+;
+
+_unmapped_fields:_source | c:long
+{any}                    | 1
+;
+
+// Naming an unmapped field anywhere in the query, even after DEDUP, makes it a column of its own, so DEDUP keys on it.
+dedupKeysOnUnmappedFieldNamedAfterIt
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
+required_capability: dedup_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs
+| WHERE id != "3"
+| KEEP other, pa*
+| DEDUP
+| EVAL d = parts.domain
+| KEEP other, d
+| SORT d
+;
+
+other:keyword | d:keyword
+x             | old.example
+x             | old.example2
+;
+
+dedupAfterForkIgnoresUnmappedFieldsColumn
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
+required_capability: dedup_command
+required_capability: optional_fields_load_all_fork
+required_capability: fork_v9
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs
+| FORK (WHERE id == "1") (WHERE id == "2")
+| KEEP other, pa*
+| DEDUP
+;
+
+other:keyword | _unmapped_fields:_source
+x             | {any}
+;
+
+dedupAfterSubqueryIgnoresUnmappedFieldsColumn
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
+required_capability: dedup_command
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs, (FROM unmapped_compound_outputs | WHERE id == "2")
+| WHERE id == "1" OR id == "2"
+| KEEP other, pa*
+| DEDUP
+;
+
+other:keyword | _unmapped_fields:_source
+x             | {any}
+;
+
+disabledSourceWithIncludesAndExcludesSiblings_withDedup
+required_capability: optional_fields_load_all_single_source_column
+required_capability: source_field_mapping
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
+required_capability: dedup_command
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+request_stored: skip
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_source_disabled, unmapped_source_excludes, unmapped_source_includes
+| WHERE id::long == 1 OR id::long == 5
+| KEEP id, a.b*, arr*
+| SORT id::long
+| DEDUP
+;
+
+  id:keyword   |_unmapped_fields:_source
+1              |{any}            
+5              |{any}
+;
+
+
 ###########################################################################
 # The new commands over fields that are mapped in one index and not another #
 ###########################################################################
@@ -6800,7 +6928,7 @@ null          | null
 // url is a mapped keyword in unmapped_compound_outputs and an unmapped field in unmapped_compound_inputs; URI_PARTS reads both.
 uriPartsOnFieldMappedInOneIndexAndUnmappedInAnother
 required_capability: optional_fields_load_all_single_source_column
-required_capability: optional_fields_load_all_compound_output_fill_null_limit_by_dedup
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
 required_capability: uri_parts_command
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -6821,7 +6949,7 @@ b2         | www.example.com      | http
 // Same for REGISTERED_DOMAIN over host.
 registeredDomainOnFieldMappedInOneIndexAndUnmappedInAnother
 required_capability: optional_fields_load_all_single_source_column
-required_capability: optional_fields_load_all_compound_output_fill_null_limit_by_dedup
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
 required_capability: registered_domain_command
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -6842,7 +6970,7 @@ b2         | example.co.uk
 // Same for USER_AGENT over agent.
 userAgentOnFieldMappedInOneIndexAndUnmappedInAnother
 required_capability: optional_fields_load_all_single_source_column
-required_capability: optional_fields_load_all_compound_output_fill_null_limit_by_dedup
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
 required_capability: user_agent_command
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -6863,7 +6991,7 @@ b2         | Chrome
 // Same for IP_LOCATION over addr, which is a mapped ip in one index and an unmapped field in the other.
 ipLocationOnFieldMappedInOneIndexAndUnmappedInAnother
 required_capability: optional_fields_load_all_single_source_column
-required_capability: optional_fields_load_all_compound_output_fill_null_limit_by_dedup
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
 required_capability: ip_location_command
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -6881,29 +7009,10 @@ b1         | US
 b2         | US
 ;
 
-// FILL_NULL over two unmapped fields fills each where a row has no value; both leave _unmapped_fields.
-fillNullOnSeveralUnmappedFields
-required_capability: optional_fields_load_all_single_source_column
-required_capability: optional_fields_load_all_compound_output_fill_null_limit_by_dedup
-required_capability: fillnull
-
-SET unmapped_fields="LOAD_ALL"\;
-FROM unmapped_compound_outputs
-| FILLNULL "n/a" ON tag, other
-| KEEP id, tag, other, pa*
-| SORT id
-;
-
-id:keyword | tag:keyword | other:keyword | _unmapped_fields:_source
-1          | t           | x             | "{""parts.domain"":""old.example"",""parts.port"":""80""}"
-2          | t           | x             | "{""parts.domain"":""old.example2"",""parts.port"":""81""}"
-3          | n/a         | n/a           | null
-;
-
 // LIMIT BY groups rows by url across both indices: b2 repeats the url of row 1, so only one of them survives.
 limitByFieldMappedInOneIndexAndUnmappedInAnother
 required_capability: optional_fields_load_all_single_source_column
-required_capability: optional_fields_load_all_compound_output_fill_null_limit_by_dedup
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
 required_capability: esql_limit_by
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -6921,10 +7030,10 @@ id:keyword | url:keyword
 b1         | https://other.example.org/x
 ;
 
-// DEDUP treats a mapped and an unmapped url alike: b2 repeats row 1 on url and tag, so the two collapse into one.
+// DEDUP treats a mapped and an unmapped url alike: b2 repeats row 1's url, so the two collapse into one.
 dedupAcrossMappedAndUnmappedIndices
 required_capability: optional_fields_load_all_single_source_column
-required_capability: optional_fields_load_all_compound_output_fill_null_limit_by_dedup
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
 required_capability: dedup_command
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -6941,10 +7050,26 @@ https://example.org/b         | "{""tag"":""t""}"
 https://other.example.org/x   | null
 ;
 
+dedupAcrossIndicesIgnoresUnmappedFieldsColumn
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
+required_capability: dedup_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs, unmapped_compound_inputs
+| WHERE url == "http://www.example.com:8080/a"
+| KEEP url, pa*
+| DEDUP
+;
+
+url:keyword                   | _unmapped_fields:_source
+http://www.example.com:8080/a | {any}
+;
+
 // Each FORK branch adds its own output columns, which the other branch null-fills.
 forkBranchesWithDifferentCompoundOutputCommands
 required_capability: optional_fields_load_all_single_source_column
-required_capability: optional_fields_load_all_compound_output_fill_null_limit_by_dedup
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
 required_capability: optional_fields_load_all_fork
 required_capability: fork_v9
 required_capability: uri_parts_command
@@ -6965,7 +7090,7 @@ id:keyword | parts.scheme:keyword | _fork:keyword | rd.registered_domain:keyword
 // An unmapped field that holds something that is not an IP address yields a null location plus the usual warnings, not an error.
 ipLocationOverUnmappedFieldThatIsNotAnIp
 required_capability: optional_fields_load_all_single_source_column
-required_capability: optional_fields_load_all_compound_output_fill_null_limit_by_dedup
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
 required_capability: ip_location_command
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -6981,32 +7106,11 @@ id:keyword | g.country_iso_code:keyword
 1          | null
 ;
 
-// FILL_NULL over a wildcard fills the null tag and other of row 3. The _unmapped_fields column cannot take the fill value, so it is left
-// unchanged and a warning says so.
-fillNullOnWildcard
-required_capability: optional_fields_load_all_single_source_column
-required_capability: optional_fields_load_all_compound_output_fill_null_limit_by_dedup
-required_capability: fillnull
-
-SET unmapped_fields="LOAD_ALL"\;
-FROM unmapped_compound_outputs
-| KEEP id, tag, other, pa*
-| FILLNULL "n/a" ON *
-| SORT id
-;
-warningregex: Line .*: \[FILLNULL\] the fill value could not be applied to the following fields, which were left unchanged: \[_unmapped_fields\]
-
-id:keyword | tag:keyword | other:keyword | _unmapped_fields:_source
-1          | t           | x             | "{""parts.domain"":""old.example"",""parts.port"":""80""}"
-2          | t           | x             | "{""parts.domain"":""old.example2"",""parts.port"":""81""}"
-3          | n/a         | n/a           | null
-;
-
 // A properties option limits the columns IP_LOCATION adds, and only those shadow unmapped leaves: g.country_name is produced, so
 // g.country_iso_code, which is not, stays in _unmapped_fields.
 ipLocationWithPropertiesOption
 required_capability: optional_fields_load_all_single_source_column
-required_capability: optional_fields_load_all_compound_output_fill_null_limit_by_dedup
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
 required_capability: ip_location_command
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -7025,7 +7129,7 @@ id:keyword | g.country_name:keyword | _unmapped_fields:_source
 // An option can add a column: extract_device_type adds ua.device.type next to ua.name, which still shadows the unmapped ua.name leaf.
 userAgentWithDeviceTypeOption
 required_capability: optional_fields_load_all_single_source_column
-required_capability: optional_fields_load_all_compound_output_fill_null_limit_by_dedup
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
 required_capability: user_agent_command
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -7045,7 +7149,7 @@ id:keyword | ua.name:keyword | ua.device.type:keyword | _unmapped_fields:_source
 // _unmapped_fields, and the other subquery's column is null-filled.
 compoundOutputCommandsInSubqueries
 required_capability: optional_fields_load_all_single_source_column
-required_capability: optional_fields_load_all_compound_output_fill_null_limit_by_dedup
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
 required_capability: optional_fields_load_all_subqueries
 required_capability: subquery_in_from_command
 required_capability: uri_parts_command

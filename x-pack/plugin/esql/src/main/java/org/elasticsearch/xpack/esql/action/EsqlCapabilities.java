@@ -3688,13 +3688,10 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_GROK_DISSECT_MV_EXPAND_SAMPLE(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
-         * Support for {@code IP_LOCATION}, {@code REGISTERED_DOMAIN}, {@code URI_PARTS}, {@code USER_AGENT}, {@code FILL_NULL},
-         * {@code LIMIT BY} and {@code DEDUP} under {@code unmapped_fields="LOAD_ALL"}. The first four read an input field (mapped or
-         * unmapped) and add named columns, which shadow an unmapped field of the same name; the others keep the output columns and only
-         * change the values or drop rows. Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available. See
-         * https://github.com/elastic/elasticsearch/issues/157189.
+         * Support for {@code IP_LOCATION}, {@code REGISTERED_DOMAIN}, {@code URI_PARTS}, {@code USER_AGENT}, {@code LIMIT BY} and
+         * {@code DEDUP} under {@code unmapped_fields="LOAD_ALL"}. See https://github.com/elastic/elasticsearch/issues/157189.
          */
-        OPTIONAL_FIELDS_LOAD_ALL_COMPOUND_OUTPUT_FILL_NULL_LIMIT_BY_DEDUP(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+        OPTIONAL_FIELDS_LOAD_ALL_COMPOUND_OUTPUT_LIMIT_BY_DEDUP,
 
         /**
          * Under {@code unmapped_fields="LOAD_ALL"}, a {@code _source} value that says nothing about its field - {@code null},

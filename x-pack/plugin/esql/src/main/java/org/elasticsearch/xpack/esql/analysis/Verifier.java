@@ -687,7 +687,7 @@ public class Verifier {
                     fail(
                         p,
                         "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, IP_LOCATION, "
-                            + "REGISTERED_DOMAIN, URI_PARTS, USER_AGENT, MV_EXPAND, SAMPLE, FILL_NULL, DEDUP, WHERE, SORT, LIMIT, "
+                            + "REGISTERED_DOMAIN, URI_PARTS, USER_AGENT, MV_EXPAND, SAMPLE, DEDUP, WHERE, SORT, LIMIT, "
                             + "LIMIT BY, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; [{}] is not supported yet",
                         p instanceof EsRelation esr && esr.indexMode().isTsdb() ? "TS"
                             : p instanceof BranchPlan ? "BranchPlan"
@@ -712,7 +712,6 @@ public class Verifier {
             || plan instanceof MvExpand
             || plan instanceof Sample
             || plan instanceof CompoundOutputEval
-            || plan instanceof FillNull
             || plan instanceof LimitBy
             || plan instanceof Dedup
             || plan instanceof Filter

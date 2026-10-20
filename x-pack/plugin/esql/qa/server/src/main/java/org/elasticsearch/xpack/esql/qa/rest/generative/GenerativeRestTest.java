@@ -135,8 +135,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         Sets.union(
             UNMAPPED_FIELDS_LOAD_ERRORS,
             Set.of(
-                "only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, STATS, INLINE STATS, "
-                    + "LOOKUP JOIN, ENRICH, FORK and subquery commands"
+                "only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, IP_LOCATION, REGISTERED_DOMAIN, URI_PARTS, "
+                    + "USER_AGENT, MV_EXPAND, SAMPLE, DEDUP, WHERE, SORT, LIMIT, LIMIT BY, STATS, INLINE STATS, LOOKUP JOIN, "
+                    + "ENRICH, FORK and subquery commands"
             )
         ),
         GenerativeFeature.PARQUET_DATASET,

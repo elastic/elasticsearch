@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_load_all_single_source_column, optional_fields_load_all_compound_output_fill_null_limit_by_dedup, ip_location_command, uri_parts_command, registered_domain_command, user_agent_command, fillnull, esql_limit_by ]
+          capabilities: [ optional_fields_load_all_single_source_column, optional_fields_load_all_compound_output_limit_by_dedup, ip_location_command, uri_parts_command, registered_domain_command, user_agent_command, esql_limit_by ]
       reason: "These commands are only allowed under unmapped_fields=\"LOAD_ALL\" with this capability"
 
   - do:
@@ -73,17 +73,6 @@ teardown:
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_misuse2 | KEEP id, note*, addr | IP_LOCATION g = _unmapped_fields'
-  - match: { status: 400 }
-  - match: { error.type: verification_exception }
-  - contains: { error.reason: 'Unknown column [_unmapped_fields]' }
-
----
-'FILL_NULL cannot fill the _unmapped_fields column':
-  - do:
-      catch: bad_request
-      esql.query:
-        body:
-          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_misuse2 | KEEP id, note*, addr | FILLNULL "x" ON _unmapped_fields'
   - match: { status: 400 }
   - match: { error.type: verification_exception }
   - contains: { error.reason: 'Unknown column [_unmapped_fields]' }

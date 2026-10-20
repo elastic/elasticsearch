@@ -1555,6 +1555,11 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         );
     }
 
+    private static final String LOAD_ALL_SUPPORTED_COMMANDS =
+        "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, IP_LOCATION, "
+            + "REGISTERED_DOMAIN, URI_PARTS, USER_AGENT, MV_EXPAND, SAMPLE, DEDUP, WHERE, SORT, LIMIT, "
+            + "LIMIT BY, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; ";
+
     /**
      * The MVP allow-list of {@link Verifier#checkLoadAllModeSupportedCommands} rejects commands not yet supported, naming the one it found.
      */
@@ -1562,13 +1567,21 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         for (var commandAndLabel : List.of(Tuple.tuple("| CHANGE_POINT salary ON emp_no", "ChangePoint"))) {
             test().statementError(
                 setUnmappedLoadAll("FROM test " + commandAndLabel.v1()),
-                containsString(
-                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, IP_LOCATION, "
-                        + "REGISTERED_DOMAIN, URI_PARTS, USER_AGENT, MV_EXPAND, SAMPLE, FILL_NULL, DEDUP, WHERE, SORT, LIMIT, "
-                        + "LIMIT BY, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; ["
-                        + commandAndLabel.v2()
-                        + "] is not supported yet"
-                )
+                containsString(LOAD_ALL_SUPPORTED_COMMANDS + "[" + commandAndLabel.v2() + "] is not supported yet")
+            );
+        }
+    }
+
+    public void testLoadAllModeRejectsFillNull() {
+        assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        for (String fillNull : List.of(
+            "| FILLNULL \"x\" ON first_name",
+            "| FILLNULL DEFAULT ON *",
+            "| KEEP emp_no, f* | FILLNULL 0 ON *"
+        )) {
+            test().statementError(
+                setUnmappedLoadAll("FROM test " + fillNull),
+                containsString(LOAD_ALL_SUPPORTED_COMMANDS + "[FILLNULL] is not supported yet")
             );
         }
     }
@@ -1848,22 +1861,12 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
             .statementError(
                 setUnmappedLoadAll("TS test | STATS MAX(RATE(network.bytes_in)) BY host"),
-                containsString(
-                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, IP_LOCATION, "
-                        + "REGISTERED_DOMAIN, URI_PARTS, USER_AGENT, MV_EXPAND, SAMPLE, FILL_NULL, DEDUP, WHERE, SORT, LIMIT, "
-                        + "LIMIT BY, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; "
-                        + "[TS] is not supported yet"
-                )
+                containsString(LOAD_ALL_SUPPORTED_COMMANDS + "[TS] is not supported yet")
             );
         test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
             .statementError(
                 setUnmappedLoadAll("TS test | SORT @timestamp | LIMIT 10"),
-                containsString(
-                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, IP_LOCATION, "
-                        + "REGISTERED_DOMAIN, URI_PARTS, USER_AGENT, MV_EXPAND, SAMPLE, FILL_NULL, DEDUP, WHERE, SORT, LIMIT, "
-                        + "LIMIT BY, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; "
-                        + "[TS] is not supported yet"
-                )
+                containsString(LOAD_ALL_SUPPORTED_COMMANDS + "[TS] is not supported yet")
             );
     }
 

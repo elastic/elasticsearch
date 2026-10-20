@@ -37,7 +37,7 @@ public enum FeatureFlag {
     ESQL_EXTERNAL_ICEBERG("es.esql_external_iceberg_feature_flag_enabled=true", Version.fromString("9.5.0"), null),
     BATCH_INDEXING("es.batch_indexing_feature_flag_enabled=true", Version.fromString("9.5.0"), null),
     ESQL_DATA_SOURCE_TEST_CONNECTION("es.esql_data_source_test_connection_feature_flag_enabled=true", Version.fromString("9.6.0"), null),
-    QUERY_SAMPLING("es.query_sampling_feature_flag_enabled=true", Version.fromString("9.6.0"), null);
+    QUERY_SAMPLING("es.query_sampling_feature_flag_enabled=true", Version.fromString("9.7.0"), null);
 
     public final String systemProperty;
     public final Version from;

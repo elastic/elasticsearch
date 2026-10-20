@@ -259,6 +259,9 @@ tests:
 - class: org.elasticsearch.cluster.routing.allocation.decider.MockDiskUsagesIT
   method: testAutomaticReleaseOfIndexBlock
   issue: https://github.com/elastic/elasticsearch/issues/162420
+- class: org.elasticsearch.xpack.writeloadforecaster.WriteLoadForecasterIT
+  method: testWriteLoadForecastIsOverriddenBySetting
+  issue: https://github.com/elastic/elasticsearch/issues/162601
 
 # Examples:
 #

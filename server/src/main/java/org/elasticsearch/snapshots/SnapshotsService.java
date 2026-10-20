@@ -260,12 +260,22 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         this.externalChangesBatcher = new SnapshotExternalChangesBatcher(
             clusterService,
             initializingClones::contains,
-            (entry, metadata) -> submitFinalizeSnapshotRepositoryDataWriteTask(entry, metadata, null),
+            (entry, metadata) -> submitFinalizeSnapshotRepositoryDataWriteTask(
+                entry,
+                metadata,
+                // Unlike SnapshotDeletionStartBatcher$FinalizeTaskSubmitter we do not need the latest RepositoryData to process external
+                // changes, so we pass a null RepositoryData here which causes it to be loaded from the repository (only) if this submission
+                // starts immediately, which means that no other task is currently updating it.
+                null
+            ),
             this::startExecutableClones,
             (entry, minVersion) -> submitDeleteSnapshotsRepositoryDataWriteTask(
                 entry.projectId(),
                 entry.repoName(),
                 entry,
+                // Unlike SnapshotDeletionStartBatcher$DeleteTaskSubmitter we do not need the latest RepositoryData to process external
+                // changes, so we pass a null RepositoryData here which causes it to be loaded from the repository (only) if this submission
+                // starts immediately, which means that no other task is currently updating it.
                 null,
                 minVersion
             )
@@ -856,7 +866,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     private void submitFinalizeSnapshotRepositoryDataWriteTask(
         SnapshotsInProgress.Entry entry,
         Metadata metadata,
-        @Nullable RepositoryData repositoryData
+        @Nullable /* if the triggering task did not have access to the latest RepositoryData (e.g. it didn't just update it) */
+        RepositoryData repositoryData
     ) {
         final Snapshot snapshot = entry.snapshot();
         final boolean newFinalization = endingSnapshots.add(snapshot);
@@ -1513,7 +1524,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         ProjectId projectId,
         String repositoryName,
         SnapshotDeletionsInProgress.Entry deleteEntry,
-        @Nullable RepositoryData repositoryData,
+        @Nullable /* if the triggering task did not have access to the latest RepositoryData (e.g. it didn't just update it) */
+        RepositoryData repositoryData,
         IndexVersion minNodeVersion
     ) {
         assert deleteEntry.state() == SnapshotDeletionsInProgress.State.STARTED : deleteEntry;

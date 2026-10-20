@@ -57,6 +57,7 @@ configurations {
 sourceSets {
   internalClusterTest {
     compileClasspath += configurations.securityIntegTest
+    runtimeClasspath = runtimeClasspath - configurations.internalClusterTestRuntimeClasspath + configurations.securityIntegTest
   }
 }
 

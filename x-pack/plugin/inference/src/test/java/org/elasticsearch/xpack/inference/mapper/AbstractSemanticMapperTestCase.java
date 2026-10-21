@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -34,7 +33,6 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.ColumnarBinaryDocValuesField;
 import org.elasticsearch.index.mapper.DummyBlockLoaderContext;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -670,7 +668,7 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
             final ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.array("field", "b", "a", "b")));
             assertThat(doc.rootDoc().getField(dvFieldName), instanceOf(ColumnarBinaryDocValuesField.class));
             if (mode == SourceFieldMapper.Mode.COLUMNAR_STORED) {
-                final String blob = new BytesArray(doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME).binaryValue()).utf8ToString();
+                final String blob = columnarBlobAsJson(doc);
                 assertThat("the blob leaves the original input out", blob, not(containsString("field")));
             }
 

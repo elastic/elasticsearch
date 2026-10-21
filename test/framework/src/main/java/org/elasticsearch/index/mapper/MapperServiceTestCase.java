@@ -21,6 +21,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
@@ -94,6 +95,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -562,6 +564,21 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
      */
     protected static SourceToParse source(String source) {
         return new SourceToParse("1", new BytesArray(source), XContentType.JSON);
+    }
+
+    /**
+     * Decodes the whole-document {@code columnar_stored} blob entry of {@code doc} and renders it as JSON. The blob is not JSON bytes:
+     * it is encoded in a binary format (SMILE), so tests must dispatch on the {@link XContentDataHelper} type byte as the production
+     * read path does instead of comparing the raw bytes as a string.
+     */
+    protected static String columnarBlobAsJson(ParsedDocument doc) throws IOException {
+        BytesRef entry = doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME).binaryValue();
+        BytesRef value = IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding.decode(entry).value();
+        XContentType type = XContentDataHelper.getXContentType(value);
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            XContentDataHelper.decodeAndWriteXContent(XContentParserConfiguration.EMPTY, builder, type, value);
+            return Strings.toString(builder);
+        }
     }
 
     /**

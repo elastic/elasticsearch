@@ -140,7 +140,7 @@ public class BinaryFieldMapperColumnarTests extends MapperServiceTestCase {
         assertTrue(mapperService.mappingLookup().syntheticVectorFields().contains("bin"));
         final ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.array("bin", A, B).field("kwd", "k")));
         // The blob is stored in SMILE (SourceFieldMapper.COLUMNAR_BLOB_XCONTENT_TYPE), so decode it through its type byte.
-        assertThat(SourceFieldMapperTests.columnarBlobAsJson(doc), equalTo("{\"kwd\":\"k\"}"));
+        assertThat(columnarBlobAsJson(doc), equalTo("{\"kwd\":\"k\"}"));
     }
 
     /** Synthetic source rebuilds every field from doc values, so nothing is patched in. */

@@ -22,7 +22,6 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -32,7 +31,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
-import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -143,9 +141,7 @@ public class RankVectorsFieldMapperTests extends SyntheticVectorsMapperTestCase 
             b.endArray();
         }));
 
-        BytesRef blob = doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME).binaryValue();
-        String encoded = new BytesArray(blob).utf8ToString();
-        assertThat(encoded.substring(encoded.indexOf('{')), equalTo("{\"kwd\":\"a\",\"nested\":[{\"kwd\":\"b\"},{\"kwd\":\"c\"}]}"));
+        assertThat(columnarBlobAsJson(doc), equalTo("{\"kwd\":\"a\",\"nested\":[{\"kwd\":\"b\"},{\"kwd\":\"c\"}]}"));
     }
 
     @Override

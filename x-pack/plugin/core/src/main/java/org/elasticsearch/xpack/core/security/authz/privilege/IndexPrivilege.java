@@ -364,7 +364,8 @@ public final class IndexPrivilege extends Privilege {
 
     private static final Set<IndexPrivilege> NONE_SET = Set.of(NONE);
 
-    private static volatile Cache<Set<String>, CachedPrivileges> cache = buildCache(Settings.EMPTY);
+    private static volatile long cacheMaximumWeight = CACHE_SIZE_SETTING.get(Settings.EMPTY).getBytes();
+    private static volatile Cache<Set<String>, CachedPrivileges> cache = buildCache(cacheMaximumWeight);
 
     private final IndexComponentSelectorPredicate selectorPredicate;
 
@@ -438,12 +439,14 @@ public final class IndexPrivilege extends Privilege {
      * Any previously cached entries are discarded.
      */
     public static void updateConfiguration(Settings settings) {
-        cache = buildCache(settings);
+        final long maximumWeight = CACHE_SIZE_SETTING.get(settings).getBytes();
+        cache = buildCache(maximumWeight);
+        cacheMaximumWeight = maximumWeight;
     }
 
-    private static Cache<Set<String>, CachedPrivileges> buildCache(Settings settings) {
+    private static Cache<Set<String>, CachedPrivileges> buildCache(long maximumWeight) {
         return CacheBuilder.<Set<String>, CachedPrivileges>builder()
-            .setMaximumWeight(CACHE_SIZE_SETTING.get(settings).getBytes())
+            .setMaximumWeight(maximumWeight)
             .weigher((names, cached) -> cached.weight())
             .build();
     }
@@ -480,6 +483,27 @@ public final class IndexPrivilege extends Privilege {
     // visible for testing
     static Cache<Set<String>, CachedPrivileges> getCache() {
         return cache;
+    }
+
+    /**
+     * Hit, miss and eviction counts of the cache of resolved privileges. This and the other cache accessors exist for metrics: the cache
+     * is static and {@link #updateConfiguration} replaces it, so they read the current instance on each call rather than exposing it.
+     */
+    public static Cache.Stats cacheStats() {
+        return cache.stats();
+    }
+
+    public static int cacheEntryCount() {
+        return cache.count();
+    }
+
+    public static long cacheWeightBytes() {
+        return cache.weight();
+    }
+
+    /** The limit the current cache was built with, see {@link #CACHE_SIZE_SETTING}. */
+    public static long cacheMaximumWeightBytes() {
+        return cacheMaximumWeight;
     }
 
     @Nullable

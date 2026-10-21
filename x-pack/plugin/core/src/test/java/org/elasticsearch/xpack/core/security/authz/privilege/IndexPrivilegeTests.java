@@ -678,6 +678,31 @@ public class IndexPrivilegeTests extends ESTestCase {
         }
     }
 
+    public void testCacheAccessorsFollowTheCurrentCache() {
+        final ByteSizeValue maxSize = ByteSizeValue.ofMb(randomIntBetween(1, 8));
+        IndexPrivilege.updateConfiguration(Settings.builder().put(IndexPrivilege.CACHE_SIZE_SETTING.getKey(), maxSize).build());
+        assertThat(IndexPrivilege.cacheMaximumWeightBytes(), equalTo(maxSize.getBytes()));
+        assertThat(IndexPrivilege.cacheEntryCount(), equalTo(0));
+        assertThat(IndexPrivilege.cacheWeightBytes(), equalTo(0L));
+
+        final Set<String> names = Set.of("read", "write");
+        IndexPrivilege.resolveBySelectorAccess(names);
+        IndexPrivilege.resolveBySelectorAccess(names);
+        assertThat(IndexPrivilege.cacheEntryCount(), equalTo(1));
+        assertThat(IndexPrivilege.cacheWeightBytes(), equalTo(IndexPrivilege.getCache().weight()));
+        assertThat(IndexPrivilege.cacheWeightBytes(), greaterThan(0L));
+        assertThat(IndexPrivilege.cacheStats().getHits(), equalTo(1L));
+        assertThat(IndexPrivilege.cacheStats().getMisses(), equalTo(1L));
+        assertThat(IndexPrivilege.cacheStats().getEvictions(), equalTo(0L));
+
+        // rebuilding the cache is reflected without re-reading anything
+        IndexPrivilege.updateConfiguration(Settings.EMPTY);
+        assertThat(IndexPrivilege.cacheMaximumWeightBytes(), equalTo(IndexPrivilege.CACHE_SIZE_SETTING.get(Settings.EMPTY).getBytes()));
+        assertThat(IndexPrivilege.cacheEntryCount(), equalTo(0));
+        assertThat(IndexPrivilege.cacheWeightBytes(), equalTo(0L));
+        assertThat(IndexPrivilege.cacheStats().getHits(), equalTo(0L));
+    }
+
     public void testCacheWeightIsEstimatedMemoryOfResolvedPrivileges() {
         final Cache<Set<String>, IndexPrivilege.CachedPrivileges> cache = IndexPrivilege.getCache();
         assertThat(cache.count(), equalTo(0));

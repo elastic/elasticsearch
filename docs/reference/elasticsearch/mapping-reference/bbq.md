@@ -354,7 +354,7 @@ Segments containing fewer than 10,000 vectors after merging are not calibrated. 
   2. Per-segment calibrated oversample, when the segment was calibrated at merge time. Different segments in the same index may use different factors.
   3. Mapping `rescore_vector.oversample`, or the default 3.0× if unset. This applies to unmerged segments, segments below the calibration threshold, and segments where calibration fell back to codec defaults.
 
-  Query-time oversample affects rerank depth only. Preconditioning and quantization encoding continue to follow each segment's stored configuration when `auto_calibrate` is enabled.
+     Query-time oversample affects rerank depth only. Preconditioning and quantization encoding continue to follow each segment's stored configuration.
 
 ### Changing `auto_calibrate` on an existing field [bbq-auto-calibration-update]
 
@@ -367,10 +367,9 @@ Existing segments are not rewritten, so the new value applies from the next merg
 
 - If you turn it on, for example by changing `false` or `disabled` to `true`, `iso_sizing`, or `quality`, later merges that produce at least 10,000 vectors are calibrated.
   Segments written before the change are calibrated when they are merged.
-- If you turn it off, later merges use the codec default encoding.
-  When you search, segments are scored using the `bits` and `rescore_vector.oversample` values from the mapping instead of their calibrated values.
-  Preconditioning is the exception. // TODO: Is it true that `bits` drives query bits?
-  It is a property of how each segment was written, so a segment that was preconditioned during calibration continues to be searched that way.
+- If you turn it off, later merges use the mapping settings.
+  When you search, segments no longer use their calibrated oversampling factor. They use the query-time `rescore_vector.oversample` if set, otherwise the mapping value (default 3.0).
+  Encoding and preconditioning are properties of how each segment was written, so a segment that was calibrated continues to be searched with its calibrated encoding and preconditioning until it is merged again.
 - If you switch profiles, for example from `iso_sizing` to `quality`, later calibrated merges choose from the new profile's candidate configurations.
   Segments that were already calibrated keep their stored encoding, oversampling, and preconditioning, and are searched with those values until they are merged again.
   The index can contain segments calibrated under different profiles.

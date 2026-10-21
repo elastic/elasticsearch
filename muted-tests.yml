@@ -97,9 +97,6 @@ tests:
 - class: org.elasticsearch.backwards.RareTermsIT
   method: testSingleValuedString
   issue: https://github.com/elastic/elasticsearch/issues/147853
-- class: org.elasticsearch.search.aggregations.metrics.LargeTopHitsIT
-  method: test500Queries
-  issue: https://github.com/elastic/elasticsearch/issues/148056
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testStressWithRelocationFailures
   issue: https://github.com/elastic/elasticsearch/issues/148129

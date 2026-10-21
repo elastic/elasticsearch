@@ -12,10 +12,12 @@ package org.elasticsearch.search.heappressure;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Future;
@@ -23,13 +25,14 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 /**
- * A {@code terms} filter just under {@code index.max_terms_count} must be accounted for, or bounded, in every form it takes on a node.
+ * A {@code terms} filter must be accounted for, or bounded, in every form it takes on a node.
  *
  * <p>The filter is parsed into a {@code TermsQueryBuilder} holding a {@code BytesRef} and a {@code byte[]} per term, which every
  * {@code ShardSearchRequest} of the search carries, including the ones still waiting in the search queue. When the shard runs it, the
- * builder is rewritten into a {@code TermInSetQuery} that holds the terms again, as a pre-filter of the kNN query if there is one. Neither
- * is charged to a circuit breaker, and {@code index.max_terms_count} limits the terms of one query rather than the memory of a node, so a
- * few overlapping multi-searches whose sub-searches each stay under it exhaust a small heap.
+ * builder is turned into a {@code TermInSetQuery} that holds the terms again, as a pre-filter of the kNN query if there is one. That
+ * query is charged to the request breaker when it is built, but the builder, which every shard request and every queued request keeps
+ * until it completes, is not. {@code index.max_terms_count} limits the terms of one query rather than the memory of a node, so a few
+ * overlapping multi-searches whose sub-searches each stay under it exhaust a small heap.
  *
  * <p>This is the shape of a search-tier out-of-memory seen in production: a multi-search whose sub-searches each carry a filter of about
  * 62k ids, as a plain filter or as the filter of a kNN query on a nested vector field. The vector index type does not matter, since the
@@ -46,9 +49,10 @@ public class LargeTermsFilterHeapPressureIT extends SearchHeapPressureTestCase {
     // Just under the default index.max_terms_count of 65536.
     private static final int TERMS = 62_000;
     private static final int SEARCHES_PER_MULTI_SEARCH = 5;
-    // A sub-search holds about 7 MB per shard and so 28 MB over SHARDS shards; THREADS * SEARCHES_PER_MULTI_SEARCH of them hold more than
-    // the heap.
     private static final int THREADS = 8;
+    // Each sub-search parses its own TermsQueryBuilder, about 68 bytes per 20-byte id and so about 4 MB for TERMS ids, on top of about
+    // 1.4 MB of request JSON. On one node the shard requests share the builder, and each shard adds only its prefix-coded TermInSetQuery.
+    // THREADS * SEARCHES_PER_MULTI_SEARCH sub-searches in flight hold about 220 MB, which with the node's own use is more than the heap.
 
     @ClassRule
     public static ElasticsearchCluster cluster = heapConstrainedNode("256m")
@@ -90,40 +94,45 @@ public class LargeTermsFilterHeapPressureIT extends SearchHeapPressureTestCase {
 
     private void assertOverlappingMultiSearchesSurvive(String searchBody) throws Exception {
         // A request's entity is not safe to share between threads, so each builds its own.
-        List<Future<Map<String, Object>>> futures = submit(THREADS, () -> multiSearchFailureOrNull(multiSearch(searchBody)));
-        for (Future<Map<String, Object>> future : futures) {
-            Map<String, Object> failure = future.get();
-            if (failure != null) {
-                assertTrue(
-                    "expected only circuit_breaking_exception failures, but got: " + failure,
-                    containsCircuitBreakingException(failure)
-                );
-            }
+        List<Future<List<Object>>> futures = submit(THREADS, () -> nonBreakerFailures(multiSearch(searchBody)));
+        for (Future<List<Object>> future : futures) {
+            List<Object> failures = future.get();
+            assertTrue("expected only circuit_breaking_exception failures, but got: " + failures, failures.isEmpty());
         }
         // Check that the node didn't OOM and is still alive.
         assertNodeAlive();
     }
 
     /**
-     * Performs the multi-search and returns the first failure, whether of the whole request or of one of its searches, which multi-search
-     * reports in its response, or {@code null} if every search succeeded.
+     * Performs the multi-search and returns every failure that is not a circuit breaker rejection: of the whole request, of one of its
+     * searches, which multi-search reports in its response, or of some shards of a search that otherwise returned results. Empty if every
+     * search succeeded or was rejected only by a circuit breaker.
      */
-    private Map<String, Object> multiSearchFailureOrNull(Request multiSearch) throws IOException {
+    private List<Object> nonBreakerFailures(Request multiSearch) throws IOException {
         Map<String, Object> body;
         try {
             body = entityAsMap(client().performRequest(multiSearch));
         } catch (ResponseException e) {
-            return entityAsMap(e.getResponse());
+            Map<String, Object> error = entityAsMap(e.getResponse());
+            return containsCircuitBreakingException(error) ? List.of() : List.of(error);
         }
+        List<Object> failures = new ArrayList<>();
         for (Object response : (List<?>) body.get("responses")) {
             Map<?, ?> search = (Map<?, ?>) response;
-            if (search.containsKey("error")) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> failure = (Map<String, Object>) search;
-                return failure;
+            Object error = search.get("error");
+            if (error != null && containsCircuitBreakingException(error) == false) {
+                failures.add(search);
+            }
+            List<?> shardFailures = (List<?>) XContentMapValues.extractValue("_shards.failures", search);
+            if (shardFailures != null) {
+                for (Object shardFailure : shardFailures) {
+                    if (containsCircuitBreakingException(shardFailure) == false) {
+                        failures.add(shardFailure);
+                    }
+                }
             }
         }
-        return null;
+        return failures;
     }
 
     private static Request multiSearch(String searchBody) {
@@ -134,7 +143,7 @@ public class LargeTermsFilterHeapPressureIT extends SearchHeapPressureTestCase {
         }
         Request request = new Request("POST", "/_msearch");
         // Hits are not what the cases look at.
-        request.addParameter("filter_path", "responses.status,responses.error");
+        request.addParameter("filter_path", "responses.status,responses.error,responses._shards.failures");
         request.setJsonEntity(body.toString());
         return request;
     }

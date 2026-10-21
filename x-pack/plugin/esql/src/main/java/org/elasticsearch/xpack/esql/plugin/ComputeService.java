@@ -14,6 +14,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -230,7 +231,8 @@ public class ComputeService {
         BigArrays bigArrays,
         BlockFactory blockFactory,
         OperatorFactoryRegistry operatorFactoryRegistry,
-        FormatReaderRegistry formatReaderRegistry
+        FormatReaderRegistry formatReaderRegistry,
+        Client client
     ) {
         this.searchService = transportActionServices.searchService();
         this.transportService = transportActionServices.transportService();
@@ -259,7 +261,8 @@ public class ComputeService {
             searchService,
             transportService,
             exchangeService,
-            searchExecutor
+            searchExecutor,
+            client
         );
         this.clusterComputeHandler = new ClusterComputeHandler(
             this,

@@ -102,6 +102,32 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  */
 public class InSubqueryResolver {
 
+    /** Prefix of the synthetic boolean mark produced by a {@link MarkJoin}. */
+    public static final String SYNTHETIC_MARK_NAME_PREFIX = "$$in_subquery_mark$";
+
+    /** Prefix of the synthetic alias that materializes a foldable IN-subquery left-hand side. */
+    public static final String SYNTHETIC_CONST_NAME_PREFIX = "$$in_subquery_const$";
+
+    /**
+     * {@code true} for MarkJoin marks and foldable IN-subquery const aliases. Other synthetics
+     * (union-type {@code $$<field>$converted_to$<type>} casts) are not included: those must stay in {@code FORK} / {@code UnionAll} output
+     * so a conversion above the merge can reference them.
+     * <p>
+     * A union-type cast of a field named {@code in_subquery_mark} / {@code in_subquery_const}
+     * ({@code $$in_subquery_mark$converted_to$<type>}) shares the reserved prefix, so names that contain {@code converted_to} are excluded.
+     */
+    public static boolean isInSubquerySynthetic(Attribute attr) {
+        if (attr.synthetic() == false) {
+            return false;
+        }
+        String name = attr.name();
+        return isGeneratedInSubqueryName(name, SYNTHETIC_MARK_NAME_PREFIX) || isGeneratedInSubqueryName(name, SYNTHETIC_CONST_NAME_PREFIX);
+    }
+
+    private static boolean isGeneratedInSubqueryName(String name, String prefix) {
+        return name.startsWith(prefix) && name.contains("converted_to") == false;
+    }
+
     // for testing only
     /**
      *
@@ -771,7 +797,7 @@ public class InSubqueryResolver {
      *  produces only one join and one synthetic alias.
      */
     private static String syntheticConstName(Expression value, LogicalPlan subquery, int ordinal) {
-        return "$$in_subquery_const$" + value.hashCode() + "$" + subquery.hashCode() + "$" + ordinal;
+        return SYNTHETIC_CONST_NAME_PREFIX + value.hashCode() + "$" + subquery.hashCode() + "$" + ordinal;
     }
 
     /**
@@ -784,7 +810,7 @@ public class InSubqueryResolver {
      *  join and one mark attribute.
      */
     private static String syntheticMarkName(InSubquery inSubquery, int ordinal) {
-        return "$$in_subquery_mark$" + inSubquery.value().hashCode() + "$" + inSubquery.subquery().hashCode() + "$" + ordinal;
+        return SYNTHETIC_MARK_NAME_PREFIX + inSubquery.value().hashCode() + "$" + inSubquery.subquery().hashCode() + "$" + ordinal;
     }
 
     /**
@@ -797,7 +823,7 @@ public class InSubqueryResolver {
      *  only one join and one mark attribute.
      */
     private static String syntheticMarkName(MultiColumnInSubquery mcs, int ordinal) {
-        return "$$in_subquery_mark$" + mcs.hashCode() + "$" + ordinal;
+        return SYNTHETIC_MARK_NAME_PREFIX + mcs.hashCode() + "$" + ordinal;
     }
 
     public static void verify(LogicalPlan plan) {

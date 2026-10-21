@@ -50,9 +50,10 @@ public class LargeTermsFilterHeapPressureIT extends SearchHeapPressureTestCase {
     private static final int TERMS = 62_000;
     private static final int SEARCHES_PER_MULTI_SEARCH = 5;
     private static final int THREADS = 8;
-    // Each sub-search parses its own TermsQueryBuilder, about 68 bytes per 20-byte id and so about 4 MB for TERMS ids, on top of about
-    // 1.4 MB of request JSON. On one node the shard requests share the builder, and each shard adds only its prefix-coded TermInSetQuery.
-    // THREADS * SEARCHES_PER_MULTI_SEARCH sub-searches in flight hold about 220 MB, which with the node's own use is more than the heap.
+    // Each sub-search parses its own TermsQueryBuilder. A parsed JSON string becomes a BytesRef whose byte[] is sized for the worst-case
+    // UTF-8 length, 3 bytes per char, so a 20-char id takes about 108 bytes and TERMS ids about 6.7 MB, on top of about 1.4 MB of request
+    // JSON. On one node the shard requests share the builder, and each shard adds only its prefix-coded TermInSetQuery.
+    // THREADS * SEARCHES_PER_MULTI_SEARCH sub-searches in flight hold about 320 MB, more than the heap.
 
     @ClassRule
     public static ElasticsearchCluster cluster = heapConstrainedNode("256m")
@@ -109,30 +110,48 @@ public class LargeTermsFilterHeapPressureIT extends SearchHeapPressureTestCase {
      * search succeeded or was rejected only by a circuit breaker.
      */
     private List<Object> nonBreakerFailures(Request multiSearch) throws IOException {
+        List<Object> failures = new ArrayList<>();
         Map<String, Object> body;
         try {
             body = entityAsMap(client().performRequest(multiSearch));
         } catch (ResponseException e) {
-            Map<String, Object> error = entityAsMap(e.getResponse());
-            return containsCircuitBreakingException(error) ? List.of() : List.of(error);
+            Map<String, Object> response = entityAsMap(e.getResponse());
+            addNonBreakerFailures(response.getOrDefault("error", response), failures);
+            return failures;
         }
-        List<Object> failures = new ArrayList<>();
         for (Object response : (List<?>) body.get("responses")) {
             Map<?, ?> search = (Map<?, ?>) response;
             Object error = search.get("error");
-            if (error != null && containsCircuitBreakingException(error) == false) {
-                failures.add(search);
+            if (error != null) {
+                addNonBreakerFailures(error, failures);
             }
             List<?> shardFailures = (List<?>) XContentMapValues.extractValue("_shards.failures", search);
             if (shardFailures != null) {
-                for (Object shardFailure : shardFailures) {
-                    if (containsCircuitBreakingException(shardFailure) == false) {
-                        failures.add(shardFailure);
-                    }
-                }
+                addNonBreakerShardFailures(shardFailures, failures);
             }
         }
         return failures;
+    }
+
+    /**
+     * Adds {@code error} to {@code failures} unless it is a circuit breaker rejection. A search that failed on every shard reports each
+     * shard under {@code failed_shards}, and those are checked one by one, so that a breaker rejection on one shard cannot hide an
+     * unrelated failure on another.
+     */
+    private static void addNonBreakerFailures(Object error, List<Object> failures) {
+        if (error instanceof Map<?, ?> map && map.get("failed_shards") instanceof List<?> failedShards && failedShards.isEmpty() == false) {
+            addNonBreakerShardFailures(failedShards, failures);
+        } else if (containsCircuitBreakingException(error) == false) {
+            failures.add(error);
+        }
+    }
+
+    private static void addNonBreakerShardFailures(List<?> shardFailures, List<Object> failures) {
+        for (Object shardFailure : shardFailures) {
+            if (containsCircuitBreakingException(shardFailure) == false) {
+                failures.add(shardFailure);
+            }
+        }
     }
 
     private static Request multiSearch(String searchBody) {

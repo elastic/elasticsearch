@@ -23,7 +23,6 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
@@ -37,16 +36,13 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 
 public abstract class AbstractOTLPTransportAction extends HandledTransportAction<OTLPActionRequest, OTLPActionResponse> {
 
     private static final Logger logger = LogManager.getLogger(AbstractOTLPTransportAction.class);
     public static final int IGNORED_DATA_POINTS_MESSAGE_LIMIT = 10;
-    private static final TimeValue EXPANDED_CONTENT_WARNING_INTERVAL = TimeValue.timeValueMinutes(1);
     private final Client client;
     protected final long maxExpandedContentLength;
-    private final AtomicLong lastExpandedContentWarningNanos = new AtomicLong(Long.MIN_VALUE);
 
     @Inject
     public AbstractOTLPTransportAction(
@@ -190,7 +186,7 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
 
     /**
      * Keeps a running total of the expanded size of the documents generated for an OTLP request.
-     * Resource/scope attributes and labels are copied into every document, so a comparatively small protobuf payload can expand into a
+     * Resource/scope attributes and labels are copied into every document, so a comparably small protobuf payload can expand into a
      * much larger bulk request. When rejecting a request, the error message includes how many items have been processed and an
      * extrapolation of the expanded size of the full request. This helps to tell apart requests that contain a large number of
      * items from requests where each document is large (e.g. due to large resource attributes) and to inform the limits clients should
@@ -231,7 +227,7 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
             this.processedItems += items;
             if (expandedBytes > maxExpandedContentLength) {
                 String message = rejectionMessage();
-                logExpandedContentLimitExceeded(message);
+                logger.debug("{}", message);
                 throw new ElasticsearchStatusException(message, RestStatus.REQUEST_ENTITY_TOO_LARGE);
             }
         }
@@ -258,19 +254,6 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
                 sb.append(" Estimated expanded size of the full request: [").append(estimatedBytes).append("] bytes.");
             }
             return sb.toString();
-        }
-    }
-
-    /**
-     * Logs rejections due to the expanded content limit at most once per {@link #EXPANDED_CONTENT_WARNING_INTERVAL} so that operators
-     * can see which limits clients would need without flooding the logs when a client keeps sending oversized requests.
-     */
-    private void logExpandedContentLimitExceeded(String message) {
-        long now = System.nanoTime();
-        long last = lastExpandedContentWarningNanos.get();
-        if ((last == Long.MIN_VALUE || now - last >= EXPANDED_CONTENT_WARNING_INTERVAL.nanos())
-            && lastExpandedContentWarningNanos.compareAndSet(last, now)) {
-            logger.warn("{} (further rejections are logged at debug level for the next [{}])", message, EXPANDED_CONTENT_WARNING_INTERVAL);
         }
     }
 

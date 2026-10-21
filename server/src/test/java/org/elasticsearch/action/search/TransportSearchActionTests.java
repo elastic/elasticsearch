@@ -67,6 +67,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.InnerHitBuilder;
@@ -2460,6 +2461,40 @@ public class TransportSearchActionTests extends ESTestCase {
             .toArray(String[]::new);
 
         assertThat(Arrays.asList(actual), containsInAnyOrder(expected));
+    }
+
+    public void testIgnoreIndicesWithoutSlices() {
+        final ProjectId projectId = randomProjectIdOrDefault();
+        final ProjectMetadata.Builder project = ProjectMetadata.builder(projectId);
+        for (String index : List.of("sliced", "plain")) {
+            project.put(
+                IndexMetadata.builder(index)
+                    .settings(
+                        settings(IndexVersion.current()).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                            .put(IndexSettings.SLICE_ENABLED.getKey(), index.equals("sliced"))
+                    )
+                    .build(),
+                false
+            );
+        }
+        final ProjectState projectState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(project)
+            .build()
+            .projectState(projectId);
+        final String[] indices = new String[] { "sliced", "plain" };
+
+        final SearchRequest named = new SearchRequest(indices).searchSlice(randomFrom("s1", "s1,s2"));
+        assertThat(TransportSearchAction.ignoreIndicesWithoutSlices(projectState, named, indices), arrayContaining("sliced"));
+
+        // every slice, no slice or a routing value searches every index
+        for (SearchRequest request : List.of(
+            new SearchRequest(indices).searchSlice(SliceIndexing.SLICE_ALL),
+            new SearchRequest(indices),
+            new SearchRequest(indices).routing("s1")
+        )) {
+            assertThat(TransportSearchAction.ignoreIndicesWithoutSlices(projectState, request, indices), arrayContaining(indices));
+        }
     }
 
     /**

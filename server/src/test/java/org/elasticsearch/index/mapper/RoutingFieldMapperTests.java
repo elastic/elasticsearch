@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.column.BinaryColumn;
 import org.apache.lucene.document.column.Column;
 import org.apache.lucene.document.column.ObjectTupleCursor;
@@ -36,8 +37,6 @@ import org.elasticsearch.index.SliceSelection;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.lucene.document.XSortedSkipperScorerSupplier;
-import org.elasticsearch.lucene.queries.XSortedSetDocValuesRangeQuery;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.sourcebatch.MappedColumns;
@@ -351,7 +350,7 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
             context.setSliceSelection(SliceSelection.of(List.of("s1")));
             Query filter = context.sliceFilter();
             assertEquals(
-                XSortedSetDocValuesRangeQuery.newSlowExactQuery(SliceIndexing.SLICE_KEY_FIELD_NAME, SliceIndexing.encodeSliceKey("s1")),
+                SortedSetDocValuesField.newSlowExactQuery(SliceIndexing.SLICE_KEY_FIELD_NAME, SliceIndexing.encodeSliceKey("s1")),
                 filter
             );
             assertEquals(5, searcher.count(filter));
@@ -359,7 +358,8 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
             Weight weight = searcher.createWeight(searcher.rewrite(filter), ScoreMode.COMPLETE_NO_SCORES, 1f);
             assertFalse(reader.leaves().isEmpty());
             for (LeafReaderContext leaf : reader.leaves()) {
-                assertThat(weight.scorerSupplier(leaf), instanceOf(XSortedSkipperScorerSupplier.class));
+                // the skipper scorer supplier is package-private in Lucene, the query returns an anonymous subclass of it
+                assertThat(weight.scorerSupplier(leaf).getClass().getSuperclass().getSimpleName(), equalTo("SortedSkipperScorerSupplier"));
             }
 
             // several slices become one exact query per slice
@@ -367,14 +367,11 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
             assertEquals(
                 new ConstantScoreQuery(
                     new BooleanQuery.Builder().add(
-                        XSortedSetDocValuesRangeQuery.newSlowExactQuery(
-                            SliceIndexing.SLICE_KEY_FIELD_NAME,
-                            SliceIndexing.encodeSliceKey("s1")
-                        ),
+                        SortedSetDocValuesField.newSlowExactQuery(SliceIndexing.SLICE_KEY_FIELD_NAME, SliceIndexing.encodeSliceKey("s1")),
                         BooleanClause.Occur.SHOULD
                     )
                         .add(
-                            XSortedSetDocValuesRangeQuery.newSlowExactQuery(
+                            SortedSetDocValuesField.newSlowExactQuery(
                                 SliceIndexing.SLICE_KEY_FIELD_NAME,
                                 SliceIndexing.encodeSliceKey("s3")
                             ),

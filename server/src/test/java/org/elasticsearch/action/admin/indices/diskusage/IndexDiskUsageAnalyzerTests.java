@@ -829,9 +829,10 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
                 0.01,
                 2048
             );
-            // Allow difference of a file block size for knn vectors
-            // we get knn data usage from getOffHeapByteSize but when written on disk it can be rounded to the next block size
-            assertFieldStats(field, "knn vectors", actualField.getKnnVectorsBytes(), expectedField.getKnnVectorsBytes(), 0.01, 4096);
+            // getOffHeapByteSize is payload-only. On-disk .vec also has codec header/footer and,
+            // since lucene#16771, up to one 4KB page of alignment padding. One block is no longer
+            // enough; allow two pages.
+            assertFieldStats(field, "knn vectors", actualField.getKnnVectorsBytes(), expectedField.getKnnVectorsBytes(), 0.01, 8192);
         }
         // We are not able to collect per field stats for stored, vector, points, and norms
         IndexDiskUsageStats.PerFieldDiskUsage actualTotal = actualStats.total();

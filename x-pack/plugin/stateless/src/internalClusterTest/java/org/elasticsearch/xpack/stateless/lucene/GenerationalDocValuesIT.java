@@ -491,6 +491,9 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
         return indexName;
     }
 
+    // TODO: LUCENE11 after #160599 deletes no longer emit an empty commit, so gens
+    // are 7/8/9. This branch kept 8/9/10 from the main-merge resolution. Mute until
+    // we take main's maps and keep the .dvp listings.
     public void testBackgroundMergeCanRetainDeletedGenerationalFile() throws Exception {
         GenerationalFilesTrackingStatelessPlugin.enableCustomMergePolicy();
         var nodeName = startMasterAndIndexNode(

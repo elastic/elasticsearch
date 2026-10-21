@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -30,7 +31,6 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.lucene.queries.XSortedSetDocValuesRangeQuery;
 import org.elasticsearch.test.IndexSettingsModule;
 
 import java.util.List;
@@ -105,7 +105,7 @@ public class RoutingFieldTypeTests extends FieldTypeTestCase {
     }
 
     private static Query sliceKeyExactQuery(String slice) {
-        return XSortedSetDocValuesRangeQuery.newSlowExactQuery(SliceIndexing.SLICE_KEY_FIELD_NAME, SliceIndexing.encodeSliceKey(slice));
+        return SortedSetDocValuesField.newSlowExactQuery(SliceIndexing.SLICE_KEY_FIELD_NAME, SliceIndexing.encodeSliceKey(slice));
     }
 
     private static SearchExecutionContext sliceEnabledMockContext() {

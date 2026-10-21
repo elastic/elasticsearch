@@ -436,6 +436,8 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
         assertThat((double) hits.get(0).get("_score"), closeTo(0.028571429, 0.0001));
     }
 
+    // TODO: LUCENE11 int8 knn on 8.x-written segments can rank "1" above "0"
+    // after upgrade; hasItem("0") still fails when "0" drops out of k=2.
     public void testQuantizedVectorSearch() throws Exception {
         assumeTrue("Quantized vector search is not supported on this version", oldClusterHasFeature(QUANTIZED_VECTOR_SEARCH_TEST_FEATURE));
         if (isOldCluster()) {
@@ -506,6 +508,7 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
         assertInt8KnnTopHit(hits);
     }
 
+    // TODO: LUCENE11 same int8 rank flip as testQuantizedVectorSearch (int8_flat).
     public void testFlatQuantizedVectorSearch() throws Exception {
         assumeTrue(
             "Quantized vector search is not supported on this version",

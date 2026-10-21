@@ -172,7 +172,12 @@ public class StringColumnMergeOrdinalSkipTests extends ESTestCase {
             ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
             StringColumnOptionsSelector.always(options)
         );
-        return new IndexWriterConfig().setCodec(columnarCodec(format)).setUseCompoundFile(false).setMergePolicy(mergePolicy);
+        final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(format))
+            .setUseCompoundFile(false)
+            .setMergePolicy(mergePolicy);
+        // TODO: LUCENE11 forceMerge may pack .cfs under Lucene's 64MB default; need a 0-byte CompoundFormat cutoff
+        iwc.getCodec().compoundFormat().setShouldUseCompoundFile(false);
+        return iwc;
     }
 
     private static String[] clustered(int count, int runs, int terms) {

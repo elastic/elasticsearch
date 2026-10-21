@@ -38,7 +38,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.lucene.queries.XSortedSetDocValuesRangeQuery;
 import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.SortedSetDocValuesStringFieldScript;
@@ -156,7 +155,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
                 if (isSliceKeySorted(context)) {
                     return sliceKeyExactQuery(indexedValueForSearch(value));
                 }
-                return XSortedSetDocValuesRangeQuery.newSlowExactQuery(name(), indexedValueForSearch(value));
+                return SortedSetDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
             } else {
                 return super.termQuery(value, context);
             }
@@ -207,7 +206,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         }
 
         private static Query sliceKeyExactQuery(BytesRef slice) {
-            return XSortedSetDocValuesRangeQuery.newSlowExactQuery(SliceIndexing.SLICE_KEY_FIELD_NAME, SliceIndexing.encodeSliceKey(slice));
+            return SortedSetDocValuesField.newSlowExactQuery(SliceIndexing.SLICE_KEY_FIELD_NAME, SliceIndexing.encodeSliceKey(slice));
         }
 
         @Override

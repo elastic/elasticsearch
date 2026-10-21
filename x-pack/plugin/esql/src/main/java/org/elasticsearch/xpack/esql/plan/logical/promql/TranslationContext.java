@@ -645,13 +645,16 @@ public record TranslationContext(
         /* The translator tracks what it built instead of inspecting the plan. */
         Kind kind
     ) {
-        /** The lifecycle of an intermediate result. A constant is always a finished (aggregation-free) local relation. */
+        /**
+         * The lifecycle of an intermediate result. A constant is a finished compile-time relation that reads no source: a
+         * local relation, or a regroup, evaluation or filter composed over one.
+         */
         public enum Kind {
             BEFORE_INITIAL_AGGREGATE(false, false),
             AFTER_INITIAL_AGGREGATE(true, false),
             CONSTANT(true, true);
 
-            /** A local relation needs no source filtering or aggregation. */
+            /** A compile-time relation needs no source filtering or initial aggregation. */
             public final boolean constant;
             /** Value expressions above this boundary must materialize before being consumed. */
             public final boolean afterInitialAggregation;

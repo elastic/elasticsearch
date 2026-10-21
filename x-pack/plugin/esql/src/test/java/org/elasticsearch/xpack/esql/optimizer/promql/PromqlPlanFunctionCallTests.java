@@ -70,8 +70,8 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
 
     /**
      * {@code vector(1)} is a single series per step, not one per source series: the operator reduces the one row per step
-     * of an initial step-only aggregate, rather than folding over every series of the index (which made
-     * {@code sum(vector(1))} the series count).
+     * of an initial step-only aggregate rather than folding over every series of the index, so {@code sum(vector(1))} is
+     * {@code 1} and never the series count.
      */
     public void testAggregateOverLabelLessVectorReducesSingleSeries() {
         assertReducesSingleSeries("sum(vector(1))", Sum.class);

@@ -99,9 +99,26 @@ public class PromqlPlanConstantVectorTests extends AbstractPromqlPlanOptimizerTe
     }
 
     /**
+     * A ranking over a constant vector keeps its one series per step for {@code k >= 1} and drops it for {@code k < 1},
+     * as over any other vector: {@code topk(0, sum(vector(1)))} is the empty vector.
+     */
+    public void testReductionOverAConstantVectorAppliesK() {
+        for (String prefix : List.of(RANGE, INSTANT)) {
+            for (String function : List.of("topk", "bottomk", "limitk")) {
+                for (String k : List.of("0", "0.5")) {
+                    String promql = function + "(" + k + ", sum(vector(1)))";
+                    assertThat(promql, optimized(prefix, promql).collect(MvExpand.class), empty());
+                }
+                String kept = function + "(1, sum(vector(1)))";
+                assertThat(kept, optimized(prefix, kept).collect(MvExpand.class), hasSize(1));
+            }
+        }
+    }
+
+    /**
      * Pairing a constant vector with a vector whose label set is packed would need the series that have no labels told
-     * apart from the others, which main cannot do yet: the verifier rejects it rather than broadcasting the constant to
-     * every series ({@code x * vector(2)} is empty in Prometheus).
+     * apart from the others, which match keys over runtime-defined labels cannot do yet: the verifier rejects it rather
+     * than broadcasting the constant to every series ({@code x * vector(2)} is empty in Prometheus).
      */
     public void testConstantVectorAgainstAVectorWithoutConcreteLabelsIsRejected() {
         for (String promql : List.of(

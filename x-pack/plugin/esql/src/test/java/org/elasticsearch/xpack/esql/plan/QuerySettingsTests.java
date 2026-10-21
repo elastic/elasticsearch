@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.plan;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.Build;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -18,7 +17,6 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -174,35 +172,24 @@ public class QuerySettingsTests extends ESTestCase {
     public void testValidate_UnmappedFields() {
         var setting = QuerySettings.UNMAPPED_FIELDS;
         String[] allValues = new String[] { "DEFAULT", "NULLIFY", "LOAD", "LOAD_ALL" };
-        String[] nonSnapshotValues = new String[] { "DEFAULT", "NULLIFY", "LOAD" };
 
         assertDefault(setting, equalTo(UnmappedResolution.DEFAULT));
 
-        for (String value : nonSnapshotValues) {
-            assertValid(setting, of(randomizeCase(value)), equalTo(UnmappedResolution.valueOf(value)));
+        for (String value : allValues) {
+            for (SettingsValidationContext ctx : allSettingsValidationContexts) {
+                assertValid(setting, of(randomizeCase(value)), equalTo(UnmappedResolution.valueOf(value)), ctx);
+            }
         }
-
-        // LOAD_ALL is only valid on snapshot builds
-        assertValid(setting, of(randomizeCase("LOAD_ALL")), equalTo(UnmappedResolution.LOAD_ALL), SNAPSHOT_CTX_WITH_CPS_ENABLED);
-        assertValid(setting, of(randomizeCase("LOAD_ALL")), equalTo(UnmappedResolution.LOAD_ALL), SNAPSHOT_CTX_WITH_CPS_DISABLED);
-        assertInvalid(
-            setting.name(),
-            NON_SNAPSHOT_CTX_WITH_CPS_ENABLED,
-            of("LOAD_ALL"),
-            "Error validating setting [unmapped_fields]: unmapped_fields value [LOAD_ALL] requires a snapshot build"
-        );
 
         assertInvalid(setting.name(), of(12), "Setting [" + setting.name() + "] must be of type KEYWORD");
 
-        // Parsing precedes the snapshot-only validator, so the values it lists come from the running build, not from the context.
-        String[] parseErrorValues = Build.current().isSnapshot() ? allValues : nonSnapshotValues;
         for (SettingsValidationContext ctx : allSettingsValidationContexts) {
             assertInvalid(
                 setting.name(),
                 ctx,
                 of("UNKNOWN"),
                 "Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution [UNKNOWN], must be one of "
-                    + Arrays.toString(parseErrorValues)
+                    + Arrays.toString(allValues)
             );
         }
 
@@ -212,22 +199,7 @@ public class QuerySettingsTests extends ESTestCase {
             settingSource,
             of("UNKNOWN"),
             "line 3:11: Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution [UNKNOWN], must be one of "
-                + Arrays.toString(parseErrorValues)
-        );
-    }
-
-    /**
-     * Parsing happens before the snapshot-only validator runs, so the parse error is what a production build shows for a typo: it must
-     * list only the values that build accepts. Tests always run on a snapshot build, hence the direct call with both flags.
-     */
-    public void testUnmappedFieldsParseErrorHidesSnapshotOnlyValue() {
-        assertThat(
-            QuerySettings.invalidUnmappedResolutionMessage("UNKNOWN", false),
-            equalTo("Invalid unmapped_fields resolution [UNKNOWN], must be one of [DEFAULT, NULLIFY, LOAD]")
-        );
-        assertThat(
-            QuerySettings.invalidUnmappedResolutionMessage("UNKNOWN", true),
-            equalTo("Invalid unmapped_fields resolution [UNKNOWN], must be one of [DEFAULT, NULLIFY, LOAD, LOAD_ALL]")
+                + Arrays.toString(allValues)
         );
     }
 
@@ -1201,20 +1173,15 @@ public class QuerySettingsTests extends ESTestCase {
         assertThat(resolved, equalTo(QuerySettings.resolve(Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED)));
     }
 
-    public void testSnapshotOnlyOperatorValueDoesNotEscapeOntoAReleaseBuild() {
-        // unmapped_fields=LOAD_ALL is snapshot-only, enforced by the setting's own validator. Written on a snapshot
-        // build the value persists; if the cluster later runs a release build it must stop applying rather than
-        // silently remain in force. Whether it is refused depends on the build this test runs on, which is what the
-        // write-time context reports, so assert against that rather than hardcoding one build type.
+    public void testLoadAllClusterDefaultAppliesOutsideSnapshotBuilds() {
         ResolvedSettings resolved = QuerySettings.resolve(
             clusterSetting(QuerySettings.UNMAPPED_FIELDS, "LOAD_ALL"),
             Settings.EMPTY,
             Map.of(),
             null,
-            SNAPSHOT_CTX_WITH_CPS_ENABLED
+            NON_SNAPSHOT_CTX_WITH_CPS_ENABLED
         );
-        UnmappedResolution expected = Build.current().isSnapshot() ? UnmappedResolution.LOAD_ALL : UnmappedResolution.DEFAULT;
-        assertThat(resolved.get(QuerySettings.UNMAPPED_FIELDS), equalTo(expected));
+        assertThat(resolved.get(QuerySettings.UNMAPPED_FIELDS), equalTo(UnmappedResolution.LOAD_ALL));
     }
 
     public void testDriftedOperatorValueFallsBackToTheRegistryDefault() {
@@ -1384,46 +1351,6 @@ public class QuerySettingsTests extends ESTestCase {
             SNAPSHOT_CTX_WITH_CPS_ENABLED
         );
         assertThat(resolved.get(QuerySettings.UNMAPPED_FIELDS), equalTo(UnmappedResolution.NULLIFY));
-    }
-
-    /**
-     * A limit of 0 on the fields {@code LOAD_ALL} discovers makes it behave like {@code LOAD}, which is settled when the query
-     * settings are resolved, so that every phase of the query sees {@code LOAD}.
-     */
-    public void testLoadAllResolvesToLoadWhenTheLoadAllFieldLimitIsZero() {
-        assumeTrue("requires the LOAD_ALL field limit", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS_SETTING.isEnabled());
-
-        ResolvedSettings resolved = resolveWithLoadAllFieldLimit(clusterSetting(QuerySettings.UNMAPPED_FIELDS, "LOAD_ALL"), 0);
-
-        assertThat(resolved.get(QuerySettings.UNMAPPED_FIELDS), equalTo(UnmappedResolution.LOAD));
-    }
-
-    public void testLoadAllStaysLoadAllWhenTheLoadAllFieldLimitIsPositive() {
-        assumeTrue("requires the LOAD_ALL field limit", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS_SETTING.isEnabled());
-
-        ResolvedSettings resolved = resolveWithLoadAllFieldLimit(
-            clusterSetting(QuerySettings.UNMAPPED_FIELDS, "LOAD_ALL"),
-            between(1, 100_000)
-        );
-
-        assertThat(resolved.get(QuerySettings.UNMAPPED_FIELDS), equalTo(UnmappedResolution.LOAD_ALL));
-    }
-
-    public void testOtherUnmappedFieldsResolutionsAreLeftAloneByAZeroLoadAllFieldLimit() {
-        assumeTrue("requires the LOAD_ALL field limit", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS_SETTING.isEnabled());
-        for (UnmappedResolution resolution : new UnmappedResolution[] {
-            UnmappedResolution.DEFAULT,
-            UnmappedResolution.NULLIFY,
-            UnmappedResolution.LOAD }) {
-            ResolvedSettings resolved = resolveWithLoadAllFieldLimit(clusterSetting(QuerySettings.UNMAPPED_FIELDS, resolution.name()), 0);
-
-            assertThat(resolved.get(QuerySettings.UNMAPPED_FIELDS), equalTo(resolution));
-        }
-    }
-
-    private static ResolvedSettings resolveWithLoadAllFieldLimit(Settings clusterState, int loadAllMaxFields) {
-        // No approximation is in play, so the license is never asked.
-        return QuerySettings.resolve(clusterState, Settings.EMPTY, Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED, null, loadAllMaxFields);
     }
 
     public void testDerivedClusterSettingRejectsMalformedValueAtWriteTime() {

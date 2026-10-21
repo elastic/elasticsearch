@@ -4234,8 +4234,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     /**
-     * A LET binding body is a FORK scope of its own. Two FORKs that only meet once the binding is substituted are left to the
-     * post-analysis verifier.
+     * A LET binding body is a FORK scope of its own. Two FORKs that only meet once the binding is substituted are rejected by
+     * {@code LetResolver}.
      */
     public void testSecondForkOnOnePipelineInLetBindingRejectedAfterParsing() {
         assumeTrue("requires NAMED_SUBQUERY_LET capability", EsqlCapabilities.Cap.NAMED_SUBQUERY_LET.isEnabled());

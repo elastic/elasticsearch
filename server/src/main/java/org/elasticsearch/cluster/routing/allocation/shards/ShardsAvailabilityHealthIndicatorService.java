@@ -330,8 +330,8 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
         int relocating;
         public final Set<ProjectIndexName> indicesWithUnavailableShards;
         public final Set<ProjectIndexName> indicesWithProvisionallyUnavailableShards;
-        // Indices with at least one shard for which none of the copies of this type (primary or replica) are active, excluding
-        // provisionally unavailable ones. Other shards of the same index may have active copies.
+        /// Indices where, for the primaries `ShardAllocationCounts`, a primary is inactive; or, for the replicas counts, all replica copies
+        /// of the same shard are inactive. Provisionally inactive shards are excluded.
         public final Set<ProjectIndexName> indicesWithAnyShardWithNoActiveCopy;
         // We keep the searchable snapshots separately as long as the original index is still available
         // This is checked during the post-processing

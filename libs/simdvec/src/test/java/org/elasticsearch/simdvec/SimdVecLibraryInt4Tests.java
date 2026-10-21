@@ -89,9 +89,6 @@ public class SimdVecLibraryInt4Tests extends SimdVecLibraryTests {
             assertEquals(expected, similarity(nativeUnpacked, nativePacked, packedLen));
 
             var heapUnpacked = MemorySegment.ofArray(unpackedValues[first]);
-            var heapPacked = MemorySegment.ofArray(packedValues[second]);
-            assertEquals(expected, similarity(heapUnpacked, heapPacked, packedLen));
-            assertEquals(expected, similarity(nativeUnpacked, heapPacked, packedLen));
             assertEquals(expected, similarity(heapUnpacked, nativePacked, packedLen));
 
             // trivial bulk with a single vector

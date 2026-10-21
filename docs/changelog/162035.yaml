@@ -1,0 +1,5 @@
+area: PromQL
+issues: []
+pr: 162035
+summary: "Fix(promql): a range or count over nothing is no element"
+type: bug

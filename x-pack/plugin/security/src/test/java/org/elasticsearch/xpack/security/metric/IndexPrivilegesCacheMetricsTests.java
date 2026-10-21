@@ -50,8 +50,8 @@ public class IndexPrivilegesCacheMetricsTests extends ESTestCase {
     }
 
     /**
-     * Fills a small cache past its limit and checks that every instrument reports what the cache reports, including after the
-     * component is closed, when the instruments must be gone.
+     * Fills a small cache past its limit and checks that every instrument reports what the cache reports. After the component closes,
+     * the instruments must be gone.
      */
     public void testReportsCacheState() {
         // large enough to hold a few resolved privilege sets, small enough that 100 distinct sets do not fit
@@ -112,7 +112,7 @@ public class IndexPrivilegesCacheMetricsTests extends ESTestCase {
         }
     }
 
-    /** Drops earlier observations so that each instrument has exactly the one measurement taken now. */
+    /** Drops earlier observations so each instrument holds only the measurement taken now. */
     private static void collect(MetricRecorder<Instrument> recorder) {
         recorder.resetCalls();
         recorder.collect();

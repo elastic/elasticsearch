@@ -17,8 +17,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Publishes the state of the cache of resolved index privileges, see {@link IndexPrivilege#CACHE_SIZE_SETTING}. The cache is static,
- * so this component owns the registered instruments on its behalf and releases them when the security plugin closes.
+ * Publishes the state of the cache of resolved index privileges, see {@link IndexPrivilege#CACHE_SIZE_SETTING}, and releases the
+ * instruments when the security plugin closes.
  */
 public final class IndexPrivilegesCacheMetrics implements Closeable {
 

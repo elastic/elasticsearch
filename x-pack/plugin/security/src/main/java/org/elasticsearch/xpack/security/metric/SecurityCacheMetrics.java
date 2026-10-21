@@ -23,8 +23,8 @@ public final class SecurityCacheMetrics {
     }
 
     /**
-     * Registers the hit, miss, eviction and entry count metrics of a cache that is read through suppliers, for caches whose instance can
-     * be replaced after the metrics are registered.
+     * Registers hit, miss, eviction and entry count metrics for a cache read through suppliers, so the cache instance can be replaced
+     * after registration.
      */
     public static List<AutoCloseable> registerAsyncCacheMetrics(
         MeterRegistry registry,
@@ -68,10 +68,7 @@ public final class SecurityCacheMetrics {
         return metrics;
     }
 
-    /**
-     * Registers the estimated bytes a weight-bounded cache retains and the limit it was built with. Reporting the limit lets the
-     * utilization of the cache be computed without knowing the heap size of each node, which the default limit is a percentage of.
-     */
+    /** Registers the estimated bytes a weight-bounded cache retains and the limit it was built with. */
     public static List<AutoCloseable> registerCacheMemoryMetrics(
         MeterRegistry registry,
         CacheType type,

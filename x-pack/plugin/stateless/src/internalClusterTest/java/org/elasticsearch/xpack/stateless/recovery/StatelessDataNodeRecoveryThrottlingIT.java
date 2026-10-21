@@ -41,13 +41,12 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
 
-/// Integration tests for the data node recovery throttling limits on stateless indexing and search nodes, including the
-/// heap-based limits (see [DataNodeRecoveryThrottlingSettings]).
+/// Integration tests for the data node recovery throttling limits on stateless indexing and search nodes.
 ///
-/// The heap of the test nodes depends on the test JVM, so the tests enabling a heap-based limit set its per-heap-GB
+/// The heap of the test nodes depends on the test JVM, so the tests enabling a heap-based limit set their per-heap-GB
 /// ratio to [#MIN_PER_HEAP_GB]. The heap-based limit `ceil(heapGb * perHeapGb)` is then 1 whatever the heap. Unit tests
-/// in `ThrottlingRecoveryServiceTests` and `DataNodeRecoveryThrottlingSettingsTests` then cover the limit computation
-/// correctness.
+/// in `ThrottlingRecoveryServiceTests` and `DataNodeRecoveryThrottlingSettingsTests` cover the limit computation correctness
+/// for other values.
 public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPluginIntegTestCase {
 
     /// The smallest allowed per-heap-GB ratio, which deterministically sets heap-based limit to 1.
@@ -139,12 +138,12 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
             )
         );
 
-        // New primaries are not relocations, so they can use the slots that the relocations leave free, and are queued past them.
+        // New primaries are not relocations, so they can use the slots that the relocations leave free.
         final int freeSlots = expectedMaxConcurrentRecoveries - expectedRelocationLimit;
         final int newShards = freeSlots + between(1, 2);
         final var newIndexName = randomIndexName();
 
-        // Hold the new primaries' recoveries `beforeIndexShardRecovery`.
+        // Hold the new primaries' recoveries.
         final var releaseNewPrimaries = new SubscribableListener<Void>();
         internalCluster().getInstance(MockIndexEventListener.TestEventListener.class, targetNode).setNewDelegate(new IndexEventListener() {
             @Override
@@ -227,7 +226,7 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
     public void testSearchNodeQueuesIncomingRecoveriesPastConcurrencyLimit() {
         startMasterOnlyNode();
         final int maxConcurrentRecoveries = between(2, 6);
-        // Expected relocation limit is at least 2 (heap-based limit does not apply on search nodes)
+        // Expected relocation limit is at least 2 (so we can ensure the heap-based limit, which is 1, does not apply)
         final int relocationPercent = between(100 / maxConcurrentRecoveries + 1, 100);
         final int expectedRelocationLimit = expectedDataNodeRelocationLimit(maxConcurrentRecoveries, relocationPercent);
         assertThat(expectedRelocationLimit, greaterThan(1));
@@ -264,8 +263,7 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
             )
         );
 
-        // New search shards are unassigned recoveries, not relocations, so only the total limit applies to them and not the
-        // relocation limit. They can use the slots that the relocations leave free, and are queued past them.
+        // New search shards are unassigned recoveries, not relocations, so they can use the slots that the relocations leave free.
         final int freeSlots = maxConcurrentRecoveries - expectedRelocationLimit;
         final int newShards = freeSlots + between(1, 2);
         final var newIndexName = randomIndexName();
@@ -367,6 +365,10 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
         ensureGreen(indexName);
     }
 
+    private static int expectedDataNodeRelocationLimit(int maxConcurrentRecoveries, int relocationPercent) {
+        return (int) Math.ceil(maxConcurrentRecoveries * RatioValue.ofPercent(relocationPercent).getAsRatio());
+    }
+
     private static Settings incomingDataNodeThrottlingSettings(int maxConcurrentRecoveries, int relocationPercent, boolean heapBasedLimit) {
         final var settings = Settings.builder()
             .put(
@@ -384,10 +386,6 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
             );
         }
         return settings.build();
-    }
-
-    private static int expectedDataNodeRelocationLimit(int maxConcurrentRecoveries, int relocationPercent) {
-        return (int) Math.ceil(maxConcurrentRecoveries * RatioValue.ofPercent(relocationPercent).getAsRatio());
     }
 
     private void applyMasterThrottlingSettings(int nodeConcurrentRecoveries, String nodeName) {

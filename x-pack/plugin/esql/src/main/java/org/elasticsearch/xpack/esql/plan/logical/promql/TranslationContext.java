@@ -756,8 +756,10 @@ public record TranslationContext(
      * {@code absent_over_time} is the mirror: it has an element only for a series without a sample, so only true stays.
      * A series the operand never selects reads true too - its matchers reject every row, or only another operand's metric
      * has values - so true stays only for a series the operand selects.
+     *
+     * @param operand the value the function reads, before any conversion between counter and gauge
      */
-    public static Expression emptyRangeAsNull(Expression function, Expression time) {
+    public static Expression emptyRangeAsNull(Expression function, Expression operand, Expression time) {
         if (function instanceof CountOverTime) {
             return zeroCountAsNull(function);
         }
@@ -765,7 +767,7 @@ public record TranslationContext(
             return new Case(present.source(), present, List.of(Literal.TRUE, Literal.NULL));
         }
         if (function instanceof AbsentOverTime absent) {
-            Expression absentFromSelected = new And(absent.source(), selectedBy(absent, time), absent);
+            Expression absentFromSelected = new And(absent.source(), selectedBy(absent, operand, time), absent);
             return new Case(absent.source(), absentFromSelected, List.of(Literal.TRUE, Literal.NULL));
         }
         return function;
@@ -776,10 +778,11 @@ public record TranslationContext(
      * filter attaches to its time-series functions. A metric selector selects a series only where the metric has a value:
      * rows are read for every metric the aggregate references
      * ({@link org.elasticsearch.xpack.esql.optimizer.rules.logical.local.IgnoreNullMetrics}), so a row without a value of
-     * this one can come from another operand's metric. For a metric field {@code absent} therefore never stays true.
+     * this one can come from another operand's metric. For a metric operand {@code absent} therefore never stays true,
+     * including a counter the function reads converted to a gauge.
      */
-    private static Expression selectedBy(AbsentOverTime absent, Expression time) {
-        if (absent.field() instanceof Attribute field && field.resolved() && field.isMetric()) {
+    private static Expression selectedBy(AbsentOverTime absent, Expression operand, Expression time) {
+        if (operand instanceof Attribute field && field.resolved() && field.isMetric()) {
             return new Not(absent.source(), absent);
         }
         return new PresentOverTime(absent.source(), time, Literal.TRUE, absent.window());

@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractC
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -70,6 +71,7 @@ import java.util.function.Function;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.MAX_LISTED_NON_LOADABLE_PUNKS;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.nonLoadablePunksWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldCapabilitiesIndexResponse;
@@ -962,6 +964,40 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             FROM test | KEEP emp_no, does_not_exist
             """).statement("FROM null_view");
         assertThat(plan.resolved(), is(true));
+    }
+
+    /**
+     * The caller's setting answers a reference the view does not output with a null column at the view's output. The view
+     * body is analysed without the setting, so its projections are plain {@link Project}s; surfacing the null column must
+     * not reach into them, which would e.g. replace a RENAME's alias with a reference nothing produces, or let a field the
+     * body hides back into the view's output.
+     */
+    public void testNullFillAtViewOutputLeavesViewBodyProjectionsAlone() {
+        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        for (String body : List.of(
+            "FROM test | RENAME emp_no AS id",
+            "FROM test | RENAME emp_no AS id, first_name AS name",
+            "FROM test | KEEP emp_no",
+            "FROM test | DROP emp_no"
+        )) {
+            for (Function<String, String> set : List.<Function<String, String>>of(
+                AnalyzerUnmappedTestBase::setUnmappedNullify,
+                AnalyzerUnmappedTestBase::setUnmappedLoad
+            )) {
+                TestAnalyzer analyzer = test().addView("v", body);
+                List<String> viewOutput = Expressions.names(analyzer.statement("FROM v").output());
+
+                LogicalPlan plan = analyzer.statement(set.apply("FROM v | KEEP does_not_exist"));
+                assertThat(body, Expressions.names(plan.output()), equalTo(List.of("does_not_exist")));
+                new LogicalPlanOptimizer(unboundLogicalOptimizerContext()).optimize(plan);
+
+                plan = analyzer.statement(set.apply("FROM v | EVAL x = does_not_exist"));
+                List<String> expected = new ArrayList<>(viewOutput);
+                expected.addAll(List.of("does_not_exist", "x"));
+                assertThat(body, Expressions.names(plan.output()), equalTo(expected));
+                new LogicalPlanOptimizer(unboundLogicalOptimizerContext()).optimize(plan);
+            }
+        }
     }
 
     public void testLoadModeDisallowsCrossBranchTypeConflict() {

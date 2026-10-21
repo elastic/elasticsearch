@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedPattern;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
-import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
@@ -387,10 +386,15 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
      */
     private static LogicalPlan withoutMergeAlignment(LogicalPlan branch) {
         LogicalPlan plan = branch;
-        while ((plan.getClass() == Project.class || plan instanceof Eval) && plan.source().equals(((UnaryPlan) plan).child().source())) {
+        while (isMergeAlignmentLayer(plan)) {
             plan = ((UnaryPlan) plan).child();
         }
         return plan;
+    }
+
+    /** Whether {@code plan} is one of the layers {@link #withoutMergeAlignment} peels off a view branch. */
+    private static boolean isMergeAlignmentLayer(LogicalPlan plan) {
+        return (plan.getClass() == Project.class || plan instanceof Eval) && plan.source().equals(((UnaryPlan) plan).child().source());
     }
 
     /**
@@ -454,10 +458,40 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
     // being aligned after applying the changes.
     /**
      * Update the merge's top Projects in the subplans, and correspondingly, its output, to account for newly introduced aliases.
+     * On a view branch only the alignment layers stacked atop the view body are patched: the body is analysed without the
+     * caller's setting, so its own KEEP/DROP/RENAME are plain Projects that must keep hiding (or renaming) what they do.
      */
     private static MergePlan patchMergePlan(MergePlan mergePlan) {
-        Holder<Boolean> changed = new Holder<>(false);
-        MergePlan transformed = (MergePlan) mergePlan.transformDownSkipBranch((plan, skip) -> {
+        List<LogicalPlan> children = mergePlan.children();
+        List<LogicalPlan> newChildren = new ArrayList<>(children.size());
+        boolean changed = false;
+        for (int i = 0; i < children.size(); i++) {
+            LogicalPlan child = children.get(i);
+            LogicalPlan newChild = ViewUtils.isViewBody(mergePlan, i) ? patchViewBranchAlignment(child) : patchBranchTopProject(child);
+            changed |= newChild != child;
+            newChildren.add(newChild);
+        }
+        return changed ? ((MergePlan) mergePlan.replaceChildren(newChildren)).refreshOutput() : mergePlan;
+    }
+
+    /**
+     * Patches the topmost alignment Project of a view branch, if any, without descending into the view body below the
+     * alignment layers.
+     */
+    private static LogicalPlan patchViewBranchAlignment(LogicalPlan plan) {
+        if (isMergeAlignmentLayer(plan) == false) {
+            return plan;
+        }
+        if (plan instanceof Project project) {
+            return patchMergeProject(project);
+        }
+        UnaryPlan unary = (UnaryPlan) plan;
+        LogicalPlan newChild = patchViewBranchAlignment(unary.child());
+        return newChild == unary.child() ? plan : unary.replaceChild(newChild);
+    }
+
+    private static LogicalPlan patchBranchTopProject(LogicalPlan branch) {
+        return branch.transformDownSkipBranch((plan, skip) -> {
             if (plan instanceof Project project) {
                 skip.set(true); // process top Project only (merge-injected)
                 // Only a merge-injected alignment Project (exact class; resolveMergePlan emits plain Projects) may
@@ -470,15 +504,10 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
                 // Project, and match on that instead.
                 if (plan.getClass() == Project.class) {
                     plan = patchMergeProject(project);
-                    if (plan != project) {
-                        changed.set(Boolean.TRUE);
-                    }
                 }
             }
             return plan;
         });
-
-        return changed.get() ? transformed.refreshOutput() : mergePlan;
     }
 
     /**

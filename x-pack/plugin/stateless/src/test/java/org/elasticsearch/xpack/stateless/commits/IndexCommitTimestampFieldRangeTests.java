@@ -108,6 +108,24 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
         testFieldValueRange(false, IndexMode.LOGSDB_COLUMNAR);
     }
 
+    public void testFieldValueRangeForDocumentVectordbModeWithCFS() throws Exception {
+        testFieldValueRange(true, IndexMode.VECTORDB_DOCUMENT);
+    }
+
+    public void testFieldValueRangeForDocumentVectordbModeWithNoCFS() throws Exception {
+        testFieldValueRange(false, IndexMode.VECTORDB_DOCUMENT);
+    }
+
+    public void testFieldValueRangeForColumnarVectordbModeWithCFS() throws Exception {
+        assumeTrue("vectordb_columnar index mode requires snapshot build", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
+        testFieldValueRange(true, IndexMode.VECTORDB_COLUMNAR);
+    }
+
+    public void testFieldValueRangeForColumnarVectordbModeWithNoCFS() throws Exception {
+        assumeTrue("vectordb_columnar index mode requires snapshot build", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
+        testFieldValueRange(false, IndexMode.VECTORDB_COLUMNAR);
+    }
+
     public void testSoftDeletesAreAlmostAlwaysDisregardedForTimestampRange() throws Exception {
         IndexMode indexMode = randomFrom(IndexMode.availableModes());
         DocumentMapper mapper = getDocumentMapper(indexMode);
@@ -372,7 +390,8 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
         if (indexMode == IndexMode.STANDARD
             || indexMode == IndexMode.LOOKUP
             || indexMode == IndexMode.COLUMNAR
-            || indexMode == IndexMode.VECTORDB_DOCUMENT) {
+            || indexMode == IndexMode.VECTORDB_DOCUMENT
+            || indexMode == IndexMode.VECTORDB_COLUMNAR) {
             boolean nanosTimestampResolution = randomBoolean();
             // Strict columnar modes disable indexing by default; override explicitly so this test can read timestamp ranges via points.
             boolean strictColumnar = indexMode.isStrictColumnar();

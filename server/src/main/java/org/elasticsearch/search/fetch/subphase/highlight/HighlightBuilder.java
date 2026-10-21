@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
@@ -61,8 +62,6 @@ public final class HighlightBuilder extends AbstractHighlighterBuilder<Highlight
     public static final int DEFAULT_NO_MATCH_SIZE = 0;
     /** the default number of fragments for highlighting */
     public static final int DEFAULT_NUMBER_OF_FRAGMENTS = 5;
-    /** the maximum accepted number of fragments for highlighting */
-    public static final int MAX_NUMBER_OF_FRAGMENTS = 10_000;
     /** the default number of fragments size in characters */
     public static final int DEFAULT_FRAGMENT_CHAR_SIZE = 100;
     /** the default opening tag  */
@@ -243,9 +242,27 @@ public final class HighlightBuilder extends AbstractHighlighterBuilder<Highlight
             }
             transferOptions(field, fieldOptionsBuilder, context);
             final FieldOptions options = fieldOptionsBuilder.merge(globalOptionsBuilder.build()).build();
+            validateNumberOfFragments(field.name(), options.numberOfFragments(), context.getIndexSettings());
             fieldOptions.add(new SearchHighlightContext.Field(field.name(), options));
         }
         return new SearchHighlightContext(fieldOptions);
+    }
+
+    private static void validateNumberOfFragments(String fieldName, int numberOfFragments, IndexSettings indexSettings) {
+        final int maxNumberOfFragments = indexSettings.getHighlightMaxNumberOfFragments();
+        if (numberOfFragments > maxNumberOfFragments) {
+            throw new IllegalArgumentException(
+                "The number of fragments requested for highlighting field ["
+                    + fieldName
+                    + "] is ["
+                    + numberOfFragments
+                    + "] but the maximum allowed is ["
+                    + maxNumberOfFragments
+                    + "]. This maximum can be set by changing the ["
+                    + IndexSettings.MAX_NUMBER_OF_FRAGMENTS_SETTING.getKey()
+                    + "] index level setting."
+            );
+        }
     }
 
     /**

@@ -14,6 +14,7 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.tree.Location;
@@ -72,6 +74,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
+import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
@@ -96,8 +99,11 @@ import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
@@ -115,10 +121,12 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.common.lucene.BytesRefs.toBytesRef;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.assertEqualsIgnoringIds;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.assumeHighlightImplicitQueryAndFieldsEnabled;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalToIgnoringIds;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsIdentifier;
@@ -147,6 +155,7 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -578,7 +587,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var match = (MatchOperator) filter.condition();
         var matchField = (UnresolvedAttribute) match.field();
         assertThat(matchField.name(), equalTo("a"));
-        assertThat(match.query().fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("baz")));
+        assertThat(match.query().fold(FoldContext.small()), equalTo(toBytesRef("baz")));
 
         // second subplan
         eval = as(subPlans.get(1), Eval.class);
@@ -589,7 +598,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(alias.name(), equalTo("COUNT(*)"));
         var countFn = as(alias.child(), UnresolvedFunction.class);
         assertThat(countFn.children().get(0), instanceOf(Literal.class));
-        assertThat(countFn.children().get(0).fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("*")));
+        assertThat(countFn.children().get(0).fold(FoldContext.small()), equalTo(toBytesRef("*")));
 
         // third subplan
         eval = as(subPlans.get(2), Eval.class);
@@ -601,7 +610,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(alias.name(), equalTo("COUNT(*)"));
         countFn = as(alias.child(), UnresolvedFunction.class);
         assertThat(countFn.children().get(0), instanceOf(Literal.class));
-        assertThat(countFn.children().get(0).fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("*")));
+        assertThat(countFn.children().get(0).fold(FoldContext.small()), equalTo(toBytesRef("*")));
     }
 
     public void testStringAsIndexPattern() {
@@ -1217,7 +1226,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testDedup() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
         LogicalPlan plan = query("FROM foo | DEDUP");
         Dedup dedup = as(plan, Dedup.class);
         UnresolvedRelation relation = as(dedup.child(), UnresolvedRelation.class);
@@ -1225,37 +1233,27 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testDedupAfterProcessingCommands() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
         LogicalPlan plan = query("FROM foo | EVAL x = a + 1 | WHERE b > 0 | DEDUP");
         Dedup dedup = as(plan, Dedup.class);
         as(dedup.child(), Filter.class);
     }
 
     public void testDedupChained() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
         LogicalPlan plan = query("FROM foo | DEDUP | LIMIT 10");
         Limit limit = as(plan, Limit.class);
         as(limit.child(), Dedup.class);
     }
 
     public void testDedupOnRow() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
         assertEqualsIgnoringIds(new Dedup(EMPTY, PROCESSING_CMD_INPUT), processingCommand("DEDUP"));
     }
 
     public void testDedupRejectsArguments() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
         expectThrows(ParsingException.class, containsString("extraneous input 'a' expecting"), () -> query("FROM foo | DEDUP a"));
         expectThrows(ParsingException.class, containsString("extraneous input '*' expecting"), () -> query("FROM foo | DEDUP *"));
     }
 
-    public void testDedupNotInReleaseBuild() {
-        assumeFalse("only runs on release build", Build.current().isSnapshot());
-        expectThrows(ParsingException.class, containsString("mismatched input 'DEDUP'"), () -> query("FROM foo | DEDUP"));
-    }
-
     public void testHighlightOnFields() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         LogicalPlan plan = query("FROM foo | HIGHLIGHT \"elasticsearch\" ON title, body");
         Highlight highlight = as(plan, Highlight.class);
         assertThat(highlight.prefix(), equalTo("highlight_"));
@@ -1269,16 +1267,61 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(relation.indexPattern().indexPattern(), equalTo("foo"));
     }
 
-    public void testHighlightRequiresQueryAndOnClause() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
-        // Query and ON are currently required by grammar.
-        expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT"));
-        expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT \"elasticsearch\""));
-        expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT ON title"));
+    public void testBareHighlight() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        Highlight highlight = as(query("FROM foo | HIGHLIGHT"), Highlight.class);
+        assertThat(highlight.query(), nullValue());
+        assertTrue(highlight.fields().isEmpty());
+        assertTrue(highlight.derivedFields());
+        assertThat(highlight.prefix(), equalTo(Highlight.DEFAULT_PREFIX));
+    }
+
+    public void testHighlightOnFieldsWithoutQuery() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        Highlight highlight = as(query("FROM foo | HIGHLIGHT ON title, body"), Highlight.class);
+        assertThat(highlight.query(), nullValue());
+        assertThat(highlight.fields(), hasSize(2));
+        assertThat(((UnresolvedAttribute) highlight.fields().get(0)).name(), equalTo("title"));
+        assertThat(((UnresolvedAttribute) highlight.fields().get(1)).name(), equalTo("body"));
+        assertFalse(highlight.derivedFields());
+    }
+
+    public void testHighlightQueryWithoutOnFields() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        Highlight highlight = as(query("FROM foo | HIGHLIGHT \"fox\""), Highlight.class);
+        assertThat(highlight.query(), instanceOf(Literal.class));
+        assertTrue(highlight.fields().isEmpty());
+        assertTrue(highlight.derivedFields());
+    }
+
+    public void testHighlightOnStar() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        Highlight highlight = as(query("FROM foo | HIGHLIGHT ON *"), Highlight.class);
+        assertThat(highlight.query(), nullValue());
+        assertThat(highlight.fields(), hasSize(1));
+        assertThat(highlight.fields().getFirst(), instanceOf(UnresolvedStar.class));
+        assertTrue(highlight.derivedFields());
+    }
+
+    public void testHighlightRejectsOnNamePattern() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        expectThrows(
+            ParsingException.class,
+            containsString("Invalid pattern [title*] in HIGHLIGHT ON, expected field names or [*]"),
+            () -> query("FROM foo | HIGHLIGHT ON title*")
+        );
+    }
+
+    public void testHighlightRejectsStarCombinedWithFields() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        expectThrows(
+            ParsingException.class,
+            containsString("HIGHLIGHT ON [*] cannot be combined with other fields"),
+            () -> query("FROM foo | HIGHLIGHT ON title, *")
+        );
     }
 
     public void testHighlightCustomPrefix() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         LogicalPlan plan = query("FROM foo | HIGHLIGHT prefix = \"h_\" MATCH(title, \"x\") ON title, body");
         Highlight highlight = as(plan, Highlight.class);
         assertThat(highlight.prefix(), equalTo("h_"));
@@ -1288,7 +1331,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightEmptyPrefixParses() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         // Empty prefix overwrites the source column name.
         LogicalPlan plan = query("FROM foo | HIGHLIGHT prefix = \"\" \"elasticsearch\" ON content");
         Highlight highlight = as(plan, Highlight.class);
@@ -1298,7 +1340,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightFieldNamedPrefix() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         LogicalPlan plan = query("FROM foo | HIGHLIGHT \"elasticsearch\" ON prefix");
         Highlight highlight = as(plan, Highlight.class);
         assertThat(highlight.prefix(), equalTo("highlight_"));
@@ -1316,7 +1357,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightRejectsUnknownModifier() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         expectThrows(
             ParsingException.class,
             containsString("Invalid modifier [bogus] in HIGHLIGHT, expected [prefix]"),
@@ -1325,7 +1365,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightWithOptions() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         LogicalPlan plan = query(
             "FROM foo | HIGHLIGHT \"elasticsearch\" ON title WITH { \"fragment_size\": 150, \"number_of_fragments\": 2 }"
         );
@@ -1335,20 +1374,17 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightAcceptsAllOptions() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         LogicalPlan plan = query("""
             FROM foo | HIGHLIGHT "elasticsearch" ON title WITH {
               "pre_tags": ["<b>"], "post_tags": ["</b>"], "encoder": "html",
               "number_of_fragments": 2, "fragment_size": 150, "no_match_size": 100,
-              "boundary_scanner": "word", "boundary_scanner_locale": "en-US",
-              "boundary_chars": ".,!?", "boundary_max_scan": 10, "order": "score",
-              "analyzer": "standard", "max_analyzed_offset": 500, "phrase_limit": 64 }""");
+              "boundary_scanner": "word", "boundary_scanner_locale": "en-US", "order": "score",
+              "analyzer": "standard", "max_analyzed_offset": 500 }""");
         Highlight highlight = as(plan, Highlight.class);
         assertThat(highlight.options().keyFoldedMap().keySet(), equalTo(Set.copyOf(Highlight.validOptionNames())));
     }
 
     public void testHighlightRejectsUnknownOption() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         expectThrows(
             ParsingException.class,
             containsString("Invalid option [bogus] in HIGHLIGHT"),
@@ -1356,8 +1392,15 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
+    public void testHighlightRejectsMapOptionValue() {
+        expectThrows(
+            ParsingException.class,
+            containsString("Invalid value for option [pre_tags] in HIGHLIGHT, expected a constant, found [{ \"tag\": \"<b>\" }]"),
+            () -> query("FROM foo | HIGHLIGHT \"elasticsearch\" ON title WITH { \"pre_tags\": { \"tag\": \"<b>\" } }")
+        );
+    }
+
     public void testHighlightAcceptsFunctionQuery() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         LogicalPlan plan = query("FROM foo | HIGHLIGHT MATCH(title, \"x\") ON title");
         Highlight highlight = as(plan, Highlight.class);
         UnresolvedFunction match = as(highlight.query(), UnresolvedFunction.class);
@@ -1367,7 +1410,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightTerminatesInsideFork() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         LogicalPlan plan = query("""
             FROM foo
             | FORK ( HIGHLIGHT MATCH(title, "x") ON title )
@@ -1378,20 +1420,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         Eval firstBranch = as(fork.children().get(0), Eval.class);
         Highlight highlight = as(firstBranch.child(), Highlight.class);
         assertThat(as(highlight.query(), UnresolvedFunction.class).name(), equalTo("MATCH"));
-    }
-
-    public void testHighlightRejectsWildcardFields() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
-        expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT \"elasticsearch\" ON *"));
-    }
-
-    public void testHighlightNotInReleaseBuild() {
-        assumeFalse("only runs on release build", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
-        expectThrows(
-            ParsingException.class,
-            containsString("mismatched input 'HIGHLIGHT'"),
-            () -> query("FROM foo | HIGHLIGHT \"elasticsearch\" ON title")
-        );
     }
 
     public void testBasicSortCommand() {
@@ -1443,6 +1471,45 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testSubquery() {
         assumeTrue("Requires EXPLAIN capability", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
         assertEqualsIgnoringIds(new Explain(EMPTY, PROCESSING_CMD_INPUT), query("explain ( row a = 1 )"));
+    }
+
+    private static final int DEFAULT_MAX_COMMAND_COUNT = EsqlFlags.ESQL_MAX_COMMAND_COUNT.getDefault(Settings.EMPTY);
+
+    public void testDeepSubqueryFailsMaxCommandCount() {
+        assumeTrue("Requires subqueries in FROM", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        String pipes = " | where a > 0".repeat(DEFAULT_MAX_COMMAND_COUNT);
+        query("from foo, (from bar" + pipes + ")");
+        expectThrows(
+            ParsingException.class,
+            containsString("ES|QL statement exceeded the maximum of [500] commands allowed, including the commands in its subqueries"),
+            () -> query("from foo, (from bar" + pipes + " | where a > 0)")
+        );
+    }
+
+    public void testMaxCommandCountIsSharedAcrossSubqueries() {
+        String pipes = " | where a > 0".repeat(DEFAULT_MAX_COMMAND_COUNT / 2);
+        query("from foo, (from bar" + pipes + "), (from baz" + pipes + ")");
+        query("from foo, (from bar" + pipes + ")" + pipes);
+        expectThrows(
+            ParsingException.class,
+            containsString("ES|QL statement exceeded the maximum of [500] commands allowed, including the commands in its subqueries"),
+            () -> query("from foo, (from bar" + pipes + "), (from baz" + pipes + "), (from qux | where a > 0)")
+        );
+        expectThrows(
+            ParsingException.class,
+            containsString("ES|QL statement exceeded the maximum of [500] commands allowed, including the commands in its subqueries"),
+            () -> query("from foo, (from bar" + pipes + ")" + pipes + " | where a > 0")
+        );
+    }
+
+    public void testMaxCommandCountIsConfigurable() {
+        String query = "from foo, (from bar" + " | where a > 0".repeat(3) + ")" + " | where a > 0".repeat(2);
+        TEST_PARSER.parse(query, new QueryParams(), new InferenceSettings(Settings.EMPTY), 5);
+        expectThrows(
+            ParsingException.class,
+            containsString("ES|QL statement exceeded the maximum of [4] commands allowed, including the commands in its subqueries"),
+            () -> TEST_PARSER.parse(query, new QueryParams(), new InferenceSettings(Settings.EMPTY), 4)
+        );
     }
 
     public void testBlockComments() {
@@ -1923,33 +1990,33 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(field.name(), is("y"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
-        assertThat(alias.child().fold(FoldContext.small()), is(BytesRefs.toBytesRef("2")));
+        assertThat(alias.child().fold(FoldContext.small()), is(toBytesRef("2")));
 
         field = row.fields().get(2);
         assertThat(field.name(), is("a"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
-        assertThat(alias.child().fold(FoldContext.small()), is(BytesRefs.toBytesRef("2 days")));
+        assertThat(alias.child().fold(FoldContext.small()), is(toBytesRef("2 days")));
 
         field = row.fields().get(3);
         assertThat(field.name(), is("b"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
-        assertThat(alias.child().fold(FoldContext.small()), is(BytesRefs.toBytesRef("4 hours")));
+        assertThat(alias.child().fold(FoldContext.small()), is(toBytesRef("4 hours")));
 
         field = row.fields().get(4);
         assertThat(field.name(), is("c"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
         assertThat(alias.child().fold(FoldContext.small()).getClass(), is(BytesRef.class));
-        assertThat(alias.child().fold(FoldContext.small()), is(BytesRefs.toBytesRef("1.2.3")));
+        assertThat(alias.child().fold(FoldContext.small()), is(toBytesRef("1.2.3")));
 
         field = row.fields().get(5);
         assertThat(field.name(), is("d"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
         assertThat(alias.child().fold(FoldContext.small()).getClass(), is(BytesRef.class));
-        assertThat(alias.child().fold(FoldContext.small()), is(BytesRefs.toBytesRef("127.0.0.1")));
+        assertThat(alias.child().fold(FoldContext.small()), is(toBytesRef("127.0.0.1")));
 
         field = row.fields().get(6);
         assertThat(field.name(), is("e"));
@@ -2237,7 +2304,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         assertThat(plan, instanceOf(Aggregate.class));
         Aggregate agg = (Aggregate) plan;
-        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(BytesRefs.toBytesRef("*")));
+        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(toBytesRef("*")));
         assertThat(agg.child(), instanceOf(Eval.class));
         assertThat(agg.children().size(), equalTo(1));
         assertThat(agg.children().get(0), instanceOf(Eval.class));
@@ -2257,7 +2324,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         assertThat(plan, instanceOf(Aggregate.class));
         agg = (Aggregate) plan;
-        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(BytesRefs.toBytesRef("*")));
+        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(toBytesRef("*")));
         assertThat(agg.child(), instanceOf(Eval.class));
         assertThat(agg.children().size(), equalTo(1));
         assertThat(agg.children().get(0), instanceOf(Eval.class));
@@ -2277,7 +2344,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         assertThat(plan, instanceOf(Aggregate.class));
         agg = (Aggregate) plan;
-        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(BytesRefs.toBytesRef("*")));
+        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(toBytesRef("*")));
         assertThat(agg.child(), instanceOf(Eval.class));
         assertThat(agg.children().size(), equalTo(1));
         assertThat(agg.children().get(0), instanceOf(Eval.class));
@@ -2295,7 +2362,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         assertThat(plan, instanceOf(Aggregate.class));
         agg = (Aggregate) plan;
-        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(BytesRefs.toBytesRef("*")));
+        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(toBytesRef("*")));
         assertThat(agg.child(), instanceOf(Eval.class));
         assertThat(agg.children().size(), equalTo(1));
         assertThat(agg.children().get(0), instanceOf(Eval.class));
@@ -2313,7 +2380,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         assertThat(plan, instanceOf(Aggregate.class));
         agg = (Aggregate) plan;
-        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(BytesRefs.toBytesRef("*")));
+        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(toBytesRef("*")));
         assertThat(agg.child(), instanceOf(Eval.class));
         assertThat(agg.children().size(), equalTo(1));
         assertThat(agg.children().get(0), instanceOf(Eval.class));
@@ -2374,14 +2441,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
         NamedExpression field = eval.fields().get(0);
         assertThat(field.name(), is("y"));
         assertThat(field, instanceOf(Alias.class));
-        assertThat(
-            ((Literal) ((Add) eval.fields().get(0).child()).left().children().get(0)).value(),
-            equalTo(BytesRefs.toBytesRef("2024-01-01"))
-        );
-        assertThat(
-            ((Literal) ((Add) eval.fields().get(0).child()).right().children().get(0)).value(),
-            equalTo(BytesRefs.toBytesRef("3 days"))
-        );
+        assertThat(((Literal) ((Add) eval.fields().get(0).child()).left().children().get(0)).value(), equalTo(toBytesRef("2024-01-01")));
+        assertThat(((Literal) ((Add) eval.fields().get(0).child()).right().children().get(0)).value(), equalTo(toBytesRef("3 days")));
     }
 
     public void testParamForIdentifier() {
@@ -2889,7 +2950,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var plan = query(statement);
         var lookup = as(plan, Lookup.class);
         var tableName = as(lookup.tableName(), Literal.class);
-        assertThat(tableName.fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef(string)));
+        assertThat(tableName.fold(FoldContext.small()), equalTo(toBytesRef(string)));
     }
 
     public void testIdPatternUnquoted() {
@@ -2952,7 +3013,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var plan = query(query);
         var lookup = as(plan, Lookup.class);
         var tableName = as(lookup.tableName(), Literal.class);
-        assertThat(tableName.fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("t")));
+        assertThat(tableName.fold(FoldContext.small()), equalTo(toBytesRef("t")));
         assertThat(lookup.matchFields(), hasSize(1));
         var matchField = as(lookup.matchFields().get(0), UnresolvedAttribute.class);
         assertThat(matchField.name(), equalTo("j"));
@@ -3134,7 +3195,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var match = (MatchOperator) filter.condition();
         var matchField = (UnresolvedAttribute) match.field();
         assertThat(matchField.name(), equalTo("field"));
-        assertThat(match.query().fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("value")));
+        assertThat(match.query().fold(FoldContext.small()), equalTo(toBytesRef("value")));
     }
 
     public void testInvalidMatchOperator() {
@@ -3161,7 +3222,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var concat = (UnresolvedFunction) match.field();
         assertThat(concat.name(), equalTo("CONCAT"));
         assertThat(concat.children().size(), equalTo(3));
-        assertThat(match.query().fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("Anneke Preusig")));
+        assertThat(match.query().fold(FoldContext.small()), equalTo(toBytesRef("Anneke Preusig")));
     }
 
     public void testMatchOperatorWithNestedFunctionLhs() {
@@ -3181,7 +3242,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var toInteger = (ToInteger) function.children().get(0);
         var matchField = (UnresolvedAttribute) toInteger.field();
         assertThat(matchField.name(), equalTo("field"));
-        assertThat(function.children().get(1).fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("value")));
+        assertThat(function.children().get(1).fold(FoldContext.small()), equalTo(toBytesRef("value")));
     }
 
     public void testMatchOperatorFieldCasting() {
@@ -3191,7 +3252,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var toInteger = (ToInteger) match.field();
         var matchField = (UnresolvedAttribute) toInteger.field();
         assertThat(matchField.name(), equalTo("field"));
-        assertThat(match.query().fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("value")));
+        assertThat(match.query().fold(FoldContext.small()), equalTo(toBytesRef("value")));
     }
 
     public void testFailingMetadataWithSquareBrackets() {
@@ -3809,6 +3870,197 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
     }
 
+    public void testFillNullAllFields() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        LogicalPlan plan = processingCommand("fillnull DEFAULT ON *");
+        assertEquals(FillNull.class, plan.getClass());
+        FillNull fillNull = (FillNull) plan;
+        assertNull(fillNull.fillValue());
+        assertTrue(fillNull.targetFields().isEmpty());
+    }
+
+    public void testFillNullWithValue() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        LogicalPlan plan = processingCommand("fillnull 0 ON *");
+        assertEquals(FillNull.class, plan.getClass());
+        FillNull fillNull = (FillNull) plan;
+        assertNotNull(fillNull.fillValue());
+        assertThat(fillNull.fillValue(), instanceOf(Literal.class));
+        assertEquals(0, ((Literal) fillNull.fillValue()).value());
+        assertTrue(fillNull.targetFields().isEmpty());
+    }
+
+    public void testFillNullNamedFields() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        LogicalPlan plan = processingCommand("fillnull DEFAULT ON a, b");
+        assertEquals(FillNull.class, plan.getClass());
+        FillNull fillNull = (FillNull) plan;
+        assertNull(fillNull.fillValue());
+        assertEquals(2, fillNull.targetFields().size());
+        assertThat(fillNull.targetFields().get(0), equalToIgnoringIds(attribute("a")));
+        assertThat(fillNull.targetFields().get(1), equalToIgnoringIds(attribute("b")));
+    }
+
+    public void testFillNullWithValueAndFields() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        LogicalPlan plan = processingCommand("fillnull \"N/A\" ON status, category");
+        assertEquals(FillNull.class, plan.getClass());
+        FillNull fillNull = (FillNull) plan;
+        assertThat(fillNull.fillValue(), instanceOf(Literal.class));
+        Literal lit = (Literal) fillNull.fillValue();
+        assertEquals(toBytesRef("N/A"), lit.value());
+        assertEquals(KEYWORD, lit.dataType());
+        assertEquals(2, fillNull.targetFields().size());
+        assertThat(fillNull.targetFields().get(0), equalToIgnoringIds(attribute("status")));
+        assertThat(fillNull.targetFields().get(1), equalToIgnoringIds(attribute("category")));
+    }
+
+    public void testFillNullWithNullValue() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        LogicalPlan plan = processingCommand("fillnull null ON a");
+        assertEquals(FillNull.class, plan.getClass());
+        FillNull fillNull = (FillNull) plan;
+        assertThat(fillNull.fillValue(), instanceOf(Literal.class));
+        Literal lit = (Literal) fillNull.fillValue();
+        assertNull(lit.value());
+        assertEquals(DataType.NULL, lit.dataType());
+        assertEquals(1, fillNull.targetFields().size());
+        assertThat(fillNull.targetFields().get(0), equalToIgnoringIds(attribute("a")));
+    }
+
+    public void testFillNullWithDecimalValue() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        LogicalPlan plan = processingCommand("fillnull 1.5 ON a");
+        assertEquals(FillNull.class, plan.getClass());
+        FillNull fillNull = (FillNull) plan;
+        assertThat(fillNull.fillValue(), instanceOf(Literal.class));
+        Literal lit = (Literal) fillNull.fillValue();
+        assertEquals(1.5, lit.value());
+        assertEquals(DataType.DOUBLE, lit.dataType());
+        assertEquals(1, fillNull.targetFields().size());
+        assertThat(fillNull.targetFields().get(0), equalToIgnoringIds(attribute("a")));
+    }
+
+    public void testFillNullWithBooleanValue() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        for (boolean expected : new boolean[] { true, false }) {
+            LogicalPlan plan = processingCommand("fillnull " + expected + " ON a");
+            assertEquals(FillNull.class, plan.getClass());
+            FillNull fillNull = (FillNull) plan;
+            assertThat(fillNull.fillValue(), instanceOf(Literal.class));
+            Literal lit = (Literal) fillNull.fillValue();
+            assertEquals(expected, lit.value());
+            assertEquals(DataType.BOOLEAN, lit.dataType());
+            assertEquals(1, fillNull.targetFields().size());
+            assertThat(fillNull.targetFields().get(0), equalToIgnoringIds(attribute("a")));
+        }
+    }
+
+    public void testFillNullWithPositionalParameter() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        LogicalPlan plan = query("row a = 1 | fillnull ? ON a", new QueryParams(List.of(paramAsConstant(null, "missing"))));
+        FillNull fillNull = as(plan, FillNull.class);
+        Literal lit = as(fillNull.fillValue(), Literal.class);
+        assertEquals(toBytesRef("missing"), lit.value());
+        assertEquals(KEYWORD, lit.dataType());
+        assertEquals(1, fillNull.targetFields().size());
+        assertThat(fillNull.targetFields().get(0), equalToIgnoringIds(attribute("a")));
+    }
+
+    public void testFillNullWithNamedParameter() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        LogicalPlan plan = query("row a = 1 | fillnull ?fill ON a", new QueryParams(List.of(paramAsConstant("fill", 42))));
+        FillNull fillNull = as(plan, FillNull.class);
+        Literal lit = as(fillNull.fillValue(), Literal.class);
+        assertEquals(42, lit.value());
+        assertEquals(DataType.INTEGER, lit.dataType());
+        assertEquals(1, fillNull.targetFields().size());
+        assertThat(fillNull.targetFields().get(0), equalToIgnoringIds(attribute("a")));
+    }
+
+    public void testFillNullWithNullParameterFails() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        String error = "] is null, cannot be used as a FILLNULL value; use FILLNULL NULL to leave nulls unchanged";
+        List<QueryParam> nullNamed = List.of(paramAsConstant("fill", null));
+        List<QueryParam> nullUnnamed = List.of(paramAsConstant(null, null));
+        expectError("row a = 1 | fillnull ?fill ON a", nullNamed, "line 1:22: Query parameter [?fill" + error);
+        expectError("row a = 1 | fillnull ?1 ON a", nullUnnamed, "line 1:22: Query parameter [?1" + error);
+        expectError("row a = 1 | fillnull ? ON a", nullUnnamed, "line 1:22: Query parameter [?" + error);
+        expectError("from test | where x > 0 | fillnull ?fill ON a, b", nullNamed, "line 1:36: Query parameter [?fill" + error);
+    }
+
+    public void testFillNullWithUnknownParameterIsNotReportedAsNull() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        ParsingException e = expectThrows(
+            ParsingException.class,
+            () -> query("row a = 1 | fillnull ?fill ON a", new QueryParams(List.of(paramAsConstant("fil", 0))))
+        );
+        assertThat(e.getMessage(), containsString("line 1:22: Unknown query parameter [fill]"));
+        assertThat(e.getMessage(), not(containsString("is null")));
+    }
+
+    public void testFillNullExplicitDefaultKeyword() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        FillNull fillNull = as(processingCommand("fillnull DEFAULT ON a"), FillNull.class);
+        assertNull(fillNull.fillValue());
+        assertEquals(1, fillNull.targetFields().size());
+        assertThat(fillNull.targetFields().get(0), equalToIgnoringIds(attribute("a")));
+    }
+
+    public void testFillNullWildcardPatternTarget() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        FillNull fillNull = as(processingCommand("fillnull 0 ON a*"), FillNull.class);
+        assertThat(fillNull.fillValue(), instanceOf(Literal.class));
+        assertEquals(0, ((Literal) fillNull.fillValue()).value());
+        assertEquals(1, fillNull.targetFields().size());
+        assertThat(fillNull.targetFields().get(0), instanceOf(UnresolvedNamePattern.class));
+    }
+
+    public void testFillNullStarMixedWithNamesIsAllColumns() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        // `*` co-listed with names/patterns selects every column regardless of position, but the co-listed names are
+        // retained so the analyzer still resolves them and reports a typo like any other command would.
+        for (String targets : new String[] { "*, first_name", "first_name, *", "*, a*", "a, *, b*" }) {
+            FillNull fillNull = as(processingCommand("fillnull 0 ON " + targets), FillNull.class);
+            assertThat(fillNull.fillValue(), instanceOf(Literal.class));
+            assertTrue("expected the all-columns form for [" + targets + "]", fillNull.allColumns());
+        }
+        // The co-listed names survive for resolution; only the star is dropped.
+        assertEquals(1, as(processingCommand("fillnull 0 ON *, first_name"), FillNull.class).targetFields().size());
+        assertEquals(2, as(processingCommand("fillnull 0 ON a, *, b*"), FillNull.class).targetFields().size());
+        // A plain `ON *` has no targets at all.
+        FillNull star = as(processingCommand("fillnull 0 ON *"), FillNull.class);
+        assertTrue(star.allColumns());
+        assertTrue(star.targetFields().isEmpty());
+        // Without a star the form is the strict one.
+        assertFalse(as(processingCommand("fillnull 0 ON first_name"), FillNull.class).allColumns());
+        // The same applies to the DEFAULT value form (null fill value).
+        FillNull withDefault = as(processingCommand("fillnull DEFAULT ON *, first_name"), FillNull.class);
+        assertNull(withDefault.fillValue());
+        assertTrue(withDefault.allColumns());
+        assertEquals(1, withDefault.targetFields().size());
+    }
+
+    public void testFillNullMissingOnFails() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        expectThrows(ParsingException.class, () -> processingCommand("fillnull 0 a"));
+    }
+
+    public void testFillNullMissingValueFails() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        expectThrows(ParsingException.class, () -> processingCommand("fillnull ON a"));
+    }
+
+    public void testFillNullMissingFieldsFails() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        expectThrows(ParsingException.class, () -> processingCommand("fillnull 0"));
+    }
+
+    public void testFillNullNotInReleaseBuild() {
+        assumeFalse("only runs on release build", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        expectThrows(ParsingException.class, containsString("mismatched input 'FILLNULL'"), () -> query("FROM foo | FILLNULL"));
+    }
+
     public void testValidFork() {
         var plan = query("""
             FROM foo*
@@ -3832,7 +4084,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var match = (MatchOperator) filter.condition();
         var matchField = (UnresolvedAttribute) match.field();
         assertThat(matchField.name(), equalTo("a"));
-        assertThat(match.query().fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("baz")));
+        assertThat(match.query().fold(FoldContext.small()), equalTo(toBytesRef("baz")));
 
         // second subplan
         eval = as(subPlans.get(1), Eval.class);
@@ -3846,7 +4098,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         match = (MatchOperator) filter.condition();
         matchField = (UnresolvedAttribute) match.field();
         assertThat(matchField.name(), equalTo("b"));
-        assertThat(match.query().fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("bar")));
+        assertThat(match.query().fold(FoldContext.small()), equalTo(toBytesRef("bar")));
 
         // third subplan
         eval = as(subPlans.get(2), Eval.class);
@@ -3855,7 +4107,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         match = (MatchOperator) filter.condition();
         matchField = (UnresolvedAttribute) match.field();
         assertThat(matchField.name(), equalTo("c"));
-        assertThat(match.query().fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("bat")));
+        assertThat(match.query().fold(FoldContext.small()), equalTo(toBytesRef("bat")));
 
         // fourth subplan
         eval = as(subPlans.get(3), Eval.class);
@@ -3980,6 +4232,25 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(plan, instanceOf(Keep.class));
     }
 
+    public void testForkWithBareFillNull() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        assertThat(query("FROM foo* | FORK (WHERE a < 1) (WHERE a < 1 | FILLNULL DEFAULT ON *) | KEEP a"), instanceOf(Keep.class));
+        assertThat(query("FROM foo* | FORK (SORT a) (FILLNULL DEFAULT ON *) | KEEP a"), instanceOf(Keep.class));
+        assertThat(query("FROM foo* | FORK (WHERE a < 1 | FILLNULL 0 ON *) (FILLNULL DEFAULT ON a) | KEEP a"), instanceOf(Keep.class));
+    }
+
+    public void testForkBareArgumentRequiringCommandBeforeRp() {
+        expectError("FROM foo* | FORK (MV_EXPAND) (WHERE true) | KEEP a", "input ')'");
+        expectError("FROM foo* | FORK (LIMIT) (WHERE true) | KEEP a", "input ')'");
+        expectError("FROM foo* | FORK (KEEP) (WHERE true) | KEEP a", "input ')'");
+        expectError("FROM foo* | FORK (SORT) (WHERE true) | KEEP a", "input ')'");
+        expectError("FROM foo* | FORK (DROP) (WHERE true) | KEEP a", "input ')'");
+    }
+
+    public void testUnknownCommandAdjacentToParen() {
+        expectError("FROM foo* | foobar(x)", "mismatched input 'foobar'");
+    }
+
     public void testInvalidFork() {
         expectError("""
             FROM foo* | FORK
@@ -3988,17 +4259,22 @@ public class StatementParserTests extends AbstractStatementParserTests {
             FROM foo* | FORK ()
             """, "line 1:19: mismatched input ')'");
 
-        expectError("""
-            FROM foo*
-            | FORK (where true) (where true) (where true) (where true)
-                   (where true) (where true) (where true) (where true)
-                   (where true)
-            """, "Fork supports up to 8 branches");
+        int maxBranches = QueryPragmas.MAX_BRANCH_COUNT_PER_MERGE_MAX;
+        assertThat(query(forkWithBranches(maxBranches)), instanceOf(Fork.class));
+        expectError(forkWithBranches(maxBranches + 1), "FORK supports up to " + maxBranches + " branches");
 
         expectError("FROM foo* | FORK ( x+1 ) ( WHERE y>2 )", "line 1:20: mismatched input 'x+1'");
         expectError("FROM foo* | FORK ( LIMIT 10 ) ( y+2 )", "line 1:33: mismatched input 'y+2'");
         expectError("FROM foo* | FORK (where true) ()", "line 1:32: mismatched input ')'");
         expectError("FROM foo* | FORK () (where true)", "line 1:19: mismatched input ')'");
+    }
+
+    private static String forkWithBranches(int n) {
+        StringBuilder query = new StringBuilder("FROM foo* | FORK");
+        for (int i = 0; i < n; i++) {
+            query.append(" (WHERE true)");
+        }
+        return query.toString();
     }
 
     public void testFieldNamesAsCommands() throws Exception {
@@ -4451,6 +4727,588 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
+    private static void assumeDenseVectorCommandEnabled() {
+        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
+    }
+
+    public void testDenseVectorSingleField() {
+        assumeDenseVectorCommandEnabled();
+        var plan = as(processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\"}"), DenseVector.class);
+        assertThat(plan.fields(), equalToIgnoringIds(List.of(attribute("title"))));
+        assertThat(plan.inferenceId(), equalTo(literalString("my-id")));
+        assertThat(plan.rowLimit(), equalTo(integer(1000)));
+    }
+
+    public void testDenseVectorMultipleFields() {
+        assumeDenseVectorCommandEnabled();
+        var plan = as(processingCommand("DENSE_VECTOR title, author WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
+        assertThat(plan.fields(), equalToIgnoringIds(List.of(attribute("title"), attribute("author"))));
+        assertThat(plan.inferenceId(), equalTo(literalString("my-id")));
+        assertThat(plan.rowLimit(), equalTo(integer(1000)));
+    }
+
+    public void testDenseVectorChainedClausesWithPerClauseEndpoints() {
+        assumeDenseVectorCommandEnabled();
+        // Each chained clause carries its own inference endpoint (per-field endpoints).
+        var outer = as(
+            processingCommand(
+                "DENSE_VECTOR title WITH { \"inference_id\" : \"endpoint-a\" } "
+                    + "| DENSE_VECTOR author WITH { \"inference_id\" : \"endpoint-b\" }"
+            ),
+            DenseVector.class
+        );
+        assertThat(outer.fields(), equalToIgnoringIds(List.of(attribute("author"))));
+        assertThat(outer.inferenceId(), equalTo(literalString("endpoint-b")));
+
+        var inner = as(outer.child(), DenseVector.class);
+        assertThat(inner.fields(), equalToIgnoringIds(List.of(attribute("title"))));
+        assertThat(inner.inferenceId(), equalTo(literalString("endpoint-a")));
+    }
+
+    public void testDenseVectorChainedClausesMixClusterDefaultAndExplicitEndpoint() {
+        assumeDenseVectorCommandEnabled();
+        // Endpoint resolution is per clause: the cluster default must land on the clause that omitted WITH and must not
+        // overwrite the one that supplied an id.
+        Settings settings = Settings.builder()
+            .put(InferenceSettings.DENSE_VECTOR_DEFAULT_INFERENCE_ID_SETTING.getKey(), "cluster-default-id")
+            .build();
+        var outer = as(
+            processingCommand(
+                "DENSE_VECTOR title | DENSE_VECTOR author WITH { \"inference_id\" : \"endpoint-b\" }",
+                new QueryParams(),
+                settings
+            ),
+            DenseVector.class
+        );
+        assertThat(outer.fields(), equalToIgnoringIds(List.of(attribute("author"))));
+        assertThat(outer.inferenceId(), equalTo(literalString("endpoint-b")));
+
+        var inner = as(outer.child(), DenseVector.class);
+        assertThat(inner.fields(), equalToIgnoringIds(List.of(attribute("title"))));
+        assertThat(inner.inferenceId(), equalTo(literalString("cluster-default-id")));
+    }
+
+    public void testDenseVectorChainedClausesMixBuiltInDefaultAndExplicitEndpoint() {
+        assumeDenseVectorCommandEnabled();
+        // The same mix without a cluster default, and with the clause that omits WITH last rather than first, so the built-in
+        // default has to land on the outer node.
+        var outer = as(
+            processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"endpoint-a\" } | DENSE_VECTOR author"),
+            DenseVector.class
+        );
+        assertThat(outer.fields(), equalToIgnoringIds(List.of(attribute("author"))));
+        assertThat(outer.inferenceId(), equalTo(literalString(".multilingual-e5-small-elasticsearch")));
+
+        var inner = as(outer.child(), DenseVector.class);
+        assertThat(inner.fields(), equalToIgnoringIds(List.of(attribute("title"))));
+        assertThat(inner.inferenceId(), equalTo(literalString("endpoint-a")));
+    }
+
+    public void testDenseVectorQualifiedName() {
+        assumeDenseVectorCommandEnabled();
+        var plan = as(processingCommand("DENSE_VECTOR user.name WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
+        assertThat(plan.fields(), equalToIgnoringIds(List.of(attribute("user.name"))));
+    }
+
+    public void testDenseVectorQuotedFieldName() {
+        assumeDenseVectorCommandEnabled();
+        var plan = as(processingCommand("DENSE_VECTOR `weird name` WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
+        assertThat(plan.fields(), equalToIgnoringIds(List.of(attribute("weird name"))));
+    }
+
+    public void testDenseVectorWildcardNotSupported() {
+        assumeDenseVectorCommandEnabled();
+        // Wildcards are not supported: the field list is an explicit qualifiedNames list, so a pattern is a parse error.
+        expectError("FROM books | DENSE_VECTOR titl* WITH { \"inference_id\" : \"my-id\" }", "mismatched input '*'");
+        expectError("FROM books | DENSE_VECTOR * WITH { \"inference_id\" : \"my-id\" }", "mismatched input '*'");
+    }
+
+    public void testDenseVectorWithTimeout() {
+        assumeDenseVectorCommandEnabled();
+        var plan = as(
+            processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\", \"timeout\" : \"30s\" }"),
+            DenseVector.class
+        );
+        assertThat(plan.fields(), equalToIgnoringIds(List.of(attribute("title"))));
+        assertThat(plan.inferenceId(), equalTo(literalString("my-id")));
+        assertThat(plan.timeout(), equalTo(TimeValue.timeValueSeconds(30)));
+    }
+
+    public void testDenseVectorType() {
+        assumeDenseVectorCommandEnabled();
+        var text = as(
+            processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\", \"type\" : \"text\" }"),
+            DenseVector.class
+        );
+        assertThat(text.inputType(), equalTo(org.elasticsearch.inference.DataType.TEXT));
+
+        var image = as(
+            processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\", \"type\" : \"image\" }"),
+            DenseVector.class
+        );
+        assertThat(image.inputType(), equalTo(org.elasticsearch.inference.DataType.IMAGE));
+    }
+
+    public void testDenseVectorTypeIsCaseInsensitive() {
+        assumeDenseVectorCommandEnabled();
+        for (String value : List.of("image", "IMAGE", "Image", "iMaGe")) {
+            var plan = as(
+                processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\", \"type\" : \"" + value + "\" }"),
+                DenseVector.class
+            );
+            assertThat(plan.inputType(), equalTo(org.elasticsearch.inference.DataType.IMAGE));
+        }
+    }
+
+    public void testDenseVectorDefaultType() {
+        assumeDenseVectorCommandEnabled();
+        var plan = as(processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
+        assertThat(plan.inputType(), equalTo(org.elasticsearch.inference.DataType.TEXT));
+    }
+
+    /**
+     * The fallback endpoints embed text, so an image input has nothing to fall back to and must name an endpoint.
+     */
+    public void testDenseVectorImageRequiresInferenceId() {
+        assumeDenseVectorCommandEnabled();
+        expectError(
+            "FROM books | DENSE_VECTOR title WITH { \"type\" : \"image\" }",
+            "Option [type] with value [image] in DENSE_VECTOR requires option [inference_id]"
+        );
+    }
+
+    /**
+     * A cluster-level default is an administrator naming an endpoint, so it satisfies an image input the same way {@code WITH}
+     * does. Whether that endpoint is multimodal is checked during analysis.
+     */
+    public void testDenseVectorImageAcceptsClusterDefaultInferenceId() {
+        assumeDenseVectorCommandEnabled();
+        Settings settings = Settings.builder()
+            .put(InferenceSettings.DENSE_VECTOR_DEFAULT_INFERENCE_ID_SETTING.getKey(), "cluster-default-id")
+            .build();
+        var plan = as(
+            processingCommand("DENSE_VECTOR title WITH { \"type\" : \"image\" }", new QueryParams(), settings),
+            DenseVector.class
+        );
+        assertThat(plan.inferenceId(), equalTo(literalString("cluster-default-id")));
+        assertThat(plan.inputType(), equalTo(org.elasticsearch.inference.DataType.IMAGE));
+    }
+
+    public void testDenseVectorInvalidType() {
+        assumeDenseVectorCommandEnabled();
+        expectError(
+            "FROM books | DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\", \"type\" : \"audio\" }",
+            "Invalid value [audio] for option [type] in DENSE_VECTOR, expected one of [text, image]"
+        );
+        expectError(
+            "FROM books | DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\", \"type\" : \"nonsense\" }",
+            "Invalid value [nonsense] for option [type] in DENSE_VECTOR, expected one of [text, image]"
+        );
+    }
+
+    public void testDenseVectorDefaultTimeout() {
+        assumeDenseVectorCommandEnabled();
+        // When no timeout option is given, the plan carries a null timeout; the inference layer then applies its
+        // per-task default (30s for text_embedding).
+        var plan = as(processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
+        assertThat(plan.timeout(), nullValue());
+    }
+
+    public void testDenseVectorDefaultInferenceId() {
+        assumeDenseVectorCommandEnabled();
+        // No WITH: falls through to the built-in default endpoint.
+        var plan = as(processingCommand("DENSE_VECTOR title"), DenseVector.class);
+        assertThat(plan.inferenceId(), equalTo(literalString(".multilingual-e5-small-elasticsearch")));
+        assertTrue(plan.inferenceIdIsFallback());
+    }
+
+    public void testDenseVectorEmptyOptionsUsesDefaultInferenceId() {
+        assumeDenseVectorCommandEnabled();
+        // Empty WITH: still falls through to the built-in default endpoint.
+        var plan = as(processingCommand("DENSE_VECTOR title WITH { }"), DenseVector.class);
+        assertThat(plan.inferenceId(), equalTo(literalString(".multilingual-e5-small-elasticsearch")));
+        assertTrue(plan.inferenceIdIsFallback());
+    }
+
+    /**
+     * Naming the built-in default endpoint explicitly yields the same {@code inferenceId} as omitting the option, so the id alone
+     * cannot distinguish the two; only {@code inferenceIdIsFallback} does.
+     */
+    public void testDenseVectorExplicitBuiltInInferenceIdIsNotFallback() {
+        assumeDenseVectorCommandEnabled();
+        var plan = as(
+            processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \".multilingual-e5-small-elasticsearch\" }"),
+            DenseVector.class
+        );
+        assertThat(plan.inferenceId(), equalTo(literalString(".multilingual-e5-small-elasticsearch")));
+        assertFalse(plan.inferenceIdIsFallback());
+    }
+
+    public void testDenseVectorClusterDefaultInferenceId() {
+        assumeDenseVectorCommandEnabled();
+        // Cluster-level default overrides the built-in default when no WITH id is given.
+        Settings settings = Settings.builder()
+            .put(InferenceSettings.DENSE_VECTOR_DEFAULT_INFERENCE_ID_SETTING.getKey(), "cluster-default-id")
+            .build();
+        var plan = as(processingCommand("DENSE_VECTOR title", new QueryParams(), settings), DenseVector.class);
+        assertThat(plan.inferenceId(), equalTo(literalString("cluster-default-id")));
+        assertFalse(plan.inferenceIdIsFallback());
+    }
+
+    /**
+     * A cluster-level default that happens to name the built-in default endpoint is still an administrator's choice, not a
+     * fallback.
+     */
+    public void testDenseVectorClusterDefaultNamingBuiltInIsNotFallback() {
+        assumeDenseVectorCommandEnabled();
+        Settings settings = Settings.builder()
+            .put(InferenceSettings.DENSE_VECTOR_DEFAULT_INFERENCE_ID_SETTING.getKey(), ".multilingual-e5-small-elasticsearch")
+            .build();
+        var plan = as(processingCommand("DENSE_VECTOR title", new QueryParams(), settings), DenseVector.class);
+        assertThat(plan.inferenceId(), equalTo(literalString(".multilingual-e5-small-elasticsearch")));
+        assertFalse(plan.inferenceIdIsFallback());
+    }
+
+    public void testDenseVectorBlankClusterDefaultInferenceIdIsRejected() {
+        assumeDenseVectorCommandEnabled();
+        // A blank but non-empty value would otherwise be taken for an endpoint id and only surface as an unknown-endpoint
+        // failure later on. Empty stays valid: it is the "not set" marker that falls through to the built-in default.
+        Settings blank = Settings.builder().put(InferenceSettings.DENSE_VECTOR_DEFAULT_INFERENCE_ID_SETTING.getKey(), "   ").build();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> processingCommand("DENSE_VECTOR title", new QueryParams(), blank)
+        );
+        assertThat(e.getMessage(), containsString("[esql.command.dense_vector.default_inference_id] must not be blank"));
+
+        Settings empty = Settings.builder().put(InferenceSettings.DENSE_VECTOR_DEFAULT_INFERENCE_ID_SETTING.getKey(), "").build();
+        var plan = as(processingCommand("DENSE_VECTOR title", new QueryParams(), empty), DenseVector.class);
+        assertThat(plan.inferenceId(), equalTo(literalString(".multilingual-e5-small-elasticsearch")));
+    }
+
+    public void testDenseVectorWithOptionOverridesClusterDefault() {
+        assumeDenseVectorCommandEnabled();
+        // WITH { inference_id } takes precedence over the cluster-level default.
+        Settings settings = Settings.builder()
+            .put(InferenceSettings.DENSE_VECTOR_DEFAULT_INFERENCE_ID_SETTING.getKey(), "cluster-default-id")
+            .build();
+        var plan = as(
+            processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"with-id\" }", new QueryParams(), settings),
+            DenseVector.class
+        );
+        assertThat(plan.inferenceId(), equalTo(literalString("with-id")));
+        assertFalse(plan.inferenceIdIsFallback());
+    }
+
+    public void testDenseVectorRowLimitOverride() {
+        assumeDenseVectorCommandEnabled();
+        int customRowLimit = between(1, 10_000);
+        Settings settings = Settings.builder().put(InferenceSettings.DENSE_VECTOR_ROW_LIMIT_SETTING.getKey(), customRowLimit).build();
+        var plan = as(
+            processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\" }", new QueryParams(), settings),
+            DenseVector.class
+        );
+        assertThat(plan.rowLimit(), equalTo(integer(customRowLimit)));
+    }
+
+    public void testDenseVectorCommandDisabled() {
+        assumeDenseVectorCommandEnabled();
+        Settings settings = Settings.builder().put(InferenceSettings.DENSE_VECTOR_ENABLED_SETTING.getKey(), false).build();
+        ParsingException pe = expectThrows(
+            ParsingException.class,
+            () -> processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\" }", new QueryParams(), settings)
+        );
+        assertThat(pe.getMessage(), containsString("DENSE_VECTOR command is disabled"));
+    }
+
+    public void testDenseVectorUnknownOption() {
+        assumeDenseVectorCommandEnabled();
+        expectError(
+            "FROM foo* | DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\", \"foo\" : 3 }",
+            "Invalid option [foo] in DENSE_VECTOR, expected one of [[inference_id, timeout, type]]"
+        );
+    }
+
+    public void testDenseVectorInferenceIdNotString() {
+        assumeDenseVectorCommandEnabled();
+        expectError(
+            "FROM foo* | DENSE_VECTOR title WITH { \"inference_id\" : 3 }",
+            "Option [inference_id] must be a valid string, found [3]"
+        );
+    }
+
+    public void testDenseVectorTimeoutNotString() {
+        assumeDenseVectorCommandEnabled();
+        expectError(
+            "FROM foo* | DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\", \"timeout\" : 3 }",
+            "Option [timeout] in DENSE_VECTOR must be a string literal (e.g. \"30s\"), found [3]"
+        );
+    }
+
+    public void testDenseVectorInvalidTimeout() {
+        assumeDenseVectorCommandEnabled();
+        expectError(
+            "FROM foo* | DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\", \"timeout\" : \"a long one\" }",
+            "Invalid timeout value [a long one] for option [timeout] in DENSE_VECTOR: [failed to parse setting [timeout]"
+        );
+    }
+
+    public void testDenseVectorMissingFieldList() {
+        assumeDenseVectorCommandEnabled();
+        expectError("FROM foo* | DENSE_VECTOR WITH { \"inference_id\" : \"my-id\" }", "DENSE_VECTOR requires at least one input field");
+        expectError("FROM foo* | DENSE_VECTOR", "DENSE_VECTOR requires at least one input field");
+        expectError("FROM foo* | DENSE_VECTOR vec =", "DENSE_VECTOR requires at least one input field");
+    }
+
+    public void testDenseVectorWithPositionalParameters() {
+        assumeDenseVectorCommandEnabled();
+        var queryParams = new QueryParams(List.of(paramAsConstant(null, "my-id")));
+        var plan = as(
+            TEST_PARSER.parseQuery("row a = 1 | DENSE_VECTOR title WITH { \"inference_id\" : ? }", queryParams),
+            DenseVector.class
+        );
+        assertThat(plan.fields(), equalToIgnoringIds(List.of(attribute("title"))));
+        assertThat(plan.inferenceId(), equalTo(literalString("my-id")));
+    }
+
+    public void testDenseVectorWithNamedParameters() {
+        assumeDenseVectorCommandEnabled();
+        var queryParams = new QueryParams(List.of(paramAsConstant("inferenceId", "my-id")));
+        var plan = as(
+            TEST_PARSER.parseQuery("row a = 1 | DENSE_VECTOR title WITH { \"inference_id\" : ?inferenceId }", queryParams),
+            DenseVector.class
+        );
+        assertThat(plan.fields(), equalToIgnoringIds(List.of(attribute("title"))));
+        assertThat(plan.inferenceId(), equalTo(literalString("my-id")));
+    }
+
+    private static void assumeDenseVectorNamingEnabled() {
+        assumeTrue("DENSE_VECTOR naming requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND_V3.isEnabled());
+    }
+
+    public void testDenseVectorDefaultNaming() {
+        assumeDenseVectorNamingEnabled();
+        var plan = as(processingCommand("DENSE_VECTOR title, author WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
+        assertThat(plan.naming(), equalTo(DenseVector.OutputNaming.DEFAULT));
+        assertThat(plan.naming().nameFor(attribute("title")), equalTo("title_dense_vector"));
+    }
+
+    public void testDenseVectorExplicitOutputName() {
+        assumeDenseVectorNamingEnabled();
+        var plan = as(processingCommand("DENSE_VECTOR vec = title WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
+        assertThat(plan.fields(), equalToIgnoringIds(List.of(attribute("title"))));
+        assertThat(plan.naming(), equalTo(DenseVector.OutputNaming.explicit("vec")));
+        assertThat(plan.naming().nameFor(attribute("title")), equalTo("vec"));
+    }
+
+    public void testDenseVectorSuffixOverMultipleFields() {
+        assumeDenseVectorNamingEnabled();
+        var plan = as(
+            processingCommand("DENSE_VECTOR suffix = \"_dv\" ON title, author WITH { \"inference_id\" : \"my-id\" }"),
+            DenseVector.class
+        );
+        assertThat(plan.fields(), equalToIgnoringIds(List.of(attribute("title"), attribute("author"))));
+        assertThat(plan.naming(), equalTo(DenseVector.OutputNaming.suffixed("_dv")));
+        assertThat(plan.naming().nameFor(attribute("title")), equalTo("title_dv"));
+        assertThat(plan.naming().nameFor(attribute("author")), equalTo("author_dv"));
+    }
+
+    public void testDenseVectorSuffixOverSingleField() {
+        assumeDenseVectorNamingEnabled();
+        var plan = as(processingCommand("DENSE_VECTOR suffix = \"_dv\" ON title WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
+        assertThat(plan.fields(), equalToIgnoringIds(List.of(attribute("title"))));
+        assertThat(plan.naming().nameFor(attribute("title")), equalTo("title_dv"));
+    }
+
+    public void testDenseVectorSuffixKeywordIsCaseInsensitive() {
+        assumeDenseVectorNamingEnabled();
+        for (String keyword : List.of("suffix", "SUFFIX", "Suffix", "sUfFiX")) {
+            var plan = as(
+                processingCommand("DENSE_VECTOR " + keyword + " = \"_dv\" ON title WITH { \"inference_id\" : \"my-id\" }"),
+                DenseVector.class
+            );
+            assertThat(plan.naming(), equalTo(DenseVector.OutputNaming.suffixed("_dv")));
+        }
+    }
+
+    /**
+     * {@code suffix} is a contextual keyword, never reserved: only a string closed by {@code ON} starts a suffix clause, so an
+     * identifier after {@code =} is an ordinary output name and the word stays usable as a column name everywhere else.
+     */
+    public void testDenseVectorSuffixIsNotAReservedWord() {
+        assumeDenseVectorNamingEnabled();
+        var asOutputName = as(processingCommand("DENSE_VECTOR suffix = title WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
+        assertThat(asOutputName.fields(), equalToIgnoringIds(List.of(attribute("title"))));
+        assertThat(asOutputName.naming(), equalTo(DenseVector.OutputNaming.explicit("suffix")));
+
+        var asInputField = as(processingCommand("DENSE_VECTOR vec = suffix WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
+        assertThat(asInputField.fields(), equalToIgnoringIds(List.of(attribute("suffix"))));
+        assertThat(asInputField.naming(), equalTo(DenseVector.OutputNaming.explicit("vec")));
+
+        var bare = as(processingCommand("DENSE_VECTOR suffix WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
+        assertThat(bare.fields(), equalToIgnoringIds(List.of(attribute("suffix"))));
+        assertThat(bare.naming(), equalTo(DenseVector.OutputNaming.DEFAULT));
+
+        var inList = as(processingCommand("DENSE_VECTOR suffix, title WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
+        assertThat(inList.fields(), equalToIgnoringIds(List.of(attribute("suffix"), attribute("title"))));
+        assertThat(inList.naming(), equalTo(DenseVector.OutputNaming.DEFAULT));
+    }
+
+    public void testDenseVectorQuotedOutputName() {
+        assumeDenseVectorNamingEnabled();
+        var plan = as(processingCommand("DENSE_VECTOR `weird name` = title WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
+        assertThat(plan.naming(), equalTo(DenseVector.OutputNaming.explicit("weird name")));
+    }
+
+    public void testDenseVectorNamingWithChainedClauses() {
+        assumeDenseVectorNamingEnabled();
+        var outer = as(
+            processingCommand(
+                "DENSE_VECTOR vec = title WITH { \"inference_id\" : \"endpoint-a\" } "
+                    + "| DENSE_VECTOR suffix = \"_dv\" ON author WITH { \"inference_id\" : \"endpoint-b\" }"
+            ),
+            DenseVector.class
+        );
+        assertThat(outer.naming(), equalTo(DenseVector.OutputNaming.suffixed("_dv")));
+        assertThat(as(outer.child(), DenseVector.class).naming(), equalTo(DenseVector.OutputNaming.explicit("vec")));
+    }
+
+    public void testDenseVectorNamingCombinedWithOptions() {
+        assumeDenseVectorNamingEnabled();
+        var plan = as(
+            processingCommand("DENSE_VECTOR vec = title WITH { \"inference_id\" : \"my-id\", \"timeout\" : \"30s\", \"type\" : \"text\" }"),
+            DenseVector.class
+        );
+        assertThat(plan.naming(), equalTo(DenseVector.OutputNaming.explicit("vec")));
+        assertThat(plan.inferenceId(), equalTo(literalString("my-id")));
+        assertThat(plan.timeout(), equalTo(TimeValue.timeValueSeconds(30)));
+    }
+
+    public void testDenseVectorInvalidSuffixKeyword() {
+        assumeDenseVectorNamingEnabled();
+        expectError(
+            "FROM books | DENSE_VECTOR prefix = \"_dv\" ON title WITH { \"inference_id\" : \"my-id\" }",
+            "Invalid modifier [prefix] in DENSE_VECTOR, expected [suffix]"
+        );
+    }
+
+    public void testDenseVectorExplicitNameRejectsMultipleFields() {
+        assumeDenseVectorNamingEnabled();
+        expectError(
+            "FROM books | DENSE_VECTOR vec = title, author WITH { \"inference_id\" : \"my-id\" }",
+            "Naming a single output column with [=] in DENSE_VECTOR requires exactly one input field, found [2]"
+        );
+    }
+
+    public void testDenseVectorSuffixRequiresOn() {
+        assumeDenseVectorNamingEnabled();
+        expectError("FROM books | DENSE_VECTOR suffix = \"_dv\" title", "Missing [ON] after [suffix = \"_dv\"] in DENSE_VECTOR");
+        expectError("FROM books | DENSE_VECTOR suffix = \"_dv\"", "Missing [ON] after [suffix = \"_dv\"] in DENSE_VECTOR");
+    }
+
+    /**
+     * A whitespace-only suffix is rejected alongside the empty one: it would produce a column differing from its input only by
+     * trailing spaces. Mirrors {@code esql.command.dense_vector.default_inference_id}, which rejects blank-but-non-empty.
+     */
+    public void testBlankSuffixRejected() {
+        assumeDenseVectorNamingEnabled();
+        for (String suffix : List.of("", " ", "   ", "\t")) {
+            expectError(
+                "FROM books | DENSE_VECTOR suffix = \"" + suffix + "\" ON title WITH { \"inference_id\" : \"my-id\" }",
+                "Option [suffix] in DENSE_VECTOR must not be blank"
+            );
+        }
+    }
+
+    /**
+     * {@code qualifiedName} reaches {@code parameter} through {@code identifierOrParameter}, so a parameter can name the output;
+     * {@code string} is {@code QUOTED_STRING} only, so a suffix cannot be parameterised. Pinned because the asymmetry surprises.
+     */
+    public void testDenseVectorNamingWithParameters() {
+        assumeDenseVectorNamingEnabled();
+        var params = new QueryParams(List.of(paramAsIdentifier("name", "vec")));
+        var plan = as(
+            TEST_PARSER.parseQuery("row a = 1 | DENSE_VECTOR ?name = title WITH { \"inference_id\" : \"my-id\" }", params),
+            DenseVector.class
+        );
+        assertThat(plan.naming(), equalTo(DenseVector.OutputNaming.explicit("vec")));
+
+        // A parameter is a qualifiedName, so this reads as the target form naming `suffix` from field `?s`; the trailing ON is
+        // then unexpected, which is how a parameterised suffix fails.
+        expectError("FROM books | DENSE_VECTOR suffix = ?s ON title", "mismatched input 'ON'");
+    }
+
+    /** {@code visitIdentifier} unquotes, so a backticked keyword still starts the suffix clause. Same as HIGHLIGHT's prefix. */
+    public void testDenseVectorQuotedSuffixKeyword() {
+        assumeDenseVectorNamingEnabled();
+        var plan = as(
+            processingCommand("DENSE_VECTOR `suffix` = \"_dv\" ON title WITH { \"inference_id\" : \"my-id\" }"),
+            DenseVector.class
+        );
+        assertThat(plan.naming(), equalTo(DenseVector.OutputNaming.suffixed("_dv")));
+    }
+
+    public void testDenseVectorNonStringSuffixRejected() {
+        assumeDenseVectorNamingEnabled();
+        expectError("FROM books | DENSE_VECTOR suffix = 3 ON title", "mismatched input '3'");
+    }
+
+    /** Wildcards stay unsupported in the field list whichever naming form introduces it. */
+    public void testDenseVectorWildcardNotSupportedWithNaming() {
+        assumeDenseVectorNamingEnabled();
+        expectError("FROM books | DENSE_VECTOR vec = titl*", "extraneous input '*'");
+        expectError("FROM books | DENSE_VECTOR suffix = \"_dv\" ON titl*", "extraneous input '*'");
+    }
+
+    /**
+     * A literal is not accepted as input. {@code name = "text"} shares its head with the suffix clause, so the grammar carries a
+     * dedicated alternative for it purely to let the builder report the literal rather than a missing {@code ON}.
+     */
+    public void testDenseVectorLiteralInputNotSupported() {
+        assumeDenseVectorNamingEnabled();
+        expectError(
+            "FROM books | DENSE_VECTOR vec = \"some text\"",
+            "DENSE_VECTOR input must be a field name, found string literal [\"some text\"]"
+        );
+        expectError(
+            "FROM books | DENSE_VECTOR vec = \"some text\" WITH { \"inference_id\" : \"my-id\" }",
+            "DENSE_VECTOR input must be a field name, found string literal [\"some text\"]"
+        );
+        expectError(
+            "FROM books | DENSE_VECTOR \"some text\"",
+            "DENSE_VECTOR input must be a field name, found string literal [\"some text\"]"
+        );
+    }
+
+    /**
+     * A qualifier identifies where a column came from, so it is meaningful on the input side and is carried through to the
+     * attribute. Only the output name rejects it, since that name is being defined rather than referenced.
+     */
+    public void testDenseVectorInputAcceptsQualifiers() {
+        assumeDenseVectorNamingEnabled();
+        assumeTrue("Requires qualifier support", EsqlCapabilities.Cap.NAME_QUALIFIERS.isEnabled());
+        var plan = as(processingCommand("DENSE_VECTOR vec = [idx].[title] WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
+        assertThat(plan.fields(), hasSize(1));
+        UnresolvedAttribute field = as(plan.fields().get(0), UnresolvedAttribute.class);
+        assertThat(field.qualifier(), equalTo("idx"));
+        assertThat(field.name(), equalTo("title"));
+        assertThat(plan.naming(), equalTo(DenseVector.OutputNaming.explicit("vec")));
+    }
+
+    public void testDenseVectorOutputNameRejectsQualifiers() {
+        assumeDenseVectorNamingEnabled();
+        assumeTrue("Requires qualifier support", EsqlCapabilities.Cap.NAME_QUALIFIERS.isEnabled());
+        expectError(
+            "FROM books | DENSE_VECTOR [idx].[vec] = title WITH { \"inference_id\" : \"my-id\" }",
+            "Qualified names are not supported in field definitions, found [[idx].[vec]]"
+        );
+    }
+
+    public void testDenseVectorNamingMissingOperands() {
+        assumeDenseVectorNamingEnabled();
+        expectError("FROM books | DENSE_VECTOR vec = ", "DENSE_VECTOR requires at least one input field");
+        expectError("FROM books | DENSE_VECTOR suffix = \"_dv\" ON ", "DENSE_VECTOR requires at least one input field");
+    }
+
     public void testSample() {
         assumeTrue("SAMPLE requires corresponding capability", EsqlCapabilities.Cap.SAMPLE_V3.isEnabled());
         expectError("FROM test | SAMPLE .1 2", "line 1:23: extraneous input '2' expecting <EOF>");
@@ -4710,7 +5568,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         plan = query("from test | enrich \"" + indexName + "\"");
         Enrich enrich = as(plan, Enrich.class);
-        assertThat(enrich.policyName().fold(FoldContext.small()), is(BytesRefs.toBytesRef(indexName)));
+        assertThat(enrich.policyName().fold(FoldContext.small()), is(toBytesRef(indexName)));
         as(enrich.child(), UnresolvedRelation.class);
 
         if (indexName.contains("*")) {

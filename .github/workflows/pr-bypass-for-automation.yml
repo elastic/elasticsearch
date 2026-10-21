@@ -1,0 +1,47 @@
+# Our newer automation is not able to commit directly to branches, so we need to open a PR first.
+# This workflow allows us to effectively simulate committing directly to a branch by immediately
+#   approving and merging automation PRs.
+
+name: PR Bypass for Automation
+
+on:
+  pull_request_target:
+    types: [labeled]
+
+permissions:
+  actions: write
+  checks: write
+  pull-requests: write
+  contents: write
+  statuses: write
+
+jobs:
+  bypass:
+    runs-on: ubuntu-latest
+    # The users defined here can be a list, which is why its a JSON array. Just add more entries
+    # Also add them below to allowed-users as well
+    if: >-
+      contains(fromJSON('["infra-vault-gh-plugin-prod[bot]"]'), github.event.pull_request.user.login) &&
+      github.event.label.name == 'auto-merge-bypass' &&
+      contains(fromJSON('["infra-vault-gh-plugin-prod[bot]"]'), github.event.sender.login)
+    steps:
+      - uses: elastic/es-pr-bypass-public@main
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+          # Only PRs opened by these users can bypass PR restrictions
+          allowed-users: "infra-vault-gh-plugin-prod[bot]"
+
+          # Uncomment this if we ever want folks other than `allowed-users` to be able to label a PR for bypass
+          # Otherwise, this defaults to the same list as `allowed-users`
+          # allowed-labelers: "<user list>"
+
+          # This label tells the workflow to bypass this PR
+          bypass-label: "auto-merge-bypass"
+
+          # The workflow will automatically mark all existing checks/statuses as green before merging
+          # These are the ones that in our branch protection rules / rulesets that are required before merging
+          # This is so that the workflow will mark them as green, even if they are not existing yet
+          required-commit-statuses: "elasticsearch-ci,Elasticsearch Serverless Checks"
+
+          merge-method: "squash"

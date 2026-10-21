@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.inference.services.cohere;
 
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.StreamingCompletionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
@@ -45,7 +45,7 @@ public class CohereResponseHandler extends BaseResponseHandler {
         var cohereProcessor = new CohereStreamingProcessor();
         flow.subscribe(ndProcessor);
         ndProcessor.subscribe(cohereProcessor);
-        return new StreamingChatCompletionResults(cohereProcessor);
+        return new StreamingCompletionResults(cohereProcessor);
     }
 
     /**
@@ -59,7 +59,7 @@ public class CohereResponseHandler extends BaseResponseHandler {
     @Override
     public RetryException buildFailureStatusCodeException(OutboundRequest outboundRequest, HttpResult result) {
         // handle error codes
-        int statusCode = result.response().getStatusLine().getStatusCode();
+        int statusCode = result.response().getCode();
         if (statusCode == 500) {
             return new RetryException(true, buildError(SERVER_ERROR, outboundRequest, result));
         } else if (statusCode > 500) {
@@ -78,7 +78,7 @@ public class CohereResponseHandler extends BaseResponseHandler {
     }
 
     private static boolean isTextsArrayTooLarge(HttpResult result) {
-        int statusCode = result.response().getStatusLine().getStatusCode();
+        int statusCode = result.response().getCode();
 
         if (statusCode == 400) {
             var errorEntity = CohereErrorResponseEntity.fromResponse(result);

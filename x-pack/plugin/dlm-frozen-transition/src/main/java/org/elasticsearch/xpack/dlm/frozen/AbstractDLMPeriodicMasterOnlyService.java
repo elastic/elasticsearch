@@ -19,6 +19,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.Closeable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -48,6 +49,7 @@ abstract class AbstractDLMPeriodicMasterOnlyService implements ClusterStateListe
     private final TimeValue pollInterval;
     private final long initialDelayMillis;
     private ScheduledExecutorService schedulerThreadExecutor;
+    private volatile ScheduledFuture<?> scheduledTask;
 
     AbstractDLMPeriodicMasterOnlyService(ClusterService clusterService, TimeValue pollInterval, long initialDelayMillis) {
         this.clusterService = clusterService;
@@ -89,7 +91,7 @@ abstract class AbstractDLMPeriodicMasterOnlyService implements ClusterStateListe
                     schedulerThreadExecutor = Executors.newSingleThreadScheduledExecutor(
                         EsExecutors.daemonThreadFactory(clusterService.getSettings(), getSchedulerThreadName())
                     );
-                    schedulerThreadExecutor.scheduleWithFixedDelay(
+                    scheduledTask = schedulerThreadExecutor.scheduleWithFixedDelay(
                         wrapScheduledTask(),
                         initialDelayMillis,
                         pollInterval.millis(),
@@ -119,6 +121,7 @@ abstract class AbstractDLMPeriodicMasterOnlyService implements ClusterStateListe
 
     private void stopThreadPools() {
         synchronized (this) {
+            scheduledTask = null;
             if (schedulerThreadExecutor != null) {
                 schedulerThreadExecutor.shutdownNow();
                 schedulerThreadExecutor = null;
@@ -132,6 +135,7 @@ abstract class AbstractDLMPeriodicMasterOnlyService implements ClusterStateListe
         synchronized (this) {
             if (closing.compareAndSet(false, true)) {
                 clusterService.removeListener(this);
+                scheduledTask = null;
                 if (schedulerThreadExecutor != null) {
                     ThreadPool.terminate(schedulerThreadExecutor, 10, TimeUnit.SECONDS);
                     schedulerThreadExecutor = null;
@@ -149,9 +153,22 @@ abstract class AbstractDLMPeriodicMasterOnlyService implements ClusterStateListe
         onStop();
     }
 
-    // Visible for testing
+    /**
+     * Returns the poll interval this service was constructed with.
+     */
+    TimeValue getPollInterval() {
+        return pollInterval;
+    }
+
+    /**
+     * Returns {@code true} if this node is the elected master and the periodic task has been scheduled and has not completed or been
+     * cancelled. The check uses the retained {@link ScheduledFuture}: {@link ScheduledFuture#isDone()} becomes true when the task dies
+     * (e.g. from an unhandled {@link Error}), which {@link java.util.concurrent.ScheduledExecutorService#isShutdown()} cannot detect
+     * because the executor itself is still live.
+     */
     boolean isSchedulerThreadRunning() {
-        return schedulerThreadExecutor != null && schedulerThreadExecutor.isShutdown() == false;
+        ScheduledFuture<?> task = scheduledTask;
+        return task != null && task.isCancelled() == false && task.isDone() == false;
     }
 
     boolean isClosing() {

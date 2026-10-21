@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.azure;
 
 import com.azure.storage.blob.models.BlobStorageException;
 
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -61,12 +62,24 @@ final class AzureTransientTypingInputStream extends FilterInputStream {
         // rather than reading only the immediate cause. Absent a BlobStorageException, a mid-read transport fault
         // is still transient, just not throttling.
         boolean throttling = false;
+        long retryAfterMs = 0L;
         for (Throwable c = e.getCause(); c != null; c = c.getCause()) {
             if (c instanceof BlobStorageException bse) {
                 throttling = ExternalUnavailableException.isThrottlingStatus(bse.getStatusCode());
+                if (throttling && bse.getResponse() != null) {
+                    retryAfterMs = ExternalUnavailableException.parseRetryAfterMs(bse.getResponse().getHeaderValue("Retry-After"));
+                }
                 break;
             }
         }
-        return new ExternalUnavailableException(throttling, e, "transient read failure for [{}]", path);
+        return new ExternalUnavailableException(
+            throttling ? Condition.STORE_THROTTLED : Condition.STORE_UNAVAILABLE,
+            path,
+            "",
+            "",
+            throttling,
+            retryAfterMs,
+            e
+        );
     }
 }

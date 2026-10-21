@@ -12,7 +12,7 @@ package org.elasticsearch.index.fielddata.plain;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 
@@ -33,7 +33,7 @@ public abstract class LeafLongFieldData implements LeafNumericFieldData {
     }
 
     @Override
-    public final SortedBinaryDocValues getBytesValues() {
+    public final SortableBinaryDocValues getBytesValues() {
         return FieldData.toString(getLongValues());
     }
 

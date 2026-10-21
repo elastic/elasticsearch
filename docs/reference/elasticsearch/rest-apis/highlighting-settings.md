@@ -106,7 +106,7 @@ For the `fvh` highlighter:
     $$$number_of_fragments$$$
 
     number_of_fragments {applies_to}`stack: ga 9.4+`
-    :   The maximum number of fragments to return. If the number of fragments is set to 0, no fragments are returned. Instead, the entire field contents are highlighted and returned. This can be handy when you need to highlight short texts such as a title or address, but fragmentation is not required. If `number_of_fragments` is 0, `fragment_size` is ignored. Defaults to 5. Cannot exceed 10000.
+    :   The maximum number of fragments to return. If the number of fragments is set to 0, no fragments are returned. Instead, the entire field contents are highlighted and returned. This can be handy when you need to highlight short texts such as a title or address, but fragmentation is not required. If `number_of_fragments` is 0, `fragment_size` is ignored. Defaults to 5. Cannot exceed the [`index.highlight.max_number_of_fragments`](/reference/elasticsearch/index-settings/index-modules.md#index-max-number-of-fragments) index setting.
 
     order
     :   Sorts highlighted fragments by score when set to `score`. By default, fragments will be output in the order they appear in the field (order: `none`). Setting this option to `score` will output the most relevant fragments first. Each highlighter applies its own logic to compute relevancy scores. See the document [How highlighters work internally](how-es-highlighters-work-internally.md) for more details how different highlighters find the best fragments.

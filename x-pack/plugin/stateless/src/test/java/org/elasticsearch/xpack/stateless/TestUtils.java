@@ -8,10 +8,11 @@
 package org.elasticsearch.xpack.stateless;
 
 import org.elasticsearch.blobcache.BlobCacheMetrics;
-import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.TimeProvider;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.NodeEnvironment;
@@ -23,29 +24,18 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.FillCacheMemoryPressure;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
-import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges;
-import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
-import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
-import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
-import org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationHandler;
-import org.elasticsearch.xpack.stateless.recovery.metering.StatelessRecoveryMetricsCollector;
-import org.elasticsearch.xpack.stateless.reshard.SplitSourceService;
-import org.elasticsearch.xpack.stateless.reshard.SplitTargetService;
-import org.elasticsearch.xpack.stateless.snapshots.SnapshotsCommitService;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Executor;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
@@ -56,6 +46,9 @@ import static org.mockito.Mockito.when;
 public class TestUtils {
 
     private TestUtils() {}
+
+    /** A {@link TimeProvider} with all methods returning {@code 0L}, for use in tests that do not exercise time-based bucketing. */
+    public static final TimeProvider NOOP_TIME_PROVIDER = SharedBlobCacheServiceTestUtils.NOOP_TIME_PROVIDER;
 
     /**
      * A {@link FillCacheMemoryPressure} using {@code settings} (default: heap-relative) and no telemetry, for tests that do not
@@ -89,8 +82,8 @@ public class TestUtils {
                 Sets.addToCopy(
                     ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
                     StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING,
+                    StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_INDEXING_ENABLED_SETTING,
                     StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING,
-                    StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING,
                     StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING
                 )
             )
@@ -132,65 +125,14 @@ public class TestUtils {
         MeterRegistry meterRegistry,
         ClusterService clusterService
     ) {
-        StatelessSharedBlobCacheService statelessSharedBlobCacheService = new StatelessSharedBlobCacheService(
+        return new StatelessSharedBlobCacheService(
             nodeEnvironment,
             settings,
             threadPool,
-            meterRegistry == null ? new BlobCacheMetrics(MeterRegistry.NOOP) : new BlobCacheMetrics(meterRegistry),
+            new BlobCacheMetrics(meterRegistry == null ? MeterRegistry.NOOP : meterRegistry, NOOP_TIME_PROVIDER),
             clusterService,
             mockIndicesService(clusterService),
             new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
-        );
-        return statelessSharedBlobCacheService;
-    }
-
-    public static StatelessIndexNodeRecoveryListener newStatelessIndexNodeRecoveryListener(
-        ThreadPool threadPool,
-        StatelessCommitService statelessCommitService,
-        ObjectStoreService objectStoreService,
-        TranslogReplicator translogReplicator,
-        SharedBlobCacheWarmingService warmingService,
-        HollowShardsService hollowShardsService,
-        SplitTargetService splitTargetService,
-        SplitSourceService splitSourceService,
-        ProjectResolver projectResolver,
-        Executor bccHeaderReadExecutor,
-        StatelessSharedBlobCacheService cacheService,
-        SnapshotsCommitService snapshotsCommitService,
-        StatelessRecoveryMetricsCollector recoveryMetricsCollector
-    ) {
-        return new StatelessIndexNodeRecoveryListener(
-            threadPool,
-            statelessCommitService,
-            objectStoreService,
-            translogReplicator,
-            warmingService,
-            hollowShardsService,
-            splitTargetService,
-            splitSourceService,
-            projectResolver,
-            bccHeaderReadExecutor,
-            cacheService,
-            snapshotsCommitService,
-            recoveryMetricsCollector
-        );
-    }
-
-    public static StatelessSearchNodeRecoveryListener newStatelessSearchNodeRecoveryListener(
-        ObjectStoreService objectStoreService,
-        RecoveryCommitRegistrationHandler recoveryCommitRegistrationHandler,
-        SharedBlobCacheWarmingService warmingService,
-        ProjectResolver projectResolver,
-        Executor bccHeaderReadExecutor,
-        ClusterService clusterService
-    ) {
-        return new StatelessSearchNodeRecoveryListener(
-            objectStoreService,
-            recoveryCommitRegistrationHandler,
-            warmingService,
-            projectResolver,
-            bccHeaderReadExecutor,
-            clusterService
         );
     }
 

@@ -7,8 +7,12 @@
 
 package org.elasticsearch.xpack.esql.datasource.csv;
 
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -19,19 +23,33 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.ExternalReadCounters;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
+import org.elasticsearch.xpack.esql.datasources.ParallelParsingCoordinator;
 import org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinator;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * A declared schema over a headered CSV binds its columns by name against the header, and only the first
@@ -49,7 +67,158 @@ public class CsvDeclaredHeaderMultiChunkTests extends ESTestCase {
 
     @Before
     public void setUpBlockFactory() {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
+    }
+
+    /**
+     * A declared schema names the columns it reads, so a file wider than the schema-inference cap is still readable:
+     * the cap bounds what inference materialises, not what a declaration selects. The file spans several chunks, so
+     * chunk 0 binds from its own header and every later chunk from the width and names the coordinator captured through
+     * {@code metadata()}, which is the path that would otherwise run inference over the whole header.
+     */
+    public void testDeclaredSchemaOverFileWiderThanTheCapReadsAcrossChunks() throws Exception {
+        int columns = ExternalSourceSettings.DEFAULT_SCHEMA_MAX_FIELDS + 201;
+        StringBuilder csv = new StringBuilder();
+        for (int c = 0; c < columns; c++) {
+            csv.append(c == 0 ? "c" : ",c").append(c);
+        }
+        csv.append('\n');
+        long chunkSize = new CsvFormatReader(blockFactory).minimumSegmentSize();
+        int rows = 0;
+        while (csv.length() < chunkSize * 2) {
+            String value = Integer.toString(rows);
+            for (int c = 0; c < columns; c++) {
+                csv.append(c == 0 ? "" : ",").append(value);
+            }
+            csv.append('\n');
+            rows++;
+        }
+        List<Attribute> declared = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "c1100", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "c5", DataType.LONG)
+        );
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
+            .withDeclaredProvenanceBinding(true)
+            .withSchema(declared);
+
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        long seenRows = 0;
+        long sum = 0;
+        try (
+            CloseableIterator<Page> pages = StreamingParallelParsingCoordinator.parallelRead(
+                (SegmentableFormatReader) reader,
+                new ByteArrayInputStream(csv.toString().getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of("c1100", "c5"),
+                1000,
+                4,
+                executor,
+                ErrorPolicy.STRICT,
+                declared,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                null,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                StreamingParallelParsingCoordinator.WarningSinks.NONE
+            )
+        ) {
+            while (pages.hasNext()) {
+                Page page = pages.next();
+                try {
+                    LongBlock wide = (LongBlock) page.getBlock(0);
+                    LongBlock narrow = (LongBlock) page.getBlock(1);
+                    for (int i = 0; i < page.getPositionCount(); i++) {
+                        assertEquals("both declared columns hold the row number", wide.getLong(i), narrow.getLong(i));
+                        sum += wide.getLong(i) + narrow.getLong(i);
+                    }
+                    seenRows += page.getPositionCount();
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+        assertEquals(rows, seenRows);
+        assertEquals((long) (rows - 1) * rows, sum);
+    }
+
+    /**
+     * A declared read is not capped by the file's width, so every chunk after the first charges the scratch it builds to
+     * bind the declaration against the header names chunk 0 passed down, and releases it once bound.
+     */
+    public void testLaterChunksChargeTheDeclaredHeaderBinding() throws Exception {
+        int columns = ExternalSourceSettings.DEFAULT_SCHEMA_MAX_FIELDS * 5;
+        StringBuilder csv = new StringBuilder();
+        for (int c = 0; c < columns; c++) {
+            csv.append(c == 0 ? "c" : ",c").append(c);
+        }
+        csv.append('\n');
+        long chunkSize = new CsvFormatReader(blockFactory).minimumSegmentSize();
+        int rows = 0;
+        while (csv.length() < chunkSize * 3) {
+            String value = Integer.toString(rows);
+            for (int c = 0; c < columns; c++) {
+                csv.append(c == 0 ? "" : ",").append(value);
+            }
+            csv.append('\n');
+            rows++;
+        }
+        // A later chunk's binding charge is the only csv_header_columns charge of exactly this size; the header split
+        // charges in batches of names.
+        long headerBindingBytes = (long) columns * (2 * Long.BYTES + CsvFormatReader.HeaderBudget.SET_ENTRY_BYTES);
+        AtomicInteger headerBindings = new AtomicInteger();
+        LimitedBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofMb(256)) {
+            @Override
+            public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+                super.addEstimateBytesAndMaybeBreak(bytes, label);
+                if (label.equals(CsvFormatReader.HeaderBudget.LABEL) && bytes == headerBindingBytes) {
+                    headerBindings.incrementAndGet();
+                }
+            }
+        };
+        BlockFactory charged = new BlockFactory(breaker, BigArrays.NON_RECYCLING_INSTANCE);
+        List<Attribute> declared = List.of(new ReferenceAttribute(Source.EMPTY, null, "c4000", DataType.LONG));
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(charged).withConfig(Map.of("header_row", true))
+            .withDeclaredProvenanceBinding(true)
+            .withSchema(declared);
+
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        long seenRows = 0;
+        try (
+            CloseableIterator<Page> pages = StreamingParallelParsingCoordinator.parallelRead(
+                (SegmentableFormatReader) reader,
+                new ByteArrayInputStream(csv.toString().getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of("c4000"),
+                1000,
+                4,
+                executor,
+                ErrorPolicy.STRICT,
+                declared,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                null,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                StreamingParallelParsingCoordinator.WarningSinks.NONE
+            )
+        ) {
+            while (pages.hasNext()) {
+                Page page = pages.next();
+                try {
+                    seenRows += page.getPositionCount();
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+        assertEquals(rows, seenRows);
+        assertThat(headerBindings.get(), greaterThan(0));
+        assertEquals(0, breaker.getUsed());
     }
 
     public void testDeclaredHeaderedCsvReadsAcrossChunkBoundaries() throws Exception {
@@ -72,7 +241,7 @@ public class CsvDeclaredHeaderMultiChunkTests extends ESTestCase {
         );
 
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
-            .withDeclaredPathBinding(true)
+            .withDeclaredProvenanceBinding(true)
             .withSchema(declared);
 
         InputStream stream = new ByteArrayInputStream(csv.toString().getBytes(StandardCharsets.UTF_8));
@@ -119,5 +288,262 @@ public class CsvDeclaredHeaderMultiChunkTests extends ESTestCase {
         assertEquals("every data row must be read, across every chunk", rows, seenRows);
         // salary is row*2 — binding by position instead of name would have read emp_no here and halved this.
         assertEquals("salary must bind by name, not position", (long) (rows - 1) * rows, salarySum);
+    }
+
+    /**
+     * The row-width bound on a chunk after the first comes from the header columns the coordinator read once from
+     * chunk 0 and passed down, not from a header this chunk can see. This plants a row wider than the file's header
+     * deep enough to land past the first chunk and pins that the real coordinator-supplied width rejects it —
+     * the reader-level half is pinned by CsvFormatReaderTests#testDeclaredBindingRowWidthOnNonFirstSplit, which
+     * hands the header columns over by hand.
+     */
+    public void testDeclaredHeaderedCsvAppliesRowWidthBoundOnLaterChunks() throws Exception {
+        long chunkSize = new CsvFormatReader(blockFactory).minimumSegmentSize();
+        StringBuilder csv = new StringBuilder("emp_no,first_name,salary\n");
+        int rows = 0;
+        int raggedRowIndex = -1;
+        while (csv.length() < chunkSize * 2) {
+            // One row carrying a fourth field, planted once the content is already past the first chunk so the
+            // bound under test is the carried one rather than chunk 0's own header split.
+            if (raggedRowIndex < 0 && csv.length() > chunkSize + chunkSize / 2) {
+                csv.append(rows).append(",name").append(rows).append(',').append(rows * 2L).append(",SURPLUS\n");
+                raggedRowIndex = rows;
+            } else {
+                csv.append(rows).append(",name").append(rows).append(',').append(rows * 2L).append('\n');
+            }
+            rows++;
+        }
+        assertTrue("the ragged row must land past the first chunk", raggedRowIndex > 0);
+
+        List<Attribute> declared = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "first_name", DataType.KEYWORD)
+        );
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
+            .withDeclaredProvenanceBinding(true)
+            .withSchema(declared);
+
+        List<String> warnings = Collections.synchronizedList(new ArrayList<>());
+        InputStream stream = new ByteArrayInputStream(csv.toString().getBytes(StandardCharsets.UTF_8));
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        long seenRows = 0;
+        try (
+            CloseableIterator<Page> pages = StreamingParallelParsingCoordinator.parallelRead(
+                (SegmentableFormatReader) reader,
+                stream,
+                null,
+                List.of("salary", "first_name"),
+                1000,
+                4,
+                executor,
+                ErrorPolicy.LENIENT,
+                declared,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                null,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                new StreamingParallelParsingCoordinator.WarningSinks(null, warnings::add)
+            )
+        ) {
+            while (pages.hasNext()) {
+                Page page = pages.next();
+                try {
+                    seenRows += page.getPositionCount();
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+
+        assertEquals("exactly the ragged row is dropped", rows - 1L, seenRows);
+        assertTrue(
+            "expected a header-width warning naming the file's 3 columns, got: " + warnings,
+            warnings.stream().anyMatch(w -> w.contains("[4] columns, the header has [3]"))
+        );
+    }
+
+    /**
+     * The seekable coordinator splits a file that owns its first byte into segments, and only segment 0 sees the header.
+     * It reads the header once from the object's leading bytes and hands it to segments 1..N, so a pinned schema in a
+     * different order than the file binds by name on every segment, not only the first.
+     */
+    public void testParallelLeaderSplitBindsEverySegmentByHeader() throws Exception {
+        long minSegment = new CsvFormatReader(blockFactory).minimumSegmentSize();
+        StringBuilder csv = new StringBuilder("emp_no,first_name,salary\n");
+        int rows = appendRows(csv, 0, 3 * minSegment);
+        List<Attribute> pinned = salaryThenName();
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true));
+        StorageObject object = new BytesObject(csv.toString().getBytes(StandardCharsets.UTF_8));
+
+        long[] counted = readParallel(reader, object, true, pinned, null);
+
+        assertEquals("every data row must be read, across every segment", rows, counted[0]);
+        assertEquals("salary must bind by name on every segment", (long) (rows - 1) * rows, counted[1]);
+    }
+
+    /**
+     * A run of comments longer than segment 0 puts the header in a later segment, which would read it as a data row: only
+     * segment 0 steps over the leading rows. The coordinator finds no header in segment 0 and reads the file single-shot.
+     */
+    public void testParallelLeaderSplitWithTheHeaderPastSegmentZeroReadsTheHeaderOnce() throws Exception {
+        long minSegment = new CsvFormatReader(blockFactory).minimumSegmentSize();
+        StringBuilder csv = new StringBuilder();
+        while (csv.length() < 2 * minSegment) {
+            csv.append("# a comment line long enough to fill a segment\n");
+        }
+        csv.append("emp_no,first_name,salary\n");
+        int rows = appendRows(csv, 0, 4 * minSegment);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true, "comment", "#"));
+        StorageObject object = new BytesObject(csv.toString().getBytes(StandardCharsets.UTF_8));
+
+        long[] counted = readParallel(reader, object, true, salaryThenName(), null);
+        assertEquals("every data row and no header row", rows, counted[0]);
+        assertEquals((long) (rows - 1) * rows, counted[1]);
+
+        counted = readParallel(reader, object, true, salaryThenName(), List.of("emp_no", "first_name", "salary"));
+        assertEquals("handed columns do not say where the header ends", rows, counted[0]);
+        assertEquals((long) (rows - 1) * rows, counted[1]);
+    }
+
+    /**
+     * A macro-split that does not start at the file's first byte sees no header at all. Handed the file's header columns
+     * it binds every segment by name; without them it fails rather than binding by position.
+     */
+    public void testParallelNonLeaderSplitBindsByCarriedHeader() throws Exception {
+        long minSegment = new CsvFormatReader(blockFactory).minimumSegmentSize();
+        StringBuilder csv = new StringBuilder();
+        int rows = appendRows(csv, 0, 3 * minSegment);
+        List<Attribute> pinned = salaryThenName();
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true));
+        StorageObject object = new BytesObject(csv.toString().getBytes(StandardCharsets.UTF_8));
+
+        long[] counted = readParallel(reader, object, false, pinned, List.of("emp_no", "first_name", "salary"));
+        assertEquals("every data row must be read, across every segment", rows, counted[0]);
+        assertEquals("salary must bind by name on every segment", (long) (rows - 1) * rows, counted[1]);
+
+        Exception e = expectThrows(Exception.class, () -> readParallel(reader, object, false, pinned, null));
+        assertThat(
+            "a split with no header and no carried header columns must fail, not bind by position",
+            ExceptionsHelper.stackTrace(e),
+            containsString("without the file's header columns")
+        );
+    }
+
+    private static int appendRows(StringBuilder csv, int from, long untilLength) {
+        int row = from;
+        while (csv.length() < untilLength) {
+            csv.append(row).append(",name").append(row).append(',').append(row * 2L).append('\n');
+            row++;
+        }
+        return row - from;
+    }
+
+    private static List<Attribute> salaryThenName() {
+        return List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "first_name", DataType.KEYWORD)
+        );
+    }
+
+    /** Returns {rows read, sum of salary}. */
+    private long[] readParallel(
+        CsvFormatReader reader,
+        StorageObject object,
+        boolean splitIncludesFileLeader,
+        List<Attribute> pinned,
+        List<String> fileHeaderColumns
+    ) throws Exception {
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        long seenRows = 0;
+        long salarySum = 0;
+        try (
+            CloseableIterator<Page> pages = ParallelParsingCoordinator.parallelRead(
+                reader,
+                object,
+                List.of("salary", "first_name"),
+                1000,
+                4,
+                executor,
+                ErrorPolicy.STRICT,
+                true,
+                splitIncludesFileLeader,
+                pinned,
+                0L,
+                4,
+                null,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                true,
+                ExternalSourceMetrics.NOOP,
+                null,
+                ExternalReadCounters.NOOP,
+                null,
+                null,
+                fileHeaderColumns
+            )
+        ) {
+            while (pages.hasNext()) {
+                Page page = pages.next();
+                try {
+                    LongBlock salary = (LongBlock) page.getBlock(0);
+                    BytesRefBlock name = (BytesRefBlock) page.getBlock(1);
+                    for (int i = 0; i < page.getPositionCount(); i++) {
+                        salarySum += salary.getLong(i);
+                        assertFalse("name column must not be null", name.isNull(i));
+                    }
+                    seenRows += page.getPositionCount();
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+        return new long[] { seenRows, salarySum };
+    }
+
+    /** An in-memory file that serves range reads, which the seekable coordinator's segments use. */
+    private static final class BytesObject extends AbstractTestStorageObject {
+        private final byte[] bytes;
+
+        BytesObject(byte[] bytes) {
+            this.bytes = bytes;
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            int from = (int) position;
+            int len = length < 0 ? bytes.length - from : (int) Math.min(length, bytes.length - position);
+            return new ByteArrayInputStream(bytes, from, len);
+        }
+
+        @Override
+        public InputStream newStream() {
+            return new ByteArrayInputStream(bytes);
+        }
+
+        @Override
+        public long length() {
+            return bytes.length;
+        }
+
+        @Override
+        public Instant lastModified() {
+            return Instant.EPOCH;
+        }
+
+        @Override
+        public boolean exists() {
+            return true;
+        }
+
+        @Override
+        public StoragePath path() {
+            return StoragePath.of("memory://multi-segment.csv");
+        }
     }
 }

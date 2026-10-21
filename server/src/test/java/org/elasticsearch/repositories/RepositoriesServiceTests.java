@@ -116,7 +116,7 @@ public class RepositoriesServiceTests extends ESTestCase {
 
         DiscoveryNode localNode = DiscoveryNodeUtils.builder("local").name("local").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build();
         NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow());
-        var actionFilters = new ActionFilters(Set.of());
+        var actionFilters = ActionFilters.EMPTY;
         client.initialize(
             Map.of(
                 VerifyNodeRepositoryCoordinationAction.TYPE,
@@ -156,8 +156,7 @@ public class RepositoriesServiceTests extends ESTestCase {
             typesRegistry,
             threadPool,
             client,
-            List.of(),
-            SnapshotMetrics.NOOP
+            List.of()
         );
 
         clusterService.start();
@@ -692,7 +691,7 @@ public class RepositoriesServiceTests extends ESTestCase {
 
         @Override
         public void deleteSnapshots(
-            Collection<SnapshotId> snapshotIds,
+            Set<SnapshotId> snapshotIds,
             long repositoryDataGeneration,
             IndexVersion minimumNodeVersion,
             ActionListener<RepositoryData> repositoryDataUpdateListener,

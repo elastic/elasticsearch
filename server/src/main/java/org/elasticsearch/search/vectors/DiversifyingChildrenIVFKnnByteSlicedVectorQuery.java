@@ -9,13 +9,13 @@
 
 package org.elasticsearch.search.vectors;
 
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
 
 import java.util.Objects;
+import java.util.concurrent.atomic.LongAccumulator;
 
 /**
  * IVF kNN search over a slice of an index for byte vectors, with nested (block-join) diversification
@@ -23,7 +23,7 @@ import java.util.Objects;
  */
 public class DiversifyingChildrenIVFKnnByteSlicedVectorQuery extends IVFKnnByteSlicedVectorQuery {
 
-    private final BitSetProducer parentsFilter;
+    final BitSetProducer parentsFilter;
 
     /**
      * @param field            the vector field to search
@@ -49,13 +49,29 @@ public class DiversifyingChildrenIVFKnnByteSlicedVectorQuery extends IVFKnnByteS
         String sliceField,
         BytesRef... sliceIds
     ) {
-        super(field, query, k, numCands, childFilter, visitRatio, queryConfigResolver, sliceField, sliceIds);
+        this(field, query, k, numCands, childFilter, parentsFilter, visitRatio, queryConfigResolver, false, sliceField, sliceIds);
+    }
+
+    DiversifyingChildrenIVFKnnByteSlicedVectorQuery(
+        String field,
+        byte[] query,
+        int k,
+        int numCands,
+        Query childFilter,
+        BitSetProducer parentsFilter,
+        float visitRatio,
+        IvfQueryConfigResolver queryConfigResolver,
+        boolean postFilterDelegate,
+        String sliceField,
+        BytesRef... sliceIds
+    ) {
+        super(field, query, k, numCands, childFilter, visitRatio, queryConfigResolver, postFilterDelegate, sliceField, sliceIds);
         this.parentsFilter = Objects.requireNonNull(parentsFilter);
     }
 
     @Override
-    protected IVFCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
-        return new DiversifiedIVFKnnCollectorManager(k, searcher, parentsFilter);
+    protected IVFCollectorManager getKnnCollectorManager(int k, LongAccumulator longAccumulator) {
+        return new DiversifiedIVFKnnCollectorManager(k, longAccumulator, parentsFilter);
     }
 
     @Override

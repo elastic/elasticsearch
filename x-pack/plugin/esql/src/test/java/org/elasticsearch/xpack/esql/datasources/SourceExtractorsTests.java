@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.test.TestBlockFactory;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -153,7 +155,7 @@ public class SourceExtractorsTests extends ESTestCase {
         assertEquals("trailing closeable must run exactly once", 1, calls.get());
     }
 
-    public void testMaterializeEmptyCount() {
+    public void testMaterializeEmptyCount() throws IOException {
         try (SourceExtractors registry = new SourceExtractors()) {
             registry.register(new IntListExtractor(new int[] { 1, 2 }));
             Block[] result = registry.materialize(new long[0], 0, List.of("col"), null, blockFactory);
@@ -166,7 +168,7 @@ public class SourceExtractorsTests extends ESTestCase {
         }
     }
 
-    public void testMaterializeSingleSource() {
+    public void testMaterializeSingleSource() throws IOException {
         try (SourceExtractors registry = new SourceExtractors()) {
             int id = registry.register(new IntListExtractor(new int[] { 10, 20, 30, 40 }));
             // Request positions 3, 0, 2 — out of order and disjoint.
@@ -185,7 +187,7 @@ public class SourceExtractorsTests extends ESTestCase {
         }
     }
 
-    public void testMaterializeMultiSourceInterleaved() {
+    public void testMaterializeMultiSourceInterleaved() throws IOException {
         try (SourceExtractors registry = new SourceExtractors()) {
             int idA = registry.register(new IntListExtractor(new int[] { 100, 101, 102 }));
             int idB = registry.register(new IntListExtractor(new int[] { 200, 201 }));
@@ -214,7 +216,7 @@ public class SourceExtractorsTests extends ESTestCase {
         }
     }
 
-    public void testMaterializeBatchesPerExtractor() {
+    public void testMaterializeBatchesPerExtractor() throws IOException {
         // The dispatch must call extract once per id per materialize() call — proving the per-id
         // batching is real, not row-by-row, and that all requested columns flow through a single
         // extract invocation so the implementation can coalesce I/O across columns (F-2).
@@ -254,7 +256,7 @@ public class SourceExtractorsTests extends ESTestCase {
         assertEquals("single-column materialize must pass exactly one column to extract", 1, maxColumnsPerCall.get());
     }
 
-    public void testMaterializeMultipleColumnsBatchesAllColumnsPerExtractor() {
+    public void testMaterializeMultipleColumnsBatchesAllColumnsPerExtractor() throws IOException {
         // F-2 invariant: with N requested columns and K extractor ids, materialize() must invoke
         // each extractor's multi-column extract exactly once (passing all N columns), so the
         // implementation can issue a single coalesced I/O batch covering all N columns. A
@@ -292,7 +294,7 @@ public class SourceExtractorsTests extends ESTestCase {
         assertEquals("multi-column materialize must pass both columns in a single extract() call", 2, maxColsA.get());
     }
 
-    public void testMaterializeMultipleColumns() {
+    public void testMaterializeMultipleColumns() throws IOException {
         try (SourceExtractors registry = new SourceExtractors()) {
             int idA = registry.register(new TwoColumnExtractor(new int[] { 1, 2 }, new long[] { 10L, 20L }));
             int idB = registry.register(new TwoColumnExtractor(new int[] { 3, 4 }, new long[] { 30L, 40L }));
@@ -312,6 +314,188 @@ public class SourceExtractorsTests extends ESTestCase {
             } finally {
                 org.elasticsearch.core.Releasables.closeExpectNoException(result);
             }
+        }
+    }
+
+    public void testMaterializeNullThenTypedWithDeclaredType() throws IOException {
+        // Lowest extractor id emits ConstantNullBlock; a later id emits values. Pre-fix Phase 5
+        // picked ElementType.NULL from the first Java-non-null per-id block and threw
+        // "can't append non-null values to a null block" on copyFrom of the typed id.
+        try (SourceExtractors registry = new SourceExtractors()) {
+            int idNull = registry.register(new NullableIntColumnsExtractor(Map.of("col", new Integer[] { null, null })));
+            int idTyped = registry.register(new NullableIntColumnsExtractor(Map.of("col", new Integer[] { 10, 20 })));
+            long[] refs = new long[] {
+                SourceExtractors.encode(idNull, 0),
+                SourceExtractors.encode(idTyped, 0),
+                SourceExtractors.encode(idNull, 1),
+                SourceExtractors.encode(idTyped, 1) };
+            Block[] result = registry.materialize(refs, refs.length, List.of("col"), List.of(DataType.INTEGER), blockFactory);
+            try {
+                assertEquals(ElementType.INT, result[0].elementType());
+                IntBlock block = (IntBlock) result[0];
+                assertEquals(4, block.getPositionCount());
+                assertTrue(block.isNull(0));
+                assertEquals(10, block.getInt(1));
+                assertTrue(block.isNull(2));
+                assertEquals(20, block.getInt(3));
+            } finally {
+                Releasables.closeExpectNoException(result);
+            }
+        }
+    }
+
+    public void testMaterializeNullThenTypedWithoutTargetTypes() throws IOException {
+        // Same mixed-nullness as the declared-type regression, but {@code targetTypes == null}
+        // so Phase 5 takes the scan fallback. That is the BlockChunks analog: skip
+        // {@code ElementType.NULL} and build from the first typed per-id block.
+        try (SourceExtractors registry = new SourceExtractors()) {
+            int idNull = registry.register(new NullableIntColumnsExtractor(Map.of("col", new Integer[] { null, null })));
+            int idTyped = registry.register(new NullableIntColumnsExtractor(Map.of("col", new Integer[] { 10, 20 })));
+            long[] refs = new long[] {
+                SourceExtractors.encode(idNull, 0),
+                SourceExtractors.encode(idTyped, 0),
+                SourceExtractors.encode(idNull, 1),
+                SourceExtractors.encode(idTyped, 1) };
+            Block[] result = registry.materialize(refs, refs.length, List.of("col"), null, blockFactory);
+            try {
+                assertEquals(ElementType.INT, result[0].elementType());
+                IntBlock block = (IntBlock) result[0];
+                assertEquals(4, block.getPositionCount());
+                assertTrue(block.isNull(0));
+                assertEquals(10, block.getInt(1));
+                assertTrue(block.isNull(2));
+                assertEquals(20, block.getInt(3));
+            } finally {
+                Releasables.closeExpectNoException(result);
+            }
+        }
+    }
+
+    public void testMaterializeTypedThenNullWithDeclaredType() throws IOException {
+        try (SourceExtractors registry = new SourceExtractors()) {
+            int idTyped = registry.register(new NullableIntColumnsExtractor(Map.of("col", new Integer[] { 10, 20 })));
+            int idNull = registry.register(new NullableIntColumnsExtractor(Map.of("col", new Integer[] { null, null })));
+            long[] refs = new long[] {
+                SourceExtractors.encode(idTyped, 0),
+                SourceExtractors.encode(idNull, 0),
+                SourceExtractors.encode(idTyped, 1),
+                SourceExtractors.encode(idNull, 1) };
+            Block[] result = registry.materialize(refs, refs.length, List.of("col"), List.of(DataType.INTEGER), blockFactory);
+            try {
+                assertEquals(ElementType.INT, result[0].elementType());
+                IntBlock block = (IntBlock) result[0];
+                assertEquals(4, block.getPositionCount());
+                assertEquals(10, block.getInt(0));
+                assertTrue(block.isNull(1));
+                assertEquals(20, block.getInt(2));
+                assertTrue(block.isNull(3));
+            } finally {
+                Releasables.closeExpectNoException(result);
+            }
+        }
+    }
+
+    public void testMaterializeAllNullWithDeclaredTypeIsConstantNull() throws IOException {
+        // All per-id blocks are ConstantNullBlock: keep that, even with a declared type. A typed
+        // builder of size {@code count} would only copy nulls.
+        try (SourceExtractors registry = new SourceExtractors()) {
+            int idA = registry.register(new NullableIntColumnsExtractor(Map.of("col", new Integer[] { null, null })));
+            int idB = registry.register(new NullableIntColumnsExtractor(Map.of("col", new Integer[] { null })));
+            long[] refs = new long[] { SourceExtractors.encode(idA, 0), SourceExtractors.encode(idB, 0), SourceExtractors.encode(idA, 1) };
+            Block[] result = registry.materialize(refs, refs.length, List.of("col"), List.of(DataType.INTEGER), blockFactory);
+            try {
+                assertEquals(ElementType.NULL, result[0].elementType());
+                assertTrue(result[0].areAllValuesNull());
+                assertEquals(3, result[0].getPositionCount());
+                assertTrue(result[0].isNull(0));
+                assertTrue(result[0].isNull(1));
+                assertTrue(result[0].isNull(2));
+            } finally {
+                Releasables.closeExpectNoException(result);
+            }
+        }
+    }
+
+    public void testMaterializeAllNullWithoutTargetTypesIsConstantNull() throws IOException {
+        // Null targetTypes disables declared-type coercion; all-null per-id blocks fall through
+        // to ConstantNullBlock, matching the BlockChunks all-null arm.
+        try (SourceExtractors registry = new SourceExtractors()) {
+            int idA = registry.register(new NullableIntColumnsExtractor(Map.of("col", new Integer[] { null, null })));
+            int idB = registry.register(new NullableIntColumnsExtractor(Map.of("col", new Integer[] { null })));
+            long[] refs = new long[] { SourceExtractors.encode(idA, 0), SourceExtractors.encode(idB, 0) };
+            Block[] result = registry.materialize(refs, refs.length, List.of("col"), null, blockFactory);
+            try {
+                assertEquals(ElementType.NULL, result[0].elementType());
+                assertTrue(result[0].areAllValuesNull());
+                assertEquals(2, result[0].getPositionCount());
+            } finally {
+                Releasables.closeExpectNoException(result);
+            }
+        }
+    }
+
+    public void testMaterializeMixedNullnessOnOneOfTwoColumns() throws IOException {
+        // Per-column builder selection: {@code ints} is dense on both ids; only {@code flag} is
+        // mixed (ConstantNullBlock then IntBlock). The dense column must stay typed even if the
+        // mixed column used to poison a null builder.
+        try (SourceExtractors registry = new SourceExtractors()) {
+            int idNullFlag = registry.register(
+                new NullableIntColumnsExtractor(Map.of("ints", new Integer[] { 1, 2 }, "flag", new Integer[] { null, null }))
+            );
+            int idTypedFlag = registry.register(
+                new NullableIntColumnsExtractor(Map.of("ints", new Integer[] { 3, 4 }, "flag", new Integer[] { 100, 200 }))
+            );
+            long[] refs = new long[] {
+                SourceExtractors.encode(idNullFlag, 0),
+                SourceExtractors.encode(idTypedFlag, 1),
+                SourceExtractors.encode(idNullFlag, 1) };
+            Block[] result = registry.materialize(
+                refs,
+                refs.length,
+                List.of("ints", "flag"),
+                List.of(DataType.INTEGER, DataType.INTEGER),
+                blockFactory
+            );
+            try {
+                assertEquals(ElementType.INT, result[0].elementType());
+                assertEquals(ElementType.INT, result[1].elementType());
+                IntBlock ints = (IntBlock) result[0];
+                IntBlock flag = (IntBlock) result[1];
+                assertEquals(3, ints.getPositionCount());
+                assertEquals(1, ints.getInt(0));
+                assertEquals(4, ints.getInt(1));
+                assertEquals(2, ints.getInt(2));
+                assertTrue(flag.isNull(0));
+                assertEquals(200, flag.getInt(1));
+                assertTrue(flag.isNull(2));
+            } finally {
+                Releasables.closeExpectNoException(result);
+            }
+        }
+    }
+
+    /**
+     * {@link SourceExtractors#materialize} must rethrow the extractor's {@link IOException} as the
+     * same instance. Wrapping it (for example in {@code UncheckedIOException}) would hide the
+     * checked type from {@code ExternalFailures.classify} at the operator boundary.
+     */
+    public void testMaterializeRethrowsExtractIoFailure() {
+        IOException failure = new IOException("simulated extract I/O failure");
+        try (SourceExtractors registry = new SourceExtractors()) {
+            int successfulId = registry.register(new IntListExtractor(new int[] { 10 }));
+            int failingId = registry.register(new IntListExtractor(new int[] { 20 }) {
+                @Override
+                public Block[] extract(String[] columnNames, DataType[] targetTypes, long[] localPositions, BlockFactory factory)
+                    throws IOException {
+                    throw failure;
+                }
+            });
+            long[] refs = new long[] { SourceExtractors.encode(successfulId, 0), SourceExtractors.encode(failingId, 0) };
+            IOException thrown = expectThrows(
+                IOException.class,
+                () -> registry.materialize(refs, refs.length, List.of("col"), null, blockFactory)
+            );
+            assertSame(failure, thrown);
         }
     }
 
@@ -460,6 +644,73 @@ public class SourceExtractorsTests extends ESTestCase {
                     }
                 }
                 default -> throw new IllegalArgumentException("unknown column: " + columnName);
+            }
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    /**
+     * Per-column int extractor that emits {@code ConstantNullBlock} when every requested cell is
+     * null, otherwise an {@code IntBlock}. Ignores {@code targetTypes} on purpose: parquet still
+     * returns {@code ConstantNullBlock} for an all-null optional INT even when the planner type is
+     * {@code INTEGER} (identity coerce is skipped). Used to reproduce Phase 5 mixed-nullness
+     * across extractor ids (all-null first split vs typed later split).
+     */
+    private static class NullableIntColumnsExtractor implements ColumnExtractor {
+        private final Map<String, Integer[]> columns;
+
+        NullableIntColumnsExtractor(Map<String, Integer[]> columns) {
+            this.columns = columns;
+        }
+
+        @Override
+        public long rowCount() {
+            return columns.values().iterator().next().length;
+        }
+
+        @Override
+        public Block[] extract(String[] columnNames, DataType[] targetTypes, long[] localPositions, BlockFactory blockFactory)
+            throws IOException {
+            Block[] result = new Block[columnNames.length];
+            boolean built = false;
+            try {
+                for (int c = 0; c < columnNames.length; c++) {
+                    result[c] = extractOne(columnNames[c], localPositions, blockFactory);
+                }
+                built = true;
+                return result;
+            } finally {
+                if (built == false) Releasables.closeExpectNoException(result);
+            }
+        }
+
+        private Block extractOne(String columnName, long[] localPositions, BlockFactory blockFactory) {
+            Integer[] values = columns.get(columnName);
+            if (values == null) {
+                throw new IllegalArgumentException("unknown column: " + columnName);
+            }
+            boolean anyValue = false;
+            for (long pos : localPositions) {
+                if (values[Math.toIntExact(pos)] != null) {
+                    anyValue = true;
+                    break;
+                }
+            }
+            if (anyValue == false) {
+                return blockFactory.newConstantNullBlock(localPositions.length);
+            }
+            try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(localPositions.length)) {
+                for (long pos : localPositions) {
+                    Integer v = values[Math.toIntExact(pos)];
+                    if (v == null) {
+                        builder.appendNull();
+                    } else {
+                        builder.appendInt(v);
+                    }
+                }
+                return builder.build();
             }
         }
 

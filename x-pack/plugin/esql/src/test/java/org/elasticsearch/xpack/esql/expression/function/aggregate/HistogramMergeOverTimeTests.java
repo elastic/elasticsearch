@@ -51,7 +51,7 @@ public class HistogramMergeOverTimeTests extends AbstractAggregationTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new HistogramMergeOverTime(source, args.get(0), Literal.TRUE, AggregateFunction.NO_WINDOW, args.get(1), args.get(2));
+        return new HistogramMergeOverTime(source, args.get(0), args.get(1), Literal.TRUE, AggregateFunction.NO_WINDOW, args.get(2));
     }
 
     @Override

@@ -113,18 +113,14 @@ The following list contains the available S3 client settings. Those that must be
 `s3.client.CLIENT_NAME.path_style_access`
 :   Whether to force the use of the path style access pattern. If `true`, the path style access pattern will be used. If `false`, the access pattern will be automatically determined by the AWS Java SDK (See [AWS documentation](https://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/s3/AmazonS3Builder.html#setPathStyleAccessEnabled-java.lang.Boolean-) for details). Defaults to `false`.
 
-::::{note}
-:name: repository-s3-path-style-deprecation
-
-In versions `7.0`, `7.1`, `7.2` and `7.3` all bucket operations used the [now-deprecated](https://aws.amazon.com/blogs/aws/amazon-s3-path-deprecation-plan-the-rest-of-the-story/) path style access pattern. If your deployment requires the path style access pattern then you should set this setting to `true` when upgrading.
-::::
-
-
-`s3.client.CLIENT_NAME.disable_chunked_encoding`
+`s3.client.CLIENT_NAME.disable_chunked_encoding` {applies_to}`stack: deprecated 9.6`
 :   Whether chunked encoding should be disabled or not. If `false`, chunked encoding is enabled and will be used where appropriate. If `true`, chunked encoding is disabled and will not be used, which may mean that snapshot operations consume more resources and take longer to complete. It should only be set to `true` if you are using a storage service that does not support chunked encoding. See the [AWS Java SDK documentation](https://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/s3/AmazonS3Builder.html#disableChunkedEncoding--) for details. Defaults to `false`.
 
 `s3.client.CLIENT_NAME.always_sign_requests` {applies_to}`stack: ga 9.5`
 :   {{es}} usually uses HTTPS to protect the integrity of all network traffic to a S3 repository, but if you access your repository using plain HTTP it will protect the integrity of request payloads uses a separate signature mechanism. If `always_sign_requests` is set to `true`, {{es}} will use this additional signature mechanism even for requests sent over HTTPS which do not need it. Defaults to `false`.
+
+`s3.client.CLIENT_NAME.legacy_content_md5` {applies_to}`stack: ga =9.5.6!, deprecated 9.5.7!+`
+:   Whether to send a `Content-MD5` header with requests that need a checksum, such as `DeleteObjects`. AWS S3 does not require this header and recent versions of the AWS Java SDK no longer send it by default, but some third-party storage services that claim to be S3-compatible still reject requests without it, which prevents snapshots from being deleted. Set this to `true` only as a temporary workaround while you obtain an update for your storage service that restores S3 compatibility. Use the [repository analysis API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-snapshot-repository-analyze) to verify that your repository behaves correctly. This setting is deprecated and will be removed in a future major version. Defaults to `false`.
 
 ## Repository settings [repository-s3-repository-settings]
 

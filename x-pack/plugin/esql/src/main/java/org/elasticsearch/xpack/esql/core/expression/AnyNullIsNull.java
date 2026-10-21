@@ -12,6 +12,9 @@ package org.elasticsearch.xpack.esql.core.expression;
  * of their arguments: if any argument evaluates to {@code null} at a given position,
  * the expression itself evaluates to {@code null} at that position.
  * <p>
+ * For aggregation functions, this means that if any argument is always
+ * {@code null}, the aggregated value will also be {@code null}.
+ * <p>
  * If a function has this property, it <b>must</b> be marked with this interface,
  * so that optimizer rules can apply.
  */

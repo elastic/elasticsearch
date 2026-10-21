@@ -41,9 +41,9 @@ public class VectordbDocumentIndexModeTests extends ESTestCase {
         // Source vectors are excluded from _source by default for vectordb_document mode.
         assertEquals("true", resolved.get(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey()));
 
-        // The default preload list matches VECTORDB_DOCUMENT_MODE_PRELOAD_EXTENSIONS.
+        // The default preload list matches the shared vector database mode preload extensions.
         List<String> preload = resolved.getAsList(IndexModule.INDEX_STORE_PRE_LOAD_SETTING.getKey());
-        assertEquals(IndexMode.IndexModeSettingsProvider.VECTORDB_DOCUMENT_MODE_PRELOAD_EXTENSIONS, preload);
+        assertEquals(IndexMode.IndexModeSettingsProvider.VECTORDB_MODE_PRELOAD_EXTENSIONS, preload);
         // HNSW graph, quantized data and IVF centroids are preloaded.
         assertThat(preload, hasItems("vex", "veq", "veb", "cenivf"));
         // Raw vectors and IVF cluster postings are intentionally excluded: large and streamed on demand.
@@ -103,11 +103,18 @@ public class VectordbDocumentIndexModeTests extends ESTestCase {
         );
     }
 
+    public void testProviderRejectsUnrecognizedIndexModeWithUserFriendlyError() {
+        Settings userSettings = Settings.builder().put(IndexSettings.MODE.getKey(), "vectordb").build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> runProvider(userSettings, Settings.builder()));
+        assertThat(e.getMessage(), containsString("[vectordb] is an invalid index mode"));
+    }
+
     private static void runProvider(Settings userSettings, Settings.Builder additional) {
         new IndexMode.IndexModeSettingsProvider().provideAdditionalSettings(
             "test_index",
             null,
             null,
+            false,
             ProjectMetadata.builder(ProjectId.fromId("test_project")).build(),
             Instant.now(),
             userSettings,

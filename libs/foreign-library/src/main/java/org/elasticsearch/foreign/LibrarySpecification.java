@@ -19,10 +19,12 @@ import java.lang.annotation.Target;
  * implementation of the interface backed by native (FFM) method handles, and registers it with
  * {@link LibraryProvider} so it can be looked up at runtime.
  *
- * <p>The annotated type must be an interface. Every abstract method must be annotated with
+ * <p>The annotated type must be an interface, or an abstract class with a no-arg constructor the
+ * generated subclass can call. An abstract class lets the binding wrap its native methods in
+ * concrete ones. Every abstract method must be annotated with
  * either {@link Function @Function} (a native symbol binding) or {@link StructFactory
  * @StructFactory} (constructs a nested {@link StructSpecification @StructSpecification} struct);
- * the processor reports a compile error otherwise. The interface may also enclose
+ * the processor reports a compile error otherwise. The type may also enclose
  * {@code @StructSpecification} records and interfaces that describe C struct layouts referenced
  * by its methods.
  *
@@ -81,6 +83,14 @@ import java.lang.annotation.Target;
 public @interface LibrarySpecification {
     /** Native library to load; empty means system/default lookup only. */
     String name() default "";
+
+    /**
+     * When {@code true}, the library named by {@link #name()} is loaded with
+     * {@link System#loadLibrary(String)} — an OS-resolved system library, such as Windows
+     * {@code kernel32} — rather than from the Elasticsearch bundled platform directory via
+     * {@link LoaderHelper#loadLibrary}. Requires a non-empty {@link #name()}.
+     */
+    boolean system() default false;
 
     /**
      * Platforms where this library is not available. When the current platform matches any entry,

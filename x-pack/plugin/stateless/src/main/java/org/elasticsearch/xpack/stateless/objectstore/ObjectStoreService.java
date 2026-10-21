@@ -12,7 +12,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.blobcache.BlobCacheUtils;
@@ -28,6 +27,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.ConcurrentMultipartHelper;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -37,12 +37,13 @@ import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.PrioritizedThrottledTaskRunner;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
-import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.FixForMultiProject;
@@ -66,6 +67,8 @@ import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.telemetry.metric.LongHistogram;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
@@ -100,9 +103,9 @@ import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -112,9 +115,9 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit.parseGenerationFromBlobName;
+import static org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit.startsWithBlobPrefix;
 import static org.elasticsearch.xpack.stateless.commits.BlobFileRanges.computeBlobFileRanges;
-import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.parseGenerationFromBlobName;
-import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.startsWithBlobPrefix;
 
 public class ObjectStoreService extends AbstractLifecycleComponent implements ClusterStateApplier {
 
@@ -150,27 +153,87 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         FS("location") {
             @Override
             @SuppressForbidden(reason = "creates path to external blobstore")
-            public Settings createRepositorySettings(String bucket, String client, String basePath) {
+            public Settings createRepositorySettings(
+                String bucket,
+                String client,
+                String basePath,
+                @Nullable ByteSizeValue multiPartThreshold
+            ) {
                 return Settings.builder().put("location", basePath != null ? PathUtils.get(bucket, basePath).toString() : bucket).build();
             }
         },
         MOCK("location") {
             @Override
-            public Settings createRepositorySettings(String bucket, String client, String basePath) {
-                return FS.createRepositorySettings(bucket, client, basePath);
+            public Settings createRepositorySettings(
+                String bucket,
+                String client,
+                String basePath,
+                @Nullable ByteSizeValue multiPartThreshold
+            ) {
+                return FS.createRepositorySettings(bucket, client, basePath, multiPartThreshold);
             }
         },
         S3("bucket") {
             @Override
-            public Settings createRepositorySettings(String bucket, String client, String basePath) {
-                return Settings.builder()
-                    .put(super.createRepositorySettings(bucket, client, basePath))
-                    .put("add_purpose_custom_query_parameter", "true")
-                    .build();
+            public Settings createRepositorySettings(
+                String bucket,
+                String client,
+                String basePath,
+                @Nullable ByteSizeValue multiPartThreshold
+            ) {
+                Settings.Builder builder = Settings.builder()
+                    .put(super.createRepositorySettings(bucket, client, basePath, multiPartThreshold))
+                    .put("add_purpose_custom_query_parameter", "true");
+                if (multiPartThreshold != null) {
+                    builder.put(S3_MULTIPART_THRESHOLD_SETTING_KEY, multiPartThreshold.getStringRep());
+                }
+                return builder.build();
             }
         },
-        GCS("bucket"),
-        AZURE("container");
+        GCS("bucket") {
+            @Override
+            public Settings createRepositorySettings(
+                String bucket,
+                String client,
+                String basePath,
+                @Nullable ByteSizeValue multiPartThreshold
+            ) {
+                Settings.Builder builder = Settings.builder()
+                    .put(super.createRepositorySettings(bucket, client, basePath, multiPartThreshold));
+                if (multiPartThreshold != null) {
+                    builder.put(GCS_MULTIPART_THRESHOLD_SETTING_KEY, multiPartThreshold.getStringRep());
+                }
+                return builder.build();
+            }
+        },
+        AZURE("container") {
+            @Override
+            public Settings createRepositorySettings(
+                String bucket,
+                String client,
+                String basePath,
+                @Nullable ByteSizeValue multiPartThreshold
+            ) {
+                Settings.Builder builder = Settings.builder()
+                    .put(super.createRepositorySettings(bucket, client, basePath, multiPartThreshold));
+                if (multiPartThreshold != null) {
+                    // Azure has both the part size and threshold settings so we update both of them.
+                    // This has the same effect as other repositories.
+                    builder.put(AZURE_MULTIPART_THRESHOLD_SETTING_KEY, multiPartThreshold);
+                    // Azure part size has a maximum value of 100 MB which is substantially different
+                    // from other cloud providers.
+                    // We don't want to hard fail and prevent nodes from starting if it is set to > 100 MB.
+                    // Instead, we will clamp it to 100 MB.
+                    if (multiPartThreshold.getMb() > 100) {
+                        logger.warn("Clamping Azure multipart upload part size to 100 MB instead of requested " + multiPartThreshold);
+                        builder.put(AZURE_MULTIPART_PART_SIZE_SETTING_KEY, ByteSizeValue.ofMb(100));
+                    } else {
+                        builder.put(AZURE_MULTIPART_PART_SIZE_SETTING_KEY, multiPartThreshold);
+                    }
+                }
+                return builder.build();
+            }
+        };
 
         private final String bucketSettingName;
 
@@ -178,7 +241,12 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             this.bucketSettingName = bucketSettingName;
         }
 
-        public Settings createRepositorySettings(String bucket, String client, String basePath) {
+        public Settings createRepositorySettings(
+            String bucket,
+            String client,
+            String basePath,
+            @Nullable ByteSizeValue multiPartThreshold
+        ) {
             Settings.Builder builder = Settings.builder();
             builder.put(bucketSettingName, bucket);
             builder.put("client", client);
@@ -288,6 +356,54 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         Setting.Property.NodeScope
     );
 
+    public static final String TRANSLOG_UPLOAD_DURATION_HISTOGRAM = "es.stateless.translog.upload.duration.histogram";
+    public static final String TRANSLOG_UPLOAD_SIZE_HISTOGRAM = "es.stateless.translog.upload.size.histogram";
+
+    // 1 to 1_000_000 milliseconds (= ~16 min)
+    public static final List<Long> TRANSLOG_UPLOAD_DURATION_BUCKET_BOUNDARIES = List.of(
+        1L,
+        5L,
+        10L,
+        25L,
+        50L,
+        100L,
+        250L,
+        500L,
+        1_000L,
+        2_500L,
+        5_000L,
+        10_000L,
+        30_000L,
+        60_000L,
+        120_000L,
+        300_000L,
+        600_000L,
+        900_000L,
+        1_000_000L
+    );
+
+    /**
+     * Multipart upload threshold for the stateless object store. When set, this value is injected into the native multipart threshold
+     * setting for the configured backend ({@code buffer_size} for S3, {@code multipart_upload_chunk_size} for GCS,
+     * {@code max_single_part_upload_size} for Azure). Blobs smaller than this threshold use a single-part PUT; larger blobs use
+     * multipart. The minimum is 5 MB, matching the smallest valid part size across all supported object store backends.
+     * When unset, each backend uses its own default.
+     */
+    public static final Setting<ByteSizeValue> OBJECT_STORE_MULTIPART_THRESHOLD = Setting.byteSizeSetting(
+        "stateless.object_store.multipart_threshold",
+        ByteSizeValue.of(5, ByteSizeUnit.MB),
+        ByteSizeValue.of(5, ByteSizeUnit.MB),
+        ByteSizeValue.of(5, ByteSizeUnit.GB),
+        Setting.Property.NodeScope
+    );
+
+    // Repository modules are testImplementation-only dependencies; these duplicate the per-backend setting keys
+    // so ObjectStoreType can inject the threshold without a compile-time dependency on those modules.
+    static final String S3_MULTIPART_THRESHOLD_SETTING_KEY = "buffer_size";
+    static final String GCS_MULTIPART_THRESHOLD_SETTING_KEY = "multipart_upload_chunk_size";
+    static final String AZURE_MULTIPART_THRESHOLD_SETTING_KEY = "max_single_part_upload_size";
+    static final String AZURE_MULTIPART_PART_SIZE_SETTING_KEY = "multipart_upload_part_size";
+
     private static final int UPLOAD_PERMITS = Integer.MAX_VALUE;
 
     private final Settings settings;
@@ -315,12 +431,17 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
 
     private final long slowTranslogUploadLogThresholdMillis;
 
+    private final LongHistogram translogUploadDurationHistogram;
+    private final LongHistogram translogUploadSizeHistogram;
+    private final LongHistogram bccMultipartUploadPartStartLatencyHistogram;
+
     public ObjectStoreService(
         Settings settings,
         RepositoriesService repositoriesService,
         ThreadPool threadPool,
         ClusterService clusterService,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        MeterRegistry meterRegistry
     ) {
         this.settings = settings;
         this.repositoriesService = repositoriesService;
@@ -332,9 +453,11 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             threadPool.executor(StatelessPlugin.TRANSLOG_THREAD_POOL)
         );
         this.uploadTaskRunner = new PrioritizedThrottledTaskRunner<>(
-            getClass().getSimpleName() + "#upload-task-runner",
+            "upload_task_runner",
             threadPool.info(StatelessPlugin.SHARD_WRITE_THREAD_POOL).getMax(),
-            threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL)
+            threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL),
+            meterRegistry,
+            threadPool::relativeTimeInNanos
         );
         this.projectResolver = projectResolver;
         if (projectResolver.supportsMultipleProjects()) {
@@ -346,6 +469,26 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         this.concurrentMultipartUploads = OBJECT_STORE_CONCURRENT_MULTIPART_UPLOADS.get(settings);
         this.cacheSearchRecoveryBcc = CACHE_SEARCH_RECOVERY_BCC_ENABLED_SETTING.get(settings);
         this.slowTranslogUploadLogThresholdMillis = OBJECT_STORE_SLOW_TRANSLOG_UPLOAD_LOG_THRESHOLD_SETTING.get(settings).getMillis();
+
+        // see `TranslogReplicator.TRANSLOG_UPLOAD_TOTAL_DURATION_HISTOGRAM` metric that captures the total duration including
+        // potential translog-upload retries
+        this.translogUploadDurationHistogram = meterRegistry.registerLongHistogram(
+            TRANSLOG_UPLOAD_DURATION_HISTOGRAM,
+            "time for the translog file to be uploaded (only for a successful upload)",
+            "milliseconds",
+            TRANSLOG_UPLOAD_DURATION_BUCKET_BOUNDARIES
+        );
+        this.translogUploadSizeHistogram = meterRegistry.registerLongHistogram(
+            TRANSLOG_UPLOAD_SIZE_HISTOGRAM,
+            // in kilobytes so that the default bucket boundaries can go up to ~128 MB (see HistogramBuckets.APM_DEFAULT_LONGS)
+            "size in kilobytes of a the translog uploaded to the object store",
+            "kilobytes"
+        );
+        this.bccMultipartUploadPartStartLatencyHistogram = meterRegistry.registerLongHistogram(
+            "es.stateless.bcc_multipart_upload.part_start.latency.histogram",
+            "time from the start of a concurrent multipart upload of a BCC until the repository client requests the data of each part",
+            "milliseconds"
+        );
     }
 
     @Override
@@ -568,7 +711,15 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     }
 
     protected Settings getRepositorySettings(ObjectStoreType type, Settings settings) {
-        return type.createRepositorySettings(BUCKET_SETTING.get(settings), CLIENT_SETTING.get(settings), BASE_PATH_SETTING.get(settings));
+        ByteSizeValue multiPartThreshold = settings.hasValue(OBJECT_STORE_MULTIPART_THRESHOLD.getKey())
+            ? OBJECT_STORE_MULTIPART_THRESHOLD.get(settings)
+            : null;
+        return type.createRepositorySettings(
+            BUCKET_SETTING.get(settings),
+            CLIENT_SETTING.get(settings),
+            BASE_PATH_SETTING.get(settings),
+            multiPartThreshold
+        );
     }
 
     private RepositoryMetadata getRepositoryMetadata(Settings settings) {
@@ -825,7 +976,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         PrimaryTermAndGeneration blobTermAndGen,
         long maxBlobLength
     ) throws IOException {
-        var blobName = StatelessCompoundCommit.blobNameFromGeneration(blobTermAndGen.generation());
+        var blobName = BatchedCompoundCommit.blobNameFromGeneration(blobTermAndGen.generation());
         var blobReader = getBlobReader(directory, context, blobTermAndGen, maxBlobLength);
         return BatchedCompoundCommit.readFromStore(blobName, maxBlobLength, blobReader, true);
     }
@@ -858,7 +1009,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         long maxBlobLength
     ) {
         assert directory.getBlobContainer(blobTermAndGen.primaryTerm()) != null;
-        var blobName = StatelessCompoundCommit.blobNameFromGeneration(blobTermAndGen.generation());
+        var blobName = BatchedCompoundCommit.blobNameFromGeneration(blobTermAndGen.generation());
         logger.trace(
             () -> format(
                 "%s reading blob [name=%s, length=%d]%s from object store using cache",
@@ -868,8 +1019,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 blobTermAndGen
             )
         );
-        var dir = directory.createPerBccMetadataReadDirectory();
-        dir.updateMetadata(
+        var dir = directory.createPerBccMetadataReadDirectory(
             Map.of(blobName, new BlobFileRanges(new BlobLocation(new BlobFile(blobName, blobTermAndGen), 0L, maxBlobLength))),
             maxBlobLength
         );
@@ -1174,48 +1324,30 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         assert projectResolver.supportsMultipleProjects() == false || assertShardsAreInSameProject(source, destination);
 
         var sourceShardContainer = getProjectBlobContainer(source);
-
         var blobContainersWithTerms = getContainersToSearch(sourceShardContainer, primaryTerm);
-        PlainActionFuture<Void> future = new PlainActionFuture<>();
+
+        record BlobCopyTask(BlobContainer src, BlobContainer dst, BlobMetadata blob) {}
+        final List<BlobCopyTask> tasks = new ArrayList<>();
+        for (var blobContainerWithTerm : blobContainersWithTerms) {
+            var sourceContainerForTerm = blobContainerWithTerm.v2();
+            Map<String, BlobMetadata> blobs = sourceContainerForTerm.listBlobs(OperationPurpose.INDICES);
+            var destinationContainerForTerm = getProjectBlobContainer(destination, blobContainerWithTerm.v1());
+            for (BlobMetadata blob : blobs.values()) {
+                tasks.add(new BlobCopyTask(sourceContainerForTerm, destinationContainerForTerm, blob));
+            }
+        }
+
         final Executor executor = threadPool.executor(StatelessPlugin.BLOB_COPY_THREAD_POOL);
-        try (var listeners = new RefCountingListener(future)) {
-            for (var blobContainerWithTerm : blobContainersWithTerms) {
-                var sourceContainerForTerm = blobContainerWithTerm.v2();
-                Map<String, BlobMetadata> blobs = sourceContainerForTerm.listBlobs(OperationPurpose.INDICES);
-                var destinationContainerForTerm = getProjectBlobContainer(destination, blobContainerWithTerm.v1());
-                for (BlobMetadata blob : blobs.values()) {
-                    executor.execute(ActionRunnable.run(listeners.acquire(), () -> {
-                        try {
-                            task.ensureNotCancelled();
-                            logger.debug(
-                                "CopyShard copying {} from {} to {}",
-                                blob.name(),
-                                sourceContainerForTerm.path(),
-                                destinationContainerForTerm.path()
-                            );
-                            destinationContainerForTerm.copyBlob(
-                                OperationPurpose.RESHARDING,
-                                sourceContainerForTerm,
-                                blob.name(),
-                                blob.name(),
-                                blob.length()
-                            );
-                        } catch (NoSuchFileException e) {
-                            logger.warn("missing blob during copyShard, assuming benign race [{}]", blob.name());
-                        }
-                    }));
-                }
+        ConcurrentMultipartHelper.runConcurrentTasks(tasks.size(), executor, i -> {
+            var t = tasks.get(i);
+            task.ensureNotCancelled();
+            logger.debug("CopyShard copying {} from {} to {}", t.blob().name(), t.src().path(), t.dst().path());
+            try {
+                t.dst().copyBlob(OperationPurpose.RESHARDING, t.src(), t.blob().name(), t.blob().name(), t.blob().length(), null);
+            } catch (NoSuchFileException e) {
+                logger.warn("missing blob during copyShard, assuming benign race [{}]", t.blob().name());
             }
-        }
-        try {
-            future.actionGet();
-        } catch (UncategorizedExecutionException uee) {
-            // FutureUtils.rethrowExecutionException only directly rethrows RuntimeException causes
-            if (uee.getCause() instanceof ExecutionException ee && ee.getCause() instanceof IOException ioe) {
-                throw ioe;
-            }
-            throw uee;
-        }
+        });
     }
 
     /**
@@ -1233,7 +1365,14 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         var destContainer = termContainer.apply(getProjectBlobContainer(destination));
         var blobName = virtualBcc.getBlobName();
         logger.debug("CopyCommit copying {} from [{}] to [{}]", blobName, sourceContainer.path(), destContainer.path());
-        destContainer.copyBlob(OperationPurpose.RESHARDING, sourceContainer, blobName, blobName, virtualBcc.getTotalSizeInBytes());
+        destContainer.copyBlob(
+            OperationPurpose.RESHARDING,
+            sourceContainer,
+            blobName,
+            blobName,
+            virtualBcc.getTotalSizeInBytes(),
+            threadPool.executor(StatelessPlugin.BLOB_COPY_THREAD_POOL)
+        );
     }
 
     private boolean assertShardsAreInSameProject(ShardId source, ShardId destination) {
@@ -1391,16 +1530,6 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
 
     private record ReferencedFilesAndMaxBlobOffset(long maxBlobOffset, Set<String> files) {}
 
-    private static void logLatestBcc(BatchedCompoundCommit latestBcc, BlobContainer blobContainer) {
-        if (logger.isTraceEnabled()) {
-            logger.trace(
-                "found latest CC in [{}]: {}",
-                blobContainer.path().buildAsString(),
-                latestBcc.lastCompoundCommit().toLongDescription()
-            );
-        }
-    }
-
     /**
      * Abstract class for commit and files upload tasks.
      *
@@ -1464,6 +1593,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             var before = threadPool.relativeTimeInMillis();
             blobContainer.writeBlob(OperationPurpose.TRANSLOG, fileName, reference, false);
             var uploadDuration = threadPool.relativeTimeInMillis() - before;
+            translogUploadDurationHistogram.record(uploadDuration);
+            translogUploadSizeHistogram.record(ByteSizeUnit.BYTES.toKB(reference.length()));
 
             final Supplier<String> logMessage = () -> format(
                 "translog file %s of size [%d] bytes uploaded in [%d] ms",
@@ -1571,7 +1702,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         @Override
         public void skipNBytes(long n) throws LocalIOException {
             try {
-                delegate.skip(n);
+                delegate.skipNBytes(n);
             } catch (IOException e) {
                 throw new LocalIOException(e);
             }
@@ -1672,13 +1803,29 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 } else {
                     virtualBatchedCompoundCommit.mustIncRef();
                     try {
+                        final Set<Long> recordedOffsets = ConcurrentHashMap.newKeySet();
+                        final long uploadStartNanos = threadPool.relativeTimeInNanos();
                         blobContainer.writeBlobAtomic(
                             OperationPurpose.INDICES,
                             virtualBatchedCompoundCommit.getBlobName(),
                             totalSizeInBytes,
-                            (offset, length) -> new LocalIOInputStream(
-                                virtualBatchedCompoundCommit.getFrozenInputStreamForUpload(offset, length)
-                            ),
+                            (offset, length) -> {
+
+                                // The repository records the following metric before it starts uploading a part during a BCC-upload
+                                // attempt. Because Azure underlying retries might call the provider more than once we track the
+                                // `recordedOffsets` to avoid recording the metric during retries that would have tainted the metric
+                                // if we did (i.e., we could see long latency times but due to Azure retries and not due to queueing).
+                                // Note that a high-level retry to upload the BCC in `BatchedCompoundCommitUploadTask` will end up
+                                // recording again for the same part, but this applies across all CSPs.
+                                if (recordedOffsets.add(offset)) {
+                                    bccMultipartUploadPartStartLatencyHistogram.record(
+                                        TimeUnit.NANOSECONDS.toMillis(threadPool.relativeTimeInNanos() - uploadStartNanos),
+                                        Map.of("multipart", length < totalSizeInBytes)
+                                    );
+                                }
+
+                                return new LocalIOInputStream(virtualBatchedCompoundCommit.getFrozenInputStreamForUpload(offset, length));
+                            },
                             false,
                             // Ensure that one large upload doesn't starve other uploads
                             new ThrottledTaskRunner(
@@ -1743,19 +1890,27 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         @Override
         public void onFailure(Exception e) {
             // Might be 100 files only log when debug enabled
+            final var level = lifecycle.started() ? Level.WARN : Level.DEBUG;
             if (logger.isDebugEnabled()) {
-                logger.warn(() -> format("exception while attempting to delete blob files [%s]", toDeleteInThisTask), e);
+                logger.log(level, () -> format("exception while attempting to delete blob files [%s]", toDeleteInThisTask), e);
             } else {
-                logger.warn("exception while attempting to delete blob files", e);
+                logger.log(level, () -> "exception while attempting to delete blob files", e);
             }
         }
 
         @Override
         public void onAfter() {
             translogDeleteSchedulePermit.release();
-            if (translogBlobsToDelete.isEmpty() == false && translogDeleteSchedulePermit.tryAcquire()) {
+            if (isRunning() && translogBlobsToDelete.isEmpty() == false && translogDeleteSchedulePermit.tryAcquire()) {
                 threadPool.executor(StatelessPlugin.TRANSLOG_THREAD_POOL).execute(new FileDeleteTask(blobContainer));
             }
+        }
+
+        @Override
+        public void onRejection(Exception e) {
+            assert e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown() : e;
+            assert lifecycle.closed() : lifecycle;
+            // no need to retry or even log, we're shutting down
         }
 
         @Override

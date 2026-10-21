@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -137,8 +136,7 @@ public class UpdatePersistentTaskStatusAction {
 
         @Override
         protected ClusterBlockException checkBlock(Request request, ClusterState state) {
-            // Cluster is not affected but we look up repositories in metadata
-            return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+            return PersistentTasksClusterService.checkMetadataWriteBlock(state, projectResolver, request.taskId);
         }
 
         @Override

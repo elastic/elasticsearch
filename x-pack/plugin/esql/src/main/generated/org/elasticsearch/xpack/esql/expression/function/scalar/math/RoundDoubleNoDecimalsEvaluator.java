@@ -29,14 +29,17 @@ public final class RoundDoubleNoDecimalsEvaluator implements ExpressionEvaluator
 
   private final ExpressionEvaluator val;
 
+  private final boolean allowNonFinite;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public RoundDoubleNoDecimalsEvaluator(Source source, ExpressionEvaluator val,
-      DriverContext driverContext) {
+      boolean allowNonFinite, DriverContext driverContext) {
     this.source = source;
     this.val = val;
+    this.allowNonFinite = allowNonFinite;
     this.driverContext = driverContext;
   }
 
@@ -61,10 +64,11 @@ public final class RoundDoubleNoDecimalsEvaluator implements ExpressionEvaluator
   public DoubleBlock eval(int positionCount, DoubleBlock valBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        if (valBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (valBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -73,7 +77,7 @@ public final class RoundDoubleNoDecimalsEvaluator implements ExpressionEvaluator
               continue position;
         }
         double val = valBlock.getDouble(valBlock.getFirstValueIndex(p));
-        result.appendDouble(Round.process(val));
+        result.appendDouble(Round.process(val, this.allowNonFinite));
       }
       return result.build();
     }
@@ -83,7 +87,7 @@ public final class RoundDoubleNoDecimalsEvaluator implements ExpressionEvaluator
     try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         double val = valVector.getDouble(p);
-        result.appendDouble(p, Round.process(val));
+        result.appendDouble(p, Round.process(val, this.allowNonFinite));
       }
       return result.build();
     }
@@ -111,14 +115,17 @@ public final class RoundDoubleNoDecimalsEvaluator implements ExpressionEvaluator
 
     private final ExpressionEvaluator.Factory val;
 
-    public Factory(Source source, ExpressionEvaluator.Factory val) {
+    private final boolean allowNonFinite;
+
+    public Factory(Source source, ExpressionEvaluator.Factory val, boolean allowNonFinite) {
       this.source = source;
       this.val = val;
+      this.allowNonFinite = allowNonFinite;
     }
 
     @Override
     public RoundDoubleNoDecimalsEvaluator get(DriverContext context) {
-      return new RoundDoubleNoDecimalsEvaluator(source, val.get(context), context);
+      return new RoundDoubleNoDecimalsEvaluator(source, val.get(context), allowNonFinite, context);
     }
 
     @Override

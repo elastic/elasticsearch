@@ -12,7 +12,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
-import org.elasticsearch.xpack.stateless.recovery.metering.StatelessRecoveryMetricsCollector;
+import org.elasticsearch.xpack.stateless.recovery.metering.StatelessPrimaryRelocationMetricsCollector;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -62,16 +62,28 @@ public class RelocationMetricsIT extends AbstractStatelessPluginIntegTestCase {
         // locally during context handoff.
         final TestTelemetryPlugin targetTelemetry = getTelemetryPlugin(targetNode);
         targetTelemetry.collect();
-        assertHistogramRecorded(targetTelemetry, StatelessRecoveryMetricsCollector.RELOCATION_INITIAL_FLUSH_TIME_METRIC_IN_SECONDS);
-        assertHistogramRecorded(targetTelemetry, StatelessRecoveryMetricsCollector.RELOCATION_ACQUIRE_PERMITS_TIME_METRIC_IN_SECONDS);
-        assertHistogramRecorded(targetTelemetry, StatelessRecoveryMetricsCollector.RELOCATION_SECOND_FLUSH_TIME_METRIC_IN_SECONDS);
-        assertHistogramRecorded(targetTelemetry, StatelessRecoveryMetricsCollector.RELOCATION_HANDOFF_TIME_METRIC_IN_SECONDS);
-        assertHistogramRecorded(targetTelemetry, StatelessRecoveryMetricsCollector.RELOCATION_TARGET_PRE_RECOVERY_TIME_METRIC_IN_SECONDS);
         assertHistogramRecorded(
             targetTelemetry,
-            StatelessRecoveryMetricsCollector.RELOCATION_TARGET_READ_INDEXING_SHARD_STATE_TIME_METRIC_IN_SECONDS
+            StatelessPrimaryRelocationMetricsCollector.RELOCATION_INITIAL_FLUSH_TIME_METRIC_IN_SECONDS
         );
-        assertHistogramRecorded(targetTelemetry, StatelessRecoveryMetricsCollector.RELOCATION_TARGET_OPEN_ENGINE_TIME_METRIC_IN_SECONDS);
+        assertHistogramRecorded(
+            targetTelemetry,
+            StatelessPrimaryRelocationMetricsCollector.RELOCATION_ACQUIRE_PERMITS_TIME_METRIC_IN_SECONDS
+        );
+        assertHistogramRecorded(targetTelemetry, StatelessPrimaryRelocationMetricsCollector.RELOCATION_SECOND_FLUSH_TIME_METRIC_IN_SECONDS);
+        assertHistogramRecorded(targetTelemetry, StatelessPrimaryRelocationMetricsCollector.RELOCATION_HANDOFF_TIME_METRIC_IN_SECONDS);
+        assertHistogramRecorded(
+            targetTelemetry,
+            StatelessPrimaryRelocationMetricsCollector.RELOCATION_TARGET_PRE_RECOVERY_TIME_METRIC_IN_SECONDS
+        );
+        assertHistogramRecorded(
+            targetTelemetry,
+            StatelessPrimaryRelocationMetricsCollector.RELOCATION_TARGET_READ_INDEXING_SHARD_STATE_TIME_METRIC_IN_SECONDS
+        );
+        assertHistogramRecorded(
+            targetTelemetry,
+            StatelessPrimaryRelocationMetricsCollector.RELOCATION_TARGET_OPEN_ENGINE_TIME_METRIC_IN_SECONDS
+        );
     }
 
     private static void assertHistogramRecorded(TestTelemetryPlugin telemetry, String metricName) {

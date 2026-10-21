@@ -20,6 +20,7 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 import org.elasticsearch.exponentialhistogram.ExponentialScaleUtils;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.search.aggregations.bucket.histogram.DoubleBounds;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
@@ -37,6 +38,7 @@ import java.util.TreeMap;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class ExponentialHistogramBackedHistogramAggregatorTests extends ExponentialHistogramAggregatorTestCase {
 
@@ -109,6 +111,33 @@ public class ExponentialHistogramBackedHistogramAggregatorTests extends Exponent
                 assertEquals(20d, histogram.getBuckets().get(3).getKey());
                 assertEquals(2, histogram.getBuckets().get(3).getDocCount());
                 assertTrue(AggregationInspectionHelper.hasValue(histogram));
+            }
+        );
+    }
+
+    public void testHardBoundsWithOffset() throws Exception {
+        ExponentialHistogramCircuitBreaker noopBreaker = ExponentialHistogramCircuitBreaker.noop();
+        // A single value per histogram makes min == max, so every bucket center is clamped to exactly that value.
+        List<ExponentialHistogram> histograms = new ArrayList<>();
+        for (double value : new double[] { -5, 0, 5, 10, 15 }) {
+            histograms.add(ExponentialHistogram.create(100, noopBreaker, value));
+        }
+
+        // The reported bucket key is Math.floor((center - offset) / interval) * interval + offset, so hard_bounds
+        // has to be matched against that key and not against the offset-less multiple of the interval.
+        testCase(
+            Queries.ALL_DOCS_INSTANCE,
+            histoAgg -> histoAgg.interval(5).offset(3).hardBounds(new DoubleBounds(-2.0, 10.0)),
+            iw -> histograms.forEach(histo -> addHistogramDoc(iw, FIELD_NAME, histo)),
+            histogram -> {
+                assertThat(histogram.getBuckets(), hasSize(3));
+                assertThat((Double) histogram.getBuckets().get(0).getKey(), equalTo(-2.0));
+                assertThat(histogram.getBuckets().get(0).getDocCount(), equalTo(1L));
+                assertThat((Double) histogram.getBuckets().get(1).getKey(), equalTo(3.0));
+                assertThat(histogram.getBuckets().get(1).getDocCount(), equalTo(1L));
+                assertThat((Double) histogram.getBuckets().get(2).getKey(), equalTo(8.0));
+                assertThat(histogram.getBuckets().get(2).getDocCount(), equalTo(1L));
+                assertThat(AggregationInspectionHelper.hasValue(histogram), equalTo(true));
             }
         );
     }

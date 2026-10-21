@@ -25,6 +25,29 @@ import java.util.List;
 final class NoisyChannelSpellChecker {
     public static final double REAL_WORD_LIKELIHOOD = 0.95d;
     public static final int DEFAULT_TOKEN_LIMIT = 10;
+    /**
+     * Upper bound for {@code token_limit}, i.e. for the number of analyzed tokens the phrase suggester will attempt to
+     * correct.
+     * <p>
+     * {@link CandidateScorer#findCandidates} recurses exactly once per token, so the number of tokens is also the
+     * recursion <em>depth</em>. With the default {@code -Xss1m} thread stack, a phrase of roughly 8,000 tokens
+     * overflows the stack; the resulting {@link StackOverflowError} is treated as fatal and halts the node. Without an
+     * upper bound a caller could set {@code token_limit} arbitrarily high, disable the early exit in
+     * {@link #getCorrections}, and crash the node with a single request.
+     * <p>
+     * 1000 is 100x the default of {@link #DEFAULT_TOKEN_LIMIT} and roughly 8x below the depth at which the stack
+     * overflows. This limit is about depth only; the amount of <em>work</em> done within that depth (the number of
+     * candidate combinations scored) is bounded independently by {@link CandidateScorer#MAX_SCORED_PATHS}, and neither
+     * limit substitutes for the other: a very long phrase with no alternatives performs few scoring steps yet still
+     * recurses deeply, while a short phrase with many alternatives stays shallow yet explores a combinatorial number of
+     * paths.
+     * <p>
+     * The bound is enforced when the request is parsed ({@link PhraseSuggestionBuilder#tokenLimit(int)}), when it is
+     * deserialized from the transport layer (an older coordinating node may still forward a larger value during a
+     * rolling upgrade), and again in the constructor here so that the scorer is protected regardless of how the value
+     * reached it.
+     */
+    public static final int MAX_TOKEN_LIMIT = 1000;
     private final double realWordLikelihood;
     private final boolean requireUnigram;
     private final int tokenLimit;
@@ -32,7 +55,7 @@ final class NoisyChannelSpellChecker {
     NoisyChannelSpellChecker(double nonErrorLikelihood, boolean requireUnigram, int tokenLimit) {
         this.realWordLikelihood = nonErrorLikelihood;
         this.requireUnigram = requireUnigram;
-        this.tokenLimit = tokenLimit;
+        this.tokenLimit = Math.min(tokenLimit, MAX_TOKEN_LIMIT);
     }
 
     Result getCorrections(

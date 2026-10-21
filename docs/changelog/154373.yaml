@@ -1,5 +1,0 @@
-pr: 154373
-summary: Cache little-endian float layout in DiskBBQ scalar corrections loop
-area: Vector Search
-type: enhancement
-issues: []

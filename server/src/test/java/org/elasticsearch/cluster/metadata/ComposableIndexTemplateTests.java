@@ -106,6 +106,7 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
             .allowAutoCreate(randomOptionalBoolean())
             .ignoreMissingComponentTemplates(ignoreMissingComponentTemplates)
             .deprecated(randomOptionalBoolean())
+            .registryInstalled(randomBoolean())
             .createdDate(createdDate)
             .modifiedDate(modifiedDate)
             .build();
@@ -168,7 +169,7 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
     }
 
     public static ComposableIndexTemplate mutateTemplate(ComposableIndexTemplate orig) {
-        switch (randomIntBetween(0, 8)) {
+        switch (randomIntBetween(0, 9)) {
             case 0:
                 List<String> newIndexPatterns = randomValueOtherThan(
                     orig.indexPatterns(),
@@ -216,8 +217,40 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
                 return orig.toBuilder().ignoreMissingComponentTemplates(ignoreMissingComponentTemplates).build();
             case 8:
                 return orig.toBuilder().deprecated(orig.isDeprecated() ? randomFrom(false, null) : true).build();
+            case 9:
+                return orig.toBuilder().registryInstalled(orig.isRegistryInstalled() == false).build();
             default:
                 throw new IllegalStateException("illegal randomization branch");
+        }
+    }
+
+    public void testIsRegistryInstalled() {
+        ComposableIndexTemplate notRegistryInstalled = ComposableIndexTemplate.builder().indexPatterns(List.of("test-*")).build();
+        assertThat(notRegistryInstalled.isRegistryInstalled(), equalTo(false));
+
+        ComposableIndexTemplate registryInstalled = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("test-*"))
+            .registryInstalled(true)
+            .build();
+        assertThat(registryInstalled.isRegistryInstalled(), equalTo(true));
+    }
+
+    public void testRegistryInstalledFieldHiddenByParam() throws IOException {
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("test-*"))
+            .registryInstalled(true)
+            .build();
+
+        // Present by default (for cluster state persistence and internal use)
+        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+            template.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            assertThat(Strings.toString(builder), containsString("\"registry_installed\":true"));
+        }
+
+        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+            ToXContent.Params params = new ToXContent.MapParams(Map.of(ComposableIndexTemplate.HIDE_REGISTRY_INSTALLED_PARAM, "true"));
+            template.toXContent(builder, params);
+            assertThat(Strings.toString(builder), not(containsString(ComposableIndexTemplate.REGISTRY_INSTALLED.getPreferredName())));
         }
     }
 

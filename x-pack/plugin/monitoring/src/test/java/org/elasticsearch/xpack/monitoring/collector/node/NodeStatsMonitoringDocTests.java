@@ -61,10 +61,8 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
     private NodeStats nodeStats;
     private boolean mlockall;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initNodeStatsFields() throws Exception {
         nodeId = randomAlphaOfLength(5);
         isMaster = randomBoolean();
         nodeStats = mock(NodeStats.class);

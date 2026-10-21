@@ -17,8 +17,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.junit.ClassRule;
 
@@ -29,46 +27,41 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.notNullValue;
 
-public abstract class AbstractXpackRollingUpgradeWithSecurityTestCase extends ParameterizedRollingUpgradeTestCase {
+public abstract class AbstractXpackRollingUpgradeWithSecurityTestCase extends AbstractXpackRollingUpgradeTestCase {
 
     protected static final String USER = "test_user";
     protected static final String PASS = "x-pack-test-password";
 
-    private static final ElasticsearchCluster cluster = buildCluster();
-
     @ClassRule
-    public static ElasticsearchCluster clusterRule = cluster;
+    public static ElasticsearchCluster cluster = buildClusterWithSecurity();
 
-    private static ElasticsearchCluster buildCluster() {
-        var cluster = ElasticsearchCluster.local()
-            .distribution(DistributionType.DEFAULT)
-            .version(getOldClusterVersion(), isOldClusterDetachedVersion())
-            .nodes(NODE_NUM)
-            .user(USER, PASS)
-            .setting("xpack.license.self_generated.type", "trial")
-            .setting("xpack.security.enabled", "true")
-            .setting("xpack.security.autoconfiguration.enabled", "false")
-            .setting("xpack.security.transport.ssl.enabled", "true")
-            .setting("xpack.security.transport.ssl.key", "testnode.pem")
-            .setting("xpack.security.transport.ssl.certificate", "testnode.crt")
-            .setting("xpack.security.authc.token.enabled", "true")
-            .setting("xpack.security.authc.token.timeout", "60m")
-            .setting("xpack.security.authc.api_key.enabled", "true")
-            .setting("xpack.security.audit.enabled", "true")
-            .setting("xpack.security.authc.realms.file.file1.order", "0")
-            .setting("xpack.security.authc.realms.native.native1.order", "1")
-            .setting("xpack.watcher.encrypt_sensitive_data", "true")
-            .setting("logger.org.elasticsearch.xpack.watcher", "DEBUG")
-            .configFile("testnode.pem", Resource.fromClasspath("org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))
-            .configFile("testnode.crt", Resource.fromClasspath("org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
-            .keystore("xpack.security.transport.ssl.secure_key_passphrase", "testnode")
-            .keystore("xpack.watcher.encryption_key", Resource.fromClasspath("system_key"));
-
-        if (Version.tryParse(getOldClusterVersion()).map(v -> v.before(Version.fromString("8.18.0"))).orElse(false)) {
-            cluster.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
-            cluster.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");
-        }
-        return cluster.build();
+    protected static ElasticsearchCluster buildClusterWithSecurity() {
+        return buildCluster(
+            b -> b.user(USER, PASS)
+                .setting("xpack.security.enabled", "true")
+                .setting("xpack.security.autoconfiguration.enabled", "false")
+                .setting("xpack.security.transport.ssl.enabled", "true")
+                .setting("xpack.security.transport.ssl.key", "testnode.pem")
+                .setting("xpack.security.transport.ssl.certificate", "testnode.crt")
+                .setting("xpack.security.authc.token.enabled", "true")
+                .setting("xpack.security.authc.token.timeout", "60m")
+                .setting("xpack.security.authc.api_key.enabled", "true")
+                .setting("xpack.security.audit.enabled", "true")
+                .setting("xpack.security.authc.realms.file.file1.order", "0")
+                .setting("xpack.security.authc.realms.native.native1.order", "1")
+                .setting("xpack.watcher.encrypt_sensitive_data", "true")
+                .setting("logger.org.elasticsearch.xpack.watcher", "DEBUG")
+                .configFile(
+                    "testnode.pem",
+                    Resource.fromClasspath("org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem")
+                )
+                .configFile(
+                    "testnode.crt",
+                    Resource.fromClasspath("org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt")
+                )
+                .keystore("xpack.security.transport.ssl.secure_key_passphrase", "testnode")
+                .keystore("xpack.watcher.encryption_key", Resource.fromClasspath("system_key"))
+        );
     }
 
     protected AbstractXpackRollingUpgradeWithSecurityTestCase(@Name("upgradedNodes") int upgradedNodes) {
@@ -130,5 +123,4 @@ public abstract class AbstractXpackRollingUpgradeWithSecurityTestCase extends Pa
             assertTrue(Integer.parseInt(responseVersion) >= version);
         });
     }
-
 }

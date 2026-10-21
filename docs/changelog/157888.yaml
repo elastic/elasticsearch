@@ -1,0 +1,6 @@
+area: ES|QL
+issues: []
+pr: 157888
+summary: "For `geo_shape` support in ES|QL geogrid functions, truncate the results\
+  \ and set warning, Instead of returning null"
+type: enhancement

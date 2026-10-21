@@ -31,7 +31,6 @@ import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.FileSystemUtils;
@@ -94,9 +93,7 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
     private final Queue<Throwable> failureQueue = new LinkedBlockingQueue<>();
 
     @Before
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initThreadPool() throws Exception {
         threadPool = new TestThreadPool(getTestName()) {
             @Override
             public ExecutorService executor(String name) {
@@ -117,9 +114,7 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
     }
 
     @After
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void cleanup() throws Exception {
         terminate(threadPool);
     }
 
@@ -602,7 +597,7 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
                         RejectAwareActionListener.withResponseHandler(searchListener, r -> onStartResponse(searchListener, r)),
                         threadPool,
                         restClient,
-                        new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                        NoopCircuitBreaker.INSTANCE,
                         1024L
                     );
                 } else {
@@ -695,7 +690,7 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
             searchRequest,
             initialRemoteVersion,
             keepaliveDeadline(),
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            NoopCircuitBreaker.INSTANCE,
             1024L
         );
     }
@@ -737,7 +732,7 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
                 RemoteScrollablePaginatedHitSourceTests.this.searchRequest,
                 randomBoolean() ? Version.CURRENT : null,
                 keepaliveDeadline(),
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                NoopCircuitBreaker.INSTANCE,
                 1024L
             );
         }

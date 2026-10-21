@@ -9,6 +9,8 @@
 
 package org.elasticsearch.inference.completion;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
@@ -40,7 +42,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * @see ReasoningEffort
  * @see ReasoningSummary
  */
-public final class Reasoning implements ToXContentObject, NamedWriteable {
+public final class Reasoning implements Accountable, ToXContentObject, NamedWriteable {
 
     public static final String NAME = "reasoning";
 
@@ -80,6 +82,11 @@ public final class Reasoning implements ToXContentObject, NamedWriteable {
 
         return parser;
     }
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Reasoning.class);
+    private static final long EFFORT_ENUM_SIZE = RamUsageEstimator.shallowSizeOf(ReasoningEffort.HIGH);
+    private static final long SUMMARY_ENUM_SIZE = RamUsageEstimator.shallowSizeOf(ReasoningSummary.AUTO);
+    private static final long BOOLEAN_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Boolean.class);
 
     @Nullable
     private final ReasoningEffort effort;
@@ -189,6 +196,13 @@ public final class Reasoning implements ToXContentObject, NamedWriteable {
     @Nullable
     public Boolean enabled() {
         return enabled;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + (effort == null ? 0L : EFFORT_ENUM_SIZE) + (summary == null ? 0L : SUMMARY_ENUM_SIZE) + (exclude == null
+            ? 0L
+            : BOOLEAN_SHALLOW_SIZE) + (enabled == null ? 0L : BOOLEAN_SHALLOW_SIZE);
     }
 
     @Override

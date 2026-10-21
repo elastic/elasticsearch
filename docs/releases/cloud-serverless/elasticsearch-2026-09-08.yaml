@@ -1,0 +1,602 @@
+products:
+- product: cloud-serverless
+  target: 2026-09-08
+  repo: elasticsearch
+  owner: elastic
+release-date: 2026-09-08
+hide-features:
+- data-federation
+entries:
+- file:
+    name: 158340.yaml
+    checksum: 75fd8fc2bd4f1ff6a3662122e7c0a7f33a06b70e
+  type: enhancement
+  title: Extend ES|QL `SORT @timestamp DESC, LIMIT N` optimization to time-ordered indices
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/158340
+- file:
+    name: 157148.yaml
+    checksum: cb1d0cd8a7c99cdbec05bc308a14444c07bfaaf1
+  type: bug-fix
+  title: Fix `TS STATS` literal aggregates dropped by the ES|QL query optimizer
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/157148
+  issues:
+  - '# PRIVATE: https://github.com/elastic/incident-management/issues/2704'
+  - https://github.com/elastic/elasticsearch/issues/157103
+- file:
+    name: 158497.yaml
+    checksum: 9a23759cc578d0fe6aaf935ffa4e8a4d3a4a1fb9
+  type: enhancement
+  title: Allow `.ai-index-*` indices to pass dot-prefix validation
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  description: Enables internally managed Elasticsearch AI indices that match `.ai-index-*` to be created on Serverless. Elasticsearch otherwise rejects index names that begin with a dot on Serverless and deprecates them on self-managed clusters.
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/158497
+- file:
+    name: 157191.yaml
+    checksum: 5369f6cc990fc6da2304c3f6e6be48cf59778b7c
+  type: enhancement
+  title: Add cluster name HTTP response header for on-premises deployments
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  areas:
+  - Infra/REST API
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/157191
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/98981
+- file:
+    name: 157902.yaml
+    checksum: 30d91dd85932c0d02c7da16016577b272295a837
+  type: enhancement
+  title: Add `model_identity` to inference endpoint metadata
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  areas:
+  - Inference
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/157902
+- file:
+    name: 158161.yaml
+    checksum: 149815ccce4019c0ea388316872bd18022c720ab
+  type: bug-fix
+  title: Restore `COUNT()` in ES|QL function metadata
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/158161
+- file:
+    name: 158073.yaml
+    checksum: cdfb35c78af1b2281cea322f987a78a0c01f294a
+  type: bug-fix
+  title: Fix federated queries on external data sources in ES|QL
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/158073
+  issues:
+  - '# PRIVATE: https://github.com/elastic/esql-planning/issues/1817'
+- file:
+    name: 158160.yaml
+    checksum: 7ea63137fec1d354d3c0acbd9d94113e65c3dbf6
+  type: bug-fix
+  title: Fix null-handling error in ES|QL late-materialization concatenation
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/158160
+- file:
+    name: 158195.yaml
+    checksum: 4babc7ec6981bd713af30169f071168e08096701
+  type: bug-fix
+  title: Fix double-free in Parquet filter block cleanup in ES|QL
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/158195
+  issues:
+  - '# PRIVATE: https://github.com/elastic/esql-planning/issues/1785'
+- file:
+    name: 157831.yaml
+    checksum: 4511de4036c6728aae1ce14104a4fd02c092801d
+  type: enhancement
+  title: Grant threat intel indicator index aliases to `viewer`, `editor`, and `kibana_system` roles
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  areas:
+  - Authorization
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/157831
+- file:
+    name: 158382.yaml
+    checksum: 7d11425c0c4acecafa2519bfc09b3d3f4bc61896
+  type: bug-fix
+  title: Fix null pointer error in nested `inner_hits` backward document access
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  areas:
+  - Mapping
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/158382
+- file:
+    name: 158235.yaml
+    checksum: 78ed3fa19388f247f442fb123552082fbcee5c45
+  type: bug-fix
+  title: Fix shard bulk operation stopping incorrectly on expansion rejection
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/158235
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/158212
+- file:
+    name: 156790.yaml
+    checksum: 2759a58b4fabc1c5e6d175970dbb213324d112a1
+  type: enhancement
+  title: Add data-volume-proportional timeout for search shard warm-up
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/156790
+- file:
+    name: 157904.yaml
+    checksum: 4d82aecb3888589cce150845d921b24903d5bab0
+  type: enhancement
+  title: Fix Elastic AI index privilege query for empty result sets
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  areas:
+  - Security
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/157904
+- file:
+    name: 158258.yaml
+    checksum: 10b01a05a5208f5d5e76a1778d00f2ddc005900b
+  type: enhancement
+  title: Cancel leftover object-store I/O on ES|QL query completion
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/158258
+- file:
+    name: 154001.yaml
+    checksum: 6f31cdd15d3be4d352f257192238a0776b420226
+  type: enhancement
+  title: Restore the `EsqlQueryRequestBuilder` API for ES|QL queries
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/154001
+- file:
+    name: 158075.yaml
+    checksum: a8690b1e7944b4927ac59f12e3e9f88b92c42668
+  type: enhancement
+  title: Return 429 when a circuit breaker trips during transport response deserialization
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/158075
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/158072
+- file:
+    name: 158203.yaml
+    checksum: 976111bdd6d3659b9a3c4a74e6b38c913b20a506
+  type: bug-fix
+  title: Fix incorrect file statistics for ES|QL external data sources
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/158203
+  issues:
+  - '# PRIVATE: https://github.com/elastic/esql-planning/issues/1751'
+- file:
+    name: 158311.yaml
+    checksum: 96606b32bcfe48b60954cc60aee49a0380e8ff09
+  type: enhancement
+  title: Include failure count in recovery APIs
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/158311
+- file:
+    name: 156876.yaml
+    checksum: d66c58f72cc56dcddc24bd715fed8316c66f1bb2
+  type: enhancement
+  title: Fix `top_metrics.size` when a transform source document maps to multiple destination documents
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  areas:
+  - Transform
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/156876
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/74420
+- file:
+    name: 157699.yaml
+    checksum: b4fc0aa2f3fec9757df58f503669e1f5e6886f6b
+  type: bug-fix
+  title: Fix cast warnings not appearing in ES|QL query results
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/157699
+- file:
+    name: 158296.yaml
+    checksum: f5912881133d35a16f52ecba6e89e7c62fccfb73
+  type: bug-fix
+  title: Fix `knn` query pre-filtering for `exists` queries on inference fields
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  areas:
+  - Relevance
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/158296
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/157951
+- file:
+    name: 158020.yaml
+    checksum: 405c255084acd141cf216fac27c80621789b12c2
+  type: bug-fix
+  title: Reject blank `job_id` in close anomaly detection job requests
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  areas:
+  - Machine learning
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/158020
+- file:
+    name: 157642.yaml
+    checksum: a3bd513b497427d244653ba55b371fd0adae838c
+  type: enhancement
+  title: Apply `_msearch` memory bounds, cancellation, and metrics to `_msearch/template` API
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  areas:
+  - Search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/157642
+- file:
+    name: 158108.yaml
+    checksum: 6f1c0a1bd79410fc4bd13e90d820f6baa3e42048
+  type: bug-fix
+  title: Fix leaked cancellation task in bulk indexing
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/158108
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/158018
+- file:
+    name: 158153.yaml
+    checksum: 58f3fe09680b4007f6a67c584f8dcd9630946858
+  type: bug-fix
+  title: Fix Parquet dictionary prefetch in ES|QL failing when dictionary starts at offset 0
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/158153
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/157747
+- file:
+    name: 158112.yaml
+    checksum: 8c93828d78c0a174d23a74dfb043018c6777ba40
+  type: bug-fix
+  title: Fix leaked bulk task when shard dispatch fails
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/158112
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/158019
+- file:
+    name: 158410.yaml
+    checksum: 8d91cc464b03520bf1fa3c24b6130570a8349189
+  type: bug-fix
+  title: Improve error messages for ES|QL external data source failures
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/158410
+  issues:
+  - '# PRIVATE: https://github.com/elastic/esql-planning/issues/1879'
+- file:
+    name: 158187.yaml
+    checksum: 31924cc79491fbf1d91f6e05f775d9d11f6b4882
+  type: bug-fix
+  title: Fix missing counts in `contains` mapper query
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  areas:
+  - Mapping
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/158187
+- file:
+    name: 158148.yaml
+    checksum: 03211220f5efe318afb6a4c12868000da39cf185
+  type: bug-fix
+  title: Fix `hard_bounds` ignoring `offset` in histogram aggregation
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  areas:
+  - Aggregations
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/158148
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/158146
+- file:
+    name: 155310.yaml
+    checksum: 29490c803739f1d3759b34707f48b12ffc3cfc56
+  type: bug-fix
+  title: Return HTTP 4xx status codes when machine learning nodes are exhausted
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  areas:
+  - Machine learning
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/155310
+- file:
+    name: 158211.yaml
+    checksum: d2b29e477d334757c2e6036a3561feab0f6e9bb2
+  type: bug-fix
+  title: Cap `min_hash` filter parameters to a valid range
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  areas:
+  - Analysis
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/158211
+- file:
+    name: 158155.yaml
+    checksum: e26ad1abcae28778b2160b655402f7767cb9cb8d
+  type: bug-fix
+  title: Clear Parquet and ORC filter state between ES|QL query reuse cycles
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/158155
+- file:
+    name: 158163.yaml
+    checksum: e9cc9a697f20c95e69ee06e15389860b3ed4f608
+  type: enhancement
+  title: Cache file listings for multi-file external data sources in ES|QL
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/158163
+- file:
+    name: 158175.yaml
+    checksum: 87b033f92be2f174de887a4fcdce69df4d779bd1
+  type: bug-fix
+  title: Reduce memory usage when serializing component and composable templates in GET API responses
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/158175
+- file:
+    name: 157687.yaml
+    checksum: 92d078b2e272f92f4a612d6a235d4b1c7e72a2c5
+  type: bug-fix
+  title: Fix `copy_to` destination values leaking into synthetic `_source` under field-level security
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  areas:
+  - Mapping
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/157687
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/156629
+- file:
+    name: 158159.yaml
+    checksum: 6b62b7a6f470b39ffe12cae5065d89e9acffcbda
+  type: bug-fix
+  title: Fix point-in-time context leak when closed before first search
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  areas:
+  - Relevance
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/158159
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/157873
+- file:
+    name: 157717.yaml
+    checksum: e1f316ca55c245c4088380b8fffdb17bab8aef3e
+  type: enhancement
+  title: Add optimization for `SORT @timestamp DESC, LIMIT N` query patterns in ES|QL
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/157717
+- file:
+    name: 154642.yaml
+    checksum: e868031080b624adbd807a868c673ef5babc1433
+  type: bug-fix
+  title: Read NDJSON flat dotted fields into the dotted column in ES|QL
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/154642
+  issues:
+  - '# PRIVATE: https://github.com/elastic/esql-planning/issues/1461'
+  - '# PRIVATE: https://github.com/elastic/esql-planning/issues/1467'
+- file:
+    name: 158323.yaml
+    checksum: 8a47f5df23c14be52ac51c678547c34d1588ff75
+  type: enhancement
+  title: Skip `SEARCH` phase during ES|QL split discovery
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/158323
+- file:
+    name: 157891.yaml
+    checksum: 8b8f8cfbefc1cea0ba8cfdbbd60e8a637c173f43
+  type: bug-fix
+  title: Fix race condition in ES|QL inference failure tolerance
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/157891
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/157863
+- file:
+    name: 158158.yaml
+    checksum: 754eb31ba917d006b65947849de6065b895edaa0
+  type: bug-fix
+  title: Improve vector search auto-calibration accuracy
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  areas:
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/158158
+- file:
+    name: 157540.yaml
+    checksum: ce69f41eaff019da54e7eae8f35e88bcd31c92c0
+  type: bug-fix
+  title: Fix ES|QL datasource subscriber hang caused by shared buffer double-free
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/157540
+  issues:
+  - '# PRIVATE: https://github.com/elastic/esql-planning/issues/1604'
+- file:
+    name: 158174.yaml
+    checksum: 9fc47c30a84c9879a7a91d70b023ca7df9339f62
+  type: bug-fix
+  title: Fix column alignment in ES|QL `UNION` sub-plan execution
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  areas:
+  - PromQL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/158174
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/158164
+- file:
+    name: 158420.yaml
+    checksum: 73ed9cf80536b24a34cc625ab1c711dbdfadf830
+  type: bug-fix
+  title: Fix file-based settings updates failing when archived settings are present
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  areas:
+  - Infra/Settings
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/158420
+- file:
+    name: 158085.yaml
+    checksum: 910739fbecf7ee51b66097eb4d540702622247d7
+  type: enhancement
+  title: Reuse Parquet and ORC file footers across ES|QL query phases
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/158085
+  issues:
+  - '# PRIVATE: https://github.com/elastic/esql-planning/issues/1784'
+- file:
+    name: 158251.yaml
+    checksum: 9076cb3657590938b6d4d2fd7d0865722a6ac423
+  type: bug-fix
+  title: Fix `LIKE` and `RLIKE` pattern lists on non-indexed keyword and wildcard fields
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  areas:
+  - Mapping
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/158251

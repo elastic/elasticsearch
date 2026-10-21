@@ -641,18 +641,18 @@ events_received:double | step:datetime            | pod:keyword
 1.0                    | 2024-05-10T00:22:00.000Z | two
 ;
 
-present_over_time_of_event
+present_over_time_of_keyword_dimension
 required_capability: ts_command_v0
-TS k8s | STATS r = max(present_over_time(event)) BY cluster, time_bucket = bucket(@timestamp, 10minute) | SORT time_bucket, cluster | LIMIT 10;
+TS k8s | STATS r = max(present_over_time(pod)) BY cluster, time_bucket = bucket(@timestamp, 10minute) | SORT time_bucket, cluster | LIMIT 10;
 
 r:boolean | cluster:keyword | time_bucket:datetime
-false     | prod            | 2024-05-10T00:00:00.000Z
-false     | qa              | 2024-05-10T00:00:00.000Z
-false     | staging         | 2024-05-10T00:00:00.000Z
-false     | prod            | 2024-05-10T00:10:00.000Z
-false     | qa              | 2024-05-10T00:10:00.000Z
-false     | staging         | 2024-05-10T00:10:00.000Z
-false     | prod            | 2024-05-10T00:20:00.000Z
-false     | qa              | 2024-05-10T00:20:00.000Z
-false     | staging         | 2024-05-10T00:20:00.000Z
+true      | prod            | 2024-05-10T00:00:00.000Z
+true      | qa              | 2024-05-10T00:00:00.000Z
+true      | staging         | 2024-05-10T00:00:00.000Z
+true      | prod            | 2024-05-10T00:10:00.000Z
+true      | qa              | 2024-05-10T00:10:00.000Z
+true      | staging         | 2024-05-10T00:10:00.000Z
+true      | prod            | 2024-05-10T00:20:00.000Z
+true      | qa              | 2024-05-10T00:20:00.000Z
+true      | staging         | 2024-05-10T00:20:00.000Z
 ;

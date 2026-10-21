@@ -146,7 +146,14 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
 
     @Override
     public VectorsFormatProvider getVectorsFormatProvider() {
-        return (indexSettings, indexOptions, similarity, elementType, mergingExecutorService, maxMergingWorkers) -> {
+        return (
+            indexSettings,
+            indexOptions,
+            similarity,
+            elementType,
+            mergingExecutorService,
+            maxMergingWorkers,
+            quantizerExecutorService) -> {
             if (vectorIndexAndElementTypeSupported(indexOptions.getType(), elementType) == false) {
                 return null;
             }

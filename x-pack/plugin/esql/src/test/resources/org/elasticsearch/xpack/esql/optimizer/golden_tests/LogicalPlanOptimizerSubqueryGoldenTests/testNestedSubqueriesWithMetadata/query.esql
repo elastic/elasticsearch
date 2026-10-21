@@ -1,0 +1,7 @@
+FROM employees,
+     (FROM employees,
+           (FROM employees METADATA _index | WHERE salary > 0)
+           METADATA _index)
+     METADATA _index
+| WHERE emp_no > 10000
+| SORT _index

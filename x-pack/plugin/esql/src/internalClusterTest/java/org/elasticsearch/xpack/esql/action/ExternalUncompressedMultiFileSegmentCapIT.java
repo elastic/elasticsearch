@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.equalTo;
  * End-to-end regression test for ES|QL EXTERNAL aggregations over an uncompressed multi-file CSV/TSV/NDJSON
  * glob. TSV (default {@code mode=plain}) and NDJSON route through {@code SEGMENTABLE_UNCOMPRESSED} →
  * {@code ParallelParsingCoordinator} → {@code AsReadyParallelIterator}, which dispatches byte-range segments
- * in a sliding window bounded by the {@code max_concurrent_open_segments} pragma and emits their pages as
+ * in a sliding window bounded by the {@code external_max_concurrent_open_segments} pragma and emits their pages as
  * they complete. CSV (default {@code mode=quoted}) cannot be probed at arbitrary offsets because a quoted
  * field may embed newlines, so it stays a single whole-file split and is read sequentially through the
  * {@code StreamingParallelParsingCoordinator} (parsed in parallel from one read pass); this arm therefore
@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.equalTo;
  * sized a few MiB; NDJSON exposes a per-query {@code segment_size}, so small files plus a small
  * {@code segment_size} suffice. We also keep {@code target_split_size} large so each file is one macro-split
  * (a small {@code target_split_size} would chop files below the segmenting floor and silently route through
- * the fallback). With {@code max_concurrent_open_segments} set below the per-file segment count, the window
+ * the fallback). With {@code external_max_concurrent_open_segments} set below the per-file segment count, the window
  * genuinely binds for the TSV and NDJSON arms.
  * <p>
  * Column {@code a} is globally unique per row, so {@code COUNT/MIN/MAX} together prove the windowed dispatch
@@ -68,10 +68,12 @@ public class ExternalUncompressedMultiFileSegmentCapIT extends AbstractExternalD
 
     @Override
     protected QueryPragmas getPragmas() {
-        // parsing_parallelism > 1 selects the parallel-parse paths; the cap of 2, below the per-file segment
+        // external_parsing_parallelism > 1 selects the parallel-parse paths; the cap of 2, below the per-file segment
         // count, makes the sliding window bind for the TSV (plain) and NDJSON arms. Default-quoted CSV reads
         // sequentially through the streaming coordinator, which does not use this cap.
-        return new QueryPragmas(Settings.builder().put("parsing_parallelism", 8).put("max_concurrent_open_segments", 2).build());
+        return new QueryPragmas(
+            Settings.builder().put("external_parsing_parallelism", 8).put("external_max_concurrent_open_segments", 2).build()
+        );
     }
 
     public void testCsvMultiFileGlobAggregatesAllRows() throws Exception {
@@ -104,10 +106,14 @@ public class ExternalUncompressedMultiFileSegmentCapIT extends AbstractExternalD
         // in strict mode; the whole-file sequential read must count every row exactly once.
         long rows = writeQuotedMultilineCsvFile(dir.resolve("quoted-multiline.csv"));
         // Strict (default) proves no spurious parse errors: any mis-split would throw rather than return.
-        assertGlobAggregates(globUri(dir, "*.csv"), Map.of("target_split_size", "256mb"), rows);
+        assertGlobAggregates(globUri(dir, "*.csv"), Map.of("target_split_size", "256mb", "multiline_fields", true), rows);
         // null_field is the mode where a quote-blind mis-split miscounts silently (HTTP 200, wrong COUNT)
         // instead of erroring. Assert the exact row count still holds under it.
-        assertGlobAggregates(globUri(dir, "*.csv"), Map.of("target_split_size", "256mb", "error_mode", "null_field"), rows);
+        assertGlobAggregates(
+            globUri(dir, "*.csv"),
+            Map.of("target_split_size", "256mb", "error_mode", "null_field", "multiline_fields", true),
+            rows
+        );
     }
 
     public void testNdjsonMultiFileGlobAggregatesAllRows() throws Exception {

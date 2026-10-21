@@ -37,6 +37,11 @@ The value of this parameter is an array of terms you wish to find in the provide
 
 By default, {{es}} limits the `terms` query to a maximum of 65,536 terms. You can change this limit using the [`index.max_terms_count`](/reference/elasticsearch/index-settings/index-modules.md#index-max-terms-count) setting.
 
+::::{tip}
+To match against a much larger set of values on an `integer` or `long` field, use the [`bitmap_terms` query](/reference/query-languages/query-dsl/query-dsl-bitmap-terms-query.md) {applies_to}`stack: ga 9.6` {applies_to}`serverless: ga`, which takes the values as a compact roaring bitmap and is not subject to this limit.
+::::
+
+
 ::::{note}
 To use the field values of an existing document as search terms, use the [terms lookup](#query-dsl-terms-lookup) parameters.
 ::::

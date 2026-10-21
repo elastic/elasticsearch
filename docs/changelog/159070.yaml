@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 159070
+summary: Fix incorrect rows and counts when filtering external datasets on metadata columns
+type: bug

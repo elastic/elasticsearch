@@ -33,14 +33,72 @@ public final class EscfColumnTransforms {
      * @throws IllegalArgumentException if {@code beforeDoc} exceeds {@code source.docCount()}
      */
     public static void backfillUtf8Before(EscfColumnBuilder dest, EscfColumn source, int beforeDoc) {
+        backfillUtf8Before(dest, source, beforeDoc, 0);
+    }
+
+    /**
+     * Writes all present values from {@code source} with doc-id &lt; {@code beforeDoc} into
+     * {@code dest}, then writes the first {@code elementsOfBeforeDoc} elements of {@code beforeDoc}
+     * itself. Use the 4-arg form when the caller has already consumed part of a multi-valued row
+     * from {@code source} and needs those earlier elements replayed into {@code dest}.
+     *
+     * @param elementsOfBeforeDoc number of elements of {@code beforeDoc} to replay (0 = none)
+     * @throws IllegalArgumentException if {@code beforeDoc} exceeds {@code source.docCount()}
+     */
+    public static void backfillUtf8Before(EscfColumnBuilder dest, EscfColumn source, int beforeDoc, int elementsOfBeforeDoc) {
         if (beforeDoc > source.docCount()) {
             throw new IllegalArgumentException("beforeDoc (" + beforeDoc + ") exceeds source docCount (" + source.docCount() + ")");
         }
         // We could always reach down and copy offsets and data directly. We don't need to use cursors.
         final ObjectTupleCursor<BytesRef> replayCursor = utf8Cursor(source, false);
-        for (int d = replayCursor.nextDoc(); d < beforeDoc; d = replayCursor.nextDoc()) {
+        // Copy all elements of docs strictly before beforeDoc. After the loop, the cursor is already
+        // positioned at the first element of beforeDoc (the exit-condition call consumed it without writing).
+        int d;
+        while ((d = replayCursor.nextDoc()) < beforeDoc) {
             dest.setString(d, replayCursor.value());
         }
+        // Replay elementsOfBeforeDoc elements of beforeDoc using the current cursor position — do NOT
+        // call nextDoc() first; the while loop above already advanced to beforeDoc.
+        for (int i = 0; i < elementsOfBeforeDoc; i++) {
+            assert d == beforeDoc : "expected doc " + beforeDoc + " but got " + d;
+            dest.setString(d, replayCursor.value());
+            if (i + 1 < elementsOfBeforeDoc) {
+                d = replayCursor.nextDoc();
+            }
+        }
+    }
+
+    /**
+     * Returns {@code true} when every present row is JSON {@code null} or an empty object ({@code {}},
+     * the zero-entry {@link EscfRowBuffer#emptyObject} {@code KEY_VALUE} row). Used by object-valued
+     * mappers such as {@code flattened}: a leaf column at the field's own path can only contain these
+     * two no-op shapes; anything else is unexpected.
+     */
+    public static boolean allNullOrEmptyObject(EscfColumn column) {
+        if (column.kind() != EscfColumnKind.UNION) {
+            // Non-union columns hold a single uniform type, never null or an empty object, so any
+            // present row disqualifies. Check presence without visiting individual rows.
+            if (column.validity == null) {
+                return column.docCount == 0; // dense: all rows present
+            }
+            return column.validity.cardinality() == 0; // sparse: no present rows
+        }
+        // Union column: visit only present rows; each carries its own type byte.
+        for (PresentDocIterator it = column.presentDocs();;) {
+            int row = it.nextDoc();
+            if (row == DocIdSetIterator.NO_MORE_DOCS) {
+                break;
+            }
+            byte type = column.typeByteForPresent(row);
+            if (type == SourceValueType.NULL) {
+                continue;
+            }
+            // next() returning true means the object has at least one entry.
+            if (type != SourceValueType.KEY_VALUE || column.getKeyValue(row).next()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

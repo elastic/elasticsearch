@@ -32,6 +32,8 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.junit.After;
+import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -70,9 +72,8 @@ public class S3ClientsManagerTests extends ESTestCase {
     private S3Service s3Service;
     private S3ClientsManager s3ClientsManager;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initClientsManager() throws Exception {
         s3SecretsIdGenerators = ConcurrentCollections.newConcurrentMap();
         clientNames = IntStream.range(0, between(2, 5)).mapToObj(i -> randomIdentifier() + "_" + i).toList();
 
@@ -110,9 +111,8 @@ public class S3ClientsManagerTests extends ESTestCase {
         s3Service.start();
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void cleanup() throws Exception {
         s3Service.close();
         clusterService.close();
         threadPool.close();

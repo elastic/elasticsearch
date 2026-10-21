@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.wildcard;
 
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.script.field.BaseKeywordDocValuesField;
 
 public class WildcardDocValuesField extends BaseKeywordDocValuesField {
 
-    public WildcardDocValuesField(SortedBinaryDocValues input, String name) {
+    public WildcardDocValuesField(SortableBinaryDocValues input, String name) {
         super(input, name);
     }
 }

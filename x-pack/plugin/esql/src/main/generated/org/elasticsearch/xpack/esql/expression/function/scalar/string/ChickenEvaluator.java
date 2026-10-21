@@ -75,10 +75,11 @@ public final class ChickenEvaluator implements ExpressionEvaluator {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef messageScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
+        if (messageBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (messageBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:

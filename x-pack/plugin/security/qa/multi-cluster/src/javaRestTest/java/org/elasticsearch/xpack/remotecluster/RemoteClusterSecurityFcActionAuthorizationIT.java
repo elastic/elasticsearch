@@ -34,6 +34,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -64,6 +65,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.esql.enrich.LookupRequestFactory;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders;
 import org.junit.After;
 import org.junit.ClassRule;
@@ -82,6 +84,7 @@ import static org.elasticsearch.xpack.remotecluster.AbstractRemoteClusterSecurit
 import static org.elasticsearch.xpack.remotecluster.AbstractRemoteClusterSecurityTestCase.createCrossClusterAccessApiKey;
 import static org.elasticsearch.xpack.remotecluster.AbstractRemoteClusterSecurityTestCase.performRequestWithAdminUser;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -95,6 +98,10 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
         .name("test-cluster")
         .module("analysis-common")
         .module("x-pack-ccr")
+        .module("x-pack-autoscaling")
+        .module("x-pack-esql")
+        .module("x-pack-ml")
+        .setting("xpack.ml.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.security.http.ssl.enabled", "false")
@@ -531,25 +538,147 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
             assertThat(remoteConnectionInfos, hasSize(1));
             assertThat(remoteConnectionInfos.get(0).isConnected(), is(true));
 
-            MalformedGetRequest malformedGetRequest = new MalformedGetRequest(otherIndexId);
+            final RemoteClusterClient remoteClusterClient = remoteClusterService.getRemoteClusterClient(
+                "my_remote_cluster",
+                threadPool.generic(),
+                RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
+            );
+
+            MalformedGetRequest malformedGetRequest = new MalformedGetRequest(new ShardId("idx-b", otherIndexId, 0));
             malformedGetRequest.assertParsesAsGetRequest();
             final ElasticsearchSecurityException e = expectThrows(
                 ElasticsearchSecurityException.class,
                 () -> executeRemote(
-                    remoteClusterService.getRemoteClusterClient(
-                        "my_remote_cluster",
-                        threadPool.generic(),
-                        RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
-                    ),
+                    remoteClusterClient,
                     new RemoteClusterActionType<>(TransportGetAction.TYPE.name() + "[s]", GetResponse::new),
                     malformedGetRequest
                 )
             );
             assertThat(e.getMessage(), containsString("is unauthorized"));
+
+            MalformedGetRequest forgedUuidGetRequest = new MalformedGetRequest(new ShardId("idx-a", otherIndexId, 0));
+            forgedUuidGetRequest.assertParsesAsGetRequest();
+            final ElasticsearchSecurityException e2 = expectThrows(
+                ElasticsearchSecurityException.class,
+                () -> executeRemote(
+                    remoteClusterClient,
+                    new RemoteClusterActionType<>(TransportGetAction.TYPE.name() + "[s]", GetResponse::new),
+                    forgedUuidGetRequest
+                )
+            );
+            assertThat(e2.getMessage(), containsString("is unauthorized"));
         }
 
         ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
+    }
+
+    /**
+     * Sends ES|QL lookup requests straight to the remote cluster port and checks that the shard each one targets must belong to
+     * an index authorized through the request's index pattern, as for other shard-level requests. Covers both {@code LOOKUP JOIN}
+     * and {@code ENRICH}; an enrich request's index pattern is always the index name of its shard, so only the index UUID can differ.
+     */
+    public void testEsqlLookupRequestForShardOutsideRequestedIndicesIsRejected() throws Exception {
+        final Map<String, Object> crossClusterApiKeyMap = createCrossClusterAccessApiKey(adminClient(), """
+            {
+              "search": [
+                {
+                   "names": ["lookup-allowed", "lookup-allowed-alias"]
+                }
+              ]
+            }""");
+        final String mappings = """
+            "mappings": { "properties": { "key": { "type": "keyword" }, "value": { "type": "keyword" } } }""";
+        final Request createAllowedIndex = new Request("PUT", "/lookup-allowed");
+        createAllowedIndex.setJsonEntity("{" + mappings + """
+            , "aliases": { "lookup-allowed-alias": {} } }""");
+        assertOK(adminClient().performRequest(createAllowedIndex));
+        final Request createOtherIndex = new Request("PUT", "/lookup-other");
+        createOtherIndex.setJsonEntity("{" + mappings + "}");
+        assertOK(adminClient().performRequest(createOtherIndex));
+        final Request bulkRequest = new Request("POST", "/_bulk?refresh=true");
+        bulkRequest.setJsonEntity("""
+            { "index": { "_index": "lookup-allowed" } }
+            { "key": "1", "value": "allowed-value" }
+            { "index": { "_index": "lookup-other" } }
+            { "key": "1", "value": "other-value" }
+            """);
+        assertOK(adminClient().performRequest(bulkRequest));
+        final ShardId allowedShard = new ShardId("lookup-allowed", indexUuid("lookup-allowed"), 0);
+        final ShardId otherShard = new ShardId("lookup-other", indexUuid("lookup-other"), 0);
+
+        try (
+            MockTransportService service = startTransport(
+                "node",
+                threadPool,
+                (String) crossClusterApiKeyMap.get("encoded"),
+                Map.of(
+                    LookupRequestFactory.ACTION_NAME,
+                    buildCrossClusterAccessSubjectInfo("lookup-allowed", "lookup-allowed-alias"),
+                    LookupRequestFactory.ENRICH_ACTION_NAME,
+                    buildCrossClusterAccessSubjectInfo("lookup-allowed", "lookup-allowed-alias")
+                ),
+                randomBoolean()
+            )
+        ) {
+            final RemoteClusterClient remoteClusterClient = service.getRemoteClusterService()
+                .getRemoteClusterClient(
+                    "my_remote_cluster",
+                    threadPool.generic(),
+                    RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
+                );
+
+            final LookupRequestFactory.KeywordValues allowed = executeRemote(
+                remoteClusterClient,
+                LOOKUP_ACTION,
+                valueLookup("lookup-allowed-alias", allowedShard)
+            );
+            assertThat(allowed.values(), contains("allowed-value"));
+
+            for (LookupTransportRequest request : List.of(
+                valueLookup("lookup-allowed", otherShard),
+                valueLookup("lookup-allowed-alias", otherShard),
+                valueLookup("lookup-allowed", new ShardId("lookup-allowed", otherShard.getIndex().getUUID(), 0))
+            )) {
+                final ElasticsearchSecurityException e = expectThrows(
+                    ElasticsearchSecurityException.class,
+                    () -> executeRemote(remoteClusterClient, LOOKUP_ACTION, request)
+                );
+                assertThat(e.getMessage(), containsString("is unauthorized"));
+            }
+
+            final LookupRequestFactory.KeywordValues allowedEnrich = executeRemote(
+                remoteClusterClient,
+                ENRICH_ACTION,
+                valueEnrich(allowedShard)
+            );
+            assertThat(allowedEnrich.values(), contains("allowed-value"));
+
+            for (LookupTransportRequest request : List.of(
+                valueEnrich(otherShard),
+                valueEnrich(new ShardId("lookup-allowed", otherShard.getIndex().getUUID(), 0))
+            )) {
+                final ElasticsearchSecurityException e = expectThrows(
+                    ElasticsearchSecurityException.class,
+                    () -> executeRemote(remoteClusterClient, ENRICH_ACTION, request)
+                );
+                assertThat(e.getMessage(), containsString("is unauthorized"));
+            }
+        }
+    }
+
+    private static LookupTransportRequest valueLookup(String indexPattern, ShardId shardId) {
+        return new LookupTransportRequest(LookupRequestFactory.keywordLookup(indexPattern, shardId, "key", "1", "value"));
+    }
+
+    private static LookupTransportRequest valueEnrich(ShardId shardId) {
+        return new LookupTransportRequest(LookupRequestFactory.keywordEnrich(shardId, "key", "1", "value"));
+    }
+
+    private static String indexUuid(String index) throws IOException {
+        final Request getIndexSettingsRequest = new Request("GET", "/" + index + "/_settings");
+        final ObjectPath indexSettings = assertOKAndCreateObjectPath(adminClient().performRequest(getIndexSettingsRequest));
+        return indexSettings.evaluate(index + ".settings.index.uuid");
     }
 
     private static CrossClusterAccessSubjectInfo buildCrossClusterAccessSubjectInfo(String... indices) throws IOException {
@@ -635,10 +764,10 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
     }
 
     private static class MalformedGetRequest extends UntypedActionRequest {
-        private final String otherIndexId;
+        private final ShardId internalShardId;
 
-        MalformedGetRequest(String otherIndexId) {
-            this.otherIndexId = otherIndexId;
+        MalformedGetRequest(ShardId internalShardId) {
+            this.internalShardId = internalShardId;
         }
 
         @Override
@@ -651,7 +780,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
             // This is a manually-written malformed get request, since it's intentionally difficult to form this kind of
             // request with production code.
             TaskId.EMPTY_TASK_ID.writeTo(out);
-            out.writeOptionalWriteable(new ShardId("idx-b", otherIndexId, 0)); // InternalShardId
+            out.writeOptionalWriteable(internalShardId); // InternalShardId
             out.writeOptionalString("idx-a"); // index name
             out.writeString("1"); // doc id
             out.writeOptionalString(null); // routing
@@ -679,7 +808,38 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
             GetRequest parsedRequest = new GetRequest(inputStreamStreamInput);
             assertEquals("idx-a", parsedRequest.index());
             assertEquals("1", parsedRequest.id());
-            assertEquals("idx-b", parsedRequest.shards().get(0).getIndexName());
+            assertEquals(internalShardId, parsedRequest.shards().get(0));
+        }
+    }
+
+    private static final RemoteClusterActionType<LookupRequestFactory.KeywordValues> LOOKUP_ACTION = new RemoteClusterActionType<>(
+        LookupRequestFactory.ACTION_NAME,
+        LookupRequestFactory.KeywordValues::new
+    );
+
+    private static final RemoteClusterActionType<LookupRequestFactory.KeywordValues> ENRICH_ACTION = new RemoteClusterActionType<>(
+        LookupRequestFactory.ENRICH_ACTION_NAME,
+        LookupRequestFactory.KeywordValues::readEnrichResponse
+    );
+
+    /**
+     * Sends the bytes of an ES|QL lookup request built by {@link LookupRequestFactory}.
+     */
+    private static class LookupTransportRequest extends UntypedActionRequest {
+        private final Writeable lookupRequest;
+
+        LookupTransportRequest(Writeable lookupRequest) {
+            this.lookupRequest = lookupRequest;
+        }
+
+        @Override
+        public ActionRequestValidationException validate() {
+            return null;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            lookupRequest.writeTo(out);
         }
     }
 }

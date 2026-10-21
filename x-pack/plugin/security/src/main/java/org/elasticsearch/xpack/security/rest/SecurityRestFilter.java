@@ -83,19 +83,16 @@ public class SecurityRestFilter implements RestInterceptor {
         // RestRequest might have stream content, in some cases we need to aggregate request content, for example audit logging.
         final Consumer<RestRequest> aggregationCallback = (aggregatedRestRequest) -> {
             final RestRequest wrappedRequest = maybeWrapRestRequest(aggregatedRestRequest, targetHandler);
-            auditTrailService.get().authenticationSuccess(wrappedRequest);
-            secondaryAuthenticator.authenticateAndAttachToContext(wrappedRequest, ActionListener.wrap(secondaryAuthentication -> {
-                if (secondaryAuthentication != null) {
-                    logger.trace(
-                        "Found secondary authentication {} in REST request [{}]",
-                        secondaryAuthentication,
-                        aggregatedRestRequest.uri()
-                    );
-                }
-                WorkflowService.resolveWorkflowAndStoreInThreadContext(targetHandler, threadContext);
+            try {
+                auditTrailService.get().authenticationSuccess(wrappedRequest);
+                secondaryAuthenticator.completeAuthentication(wrappedRequest);
+            } catch (Exception e) {
+                handleException(aggregatedRestRequest, e, listener);
+                return;
+            }
+            WorkflowService.resolveWorkflowAndStoreInThreadContext(targetHandler, threadContext);
 
-                doHandleRequest(aggregatedRestRequest, channel, targetHandler, listener);
-            }, e -> handleException(aggregatedRestRequest, e, listener)));
+            doHandleRequest(aggregatedRestRequest, channel, targetHandler, listener);
         };
         if (request.isStreamedContent() && auditTrailService.includeRequestBody()) {
             aggregate(request, aggregationCallback::accept);

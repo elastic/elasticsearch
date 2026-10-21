@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.anthropic.request;
 
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -35,7 +35,7 @@ import static org.elasticsearch.xpack.inference.services.anthropic.request.Anthr
  * (no {@code anthropic_version} body field; that is sent as the {@code anthropic-version} HTTP header).
  *
  * <p>Anthropic requires {@code max_tokens} on every request. The value is taken from
- * {@link UnifiedCompletionRequest#maxCompletionTokens()} when supplied by the caller, otherwise from the
+ * {@link UnifiedCompletionRequestBody#maxCompletionTokens()} when supplied by the caller, otherwise from the
  * stored {@link AnthropicChatCompletionTaskSettings#maxTokens()} which is required at endpoint creation.
  */
 public class AnthropicUnifiedChatCompletionRequestEntity implements ToXContentObject {
@@ -47,7 +47,7 @@ public class AnthropicUnifiedChatCompletionRequestEntity implements ToXContentOb
     private static final String TEXT_TYPE = "text";
     private static final String SYSTEM_ROLE = "system";
 
-    private final UnifiedCompletionRequest unifiedRequest;
+    private final UnifiedCompletionRequestBody unifiedRequest;
     private final boolean stream;
     private final String modelId;
     private final AnthropicChatCompletionTaskSettings taskSettings;
@@ -66,7 +66,7 @@ public class AnthropicUnifiedChatCompletionRequestEntity implements ToXContentOb
     }
 
     public AnthropicUnifiedChatCompletionRequestEntity(
-        UnifiedCompletionRequest unifiedRequest,
+        UnifiedCompletionRequestBody unifiedRequest,
         boolean stream,
         String modelId,
         AnthropicChatCompletionTaskSettings taskSettings

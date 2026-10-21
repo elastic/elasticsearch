@@ -74,6 +74,7 @@ import static org.elasticsearch.xpack.esql.core.util.NumericUtils.UNSIGNED_LONG_
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * This class exists to give a human-readable string representation of the test case.
@@ -432,6 +433,17 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         BiFunction<TypedData, TypedData, List<String>> warnings,
         boolean allowRhsZero
     ) {
+        return forBinaryComparisonWithWidening(typeStuff, lhsName, rhsName, warnings, allowRhsZero, false);
+    }
+
+    public static List<TestCaseSupplier> forBinaryComparisonWithWidening(
+        NumericTypeTestConfigs<Boolean> typeStuff,
+        String lhsName,
+        String rhsName,
+        BiFunction<TypedData, TypedData, List<String>> warnings,
+        boolean allowRhsZero,
+        boolean forceLiteralRhs
+    ) {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
         List<DataType> numericTypes = List.of(DataType.INTEGER, DataType.LONG, DataType.DOUBLE);
 
@@ -449,15 +461,24 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                     + "="
                     + getCastEvaluator("Attribute[channel=1]", rhs, expected)
                     + "]";
+                List<TypedDataSupplier> rhsSuppliers = getSuppliersForNumericType(
+                    rhsType,
+                    expectedTypeStuff.min(),
+                    expectedTypeStuff.max(),
+                    allowRhsZero
+                );
+                if (forceLiteralRhs) {
+                    rhsSuppliers = rhsSuppliers.stream().map(s -> new TypedDataSupplier(s.name(), s.supplier(), s.type(), true)).toList();
+                }
                 casesCrossProduct(
                     (l, r) -> expectedTypeStuff.expected().apply((Number) l, (Number) r),
                     getSuppliersForNumericType(lhsType, expectedTypeStuff.min(), expectedTypeStuff.max(), allowRhsZero),
-                    getSuppliersForNumericType(rhsType, expectedTypeStuff.min(), expectedTypeStuff.max(), allowRhsZero),
+                    rhsSuppliers,
                     (lhs, rhs) -> equalTo(evaluatorToString.apply(lhs, rhs)),
                     warnings,
                     suppliers,
                     DataType.BOOLEAN,
-                    true
+                    forceLiteralRhs == false
                 );
             }
         }
@@ -784,6 +805,34 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     }
 
     /**
+     * Generate negative test cases for a unary function converting invalid values to a geo-grid type.
+     * Each case expects a null result, and a warning describing the exception returned by {@code expectedException}.
+     */
+    public static void forUnaryGeoGridInvalid(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType sourceType,
+        DataType expectedType,
+        List<Object> invalidValues,
+        Function<Object, Exception> expectedException
+    ) {
+        for (Object value : invalidValues) {
+            String display = value instanceof BytesRef bytesRef ? bytesRef.utf8ToString() : value.toString();
+            suppliers.add(new TestCaseSupplier("invalid " + sourceType.typeName() + " " + display, List.of(sourceType), () -> {
+                TestCase testCase = new TestCase(
+                    List.of(new TypedData(value, sourceType, "value")),
+                    expectedEvaluatorToString,
+                    expectedType,
+                    nullValue()
+                );
+                return testCase.withWarning(
+                    "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded."
+                ).withWarning("Line 1:1: " + expectedException.apply(value));
+            }));
+        }
+    }
+
+    /**
      * Generate positive test cases for a unary function operating on an {@link DataType#GEO_POINT}.
      */
     public static void forUnaryGeoPoint(
@@ -954,6 +1003,23 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 warnings
             );
         }
+    }
+
+    public static void forUnaryDoubleRange(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<DoubleRangeBlockBuilder.DoubleRange, Object> expectedValue,
+        List<String> warnings
+    ) {
+        unary(
+            suppliers,
+            expectedEvaluatorToString,
+            doubleRangeCases(),
+            expectedType,
+            v -> expectedValue.apply((DoubleRangeBlockBuilder.DoubleRange) v),
+            warnings
+        );
     }
 
     public static void forUnaryExponentialHistogram(

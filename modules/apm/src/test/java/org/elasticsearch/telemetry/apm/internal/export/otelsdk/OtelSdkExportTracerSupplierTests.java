@@ -20,6 +20,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 
@@ -80,4 +81,19 @@ public class OtelSdkExportTracerSupplierTests extends ESTestCase {
         }
         meterProvider.close();
     }
+
+    public void testSampledRootSpanCarriesLegacyOtTracestate() {
+        Settings settings = Settings.builder()
+            .put(OtelSdkSettings.TELEMETRY_EXPORT_ENDPOINT.getKey(), "http://127.0.0.1:9")
+            .put(OtelSdkSettings.TELEMETRY_EXPORT_SEND_TIMEOUT.getKey(), "200ms")
+            .put(OtelSdkSettings.TELEMETRY_EXPORT_INTERVAL.getKey(), "300ms")
+            .put(OtelSdkSettings.TELEMETRY_TRACING_SAMPLE_RATE.getKey(), 1.0)
+            .build();
+        try (var supplier = new OtelSdkExportTracerSupplier(settings, MeterProvider::noop)) {
+            var span = supplier.get().getTracer("test").spanBuilder("root").startSpan();
+            assertThat(span.getSpanContext().getTraceState().get("ot"), equalTo("p:0"));
+            span.end();
+        }
+    }
+
 }

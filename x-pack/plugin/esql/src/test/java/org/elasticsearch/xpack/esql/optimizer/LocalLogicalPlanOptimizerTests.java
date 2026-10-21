@@ -55,8 +55,12 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.Wild
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLikeList;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -1387,6 +1391,69 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         assertThat(Expressions.name(fullTextFunction.field()), equalTo("first_name"));
     }
 
+    private static EsqlTestUtils.TestSearchStats emptyStringReadsAsNull(String field) {
+        return new EsqlTestUtils.TestSearchStats() {
+            @Override
+            public boolean emptyStringReadsAsNull(FieldAttribute.FieldName name) {
+                return name.string().equals(field);
+            }
+        };
+    }
+
+    public void testEqualsEmptyStringBecomesIsNull() {
+        var plan = testAnalyzer().coordinatorPlan("""
+            from test
+            | where first_name == ""
+            """);
+
+        var localPlan = localPlan(plan, emptyStringReadsAsNull("first_name"));
+
+        var limit = as(localPlan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var isNull = as(filter.condition(), IsNull.class);
+        assertThat(Expressions.name(isNull.field()), equalTo("first_name"));
+    }
+
+    public void testNotEqualsEmptyStringBecomesIsNotNull() {
+        var plan = testAnalyzer().coordinatorPlan("""
+            from test
+            | where first_name != ""
+            """);
+
+        var localPlan = localPlan(plan, emptyStringReadsAsNull("first_name"));
+
+        var limit = as(localPlan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var isNotNull = as(filter.condition(), IsNotNull.class);
+        assertThat(Expressions.name(isNotNull.field()), equalTo("first_name"));
+    }
+
+    public void testEmptyStringIsLeftAloneOnAnOrdinaryField() {
+        var plan = testAnalyzer().coordinatorPlan("""
+            from test
+            | where first_name == ""
+            """);
+
+        var localPlan = localPlan(plan, emptyStringReadsAsNull("last_name"));
+
+        var limit = as(localPlan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        as(filter.condition(), Equals.class);
+    }
+
+    public void testANonEmptyStringIsLeftAlone() {
+        var plan = testAnalyzer().coordinatorPlan("""
+            from test
+            | where first_name == "John"
+            """);
+
+        var localPlan = localPlan(plan, emptyStringReadsAsNull("first_name"));
+
+        var limit = as(localPlan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        as(filter.condition(), Equals.class);
+    }
+
     public void testConstantFieldReplacedOutsideFullTextFunction() {
         var plan = testAnalyzer().coordinatorPlan("""
             from test
@@ -1541,7 +1608,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             IndexMode.STANDARD,
             Map.of(),
             Map.of(),
-            Map.of("test", IndexMode.STANDARD),
+            Map.of("test", new IndexProperties(IndexMode.STANDARD, 0)),
             List.of(fieldAttr, projectTagAttr)
         );
 
@@ -1590,7 +1657,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             IndexMode.STANDARD,
             Map.of(),
             Map.of(),
-            Map.of("test", IndexMode.STANDARD),
+            Map.of("test", new IndexProperties(IndexMode.STANDARD, 0)),
             List.of(fieldAttr, projectTagAttr)
         );
 
@@ -1638,7 +1705,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             IndexMode.STANDARD,
             Map.of(),
             Map.of(),
-            Map.of("test", IndexMode.STANDARD),
+            Map.of("test", new IndexProperties(IndexMode.STANDARD, 0)),
             List.of(fieldAttr, projectTagAttr)
         );
 
@@ -1681,7 +1748,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             IndexMode.STANDARD,
             Map.of(),
             Map.of(),
-            Map.of("test", IndexMode.STANDARD),
+            Map.of("test", new IndexProperties(IndexMode.STANDARD, 0)),
             List.of(fieldAttr, indexAttr)
         );
 
@@ -1717,7 +1784,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             IndexMode.TIME_SERIES,
             Map.of(),
             Map.of(),
-            Map.of("test", IndexMode.TIME_SERIES),
+            Map.of("test", new IndexProperties(IndexMode.TIME_SERIES, 0)),
             List.of(fieldAttr, timeSeriesAttr)
         );
         var eval = new Eval(EMPTY, new Limit(EMPTY, L(1000), relation), List.of(new Alias(EMPTY, "ts", timeSeriesAttr)));
@@ -1749,7 +1816,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             IndexMode.TIME_SERIES,
             Map.of(),
             Map.of(),
-            Map.of("test", IndexMode.TIME_SERIES),
+            Map.of("test", new IndexProperties(IndexMode.TIME_SERIES, 0)),
             List.of(fieldAttr, timestampAttr)
         );
         var tsAggregate = new TimeSeriesAggregate(
@@ -1757,8 +1824,8 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             relation,
             List.of(),
             List.of(
-                new Alias(EMPTY, "r", new Rate(EMPTY, fieldAttr, Literal.TRUE, AggregateFunction.NO_WINDOW, timestampAttr, null)),
-                new Alias(EMPTY, "i", new Increase(EMPTY, fieldAttr, Literal.TRUE, AggregateFunction.NO_WINDOW, timestampAttr, null))
+                new Alias(EMPTY, "r", new Rate(EMPTY, fieldAttr, timestampAttr, Literal.TRUE, AggregateFunction.NO_WINDOW, null)),
+                new Alias(EMPTY, "i", new Increase(EMPTY, fieldAttr, timestampAttr, Literal.TRUE, AggregateFunction.NO_WINDOW, null))
             ),
             null,
             timestampAttr,
@@ -1801,7 +1868,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             IndexMode.TIME_SERIES,
             Map.of(),
             Map.of(),
-            Map.of("test", IndexMode.TIME_SERIES),
+            Map.of("test", new IndexProperties(IndexMode.TIME_SERIES, 0)),
             List.of(histogramAttr, timestampAttr)
         );
         var tsAggregate = new TimeSeriesAggregate(
@@ -1842,7 +1909,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             IndexMode.TIME_SERIES,
             Map.of(),
             Map.of(),
-            Map.of("test", IndexMode.TIME_SERIES),
+            Map.of("test", new IndexProperties(IndexMode.TIME_SERIES, 0)),
             List.of(histogramAttr, timestampAttr)
         );
 

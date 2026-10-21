@@ -94,4 +94,25 @@ public class TransportCreateCrossClusterApiKeyActionTests extends ESTestCase {
         );
         verifyNoInteractions(apiKeyService);
     }
+
+    public void testCannotCreateCrossClusterApiKeyWithCloudApiKey() throws IOException {
+        final Authentication authentication = AuthenticationTestHelper.randomCloudApiKeyAuthentication();
+        when(securityContext.getAuthentication()).thenReturn(authentication);
+
+        final var request = CreateCrossClusterApiKeyRequest.withNameAndAccess(
+            randomAlphaOfLengthBetween(3, 8),
+            randomCrossClusterApiKeyAccessField()
+        );
+        final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
+        action.doExecute(mock(Task.class), request, future);
+
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "authentication via cloud API key not supported: A cloud API key cannot be used to create a cross-cluster API key"
+            )
+        );
+        verifyNoInteractions(apiKeyService);
+    }
 }

@@ -26,6 +26,7 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
@@ -319,7 +320,15 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
 
                         @Override
                         public void onFailure(Exception e) {
-                            logger.warn("Failed to create new readerContext after PIT transfer for shard " + shardId, e);
+                            // Not recreating the reader context after a PIT relocation handoff is not fatal: the recovery still
+                            // succeeds and the PIT is reconstructed lazily on a later search. When the failure is only due to the
+                            // shard being closed/relocated away concurrently (an expected race) log at DEBUG to avoid noise;
+                            // anything else is unexpected and stays at WARN.
+                            if (TransportActions.isShardNotAvailableException(e)) {
+                                logger.debug("Failed to create new readerContext after PIT transfer for shard " + shardId, e);
+                            } else {
+                                logger.warn("Failed to create new readerContext after PIT transfer for shard " + shardId, e);
+                            }
                             // we don't want to fail the whole recovery because of a PIT context relocation issue
                             listener.onResponse(null);
                         }
@@ -328,7 +337,11 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
                 return null;
             });
         } catch (Exception e) {
-            logger.warn("Unexpected exception while acquiring searcher after PIT transfer for shard " + shardId, e);
+            if (TransportActions.isShardNotAvailableException(e)) {
+                logger.debug("Exception while acquiring searcher after PIT transfer for shard " + shardId, e);
+            } else {
+                logger.warn("Unexpected exception while acquiring searcher after PIT transfer for shard " + shardId, e);
+            }
             // we don't want to fail the whole recovery because of a PIT context relocation issue
             listener.onResponse(null);
         }

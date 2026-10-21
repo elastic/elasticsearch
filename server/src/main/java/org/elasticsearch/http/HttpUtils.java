@@ -9,11 +9,22 @@
 
 package org.elasticsearch.http;
 
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.util.Locale;
+
 public class HttpUtils {
 
     static final String CLOSE = "close";
     static final String CONNECTION = "connection";
+    public static final String DATE = "date";
     static final String KEEP_ALIVE = "keep-alive";
+
+    private static final DateTimeFormatter HTTP_DATE_FORMATTER = DateTimeFormatter.ofPattern(
+        "EEE, dd MMM yyyy HH:mm:ss 'GMT'",
+        Locale.ENGLISH
+    ).withZone(ZoneOffset.UTC);
 
     // Determine if the request connection should be closed on completion.
     public static boolean shouldCloseConnection(HttpRequest httpRequest) {
@@ -24,6 +35,12 @@ public class HttpUtils {
         } catch (Exception e) {
             // In case we fail to parse the http protocol version out of the request we always close the connection
             return true;
+        }
+    }
+
+    static void addDateHeader(HttpResponse response, Instant now) {
+        if (response.containsHeader(DATE) == false) {
+            response.addHeader(DATE, HTTP_DATE_FORMATTER.format(now));
         }
     }
 }

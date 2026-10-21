@@ -17,10 +17,12 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
@@ -37,13 +39,12 @@ import org.elasticsearch.columnar.numeric.ColumnarNumericBinaryDocValues;
 import org.elasticsearch.columnar.numeric.NumericBinaryPayload;
 import org.elasticsearch.columnar.numeric.NumericColumnValues;
 import org.elasticsearch.columnar.numeric.NumericPipeline;
-import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
+import org.elasticsearch.index.codec.Elasticsearch96Codec;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormatFactory;
 import org.elasticsearch.index.codec.tsdb.pipeline.FieldContext;
 import org.elasticsearch.index.codec.tsdb.pipeline.MetricRole;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor.DataType;
-import org.elasticsearch.lucene.queries.SortedNumericDocValuesRangeQuery;
 import org.openjdk.jmh.infra.Blackhole;
 
 import java.io.IOException;
@@ -89,9 +90,13 @@ public enum NumericFormat {
                     (f, bs) -> es95FieldContext(workload, f, bs)
                 );
             }
-            case COLUMNAR -> new ColumNARDocValuesFormat((f, t) -> bs -> selectPipeline(workload, bs), blockSize);
+            case COLUMNAR -> new ColumNARDocValuesFormat(
+                (f, t) -> bs -> selectPipeline(workload, bs),
+                f -> ColumnarFieldType.LONG,
+                blockSize
+            );
         };
-        return new Elasticsearch93Lucene104Codec() {
+        return new Elasticsearch96Codec() {
             @Override
             public DocValuesFormat getDocValuesFormatForField(String field) {
                 return dv;
@@ -110,7 +115,7 @@ public enum NumericFormat {
 
     Query rangeQuery(String field, long lower, long upper) {
         return switch (this) {
-            case LUCENE, ES819, ES95 -> new SortedNumericDocValuesRangeQuery(field, lower, upper);
+            case LUCENE, ES819, ES95 -> SortedNumericDocValuesField.newSlowRangeQuery(field, lower, upper);
             case COLUMNAR -> new ColumnarNumericRangeQuery(field, lower, upper);
         };
     }
@@ -120,6 +125,15 @@ public enum NumericFormat {
             case LUCENE, ES819, ES95 -> {
                 final SortedNumericDocValues dv = leafReader.getSortedNumericDocValues(field);
                 if (dv == null) {
+                    return;
+                }
+                // A single-valued field is a NumericDocValues behind a SortedNumeric wrapper. ColumNAR is
+                // read through its own single-valued cursor below, so unwrap here to compare like for like.
+                final NumericDocValues singleton = DocValues.unwrapSingleton(dv);
+                if (singleton != null) {
+                    while (singleton.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                        bh.consume(singleton.longValue());
+                    }
                     return;
                 }
                 while (dv.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
@@ -193,7 +207,6 @@ public enum NumericFormat {
     private static FieldType columnarFieldType() {
         final FieldType type = new FieldType();
         type.setDocValuesType(DocValuesType.BINARY);
-        type.putAttribute(ColumNARDocValuesFormat.TYPE_ATTRIBUTE, ColumnarFieldType.LONG.name());
         type.freeze();
         return type;
     }

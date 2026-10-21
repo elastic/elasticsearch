@@ -34,6 +34,9 @@
 * [`TO_DOUBLE`](../../functions-operators/type-conversion-functions/to_double.md)
   :::{include} ../generated/x-pack-esql/functions/briefSummary/to_double.md
   :::
+* [`TO_DOUBLE_RANGE`](../../functions-operators/type-conversion-functions/to_double_range.md) {applies_to}`stack: preview 9.6.0` {applies_to}`serverless: preview`
+  :::{include} ../generated/x-pack-esql/functions/briefSummary/to_double_range.md
+  :::
 * [`TO_EXPONENTIAL_HISTOGRAM`](../../functions-operators/type-conversion-functions/to_exponential_histogram.md) {applies_to}`stack: ga 9.4`
   :::{include} ../generated/x-pack-esql/functions/briefSummary/to_exponential_histogram.md
   :::
@@ -76,7 +79,7 @@
 * [`TO_TDIGEST`](../../functions-operators/type-conversion-functions/to_tdigest.md) {applies_to}`stack: preview 9.3, ga 9.4`
   :::{include} ../generated/x-pack-esql/functions/briefSummary/to_tdigest.md
   :::
-* [`TO_TEXT`](../../functions-operators/type-conversion-functions/to_text.md) {applies_to}`stack: preview 9.5` {applies_to}`serverless: preview`
+* [`TO_TEXT`](../../functions-operators/type-conversion-functions/to_text.md) {applies_to}`stack: preview =9.5, ga 9.6+` {applies_to}`serverless: ga`
   :::{include} ../generated/x-pack-esql/functions/briefSummary/to_text.md
   :::
 * [`TO_TIMEDURATION`](../../functions-operators/type-conversion-functions/to_timeduration.md)

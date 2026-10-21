@@ -71,10 +71,11 @@ public final class ClampMinDoubleEvaluator implements ExpressionEvaluator {
   public DoubleBlock eval(int positionCount, DoubleBlock fieldBlock, DoubleBlock minBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        if (fieldBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (fieldBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -82,10 +83,11 @@ public final class ClampMinDoubleEvaluator implements ExpressionEvaluator {
               result.appendNull();
               continue position;
         }
+        if (minBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (minBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:

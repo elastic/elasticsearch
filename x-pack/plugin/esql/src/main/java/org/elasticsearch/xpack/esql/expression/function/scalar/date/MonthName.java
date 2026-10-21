@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Signature;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
@@ -55,6 +56,7 @@ public class MonthName extends EsqlConfigurationFunction implements AnyNullIsNul
 
     @FunctionInfo(
         returnType = "keyword",
+        signatures = { @Signature(params = { "date|date_nanos" }, returnType = "keyword") },
         briefSummary = "Returns the month name for a date.",
         description = "Returns the month name for the provided date based on the configured Locale.",
         examples = @Example(file = "date", tag = "docsMonthName"),

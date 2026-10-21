@@ -975,11 +975,11 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
         assertThat(shardGetsOnSearchB.get(), equalTo(0));
     }
 
-    public void testNoVersionConflictDuringUpdate() throws Exception {
-        // As of time when this test was created, LiveVersionMap could unexpectedly transition from safe to unsafe mode during an update.
-        // This caused a bug where an update could succeed without putting the version into the version map. So that the next update would
-        // hit a version conflict and require a retry. The bug was fixed and this test confirms that updates interleaved with refreshes
-        // do not result in version conflicts.
+    public void testNoConflictsOrLostUpdatesDuringRefreshes() throws Exception {
+        // LiveVersionMap could leave safe access mode between an update's enforceSafeAccess() and its put. This caused a bug where an
+        // update could succeed without putting the version into the version map. The next update then either hit a version conflict,
+        // or, when the stale version was used for both the get for update and the version check, succeeded on top of stale data and
+        // silently dropped the earlier update. Each update adds its own field so that both symptoms are detected.
         String indexNodeA = startIndexNode(
             Settings.builder()
                 .put(disableIndexingDiskAndMemoryControllersNodeSettings())
@@ -1007,10 +1007,9 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
 
         String docId = "doc-1";
         // index 1 doc with doc-id. This should enforce safe access mode
-        client().prepareIndex(indexName).setId(docId).setSource("field1", randomUnicodeOfLength(10)).get();
+        client().prepareIndex(indexName).setId(docId).setSource("f_init", 0).get();
         assertTrue(isSafeAccessRequired(map));
-        var versionVal1 = get(map, docId);
-        assertNotNull(versionVal1);
+        assertNotNull(get(map, docId));
 
         var stopThreads = new AtomicBoolean(false);
 
@@ -1022,54 +1021,7 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
         }, "RefreshThread");
         refreshThread.start();
 
-        try {
-            // 10 is usually enough to hit the bug. But the bug is fixed, so we don't unnecessarily try more.
-            for (int i = 0; i < 10; ++i) {
-                var bulkUpdateResponseN = client().prepareBulk()
-                    .add(client().prepareUpdate(indexName, docId).setDoc("field1", randomUnicodeOfLength(10)))
-                    .get();
-                assertNoFailures(bulkUpdateResponseN);
-            }
-        } finally {
-            stopThreads.set(true);
-            refreshThread.join();
-        }
-    }
-
-    public void testNoLostUpdatesDuringUpdate() throws Exception {
-        // Like testNoVersionConflictDuringUpdate, but each update adds its own field, so that an update applied on top of a stale
-        // version is detected as well. If the archive serves a stale version to both the get for update and the version check, the
-        // update succeeds without a conflict but drops the fields of the updates it missed.
-        String indexNodeA = startIndexNode(
-            Settings.builder()
-                .put(disableIndexingDiskAndMemoryControllersNodeSettings())
-                .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofGb(1))
-                .put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), Integer.MAX_VALUE)
-                .put(StatelessCommitService.STATELESS_UPLOAD_VBCC_MAX_AGE.getKey(), TimeValue.timeValueDays(1L))
-                .build()
-        );
-        startSearchNode();
-        ensureStableCluster(3);
-
-        String indexName = randomIdentifier();
-        createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
-        ensureGreen(indexName);
-
-        final var indicesService = internalCluster().getInstance(IndicesService.class, indexNodeA);
-        final var shardId = new ShardId(resolveIndex(indexName), 0);
-        final var indexEngine = (IndexEngine) indicesService.indexServiceSafe(shardId.getIndex()).getShard(0).getEngineOrNull();
-
-        String docId = "doc-1";
-        client().prepareIndex(indexName).setId(docId).setSource("f_init", 0).get();
-
-        var stopThreads = new AtomicBoolean(false);
-        final Thread refreshThread = new Thread(() -> {
-            while (stopThreads.get() == false) {
-                indexEngine.refresh("VERSION_CONFLICT_TEST");
-            }
-        }, "RefreshThread");
-        refreshThread.start();
-
+        // 30 is usually enough to hit the bug. But the bug is fixed, so we don't unnecessarily try more.
         final int updates = 30;
         final List<Integer> acked = new ArrayList<>();
         final List<String> failures = new ArrayList<>();

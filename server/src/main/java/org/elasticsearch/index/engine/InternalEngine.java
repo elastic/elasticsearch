@@ -925,8 +925,7 @@ public class InternalEngine extends Engine {
                 versionMap.enforceSafeAccess();
                 return true;
             }
-            // The map is safe for gets, so every recent write is recorded. Only presence matters here, so an archived entry counts
-            // even if its version may be stale. Do not use getUnderLockOrUnsafe, which would report such an entry as absent.
+            // The map is safe for gets, so every recent write is recorded.
             return versionMap.getUnderLock(uid) != null;
         }
     }
@@ -4413,6 +4412,8 @@ public class InternalEngine extends Engine {
                     uid = Uid.encodeId(id);
                 }
                 try (Releasable ignored = versionMap.acquireLock(uid)) {
+                    // Runs before the engine is open: no other writes, the archive is empty, and these puts are always recorded, so the map
+                    // cannot be unsafe and getUnderLock cannot return a stale archived version.
                     final VersionValue curr = versionMap.getUnderLock(uid);
                     if (curr == null || compareOpToVersionMapOnSeqNo(id, seqNo, primaryTerm, curr) == OpVsLuceneDocStatus.OP_NEWER) {
                         if (isTombstone) {

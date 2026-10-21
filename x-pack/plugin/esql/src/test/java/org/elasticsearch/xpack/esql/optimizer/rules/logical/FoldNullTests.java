@@ -340,32 +340,12 @@ public class FoldNullTests extends ESTestCase {
         assertEquals("emp_no IS NOT NULL", not.nullMisuseAlternative());
     }
 
-    public void testInAllNullListSuggestsIsNull() {
-        var field = getFieldAttribute("emp_no").withLocation(new Source(1, 12, "emp_no"));
-        In in = new In(new Source(1, 12, "emp_no IN (NULL, NULL)"), field, List.of(NULL, NULL));
-        assertSame(in, foldNull(in));
-        assertEquals("emp_no IS NULL", in.nullMisuseAlternative());
-    }
-
-    public void testInNullValueHasNoAlternative() {
-        var field = getFieldAttribute("emp_no");
-        In in = new In(new Source(1, 12, "NULL IN (emp_no, 1)"), NULL, List.of(field, L(1)));
-        assertNullLiteral(foldNull(in));
-        assertNull(in.nullMisuseAlternative());
-    }
-
-    public void testInValueAndNullDoesNotFold() {
-        var field = getFieldAttribute("emp_no");
-        In in = new In(EMPTY, field, List.of(L(1), NULL));
-        assertSame(in, foldNull(in));
-        assertNull(in.nullMisuseAlternative());
-    }
-
     public void testNotInAllNullListSuggestsIsNotNull() {
         var field = getFieldAttribute("emp_no").withLocation(new Source(1, 12, "emp_no"));
         In in = new In(new Source(1, 12, "emp_no NOT IN (NULL, NULL)"), field, List.of(NULL, NULL));
         Not not = new Not(new Source(1, 12, "emp_no NOT IN (NULL, NULL)"), in);
-        // An all-NULL IN list does not fold the IN (see testInAllNullListSuggestsIsNull), so neither does the NOT.
+        // FoldNull leaves the all-NULL IN to ConstantFolding (see ConstantFoldingTests#testInAllNullListSuggestsIsNull),
+        // so on its own it does not fold the NOT either.
         assertSame(not, foldNullUp(not));
         assertEquals("emp_no IS NOT NULL", not.nullMisuseAlternative());
     }

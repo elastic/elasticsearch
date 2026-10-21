@@ -301,8 +301,10 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
   /*
    * SHA-256 fingerprints of certificates the bundled JDK must not trust, in addition to the ones in the JDK's own
    * lib/security/blocked.certs. The packaging tests check that the bundled JDK rejects them, see BlockedCertificates.
-   * Entries can be removed once the bundled JDK no longer trusts the certificates by itself, for example because
-   * OpenJDK removed the roots that issued them from cacerts, or once the certificates expire.
+   * blocked.certs applies whatever trust store is in use, unlike cacerts: the Docker images replace cacerts with the
+   * operating system's trust store and users can configure their own. So removing the issuing roots from the JDK's
+   * cacerts is not enough to drop an entry. Remove entries once the certificates expire, or once the bundled JDK
+   * distrusts them independently of the trust store, for example by listing them in its own blocked.certs.
    */
   List<String> additionalBlockedCerts = [
     // eMudhra intermediate CAs with compromised private keys, each issued by an emSign G3 root and cross-signed by

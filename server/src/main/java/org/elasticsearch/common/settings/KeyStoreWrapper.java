@@ -121,7 +121,9 @@ public class KeyStoreWrapper implements SecureSettings {
     public static final int LE_VERSION = 5;
     public static final int HIGHER_KDF_ITERATION_COUNT_VERSION = 6;
     public static final int CIPHER_KEY_BITS_256_VERSION = 7;
-    public static final int CURRENT_VERSION = CIPHER_KEY_BITS_256_VERSION;
+    /** From this version keystores without a password store their entries without encryption. */
+    public static final int UNENCRYPTED_VERSION = 8;
+    public static final int CURRENT_VERSION = UNENCRYPTED_VERSION;
 
     /** The algorithm used to derive the cipher key from a password. */
     private static final String KDF_ALGO = "PBKDF2WithHmacSHA512";
@@ -152,6 +154,7 @@ public class KeyStoreWrapper implements SecureSettings {
     // 5: Lucene directory API changed to LE, ES 8.0
     // 6: increase KDF iteration count, ES 8.14
     // 7: increase cipher key length to 256 bits, ES 9.0
+    // 8: store unprotected keystores without encryption, ES 9.7
 
     /** The metadata format version used to read the current keystore wrapper. */
     private final int formatVersion;
@@ -159,7 +162,7 @@ public class KeyStoreWrapper implements SecureSettings {
     /** True iff the keystore has a password needed to read. */
     private final boolean hasPassword;
 
-    /** The raw bytes of the encrypted keystore. */
+    /** The stored payload: serialized entries for unprotected v8+ keystores, otherwise salt, IV, and encrypted entries. */
     private final byte[] dataBytes;
 
     /** The decrypted secret data. See {@link #decrypt(char[])}. */
@@ -346,13 +349,22 @@ public class KeyStoreWrapper implements SecureSettings {
     }
 
     /**
-     * Decrypts the underlying keystore data.
+     * Loads the underlying keystore entries, decrypting them if the format and password protection require it.
      *
      * This may only be called once.
      */
     public void decrypt(char[] password) throws GeneralSecurityException, IOException {
         if (entries.get() != null) {
             throw new IllegalStateException("Keystore has already been decrypted");
+        }
+
+        if (formatVersion >= UNENCRYPTED_VERSION && hasPassword == false) {
+            // Preserve password validation even though no key derivation is needed for an unprotected keystore.
+            if (password.length != 0) {
+                throw new SecurityException("Provided keystore password was incorrect");
+            }
+            readEntries(new ByteArrayInputStream(dataBytes));
+            return;
         }
 
         final byte[] salt;
@@ -383,11 +395,20 @@ public class KeyStoreWrapper implements SecureSettings {
         );
         try (
             ByteArrayInputStream bytesStream = new ByteArrayInputStream(encryptedBytes);
-            CipherInputStream cipherStream = new CipherInputStream(bytesStream, cipher);
-            DataInputStream input = new DataInputStream(cipherStream)
+            CipherInputStream cipherStream = new CipherInputStream(bytesStream, cipher)
         ) {
+            readEntries(cipherStream);
+        }
+    }
+
+    /** Reads the shared entry format from either the unencrypted payload or a decrypted stream. */
+    private void readEntries(InputStream stream) {
+        try (DataInputStream input = new DataInputStream(stream)) {
             entries.set(new HashMap<>());
             int numEntries = input.readInt();
+            if (numEntries < 0) {
+                throw new SecurityException("Keystore has been corrupted or tampered with");
+            }
             while (numEntries-- > 0) {
                 String setting = input.readUTF();
                 if (formatVersion == V3_VERSION) {
@@ -395,6 +416,10 @@ public class KeyStoreWrapper implements SecureSettings {
                     input.readUTF();
                 }
                 int entrySize = input.readInt();
+                // Unencrypted entries are protected only by the file checksum. Validate lengths before allocating.
+                if (entrySize < 0 || entrySize > dataBytes.length) {
+                    throw new SecurityException("Keystore has been corrupted or tampered with");
+                }
                 byte[] entryBytes = new byte[entrySize];
                 input.readFully(entryBytes);
                 entries.get().put(setting, new Entry(entryBytes));
@@ -428,15 +453,20 @@ public class KeyStoreWrapper implements SecureSettings {
             CipherOutputStream cipherStream = new CipherOutputStream(bytes, cipher);
             DataOutputStream output = new DataOutputStream(cipherStream)
         ) {
-            output.writeInt(entries.get().size());
-            for (Map.Entry<String, Entry> mapEntry : entries.get().entrySet()) {
-                output.writeUTF(mapEntry.getKey());
-                byte[] entryBytes = mapEntry.getValue().bytes;
-                output.writeInt(entryBytes.length);
-                output.write(entryBytes);
-            }
+            writeEntries(output);
         }
         return bytes.toByteArray();
+    }
+
+    /** Uses the same entry serialization whether or not a password protects the keystore. */
+    private void writeEntries(DataOutputStream output) throws IOException {
+        output.writeInt(entries.get().size());
+        for (Map.Entry<String, Entry> mapEntry : entries.get().entrySet()) {
+            output.writeUTF(mapEntry.getKey());
+            byte[] entryBytes = mapEntry.getValue().bytes;
+            output.writeInt(entryBytes.length);
+            output.write(entryBytes);
+        }
     }
 
     /** Write the keystore to the given config directory. */
@@ -455,34 +485,45 @@ public class KeyStoreWrapper implements SecureSettings {
             CodecUtil.writeHeader(output, KEYSTORE_FILENAME, CURRENT_VERSION);
             output.writeByte(password.length == 0 ? (byte) 0 : (byte) 1);
 
-            // new cipher params
-            SecureRandom random = Randomness.createSecure();
-            // use 64 bytes salt, which surpasses that recommended by OWASP
-            // see https://www.owasp.org/index.php/Password_Storage_Cheat_Sheet
-            byte[] salt = new byte[64];
-            random.nextBytes(salt);
-            // use 96 bits (12 bytes) for IV as recommended by NIST
-            // see http://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf section 5.2.1.1
-            byte[] iv = new byte[12];
-            random.nextBytes(iv);
-            // encrypted data
-            byte[] encryptedBytes = encrypt(
-                password,
-                salt,
-                iv,
-                getKdfIterationCountForVersion(CURRENT_VERSION),
-                getCipherKeyBitsForVersion(CURRENT_VERSION)
-            );
+            if (password.length == 0) {
+                // No secret is available to protect these entries. Keep the container checksum for corruption detection.
+                ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+                try (DataOutputStream entriesOutput = new DataOutputStream(bytes)) {
+                    writeEntries(entriesOutput);
+                }
+                byte[] serializedEntries = bytes.toByteArray();
+                output.writeInt(serializedEntries.length);
+                output.writeBytes(serializedEntries, serializedEntries.length);
+            } else {
+                // new cipher params
+                SecureRandom random = Randomness.createSecure();
+                // use 64 bytes salt, which surpasses that recommended by OWASP
+                // see https://www.owasp.org/index.php/Password_Storage_Cheat_Sheet
+                byte[] salt = new byte[64];
+                random.nextBytes(salt);
+                // use 96 bits (12 bytes) for IV as recommended by NIST
+                // see http://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf section 5.2.1.1
+                byte[] iv = new byte[12];
+                random.nextBytes(iv);
+                // encrypted data
+                byte[] encryptedBytes = encrypt(
+                    password,
+                    salt,
+                    iv,
+                    getKdfIterationCountForVersion(CURRENT_VERSION),
+                    getCipherKeyBitsForVersion(CURRENT_VERSION)
+                );
 
-            // size of data block
-            output.writeInt(4 + salt.length + 4 + iv.length + 4 + encryptedBytes.length);
+                // size of data block
+                output.writeInt(4 + salt.length + 4 + iv.length + 4 + encryptedBytes.length);
 
-            output.writeInt(salt.length);
-            output.writeBytes(salt, salt.length);
-            output.writeInt(iv.length);
-            output.writeBytes(iv, iv.length);
-            output.writeInt(encryptedBytes.length);
-            output.writeBytes(encryptedBytes, encryptedBytes.length);
+                output.writeInt(salt.length);
+                output.writeBytes(salt, salt.length);
+                output.writeInt(iv.length);
+                output.writeBytes(iv, iv.length);
+                output.writeInt(encryptedBytes.length);
+                output.writeBytes(encryptedBytes, encryptedBytes.length);
+            }
 
             CodecUtil.writeFooter(output);
 
@@ -646,6 +687,10 @@ public class KeyStoreWrapper implements SecureSettings {
     @Override
     public synchronized void close() {
         this.closed = true;
+        if (dataBytes != null && formatVersion >= UNENCRYPTED_VERSION && hasPassword == false) {
+            // The stored payload now contains secrets too, so clearing only the parsed entries is insufficient.
+            Arrays.fill(dataBytes, (byte) 0);
+        }
         if (null != entries.get() && entries.get().isEmpty() == false) {
             for (Entry entry : entries.get().values()) {
                 Arrays.fill(entry.bytes, (byte) 0);

@@ -683,11 +683,11 @@ limitation.
 
 ==== Keystore Password
 
-In FIPS 140-2 mode, the elasticsearch keystore needs to be password protected with a password
-of appropriate length. This is handled automatically in `fips.gradle` and the keystore is unlocked
-on startup by the test clusters tooling in order to have secure settings available. However, you
-might need to take into consideration that the keystore is password-protected with `keystore-password`
-if you need to interact with it in a test.
+In FIPS mode, a password-protected Elasticsearch keystore requires a password of appropriate length.
+The current keystore format also supports unprotected keystores, which store entries without encryption.
+Test clusters still use the password `keystore-password`, configured automatically in `fips.gradle`.
+The test clusters tooling unlocks the keystore on startup so that secure settings are available.
+Take this password into consideration if you need to interact with a test cluster's keystore.
 
 == How to write good tests?
 

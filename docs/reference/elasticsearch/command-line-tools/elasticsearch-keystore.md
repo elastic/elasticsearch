@@ -39,6 +39,8 @@ Currently, all secure settings are node-specific settings that must have the sam
 
 When the keystore is password-protected, you must supply the password each time {{es}} starts.
 
+Starting in {{es}} 9.7, a keystore without a password stores its settings without encryption or obfuscation. Anyone who can read the keystore file can read its contents. Use a password to encrypt the settings at rest.
+
 Modifications to the keystore are not automatically applied to the running {{es}} node. Any changes to the keystore will take effect when you restart {{es}}. Some secure settings can be explicitly [reloaded](docs-content://deploy-manage/security/secure-settings.md#reloadable-secure-settings) without restart.
 
 Only some settings are designed to be read from the keystore. However, there is no validation to block unsupported settings from the keystore and they can cause {{es}} to fail to start. To see whether a setting is supported in the keystore, see the setting reference.
@@ -56,7 +58,7 @@ Only some settings are designed to be read from the keystore. However, there is 
 :   Creates the keystore.
 
 `-f, --force`
-:   When used with the `add` parameter, the command no longer prompts you before overwriting existing entries in the keystore. Also, if you haven’t created a keystore yet, it creates a keystore that is obfuscated but not password protected.
+:   When used with the `add` parameter, the command no longer prompts you before overwriting existing entries in the keystore. Also, if you haven’t created a keystore yet, it creates a keystore that stores settings without encryption. Only a password protects the contents of the keystore at rest.
 
 `-h, --help`
 :   Returns all of the command parameters.
@@ -68,10 +70,10 @@ Only some settings are designed to be read from the keystore. However, there is 
 :   Lists the settings in the keystore. If the keystore is password protected, you are prompted to enter the password.
 
 `-p`
-:   When used with the `create` parameter, the command prompts you to enter a keystore password. If you don’t specify the `-p` flag or if you enter an empty password, the keystore is obfuscated but not password protected.
+:   When used with the `create` parameter, the command prompts you to enter a keystore password. If you don’t specify the `-p` flag or if you enter an empty password, the keystore stores settings without encryption. Only a password protects the contents of the keystore at rest.
 
 `passwd`
-:   Changes or sets the keystore password. If the keystore is password protected, you are prompted to enter the current password and the new one. You can optionally use an empty string to remove the password. If the keystore is not password protected, you can use this command to set a password.
+:   Changes or sets the keystore password. If the keystore is password protected, you are prompted to enter the current password and the new one. You can optionally use an empty string to remove the password and store the settings without encryption. If the keystore is not password protected, you can use this command to set a password.
 
 `remove <settings>`
 :   Removes settings from the keystore. Multiple setting names can be specified as arguments to the `remove` command.
@@ -237,4 +239,8 @@ Occasionally, the internal format of the keystore changes. When {{es}} is instal
 ```sh
 bin/elasticsearch-keystore upgrade
 ```
+
+Upgrading an older keystore without a password removes its obfuscation and stores the settings without encryption. Set a password before upgrading if you want to encrypt the settings at rest.
+
+Older keystores without a password must be upgraded or given a password using a JVM that is not in FIPS mode before they can be read in FIPS mode.
 

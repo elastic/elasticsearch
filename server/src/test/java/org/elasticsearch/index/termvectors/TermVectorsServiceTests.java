@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.termvectors;
 
-import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -36,7 +35,6 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 public class TermVectorsServiceTests extends ESSingleNodeTestCase {
 

@@ -301,7 +301,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     DocValuesParameter.Values.Cardinality.HIGH
                 ),
                 m -> toType(m).docValuesParameters(),
-                indexSettings.getMode().isStrictColumnar()
+                indexSettings
             );
 
             this.dimension = TimeSeriesParams.dimensionParam(
@@ -490,6 +490,9 @@ public final class KeywordFieldMapper extends FieldMapper {
             return new Parameter<?>[] {
                 indexed,
                 docValuesParameters,
+                docValuesParameters.multiValue(),
+                docValuesParameters.nullability(),
+                docValuesParameters.onFailure(),
                 stored,
                 nullValue,
                 eagerGlobalOrdinals,

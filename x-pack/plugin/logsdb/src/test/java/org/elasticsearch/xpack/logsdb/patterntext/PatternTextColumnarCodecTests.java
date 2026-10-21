@@ -11,7 +11,6 @@ import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseSettings;
@@ -41,15 +40,10 @@ public class PatternTextColumnarCodecTests extends ESSingleNodeTestCase {
     }
 
     private static Settings columnarSettings(final IndexMode mode) {
-        return Settings.builder()
-            .put(IndexSettings.MODE.getKey(), mode)
-            .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), true)
-            .build();
+        return Settings.builder().put(IndexSettings.MODE.getKey(), mode).build();
     }
 
     public void testPatternTextFieldFlushes() {
-        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
-
         final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
         createIndex(INDEX, columnarSettings(mode), "@timestamp", "type=date", "msg", "type=pattern_text");
         prepareIndex(INDEX).setSource("@timestamp", "2024-01-01T00:00:00Z", "msg", "Error 123 at line 456").get();

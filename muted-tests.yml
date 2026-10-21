@@ -148,9 +148,6 @@ tests:
 - class: org.elasticsearch.upgrades.MlMappingsUpgradeIT
   method: testMappingsUpgrade {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/159043
-- class: org.elasticsearch.integration.FieldLevelSecurityTests
-  method: testPercolatorConstantKeywordQueryDependsOnIndexingUsersFls
-  issue: https://github.com/elastic/elasticsearch/issues/161396
 - class: org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoaderTests
   method: testObjectAndDottedNameInParentKeptInIgnoredSource
   issue: https://github.com/elastic/elasticsearch/issues/161649
@@ -164,9 +161,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/162106
 - class: org.elasticsearch.upgrades.UpgradeXpackClusterClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/162100
-- class: org.elasticsearch.xpack.esql.action.LookupJoinTypesIT
-  method: testLookupJoinUnsupported
-  issue: https://github.com/elastic/elasticsearch/issues/162403
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/delete_expired_data/Test delete expired data with no body}
   issue: https://github.com/elastic/elasticsearch/issues/162417

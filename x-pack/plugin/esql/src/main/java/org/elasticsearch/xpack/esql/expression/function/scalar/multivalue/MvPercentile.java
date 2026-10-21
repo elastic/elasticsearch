@@ -484,8 +484,14 @@ public class MvPercentile extends EsqlScalarFunction implements AnyNullIsNull {
      *         {@code 0.01 * (-100) + 0.99 * (-1) = -1.00 + (-0.99) = -1.99} (correct).
      *     </li>
      * </ul>
+     * <p>
+     *     The result is clamped to {@code [lower, upper]}: the two roundings in the formula can land
+     *     one ulp outside that range when the values are equal or very close, which would make
+     *     e.g. {@code MV_PERCENTILE([5.5, 5.5], 8)} return {@code 5.500000000000001}.
+     * </p>
      */
     private static double calculateDoublePercentile(double fraction, double lowerValue, double upperValue) {
-        return (1 - fraction) * lowerValue + fraction * upperValue;
+        var result = (1 - fraction) * lowerValue + fraction * upperValue;
+        return Math.max(lowerValue, Math.min(upperValue, result));
     }
 }

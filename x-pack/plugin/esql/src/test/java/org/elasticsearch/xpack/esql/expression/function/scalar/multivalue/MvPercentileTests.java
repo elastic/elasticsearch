@@ -161,6 +161,48 @@ public class MvPercentileTests extends AbstractScalarFunctionTestCase {
                             makePercentileMatcher(field, 58)
                         );
                     }),
+                    new TestCaseSupplier(
+                        "equal values double",
+                        List.of(DOUBLE, percentileType),
+                        () -> new TestCaseSupplier.TestCase(
+                            // (1 - 0.08) * 5.5 + 0.08 * 5.5 rounds to 5.500000000000001; the result must be exactly 5.5
+                            List.of(
+                                new TestCaseSupplier.TypedData(List.of(5.5, 5.5), DOUBLE, "field"),
+                                percentileWithType(8, percentileType)
+                            ),
+                            evaluatorString(DOUBLE, percentileType),
+                            DOUBLE,
+                            equalTo(5.5)
+                        )
+                    ),
+                    new TestCaseSupplier(
+                        "equal values double with an outlier",
+                        List.of(DOUBLE, percentileType),
+                        () -> new TestCaseSupplier.TestCase(
+                            // percentile 20 of 3 values interpolates between sorted[0] and sorted[1], both 0.1
+                            List.of(
+                                new TestCaseSupplier.TypedData(List.of(0.1, 10., 0.1), DOUBLE, "field"),
+                                percentileWithType(20, percentileType)
+                            ),
+                            evaluatorString(DOUBLE, percentileType),
+                            DOUBLE,
+                            equalTo(0.1)
+                        )
+                    ),
+                    new TestCaseSupplier("adjacent values double", List.of(DOUBLE, percentileType), () -> {
+                        // Values one ulp apart: the interpolation rounding could land outside [lower, upper]
+                        double lower = -2.9154525951404085E-21;
+                        double upper = Math.nextUp(lower);
+                        return new TestCaseSupplier.TestCase(
+                            List.of(
+                                new TestCaseSupplier.TypedData(List.of(lower, upper), DOUBLE, "field"),
+                                percentileWithType(20, percentileType)
+                            ),
+                            evaluatorString(DOUBLE, percentileType),
+                            DOUBLE,
+                            anyOf(equalTo(lower), equalTo(upper))
+                        );
+                    }),
 
                     // Int
                     new TestCaseSupplier(

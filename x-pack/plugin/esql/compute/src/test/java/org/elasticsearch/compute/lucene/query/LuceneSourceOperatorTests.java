@@ -648,12 +648,6 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
     }
 
     /**
-     * Runs the operator against a query whose {@link BulkScorer} delivers every scored window through
-     * {@link LeafCollector#collectRange}, the way Lucene's {@code DenseConjunctionBulkScorer} does for dense doc-id runs.
-     * Covers the counted-loop override in {@code LimitingCollector} and the per-document one in {@code ScoringCollector}
-     * (via the {@code scoring} parameter), including the limit cutting a range short.
-     */
-    /**
      * One weight serves every leaf of a shard, so the operator renders its query for the status once, however many leaves it reads.
      */
     public void testRendersTheQueryOnce() throws IOException {
@@ -695,6 +689,12 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
         assertThat(query.renders.get(), equalTo(1));
     }
 
+    /**
+     * Runs the operator against a query whose {@link BulkScorer} delivers every scored window through
+     * {@link LeafCollector#collectRange}, the way Lucene's {@code DenseConjunctionBulkScorer} does for dense doc-id runs.
+     * Covers the counted-loop override in {@code LimitingCollector} and the per-document one in {@code ScoringCollector}
+     * (via the {@code scoring} parameter), including the limit cutting a range short.
+     */
     public void testCollectRange() throws IOException {
         testBulkCollection(false);
     }

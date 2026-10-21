@@ -771,7 +771,7 @@ public class Verifier {
     }
 
     // Temporary: resolveMergePlan casts, by id, a loader it injects below a branch's FILLNULL; ON * would re-alias the loader and orphan
-    // the cast.
+    // the cast. See https://github.com/elastic/elasticsearch/issues/162866
     private static void checkLoadAllFillNullAllColumnsInSubqueries(LogicalPlan plan, Failures failures) {
         ViewUtils.forEachOutsideViews(plan, p -> {
             if (p instanceof UnionAll union) {

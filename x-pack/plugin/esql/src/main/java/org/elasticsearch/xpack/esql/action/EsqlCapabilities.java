@@ -1706,6 +1706,18 @@ public class EsqlCapabilities {
          */
         SET_IN_VIEW_DEFINITIONS,
         /**
+         * A warning when an outer reference is null at a view's output because the loading {@code unmapped_fields}
+         * mode of the caller, or of an enclosing view's definition, does not reach inside the view, but would have
+         * loaded it there.
+         */
+        WARN_UNMAPPED_FIELDS_STOPPED_AT_VIEW,
+        /**
+         * A warning when {@code wildcards_match_views=true} or {@code wildcards_match_datasets=true}, set by the caller
+         * or by an enclosing view's definition, does not reach inside a view whose wildcards would have matched more
+         * views or datasets with it.
+         */
+        WARN_WILDCARDS_STOPPED_AT_VIEW,
+        /**
          * Fixed a bug where views are incorrectly de-duplicated.
          */
         VIEWS_DEDUPLICATION_BUGFIX,
@@ -3706,6 +3718,12 @@ public class EsqlCapabilities {
          * {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available. See https://github.com/elastic/elasticsearch/issues/157189.
          */
         OPTIONAL_FIELDS_LOAD_ALL_CHANGE_POINT,
+
+        /**
+         * Support for {@code IP_LOCATION}, {@code REGISTERED_DOMAIN}, {@code URI_PARTS}, {@code USER_AGENT}, {@code LIMIT BY} and
+         * {@code DEDUP} under {@code unmapped_fields="LOAD_ALL"}. See https://github.com/elastic/elasticsearch/issues/157189.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_COMPOUND_OUTPUT_LIMIT_BY_DEDUP,
 
         /**
          * Under {@code unmapped_fields="LOAD_ALL"}, a {@code _source} value that says nothing about its field - {@code null},

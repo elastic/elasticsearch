@@ -1089,20 +1089,17 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
 
     public void testDocumentExtractionInfer_SendsDocumentExtractionRequest_WithStoredTaskSettings() throws IOException {
         assertDocumentExtractionInferSendsRequest(
-            new ElasticInferenceServiceDocumentExtractionTaskSettings(
-                "markdown",
-                new ElasticInferenceServiceDocumentExtractionTaskSettings.CssSettings(List.of(".main-content"), null)
-            ),
+            new ElasticInferenceServiceDocumentExtractionTaskSettings("markdown", Map.of("preset", "ocr", "page", 2)),
             Map.of(),
-            Map.of("output_format", "markdown", "css", Map.of("extract_only", List.of(".main-content")))
+            Map.of("output_format", "markdown", "parameters", Map.of("preset", "ocr", "page", 2))
         );
     }
 
     public void testDocumentExtractionInfer_SendsDocumentExtractionRequest_WithRequestTaskSettings() throws IOException {
         assertDocumentExtractionInferSendsRequest(
             ElasticInferenceServiceDocumentExtractionTaskSettings.EMPTY_SETTINGS,
-            Map.of("output_format", "text", "css", Map.of("extract_only", List.of("#post-body"), "remove", List.of("nav"))),
-            Map.of("output_format", "text", "css", Map.of("extract_only", List.of("#post-body"), "remove", List.of("nav")))
+            Map.of("output_format", "text", "parameters", Map.of("preset", "pdf", "page", 2, "retain_images", "none")),
+            Map.of("output_format", "text", "parameters", Map.of("preset", "pdf", "page", 2, "retain_images", "none"))
         );
     }
 
@@ -1111,11 +1108,47 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
         assertDocumentExtractionInferSendsRequest(
             new ElasticInferenceServiceDocumentExtractionTaskSettings(
                 "markdown",
-                new ElasticInferenceServiceDocumentExtractionTaskSettings.CssSettings(List.of(".main-content"), List.of("nav"))
+                Map.of("preset", "pdf", "page", 1, "retain_images", "none")
             ),
-            Map.of("output_format", "text", "css", Map.of("extract_only", List.of("#post-body"))),
-            // output_format and css.extract_only come from the request, css.remove is kept from the stored settings
-            Map.of("output_format", "text", "css", Map.of("extract_only", List.of("#post-body"), "remove", List.of("nav")))
+            Map.of("parameters", Map.of("preset", "ocr", "page", 3)),
+            // the preset and page parameters come from the request, output_format and the other parameters are kept from the stored
+            // settings
+            Map.of("output_format", "markdown", "parameters", Map.of("preset", "ocr", "page", 3, "retain_images", "none"))
+        );
+    }
+
+    /**
+     * The parameters are made-up values only demonstrating the pass-through; they are not valid Jina Reader parameters.
+     * <p>
+     * Parameters are passed through to the Elastic Inference Service as they are, including embedded objects, arrays and arrays of
+     * objects. Stored and request parameters are merged per top-level parameter, so an object in the request replaces the stored one.
+     */
+    public void testDocumentExtractionInfer_SendsEmbeddedParameterObjects() throws IOException {
+        assertDocumentExtractionInferSendsRequest(
+            new ElasticInferenceServiceDocumentExtractionTaskSettings(
+                null,
+                Map.of("ocr", Map.of("preferEndToEnd", true, "inlineFormula", true), "targetSelector", List.of("main", "article"))
+            ),
+            Map.of(
+                "parameters",
+                Map.of(
+                    "ocr",
+                    Map.of("preferEndToEnd", false),
+                    "layout",
+                    Map.of("regions", List.of(Map.of("name", "header", "order", 1), Map.of("name", "body", "order", 2)))
+                )
+            ),
+            Map.of(
+                "parameters",
+                Map.of(
+                    "ocr",
+                    Map.of("preferEndToEnd", false),
+                    "targetSelector",
+                    List.of("main", "article"),
+                    "layout",
+                    Map.of("regions", List.of(Map.of("name", "header", "order", 1), Map.of("name", "body", "order", 2)))
+                )
+            )
         );
     }
 

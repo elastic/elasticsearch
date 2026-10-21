@@ -39,7 +39,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
-import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -691,7 +690,6 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
      * timestamp, whatever framing the hostname was written with.
      */
     public void testMatchTailWithMultipleSingleValuedColumnarHostnames() throws Exception {
-        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
         assumeTrue("only meaningful in logsdb_columnar, which this test always uses", "logsdb_columnar".equals(indexMode));
         final String dataStreamName = "test-logsdb-match-tail-with-multiple-single-valued-columnar-hostnames";
 
@@ -704,7 +702,7 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
                   },
                   "host.name": {
                     "type": "keyword",
-                    "doc_values": { "multi_value": false }
+                    "multi_value": false
                   },
                   "test_id": {
                     "type": "text"

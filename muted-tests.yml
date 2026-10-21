@@ -400,8 +400,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessCommitNotificationsIT
   method: testVbccRemainsServableUntilSearchTierNotificationCompletes
   issue: https://github.com/elastic/elasticsearch/issues/161667
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/161781
 - class: org.elasticsearch.xpack.stateless.StatelessResizeIT
   method: testSplitAfterResharding
   issue: https://github.com/elastic/elasticsearch/issues/161783

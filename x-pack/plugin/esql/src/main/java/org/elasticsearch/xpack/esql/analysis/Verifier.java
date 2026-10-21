@@ -52,6 +52,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Not
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
+import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
+import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -714,22 +716,23 @@ public class Verifier {
     private static void checkLoadAllModeSupportedCommands(LogicalPlan plan, Failures failures) {
         plan.forEachDown(p -> {
             if (supportedInLoadAllMode(p) == false) {
-                failures.add(
-                    fail(
-                        p,
-                        "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, "
-                            + (EsqlCapabilities.Cap.FILLNULL.isEnabled() ? "FILLNULL, " : "")
-                            + "GROK, DISSECT, MV_EXPAND, SAMPLE, CHANGE_POINT, WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, "
-                            + "ENRICH, FORK and subquery commands; [{}] is not supported yet",
-                        p instanceof EsRelation esr && esr.indexMode().isTsdb() ? "TS"
-                            : p instanceof BranchPlan ? "BranchPlan"
-                            : p instanceof NamedSubquery ? "NamedSubquery"
-                            : p instanceof TelemetryAware ta ? ta.telemetryLabel()
-                            : p.nodeName()
-                    )
-                );
+                String command = p instanceof EsRelation esr && esr.indexMode().isTsdb() ? "TS"
+                    : p instanceof BranchPlan ? "BranchPlan"
+                    : p instanceof NamedSubquery ? "NamedSubquery"
+                    : p instanceof TelemetryAware ta ? ta.telemetryLabel()
+                    : p.nodeName();
+                failures.add(fail(p, loadAllUnsupportedCommandMessage(command)));
             }
         });
+    }
+
+    static String loadAllUnsupportedCommandMessage(String command) {
+        return "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, IP_LOCATION, "
+            + (EsqlCapabilities.Cap.FILLNULL.isEnabled() ? "FILLNULL, " : "")
+            + "REGISTERED_DOMAIN, URI_PARTS, USER_AGENT, MV_EXPAND, SAMPLE, CHANGE_POINT, DEDUP, WHERE, SORT, LIMIT, "
+            + "LIMIT BY, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; ["
+            + command
+            + "] is not supported yet";
     }
 
     private static boolean supportedInLoadAllMode(LogicalPlan plan) {
@@ -745,6 +748,9 @@ public class Verifier {
             || plan instanceof MvExpand
             || plan instanceof Sample
             || plan instanceof ChangePoint
+            || plan instanceof CompoundOutputEval
+            || plan instanceof LimitBy
+            || plan instanceof Dedup
             || plan instanceof Filter
             || plan instanceof OrderBy
             || plan instanceof Limit

@@ -307,6 +307,40 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         assertTrue(cancellation.cancelIfStarted());
     }
 
+    public void testDirectCancellationCandidatesEscalateSearchRelocationTargetWhenSourceIsRelocating() {
+        final var indexMetadata = IndexMetadata.builder(randomIndexName()).settings(indexSettings(IndexVersion.current(), 1, 1)).build();
+        final var index = indexMetadata.getIndex();
+        final var shardId = new ShardId(index, 0);
+
+        // The relocating source is still searchable, so cancelling the relocation target after it started is safe.
+        final var relocatingSource = TestShardRouting.shardRoutingBuilder(shardId, "node-2", false, ShardRoutingState.RELOCATING)
+            .withRelocatingNodeId("node-1")
+            .withRole(ShardRouting.Role.SEARCH_ONLY)
+            .build();
+        final var relocationTarget = relocatingSource.getTargetRelocatingShard();
+
+        final var indexRoutingTable = RoutingTable.builder()
+            .add(IndexRoutingTable.builder(index).addShard(newShardRouting(shardId, "node-0", true, STARTED)).addShard(relocatingSource));
+        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(discoveryNodes(3))
+            .metadata(Metadata.builder().put(indexMetadata, true))
+            .routingTable(indexRoutingTable)
+            .build();
+
+        final var balance = new DesiredBalance(1, Map.of(shardId, new ShardAssignment(Set.of("node-0", "node-2"), 2, 0, 0)));
+        final var forbidRemain = forbidRemainDecider(shardId, "node-1", false);
+
+        final var allocation = createRoutingAllocationFrom(clusterState, forbidRemain);
+        final var requests = RecoveryDirectCancellationService.computeUndesiredRecoveryCancellations(balance, allocation);
+
+        final var request = requests.get(clusterState.nodes().get("node-1"));
+        assertNotNull(request);
+        assertThat(request.cancellations(), hasSize(1));
+        final var cancellation = request.cancellations().getFirst();
+        assertThat(cancellation.allocationId(), equalTo(relocationTarget.allocationId().getId()));
+        assertTrue(cancellation.cancelIfStarted());
+    }
+
     @TestLogging(
         reason = "asserting direct cancellation logs",
         value = "org.elasticsearch.cluster.routing.allocation.RecoveryDirectCancellationService:DEBUG"

@@ -276,7 +276,7 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
         }
         return routingNodes.assignedShards(shardRouting.shardId())
             .stream()
-            .filter(ShardRouting::started)
+            .filter(ShardRouting::active)
             .anyMatch(s -> s.role().equals(ShardRouting.Role.SEARCH_ONLY));
     }
 

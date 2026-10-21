@@ -315,10 +315,12 @@ public class AzureBlobContainerAccessTierTests extends ESTestCase {
 
     public void testDataAccessTierSentOnCopyBlob() throws IOException {
         String dataAccessTier = getRandomAllowedAccessTierString();
-        final AzureBlobContainer container = buildContainer(dataAccessTier, null);
+        final AzureBlobContainer container = buildContainer(dataAccessTier, null, randomBoolean());
         final String sourceBlobName = randomIdentifier();
         final String destBlobName = randomIdentifier();
-        final byte[] data = randomByteArrayOfLength(128);
+        // Either small enough for a single Copy Blob request or just over the threshold for a copy in parts, with a SAS token
+        final int blobSize = randomBoolean() ? 128 : Math.toIntExact(container.getBlobStore().maxCopySizeBeforeMultipart() + 1);
+        final byte[] data = randomByteArrayOfLength(blobSize);
 
         // Write source blob with a non-snapshot purpose so it has no access tier
         container.getBlobStore()
@@ -326,17 +328,26 @@ public class AzureBlobContainerAccessTierTests extends ESTestCase {
         assertNull(azureHttpHandler.getMockBlobStore().getBlob(sourceBlobName, null).accessTier());
 
         // Copy with snapshot data purpose — the destination should receive the configured data access tier
-        container.copyBlob(OperationPurpose.SNAPSHOT_DATA, container, sourceBlobName, destBlobName, data.length, null);
+        container.copyBlob(
+            OperationPurpose.SNAPSHOT_DATA,
+            container,
+            sourceBlobName,
+            destBlobName,
+            data.length,
+            randomBoolean() ? null : Runnable::run
+        );
 
         asserAccessTier(dataAccessTier, destBlobName);
     }
 
     public void testMetadataAccessTierSentOnCopyBlob() throws IOException {
         String metadataAccessTier = getRandomAllowedAccessTierString();
-        final AzureBlobContainer container = buildContainer(null, metadataAccessTier);
+        final AzureBlobContainer container = buildContainer(null, metadataAccessTier, randomBoolean());
         final String sourceBlobName = randomIdentifier();
         final String destBlobName = randomIdentifier();
-        final byte[] data = randomByteArrayOfLength(128);
+        // Either small enough for a single Copy Blob request or just over the threshold for a copy in parts, with a SAS token
+        final int blobSize = randomBoolean() ? 128 : Math.toIntExact(container.getBlobStore().maxCopySizeBeforeMultipart() + 1);
+        final byte[] data = randomByteArrayOfLength(blobSize);
 
         // Write source blob with a non-snapshot purpose so it has no access tier
         container.getBlobStore()
@@ -344,26 +355,15 @@ public class AzureBlobContainerAccessTierTests extends ESTestCase {
         assertNull(azureHttpHandler.getMockBlobStore().getBlob(sourceBlobName, null).accessTier());
 
         // Copy with snapshot metadata purpose — the destination should receive the configured metadata access tier
-        container.copyBlob(OperationPurpose.SNAPSHOT_METADATA, container, sourceBlobName, destBlobName, data.length, null);
+        container.copyBlob(
+            OperationPurpose.SNAPSHOT_METADATA,
+            container,
+            sourceBlobName,
+            destBlobName,
+            data.length,
+            randomBoolean() ? null : Runnable::run
+        );
 
         asserAccessTier(metadataAccessTier, destBlobName);
-    }
-
-    public void testDataAccessTierSentOnConcurrentMultipartCopyBlob() throws IOException {
-        String dataAccessTier = getRandomAllowedAccessTierString();
-        final AzureBlobContainer container = buildContainer(dataAccessTier, null, true);
-        final String sourceBlobName = randomIdentifier();
-        final String destBlobName = randomIdentifier();
-        // Larger than the multipart copy threshold so copyBlob takes the Put Block From URL path
-        final int blobSize = (int) (container.getBlobStore().maxCopySizeBeforeMultipart() + 1);
-        final byte[] data = randomByteArrayOfLength(blobSize);
-
-        container.getBlobStore()
-            .writeBlob(OperationPurpose.CLUSTER_STATE, sourceBlobName, BytesReference.fromByteBuffer(ByteBuffer.wrap(data)), false);
-        assertNull(azureHttpHandler.getMockBlobStore().getBlob(sourceBlobName, null).accessTier());
-
-        container.copyBlob(OperationPurpose.SNAPSHOT_DATA, container, sourceBlobName, destBlobName, data.length, Runnable::run);
-
-        asserAccessTier(dataAccessTier, destBlobName);
     }
 }

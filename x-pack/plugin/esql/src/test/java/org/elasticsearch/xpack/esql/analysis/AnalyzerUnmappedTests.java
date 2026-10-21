@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
+import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
@@ -59,6 +60,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -1626,19 +1628,36 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         );
     }
 
+    private static final String LOAD_ALL_SUPPORTED_COMMANDS =
+        "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, IP_LOCATION, "
+            + "REGISTERED_DOMAIN, URI_PARTS, USER_AGENT, MV_EXPAND, SAMPLE, CHANGE_POINT, DEDUP, WHERE, SORT, LIMIT, "
+            + "LIMIT BY, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; ";
+
     /**
      * The MVP allow-list of {@link Verifier#checkLoadAllModeSupportedCommands} rejects commands not yet supported, naming the one it found.
      */
     public void testLoadAllModeRejectsUnsupportedCommands() {
-        for (var commandAndLabel : List.of(Tuple.tuple("| CHANGE_POINT salary ON emp_no", "ChangePoint"))) {
+        for (var commandAndLabel : List.of(
+            Tuple.tuple("| RERANK \"food\" ON first_name WITH { \"inference_id\" : \"reranking-inference-id\" }", "RERANK")
+        )) {
+            test().addAnalysisTestsInferenceResolution()
+                .statementError(
+                    setUnmappedLoadAll("FROM test METADATA _score " + commandAndLabel.v1()),
+                    containsString(LOAD_ALL_SUPPORTED_COMMANDS + "[" + commandAndLabel.v2() + "] is not supported yet")
+                );
+        }
+    }
+
+    public void testLoadAllModeRejectsFillNull() {
+        assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        for (String fillNull : List.of(
+            "| FILLNULL \"x\" ON first_name",
+            "| FILLNULL DEFAULT ON *",
+            "| KEEP emp_no, f* | FILLNULL 0 ON *"
+        )) {
             test().statementError(
-                setUnmappedLoadAll("FROM test " + commandAndLabel.v1()),
-                containsString(
-                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, MV_EXPAND, "
-                        + "SAMPLE, WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; ["
-                        + commandAndLabel.v2()
-                        + "] is not supported yet"
-                )
+                setUnmappedLoadAll("FROM test " + fillNull),
+                containsString(LOAD_ALL_SUPPORTED_COMMANDS + "[FILLNULL] is not supported yet")
             );
         }
     }
@@ -1792,6 +1811,46 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     /**
+     * One warning per view boundary, in the order the fills were recorded, each naming a bounded list of fields.
+     */
+    public void testViewBoundaryNullFillWarnings() {
+        var v1 = new AnalyzerContext.ViewBoundary(UnmappedResolution.LOAD, null, "v1", null, false);
+        var v2 = new AnalyzerContext.ViewBoundary(UnmappedResolution.LOAD, "outer", "v2", "v3", false);
+        Set<AnalyzerContext.ViewBoundaryNullFill> fills = new LinkedHashSet<>();
+        fills.add(new AnalyzerContext.ViewBoundaryNullFill(v1, "a"));
+        fills.add(new AnalyzerContext.ViewBoundaryNullFill(v2, "c"));
+        fills.add(new AnalyzerContext.ViewBoundaryNullFill(v1, "b"));
+        String suffix =
+            " null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself";
+        assertThat(
+            Analyzer.viewBoundaryNullFillWarnings(fills),
+            equalTo(
+                List.of(
+                    "SET unmapped_fields=\"load\" does not affect the contents of view [v1], so fields [a], [b] are" + suffix,
+                    "SET unmapped_fields=\"load\" in view [outer] does not affect the contents of view [v2] nested in view [v3], "
+                        + "so field [c] is"
+                        + suffix
+                )
+            )
+        );
+
+        List<String> names = new ArrayList<>();
+        int extra = randomIntBetween(1, 100);
+        for (int i = 0; i < ViewQuerySettings.MAX_LISTED_NAMES_IN_VIEW_WARNINGS + extra; i++) {
+            names.add("f" + i);
+        }
+        assertThat(
+            Analyzer.viewBoundaryNullFillWarning(
+                new AnalyzerContext.ViewBoundary(UnmappedResolution.LOAD_ALL, null, "v", null, false),
+                names
+            ),
+            containsString(
+                "[f" + (ViewQuerySettings.MAX_LISTED_NAMES_IN_VIEW_WARNINGS - 1) + "] and [" + extra + "] more are null in its rows"
+            )
+        );
+    }
+
+    /**
      * The warning names at most 20 fields. Any further fields, however long their names, only increment the {@code [M] more} count.
      */
     public void testNonLoadablePunksWarningListsAtMost20Fields() {
@@ -1918,20 +1977,12 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
             .statementError(
                 setUnmappedLoadAll("TS test | STATS MAX(RATE(network.bytes_in)) BY host"),
-                containsString(
-                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, MV_EXPAND, "
-                        + "SAMPLE, WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; "
-                        + "[TS] is not supported yet"
-                )
+                containsString(LOAD_ALL_SUPPORTED_COMMANDS + "[TS] is not supported yet")
             );
         test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
             .statementError(
                 setUnmappedLoadAll("TS test | SORT @timestamp | LIMIT 10"),
-                containsString(
-                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, MV_EXPAND, "
-                        + "SAMPLE, WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; "
-                        + "[TS] is not supported yet"
-                )
+                containsString(LOAD_ALL_SUPPORTED_COMMANDS + "[TS] is not supported yet")
             );
     }
 

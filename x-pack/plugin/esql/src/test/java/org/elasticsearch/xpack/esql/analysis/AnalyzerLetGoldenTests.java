@@ -159,4 +159,55 @@ public class AnalyzerLetGoldenTests extends GoldenTestCase {
             () -> LetResolver.resolve(statement.plan(), statement.letBindings(), ViewResolver.DEFAULT_MAX_PLAN_NODES_COUNT)
         );
     }
+
+    // -- FORK after a LET whose body already contains a FORK is a different merge segment --
+
+    public void testForkAfterLetBindingWithFork() {
+        requireLetSupport();
+        runGoldenTest("""
+            LET a = (FROM employees | WHERE emp_no >= 10091 AND emp_no < 10093 | FORK (WHERE emp_no == 10091) (WHERE emp_no == 10092));
+            FROM a
+            | FORK (WHERE emp_no > 10091) (WHERE emp_no <= 10091)
+            | KEEP _fork, emp_no
+            | SORT _fork, emp_no
+            """, STAGES);
+    }
+
+    public void testConsecutiveForksInsideLetBodyStillRejected() {
+        requireLetSupport();
+        var query = """
+            LET a = (
+                FROM employees
+                | FORK (WHERE emp_no > 10) (WHERE emp_no <= 10)
+                | FORK (WHERE salary > 100) (WHERE salary <= 100)
+            );
+            FROM a
+            """;
+        var statement = EsqlTestUtils.TEST_PARSER.createStatement(query);
+        var planAfterLet = LetResolver.resolve(statement.plan(), statement.letBindings(), ViewResolver.DEFAULT_MAX_PLAN_NODES_COUNT);
+        var esqlAnalyzer = EsqlTestUtils.analyzer().addEmployees().buildAnalyzer();
+        expectThrows(
+            VerificationException.class,
+            containsString("Only a single FORK command is supported, but found multiple"),
+            () -> esqlAnalyzer.analyze(planAfterLet)
+        );
+    }
+
+    public void testConsecutiveForksAfterNonForkLetStillRejected() {
+        requireLetSupport();
+        var query = """
+            LET a = (FROM employees);
+            FROM a
+            | FORK (WHERE emp_no > 10) (WHERE emp_no <= 10)
+            | FORK (WHERE salary > 100) (WHERE salary <= 100)
+            """;
+        var statement = EsqlTestUtils.TEST_PARSER.createStatement(query);
+        var planAfterLet = LetResolver.resolve(statement.plan(), statement.letBindings(), ViewResolver.DEFAULT_MAX_PLAN_NODES_COUNT);
+        var esqlAnalyzer = EsqlTestUtils.analyzer().addEmployees().buildAnalyzer();
+        expectThrows(
+            VerificationException.class,
+            containsString("Only a single FORK command is supported, but found multiple"),
+            () -> esqlAnalyzer.analyze(planAfterLet)
+        );
+    }
 }

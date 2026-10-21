@@ -280,7 +280,16 @@ This setting can be changed at any time without reindexing the data.
 stack: ga 9.5
 ```
 
-When `auto_calibrate: true` is set in `index_options` for a `bbq_disk` field, {{es}} automatically determines the best quantization encoding, oversampling (rerank depth), and preconditioning for each merged segment. Rather than applying the same fixed encoding to every segment, auto-calibration runs a recall-estimation pipeline on a representative sample of the merged corpus and selects the cheapest configuration that meets a 90% recall target at k=10.
+When auto-calibration is enabled for a `bbq_disk` field, {{es}} automatically determines the best quantization encoding, oversampling (rerank depth), and preconditioning for each merged segment.
+Rather than applying the same fixed encoding to every segment, auto-calibration runs a recall-estimation pipeline on a representative sample of the merged corpus and selects the cheapest configuration that meets a 90% recall target at k=10.
+
+You control auto-calibration with the `auto_calibrate` parameter in `index_options`:
+
+- {applies_to}`stack: ga 9.6+` Auto-calibration is enabled by default, using the `iso_sizing` profile, for `bbq_disk` fields in indices created in 9.6 or later.
+  To opt out, set `auto_calibrate` to `false`.
+  Indices created before 9.6 keep the previous default, which is disabled.
+- {applies_to}`stack: ga =9.5` Auto-calibration is disabled by default.
+  Set `auto_calibrate` to `true` to enable it.
 
 ### How it works
 
@@ -293,6 +302,44 @@ The sweep covers:
 - Preconditioned and non-preconditioned variants of each
 
 If calibration fails for any reason, {{es}} falls back to the codec default encoding for that segment.
+
+:::{note}
+{applies_to}`stack: ga 9.6+` The encodings that are actually considered depend on the [auto-calibration profile](#bbq-auto-calibration-profiles).
+:::
+
+### Auto-calibration profiles [bbq-auto-calibration-profiles]
+
+```{applies_to}
+stack: ga 9.6
+```
+
+A profile limits which candidate configurations the calibration sweep can choose from.
+Set the profile with the `auto_calibrate` parameter:
+
+`iso_sizing`
+:   Only considers encodings that use 1 bit per document dimension (1/1 and 1/4 doc/query bits).
+    The index stays the same size as an uncalibrated `bbq_disk` index, while calibration still tunes the query bits, rerank depth, and preconditioning.
+    This is the default profile.
+
+`quality`
+:   Considers all encodings.
+    Calibration can select more bits per document dimension, which can improve recall at the cost of additional disk space and memory usage.
+
+`disabled`
+:   Turns auto-calibration off.
+    Equivalent to `false`.
+
+Boolean values are also accepted.
+`false` is the same as `disabled`.
+`true` selects the default profile for the index, which is:
+
+- `iso_sizing` for indices created in 9.6 or later
+- `quality` otherwise
+
+:::{note}
+You can change the profile on an existing field.
+Refer to [Changing `auto_calibrate` on an existing field](#bbq-auto-calibration-update).
+:::
 
 ### Segments below the calibration threshold
 
@@ -315,12 +362,23 @@ Segments containing fewer than 10,000 vectors after merging are not calibrated. 
 stack: ga 9.6
 ```
 
-You can turn auto-calibration on or off on an existing `bbq_disk` field with the [update mapping API]({{es-apis}}operation/operation-indices-put-mapping). Existing segments are not rewritten, so the new value applies from the next merge:
+You can turn auto-calibration on or off, or switch to a different [profile](#bbq-auto-calibration-profiles), on an existing `bbq_disk` field with the [update mapping API]({{es-apis}}operation/operation-indices-put-mapping).
+Existing segments are not rewritten, so the new value applies from the next merge:
 
-- If you turn it on, later merges that produce at least 10,000 vectors are calibrated. Segments written before the change are calibrated when they are merged.
-- If you turn it off, later merges use the codec default encoding. When you search, segments are scored using the `bits` and `rescore_vector.oversample` values from the mapping instead of their calibrated values. Preconditioning is the exception. It is a property of how each segment was written, so a segment that was preconditioned during calibration continues to be searched that way.
+- If you turn it on, for example by changing `false` or `disabled` to `true`, `iso_sizing`, or `quality`, later merges that produce at least 10,000 vectors are calibrated.
+  Segments written before the change are calibrated when they are merged.
+- If you turn it off, later merges use the codec default encoding.
+  When you search, segments are scored using the `bits` and `rescore_vector.oversample` values from the mapping instead of their calibrated values.
+  Preconditioning is the exception. // TODO: Is it true that `bits` drives query bits?
+  It is a property of how each segment was written, so a segment that was preconditioned during calibration continues to be searched that way.
+- If you switch profiles, for example from `iso_sizing` to `quality`, later calibrated merges choose from the new profile's candidate configurations.
+  Segments that were already calibrated keep their stored encoding, oversampling, and preconditioning, and are searched with those values until they are merged again.
+  The index can contain segments calibrated under different profiles.
+  Switching to `quality` can increase disk and memory usage as segments are merged.
 
 ### Example
+
+To explicitly disable auto-calibration:
 
 ```console
 PUT my-auto-calibrated-index
@@ -333,7 +391,29 @@ PUT my-auto-calibrated-index
         "index": true,
         "index_options": {
           "type": "bbq_disk",
-          "auto_calibrate": true
+          "auto_calibrate": false
+        }
+      }
+    }
+  }
+}
+```
+
+To explicitly use the `quality` profile
+// TODO: Tag as 9.6+ only
+
+```console
+PUT my-quality-calibrated-index
+{
+  "mappings": {
+    "properties": {
+      "my_vector": {
+        "type": "dense_vector",
+        "dims": 1024,
+        "index": true,
+        "index_options": {
+          "type": "bbq_disk",
+          "auto_calibrate": "quality"
         }
       }
     }

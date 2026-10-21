@@ -235,9 +235,7 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
 
         final var indexNode = startIndexNode();
         final var sourceNode = startSearchNode();
-        final var targetNode = startSearchNode(
-            incomingDataNodeThrottlingSettings(maxConcurrentRecoveries, relocationPercent, randomBoolean())
-        );
+        final var targetNode = startSearchNode(incomingDataNodeThrottlingSettings(maxConcurrentRecoveries, relocationPercent, true));
 
         final var indexName = randomIndexName();
         createIndex(

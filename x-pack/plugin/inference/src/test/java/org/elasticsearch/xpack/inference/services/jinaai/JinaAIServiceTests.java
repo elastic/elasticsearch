@@ -1730,14 +1730,18 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
         testEmbeddingInfer_ReturnsError_MoreThanOneInputIncludingPdf(
             List.of(
                 new InferenceStringGroup(new InferenceString(PDF, BASE64, TEST_DATA_URI)),
-                new InferenceStringGroup(InferenceStringTests.createRandom())
+                new InferenceStringGroup(InferenceStringTests.createRandomEmbeddingInput())
             )
         );
     }
 
     public void testEmbeddingInfer_ReturnsError_MoreThanOneInputIncludingPdf_MultipleInputsInGroup() throws IOException {
         testEmbeddingInfer_ReturnsError_MoreThanOneInputIncludingPdf(
-            List.of(new InferenceStringGroup(List.of(new InferenceString(PDF, BASE64, TEST_DATA_URI), InferenceStringTests.createRandom())))
+            List.of(
+                new InferenceStringGroup(
+                    List.of(new InferenceString(PDF, BASE64, TEST_DATA_URI), InferenceStringTests.createRandomEmbeddingInput())
+                )
+            )
         );
     }
 

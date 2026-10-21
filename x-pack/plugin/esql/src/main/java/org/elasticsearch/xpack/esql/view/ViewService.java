@@ -230,8 +230,9 @@ public class ViewService {
                 );
             });
 
-        // Parse the query to ensure it's syntactically valid; parseView rejects any SET statements. A PUT request carries no
-        // pragmas, so the command limit comes from the cluster setting only.
+        // Parse the query to ensure it's syntactically valid. A definition may SET only the settings scoped at view
+        // boundaries; anything else, including unmapped_fields=LOAD_ALL, is rejected here. TS must be followed by STATS.
+        // A PUT request carries no pragmas, so the command limit comes from the cluster setting only.
         var statement = parser.parseView(
             view.query(),
             new QueryParams(),

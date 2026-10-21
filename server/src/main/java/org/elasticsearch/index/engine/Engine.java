@@ -1872,7 +1872,7 @@ public abstract class Engine implements Closeable {
          */
         @Deprecated
         @Override
-        public final void search(Query query, Collector collector) {
+        public void search(Query query, Collector collector) {
             throw new UnsupportedOperationException("use search(Query, CollectorManager) instead");
         }
 

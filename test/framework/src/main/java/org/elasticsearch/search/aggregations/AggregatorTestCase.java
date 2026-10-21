@@ -554,6 +554,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
         );
     }
 
+    protected MappingParserContext createMappingParserContext(IndexSettings indexSettings) {
+        return new MockParserContext(indexSettings);
+    }
+
     /**
      * Sub-tests that need scripting can override this method to provide a script service and pre-baked scripts
      */

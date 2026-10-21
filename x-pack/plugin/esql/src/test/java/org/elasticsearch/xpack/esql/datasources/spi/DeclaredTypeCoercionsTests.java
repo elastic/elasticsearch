@@ -599,11 +599,10 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
     }
 
     /**
-     * A {@code date_nanos} source declared {@code datetime} narrows nanos&rarr;millis, truncating sub-millisecond
-     * precision. This is what lets an annotated {@code TIMESTAMP(MICROS|NANOS)} parquet column — which infers as
-     * {@code date_nanos} — be declared as the conventional {@code date}. Pinned value-identical to {@code ::datetime},
-     * which maps DATE_NANOS through the same {@link DateUtils#toMilliSeconds}, so a declared read and an explicit cast
-     * cannot disagree.
+     * A {@code date_nanos} source declared {@code datetime} narrows nanos&rarr;millis by floor division, losing
+     * sub-millisecond precision. This is what lets an annotated {@code TIMESTAMP(MICROS|NANOS)} parquet column — which
+     * infers as {@code date_nanos} — be declared as the conventional {@code date}. Above the epoch the result is
+     * value-identical to {@code ::datetime}, which maps DATE_NANOS through {@link DateUtils#toMilliSeconds}.
      */
     public void testCastDateNanosToDatetimeNarrowsToMillis() {
         long nanos = 1704067200_123_456_789L; // 2024-01-01T00:00:00.123456789Z
@@ -614,9 +613,32 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
             assertEquals("nanos truncate to millis", 1704067200_123L, ((LongBlock) cast).getLong(0));
             assertEquals("must equal the ::datetime primitive", DateUtils.toMilliSeconds(nanos), ((LongBlock) cast).getLong(0));
         }
-        // a pre-epoch nanos instant has no millis representation here: it throws and follows the read's error policy
-        try (Block src = blockFactory.newLongArrayVector(new long[] { -1L }, 1).asBlock()) {
-            expectThrows(InvalidArgumentException.class, () -> castStrict(src, DataType.DATE_NANOS, DataType.DATETIME).close());
+    }
+
+    /**
+     * The narrowing is total below the epoch too, and this is where the declared read deliberately parts from
+     * {@code ::datetime}. {@code date} represents a pre-1970 instant exactly; the 1970 floor
+     * {@link DateUtils#toMilliSeconds} enforces is the floor the {@code date_nanos} field mapper enforces at ingest
+     * ({@link DateUtils#toLong}). Borrowing it made a pre-1970 {@code TIMESTAMP(MICROS)} parquet column fail the
+     * whole read under the default error mode,
+     * while the same column read correctly with no declaration at all.
+     *
+     * <p>Floor division rather than truncation toward zero, which is not a matter of taste: {@code rawBoundFor}'s
+     * {@code ScaleDown} arithmetic — the bounds the planner pushes for this very column — is derived from
+     * {@code decoded == floorDiv(raw, d)}, so truncating would make the decode disagree with the pruning. A single
+     * nanosecond before the epoch is the case that tells them apart: flooring keeps it in 1969, truncation moves it
+     * forward into 1970.
+     */
+    public void testCastDateNanosToDatetimeIsTotalBelowTheEpoch() {
+        long nanos = -152366400_000_000_000L; // 1965-03-04T12:00:00Z
+        try (
+            Block src = blockFactory.newLongArrayVector(new long[] { nanos, -1L, 0L }, 3).asBlock();
+            Block cast = castStrict(src, DataType.DATE_NANOS, DataType.DATETIME)
+        ) {
+            LongBlock millis = (LongBlock) cast;
+            assertEquals("a pre-1970 instant narrows, it does not fail", -152366400_000L, millis.getLong(0));
+            assertEquals("one nanosecond before the epoch floors into 1969, it does not truncate to 0", -1L, millis.getLong(1));
+            assertEquals(0L, millis.getLong(2));
         }
     }
 
@@ -1122,7 +1144,7 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
         assertThat(warnings.get(0), containsString("[9223372036854775808] is out of range"));
     }
 
-    /** Multi-value positions coerce element-by-element; a failing element nulls the whole position (bulk semantics). */
+    /** Multi-value positions coerce element-by-element; a failing element is removed and the readable ones kept. */
     public void testCastLongToDateNanosMultiValue() {
         List<String> warnings = new ArrayList<>();
         try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(2)) {
@@ -1151,11 +1173,14 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
                     int first = out.getFirstValueIndex(0);
                     assertEquals(1_000_000L, out.getLong(first));
                     assertEquals(2_000_000L, out.getLong(first + 1));
-                    assertTrue("bulk semantics null the whole position on a negative element", cast.isNull(1));
+                    assertFalse("the negative element is removed, not the position", cast.isNull(1));
+                    assertThat(out.getValueCount(1), equalTo(1));
+                    assertEquals(3_000_000L, out.getLong(out.getFirstValueIndex(1)));
                 }
             }
         }
         assertThat(warnings, hasSize(1));
+        assertThat(warnings.get(0), startsWith(REMOVED));
     }
 
     // ---- per-cell bulk leniency ----
@@ -1278,32 +1303,112 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
         }
     }
 
-    public void testMultiValuePositionNullsWholePositionOnFailure() {
+    public void testMultiValuePositionKeepsReadableValuesOnFailure() {
         List<String> warnings = new ArrayList<>();
         SkipWarnings sink = capturing(warnings);
-        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(2)) {
-            builder.beginPositionEntry();
-            builder.appendBytesRef(new BytesRef("1"));
-            builder.appendBytesRef(new BytesRef("oops"));
-            builder.endPositionEntry();
-            builder.beginPositionEntry();
-            builder.appendBytesRef(new BytesRef("2"));
-            builder.appendBytesRef(new BytesRef("3"));
-            builder.endPositionEntry();
-            try (Block source = builder.build()) {
-                try (
-                    Block cast = DeclaredTypeCoercions.castBlock(source, DataType.KEYWORD, DataType.LONG, null, blockFactory, "col", sink)
-                ) {
-                    assertTrue("bulk semantics null the whole field, not one element", cast.isNull(0));
-                    LongBlock longs = (LongBlock) cast;
-                    assertThat(longs.getValueCount(1), equalTo(2));
-                    int first = longs.getFirstValueIndex(1);
-                    assertThat(longs.getLong(first), equalTo(2L));
-                    assertThat(longs.getLong(first + 1), equalTo(3L));
-                }
+        try (Block source = multiValueKeywords(List.of("oops", "1", "nope", "4"), List.of("2", "3"))) {
+            try (Block cast = DeclaredTypeCoercions.castBlock(source, DataType.KEYWORD, DataType.LONG, null, blockFactory, "col", sink)) {
+                LongBlock longs = (LongBlock) cast;
+                assertThat("a failing value is removed from its cell, the readable ones kept", longs.getValueCount(0), equalTo(2));
+                int first = longs.getFirstValueIndex(0);
+                assertThat(longs.getLong(first), equalTo(1L));
+                assertThat(longs.getLong(first + 1), equalTo(4L));
+                assertThat(longs.getValueCount(1), equalTo(2));
+                first = longs.getFirstValueIndex(1);
+                assertThat(longs.getLong(first), equalTo(2L));
+                assertThat(longs.getLong(first + 1), equalTo(3L));
             }
         }
+        assertThat("one detail per removed value", warnings, hasSize(2));
+        assertThat(warnings.get(0), startsWith(REMOVED + "column [col]: cannot read [keyword] as [long]"));
+        assertThat(warnings.get(1), startsWith(REMOVED));
+    }
+
+    public void testMultiValuePositionNullsWhenNoValueIsReadable() {
+        List<String> warnings = new ArrayList<>();
+        try (Block source = multiValueKeywords(List.of("oops", "nope"), List.of("5", "6"))) {
+            try (
+                Block cast = DeclaredTypeCoercions.castBlock(
+                    source,
+                    DataType.KEYWORD,
+                    DataType.LONG,
+                    null,
+                    blockFactory,
+                    "col",
+                    capturing(warnings)
+                )
+            ) {
+                assertTrue("a cell none of whose values can be read is null", cast.isNull(0));
+                assertThat(cast.getValueCount(1), equalTo(2));
+            }
+        }
+        assertThat(warnings, hasSize(2));
+    }
+
+    /** Under skip_row the row is dropped by the caller: the position is reported once, at its first failure. */
+    public void testMultiValuePositionReportsFirstFailureOnceUnderSkipRow() {
+        List<String> warnings = new ArrayList<>();
+        List<Integer> failed = new ArrayList<>();
+        try (Block source = multiValueKeywords(List.of("2", "3"), List.of("1", "oops", "nope"))) {
+            try (
+                Block cast = DeclaredTypeCoercions.castBlock(
+                    source,
+                    DataType.KEYWORD,
+                    DataType.LONG,
+                    null,
+                    blockFactory,
+                    "col",
+                    capturing(warnings),
+                    failed::add
+                )
+            ) {
+                assertThat(cast.getPositionCount(), equalTo(2));
+                assertThat(cast.getValueCount(0), equalTo(2));
+            }
+        }
+        assertThat(failed, equalTo(List.of(1)));
         assertThat(warnings, hasSize(1));
+        assertThat("a dropped row is not a removal from a multi-valued cell", warnings.get(0), not(startsWith(REMOVED)));
+    }
+
+    public void testMultiValueFailureUnderStrictThrows() {
+        try (Block source = multiValueKeywords(List.of("1", "oops"))) {
+            expectThrows(
+                InvalidArgumentException.class,
+                () -> DeclaredTypeCoercions.castBlock(source, DataType.KEYWORD, DataType.LONG, null, blockFactory, "col", null).close()
+            );
+        }
+    }
+
+    public void testUncoercibleColumnUnderStrictThrowsNamingFileColumnAndTypes() {
+        InvalidArgumentException e = expectThrows(
+            InvalidArgumentException.class,
+            () -> DeclaredTypeCoercions.onUncoercibleColumn("flag", "data/a.parquet", DataType.INTEGER, DataType.BOOLEAN, null)
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "column [flag] in [data/a.parquet] is [integer] in the file and cannot be read as its declared type [boolean]; "
+                    + "set [error_mode] to [null_field] to return null instead"
+            )
+        );
+    }
+
+    public void testUncoercibleColumnUnderLenientPolicyWarnsOnce() {
+        List<String> emitted = new ArrayList<>();
+        SkipWarnings warnings = new SkipWarnings(DeclaredTypeCoercions.uncoercibleColumnsNullSummary("data/a.parquet"), emitted::add);
+        for (int i = 0; i < 3; i++) {
+            DeclaredTypeCoercions.onUncoercibleColumn("flag", "data/a.parquet", DataType.INTEGER, DataType.BOOLEAN, warnings);
+        }
+        assertThat(
+            emitted,
+            equalTo(
+                List.of(
+                    "Some columns in [data/a.parquet] have a type the query cannot read; returning null",
+                    "column [flag]: [integer] in the file, [boolean] in the query"
+                )
+            )
+        );
     }
 
     public void testNullsAndIdentityPreserved() {
@@ -1380,13 +1485,37 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
         }
     }
 
+    /** Prefixes the details {@link #capturing} records for a value removed from a multi-valued cell. */
+    private static final String REMOVED = "removed: ";
+
+    /** Records each detail; one recorded as removed from a multi-valued cell carries the {@link #REMOVED} prefix. */
     private static SkipWarnings capturing(List<String> into) {
         return new SkipWarnings("summary") {
             @Override
             public void add(String detail) {
                 into.add(detail);
             }
+
+            @Override
+            public void addRemovedFromMultiValue(String detail) {
+                into.add(REMOVED + detail);
+            }
         };
+    }
+
+    /** A keyword block with one multi-valued position per list. */
+    @SafeVarargs
+    private Block multiValueKeywords(List<String>... positions) {
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(positions.length)) {
+            for (List<String> values : positions) {
+                builder.beginPositionEntry();
+                for (String v : values) {
+                    builder.appendBytesRef(new BytesRef(v));
+                }
+                builder.endPositionEntry();
+            }
+            return builder.build();
+        }
     }
 
     /**

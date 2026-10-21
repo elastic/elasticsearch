@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -71,7 +72,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
 
     @Before
     public void initBlockFactory() throws Exception {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 
     /** Lenient reads emit response-header warnings; drop them so the parent {@code ensureNoWarnings} passes. */
@@ -388,7 +389,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
 
     public void testQuotedEmbeddedNewline() throws IOException {
         String csv = "a:keyword,b:keyword\n\"line1\nline2\",tail\n";
-        List<List<Object>> rows = read(false, Map.of(), csv);
+        List<List<Object>> rows = read(false, Map.of("multiline_fields", true), csv);
         assertEquals(List.of(row(br("line1\nline2"), br("tail"))), rows);
     }
 
@@ -1377,17 +1378,17 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     }
 
     public void testEscapedNewlineUnquotedStaysInField() throws IOException {
-        List<List<Object>> rows = read(false, Map.of(), "k:keyword\na\\\nb\n");
+        List<List<Object>> rows = read(false, Map.of("multiline_fields", true), "k:keyword\na\\\nb\n");
         assertEquals(List.of(row(br("a\nb"))), rows);
     }
 
     public void testEscapedNewlineInQuotesStaysInField() throws IOException {
-        List<List<Object>> rows = read(false, Map.of(), "k:keyword\n\"a\\\nb\"\n");
+        List<List<Object>> rows = read(false, Map.of("multiline_fields", true), "k:keyword\n\"a\\\nb\"\n");
         assertEquals(List.of(row(br("a\nb"))), rows);
     }
 
     public void testTrailingLoneEscapeDropped() throws IOException {
-        List<List<Object>> rows = read(false, Map.of("trim_spaces", true), "k:keyword\nab\\\n");
+        List<List<Object>> rows = read(false, Map.of("trim_spaces", true, "multiline_fields", true), "k:keyword\nab\\\n");
         assertEquals(List.of(row(br("ab"))), rows);
     }
 
@@ -1699,6 +1700,19 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     }
 
     /**
+     * Under {@code null_field} a bracket element that does not parse is removed from its cell and the rest kept, on
+     * both bracket walkers: the fused projected one and the full-split ALL-scope one. {@link #valueAt} reads a cell's
+     * first value, so a leading bad element is what tells removal (the next element) from nulling (null).
+     */
+    public void testBracketElementFailureRemovesElementOnBothWalkers() throws IOException {
+        Map<String, Object> config = Map.of("multi_value_syntax", "brackets", "error_mode", "null_field", "max_errors", 100);
+        String content = "a:long,b:long\n1,[oops,2]\n2,[x,y]\n";
+        List<List<Object>> expected = List.of(row(1L, 2L), row(2L, null));
+        assertEquals(expected, read(false, config, nullField(), List.of("a", "b"), content));
+        assertEquals(expected, readAllScope(config, content));
+    }
+
+    /**
      * Reads with an ALL stats scope bound to a throwaway sink, which routes bracket parsing through the
      * full-split walker rather than the fused one. Only the direct-block arm is exercised (bracket mode is
      * not direct-eligible, so both arms parse identically); the golden assertion pins the value.
@@ -1877,6 +1891,9 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     }
 
     private record InMemoryStorageObject(byte[] bytes) implements StorageObject {
+        @Override
+        public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
         @Override
         public InputStream newStream() {
             return new ByteArrayInputStream(bytes);

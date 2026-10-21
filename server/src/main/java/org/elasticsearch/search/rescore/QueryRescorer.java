@@ -160,6 +160,11 @@ public final class QueryRescorer implements Rescorer {
             return query;
         }
 
+        @Override
+        public String profileDescription() {
+            return query.query().toString();
+        }
+
         public float queryWeight() {
             return queryWeight;
         }

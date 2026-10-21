@@ -87,10 +87,14 @@ import java.util.function.IntFunction;
  *       whole-number exact parse above is the same refuse-vs-cast pattern for numeric columns;</li>
  *   <li><b>{@code datetime}</b>: string sources parse via {@link #parseDatetimeMillis} with the
  *       column's declared {@code format} (else the ISO default). A {@code date_nanos} source narrows
- *       nanos&rarr;millis ({@link DateUtils#toMilliSeconds}, truncating sub-millisecond precision) —
- *       the narrowing {@code ::datetime} performs. This is what lets an annotated
+ *       nanos&rarr;millis by floor division, losing sub-millisecond precision but never failing —
+ *       including below the epoch, where {@code ::datetime} nulls the value instead, because that
+ *       bound belongs to {@code date_nanos} and not to {@code date}. This is what lets an annotated
  *       {@code TIMESTAMP(MICROS|NANOS)} column (which infers as {@code date_nanos}) be declared
- *       {@code date}, the conventional dashboard type. Numeric sources follow the unit rule below
+ *       {@code date}, the conventional dashboard type, for any instant a signed epoch-nanosecond long can hold
+ *       (1677-09-21 to 2262-04-11): a {@code TIMESTAMP(NANOS)} value always does, and a {@code TIMESTAMP(MICROS)}
+ *       value outside that range is nulled on read before the narrowing runs.
+ *       Numeric sources follow the unit rule below
  *       ({@code date} = millis when no format is declared; a {@code double} rounds to the nearest
  *       milli, the {@code ::datetime} semantic);</li>
  *   <li><b>{@code date_nanos}</b>: string sources parse via the column's declared {@code format}
@@ -109,7 +113,8 @@ import java.util.function.IntFunction;
  * decides it, and it is the same rule for every temporal target:
  * <ol>
  *   <li><b>The file's annotation wins.</b> A physically-typed temporal column (a parquet
- *       {@code TIMESTAMP(unit)}) is already an instant, not a raw number: its unit is known, a
+ *       {@code TIMESTAMP(unit)}, or a {@code TIME(unit)}, which is a time of day rendered as an
+ *       instant on 1970-01-01) is already an instant, not a raw number: its unit is known, a
  *       {@code format} on it is rejected at resolution rather than obeyed, and the declaration only
  *       chooses the target precision (nanos&rarr;millis narrows, millis&rarr;nanos widens).</li>
  *   <li><b>Else the declared {@code format} wins</b>, naming the unit / parse dialect of the number
@@ -147,9 +152,13 @@ import java.util.function.IntFunction;
  *       {@code ignore_malformed}-style; under {@code skip_row} the per-batch
  *       {@code ColumnarRowDropHelper} drops the whole row at the page emit point via
  *       {@link Block#filter}. Fused arms and {@link #castBlock} route the failure through the one
- *       {@link #onCoercionFailure} chokepoint so the two paths cannot disagree. Readers also
+ *       {@link #onCoercionFailure} chokepoint so the two paths cannot disagree. A value of a
+ *       multi-valued cell that fails under {@code null_field} is removed from the cell and the
+ *       readable values are kept; the cell nulls only when none survives. Readers also
  *       re-check {@link #supports} per file for a <b>declared</b> column, since a multi-file glob
- *       can drift from the anchor footer; an <b>inferred</b> column may only widen, so a drifted
+ *       can drift from the anchor footer; a declared column a file cannot supply is a read failure
+ *       of the whole column in that file and follows the {@link ErrorPolicy} through
+ *       {@link #onUncoercibleColumn}. An <b>inferred</b> column may only widen, so a drifted
  *       inferred type null-fills rather than taking this lossy escape (never narrows).</li>
  *   <li><b>Text formats</b> (CSV/TSV, NDJSON) have no physical schema — every value is a string,
  *       so the parse into the declared type <i>is</i> the coercion and a bad token follows the
@@ -165,6 +174,9 @@ import java.util.function.IntFunction;
  * on the same capability surface.
  */
 public final class DeclaredTypeCoercions {
+
+    /** Nanoseconds per millisecond: the divisor of the {@code date_nanos -> date} narrowing. */
+    private static final long NANOS_PER_MILLI = 1_000_000L;
 
     private DeclaredTypeCoercions() {}
 
@@ -205,7 +217,8 @@ public final class DeclaredTypeCoercions {
             // declared, else the number is epoch millis. A double rounds to epoch millis (the
             // ::datetime semantic). A date_nanos source narrows nanos -> millis: it is not a raw
             // number whose unit is unknown but an instant the file already typed, so the conversion
-            // is unambiguous — the same narrowing ::datetime performs.
+            // is unambiguous. Above the epoch it is the same narrowing ::datetime performs; below it the two
+            // diverge deliberately, because ::datetime nulls a pre-epoch instant and the date mapper ingests it.
             case DATETIME -> fromString
                 || from == DataType.INTEGER
                 || from == DataType.LONG
@@ -280,11 +293,11 @@ public final class DeclaredTypeCoercions {
      * block is a fresh reference the caller owns (for the trivial {@code from == to} case the
      * source is ref-bumped and returned).
      * <p>
-     * Per-value failures — numeric overflow, an unparseable token — follow the bulk API's lenient
-     * model when {@code warnings} is non-null: the whole position is nulled and one capped
-     * response {@code Warning} header records the reason (never a hard read failure, never a
-     * silent wrong value). With a {@code null} {@code warnings} sink the coercion is strict and
-     * the failure propagates to the caller.
+     * Per-value failures — numeric overflow, an unparseable token — are lenient when {@code warnings}
+     * is non-null, and each one records a capped response {@code Warning} header (never a hard read
+     * failure, never a silent wrong value): a single-valued cell nulls, and a multi-valued cell loses
+     * the failing value and keeps the readable ones, nulling only when none is readable. With a
+     * {@code null} {@code warnings} sink the coercion is strict and the failure propagates to the caller.
      *
      * @param declaredFormat the column's declared date parse pattern, consumed by the temporal targets: it is the
      *                       parse pattern for a string source, and the epoch unit / parse dialect for a numeric
@@ -308,8 +321,9 @@ public final class DeclaredTypeCoercions {
     /**
      * Overload of {@link #castBlock} that additionally reports failed positions to {@code failedPositionSink}
      * for {@code skip_row} callers. When {@code failedPositionSink} is non-null (only under
-     * {@code error_mode: skip_row}), a coercion failure at position {@code p} still nulls the cell in the
-     * returned block (so block shape is consistent), AND calls {@code failedPositionSink.accept(p)} so the
+     * {@code error_mode: skip_row}), a coercion failure at position {@code p} still nulls (or, for a multi-valued
+     * cell, truncates) the cell in the returned block (so block shape is consistent), AND calls
+     * {@code failedPositionSink.accept(p)} once per position so the
      * caller's {@link ColumnarRowDropHelper} can drop the whole row at the page emit point via
      * {@link Block#filter}. All other parameters and semantics are identical to
      * {@link #castBlock(Block, DataType, DataType, DateFormatter, BlockFactory, String, SkipWarnings)}.
@@ -337,7 +351,6 @@ public final class DeclaredTypeCoercions {
         boolean skipRow = failedPositionSink != null;
         try (Block.Builder builder = builderFor(to, blockFactory, positions)) {
             ValueWriter write = valueWriter(builder, to);
-            Object[] scratch = null;
             for (int pos = 0; pos < positions; pos++) {
                 int count = source.getValueCount(pos);
                 if (source.isNull(pos) || count == 0) {
@@ -357,31 +370,35 @@ public final class DeclaredTypeCoercions {
                     }
                     write.write(coerced);
                 } else {
-                    // Coerce the whole position before appending: a failure mid-entry cannot be
-                    // rolled back on the builder, and the bulk-API model nulls the field (the
-                    // position), not just the offending value.
-                    if (scratch == null || scratch.length < count) {
-                        scratch = new Object[count];
-                    }
-                    boolean failed = false;
-                    for (int v = 0; v < count && failed == false; v++) {
-                        try {
-                            scratch[v] = coercer.apply(read.apply(first + v));
-                        } catch (IllegalArgumentException | DateTimeException | InvalidArgumentException e) {
-                            onCoercionFailure(columnName, from, to, e, warnings);
-                            failed = true;
-                        }
-                    }
-                    if (failed) {
-                        if (skipRow) failedPositionSink.accept(pos);
-                        builder.appendNull();
-                        continue;
-                    }
-                    builder.beginPositionEntry();
+                    // A value that cannot be read is removed from its position and the readable ones are kept, the
+                    // way ingest drops one malformed array element. The entry opens on the first readable value, so
+                    // a position none of whose values can be read nulls. Under skip_row the caller drops the row,
+                    // so its first failure is the one reported and the rest of the position is not coerced.
+                    boolean open = false;
                     for (int v = 0; v < count; v++) {
-                        write.write(scratch[v]);
+                        Object coerced;
+                        try {
+                            coerced = coercer.apply(read.apply(first + v));
+                        } catch (IllegalArgumentException | DateTimeException | InvalidArgumentException e) {
+                            if (skipRow) {
+                                onCoercionFailure(columnName, from, to, e, warnings);
+                                failedPositionSink.accept(pos);
+                                break;
+                            }
+                            onCoercionFailure(columnName, from, to, e, warnings, true);
+                            continue;
+                        }
+                        if (open == false) {
+                            builder.beginPositionEntry();
+                            open = true;
+                        }
+                        write.write(coerced);
                     }
-                    builder.endPositionEntry();
+                    if (open) {
+                        builder.endPositionEntry();
+                    } else {
+                        builder.appendNull();
+                    }
                 }
             }
             return builder.build();
@@ -392,9 +409,9 @@ public final class DeclaredTypeCoercions {
      * The one coercion-failure chokepoint, shared by {@link #castBlock} and the readers' fused
      * decode arms so a failed value behaves identically whichever path decoded it: with a
      * {@code null} {@code warnings} sink (strict, {@code error_mode: fail_fast}) the failure
-     * propagates and the read fails; with a live sink the caller nulls the cell/position and one
-     * capped response {@code Warning} header records the reason. Callers append the null
-     * themselves — this method only decides throw-vs-warn. The detail carries no outcome: every
+     * propagates and the read fails; with a live sink the caller nulls the cell (or drops the value
+     * from its multi-valued cell) and one capped response {@code Warning} header records the reason.
+     * Callers append the null themselves — this method only decides throw-vs-warn. The detail carries no outcome: every
      * caller's collector summary already says whether the value is returned as null or its row skipped.
      * <p>
      * As the single decision point it also normalizes the strict failure. The coercers throw heterogeneous
@@ -418,6 +435,23 @@ public final class DeclaredTypeCoercions {
         RuntimeException e,
         @Nullable SkipWarnings warnings
     ) {
+        onCoercionFailure(columnName, from, to, e, warnings, false);
+    }
+
+    /**
+     * {@link #onCoercionFailure(String, DataType, DataType, RuntimeException, SkipWarnings)} for a value of a
+     * multi-valued cell: with {@code removedFromMultiValue} the caller drops the value and keeps the cell's readable
+     * ones, so a live sink records it under its multi-value summary ({@link SkipWarnings#addRemovedFromMultiValue})
+     * rather than the one saying the cell returns null. Strict is unchanged.
+     */
+    public static void onCoercionFailure(
+        @Nullable String columnName,
+        DataType from,
+        DataType to,
+        RuntimeException e,
+        @Nullable SkipWarnings warnings,
+        boolean removedFromMultiValue
+    ) {
         String detail = "column ["
             + (columnName == null ? "<unknown>" : columnName)
             + "]: cannot read ["
@@ -429,7 +463,67 @@ public final class DeclaredTypeCoercions {
         if (warnings == null) {
             throw new InvalidArgumentException(e, detail + "; set [error_mode] to [null_field] to return null instead");
         }
-        warnings.add(detail);
+        if (removedFromMultiValue) {
+            warnings.addRemovedFromMultiValue(detail);
+        } else {
+            warnings.add(detail);
+        }
+    }
+
+    /**
+     * The detail for a column whose type in one file cannot be read as the query's type at all: neither widening
+     * nor a supported coercion ({@link #supports}) gets there. Shared by the readers' per-file checks and the
+     * deferred extractor, for declared and inferred columns alike, so the message cannot drift between them.
+     */
+    public static String uncoercibleColumnDetail(String columnName, DataType fileType, DataType queryType) {
+        return "column [" + columnName + "]: [" + fileType.typeName() + "] in the file, [" + queryType.typeName() + "] in the query";
+    }
+
+    /** The summary for {@link #uncoercibleColumnDetail} when the columns read as null for the file. */
+    public static String uncoercibleColumnsNullSummary(String fileLocation) {
+        return "Some columns in [" + fileLocation + "] have a type the query cannot read; returning null";
+    }
+
+    /** The summary for {@link #uncoercibleColumnDetail} when {@code skip_row} drops every row of the file. */
+    public static String uncoercibleColumnsDropSummary(String fileLocation) {
+        return "Some columns in [" + fileLocation + "] have a type the query cannot read; skipping the file's rows";
+    }
+
+    /**
+     * The whole-column sibling of {@link #onCoercionFailure}: a <b>declared</b> column whose type in
+     * {@code fileLocation} cannot be read as the declared type is a read failure of every value of that column in
+     * that file, so the read's {@link ErrorPolicy} decides it the same way. With a {@code null} {@code warnings}
+     * sink ({@code fail_fast}) the read fails, naming the column, the file, both types and the {@code [error_mode]}
+     * pointer; with a live sink the detail is recorded once and the caller nulls the column for the file (or, under
+     * {@code skip_row}, drops the file's rows). An inferred column never comes here: it widens or nulls.
+     */
+    public static void onUncoercibleColumn(
+        String columnName,
+        String fileLocation,
+        DataType fileType,
+        DataType queryType,
+        @Nullable SkipWarnings warnings
+    ) {
+        if (warnings == null) {
+            throw new InvalidArgumentException("{}", uncoercibleColumnFailure(columnName, fileLocation, fileType, queryType));
+        }
+        warnings.addOnce(uncoercibleColumnDetail(columnName, fileType, queryType));
+    }
+
+    /**
+     * The {@code fail_fast} message of {@link #onUncoercibleColumn}. Resolution raises it too, for the files whose types
+     * it already knows, so a query fails with the same text wherever the drift is caught.
+     */
+    public static String uncoercibleColumnFailure(String columnName, String fileLocation, DataType fileType, DataType queryType) {
+        return "column ["
+            + columnName
+            + "] in ["
+            + fileLocation
+            + "] is ["
+            + fileType.typeName()
+            + "] in the file and cannot be read as its declared type ["
+            + queryType.typeName()
+            + "]; set [error_mode] to [null_field] to return null instead";
     }
 
     /**
@@ -473,11 +567,25 @@ public final class DeclaredTypeCoercions {
                 }
                 if (from == DataType.DATE_NANOS) {
                     // An annotated TIMESTAMP(MICROS|NANOS) column infers as date_nanos; declaring it `date` narrows
-                    // nanos -> millis, truncating sub-millisecond precision. Value-identical to ::datetime, which maps
-                    // DATE_NANOS through this same DateUtils.toMilliSeconds (ToDatetime's DATE_NANOS evaluator), so a
-                    // declared read and an explicit cast cannot disagree. A pre-epoch nanos instant throws and follows
-                    // the read's error policy. No format is involved: the annotation already states the unit.
-                    yield v -> DateUtils.toMilliSeconds((Long) v);
+                    // nanos -> millis, losing sub-millisecond precision. The narrowing is arithmetic and total: every
+                    // value a date_nanos block can hold is a representable epoch-millis instant, so it cannot fail,
+                    // and it must not borrow date_nanos' own 1970 floor. DateUtils.toMilliSeconds throws below the
+                    // epoch -- the same floor the date_nanos field mapper enforces at ingest (DateUtils.toLong), a fact
+                    // about the ingest path and not about `date`; that floor failed a pre-1970 TIMESTAMP(MICROS)
+                    // column under the default fail_fast mode
+                    // -- nulling the cell under null_field and dropping the row under skip_row, per onCoercionFailure
+                    // -- while the same column read correctly with no declaration at all.
+                    //
+                    // Floor division, not truncation toward zero: rawBoundFor's ScaleDown arithmetic -- the bounds the
+                    // planner pushes for this very column -- is derived from `decoded == floorDiv(raw, d)`, so
+                    // truncating would make the decode disagree with the pruning and skip row groups the query
+                    // matches.
+                    //
+                    // This is where a declared read diverges from ::datetime, which maps DATE_NANOS through
+                    // DateUtils.toMilliSeconds and so nulls a pre-epoch instant. The declared coercions answer to the
+                    // field mappers (see the class javadoc), and a `date` mapper ingests the instant happily. No
+                    // format is involved: the annotation already states the unit.
+                    yield v -> Math.floorDiv((Long) v, NANOS_PER_MILLI);
                 }
                 if (from == DataType.DOUBLE) {
                     // A declared double column reads as an epoch value the same way ::datetime treats a double
@@ -841,7 +949,7 @@ public final class DeclaredTypeCoercions {
      *
      * <p>The map has a direction, and the direction is NOT a property of the file alone. A {@code TIMESTAMP(MICROS)}
      * column decodes to nanos ({@code raw x 1000}) when it infers {@code date_nanos}, and to millis
-     * ({@code raw / 1000}, truncating) when it is declared {@code date}. Same bytes, opposite maps, chosen by the
+     * ({@code floorDiv(raw, 1000)}) when it is declared {@code date}. Same bytes, opposite maps, chosen by the
      * declaration. That is why this takes the declared type, and why a per-consumer switch on the annotation cannot
      * express it.
      */

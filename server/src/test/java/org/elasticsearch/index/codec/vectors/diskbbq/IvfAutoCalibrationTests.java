@@ -706,7 +706,6 @@ public class IvfAutoCalibrationTests extends ESTestCase {
     }
 
     public void testProductionMergeResolverPersistsCalibratedConfig() throws IOException {
-        Random rnd = random();
         int vectorsPerSegment = IvfAutoCalibration.MIN_VECTORS_FOR_CALIBRATION / 2 + 100;
         try (Directory dir = newDirectory()) {
             try (

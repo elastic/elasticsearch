@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
-import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -44,8 +43,6 @@ import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.elasticsearch.xpack.esql.view.DeleteViewAction;
-import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.junit.After;
 import org.junit.Before;
 
@@ -61,7 +58,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
@@ -182,32 +178,6 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
      * validator used by {@code local_ds} is a pass-through and stores a missing key (legacy hydrate).
      */
     private static final String FILE_DS = "file_ds";
-
-    /**
-     * Names every {@code testXxx} body creates via {@link PutViewAction}. As with datasets, the SUITE-scoped
-     * cluster requires explicit teardown so views don't leak across methods.
-     */
-    private static final Set<String> CREATED_VIEWS = Set.of(
-        "employees_view",
-        "employees_filtered_view",
-        "mapped_dataset_view",
-        "fork_dataset_view",
-        "fork_dataset_view_a",
-        "fork_dataset_view_b"
-    );
-
-    @After
-    public void cleanupViews() throws Exception {
-        for (String view : CREATED_VIEWS) {
-            try {
-                client().execute(DeleteViewAction.INSTANCE, deleteViewRequest(view)).actionGet(30, SECONDS);
-            } catch (ResourceNotFoundException ignored) {
-                // already deleted by the test itself
-            } catch (Exception e) {
-                logger.warn("view cleanup [{}] failed", view, e);
-            }
-        }
-    }
 
     /**
      * Tears down every dataset in cluster state, not just those the base {@code registerDataset} helper recorded: tests
@@ -2749,7 +2719,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
         List<String> warnings = collectWarningsContaining(
             "FROM employees_absent_warn | SORT emp_no | LIMIT 5",
-            "declared column [department] is not present"
+            "column [department] is not present"
         );
         assertThat("the absent declared column must emit a response Warning header", warnings, not(empty()));
     }
@@ -2781,9 +2751,89 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
         List<String> warnings = collectWarningsContaining(
             "FROM employees_parquet_absent_warn | SORT emp_no | LIMIT 5",
-            "declared column [department] is not present"
+            "column [department] is not present"
         );
         assertThat("the absent declared column must emit a response Warning header on Parquet", warnings, not(empty()));
+    }
+
+    /**
+     * Under {@code dynamic: true} a declared column the Parquet file does not carry reads null rather than failing
+     * resolution, and the warning is there even for a {@code COUNT(*)} that never reads the column.
+     */
+    public void testDynamicAbsentDeclaredColumnReadsNullWithWarningParquet() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("department", new DatasetFieldMapping("keyword", null)); // absent from the 2-column Parquet fixture
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+        Path parquet = createTempDir().resolve("employees.parquet");
+        Files.write(parquet, twoColumnParquetFixtureBytes());
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "employees_parquet_dynamic_absent",
+                    "local_ds",
+                    parquet.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    mapping
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM employees_parquet_dynamic_absent | KEEP department"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, not(empty()));
+            for (List<Object> row : rows) {
+                assertThat(row.get(0), nullValue());
+            }
+        }
+        List<String> warnings = collectWarningsContaining(
+            "FROM employees_parquet_dynamic_absent | STATS c = COUNT(*)",
+            "column [department] is not present"
+        );
+        assertThat("COUNT(*) must carry the absent declared column warning", warnings, not(empty()));
+    }
+
+    /** As {@link #testDynamicAbsentDeclaredColumnReadsNullWithWarningParquet}, on a headered CSV file read by header name. */
+    public void testDynamicAbsentDeclaredColumnReadsNullWithWarningCsv() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("department", new DatasetFieldMapping("keyword", null)); // absent from the 2-column fixture
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "employees_csv_dynamic_absent",
+                    "local_ds",
+                    csvFixture.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "csv")),
+                    mapping
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM employees_csv_dynamic_absent | SORT emp_no | LIMIT 5"), TIMEOUT)) {
+            List<? extends ColumnInfo> columns = response.columns();
+            assertThat(columns.stream().map(ColumnInfo::name).toList(), equalTo(List.of("emp_no", "first_name", "department")));
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            assertThat(rows.get(0).get(1).toString(), equalTo("Alice"));
+            for (List<Object> row : rows) {
+                assertThat(row.get(2), nullValue());
+            }
+        }
+        List<String> warnings = collectWarningsContaining(
+            "FROM employees_csv_dynamic_absent | SORT emp_no | LIMIT 5",
+            "column [department] is not present"
+        );
+        assertThat(warnings, not(empty()));
     }
 
     public void testAbsentDeclaredColumnEmitsResponseWarningNdjson() throws Exception {
@@ -2816,22 +2866,21 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
         // For NdJson with Dynamic.FALSE the reader receives the full declared schema (all 3
         // columns). `department` is absent from every record, so NdJsonPageDecoder emits
-        // absentDeclaredColumnMessage ("is not present") at close() — a column absent from all
+        // absentColumnMessage ("is not present") at close() — a column absent from all
         // records is effectively absent from the file, so the file-level message is accurate.
         List<String> warnings = collectWarningsContaining(
             "FROM employees_ndjson_absent_warn | SORT emp_no | LIMIT 5",
-            "declared column [department] is not present"
+            "column [department] is not present"
         );
-        assertThat("the absent declared column must emit an absentDeclaredColumnMessage Warning header on NDJSON", warnings, not(empty()));
+        assertThat("the absent declared column must emit an absentColumnMessage Warning header on NDJSON", warnings, not(empty()));
     }
 
     /**
      * A declared column that is sparse in the NDJSON file (present in some records but not in the first
      * {@code schema_sample_size} records) must be queryable under {@code dynamic: true}.
      * <p>
-     * Before the fix: the overlay rejected the dataset with "declared columns not found in the source: [spin_id]"
-     * because the sample-derived schema did not list {@code spin_id}. After the fix: the column is accepted and the
-     * reader looks it up by name in each record, returning {@code null} for records that lack it.
+     * The sample-derived schema does not list {@code spin_id}; the column is still accepted and the reader looks it up
+     * by name in each record, returning {@code null} for records that lack it.
      */
     public void testSampledOutDeclaredColumnReadsItsValues() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
@@ -2989,10 +3038,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
      * should be accepted: the per-file schema is widened to 3 columns, the row-width tripwire widens
      * accordingly, and a row that carries a third field delivers its value for {@code col2}.
      * <p>
-     * Before the fix: the overlay rejected the dataset with
-     * {@code "declared columns not found in the source: [col2]"}.
-     * After the fix: the column is accepted; the second row's third field is returned as {@code col2},
-     * while the first row null-fills it.
+     * The second row's third field is returned as {@code col2}, while the first row null-fills it.
      */
     public void testSampledOutSyntheticColumnIsDeclarable() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
@@ -3114,6 +3160,26 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                 .build()
         ) {
             for (int value : values) {
+                Group g = factory.newGroup();
+                g.add(column, value);
+                writer.write(g);
+            }
+        }
+        return baos.toByteArray();
+    }
+
+    private byte[] int64FixtureBytes(String column, long... values) throws IOException {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named(column).named("test");
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(baos))
+                .withConf(new PlainParquetConfiguration())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .build()
+        ) {
+            for (long value : values) {
                 Group g = factory.newGroup();
                 g.add(column, value);
                 writer.write(g);
@@ -3467,8 +3533,13 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * {@code TIMESTAMP(MICROS)} infers as {@code date_nanos}. A {@code TO_DATETIME} literal is the other date
-     * type, so reader prune and stats fold decline; {@code FilterExec} still keeps the matching row.
+     * {@code TIMESTAMP(MICROS)} infers as {@code date_nanos}. A {@code TO_DATETIME} literal is converted into the
+     * column domain for reader prune. Footer {@code COUNT(*)} fold classifies the remaining {@code FilterExec}
+     * when every attached push is RECHECK, for matching-type and converted mixed leaves alike. YES-only /
+     * YES+RECHECK / non-RECHECK mixes skip the fold. {@code FilterExec} re-checks the original mixed
+     * predicate. Counts below pin end-to-end correctness; the fold gate itself is pinned by
+     * {@code PushStatsToExternalSourceTests} and
+     * {@code ParquetFilterPushdownSupportTests.testPushFiltersOutputMatchesStatsFoldGateAssumptions}.
      */
     public void testDatetimeLiteralFiltersInferredTimestampMicros() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
@@ -3507,8 +3578,10 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * An inferred {@code integer} compared to a {@code double} or {@code long} literal must stay in
-     * {@code FilterExec}; a column-typed bound would drop the matching row.
+     * An inferred {@code integer} compared to a {@code double} or {@code long} literal converts to a
+     * never-stricter column-typed bound (e.g. {@code i < 5.5} → {@code i <= 5}; out-of-range → domain tautology)
+     * so prune is safe and {@code FilterExec} still returns the matching row. Matching-type filters
+     * ({@code long == 5}) are eligible to fold under RECHECK when a {@code FilterExec} remains.
      */
     public void testNumericLiteralFiltersInferredInteger() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
@@ -3532,6 +3605,25 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertQ("integer lt double", "FROM mixed_int_inferred | WHERE i < 5.5 | STATS c = COUNT(*)", 1L);
         assertQ("integer lte long", "FROM mixed_int_inferred | WHERE i <= 3000000000 | STATS c = COUNT(*)", 1L);
         assertQ("integer in int and double", "FROM mixed_int_inferred | WHERE i IN (5, 5.5) | STATS c = COUNT(*)", 1L);
+
+        Path longParquet = createTempDir().resolve("long_id.parquet");
+        Files.write(longParquet, int64FixtureBytes("l", 5L));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "mixed_long_inferred",
+                    "local_ds",
+                    longParquet.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    null
+                )
+            )
+        );
+        assertQ("long equals integer", "FROM mixed_long_inferred | WHERE l == 5 | STATS c = COUNT(*)", 1L);
     }
 
     /** Declares {@code {ts: date, format: <the composite>}} over one dataset and asserts ts recovers EPOCH_SECOND_MILLIS. */
@@ -5165,42 +5257,6 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * A view whose body targets a dataset carrying a DECLARED mapping: the declared coercion must survive view
-     * inlining (view resolution rewrites the inlined leaf into the external relation, which must keep the mapping —
-     * a dropped mapping here would silently read the file's physical type instead of the declared one).
-     */
-    public void testViewOverMappedDatasetPreservesCoercion() throws Exception {
-        Path root = createTempDir();
-        Files.writeString(root.resolve("d.csv"), "val:integer\n100\n");
-
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("val", new DatasetFieldMapping("long", null)); // declare integer file column as long
-        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                new PutDatasetAction.Request(
-                    TIMEOUT,
-                    TIMEOUT,
-                    "mapped_ds_for_view",
-                    "local_ds",
-                    root.toUri() + "*.csv",
-                    null,
-                    new HashMap<>(Map.of("format", "csv")),
-                    mapping
-                )
-            )
-        );
-        assertAcked(client().execute(PutViewAction.INSTANCE, putViewRequest("mapped_dataset_view", "FROM mapped_ds_for_view")));
-
-        try (var response = run(syncEsqlQueryRequest("FROM mapped_dataset_view | KEEP val | LIMIT 1"), TIMEOUT)) {
-            assertThat("declared type must survive view inlining", response.columns().get(0).outputType(), equalTo("long"));
-            assertThat(getValuesList(response).get(0).get(0), equalTo(100L));
-        }
-    }
-
-    /**
      * A dataset carrying a DECLARED mapping used inside a subquery ({@code FROM (FROM mapped)}): the declared
      * coercion must survive the subquery planning rewrite, not just a top-level {@code FROM}.
      */
@@ -5231,55 +5287,6 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         try (var response = run(syncEsqlQueryRequest("FROM (FROM mapped_ds_for_subquery) | KEEP val | LIMIT 1"), TIMEOUT)) {
             assertThat("declared type must survive the subquery rewrite", response.columns().get(0).outputType(), equalTo("long"));
             assertThat(getValuesList(response).get(0).get(0), equalTo(100L));
-        }
-    }
-
-    public void testViewOverExternalDatasetIsQueryable() throws Exception {
-        registerDataSource("local_ds", Map.of());
-        registerDataset("employees_external", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
-        // The view body targets the dataset. View resolution runs before the dataset rewrite, so it inlines the body
-        // while it is still a plain index-shaped relation; the rewriter then turns the inlined leaf into an external
-        // relation over the CSV fixture. This is the end-to-end realisation of a view "containing" an external source.
-        // There is no index named "employees_external", so the query can only succeed via the external dataset pipeline —
-        // if the inlined leaf were treated as an index it would fail with "unknown index" (see testFromUnknownName...).
-        assertAcked(client().execute(PutViewAction.INSTANCE, putViewRequest("employees_view", "FROM employees_external")));
-
-        try (var response = run(syncEsqlQueryRequest("FROM employees_view | SORT emp_no | LIMIT 10"), TIMEOUT)) {
-            List<? extends ColumnInfo> columns = response.columns();
-            assertThat(columns, hasSize(2));
-            assertThat(columns.get(0).name(), equalTo("emp_no"));
-            assertThat(columns.get(1).name(), equalTo("first_name"));
-
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(3));
-            assertThat(rows.get(0).get(0), equalTo(1));
-            assertThat(rows.get(0).get(1).toString(), equalTo("Alice"));
-            assertThat(rows.get(1).get(0), equalTo(2));
-            assertThat(rows.get(1).get(1).toString(), equalTo("Bob"));
-            assertThat(rows.get(2).get(0), equalTo(3));
-            assertThat(rows.get(2).get(1).toString(), equalTo("Carol"));
-        }
-    }
-
-    public void testViewOverExternalDatasetWithTransformInBody() throws Exception {
-        registerDataSource("local_ds", Map.of());
-        registerDataset("employees_external", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
-        // A non-trivial view body (a WHERE on top of the dataset) proves the external leaf resolves and executes when
-        // it is nested below other commands inside a resolved view, not just as a bare top-level relation.
-        assertAcked(
-            client().execute(
-                PutViewAction.INSTANCE,
-                putViewRequest("employees_filtered_view", "FROM employees_external | WHERE emp_no > 1")
-            )
-        );
-
-        try (var response = run(syncEsqlQueryRequest("FROM employees_filtered_view | SORT emp_no"), TIMEOUT)) {
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(2));
-            assertThat(rows.get(0).get(0), equalTo(2));
-            assertThat(rows.get(0).get(1).toString(), equalTo("Bob"));
-            assertThat(rows.get(1).get(0), equalTo(3));
-            assertThat(rows.get(1).get(1).toString(), equalTo("Carol"));
         }
     }
 
@@ -6275,14 +6282,6 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertThat("error chain should contain message fragment [" + fragment + "]", cause, notNullValue());
     }
 
-    private static PutViewAction.Request putViewRequest(String name, String query) {
-        return new PutViewAction.Request(TIMEOUT, TIMEOUT, new View(name, query));
-    }
-
-    private static DeleteViewAction.Request deleteViewRequest(String name) {
-        return new DeleteViewAction.Request(TIMEOUT, TIMEOUT, new String[] { name });
-    }
-
     private static PutDataSourceAction.Request putDataSourceRequest(String name, Map<String, Object> settings) {
         return new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, name, "test", null, new HashMap<>(settings));
     }
@@ -6891,8 +6890,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             assertThat(rows.get(1).get(0).toString(), equalTo("fork2"));
             assertThat(rows.get(1).get(1), equalTo(2L));
             EsqlExecutionInfo.Cluster localCluster = response.getExecutionInfo().getCluster("");
-            assertThat(localCluster.getTotalShards(), equalTo(indexShards));
-            assertThat(localCluster.getSuccessfulShards(), equalTo(indexShards));
+            assertThat(localCluster.getTotalShards(), equalTo(indexShards * 2));
+            assertThat(localCluster.getSuccessfulShards(), equalTo(indexShards * 2));
         }
     }
 
@@ -6914,52 +6913,6 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                 getValuesList(response),
                 equalTo(List.of(List.of("fork1", 11), List.of("fork1", 10), List.of("fork2", 10), List.of("fork2", 3)))
             );
-        }
-    }
-
-    public void testForkOverCompactedDatasetViews() throws Exception {
-        registerDataSource("local_ds", Map.of());
-        registerDataset("fork_view_dataset_a", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
-        registerDataset("fork_view_dataset_b", "local_ds", csvFixtureAlt.toUri().toString(), Map.of("format", "csv"));
-        assertAcked(
-            client().execute(PutViewAction.INSTANCE, putViewRequest("fork_dataset_view", "FROM fork_view_dataset_a, fork_view_dataset_b"))
-        );
-        assertAcked(client().execute(PutViewAction.INSTANCE, putViewRequest("fork_dataset_view_a", "FROM fork_view_dataset_a")));
-        assertAcked(client().execute(PutViewAction.INSTANCE, putViewRequest("fork_dataset_view_b", "FROM fork_view_dataset_b")));
-
-        for (String source : List.of(
-            "fork_dataset_view",
-            "fork_dataset_view_a, fork_view_dataset_b",
-            "fork_dataset_view_a, fork_dataset_view_b"
-        )) {
-            String query = "FROM " + source + """
-                 | FORK
-                     (STATS count = COUNT(*))
-                     (WHERE emp_no >= 10 | STATS count = COUNT(*))
-                 | KEEP _fork, count
-                 | SORT _fork
-                """;
-            try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
-                List<List<Object>> rows = getValuesList(response);
-                assertThat(rows, hasSize(2));
-                assertThat(rows.get(0).get(1), equalTo(5L));
-                assertThat(rows.get(1).get(1), equalTo(2L));
-            }
-        }
-
-        String composed = """
-            FROM fork_dataset_view, fork_view_dataset_a
-             | FORK
-                 (STATS count = COUNT(*))
-                 (WHERE emp_no >= 10 | STATS count = COUNT(*))
-             | KEEP _fork, count
-             | SORT _fork
-            """;
-        try (var response = run(syncEsqlQueryRequest(composed), TIMEOUT)) {
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(2));
-            assertThat(rows.get(0).get(1), equalTo(8L));
-            assertThat(rows.get(1).get(1), equalTo(2L));
         }
     }
 

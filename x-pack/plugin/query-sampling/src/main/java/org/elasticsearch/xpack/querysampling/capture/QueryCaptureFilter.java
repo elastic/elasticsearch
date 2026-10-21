@@ -50,7 +50,7 @@ public final class QueryCaptureFilter implements MappedActionFilter {
 
     private static final Logger logger = LogManager.getLogger(QueryCaptureFilter.class);
 
-    private static final int DEFAULT_SIZE = 10;
+    private static final int DEFAULT_SIZE = SearchService.DEFAULT_SIZE;
 
     private final Consumer<CapturedSearch> consumer;
     private final Supplier<Random> random;

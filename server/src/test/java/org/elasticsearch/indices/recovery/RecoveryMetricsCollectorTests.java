@@ -9,16 +9,23 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.indices.recovery.ThrottlingRecoveryService.BlockedState;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.indices.recovery.RecoveryMetricsCollector.INCOMING_RECOVERIES_LIMIT_METRIC;
+import static org.elasticsearch.indices.recovery.RecoveryMetricsCollector.INCOMING_RELOCATION_RECOVERIES_LIMIT_METRIC;
+import static org.elasticsearch.indices.recovery.RecoveryMetricsCollector.OUTGOING_RECOVERIES_LIMIT_METRIC;
 import static org.elasticsearch.indices.recovery.RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_CURRENT_DURATION_METRIC;
 import static org.elasticsearch.indices.recovery.RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_CURRENT_METRIC;
 import static org.elasticsearch.indices.recovery.RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_DURATION_METRIC;
@@ -36,7 +43,9 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
             telemetryPlugin.getTelemetryProvider(Settings.EMPTY),
             () -> null,
             () -> 0L,
-            () -> 0L
+            () -> 0L,
+            ClusterSettings.createBuiltInClusterSettings(),
+            ByteSizeValue.ZERO
         );
         collector.doStart();
         final String gateName = randomIdentifier();
@@ -78,7 +87,9 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
                 telemetryPlugin.getTelemetryProvider(Settings.EMPTY),
                 blockedState::get,
                 () -> 0L,
-                relativeTimeMillis::get
+                relativeTimeMillis::get,
+                ClusterSettings.createBuiltInClusterSettings(),
+                ByteSizeValue.ZERO
             )
         ) {
             collector.doStart();
@@ -101,6 +112,137 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
             }
             assertCurrentGateMetrics(telemetryPlugin, 0L, 0L);
         }
+    }
+
+    public void testIncomingRecoveryLimitsMetrics() {
+        final var telemetryPlugin = new TestTelemetryPlugin();
+        final var clusterSettings = new ClusterSettings(Settings.EMPTY, Set.copyOf(DataNodeRecoveryThrottlingSettings.settings()));
+        final int heapGb = between(1, 64);
+        try (
+            var collector = new RecoveryMetricsCollector(
+                telemetryPlugin.getTelemetryProvider(Settings.EMPTY),
+                () -> null,
+                () -> 0L,
+                () -> 0L,
+                clusterSettings,
+                ByteSizeValue.ofGb(heapGb)
+            )
+        ) {
+            collector.doStart();
+            assertIncomingRecoveryLimitsMetrics(telemetryPlugin, Integer.MAX_VALUE, Integer.MAX_VALUE);
+
+            final int iterations = between(1, 5);
+            for (int i = 0; i < iterations; i++) {
+                final int maxConcurrent = between(1, 100);
+                final int perHeapGb = between(1, 10);
+                final int relocationPercent = between(1, 100);
+                clusterSettings.applySettings(
+                    Settings.builder()
+                        .put(
+                            DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
+                            maxConcurrent
+                        )
+                        .put(
+                            DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING
+                                .getKey(),
+                            perHeapGb
+                        )
+                        .put(
+                            DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING
+                                .getKey(),
+                            relocationPercent + "%"
+                        )
+                        .build()
+                );
+                final int expectedMaxConcurrentRecoveries = Math.min(maxConcurrent, heapGb * perHeapGb);
+                assertIncomingRecoveryLimitsMetrics(
+                    telemetryPlugin,
+                    expectedMaxConcurrentRecoveries,
+                    (long) Math.ceil(expectedMaxConcurrentRecoveries * RatioValue.ofPercent(relocationPercent).getAsRatio())
+                );
+            }
+        }
+    }
+
+    public void testOutgoingRecoveryLimitMetric() {
+        final var telemetryPlugin = new TestTelemetryPlugin();
+        final var clusterSettings = new ClusterSettings(Settings.EMPTY, Set.copyOf(DataNodeRecoveryThrottlingSettings.settings()));
+        final int heapGb = between(1, 64);
+        try (
+            var collector = new RecoveryMetricsCollector(
+                telemetryPlugin.getTelemetryProvider(Settings.EMPTY),
+                () -> null,
+                () -> 0L,
+                () -> 0L,
+                clusterSettings,
+                ByteSizeValue.ofGb(heapGb)
+            )
+        ) {
+            collector.doStart();
+            assertOutgoingRecoveryLimitMetric(telemetryPlugin, Integer.MAX_VALUE);
+
+            final int iterations = between(1, 5);
+            for (int i = 0; i < iterations; i++) {
+                final int maxConcurrent = between(1, 100);
+                final int perHeapGb = between(1, 10);
+                clusterSettings.applySettings(
+                    Settings.builder()
+                        .put(
+                            DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(),
+                            maxConcurrent
+                        )
+                        .put(
+                            DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING
+                                .getKey(),
+                            perHeapGb
+                        )
+                        .build()
+                );
+                assertOutgoingRecoveryLimitMetric(telemetryPlugin, Math.min(maxConcurrent, heapGb * perHeapGb));
+            }
+        }
+    }
+
+    public void testRecoveryLimitsMetricsUnboundedWhenSettingsNotRegistered() {
+        final var telemetryPlugin = new TestTelemetryPlugin();
+        try (
+            var collector = new RecoveryMetricsCollector(
+                telemetryPlugin.getTelemetryProvider(Settings.EMPTY),
+                () -> null,
+                () -> 0L,
+                () -> 0L,
+                ClusterSettings.createBuiltInClusterSettings(),
+                ByteSizeValue.ofGb(between(1, 64))
+            )
+        ) {
+            collector.doStart();
+            assertIncomingRecoveryLimitsMetrics(telemetryPlugin, Integer.MAX_VALUE, Integer.MAX_VALUE);
+            assertOutgoingRecoveryLimitMetric(telemetryPlugin, Integer.MAX_VALUE);
+        }
+    }
+
+    private static void assertOutgoingRecoveryLimitMetric(TestTelemetryPlugin telemetryPlugin, long expectedLimit) {
+        telemetryPlugin.collect();
+        assertThat(
+            telemetryPlugin.getLongAsyncGaugeMeasurement(OUTGOING_RECOVERIES_LIMIT_METRIC).getLast().getLong(),
+            equalTo(expectedLimit)
+        );
+    }
+
+    private static void assertIncomingRecoveryLimitsMetrics(
+        TestTelemetryPlugin telemetryPlugin,
+        long expectedMaxConcurrentRecoveries,
+        long expectedMaxConcurrentRelocationRecoveries
+    ) {
+        telemetryPlugin.collect();
+        assertThat(
+            telemetryPlugin.getLongAsyncGaugeMeasurement(INCOMING_RECOVERIES_LIMIT_METRIC).getLast().getLong(),
+            equalTo(expectedMaxConcurrentRecoveries)
+        );
+        assertThat(
+            telemetryPlugin.getLongAsyncGaugeMeasurement(INCOMING_RELOCATION_RECOVERIES_LIMIT_METRIC).getLast().getLong(),
+            equalTo(expectedMaxConcurrentRelocationRecoveries)
+        );
     }
 
     private static void assertCurrentGateMetrics(TestTelemetryPlugin telemetryPlugin, long expectedBlocked, long expectedDuration) {

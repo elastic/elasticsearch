@@ -1,0 +1,5 @@
+area: Reindex
+issues: []
+pr: 162131
+summary: Bound script params in reindex and update-by-query task descriptions
+type: bug

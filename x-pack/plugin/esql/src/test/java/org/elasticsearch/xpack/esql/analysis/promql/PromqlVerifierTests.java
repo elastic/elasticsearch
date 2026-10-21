@@ -915,6 +915,38 @@ public class PromqlVerifierTests extends ESTestCase {
         );
     }
 
+    public void testRelabelOverAggregatePrefixedDestinationComparedByLabelName() {
+        // The analyzer and the translation treat a `labels.`-prefixed name as the same label as its bare form, so the
+        // verifier must too: `labels.host` over `sum by (host)` overwrites `host` (and would otherwise silently replace the
+        // grouping column), and `labels.step` collides with the built-in step column.
+        tsdb.error(
+            "PROMQL index=test step=5m label_replace(sum by (host) (network.bytes_in), \"labels.host\", \"$1\", \"host\", \"(.+)\")",
+            containsString("but destination [host] overwrites a label of the aggregation")
+        );
+        tsdb.error(
+            "PROMQL index=test step=5m topk(3, label_join(sum by (host) (network.bytes_in), \"labels.host\", \"-\", \"host\"))",
+            containsString("but destination [host] overwrites a label of the aggregation")
+        );
+        tsdb.error(
+            "PROMQL index=test step=5m label_replace(sum by (host) (network.bytes_in), \"labels.step\", \"$1\", \"host\", \"(.+)\")",
+            containsString("label [step] collides with the built-in [step] output column")
+        );
+        tsdb.error(
+            "PROMQL index=test step=5m result=(label_join(sum by (host) (network.bytes_in), \"labels.result\", \"-\", \"host\"))",
+            containsString("label [result] collides with the built-in [result] output column")
+        );
+        tsdb.error(
+            "PROMQL index=test step=5m sum by (labels.step) (network.bytes_in)",
+            containsString("label [step] collides with the built-in [step] output column")
+        );
+        // A prefixed name that is genuinely new is still fine.
+        assertTrue(
+            tsdb.query(
+                "PROMQL index=test step=5m label_replace(sum by (host) (network.bytes_in), \"labels.dst\", \"$1\", \"host\", \"(.+)\")"
+            ).resolved()
+        );
+    }
+
     public void testRelabelOverAggregateCollidingWithStepColumnRejected() {
         // Over an aggregate the derived label becomes an output column of its own, so it must not reuse the name of the
         // built-in step column, which would surface as a duplicate output attribute in the optimizer.

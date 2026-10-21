@@ -139,8 +139,10 @@ public final class MetadataManipulationFunction extends PromqlFunctionCall {
         List<Attribute> childOutput = child().output();
         List<Attribute> labels = new ArrayList<>(childOutput.size() + 1);
         boolean shadowed = false;
+        // Shadowing compares PromQL label names so a `labels.`-prefixed destination shadows the bare label and vice versa.
+        String destinationLabel = PromqlLabels.labelName(destination);
         for (Attribute label : childOutput) {
-            if (PromqlLabels.labelName(label).equals(destination.name())) {
+            if (PromqlLabels.labelName(label).equals(destinationLabel)) {
                 labels.add(destination);
                 shadowed = true;
             } else {

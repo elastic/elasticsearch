@@ -476,12 +476,12 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                     // Reject labels whose name collides with a built-in output column.
                     // If this proves too restrictive, we could add an option to rename the built-in step column.
                     for (Attribute grouping : agg.groupings()) {
-                        checkBuiltInColumnCollision(agg, grouping.name(), failures);
+                        checkBuiltInColumnCollision(agg, PromqlLabels.labelName(grouping), failures);
                     }
                 }
                 case AcrossSeriesReduction reduction -> {
                     for (Attribute grouping : reduction.groupings()) {
-                        checkBuiltInColumnCollision(reduction, grouping.name(), failures);
+                        checkBuiltInColumnCollision(reduction, PromqlLabels.labelName(grouping), failures);
                     }
                 }
                 case HistogramFunctionCall histogram -> {
@@ -696,7 +696,9 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
             : "as a top-level expression";
         LogicalPlan identitySource = identitySource(relabel.child());
         if (identitySource instanceof AcrossSeriesAggregate agg && agg.grouping() == AcrossSeriesAggregate.Grouping.BY) {
-            String destination = relabel.destination().name();
+            // Compare by label name, not attribute name: a destination written as `labels.pod` names the same label as the
+            // aggregation's `pod`, which is how the analyzer shadows it and how translation resolves it.
+            String destination = PromqlLabels.labelName(relabel.destination());
             if (overwritesLabel(relabel, destination)) {
                 failures.add(
                     fail(
@@ -731,7 +733,8 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
     /**
      * Rejects a label that would surface as an output column under the same name as one of the command's built-in output
      * columns - the step column or the value column - since the two would end up as duplicate output attributes and fail
-     * in the optimizer rather than with a client error.
+     * in the optimizer rather than with a client error. {@code labelName} is the PromQL label name (see
+     * {@link PromqlLabels#labelName}), so a passthrough-prefixed {@code labels.step} is caught as well.
      */
     private void checkBuiltInColumnCollision(LogicalPlan node, String labelName, Failures failures) {
         for (String builtIn : List.of(stepColumnName(), valueColumnName())) {
@@ -779,10 +782,10 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
     }
 
     /**
-     * Whether the relabel's destination names a label its input already carries. The derived value is a function of the
-     * input's labels, so adding a new label strictly refines the identity - series that differ before the relabel still
-     * differ after it - whereas overwriting one can collapse two series onto a shared label set and would need Prometheus'
-     * duplicate-label-set handling.
+     * Whether the relabel's destination (given as a PromQL label name, see {@link PromqlLabels#labelName}) names a label its
+     * input already carries. The derived value is a function of the input's labels, so adding a new label strictly refines
+     * the identity - series that differ before the relabel still differ after it - whereas overwriting one can collapse two
+     * series onto a shared label set and would need Prometheus' duplicate-label-set handling.
      */
     private static boolean overwritesLabel(MetadataManipulationFunction relabel, String destination) {
         for (Attribute label : relabel.child().output()) {

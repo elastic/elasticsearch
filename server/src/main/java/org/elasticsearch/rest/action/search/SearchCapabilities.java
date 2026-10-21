@@ -79,6 +79,8 @@ public final class SearchCapabilities {
 
     /** A text field that indexes no positions answers positional queries from the values it keeps. */
     private static final String POSITIONAL_QUERIES_ON_TEXT_WITHOUT_POSITIONS = "positional_queries_on_text_without_positions";
+    /** A knn search on a slice-enabled index is rejected unless the request selects the slices to search by name. */
+    private static final String KNN_REQUIRES_SLICE_SELECTION = "knn_requires_slice_selection";
 
     public static final Set<String> CAPABILITIES;
     static {
@@ -120,6 +122,7 @@ public final class SearchCapabilities {
         capabilities.add(KEYED_FLATTENED_UNSUPPORTED_QUERIES_BAD_REQUEST);
         capabilities.add(POSITIONAL_QUERIES_ON_TEXT_WITHOUT_POSITIONS);
         capabilities.add(RANGE_FIELD_DV_QUERY_DESCRIPTION_HAS_FIELD);
+        capabilities.add(KNN_REQUIRES_SLICE_SELECTION);
         CAPABILITIES = Set.copyOf(capabilities);
     }
 }

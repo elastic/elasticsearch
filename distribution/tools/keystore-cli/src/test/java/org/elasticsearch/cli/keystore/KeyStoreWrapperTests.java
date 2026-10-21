@@ -540,6 +540,19 @@ public class KeyStoreWrapperTests extends ESTestCase {
         assertThat(upgraded.getString("string"), equalTo("value"));
     }
 
+    public void testV8UnprotectedFixture() throws GeneralSecurityException, IOException {
+        final Path configDir = createTempDir();
+        copyKeyStoreFromResourceToConfigDir(configDir, "/format-v8-elasticsearch.keystore");
+
+        final KeyStoreWrapper wrapper = KeyStoreWrapper.load(configDir);
+        assertNotNull(wrapper);
+        assertFalse(wrapper.hasPassword());
+        wrapper.decrypt(new char[0]);
+        assertThat(wrapper.getFormatVersion(), equalTo(KeyStoreWrapper.UNPROTECTED_KDF_INPUT_VERSION));
+        assertThat(wrapper.getSettingNames(), equalTo(Set.of("keystore.seed", "string")));
+        assertThat(wrapper.getString("string"), equalTo("value"));
+    }
+
     private void copyKeyStoreFromResourceToConfigDir(Path configDir, String name) throws IOException {
         final Path keystore = configDir.resolve("elasticsearch.keystore");
         try (

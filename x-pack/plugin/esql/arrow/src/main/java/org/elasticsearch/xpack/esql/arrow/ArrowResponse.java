@@ -272,6 +272,9 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             // Closures that will actually write a Block's data. Maps 1:1 to `bufs`.
             List<BlockConverter.BufWriter> bufWriters = new ArrayList<>(page.getBlockCount() * 2);
 
+            // Resources captured by deferred buffer writers.
+            List<Releasable> releasables = new ArrayList<>();
+
             // Give Arrow a WriteChannel that will iterate on `bufWriters` when requested to write a buffer.
             WriteChannel arrowOut = new WriteChannel(arrowOut(out)) {
                 int bufIdx = 0;
@@ -304,40 +307,44 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
                 }
             };
 
-            // Create Arrow buffers for each of the blocks in this page
-            for (int b = 0; b < page.getBlockCount(); b++) {
-                var column = response.columns.get(b);
-                var converter = column.converter;
+            try {
+                // Create Arrow buffers for each of the blocks in this page
+                for (int b = 0; b < page.getBlockCount(); b++) {
+                    var column = response.columns.get(b);
+                    var converter = column.converter;
 
-                Block block = page.getBlock(b);
-                if (column.multivalued) {
-                    // List node.
-                    nodes.add(new ArrowFieldNode(block.getPositionCount(), converter.nullValuesCount(block)));
-                    // Value vector, does not contain nulls.
-                    nodes.add(new ArrowFieldNode(BlockConverter.valueCount(block), 0));
-                } else {
-                    nodes.add(new ArrowFieldNode(block.getPositionCount(), converter.nullValuesCount(block)));
+                    Block block = page.getBlock(b);
+                    if (column.multivalued) {
+                        // List node.
+                        nodes.add(new ArrowFieldNode(block.getPositionCount(), converter.nullValuesCount(block)));
+                        // Value vector, does not contain nulls.
+                        nodes.add(new ArrowFieldNode(block.getTotalValueCount(), 0));
+                    } else {
+                        nodes.add(new ArrowFieldNode(block.getPositionCount(), converter.nullValuesCount(block)));
+                    }
+                    converter.convert(block, column.multivalued, bufs, bufWriters, releasables);
                 }
-                converter.convert(block, column.multivalued, bufs, bufWriters);
-            }
 
-            // Consistency check
-            if (bufs.size() != bufWriters.size()) {
-                throw new IllegalStateException(
-                    "Inconsistent Arrow buffers: [" + bufs.size() + "] buffers and [" + bufWriters.size() + "] writers"
+                // Consistency check
+                if (bufs.size() != bufWriters.size()) {
+                    throw new IllegalStateException(
+                        "Inconsistent Arrow buffers: [" + bufs.size() + "] buffers and [" + bufWriters.size() + "] writers"
+                    );
+                }
+
+                // Create the batch and serialize it
+                ArrowRecordBatch batch = new ArrowRecordBatch(
+                    page.getPositionCount(),
+                    nodes,
+                    bufs,
+                    NoCompressionCodec.DEFAULT_BODY_COMPRESSION,
+                    true, // align buffers
+                    false // retain buffers
                 );
+                MessageSerializer.serialize(arrowOut, batch);
+            } finally {
+                Releasables.close(releasables);
             }
-
-            // Create the batch and serialize it
-            ArrowRecordBatch batch = new ArrowRecordBatch(
-                page.getPositionCount(),
-                nodes,
-                bufs,
-                NoCompressionCodec.DEFAULT_BODY_COMPRESSION,
-                true, // align buffers
-                false // retain buffers
-            );
-            MessageSerializer.serialize(arrowOut, batch);
 
             done = true; // one day we should respect sizeHint here. kindness.
         }

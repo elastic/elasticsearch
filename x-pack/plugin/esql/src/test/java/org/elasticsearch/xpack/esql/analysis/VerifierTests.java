@@ -4623,9 +4623,18 @@ public class VerifierTests extends AnalyzerTestCase {
         analyzer.error(
             "from test | EVAL embedding = EMBEDDING(?, ?, {\"type\": \"invalid_type\"})",
             equalTo(
-                "1:30: Invalid options for EMBEDDING: Unrecognized type [invalid_type], must be one of [text, image, audio, video, pdf]"
+                "1:30: Invalid options for EMBEDDING: Unrecognized type [invalid_type], "
+                    + "must be one of [text, image, audio, video, pdf, html]"
             ),
             "query text",
+            EMBEDDING_INFERENCE_ID
+        );
+
+        // html is a valid data type, but only for document extraction
+        analyzer.error(
+            "from test | EVAL embedding = EMBEDDING(?, ?, {\"type\": \"html\"})",
+            equalTo("1:30: Invalid options for EMBEDDING: Unsupported type [html], must be one of [text, image, audio, video, pdf]"),
+            "https://example.com/page.html",
             EMBEDDING_INFERENCE_ID
         );
 

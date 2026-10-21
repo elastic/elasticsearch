@@ -195,7 +195,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                     IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS
                 ),
                 m -> ((MatchOnlyTextFieldMapper) m).docValuesParameters,
-                indexSettings.getMode().isStrictColumnar()
+                indexSettings
             );
         }
 
@@ -208,6 +208,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             List<Parameter<?>> params = new ArrayList<>();
             params.add(meta);
             params.add(docValuesParameters);
+            params.add(docValuesParameters.multiValue());
+            params.add(docValuesParameters.nullability());
+            params.add(docValuesParameters.onFailure());
             params.add(indexed);
             return params.toArray(Parameter[]::new);
         }

@@ -2108,4 +2108,19 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
 
         return super.syntheticSourceSupport();
     }
+
+    /**
+     * The synthetic source loader of the {@code _unmapped} sink that wraps this mapper. It reads the doc values with exactly the
+     * configuration this mapper wrote them with.
+     */
+    UnmappedSinkSyntheticFieldLoader unmappedSinkSyntheticFieldLoader() {
+        return new UnmappedSinkSyntheticFieldLoader(
+            fullPath(),
+            fieldType().ignoreAbove.valuesPotentiallyIgnored() ? fullPath() + KEYED_IGNORED_VALUES_FIELD_SUFFIX : null,
+            builder.usesBinaryDocValues,
+            builder.storeIgnoredFieldsInBinaryDocValues,
+            preserveLeafArrays,
+            fieldType().usesArrayOrderBinaryDocValues()
+        );
+    }
 }

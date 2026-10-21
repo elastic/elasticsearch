@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_load_all_single_source_column, flattened_datatype ]
+          capabilities: [ optional_fields_load_all_single_source_column, optional_fields_load_all_column_from_shard, optional_fields_load_all_skips_below_mapped_fields, flattened_datatype ]
       reason: "unmapped_fields=\"load_all\" and the flattened type are only supported once these capabilities exist"
 
   # #158157 type-conflict case: bar is flattened in tc_flat, keyword in tc_keyword and unmapped in tc_unmapped.

@@ -55,6 +55,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.rewriteDatasetsUnsecure
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
@@ -128,6 +129,32 @@ public class DatasetRewriterTests extends ESTestCase {
             assertFalse(out.config().containsKey(key));
         }
         assertThat(paramValue(out, ExternalSourceResolver.CONFIG_SCHEMA_RESOLUTION), equalTo("union_by_name"));
+    }
+
+    /**
+     * The executing node rebuilds a dataset's config from its own cluster state through {@link DatasetRewriter#datasetConfig}
+     * instead of trusting the plan's copy, so that builder must produce exactly what the rewrite put on the relation.
+     */
+    public void testDatasetConfigIsWhatTheRewritePutsOnTheRelation() {
+        DataSource parent = dataSource(
+            "s3_parent",
+            Map.of("access_key", new DataSourceSetting("AKIA", true), "endpoint", new DataSourceSetting("https://s3.example", false))
+        );
+        Dataset dataset = new Dataset(
+            "logs",
+            new DataSourceReference("s3_parent"),
+            "s3://logs/*.parquet",
+            null,
+            Map.of("format", "parquet")
+        );
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
+
+        UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewrite(relationOf("logs"), project);
+
+        assertThat(DatasetRewriter.datasetConfig(parent, dataset), equalTo(out.config()));
+        assertThat(out.config(), hasKey(DefinitionVersion.CONFIG_KEY));
+        assertThat(out.config(), hasKey(ExternalSourceResolver.DATASOURCE_CONFIG_KEY));
+        assertThat(out.config(), hasKey(ExternalSourceResolver.DATASET_CONTEXT_KEY));
     }
 
     public void testStoredFirstFileWinsIsNotHydratedToUnionByName() {

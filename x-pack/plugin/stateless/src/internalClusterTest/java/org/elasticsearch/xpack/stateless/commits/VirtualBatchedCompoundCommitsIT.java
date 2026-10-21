@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeoutCalculationS
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
+import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.lucene.IndexDirectory;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
@@ -1602,7 +1603,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
      * Appends several commits to one virtual batched compound commit, flushes it, and checks that the search directory
      * tracked that blob's furthest file byte. A force merge then replaces those segments, and the old blob is dropped.
      */
-    public void testBlobLengthFollowsVirtualCommitAndDropsAfterForceMerge() throws Exception {
+    public void testBlobLengthFollowsVirtualCommitAndDropsAfterForceMerge() {
         startMasterOnlyNode();
         final String indexNode = startIndexNode();
         startSearchNode();
@@ -1617,8 +1618,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
 
         final int commits = randomIntBetween(2, 4);
         long previousLength = -1L;
-        String blobName = null;
-        long primaryTerm = -1L;
+        PrimaryTermAndGeneration termAndGeneration = null;
         for (int i = 0; i < commits; i++) {
             final String bytes = "x".repeat(i + 1);
             final int docs = randomIntBetween(1, 10);
@@ -1631,13 +1631,12 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
 
             final var virtualBcc = commitService.getCurrentVirtualBcc(searchShard.shardId());
             assertNotNull(virtualBcc);
-            if (blobName == null) {
-                blobName = virtualBcc.getBlobName();
-                primaryTerm = virtualBcc.getPrimaryTermAndGeneration().primaryTerm();
+            if (termAndGeneration == null) {
+                termAndGeneration = virtualBcc.getPrimaryTermAndGeneration();
             } else {
-                assertThat(virtualBcc.getBlobName(), equalTo(blobName));
+                assertThat(virtualBcc.getPrimaryTermAndGeneration(), equalTo(termAndGeneration));
             }
-            final long length = searchDirectory.blobLength(primaryTerm, blobName).getAsLong();
+            final long length = searchDirectory.blobLength(virtualBcc.getPrimaryTermAndGeneration()).getAsLong();
             assertThat(length, equalTo(virtualBcc.getTotalSizeInBytes()));
             if (previousLength >= 0) {
                 assertThat(length, greaterThan(previousLength));
@@ -1648,23 +1647,19 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
         flush(indexName);
         final var uploaded = commitService.getLatestUploadedBcc(searchShard.shardId());
         assertNotNull(uploaded);
-        assertThat(BatchedCompoundCommit.blobNameFromGeneration(uploaded.primaryTermAndGeneration().generation()), equalTo(blobName));
-        final long flushedLength = searchDirectory.blobLength(primaryTerm, blobName).getAsLong();
+        assertThat(uploaded.primaryTermAndGeneration(), equalTo(termAndGeneration));
+        final long flushedLength = searchDirectory.blobLength(uploaded.primaryTermAndGeneration()).getAsLong();
         assertThat(flushedLength, greaterThanOrEqualTo(previousLength));
         assertThat(flushedLength, equalTo(uploaded.calculateBccBlobLength()));
 
         client().admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).get();
         refresh(indexName);
-        assertThat(searchDirectory.blobLength(primaryTerm, blobName).isPresent(), equalTo(false));
+        assertThat(searchDirectory.blobLength(termAndGeneration).isPresent(), equalTo(false));
 
         final var merged = commitService.getLatestUploadedBcc(searchShard.shardId());
         assertNotNull(merged);
-        final String mergedBlobName = BatchedCompoundCommit.blobNameFromGeneration(merged.primaryTermAndGeneration().generation());
-        assertNotEquals(blobName, mergedBlobName);
-        assertThat(
-            searchDirectory.blobLength(merged.primaryTermAndGeneration().primaryTerm(), mergedBlobName).getAsLong(),
-            equalTo(merged.calculateBccBlobLength())
-        );
+        assertNotEquals(termAndGeneration, merged.primaryTermAndGeneration());
+        assertThat(searchDirectory.blobLength(merged.primaryTermAndGeneration()).getAsLong(), equalTo(merged.calculateBccBlobLength()));
     }
 
     private void assertMeasurement(Measurement measurement, long value) {

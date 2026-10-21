@@ -59,6 +59,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.shard.GlobalCheckpointListeners;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -2730,6 +2731,53 @@ public class StatelessCommitServiceTests extends ESTestCase {
             } finally {
                 blockUpload.countDown();
             }
+        }
+    }
+
+    public void testRegisterCommitUploadedByTargetMatchingPausedBccOnSource() throws Exception {
+        final Set<String> uploadedBlobs = Collections.newSetFromMap(new ConcurrentHashMap<>());
+        try (var testHarness = createNode(fileCapture(uploadedBlobs), fileCapture(uploadedBlobs), 1)) {
+            final var shardId = testHarness.shardId;
+            final var commitService = testHarness.commitService;
+            final var stateWithNoSearchShards = clusterStateWithPrimaryAndSearchShards(shardId, 0);
+            final var stateWithSearchShards = clusterStateWithPrimaryAndSearchShards(shardId, 1);
+            final var nodeId = stateWithSearchShards.getRoutingTable()
+                .shardRoutingTable(shardId)
+                .replicaShards()
+                .getFirst()
+                .currentNodeId();
+            commitService.clusterChanged(new ClusterChangedEvent("test", stateWithSearchShards, stateWithNoSearchShards));
+
+            final var uploadedCommit = testHarness.generateIndexCommits(1).getFirst();
+            commitService.onCommitCreation(uploadedCommit);
+            waitUntilBCCIsUploaded(commitService, shardId, uploadedCommit.getGeneration());
+
+            final var markedRelocating = new PlainActionFuture<Void>();
+            when(testHarness.indexShard.getActiveOperationsCount()).thenReturn(IndexShard.OPERATIONS_BLOCKED);
+            commitService.installUploadBoundListener(shardId, new SubscribableListener<>());
+            final var handoffListener = commitService.markRelocating(shardId, uploadedCommit.getGeneration(), markedRelocating);
+            markedRelocating.actionGet();
+
+            // A background merge is frozen into a BCC that stays pending upload, paused above maxGenerationToUpload.
+            final var mergedCommit = testHarness.generateIndexCommits(1, true).getFirst();
+            commitService.onCommitCreation(mergedCommit);
+            assertThat(mergedCommit.getGeneration(), greaterThan(commitService.getMaxGenerationToUpload(shardId)));
+            assertNull(commitService.getCurrentVirtualBcc(shardId));
+            assertFalse(uploadedBlobs.contains(blobNameFromGeneration(mergedCommit.getGeneration())));
+
+            // The search shard registers with a same-term commit at the paused generation, as uploaded by the relocation target.
+            final var registerFuture = new PlainActionFuture<RegisterCommitResponse>();
+            commitService.registerCommitForUnpromotableRecovery(
+                null,
+                new PrimaryTermAndGeneration(mergedCommit.getPrimaryTerm(), mergedCommit.getGeneration()),
+                shardId,
+                nodeId,
+                stateWithSearchShards,
+                registerFuture
+            );
+            expectThrows(RecoveryCommitTooNewException.class, registerFuture::actionGet);
+
+            handoffListener.onResponse(null);
         }
     }
 

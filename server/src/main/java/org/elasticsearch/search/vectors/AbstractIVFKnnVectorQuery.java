@@ -172,7 +172,10 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         // When providedVisitRatio is 0.0f (dynamic), the codec computes the visit ratio
         // per-segment using the Two-Signal model with segment-size awareness.
         final float visitRatio = providedVisitRatio;
-        final LongAccumulator longAccumulator = indexSearcher.getIndexReader().leaves().size() > 1
+        // A post-filter delegate must not share the cross-leaf floor: PostFilterKnnQuery relies on each
+        // leaf's lowest collected score bounding what that leaf has not shown, and a shared floor built from
+        // unfiltered hits makes a leaf skip docs above its own floor. Skipping only saves heap insertions.
+        final LongAccumulator longAccumulator = indexSearcher.getIndexReader().leaves().size() > 1 && postFilterDelegate == false
             ? new LongAccumulator(Long::max, LEAST_COMPETITIVE)
             : null;
 

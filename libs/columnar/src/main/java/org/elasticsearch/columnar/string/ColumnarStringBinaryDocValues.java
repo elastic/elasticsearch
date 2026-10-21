@@ -37,10 +37,14 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
     private final boolean singleValued;
     private final StringBinaryPayload.Builder payload = new StringBinaryPayload.Builder();
 
+    /** The reader as a dictionary one, or null when the column has no dictionary. Typed once so a document is not asked. */
+    private final DictionaryStringColumnReader dictionary;
+
     public ColumnarStringBinaryDocValues(StringColumnReader reader, ColumnIterator iterator, boolean singleValued) {
         this.reader = reader;
         this.iterator = iterator;
         this.singleValued = singleValued;
+        this.dictionary = reader instanceof DictionaryStringColumnReader d ? d : null;
     }
 
     /**
@@ -111,8 +115,19 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
 
     @Override
     public int denseTermOrdinal() throws IOException {
-        final DictionaryStringColumnReader dictionary = dictionaryReader();
+        if (dictionary == null) {
+            throw new IllegalStateException("the column has no dictionary");
+        }
         final int rank = iterator.rank();
+        if (reader.hasValueAddresses() == false) {
+            // One slot a document, whose address is the rank: read its ordinal once and decide.
+            final int ordinal = dictionary.ordinalAt(rank);
+            if (ordinal == StringColumnMetadata.Dictionary.NULL_ORDINAL) {
+                return NO_VALUE;
+            }
+            valueSlot = rank;
+            return denseOrdinal(ordinal);
+        }
         final long first = reader.firstValueAddress(rank);
         final long slots = reader.valueCount(rank);
         int found = NO_VALUE;
@@ -124,15 +139,21 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
             if (found != NO_VALUE) {
                 return MULTI_VALUED;
             }
-            found = ordinal == dictionary.escapeOrdinal() ? ESCAPED : ordinal - StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL;
+            found = denseOrdinal(ordinal);
             valueSlot = slot;
         }
         return found;
     }
 
+    /** The dense ordinal of a stored one that names a value, or {@link #ESCAPED}. */
+    private int denseOrdinal(int storedOrdinal) {
+        assert storedOrdinal != StringColumnMetadata.Dictionary.NULL_ORDINAL : "a null slot names no value";
+        return storedOrdinal == dictionary.escapeOrdinal() ? ESCAPED : storedOrdinal - StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL;
+    }
+
     @Override
     public BytesRef termAt(int denseOrdinal, BytesRef dst) throws IOException {
-        final DictionaryStringColumnReader dictionary = dictionaryReader();
+        assert dictionary != null : "the column has no dictionary";
         assert denseOrdinal >= 0 && denseOrdinal < dictionary.dictionarySize()
             : "ordinal [" + denseOrdinal + "] names no term in a dictionary of " + dictionary.dictionarySize();
         return dictionary.termAt(denseOrdinal + StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL, dst);
@@ -140,15 +161,9 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
 
     @Override
     public BytesRef escapedValue(BytesRef dst) throws IOException {
+        assert dictionary != null : "the column has no dictionary";
         assert valueSlot >= 0 : "no document has answered with a value";
-        return dictionaryReader().resolveEscape(valueSlot, dst);
-    }
-
-    private DictionaryStringColumnReader dictionaryReader() {
-        if (reader instanceof DictionaryStringColumnReader dictionary) {
-            return dictionary;
-        }
-        throw new IllegalStateException("the column has no dictionary");
+        return dictionary.resolveEscape(valueSlot, dst);
     }
 
     @Override

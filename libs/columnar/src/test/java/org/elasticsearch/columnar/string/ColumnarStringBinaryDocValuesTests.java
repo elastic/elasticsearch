@@ -229,6 +229,47 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
         });
     }
 
+    /**
+     * A column of one slot a document, where a slot is its own address, answers as a column of several does: no value for a
+     * null slot, the dense ordinal of a term in the dictionary, or {@link StringColumnSource#ESCAPED} with the bytes.
+     */
+    public void testDenseTermOrdinalOnAOneSlotColumn() throws IOException {
+        final String[] terms = { "alpha", "bravo", "charlie" };
+        final BytesRef[][] docSlots = new BytesRef[between(400, 1200)][];
+        for (int d = 0; d < docSlots.length; d++) {
+            docSlots[d] = switch (d % 4) {
+                case 0 -> null;
+                case 1 -> new BytesRef[] { new BytesRef(terms[d % terms.length]) };
+                case 2 -> new BytesRef[] { null };
+                case 3 -> new BytesRef[] { new BytesRef("escaped-" + d) };
+                default -> throw new IllegalStateException();
+            };
+        }
+        withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), ROOMY, (metadata, reader) -> {
+            assertFalse("one slot a document", reader.hasValueAddresses());
+            final ColumnarStringBinaryDocValues dv = new ColumnarStringBinaryDocValues(reader, reader.iterator(), false);
+            int escaped = 0;
+            int inDictionary = 0;
+            for (int doc = dv.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = dv.nextDoc()) {
+                final BytesRef value = docSlots[doc][0];
+                final int ordinal = dv.denseTermOrdinal();
+                if (value == null) {
+                    assertEquals("doc " + doc, StringColumnSource.NO_VALUE, ordinal);
+                } else if (ordinal == StringColumnSource.ESCAPED) {
+                    escaped++;
+                    assertEquals("doc " + doc, value, dv.escapedValue(new BytesRef()));
+                } else {
+                    inDictionary++;
+                    assertThat("an ordinal from zero", ordinal, greaterThanOrEqualTo(0));
+                    assertThat("and below the dictionary's size", ordinal, lessThan(reader.dictionarySize()));
+                    assertEquals("doc " + doc, value, dv.termAt(ordinal, new BytesRef()));
+                }
+            }
+            assertThat("some values are in the dictionary", inDictionary, greaterThan(0));
+            assertThat("and some escaped", escaped, greaterThan(0));
+        });
+    }
+
     /** A term is looked up by ordinal at any time, not only for the document just visited. */
     public void testTermAtLooksUpAnyOrdinal() throws IOException {
         final BytesRef[] docValues = new BytesRef[between(100, 400)];

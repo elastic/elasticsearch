@@ -12,6 +12,7 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.benchmark.vector.VectorizationInfo;
 import org.elasticsearch.simdvec.BBQTestUtils;
+import org.elasticsearch.simdvec.BulkMask;
 import org.elasticsearch.simdvec.SimdVecLibrary;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -37,7 +38,12 @@ import java.util.concurrent.TimeUnit;
 /**
  * Kernel-direct benchmark for the 2-bit-doc / 4-bit-query <b>packed-quad</b> BBQ dot product
  * ({@code vec_dotd2q4_packed}). Doc layout is four 2-bit values per byte; query layout is one
- * byte per value (range 0..15).
+ * byte per value (range 0..15). Three modes are exercised on the same dataset:
+ * <ul>
+ *   <li>{@code scoreSingle} — single-pair calls in a sequential walk (control)</li>
+ *   <li>{@code scoreBulk} — contiguous bulk slice</li>
+ *   <li>{@code scoreBulkMasked} — the {@code selected} vectors of each block of 32, via a bit mask</li>
+ * </ul>
  * <p>
  * Run with: {@code ./gradlew -p benchmarks run --args 'VectorScorerD2Q4PackedOperationBenchmark'}
  */
@@ -67,20 +73,23 @@ public class VectorScorerD2Q4PackedOperationBenchmark {
     @Param({ "32" })
     public int bulkSize;
 
+    // vectors selected in each block of 32 by scoreBulkMasked
+    @Param({ "32", "29", "3" })
+    public int selected;
+
     private Arena arena;
 
     // dataset: numVectors * docBytes laid out contiguously in native memory
     private MemorySegment dataset;
     // query: dims bytes, one byte per source value (flat — packAsBytes-style)
     private MemorySegment query;
-    // shuffled ordinals for the random-access offsets path
-    private int[] ordinals;
+    // one mask per block of 32 consecutive vectors
+    private int[] masks;
     private int numVectorsToScore;
     // doc bytes per vector = dims/4 (4 source values per packed-quad byte). This is also the
     // length parameter passed to the kernel.
     private int docBytes;
-    // native scratch for bulk_offsets ordinals and bulk results
-    private MemorySegment ordinalsSeg;
+    // native scratch for bulk results
     private MemorySegment resultsSeg;
     // Java-side results returned from each @Benchmark to suppress dead-code elimination
     private float[] scores;
@@ -88,6 +97,7 @@ public class VectorScorerD2Q4PackedOperationBenchmark {
     static final class VectorData extends VectorScorerBulkBenchmark.VectorData {
         private final byte[][] packedDocs;
         private final byte[] flatQuery;
+        private final long maskSeed;
 
         VectorData(int dims, int numVectors, int numVectorsToScore, Random random) {
             super(numVectors, numVectorsToScore, random, DataAccessPattern.RANDOM);
@@ -99,6 +109,7 @@ public class VectorScorerD2Q4PackedOperationBenchmark {
             }
             flatQuery = new byte[dims];
             randomBytes(random, flatQuery, 16);
+            maskSeed = random.nextLong();
         }
 
         @Override
@@ -126,9 +137,8 @@ public class VectorScorerD2Q4PackedOperationBenchmark {
         query = arena.allocate(dims);
         MemorySegment.copy(vectorData.flatQuery, 0, query, ValueLayout.JAVA_BYTE, 0L, dims);
 
-        ordinals = vectorData.ordinals;
+        masks = BenchmarkUtils.generateBlockMasks(numVectorsToScore, selected, new Random(vectorData.maskSeed));
 
-        ordinalsSeg = arena.allocate((long) bulkSize * Integer.BYTES);
         resultsSeg = arena.allocate((long) bulkSize * Float.BYTES);
         scores = new float[bulkSize];
     }
@@ -163,28 +173,26 @@ public class VectorScorerD2Q4PackedOperationBenchmark {
         return scores;
     }
 
-    /** BULK_OFFSETS: scattered access driven by an int32 ordinals array. */
+    /** BULK_MASKED: in each block of 32 consecutive vectors, only those selected by the block's mask. */
     @Benchmark
-    public float[] scoreBulkOffsets() {
-        for (int i = 0; i < numVectorsToScore; i += bulkSize) {
-            int count = Math.min(bulkSize, numVectorsToScore - i);
-            MemorySegment.copy(ordinals, i, ordinalsSeg, ValueLayout.JAVA_INT, 0L, count);
-            VEC_LIBRARY.dotProductD2Q4PackedBulkWithOffsets(dataset, query, docBytes, docBytes, ordinalsSeg, count, resultsSeg);
+    public float[] scoreBulkMasked() {
+        for (int b = 0; b < masks.length; b++) {
+            int start = b * Integer.SIZE;
+            int count = Math.min(Integer.SIZE, numVectorsToScore - start);
+            MemorySegment block = dataset.asSlice((long) start * docBytes, (long) count * docBytes);
+            VEC_LIBRARY.dotProductD2Q4PackedBulkMasked(block, query, docBytes, docBytes, masks[b], count, resultsSeg);
         }
         MemorySegment.copy(resultsSeg, ValueLayout.JAVA_FLOAT, 0L, scores, 0, scores.length);
         return scores;
     }
 
-    /**
-     * Test-only helper: single-pair scoring using the same shuffled ordinals as
-     * {@link #scoreBulkOffsets}, so the test can assert offsets correctness.
-     */
-    float[] scoreSingleAtOrdinals() {
-        int v = 0;
-        while (v < numVectorsToScore) {
-            for (int i = 0; i < bulkSize && v < numVectorsToScore; i++, v++) {
-                MemorySegment vec = dataset.asSlice((long) ordinals[v] * docBytes, docBytes);
-                scores[i] = VEC_LIBRARY.dotProductD2Q4Packed(vec, query, docBytes);
+    /** Test-only: what {@link #scoreBulkMasked} returns, by single-pair scoring. */
+    float[] scoreSingleMasked() {
+        for (int b = 0; b < masks.length; b++) {
+            for (int m = masks[b]; m != 0; m = BulkMask.deselectFirst(m)) {
+                int slot = BulkMask.first(m);
+                MemorySegment vec = dataset.asSlice((long) (b * Integer.SIZE + slot) * docBytes, docBytes);
+                scores[slot] = VEC_LIBRARY.dotProductD2Q4Packed(vec, query, docBytes);
             }
         }
         return scores;

@@ -101,7 +101,8 @@ EXPORT int64_t vec_dotd2q4_packed_2(const int8_t* a, const int8_t* query, int32_
 template <
     typename TData,
     const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t),
-    int batches = 2
+    int batches = 2,
+    int32_t(*out_mapper)(const int32_t*, const int32_t) = compact_output
 >
 static inline void dotd2q4_packed_bulk_impl_avx512(
     const TData* docs,
@@ -193,7 +194,7 @@ static inline void dotd2q4_packed_bulk_impl_avx512(
         }
 
         apply_indexed<batches>([&](auto I) {
-            results[c + I] = (f32_t)_mm512_reduce_add_epi32(
+            results[out_mapper(offsets, c + I)] = (f32_t)_mm512_reduce_add_epi32(
                 _mm512_add_epi32(_mm512_add_epi32(acc_s0[I], acc_s1[I]), _mm512_add_epi32(acc_s2[I], acc_s3[I]))
             );
         });
@@ -205,7 +206,7 @@ static inline void dotd2q4_packed_bulk_impl_avx512(
 
     for (; c < count; c++) {
         const int8_t* doc = mapper(docs, c, offsets, pitch);
-        results[c] = (f32_t)dotd2q4_packed_inner_avx512(doc, query, packed_len);
+        results[out_mapper(offsets, c)] = (f32_t)dotd2q4_packed_inner_avx512(doc, query, packed_len);
     }
 }
 
@@ -219,16 +220,17 @@ EXPORT void vec_dotd2q4_packed_bulk_2(
     dotd2q4_packed_bulk_impl_avx512<int8_t, sequential_mapper, 2>(docs, query, packed_len, packed_len, NULL, count, results);
 }
 
-EXPORT void vec_dotd2q4_packed_bulk_offsets_2(
+EXPORT void vec_dotd2q4_packed_bulk_masked_2(
     const int8_t* docs,
     const int8_t* query,
     int32_t packed_len,
     int32_t pitch,
-    const int32_t* offsets,
+    const int32_t mask,
     int32_t count,
     f32_t* results
 ) {
-    dotd2q4_packed_bulk_impl_avx512<int8_t, offsets_mapper, 4>(docs, query, packed_len, pitch, offsets, count, results);
+    dotd2q4_packed_bulk_impl_avx512<int8_t, masked_mapper, 4, masked_output>(
+        docs, query, packed_len, pitch, &mask, __builtin_popcount((uint32_t)mask), results);
 }
 
 EXPORT void vec_dotd2q4_packed_bulk_sparse_2(

@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
 import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
@@ -45,7 +44,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.BitSet;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -55,10 +53,10 @@ import java.util.Map;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongFunction;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.isGenerationalFile;
 
@@ -81,6 +79,15 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     private final MutableObjectStoreUploadTracker objectStoreUploadTracker;
 
     /**
+     * Exclusive end ({@code offset + fileLength}) of the furthest file observed for each blob, keyed by the blob's primary
+     * term and generation. The value only grows, because an uploaded blob is immutable and a virtual batched compound
+     * commit only grows. A generational file copy extends the blob that carried it even when the directory keeps an earlier
+     * location for that file. Removing a file does not shrink the length. The entry is dropped once no retained file
+     * references the blob.
+     */
+    private volatile Map<PrimaryTermAndGeneration, Long> blobLengths = Map.of();
+
+    /**
      * Map of terms/generations that are currently in use by opened Lucene generational files.
      */
     private final Map<PrimaryTermAndGeneration, RefCounted> generationalFilesTermAndGens;
@@ -93,13 +100,10 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
      */
     private volatile Releasable lastAcquiredGenerationalFilesTermAndGen = null;
 
-    /**
-     * Tracks the number of obsolete regions eviction requests that have not yet been processed
-     */
-    private final AtomicLong submittedObsoleteRegionsEvictionTasks = new AtomicLong();
-
     private final boolean hasTimestampField;
     private final long fallbackRegionTimestampMillis;
+    private volatile Map<String, BlobFileRanges> currentMetadata = Map.of();
+    private volatile long currentDataSetSizeInBytes = 0L;
 
     public SearchDirectory(
         StatelessSharedBlobCacheService cacheService,
@@ -115,6 +119,17 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         this.generationalFilesTermAndGens = new HashMap<>();
         this.hasTimestampField = hasTimestampField;
         this.fallbackRegionTimestampMillis = resolveFallbackRegionTimestampMillis(hasTimestampField, creationVersion);
+    }
+
+    @Override
+    protected Map<String, BlobFileRanges> getCurrentMetadata() {
+        return currentMetadata;
+    }
+
+    @Override
+    public long estimateDataSetSizeInBytes() {
+        // data set size is equal to the size of the last commit fetched from the object store
+        return currentDataSetSizeInBytes;
     }
 
     private static long resolveFallbackRegionTimestampMillis(boolean hasTimestampField, IndexVersion creationVersion) {
@@ -342,19 +357,51 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     }
 
     /**
+     * The exclusive end ({@code offset + fileLength}) of the furthest file observed for the blob.
+     * Empty when that primary term and generation are not tracked.
+     * <p>
+     * The value grows as a virtual batched compound commit is appended, including when a generational file is carried
+     * in a later blob whose location this directory does not store. It is kept while any file still references the blob,
+     * because an uploaded blob is immutable and a virtual one only grows, so it can stay past the end of the files that
+     * remain after a later file is removed.
+     */
+    public OptionalLong blobLength(PrimaryTermAndGeneration termAndGeneration) {
+        final Long length = blobLengths.get(termAndGeneration);
+        return length == null ? OptionalLong.empty() : OptionalLong.of(length);
+    }
+
+    /**
      * Removes superfluous files
      * @param filesToRetain the files to retain
      */
     public void retainFiles(Set<String> filesToRetain) {
-        if (filesToRetain.containsAll(currentMetadata.keySet()) == false) {
+        final var current = currentMetadata;
+        if (filesToRetain.containsAll(current.keySet()) == false) {
             assert assertCompareAndSetUpdatingCommitThread(null, Thread.currentThread());
             try {
-                final var updated = new HashMap<>(currentMetadata);
-                final var filesRemoved = updated.keySet().retainAll(filesToRetain);
+                final var currentLengths = blobLengths;
+                final var termGensRetained = new HashSet<PrimaryTermAndGeneration>(currentLengths.size());
+                final var updated = new HashMap<String, BlobFileRanges>(current.size());
+
+                for (var entry : current.entrySet()) {
+                    if (filesToRetain.contains(entry.getKey())) {
+                        updated.put(entry.getKey(), entry.getValue());
+                        termGensRetained.add(entry.getValue().blobLocation().getBatchedCompoundCommitTermAndGeneration());
+                    }
+                }
                 assert updated.keySet().containsAll(filesToRetain)
                     : "missing files [" + Sets.difference(filesToRetain, updated.keySet()) + "]";
-                currentMetadata = Map.copyOf(updated);
+                final boolean filesRemoved = updated.size() < current.size();
                 assert filesRemoved;
+
+                // A removed file does not drop its blob while another retained file still references it.
+                if (termGensRetained.size() != currentLengths.size()) {
+                    final var lengths = new HashMap<>(currentLengths);
+                    lengths.keySet().retainAll(termGensRetained);
+                    blobLengths = Map.copyOf(lengths);
+                }
+                currentMetadata = Map.copyOf(updated);
+                assert assertBlobLengthsMatchMetadata(currentMetadata, blobLengths);
 
                 if (filesRemoved && cacheService.isEvictObsoleteRegionsEnabled()) {
                     maybeScheduleObsoleteRegionsEviction();
@@ -366,101 +413,11 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     }
 
     /**
-     * Schedules an async eviction of cache regions that are no longer referenced by the current metadata,
-     * unless one is already running. Concurrent calls while a task is executing are coalesced into a single follow-up.
-     */
-    private void maybeScheduleObsoleteRegionsEviction() {
-        if (submittedObsoleteRegionsEvictionTasks.incrementAndGet() == 1) {
-            submitObsoleteRegionsEviction();
-        }
-    }
-
-    private void submitObsoleteRegionsEviction() {
-        cacheService.submitAsyncEviction(() -> {
-            final long regionsEvictionTasks = submittedObsoleteRegionsEvictionTasks.get();
-            assert regionsEvictionTasks > 0 : regionsEvictionTasks;
-
-            final Map<String, BlobFileRanges> metadata = currentMetadata;
-
-            final Map<Long, BitSet> activeRegionsByBccGen = new HashMap<>();
-            long maxBccGeneration = -1L;
-
-            for (var file : metadata.values()) {
-                long bccGen = file.getBatchedCompoundCommitTermAndGeneration().generation();
-                int startRegion = cacheService.getRegion(file.fileOffset());
-                int endRegion = cacheService.getEndingRegion(file.fileOffset() + file.fileLength());
-                activeRegionsByBccGen.computeIfAbsent(bccGen, k -> new BitSet()).set(startRegion, endRegion + 1);
-                maxBccGeneration = Math.max(maxBccGeneration, bccGen);
-
-                if (file.hasReplicatedRanges()) {
-                    file.forEachReplicatedRange(
-                        (offset, length) -> activeRegionsByBccGen.computeIfAbsent(bccGen, k -> new BitSet())
-                            .set(cacheService.getRegion(offset), cacheService.getEndingRegion(offset + length) + 1)
-                    );
-                }
-            }
-
-            final long maxBccGen = maxBccGeneration;
-            cacheService.forceEvict(shardId, (key, region) -> {
-                final String blobName = key.fileName();
-                final long bccGeneration = BatchedCompoundCommit.parseGenerationFromBlobName(blobName);
-
-                BitSet activeRegions = activeRegionsByBccGen.get(bccGeneration);
-                if (activeRegions != null && activeRegions.get(region)) {
-                    return false; // Region is active, keep it
-                }
-
-                if (bccGeneration < maxBccGen) {
-                    logger.debug(
-                        "{} evicting obsolete region [{}] of blob [{}] (bcc gen [{}] < max [{}])",
-                        shardId,
-                        region,
-                        blobName,
-                        bccGeneration,
-                        maxBccGen
-                    );
-                    return true; // BCC is older and region is not active, evict
-                }
-                if (bccGeneration == maxBccGen) {
-                    assert activeRegions != null : "activeRegions should not be null for maxBccGen";
-                    int maxKnownRegion = activeRegions.length() - 1;
-                    if (region <= maxKnownRegion) {
-                        logger.debug(
-                            "{} evicting obsolete region [{}] of blob [{}] (bcc gen [{}], max known region [{}])",
-                            shardId,
-                            region,
-                            blobName,
-                            bccGeneration,
-                            maxKnownRegion
-                        );
-                        return true;
-                    }
-                    return false;
-                }
-                return false;
-            });
-
-            final long remainingTasks = submittedObsoleteRegionsEvictionTasks.addAndGet(-regionsEvictionTasks);
-            assert remainingTasks >= 0 : remainingTasks;
-            if (remainingTasks > 0) {
-                submitObsoleteRegionsEviction();
-            }
-        });
-    }
-
-    /**
      * For test usage only.
      */
     @Override
     StatelessSharedBlobCacheService getCacheService() {
         return super.getCacheService();
-    }
-
-    /// For test usage only. Returns the number of obsolete-region eviction tasks scheduled by [#retainFiles] that have not yet
-    /// completed. Draining this to zero lets a test wait out any in-flight [#submitObsoleteRegionsEviction] instead of racing it,
-    /// so a "nothing was evicted" assertion can be made deterministically rather than against a not-yet-run async task.
-    long pendingObsoleteRegionsEvictionTasks() {
-        return submittedObsoleteRegionsEvictionTasks.get();
     }
 
     // TODO this method works because we never prune old commits files
@@ -620,20 +577,24 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     /// Creates a metadata-read directory that stamps regions according to `timestampBackfillEnabled`.
     /// Caller should ensure that `backfillMetadataReadTimestamps` is called after the reads are done if backfill was enabled.
     public BlobStoreCacheDirectory createMetadataReadDirectory(boolean timestampBackfillEnabled) {
-        return createNewInstance(blobContainer.get(), timestampBackfillEnabled);
+        return createNewInstance(blobContainer.get(), timestampBackfillEnabled, Map.of(), 0L);
     }
 
     /// Default implementation with timestamp backfill disabled. For timestamp enabled metadata reads an intermediate directory should be
     /// created with [#createMetadataReadDirectory(boolean)] and then another directory via [#createPerBccMetadataReadDirectory].
     @Override
-    public BlobStoreCacheDirectory createPerBccMetadataReadDirectory() {
-        return createMetadataReadDirectory(false);
+    public BlobStoreCacheDirectory createPerBccMetadataReadDirectory(Map<String, BlobFileRanges> metadata, long dataSetSizeInBytes) {
+        return createNewInstance(blobContainer.get(), false, metadata, dataSetSizeInBytes);
     }
 
-    private BlobStoreCacheDirectory createNewInstance(
+    // package private for testing
+    BlobStoreCacheDirectory createNewInstance(
         @Nullable LongFunction<BlobContainer> blobContainerFunction,
-        boolean timestampBackfillEnabled
+        boolean timestampBackfillEnabled,
+        Map<String, BlobFileRanges> metadata,
+        long dataSetSizeInBytes
     ) {
+        final Map<String, BlobFileRanges> installedMetadata = Map.copyOf(metadata);
         return new BlobStoreCacheDirectory(
             cacheService,
             shardId,
@@ -641,6 +602,16 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             totalBytesWarmedFromObjectStore,
             blobContainerFunction
         ) {
+            @Override
+            protected Map<String, BlobFileRanges> getCurrentMetadata() {
+                return installedMetadata;
+            }
+
+            @Override
+            public long estimateDataSetSizeInBytes() {
+                return dataSetSizeInBytes;
+            }
+
             @Override
             protected long fallbackRegionTimestampMillis() {
                 return timestampBackfillEnabled
@@ -683,8 +654,16 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             /// @return the [BlobStoreCacheDirectory] for a single BCC metadata read through cache that inherits parent's
             /// fallbackRegionTimestampMillis value.
             @Override
-            public BlobStoreCacheDirectory createPerBccMetadataReadDirectory() {
-                return SearchDirectory.this.createNewInstance(this::getBlobContainer, timestampBackfillEnabled);
+            public BlobStoreCacheDirectory createPerBccMetadataReadDirectory(
+                Map<String, BlobFileRanges> childMetadata,
+                long childDataSetSizeInBytes
+            ) {
+                return SearchDirectory.this.createNewInstance(
+                    this::getBlobContainer,
+                    timestampBackfillEnabled,
+                    childMetadata,
+                    childDataSetSizeInBytes
+                );
             }
         };
     }
@@ -805,12 +784,14 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         mergeMetadata(incomingFileRanges, true);
     }
 
-    private void mergeMetadata(final Map<String, BlobFileRanges> incomingFileRanges, final boolean pitContextRelocationTransfer) {
+    // package private for testing
+    void mergeMetadata(final Map<String, BlobFileRanges> incomingFileRanges, final boolean pitContextRelocationTransfer) {
         assert assertCompareAndSetUpdatingCommitThread(null, Thread.currentThread());
 
         var previousGenerationalFilesTermAndGen = this.lastAcquiredGenerationalFilesTermAndGen;
         try {
             final var reconciledMetadata = new HashMap<>(currentMetadata);
+            final var lengths = new HashMap<>(blobLengths);
             //
             // Distinct BCC term/generations referenced by the generational files in this incoming metadata.
             //
@@ -854,10 +835,14 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                         // read the first known location
                         incoming = reconciledMetadata.get(fileName).blobLocation().getBatchedCompoundCommitTermAndGeneration();
                     }
+                    // The commit carried this file at reconciledRanges. When the directory keeps an earlier location,
+                    // that value is the copy, which is not stored, but the copy still occupies bytes in its blob.
+                    extendBlobLength(lengths, reconciledRanges.blobLocation());
                     // Pin the BCC of the location we actually keep, which is what doOpenInput will use.
                     incomingGenerationalFilesTermAndGens.add(incoming);
                 } else {
                     reconciledMetadata.put(fileName, reconciledRanges);
+                    extendBlobLength(lengths, reconciledRanges.blobLocation());
                 }
                 commitSize += reconciledRanges.blobLocation().fileLength();
             }
@@ -888,7 +873,9 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                 // commit has no generational files, and we're not opening a PIT reader during relocation
                 this.lastAcquiredGenerationalFilesTermAndGen = null;
             }
+            blobLengths = Map.copyOf(lengths);
             currentMetadata = Map.copyOf(reconciledMetadata);
+            assert assertBlobLengthsMatchMetadata(currentMetadata, blobLengths);
             if (pitContextRelocationTransfer == false) {
                 currentDataSetSizeInBytes = commitSize;
             }
@@ -933,5 +920,31 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             return incomingRanges;
         }
         return existingRanges.reconcileWith(incomingRanges);
+    }
+
+    /**
+     * Move the blob's stored length forward when {@code location} ends past it. A file that ends at or before the stored
+     * length leaves it unchanged.
+     */
+    private static void extendBlobLength(Map<PrimaryTermAndGeneration, Long> lengths, BlobLocation location) {
+        final long end = Math.addExact(location.offset(), location.fileLength());
+        lengths.merge(location.getBatchedCompoundCommitTermAndGeneration(), end, Math::max);
+    }
+
+    /**
+     * {@code blobLengths} is keyed by exactly the primary term and generation pairs referenced by {@code metadata}.
+     * Length values are not checked: a generational file copy can extend a blob past every file that remains stored,
+     * and removing a file does not shrink a length.
+     */
+    private static boolean assertBlobLengthsMatchMetadata(
+        Map<String, BlobFileRanges> metadata,
+        Map<PrimaryTermAndGeneration, Long> blobLengths
+    ) {
+        final Set<PrimaryTermAndGeneration> referenced = metadata.values()
+            .stream()
+            .map(ranges -> ranges.blobLocation().getBatchedCompoundCommitTermAndGeneration())
+            .collect(Collectors.toSet());
+        assert blobLengths.keySet().equals(referenced) : "blob lengths " + blobLengths.keySet() + " must contain only " + referenced;
+        return true;
     }
 }

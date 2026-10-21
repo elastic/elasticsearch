@@ -717,10 +717,10 @@ public class Verifier {
                 failures.add(
                     fail(
                         p,
-                        "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, "
+                        "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, "
                             + (EsqlCapabilities.Cap.FILLNULL.isEnabled() ? "FILLNULL, " : "")
-                            + "MV_EXPAND, SAMPLE, CHANGE_POINT, WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, "
-                            + "FORK and subquery commands; [{}] is not supported yet",
+                            + "GROK, DISSECT, MV_EXPAND, SAMPLE, CHANGE_POINT, WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, "
+                            + "ENRICH, FORK and subquery commands; [{}] is not supported yet",
                         p instanceof EsRelation esr && esr.indexMode().isTsdb() ? "TS"
                             : p instanceof BranchPlan ? "BranchPlan"
                             : p instanceof NamedSubquery ? "NamedSubquery"
@@ -764,8 +764,8 @@ public class Verifier {
             || plan instanceof AbstractSubqueryJoin;
     }
 
-    // Temporary: resolveMergePlan casts, by id, a loader it injects below a branch's FILLNULL; ON * would re-alias the loader and
-    // orphan the cast. View bodies are skipped, as the setting does not reach into a view and nothing is loaded there.
+    // Temporary: resolveMergePlan casts, by id, a loader it injects below a branch's FILLNULL; ON * would re-alias the loader and orphan
+    // the cast.
     private static void checkLoadAllFillNullAllColumnsInSubqueries(LogicalPlan plan, Failures failures) {
         ViewUtils.forEachOutsideViews(plan, p -> {
             if (p instanceof UnionAll union) {

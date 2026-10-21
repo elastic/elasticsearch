@@ -150,3 +150,48 @@ teardown:
   - match: { status: 400 }
   - match: { error.type: verification_exception }
   - contains: { error.reason: 'does not support [FILLNULL DEFAULT ON *] in a subquery yet; name the columns to fill' }
+
+---
+'FILLNULL ON * in a subquery next to a view is rejected':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ views_with_branching, optional_fields_load_all_views ]
+      reason: "LOAD_ALL over views is only available with this capability"
+  - do:
+      esql.put_view:
+        name: la_fill_src_view
+        body:
+          query: 'FROM la_fill_source'
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_fill_src_view, (FROM la_fill_source | FILLNULL DEFAULT ON *) | LIMIT 10'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'does not support [FILLNULL DEFAULT ON *] in a subquery yet; name the columns to fill' }
+
+---
+'FILLNULL ON * inside a view is not rejected':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ views_with_branching, optional_fields_load_all_views, settings_scoped_at_view_boundaries ]
+      reason: "LOAD_ALL over views is only available with this capability"
+  - do:
+      esql.put_view:
+        name: la_fill_view
+        body:
+          query: 'FROM la_fill_source | FILLNULL DEFAULT ON *'
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM (FROM la_fill_source | KEEP id), (FROM la_fill_view | WHERE id IS NOT NULL) | KEEP id | SORT id | LIMIT 10'
+  - length: { columns: 1 }
+  - match: { columns.0.name: id }
+  - match: { values: [ [ 1 ], [ 1 ], [ 2 ], [ 2 ] ] }

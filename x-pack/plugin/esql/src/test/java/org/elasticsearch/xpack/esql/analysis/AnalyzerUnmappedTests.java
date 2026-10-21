@@ -967,6 +967,78 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         );
     }
 
+    public void testLoadAllRejectsFillNullAllColumnsInASubqueryNextToAView() {
+        assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        for (String query : List.of(
+            "FROM dated_view, (FROM plain | FILLNULL \"x\" ON *)",
+            "FROM dated_view, (FROM dated), (FROM plain | FILLNULL \"x\" ON *)",
+            "FROM (FROM dated), (FROM plain | FILLNULL \"x\" ON *), plain_view",
+            "FROM dated_view, (FROM dated, (FROM plain | FILLNULL \"x\" ON *))",
+            "FROM (FROM dated_view), (FROM plain | FILLNULL \"x\" ON *)",
+            "FROM dated, (FROM plain | FILLNULL \"x\" ON * | STATS c = COUNT(*) BY id)"
+        )) {
+            datedAndPlain().addView("dated_view", "FROM dated")
+                .addView("plain_view", "FROM plain")
+                .statementError(
+                    setUnmappedLoadAll(query),
+                    containsString("does not support [FILLNULL \"x\" ON *] in a subquery yet; name the columns to fill")
+                );
+        }
+    }
+
+    public void testLoadAllRejectsOnlyTheFillNullOutsideTheView() {
+        assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        datedAndPlain().addView("fill_view", "FROM dated, (FROM plain | FILLNULL \"y\" ON *)")
+            .statementError(
+                setUnmappedLoadAll("FROM fill_view, (FROM plain | FILLNULL \"x\" ON *)"),
+                allOf(
+                    containsString("Found 1 problem"),
+                    containsString("does not support [FILLNULL \"x\" ON *] in a subquery yet"),
+                    not(containsString("\"y\""))
+                )
+            );
+    }
+
+    public void testLoadAllAllowsFillNullAllColumnsAfterASubqueryNextToAView() {
+        assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        LogicalPlan plan = datedAndPlain().addView("dated_view", "FROM dated")
+            .statement(setUnmappedLoadAll("FROM dated_view, (FROM plain) | FILLNULL \"x\" ON *"));
+        assertThat(filledNames(plan), hasItem("id"));
+        assertConsistent(plan);
+    }
+
+    public void testLoadAllAllowsFillNullAllColumnsInsideAView() {
+        assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        for (String body : List.of("FROM plain | FILLNULL \"x\" ON *", "FROM dated, (FROM plain | FILLNULL \"x\" ON *)")) {
+            for (String query : List.of(
+                "FROM fill_view",
+                "FROM fill_view, (FROM dated)",
+                "FROM (FROM dated), (FROM fill_view)",
+                "FROM (FROM dated), (FROM fill_view | WHERE id IS NOT NULL)",
+                "FROM (FROM dated), (FROM outer_view | WHERE id IS NOT NULL)"
+            )) {
+                LogicalPlan plan = datedAndPlain().addView("fill_view", body)
+                    .addView("outer_view", "FROM fill_view")
+                    .statement(setUnmappedLoadAll(query));
+                assertThat(body + " / " + query, filledNames(plan), hasItem("id"));
+                assertConsistent(plan);
+            }
+        }
+    }
+
+    public void testLoadAllAllowsTargetedFillNullInASubqueryNextToAView() {
+        assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        LogicalPlan plan = datedAndPlain().addView("dated_view", "FROM dated")
+            .statement(setUnmappedLoadAll("FROM dated_view, (FROM plain | FILLNULL \"x\" ON id)"));
+        assertThat(filledNames(plan), equalTo(Set.of("id")));
+        assertConsistent(plan);
+    }
+
     public void testLoadModeAllowsFillNullAllColumnsInASubquery() {
         assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         LogicalPlan plan = datedAndPlain().statement(setUnmappedLoad("FROM (FROM dated), (FROM plain | FILLNULL \"x\" ON *)"));
@@ -1881,7 +1953,8 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         )) {
             test().addAnalysisTestsInferenceResolution()
                 .statementError(
-                    setUnmappedLoadAll("FROM test METADATA _score " + commandAndLabel.v1()),                    containsString(loadAllUnsupportedCommandMessage(commandAndLabel.v2()))
+                    setUnmappedLoadAll("FROM test METADATA _score " + commandAndLabel.v1()),
+                    containsString(loadAllUnsupportedCommandMessage(commandAndLabel.v2()))
                 );
         }
     }

@@ -14,7 +14,9 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.xpack.esql.datasources.spi.AdmissionGate;
 import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
+import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget.UntrackedWait;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIoAffinity;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -39,6 +41,8 @@ public final class NodeByteBudgetService implements NodeByteBudget {
 
     private final long limit;
     private final AtomicLong used = new AtomicLong();
+    private final AtomicLong untracked = new AtomicLong();
+    private final AtomicLong waitingUntracked = new AtomicLong();
     private final AtomicLong peakUsed = new AtomicLong();
     private final ReentrantLock lock = new ReentrantLock();
     private final ArrayDeque<TicketWaiter> waiters = new ArrayDeque<>();
@@ -84,7 +88,13 @@ public final class NodeByteBudgetService implements NodeByteBudget {
     }
 
     @Override
-    public SubscribableListener<Hold> admitAsync(long bytes, RowGroupIo lease, BooleanSupplier cancelSignal, Executor executor) {
+    public SubscribableListener<Hold> admitAsync(
+        long bytes,
+        RowGroupIo lease,
+        BooleanSupplier cancelSignal,
+        Executor executor,
+        UntrackedWait untrackedWait
+    ) {
         if (bytes < 0L) {
             throw new IllegalArgumentException("bytes must be non-negative, got: " + bytes);
         }
@@ -104,6 +114,7 @@ public final class NodeByteBudgetService implements NodeByteBudget {
         }
         List<Runnable> completions = List.of();
         Exception failNow = null;
+        RuntimeException untrackedFail = null;
         lock.lock();
         try {
             failNow = terminalFailure(lease, cancel);
@@ -115,19 +126,24 @@ public final class NodeByteBudgetService implements NodeByteBudget {
                 if (immediate != null) {
                     waiter.completeInline(immediate);
                 } else {
-                    waiter.tracked = tracker.waitStarted(
-                        AdmissionTracker.GATE_BYTES,
-                        lease == null
-                            ? Thread.currentThread().getName() + ":bytes=" + bytes
-                            : "lease#" + lease.startSeq() + ":bytes=" + bytes
-                    );
-                    waiters.addLast(waiter);
-                    if (lease != null) {
-                        lease.setWake(this, () -> onLeaseTerminal(lease));
+                    untrackedFail = flagWaitingUntracked(lease, untrackedWait);
+                    if (untrackedFail == null) {
+                        waiter.tracked = tracker.waitStarted(
+                            AdmissionTracker.GATE_BYTES,
+                            lease == null
+                                ? Thread.currentThread().getName() + ":bytes=" + bytes
+                                : "lease#" + lease.startSeq() + ":bytes=" + bytes
+                        );
+                        waiters.addLast(waiter);
+                        if (lease != null) {
+                            lease.setWake(this, () -> onLeaseTerminal(lease));
+                        }
+                        grantTicketWaitersLocked();
                     }
-                    grantTicketWaitersLocked();
                 }
-                completions = takePendingCompletions();
+                if (untrackedFail == null) {
+                    completions = takePendingCompletions();
+                }
             }
         } finally {
             lock.unlock();
@@ -136,12 +152,16 @@ public final class NodeByteBudgetService implements NodeByteBudget {
             listener.onFailure(failNow);
             return listener;
         }
+        if (untrackedFail != null) {
+            listener.onFailure(untrackedFail);
+            return listener;
+        }
         runCompletions(completions);
         return listener;
     }
 
     @Override
-    public void add(long bytes) {
+    public void add(long bytes, @Nullable RowGroupIo lease) {
         if (bytes < 0L) {
             throw new IllegalArgumentException("bytes must be non-negative, got: " + bytes);
         }
@@ -155,13 +175,18 @@ public final class NodeByteBudgetService implements NodeByteBudget {
                 next = Long.MAX_VALUE;
             }
             setUsed(next);
+            untracked.addAndGet(bytes);
+            RowGroupIo target = lease != null ? lease : affinityLease();
+            if (target != null) {
+                target.addUntracked(bytes);
+            }
         } finally {
             lock.unlock();
         }
     }
 
     @Override
-    public void release(long bytes) {
+    public void release(long bytes, @Nullable RowGroupIo lease) {
         if (bytes < 0L) {
             throw new IllegalArgumentException("bytes must be non-negative, got: " + bytes);
         }
@@ -175,6 +200,14 @@ public final class NodeByteBudgetService implements NodeByteBudget {
                 long next = current - bytes;
                 return next < 0L ? 0L : next;
             });
+            untracked.updateAndGet(current -> {
+                long next = current - bytes;
+                return next < 0L ? 0L : next;
+            });
+            RowGroupIo target = lease != null ? lease : affinityLease();
+            if (target != null) {
+                target.releaseUntracked(bytes);
+            }
             grantTicketWaitersLocked();
             completions = takePendingCompletions();
         } finally {
@@ -236,6 +269,73 @@ public final class NodeByteBudgetService implements NodeByteBudget {
     @Override
     public long limit() {
         return limit;
+    }
+
+    @Override
+    public long untracked() {
+        return untracked.get();
+    }
+
+    /**
+     * Times a {@link UntrackedWait#FORBID} waiter was enqueued while its lease still held
+     * force-added bytes. Cumulative, not occupancy.
+     */
+    public long waitingUntrackedCount() {
+        return waitingUntracked.get();
+    }
+
+    private void chargeTicketed(long bytes) {
+        if (bytes <= 0L) {
+            return;
+        }
+        lock.lock();
+        try {
+            long next = used.get() + bytes;
+            if (next < 0L) {
+                next = Long.MAX_VALUE;
+            }
+            setUsed(next);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    private void releaseTicketed(long bytes) {
+        if (bytes <= 0L) {
+            return;
+        }
+        List<Runnable> completions;
+        lock.lock();
+        try {
+            used.updateAndGet(current -> {
+                long next = current - bytes;
+                return next < 0L ? 0L : next;
+            });
+            grantTicketWaitersLocked();
+            completions = takePendingCompletions();
+        } finally {
+            lock.unlock();
+        }
+        runCompletions(completions);
+    }
+
+    @Nullable
+    private IllegalStateException flagWaitingUntracked(RowGroupIo lease, UntrackedWait untrackedWait) {
+        if (untrackedWait == UntrackedWait.PER_GET || lease == null) {
+            return null;
+        }
+        long held = lease.untracked();
+        if (held <= 0L) {
+            return null;
+        }
+        waitingUntracked.incrementAndGet();
+        return new IllegalStateException("waiting lease holds untracked bytes=" + held + " seq=" + lease.startSeq());
+    }
+
+    @Nullable
+    private static RowGroupIo affinityLease() {
+        StorageIoAffinity.Scope scope = StorageIoAffinity.current();
+        return scope == null ? null : scope.lease();
     }
 
     public long peakUsed() {
@@ -621,7 +721,7 @@ public final class NodeByteBudgetService implements NodeByteBudget {
                 }
                 long release = Math.min(current, dropBytes);
                 if (remaining.compareAndSet(current, current - release)) {
-                    budget.release(release);
+                    budget.releaseTicketed(release);
                     return;
                 }
             }
@@ -633,7 +733,7 @@ public final class NodeByteBudgetService implements NodeByteBudget {
                 return;
             }
             remaining.addAndGet(growBytes);
-            budget.add(growBytes);
+            budget.chargeTicketed(growBytes);
         }
 
         @Override

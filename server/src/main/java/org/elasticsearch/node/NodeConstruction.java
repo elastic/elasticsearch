@@ -246,6 +246,7 @@ import org.elasticsearch.snapshots.IndexMetadataRestoreTransformer;
 import org.elasticsearch.snapshots.IndexMetadataRestoreTransformer.NoOpRestoreTransformer;
 import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
 import org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService;
+import org.elasticsearch.snapshots.RestoreLifecycleListener;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
@@ -692,7 +693,10 @@ class NodeConstruction {
         MetadataCreateIndexService metadataCreateIndexService,
         IndexSettingProviders indexSettingProviders
     ) {
-        DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(clusterService.getClusterSettings());
+        DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(
+            clusterService.getClusterSettings(),
+            clusterService.getSettings()
+        );
         modules.bindToInstance(DataStreamLifecycleSettings.class, dataStreamLifecycleSettings);
         modules.bindToInstance(
             DataStreamFailureStoreSettings.class,
@@ -1301,6 +1305,13 @@ class NodeConstruction {
             featureService
         );
 
+        getSinglePlugin(
+            pluginsService.filterPlugins(RepositoryPlugin.class)
+                .map(RepositoryPlugin::getRestoreLifecycleListener)
+                .filter(Objects::nonNull),
+            RestoreLifecycleListener.class
+        ).ifPresent(restoreService::setLifecycleListener);
+
         DiscoveryModule discoveryModule = createDiscoveryModule(
             settings,
             threadPool,
@@ -1413,7 +1424,9 @@ class NodeConstruction {
             final RecoveryMetricsCollector recoveryMetricsCollector = new RecoveryMetricsCollector(
                 telemetryProvider,
                 throttlingRecoveryService,
-                threadPool.relativeTimeInMillisSupplier()
+                threadPool.relativeTimeInMillisSupplier(),
+                clusterService.getClusterSettings(),
+                JvmInfo.jvmInfo().getMem().getHeapMax()
             );
             recoverySchedulingListeners.addListener(recoveryMetricsCollector);
             final PeerRecoverySourceService peerRecovery = new PeerRecoverySourceService(

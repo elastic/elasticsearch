@@ -454,9 +454,7 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
         assertTrue(execution.request().shouldFetchSourceNodeShardWarmVolumes());
         assertThat(execution.request().shutdownSignalTimestamp(), equalTo(generation));
         execution.listener()
-            .onResponse(
-                new TransportFetchSearchShardInformationAction.Response(SHARD_HAS_MOVED, "source", Map.of(shardId, 11L))
-            );
+            .onResponse(new TransportFetchSearchShardInformationAction.Response(SHARD_HAS_MOVED, "source", Map.of(shardId, 11L)));
 
         assertThat(volumes.get(state, "source").volumes(), equalTo(Map.of(shardId, 11L)));
         verify(indexShard, never()).waitForEngineOrClosedShard(any());

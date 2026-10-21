@@ -31,6 +31,7 @@ import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -62,6 +63,9 @@ public class RegionDiscoveryIT extends ESRestTestCase {
     private static final String DATA_SOURCE = "region_discovery_ds";
     private static final String DATASET = "region_discovery_data";
     private static final String EXACT_DATASET = "region_discovery_exact_data";
+    // The HEAD-probe test needs a file-metadata cache miss, so it seeds a fresh object per
+    // invocation rather than sharing one. See testExactPathResolveProbesTheObjectWithHead.
+    private static final String HEAD_PROBE_DATASET = "region_discovery_head_probe";
 
     private static final SeedingS3HttpFixture s3HttpFixture = new SeedingS3HttpFixture(
         BUCKET,
@@ -106,7 +110,7 @@ public class RegionDiscoveryIT extends ESRestTestCase {
 
     @After
     public void cleanup() throws IOException {
-        for (String dataset : new String[] { DATASET, EXACT_DATASET }) {
+        for (String dataset : new String[] { DATASET, EXACT_DATASET, HEAD_PROBE_DATASET }) {
             Request del = new Request("DELETE", "/_query/dataset/" + dataset);
             del.setOptions(del.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build());
             try {
@@ -170,6 +174,38 @@ public class RegionDiscoveryIT extends ESRestTestCase {
         assertThat(body, containsString("Berlin"));
     }
 
+    /**
+     * End-to-end, through a real cluster and the S3 protocol: the metadata lookup an exact-path resolve makes is
+     * a HEAD on the object. The query also reads the object, so GETs are expected; the HEAD is what is new, and
+     * its absence is what this would have found before the resolve asked the provider for metadata.
+     */
+    public void testExactPathResolveProbesTheObjectWithHead() throws IOException {
+        // A key this cluster has never resolved. The probe runs only on a file-metadata cache miss, and
+        // that cache is keyed on the file — not the dataset — so it outlives the DELETE in cleanup(). A
+        // fixed key would make this assert on an entry the previous invocation left warm, and the probe
+        // it is looking for would correctly never happen.
+        String key = "probe/head-" + randomUUID() + ".csv";
+        s3HttpFixture.seedBlob(key, "id,city\n1,Graz\n".getBytes(StandardCharsets.UTF_8));
+
+        putDataSource();
+        putHeadProbeDataset(key);
+        s3HttpFixture.clearRequestLog();
+
+        Request req = new Request("POST", "/_query");
+        req.setJsonEntity("{\"query\":\"FROM " + HEAD_PROBE_DATASET + " | SORT id | LIMIT 10\"}");
+        req.setOptions(req.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build());
+        assertThat(client().performRequest(req).getStatusLine().getStatusCode(), equalTo(200));
+
+        List<String> log = s3HttpFixture.requestLog();
+        List<String> onTheObject = log.stream().filter(entry -> entry.endsWith("/" + key)).toList();
+        assertThat("nothing reached the object, so this asserts nothing. log=" + log, onTheObject.isEmpty(), equalTo(false));
+        assertThat(
+            "the resolve never issued a HEAD for the object's metadata. requests on the object=" + onTheObject,
+            onTheObject.stream().anyMatch(entry -> entry.startsWith("HEAD ")),
+            equalTo(true)
+        );
+    }
+
     private void putDataSource() throws IOException {
         Request req = new Request("PUT", "/_query/data_source/" + DATA_SOURCE);
         req.setOptions(req.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build());
@@ -192,6 +228,14 @@ public class RegionDiscoveryIT extends ESRestTestCase {
         // AuthorizationHeaderMalformed retry and HeadBucket discovery wired up.
         req.setJsonEntity(Strings.format("""
             {"data_source":"%s","resource":"s3://%s/data/*.csv"}""", DATA_SOURCE, BUCKET));
+        assertThat(client().performRequest(req).getStatusLine().getStatusCode(), equalTo(200));
+    }
+
+    private void putHeadProbeDataset(String key) throws IOException {
+        Request req = new Request("PUT", "/_query/dataset/" + HEAD_PROBE_DATASET);
+        req.setOptions(req.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build());
+        req.setJsonEntity(Strings.format("""
+            {"data_source":"%s","resource":"s3://%s/%s","settings":{"format":"csv"}}""", DATA_SOURCE, BUCKET, key));
         assertThat(client().performRequest(req).getStatusLine().getStatusCode(), equalTo(200));
     }
 

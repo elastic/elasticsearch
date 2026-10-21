@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.stateless.commits;
 
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.blobstore.OperationPurpose;
@@ -15,6 +16,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -217,6 +220,93 @@ public class UploadQueueControllerServiceIT extends AbstractStatelessPluginInteg
         );
         assertEquals(1, deactivateThrottleCounterMeasurements.size());
         assertEquals(1, deactivateThrottleCounterMeasurements.get(0).getLong());
+    }
+
+    public void testDisableThrottlingUsingTheSetting() throws Exception {
+        final var indexNode = startMasterAndIndexNode(
+            uploadThrottlingSettings()
+                // Block indexing completely on throttle to observe it reliably.
+                .put(IndexingMemoryController.PAUSE_INDEXING_ON_THROTTLE.getKey(), true)
+                .put(UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_ENABLED.getKey(), true)
+                .put(UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INTERVAL.getKey(), TimeValue.timeValueMillis(10))
+                .build()
+        );
+
+        int indexCount = randomIntBetween(1, 5);
+        var indices = new ArrayList<Index>();
+        for (int i = 0; i < indexCount; i++) {
+            final String indexName = randomIndexName();
+            createIndex(indexName, 1, 0);
+            ensureGreen(indexName);
+            indices.add(resolveIndex(indexName));
+        }
+
+        // Block uploads to create a backlog.
+        var uploadStarted = new CountDownLatch(1);
+        var releaseUpload = new CountDownLatch(1);
+        blockCommitUploads(indexNode, uploadStarted, releaseUpload);
+
+        try {
+
+            for (var index : indices) {
+                indexDocs(index.getName(), 1000);
+                refresh(index.getName());
+            }
+            safeAwait(uploadStarted);
+
+            // Wait for tick and applied throttling.
+            var uploadQueueControllerService = internalCluster().getInstance(UploadQueueControllerService.class, indexNode);
+            for (var index : indices) {
+                assertBusy(() -> assertTrue(uploadQueueControllerService.currentState().containsKey(new ShardId(index, 0))));
+            }
+
+            // Verify that throttling is actually applied.
+            var futures = new ArrayList<ActionFuture<BulkResponse>>();
+            for (var index : indices) {
+                var bulkFuture = client().prepareBulk()
+                    .add(client().prepareIndex(index.getName()).setSource(Map.of("field", randomAlphanumericOfLength(10))))
+                    .execute();
+                futures.add(bulkFuture);
+            }
+
+            assertThrows(ElasticsearchTimeoutException.class, () -> futures.getFirst().actionGet(TimeValue.timeValueMillis(500)));
+            for (int i = 1; i < indexCount; i++) {
+                assertFalse(futures.get(i).isDone());
+            }
+
+            // Now disable the service.
+            updateClusterSettings(
+                Settings.builder().put(UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_ENABLED.getKey(), false)
+            );
+
+            // Throttling should be disabled even though the upload backlog still exists.
+            for (int i = 0; i < indexCount; i++) {
+                var response = safeGet(futures.get(i));
+                assertFalse(response.hasFailures());
+            }
+
+            // If we re-enable we should still correctly apply throttling after a reset.
+            updateClusterSettings(
+                Settings.builder().put(UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_ENABLED.getKey(), true)
+            );
+
+            assertBusy(() -> assertTrue(uploadQueueControllerService.currentState().containsKey(new ShardId(indices.getFirst(), 0))));
+            for (int i = 1; i < indexCount; i++) {
+                assertTrue(uploadQueueControllerService.currentState().containsKey(new ShardId(indices.get(i), 0)));
+            }
+        } finally {
+            releaseUpload.countDown();
+        }
+
+        for (var index : indices) {
+            flush(index.getName());
+
+            var responseWithNoBacklog = client().prepareBulk()
+                .add(client().prepareIndex(index.getName()).setSource(Map.of("field", randomAlphanumericOfLength(10))))
+                .execute()
+                .actionGet();
+            assertFalse(responseWithNoBacklog.hasFailures());
+        }
     }
 
     private static Settings.Builder uploadThrottlingSettings() {

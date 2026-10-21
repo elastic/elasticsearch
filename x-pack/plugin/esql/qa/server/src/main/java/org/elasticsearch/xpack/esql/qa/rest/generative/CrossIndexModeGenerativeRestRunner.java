@@ -79,6 +79,16 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.availableDatasetsF
  * may have kicked in). After the gate closes, failure parity and schema are still checked for
  * the remaining pipeline steps.
  *
+ * <p>The multi-value ordering treatment in this class (element-sorting of MV cells, sorted-set
+ * dedup, and the order-sensitive MV function gates) is permanent by design, not a temporary mask:
+ * columnar mode deliberately returns MV fields in source insertion order with duplicates
+ * preserved, for both synthetic source and ES|QL (#149445 / #149646; "New multi-value semantics"
+ * in {@code docs/reference/elasticsearch/columnar/index.md}), while standard mode's
+ * sorted-set-backed types discard duplicates and original order at write time. ES|QL documents
+ * MV order as undefined ({@code docs/reference/query-languages/esql/esql-multivalued-fields.md}).
+ * The two modes therefore cannot be reconciled without making columnar deliberately lossy. See
+ * also the matching note in {@code CsvColumnarIT}'s class javadoc.
+ *
  * <p>Scope for this first cut: single-node, non-time-series, {@link
  * org.elasticsearch.xpack.esql.generator.GenerativeFeature#BASELINE} only.
  *

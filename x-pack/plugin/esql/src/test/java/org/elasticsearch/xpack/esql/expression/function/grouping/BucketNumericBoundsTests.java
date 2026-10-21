@@ -57,6 +57,16 @@ public class BucketNumericBoundsTests extends ESTestCase {
     }
 
     /**
+     * Same tight range, mixing a signed long and an unsigned_long bound: both sides still have to be subtracted
+     * exactly, decoding only the unsigned one.
+     */
+    public void testMixedSignedUnsignedTightHighBounds() {
+        BigInteger max = BigInteger.valueOf(Long.MAX_VALUE);
+        assertThat(numberRoundTo(longLiteral(Long.MAX_VALUE), ulLiteral(max.add(BigInteger.valueOf(100)))), equalTo(10.0));
+        assertThat(numberRoundTo(ulLiteral(max.subtract(BigInteger.valueOf(100))), longLiteral(Long.MAX_VALUE)), equalTo(10.0));
+    }
+
+    /**
      * The absolute bound positions, as consumed by the {@code include_empty_buckets} cursor: unsigned_long
      * bounds must be decoded, not read as the (2^63 shifted) encoded value.
      */
@@ -92,5 +102,9 @@ public class BucketNumericBoundsTests extends ESTestCase {
 
     private static Literal intLiteral(int value) {
         return new Literal(Source.EMPTY, value, DataType.INTEGER);
+    }
+
+    private static Literal longLiteral(long value) {
+        return new Literal(Source.EMPTY, value, DataType.LONG);
     }
 }

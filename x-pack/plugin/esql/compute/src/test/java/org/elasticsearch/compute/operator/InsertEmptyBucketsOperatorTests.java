@@ -370,6 +370,46 @@ public class InsertEmptyBucketsOperatorTests extends OperatorTestCase {
     }
 
     /**
+     * A numeric range whose bucket index doesn't fit in a {@code long} must not emit synthetic rows (and must
+     * terminate): the saturated index would otherwise wrap around on {@code advance()} and never reach {@code to}.
+     * Reachable with tight {@code unsigned_long} bounds above {@code 2^63}, whose exact width is tiny compared to the
+     * spacing between adjacent doubles there.
+     */
+    public void testNumericBucketIndexBeyondLongRangeProducesNoFills() {
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
+
+        double from = 0x1p63;
+        Page input;
+        try (
+            DoubleBlock.Builder bucketBuilder = blockFactory.newDoubleBlockBuilder(1);
+            LongBlock.Builder countBuilder = blockFactory.newLongBlockBuilder(1)
+        ) {
+            bucketBuilder.appendDouble(from);
+            countBuilder.appendLong(4L);
+            input = new Page(bucketBuilder.build(), countBuilder.build());
+        }
+
+        // from and to are adjacent doubles (spacing 2048 at 2^63) but the width is 1.0, so from / roundTo = 2^63.
+        InsertEmptyBucketsOperator.Factory factory = new InsertEmptyBucketsOperator.Factory(new LinkedHashMap<>() {
+            {
+                put(0, new InsertEmptyBucketsOperator.NumericCursorFactory(1.0, from, Math.nextUp(from)));
+            }
+        }, List.of(), Map.of(1, new DefaultValue(ElementType.LONG, 0L)), MAX_PAGE_SIZE);
+
+        Page result = runToSinglePage(ctx, factory, input);
+        try {
+            DoubleBlock buckets = result.getBlock(0);
+            LongBlock counts = result.getBlock(1);
+            assertThat(result.getPositionCount(), equalTo(1));
+            assertThat(buckets.getDouble(0), equalTo(from));
+            assertThat(counts.getLong(0), equalTo(4L));
+        } finally {
+            result.releaseBlocks();
+        }
+    }
+
+    /**
      * The gap-filled output is streamed in bounded pages so a very large result is never materialized all at once.
      */
     public void testStreamingAcrossMultiplePages() {

@@ -68,6 +68,7 @@ import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.features.NodeFeature;
@@ -102,6 +103,7 @@ import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.internal.AssumptionViolatedException;
+import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 import org.junit.runners.model.Statement;
 
@@ -315,30 +317,66 @@ public abstract class ESRestTestCase extends ESTestCase {
     };
 
     /**
-     * Collects the clusters declared as {@code @ClassRule} fields on {@code testClass} and its superclasses. JUnit requires
-     * {@code @ClassRule} fields to be public, so no field needs to be made accessible to read them.
-     *
-     * <p>Clusters a suite keeps elsewhere are not found, most notably those chained together with a {@link org.junit.rules.RuleChain},
-     * which holds its rules privately. Such clusters are simply excluded from the dead node check.
+     * Collects the clusters a suite runs against from its {@code @ClassRule} fields, looking inside any {@link RuleChain} those
+     * fields hold.
      */
     private static List<ElasticsearchCluster> gatherClusters(Class<?> testClass) {
         List<ElasticsearchCluster> clusters = new ArrayList<>();
         // stop at ESRestTestCase, since everything above it is test framework infrastructure that never declares clusters
         for (Class<?> cls = testClass; ESRestTestCase.class.isAssignableFrom(cls); cls = cls.getSuperclass()) {
-            for (Field field : cls.getDeclaredFields()) {
-                if (field.isAnnotationPresent(ClassRule.class) == false || Modifier.isStatic(field.getModifiers()) == false) {
-                    continue;
-                }
-                try {
-                    if (field.get(null) instanceof ElasticsearchCluster cluster) {
-                        clusters.add(cluster);
-                    }
-                } catch (IllegalAccessException e) {
-                    throw new AssertionError("@ClassRule [" + cls.getName() + "#" + field.getName() + "] must be public", e);
-                }
+            for (Object rule : classRules(cls)) {
+                collectClusters(rule, clusters);
             }
         }
         return clusters;
+    }
+
+    private static void collectClusters(Object rule, List<ElasticsearchCluster> clusters) {
+        if (rule instanceof ElasticsearchCluster cluster) {
+            clusters.add(cluster);
+        } else if (rule instanceof RuleChain chain) {
+            for (Object chained : chainedRules(chain)) {
+                collectClusters(chained, clusters);
+            }
+        }
+    }
+
+    /**
+     * Returns the values of the {@code @ClassRule} fields {@code cls} declares. Those fields have to be opened up first: a rule
+     * field is usually public, but some suites declare one in a package private class, which puts it out of reach from this package.
+     * JUnit opens up rule fields the same way when it collects them. Tests do not run on the module path, so there is no module
+     * boundary to open here.
+     */
+    @SuppressForbidden(reason = "a @ClassRule field can be declared in a package private class, hiding it from this package")
+    private static List<Object> classRules(Class<?> cls) {
+        List<Object> rules = new ArrayList<>();
+        for (Field field : cls.getDeclaredFields()) {
+            if (field.isAnnotationPresent(ClassRule.class) == false || Modifier.isStatic(field.getModifiers()) == false) {
+                continue;
+            }
+            field.setAccessible(true);
+            try {
+                rules.add(field.get(null));
+            } catch (IllegalAccessException e) {
+                throw new AssertionError("could not read @ClassRule [" + cls.getName() + "#" + field.getName() + "]", e);
+            }
+        }
+        return rules;
+    }
+
+    /**
+     * Returns the rules a {@link RuleChain} holds, which it keeps in a private field with no accessor. Without this, a cluster that
+     * a suite chains together with other rules would be left out of the dead node check.
+     */
+    @SuppressForbidden(reason = "RuleChain exposes no accessor for the rules it holds")
+    private static List<?> chainedRules(RuleChain chain) {
+        try {
+            Field rules = RuleChain.class.getDeclaredField("rulesStartingWithInnerMost");
+            rules.setAccessible(true);
+            return (List<?>) rules.get(chain);
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            throw new AssertionError("could not read the rules of a " + RuleChain.class.getName(), e);
+        }
     }
 
     private static boolean multiProjectEnabled;

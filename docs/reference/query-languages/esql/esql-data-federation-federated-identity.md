@@ -26,7 +26,7 @@ Refer to the [AWS IAM documentation](https://docs.aws.amazon.com/IAM/latest/User
 
 To follow this guide, you need:
 
-- An Elastic project or deployment with {{esql}} Data Federation available.
+- An {{ech}} deployment with {{esql}} Data Federation available. Federated identity is on by default on {{ech}}, except in some special environments such as AWS GovCloud.
 - An AWS account with permissions to create IAM OpenID Connect identity providers, roles, and policies.
 - An S3 bucket containing the file or files you want to query.
 

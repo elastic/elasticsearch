@@ -29,10 +29,10 @@ import java.util.Random;
 import java.util.Set;
 
 /**
- * DSL keyword behavior duel of a columnar-mode index with the ColumNAR codec disabled (the ES819 tsdb
- * doc-values format, {@code ES819Version3TSDBDocValuesFormat} at current index versions) against a ColumNAR
- * contender. Both indices use the same strict columnar index mode and differ only in the keyword doc-values
- * format, so the duel isolates the codec substitution as the single variable and compares API-visible DSL
+ * DSL keyword behavior duel of a columnar-mode index created just before the ColumNAR codec (the ES819 tsdb
+ * doc-values format, {@code ES819Version3TSDBDocValuesFormat}) against a ColumNAR contender. Both indices use the
+ * same strict columnar index mode and differ only in the keyword doc-values format, so the duel isolates the
+ * codec substitution as the single variable and compares API-visible DSL
  * behavior, not doc-values bytes. It runs every named corpus scenario through the shared
  * {@link BehaviorDuelHarness}.
  */
@@ -44,6 +44,12 @@ public class ES819KeywordDslBehaviorDuelIT extends ESIntegTestCase {
 
     private static final String KEYWORD_FIELD = "kw";
     private static final String DUEL_NAME = "es819_vs_columnar_dsl";
+
+    @Override
+    protected boolean forbidPrivateIndexSettings() {
+        // Need to set IndexVersion of baseline ES819 index.
+        return false;
+    }
 
     @Override
     protected Settings.Builder setRandomIndexSettings(final Random random, final Settings.Builder builder) {

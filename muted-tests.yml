@@ -721,3 +721,9 @@ tests:
 - class: org.elasticsearch.upgrades.CombineDynamicMappingUpdatesRollingUpgradeIT
   method: testTimeSeriesDataStreamDefault {upgradedNodes=1}
   issue: https://github.com/elastic/elasticsearch/issues/162839
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterExternalSourceIT
+  method: testExternalSourceWireCompatibilityInBothDirections
+  issue: https://github.com/elastic/elasticsearch/issues/162852
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterExternalSourceIT
+  method: testRequestFilterOnDatasetAcrossVersions
+  issue: https://github.com/elastic/elasticsearch/issues/162854

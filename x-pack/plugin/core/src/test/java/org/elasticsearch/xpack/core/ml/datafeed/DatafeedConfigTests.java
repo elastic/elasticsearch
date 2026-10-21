@@ -2123,8 +2123,9 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         if (in.getTransportVersion().supports(DatafeedConfig.DATAFEED_CLOUD_INTERNAL_CREDENTIAL)) {
             in.readOptionalWriteable(PersistedCloudCredential::new);
         }
-        if (in.getTransportVersion().supports(DatafeedConfig.DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES)
-            && in.getTransportVersion().supports(DatafeedConfig.DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES_REMOVED) == false) {
+        // The field is on the wire for the original feature era and again once it was re-added, so a pre-ES|QL version
+        // that supports the re-added transport version (a backport to a branch without ES|QL datafeeds) carries it too.
+        if (DatafeedConfig.maxConsecutiveExtractionFailuresOnWire(in.getTransportVersion())) {
             in.readOptionalInt();
         }
         return indicesOptions;

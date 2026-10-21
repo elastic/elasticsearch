@@ -2721,8 +2721,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             .get();
 
         assertResponse(
-            client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD)))
-                .prepareSearch("doc_index"),
+            client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD))).prepareSearch("doc_index"),
             response -> {
                 assertHitCount(response, 1);
                 var source = response.getHits().getHits()[0].getSourceAsMap();
@@ -2731,8 +2730,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             }
         );
         assertResponse(
-            client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user9", USERS_PASSWD)))
-                .prepareSearch("doc_index"),
+            client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user9", USERS_PASSWD))).prepareSearch("doc_index"),
             response -> {
                 assertHitCount(response, 1);
                 var source = response.getHits().getHits()[0].getSourceAsMap();

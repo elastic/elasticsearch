@@ -2441,18 +2441,12 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         doc.version().setLongValue(0);
 
         var filter = new CharacterRunAutomaton(
-            FieldPermissions.buildPermittedFieldsAutomaton(
-                new String[] { "*" },
-                new String[] { "title" }
-            )
+            FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "*" }, new String[] { "title" })
         );
 
         try (
             Directory directory = newDirectory();
-            IndexWriter writer = new IndexWriter(
-                directory,
-                new IndexWriterConfig(new StandardAnalyzer())
-            )
+            IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(new StandardAnalyzer()))
         ) {
             writer.addDocuments(doc.docs());
 

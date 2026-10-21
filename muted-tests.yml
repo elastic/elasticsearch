@@ -559,3 +559,6 @@ tests:
 - class: org.elasticsearch.index.mapper.TextFieldPhraseWithoutPositionsTests
   method: testWithIndexPrefixes
   issue: https://github.com/elastic/elasticsearch/issues/162793
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohexTests
+  method: testEvaluateInManyThreads {TestCase=geo_shape with literal precision}
+  issue: https://github.com/elastic/elasticsearch/issues/162795

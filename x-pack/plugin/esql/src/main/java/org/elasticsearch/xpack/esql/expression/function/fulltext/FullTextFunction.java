@@ -308,8 +308,24 @@ public abstract class FullTextFunction extends Function
             || hasFilterPushdownTarget(plan) == false;
         if (checkCommandsBeforeExpression) {
             if (isLookupJoinOnCondition == false) {
-                List.of(QueryString.class, Kql.class)
-                    .forEach(functionClass -> { checkFieldShadowing(plan, condition, functionClass, failures); });
+                List.of(QueryString.class, Kql.class).forEach(functionClass -> {
+                    // QSTR/KQL need a Lucene index to search, so they can't follow a source without one. They also can't follow
+                    // INLINE STATS: they have no attribute references, so the optimizer pushes them into the aggregate's input
+                    // and changes its result. MATCH has references and stays above the aggregate.
+                    checkCommandsBeforeExpression(
+                        plan,
+                        condition,
+                        functionClass,
+                        lp -> (lp instanceof ExternalRelation
+                            || lp instanceof Row
+                            || lp instanceof ShowInfo
+                            || lp instanceof InlineStats
+                            || lp instanceof InlineJoin) == false,
+                        fullTextFunction -> "[" + fullTextFunction.functionName() + "] " + fullTextFunction.functionType(),
+                        failures
+                    );
+                    checkFieldShadowing(plan, condition, functionClass, failures);
+                });
             }
 
             // Collect the Aggregate nodes that belong to an INLINE STATS. Unlike a plain STATS, INLINE STATS keeps every input
@@ -370,39 +386,31 @@ public abstract class FullTextFunction extends Function
         });
     }
 
+    /**
+     * Rejects QSTR/KQL after a command that introduces a name colliding with a field of the index. They name their fields
+     * inside an opaque string, so the optimizer can push them below such a command, where the string would silently resolve
+     * against the raw indexed field instead of the redefined column. Separate from {@link #checkCommandsBeforeExpression}
+     * because that method's predicate can't say which field was shadowed.
+     */
     private static void checkFieldShadowing(
         LogicalPlan plan,
         Expression condition,
         Class<? extends FullTextFunction> typeToken,
         Failures failures
     ) {
-        // "Did we reach an EsRelation" cannot be inferred from indexedNames being non-empty (a no-fields index is a
-        // legitimate, non-federated EsRelation with zero FieldAttributes), and "did we reach some other kind of
-        // relation instead" needs its own signal - a federated FROM and a relation-less ROW/SHOW get different
-        // messages below. One combined pass over every node type collects all three.
-        boolean[] sawEsRelation = { false };
         Set<String> indexedNames = new HashSet<>();
-        ExternalRelation[] externalRelation = { null };
-        String[] sourcelessCommand = { null }; // "ROW" or "SHOW": the only commands with no relation of any kind
-        plan.forEachDown(LogicalPlan.class, lp -> {
+        plan.forEachDown(EsRelation.class, r -> {
             // A LOOKUP JOIN's right-hand index is itself an EsRelation, just with indexMode() == LOOKUP. Its fields
             // are not part of "the index" QSTR/KQL's text would resolve against (same reasoning fieldVerifier already
             // uses for LOOKUP-side fields below) - counting them here would make the Join branch of asShadowingCommand
             // compare a lookup field against itself and always "match", e.g. a lookup index's own `extra` field would
             // spuriously shadow itself the moment it's joined in.
-            if (lp instanceof EsRelation r && r.indexMode() != IndexMode.LOOKUP) {
-                sawEsRelation[0] = true;
+            if (r.indexMode() != IndexMode.LOOKUP) {
                 for (Attribute attribute : r.output()) {
                     if (attribute instanceof FieldAttribute fa) {
                         indexedNames.add(fa.name());
                     }
                 }
-            } else if (lp instanceof ExternalRelation er) {
-                externalRelation[0] = er;
-            } else if (lp instanceof Row) {
-                sourcelessCommand[0] = "ROW";
-            } else if (lp instanceof ShowInfo) {
-                sourcelessCommand[0] = "SHOW";
             }
         });
 
@@ -412,11 +420,6 @@ public abstract class FullTextFunction extends Function
             // the first, e.g. both LIMIT and MV_EXPAND each get their own failure if both precede the function.
             // Match that behavior here instead of stopping at the first shadowing ancestor found.
             plan.forEachDown(LogicalPlan.class, lp -> {
-                // QSTR/KQL name their fields inside an opaque string, so they have no attribute references and the optimizer
-                // pushes them into the INLINE STATS aggregate's input, changing its result. MATCH has references and is unaffected.
-                if (lp instanceof InlineStats || lp instanceof InlineJoin) {
-                    failures.add(fail(plan, "[{}] {} cannot be used after INLINE STATS", exp.functionName(), exp.functionType()));
-                }
                 ShadowingCommand hit = asShadowingCommand(lp, indexedNames);
                 if (hit != null) {
                     // Anchored at `plan` (the Filter/LookupJoin itself), matching checkCommandsBeforeExpression's own
@@ -434,27 +437,6 @@ public abstract class FullTextFunction extends Function
                     );
                 }
             });
-            if (sawEsRelation[0] == false) {
-                if (externalRelation[0] != null) {
-                    // Same wording checkCommandsBeforeExpression's own (now-dead, see Implementation Notes) ExternalRelation
-                    // branch used to produce for this function, before deleting the old QSTR/KQL block made it unreachable.
-                    failures.add(
-                        fail(
-                            plan,
-                            "[{}] {} is not supported on federated data sources [{}]; it requires an index. "
-                                + "Use MATCH(field, \"term\") for full-text search on non-indexed data.",
-                            exp.functionName(),
-                            exp.functionType(),
-                            externalRelation[0].datasetName() != null ? externalRelation[0].datasetName() : externalRelation[0].sourceText()
-                        )
-                    );
-                } else if (sourcelessCommand[0] != null) {
-                    // Unchanged wording from the deleted allow-list: "[QSTR] function cannot be used after ROW"/"...SHOW".
-                    failures.add(
-                        fail(plan, "[{}] {} cannot be used after {}", exp.functionName(), exp.functionType(), sourcelessCommand[0])
-                    );
-                }
-            }
         });
     }
 

@@ -93,6 +93,31 @@ result:double | zone:keyword | region:keyword
 20.0          | us           | us
 ;
 
+// topk partitioned on the derived label. `group` is the trailing letter of `pod`, so each aggregated series lands in its
+// own partition and k=1 keeps both of them - without the `by (group)` only podB would survive.
+label_replace_new_label_as_topk_partition
+required_capability: promql_command_v0
+required_capability: promql_label_functions_v2
+PROMQL index=prom-metrics-name step=1h result=(topk by (group) (1, label_replace(sum by (pod) (metrics.requests{pod=~"pod[AB]"}), "group", "$1", "pod", "pod(.)")))
+| KEEP result, pod, group
+| SORT result;
+
+result:double | pod:keyword | group:keyword
+10.0          | podA        | A
+20.0          | podB        | B
+;
+
+// The same, but the derived label is a constant, so both series fall into one partition and k=1 keeps only the larger.
+label_replace_constant_label_as_topk_partition
+required_capability: promql_command_v0
+required_capability: promql_label_functions_v2
+PROMQL index=prom-metrics-name step=1h result=(topk by (group) (1, label_replace(sum by (pod) (metrics.requests{pod=~"pod[AB]"}), "group", "all", "pod", "(.+)")))
+| KEEP result, pod, group;
+
+result:double | pod:keyword | group:keyword
+20.0          | podB        | all
+;
+
 // limitk and limit_ratio are reductions like topk: they keep the identity of the series they select, so the same relabel
 // is supported under them. k=2 / ratio=1.0 keep both aggregated series, which makes the result deterministic.
 label_replace_new_label_under_limitk

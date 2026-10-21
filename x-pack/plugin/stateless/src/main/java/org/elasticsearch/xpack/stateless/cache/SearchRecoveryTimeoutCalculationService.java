@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.IndexShard;
@@ -41,12 +42,14 @@ public class SearchRecoveryTimeoutCalculationService {
         StatelessSharedBlobCacheService cacheService,
         ThreadPool threadPool,
         ClusterSettings clusterSettings,
+        Settings nodeSettings,
         ByteSizeValue maxHeap
     ) {
         this.cacheService = cacheService;
         this.threadPool = threadPool;
         DataNodeRecoveryThrottlingSettings.watchIncomingRecoveryLimits(
             clusterSettings,
+            nodeSettings,
             maxHeap,
             limits -> this.maxConcurrentRelocationRecoveries = limits.maxConcurrentRelocationRecoveries()
         );

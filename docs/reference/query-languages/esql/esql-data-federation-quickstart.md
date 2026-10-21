@@ -137,10 +137,10 @@ This example creates a dataset over one quarter of Ookla's fixed-broadband perfo
 
 For the full column reference, refer to the [Ookla Open Data tile attributes](https://github.com/teamookla/ookla-open-data#tile-attributes).
 
-::::{tab-set}
+:::::{tab-set}
 :group: surface
 
-:::{tab-item} Console
+::::{tab-item} Console
 :sync: console
 ```console
 PUT /_query/dataset/speedtest_fixed
@@ -153,9 +153,9 @@ PUT /_query/dataset/speedtest_fixed
 2. A glob pattern matching all Parquet files for Q1 2024 fixed-broadband tests. The `*` wildcard matches any filename in that directory.
 
 A successful request returns `{"acknowledged": true}`.
-:::
+::::
 
-:::{tab-item} curl
+::::{tab-item} curl
 :sync: curl
 ```bash
 curl -X PUT "${ELASTICSEARCH_URL}/_query/dataset/speedtest_fixed" \
@@ -168,30 +168,34 @@ curl -X PUT "${ELASTICSEARCH_URL}/_query/dataset/speedtest_fixed" \
 ```
 
 A successful request returns `{"acknowledged": true}`.
-:::
+::::
 
-:::{tab-item} UI
+::::{tab-item} UI
 :sync: ui
+{applies_to}`stack: experimental 9.6+` **Add dataset** opens a four-step wizard:
+
 1. Select the **Datasets** tab, then click **Add dataset**.
 2. Select `ookla_speedtest` as the **Data source**.
-3. Enter `speedtest_fixed` as the **Name**.
+3. Enter `speedtest_fixed` as the **Dataset name**.
 4. In **Resource**, enter the resource path that selects the files to read:
 
    ```text
    s3://ookla-open-data/parquet/performance/type=fixed/year=2024/quarter=1/*.parquet
    ```
-5. Set **Format** to **Parquet**.
-6. Click **Add**.
 
-:::{dropdown} Show the completed Add dataset flyout
-:::{image} images/data-federation/add-dataset.png
-:alt: Add dataset flyout configured for the Ookla Q1 2024 fixed-broadband Parquet files
-:width: 450px
-:::
-:::
-:::
+   **Format** is detected as **Parquet** from the file extension.
+5. Click **Next**, then click **Next** again to keep the default **Optional settings**.
+6. On the **Schema mappings** step, turn off **Enable time-based filtering**, then click **Next**. The Ookla files have no date column to map to `@timestamp`, so the step can't continue while this setting is on. With the setting off, the step leaves **Infer unmapped fields** selected, so {{es}} infers every column from the Parquet files:
 
+   ![The Schema mappings step with Enable time-based filtering turned off and Infer unmapped fields selected](images/data-federation/add-dataset-schema-mappings-time-filter-off.png)
+7. On the **Review** step, click **Add dataset**.
+
+Before you click **Add dataset**, you can select the **Request** tab on the **Review** step to see the equivalent API request.
+
+{applies_to}`stack: experimental =9.5` **Add dataset** opens a flyout. Select `ookla_speedtest` as the **Data source**, enter `speedtest_fixed` as the **Name**, enter the resource path in **Resource**, set **Format** to **Parquet**, then click **Add**.
 ::::
+
+:::::
 
 Confirm the dataset was created:
 
@@ -337,6 +341,11 @@ FROM speedtest_fixed
 ::::
 
 If the query returns results, your data source is working. You can now use the full range of {{esql}} processing commands on this dataset.
+
+:::{tip}
+:applies_to: stack: experimental 9.6+
+In {{kib}}, you can also query a dataset from the **Datasets** tab. Click **Open in Discover** in the dataset's row to open **Discover** with a `FROM speedtest_fixed` query.
+:::
 ::::::
 
 ::::::{step} Explore the data

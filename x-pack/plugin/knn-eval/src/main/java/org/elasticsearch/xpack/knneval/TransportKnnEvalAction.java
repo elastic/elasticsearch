@@ -192,7 +192,7 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         return null;
     }
 
-    /** Checks the field maps to one supported DiskBBQ config across all of {@code indices}. */
+    /** Checks the field maps to one supported DiskBBQ or HNSW-family config across all of {@code indices}. */
     private void resolveField(Task task, KnnEvalRequest request, Set<String> indices, ActionListener<KnnEvalRescore> listener) {
         KnnEvalSpec spec = request.getKnnEvalSpec();
         String field = spec.getField();
@@ -322,6 +322,8 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
             throw new IllegalArgumentException("field [" + field + "] is not mapped in any of the target indices");
         }
         KnnEvalRescore rescore = KnnEvalRescore.fromFieldMapping(field, fieldMapping);
+        rescore.validateSettings(spec.getBaseline(), "baseline");
+        spec.getKnnSettings().forEach(candidate -> rescore.validateSettings(candidate, "knn_settings entry"));
         validateQueryDimensions(field, firstResolution.dims(), spec.getQueries());
         return rescore;
     }
@@ -419,7 +421,10 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         BytesReference pointInTimeId,
         ActionListener<KnnEvalResponse> listener
     ) {
-        KnnEvalSpec spec = request.getKnnEvalSpec();
+        KnnEvalSpec requested = request.getKnnEvalSpec();
+        KnnEvalSpec spec = requested.hasDefaultBaseline()
+            ? requested.withBaseline(rescore.defaultBaseline(requested.getQuerySource() instanceof KnnEvalQuerySource.DocsSource))
+            : requested;
         switch (spec.getQuerySource()) {
             case KnnEvalQuerySource.VectorsSource vs -> evaluate(task, spec, vs.vectors(), false, rescore, pointInTimeId, listener);
             case KnnEvalQuerySource.DocsSource ds -> {

@@ -11,7 +11,6 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.columnar.string.DenseOrdinalReader;
 import org.elasticsearch.columnar.string.StringColumnSource;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.ColumnarPayloadSortableBinaryDocValues;
@@ -33,7 +32,7 @@ import java.util.function.LongConsumer;
  * <p>Only the lookup from term bytes to bucket changes. Sub-aggregations, {@code _doc_count} and
  * {@code significant_terms} counting work as they do in the per-document loop, because the consumer still does the
  * counting. The collector knows nothing of how the column encodes its ordinals: {@link StringColumnSource#nonNullValueCount}
- * says how many values a document has, and {@link DenseOrdinalReader} which term the one value is.
+ * says how many values a document has, and {@link StringColumnSource#denseTermOrdinal} which term the one value is.
  *
  * <p>A document is decided on its own. A document with one value, in the dictionary, is counted from the cache. An
  * escaped value is hashed for each document, as it is without the cache. A document with several values goes to the
@@ -92,15 +91,13 @@ final class ColumnarOrdinalTermsCollector extends LeafBucketCollectorBase {
         if (source == null || source instanceof BinaryDocValues == false) {
             return null;
         }
-        final DenseOrdinalReader ordinals = source.denseOrdinals();
         final int dictionarySize = source.reader().dictionarySize();
-        if (ordinals != null && dictionarySize <= MAX_DICTIONARY_SIZE) {
+        if (source.reader().hasDictionary() && dictionarySize <= MAX_DICTIONARY_SIZE) {
             final long[] buckets = ordinalBuckets.reset(dictionarySize, addRequestCircuitBreakerBytes);
             return new ColumnarOrdinalTermsCollector(
                 values,
                 (BinaryDocValues) source,
                 source,
-                ordinals,
                 buckets,
                 includeExclude,
                 sub,
@@ -113,7 +110,6 @@ final class ColumnarOrdinalTermsCollector extends LeafBucketCollectorBase {
 
     private final BinaryDocValues docValues;
     private final StringColumnSource source;
-    private final DenseOrdinalReader ordinals;
     private final long[] buckets;
     private final IncludeExclude.StringFilter includeExclude;
     private final LeafBucketCollector sub;
@@ -125,7 +121,6 @@ final class ColumnarOrdinalTermsCollector extends LeafBucketCollectorBase {
         ColumnarPayloadSortableBinaryDocValues values,
         BinaryDocValues docValues,
         StringColumnSource source,
-        DenseOrdinalReader ordinals,
         long[] buckets,
         @Nullable IncludeExclude.StringFilter includeExclude,
         LeafBucketCollector sub,
@@ -135,7 +130,6 @@ final class ColumnarOrdinalTermsCollector extends LeafBucketCollectorBase {
         super(sub, values);
         this.docValues = docValues;
         this.source = source;
-        this.ordinals = ordinals;
         this.buckets = buckets;
         this.includeExclude = includeExclude;
         this.sub = sub;
@@ -160,9 +154,9 @@ final class ColumnarOrdinalTermsCollector extends LeafBucketCollectorBase {
             fallback.collect(doc, 0);
             return;
         }
-        final int ordinal = ordinals.ordinal();
-        if (ordinal == DenseOrdinalReader.ESCAPED) {
-            final BytesRef escaped = ordinals.escapedValue(scratch);
+        final int ordinal = source.denseTermOrdinal();
+        if (ordinal == StringColumnSource.ESCAPED) {
+            final BytesRef escaped = source.escapedValue(scratch);
             if (includeExclude == null || includeExclude.accept(escaped)) {
                 consumer.accept(sub, doc, 0, escaped);
             }
@@ -172,7 +166,7 @@ final class ColumnarOrdinalTermsCollector extends LeafBucketCollectorBase {
         if (bucket >= 0) {
             consumer.acceptExisting(sub, doc, bucket);
         } else if (bucket == UNSEEN) {
-            final BytesRef term = ordinals.term(ordinal, scratch);
+            final BytesRef term = source.termAt(ordinal, scratch);
             if (includeExclude == null || includeExclude.accept(term)) {
                 buckets[ordinal] = consumer.accept(sub, doc, 0, term);
             } else {

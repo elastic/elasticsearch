@@ -203,8 +203,7 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
         }
         withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), ROOMY, (metadata, reader) -> {
             final ColumnarStringBinaryDocValues dv = new ColumnarStringBinaryDocValues(reader, reader.iterator(), false);
-            final DenseOrdinalReader ordinals = dv.denseOrdinals();
-            assertNotNull(ordinals);
+            assertTrue(reader.hasDictionary());
             int escaped = 0;
             int inDictionary = 0;
             for (int doc = dv.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = dv.nextDoc()) {
@@ -213,15 +212,15 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
                 if (valued.size() != 1) {
                     continue;
                 }
-                final int ordinal = ordinals.ordinal();
-                if (ordinal == DenseOrdinalReader.ESCAPED) {
+                final int ordinal = dv.denseTermOrdinal();
+                if (ordinal == StringColumnSource.ESCAPED) {
                     escaped++;
-                    assertEquals("doc " + doc, valued.get(0), ordinals.escapedValue(new BytesRef()));
+                    assertEquals("doc " + doc, valued.get(0), dv.escapedValue(new BytesRef()));
                 } else {
                     inDictionary++;
                     assertThat("an ordinal from zero", ordinal, greaterThanOrEqualTo(0));
                     assertThat("and below the dictionary's size", ordinal, lessThan(reader.dictionarySize()));
-                    assertEquals("doc " + doc, valued.get(0), ordinals.term(ordinal, new BytesRef()));
+                    assertEquals("doc " + doc, valued.get(0), dv.termAt(ordinal, new BytesRef()));
                 }
             }
             assertThat("some values are in the dictionary", inDictionary, greaterThan(0));
@@ -229,7 +228,7 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
         });
     }
 
-    /** The reader looks up any ordinal at any time, not only for the document just visited. */
+    /** A term is looked up by ordinal at any time, not only for the document just visited. */
     public void testDictionaryLooksUpAnyOrdinal() throws IOException {
         final BytesRef[] docValues = new BytesRef[between(100, 400)];
         for (int d = 0; d < docValues.length; d++) {
@@ -243,10 +242,9 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
             ROOMY,
             (metadata, reader) -> {
                 final ColumnarStringBinaryDocValues dv = new ColumnarStringBinaryDocValues(reader, reader.iterator(), true);
-                final DenseOrdinalReader ordinals = dv.denseOrdinals();
                 assertEquals(5, reader.dictionarySize());
                 for (int ordinal = reader.dictionarySize() - 1; ordinal >= 0; ordinal--) {
-                    assertEquals(new BytesRef("term-" + ordinal), ordinals.term(ordinal, new BytesRef()));
+                    assertEquals(new BytesRef("term-" + ordinal), dv.termAt(ordinal, new BytesRef()));
                 }
             }
         );
@@ -255,7 +253,11 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
     /** A column with no dictionary has no ordinals, and says so. */
     public void testNoDictionaryMeansNoOrdinals() throws IOException {
         final BytesRef[] docValues = dense(between(20, 100));
-        withSurface(docValues, dv -> assertNull(dv.denseOrdinals()));
+        withSurface(docValues, dv -> {
+            assertFalse(dv.reader().hasDictionary());
+            assertTrue(dv.advanceExact(0));
+            expectThrows(IllegalStateException.class, dv::denseTermOrdinal);
+        });
     }
 
     private interface SurfaceCheck {

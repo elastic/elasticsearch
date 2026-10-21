@@ -36,7 +36,6 @@ import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.ColumnarFieldType;
 import org.elasticsearch.columnar.numeric.NumericPipeline;
-import org.elasticsearch.columnar.string.DenseOrdinalReader;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.columnar.string.StringColumnOptions;
 import org.elasticsearch.columnar.string.StringColumnOptionsSelector;
@@ -559,30 +558,21 @@ public class ColumnarKeywordPushdownGuardTests extends ESTestCase {
         }
 
         @Override
-        public DenseOrdinalReader denseOrdinals() throws IOException {
-            final DenseOrdinalReader ordinals = column.denseOrdinals();
-            if (ordinals == null) {
-                return null;
-            }
-            return new DenseOrdinalReader() {
-                @Override
-                public BytesRef term(int ordinal, BytesRef dst) throws IOException {
-                    readsAValue();
-                    return ordinals.term(ordinal, dst);
-                }
+        public int denseTermOrdinal() throws IOException {
+            readsAValue();
+            return column.denseTermOrdinal();
+        }
 
-                @Override
-                public int ordinal() throws IOException {
-                    readsAValue();
-                    return ordinals.ordinal();
-                }
+        @Override
+        public BytesRef termAt(int denseOrdinal, BytesRef dst) throws IOException {
+            readsAValue();
+            return column.termAt(denseOrdinal, dst);
+        }
 
-                @Override
-                public BytesRef escapedValue(BytesRef dst) throws IOException {
-                    readsAValue();
-                    return ordinals.escapedValue(dst);
-                }
-            };
+        @Override
+        public BytesRef escapedValue(BytesRef dst) throws IOException {
+            readsAValue();
+            return column.escapedValue(dst);
         }
 
         @Override

@@ -10,7 +10,6 @@
 package org.elasticsearch.columnar.string;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 
@@ -31,13 +30,37 @@ public interface StringColumnSource {
     /** Whether a document's blob is its one value's own bytes rather than a payload of its slots. */
     boolean singleValued();
 
+    /** {@link #denseTermOrdinal} answer: the document's one value is not in the dictionary. Read it with {@link #escapedValue}. */
+    int ESCAPED = -1;
+
     /**
-     * The column's values as dense dictionary ordinals, so a caller that counts or groups by value can read each term once
-     * rather than once for each document. Null when the column has no dictionary. It reads whichever document these values
-     * are positioned on.
+     * The dense ordinal of the one value the document these values are positioned on holds, so a caller that counts or
+     * groups by value can work with small ints and read each term once rather than once for each document. Only for a
+     * column with a dictionary, which {@code reader().hasDictionary()} says, and only for a document that
+     * {@link #nonNullValueCount()} says holds exactly one value. A null slot is no value, so a document of several slots
+     * with one non-null slot holds one value.
+     *
+     * <p>A dense ordinal runs from zero up to {@code reader().dictionarySize()}, so a caller can index an array by it. It is
+     * not the ordinal the column stores, which reserves values for a null slot and for the marker of an escaped value, and
+     * so starts above zero. A value the dictionary does not name has no dense ordinal: the answer is {@link #ESCAPED}, and
+     * the column holds its bytes.
+     *
+     * <p>Answered from the ordinals the column records, so nothing is decoded.
      */
-    @Nullable
-    DenseOrdinalReader denseOrdinals() throws IOException;
+    int denseTermOrdinal() throws IOException;
+
+    /**
+     * The term at a dense ordinal. The returned {@link BytesRef} is {@code dst}, and is only valid until the next call. The
+     * lookup holds no per-document state, so it can be asked for any ordinal at any time, such as to read the keys of a
+     * result after the documents are collected.
+     */
+    BytesRef termAt(int denseOrdinal, BytesRef dst) throws IOException;
+
+    /**
+     * The value that {@link #denseTermOrdinal} answered {@link #ESCAPED} for, which is only known until the next call to it.
+     * The returned {@link BytesRef} is {@code dst}, and is only valid until the next call.
+     */
+    BytesRef escapedValue(BytesRef dst) throws IOException;
 
     /**
      * The largest or smallest value the document these values are positioned on holds, or null when it holds none.

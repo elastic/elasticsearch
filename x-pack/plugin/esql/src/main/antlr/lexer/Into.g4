@@ -10,8 +10,8 @@ lexer grammar Into;
 // INTO command
 //
 // INTO names a write target, so it pushes a mode that lexes an index pattern
-// the way JOIN does and pops back out on the pipe. The mode also lexes the
-// command's options, written as name=value pairs after the target.
+// the way JOIN does and pops back out on the pipe. Options come in a WITH map after the target, as for RERANK and
+// COMPLETION, so WITH leaves this mode for the expression mode, which lexes the map.
 //
 // Gated by the esql_into feature flag through its capability, like EXTERNAL.
 //
@@ -20,12 +20,12 @@ DEV_INTO : 'into' {EsqlCapabilities.Cap.INTO_COMMAND.isEnabled()}? -> pushMode(I
 mode INTO_MODE;
 INTO_PIPE : PIPE -> type(PIPE), popMode;
 
+INTO_WITH : WITH -> type(WITH), popMode, pushMode(EXPRESSION_MODE);
+
 INTO_UNQUOTED_SOURCE : UNQUOTED_SOURCE -> type(UNQUOTED_SOURCE);
 INTO_QUOTED_SOURCE : QUOTED_STRING -> type(QUOTED_STRING);
 INTO_COLON : COLON -> type(COLON);
 INTO_SELECTOR : CAST_OP -> type(CAST_OP);
-INTO_ASSIGN : ASSIGN -> type(ASSIGN);
-INTO_COMMA : COMMA -> type(COMMA);
 // A closing bracket ends a subquery or FORK branch as well as the command, so both modes are popped: the parser
 // then sees the misplaced INTO and refuses it.
 INTO_RP : RP -> type(RP), popMode, popMode;

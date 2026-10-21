@@ -186,7 +186,7 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
                 + SOURCE
                 + " METADATA _id | EVAL cpu = cpu + 1000 | KEEP _id, `@timestamp`, host, cpu | INTO "
                 + DESTINATION
-                + " collisions=replace"
+                + " WITH { \"collisions\": \"replace\" }"
         );
         assertThat(stats.get(IntoStats.TOTAL), equalTo(10L));
         assertThat(stats.get(IntoStats.CREATED), equalTo(0L));
@@ -207,7 +207,7 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
                 + SOURCE
                 + " METADATA _id | EVAL cpu = cpu + 1000 | KEEP _id, `@timestamp`, host, cpu | INTO "
                 + DESTINATION
-                + " collisions=keep"
+                + " WITH { \"collisions\": \"keep\" }"
         );
         assertThat(stats.get(IntoStats.TOTAL), equalTo(10L));
         assertThat(stats.get(IntoStats.CREATED), equalTo(0L));
@@ -226,7 +226,7 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
 
         assertFails(
             "FROM " + SOURCE + " METADATA _id | KEEP _id, `@timestamp`, host, cpu | INTO " + DESTINATION,
-            containsString("already exists; use collisions=replace or collisions=keep")
+            containsString("already exists; use \"collisions\": \"replace\" or \"collisions\": \"keep\"")
         );
     }
 
@@ -235,7 +235,13 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
         indexHosts(3, 30);
         createDestination(ROLLUP_MAPPING);
 
-        String query = "FROM " + SOURCE + " | " + ROLLUP + " | EVAL _id = host | INTO " + DESTINATION + " collisions=replace";
+        String query = "FROM "
+            + SOURCE
+            + " | "
+            + ROLLUP
+            + " | EVAL _id = host | INTO "
+            + DESTINATION
+            + " WITH { \"collisions\": \"replace\" }";
         assertThat(into(query).get(IntoStats.CREATED), equalTo(3L));
         Map<String, Object> again = into(query);
         assertThat(again.get(IntoStats.CREATED), equalTo(0L));
@@ -259,7 +265,7 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
     public void testRefreshFalseLeavesRowsToTheDestination() {
         indexHosts(3, 30);
         createDestination(ROLLUP_MAPPING, neverRefreshing());
-        Map<String, Object> stats = into("FROM " + SOURCE + " | " + ROLLUP + " | INTO " + DESTINATION + " refresh=false");
+        Map<String, Object> stats = into("FROM " + SOURCE + " | " + ROLLUP + " | INTO " + DESTINATION + " WITH { \"refresh\": false }");
         assertThat(stats.get(IntoStats.CREATED), equalTo(3L));
         assertThat("nothing is searchable until the destination refreshes", count(DESTINATION), equalTo(0L));
         refresh(DESTINATION);
@@ -321,7 +327,7 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
                 + SOURCE
                 + " | EVAL value = CASE(host == \"host-0\", \"not a number\", cpu::keyword) | KEEP host, value | INTO "
                 + DESTINATION,
-            containsString("use keep_going=true to skip rows the destination refuses")
+            containsString("use \"keep_going\": true to skip rows the destination refuses")
         );
     }
 
@@ -341,7 +347,7 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
                 + " | EVAL value = CASE(host IN (\"host-0\", \"host-1\", \"host-2\"), \"not a number\", cpu::keyword)"
                 + " | KEEP host, value | INTO "
                 + DESTINATION
-                + " keep_going=true"
+                + " WITH { \"keep_going\": true }"
         );
         assertThat(stats.get(IntoStats.TOTAL), equalTo(50L));
         assertThat(stats.get(IntoStats.CREATED), equalTo(20L));
@@ -371,14 +377,16 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
 
         String copy = "FROM " + SOURCE + " | KEEP `@timestamp`, host, cpu | INTO " + stream;
         assertFails(
-            copy + " collisions=replace",
+            copy + " WITH { \"collisions\": \"replace\" }",
             containsString(
-                "[" + stream + "] is a data stream, which only takes new documents, so INTO cannot replace in it; use collisions=keep"
+                "["
+                    + stream
+                    + "] is a data stream, which only takes new documents, so INTO cannot replace in it; use \"collisions\": \"keep\""
             )
         );
         assertThat(count(stream), equalTo(0L));
 
-        for (String collisions : List.of("", " collisions=keep")) {
+        for (String collisions : List.of("", " WITH { \"collisions\": \"keep\" }")) {
             Map<String, Object> stats = into(copy + collisions);
             assertThat(stats.get(IntoStats.CREATED), equalTo(10L));
             assertThat(stats.get(IntoStats.UPDATED), equalTo(0L));
@@ -397,13 +405,15 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
         // Time series backing indices only accept timestamps near now.
         indexHosts(3, 30, System.currentTimeMillis());
 
-        Map<String, Object> kept = into("FROM " + SOURCE + " | KEEP `@timestamp`, host, cpu | INTO " + stream + " collisions=keep");
+        Map<String, Object> kept = into(
+            "FROM " + SOURCE + " | KEEP `@timestamp`, host, cpu | INTO " + stream + " WITH { \"collisions\": \"keep\" }"
+        );
         assertThat(kept.get(IntoStats.CREATED), equalTo(3L));
         assertThat(kept.get(IntoStats.VERSION_CONFLICTS), equalTo(27L));
         assertThat(count(stream), equalTo(3L));
 
         assertFails(
-            "FROM " + SOURCE + " | KEEP `@timestamp`, host, cpu | INTO " + stream + " collisions=replace",
+            "FROM " + SOURCE + " | KEEP `@timestamp`, host, cpu | INTO " + stream + " WITH { \"collisions\": \"replace\" }",
             containsString("[" + stream + "] is a data stream, which only takes new documents, so INTO cannot replace in it")
         );
     }
@@ -435,7 +445,9 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
                     """)
         );
 
-        Map<String, Object> stats = into("FROM " + SOURCE + " | KEEP `@timestamp`, host, cpu | INTO " + tsdb + " collisions=keep");
+        Map<String, Object> stats = into(
+            "FROM " + SOURCE + " | KEEP `@timestamp`, host, cpu | INTO " + tsdb + " WITH { \"collisions\": \"keep\" }"
+        );
         assertThat(stats.get(IntoStats.TOTAL), equalTo(30L));
         assertThat(stats.get(IntoStats.CREATED), equalTo(3L));
         assertThat(stats.get(IntoStats.VERSION_CONFLICTS), equalTo(27L));
@@ -446,7 +458,11 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
 
         // A standalone time series index is not append-only: a replace overwrites the document for the host at that time.
         Map<String, Object> replaced = into(
-            "FROM " + SOURCE + " | EVAL cpu = cpu + 1000 | KEEP `@timestamp`, host, cpu | INTO " + tsdb + " collisions=replace"
+            "FROM "
+                + SOURCE
+                + " | EVAL cpu = cpu + 1000 | KEEP `@timestamp`, host, cpu | INTO "
+                + tsdb
+                + " WITH { \"collisions\": \"replace\" }"
         );
         assertThat(replaced.get(IntoStats.CREATED), equalTo(0L));
         assertThat(replaced.get(IntoStats.UPDATED), equalTo(30L));
@@ -493,13 +509,13 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
         createDestination(ROLLUP_MAPPING);
         assertFails(
             "SET approximation=true; FROM " + SOURCE + " | " + ROLLUP + " | INTO " + DESTINATION,
-            containsString("INTO cannot be used with approximation unless approximate=true")
+            containsString("INTO cannot be used with approximation unless \"approximate\": true")
         );
         refresh(DESTINATION);
         assertThat("nothing was written", count(DESTINATION), equalTo(0L));
 
         Map<String, Object> stats = into(
-            "SET approximation=true; FROM " + SOURCE + " | " + ROLLUP + " | INTO " + DESTINATION + " approximate=true"
+            "SET approximation=true; FROM " + SOURCE + " | " + ROLLUP + " | INTO " + DESTINATION + " WITH { \"approximate\": true }"
         );
         assertThat((Long) stats.get(IntoStats.CREATED), greaterThan(0L));
         assertThat(count(DESTINATION), equalTo(stats.get(IntoStats.CREATED)));
@@ -517,7 +533,13 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
     /** Writes the source's documents, ids included, to the destination; returns how many were created. */
     private long copySource(String collisions) {
         return (Long) into(
-            "FROM " + SOURCE + " METADATA _id | KEEP _id, `@timestamp`, host, cpu | INTO " + DESTINATION + " collisions=" + collisions
+            "FROM "
+                + SOURCE
+                + " METADATA _id | KEEP _id, `@timestamp`, host, cpu | INTO "
+                + DESTINATION
+                + " WITH { \"collisions\": \""
+                + collisions
+                + "\" }"
         ).get(IntoStats.CREATED);
     }
 

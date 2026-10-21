@@ -1010,30 +1010,6 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterIntoCommandOptions(EsqlBaseParser.IntoCommandOptionsContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitIntoCommandOptions(EsqlBaseParser.IntoCommandOptionsContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterIntoCommandOption(EsqlBaseParser.IntoCommandOptionContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitIntoCommandOption(EsqlBaseParser.IntoCommandOptionContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
   @Override public void enterHighlightCommand(EsqlBaseParser.HighlightCommandContext ctx) { }
   /**
    * {@inheritDoc}

@@ -541,7 +541,7 @@ public class EsqlSession {
             // An approximate answer is one thing to display and another to persist with no sign that it was estimated,
             // so writing one has to be asked for at the point of the write.
             throw new VerificationException(
-                "INTO cannot be used with approximation unless {}=true, since the rows written would be based on a sample",
+                "INTO cannot be used with approximation unless \"{}\": true, since the rows written would be based on a sample",
                 IntoOptions.APPROXIMATE
             );
         }

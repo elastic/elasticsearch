@@ -144,7 +144,7 @@ public class EsqlSecurityIntoIT extends ESRestTestCase {
     public void testReplaceNeedsMoreThanCreateDoc() throws IOException {
         ResponseException e = expectThrows(
             ResponseException.class,
-            () -> runInto("creator", "FROM src | KEEP host, cpu | INTO dst collisions=replace")
+            () -> runInto("creator", "FROM src | KEEP host, cpu | INTO dst WITH { \"collisions\": \"replace\" }")
         );
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
         assertThat(count("dst"), equalTo(0));
@@ -163,7 +163,7 @@ public class EsqlSecurityIntoIT extends ESRestTestCase {
     public void testKeepGoingDoesNotTurnAForbiddenWriteIntoRowFailures() throws IOException {
         ResponseException e = expectThrows(
             ResponseException.class,
-            () -> runInto("creator", "FROM src | KEEP host, cpu | INTO tmpl-new collisions=keep, keep_going=true")
+            () -> runInto("creator", "FROM src | KEEP host, cpu | INTO tmpl-new WITH { \"collisions\": \"keep\", \"keep_going\": true }")
         );
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
         assertThat(errorBody(e), containsString("unauthorized"));

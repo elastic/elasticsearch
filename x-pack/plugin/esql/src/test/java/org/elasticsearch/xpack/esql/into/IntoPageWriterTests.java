@@ -349,7 +349,10 @@ public class IntoPageWriterTests extends ESTestCase {
         assertTrue(writer.isFinished());
         assertThat(writer.failure(), instanceOf(ElasticsearchStatusException.class));
         assertThat(((ElasticsearchStatusException) writer.failure()).status(), equalTo(RestStatus.CONFLICT));
-        assertThat(writer.failure().getMessage(), containsString("document [2] already exists; use collisions=replace or collisions=keep"));
+        assertThat(
+            writer.failure().getMessage(),
+            containsString("document [2] already exists; use \"collisions\": \"replace\" or \"collisions\": \"keep\"")
+        );
     }
 
     /** A refused row fails the query unless {@code keep_going}: nothing after it is sent. */
@@ -365,7 +368,10 @@ public class IntoPageWriterTests extends ESTestCase {
         assertThat(writer.failure(), instanceOf(ElasticsearchStatusException.class));
         assertThat(((ElasticsearchStatusException) writer.failure()).status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(writer.failure().getMessage(), containsString("INTO [dst] failed: dst/auto-1: "));
-        assertThat(writer.failure().getMessage(), containsString("bad value; use keep_going=true to skip rows the destination refuses"));
+        assertThat(
+            writer.failure().getMessage(),
+            containsString("bad value; use \"keep_going\": true to skip rows the destination refuses")
+        );
         assertThat(writer.stats().failures(), equalTo(0L));
     }
 

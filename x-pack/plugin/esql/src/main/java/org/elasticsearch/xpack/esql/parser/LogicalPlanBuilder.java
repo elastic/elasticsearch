@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
+import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -623,20 +624,28 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             );
         }
         IntoOptions options = IntoOptions.DEFAULT;
-        if (ctx.intoCommandOptions() != null) {
+        MapExpression optionsExpression = visitCommandNamedParameters(ctx.commandNamedParameters());
+        if (optionsExpression != null) {
             Set<String> seen = new HashSet<>();
-            for (EsqlBaseParser.IntoCommandOptionContext option : ctx.intoCommandOptions().intoCommandOption()) {
-                String name = option.name.getText().toLowerCase(Locale.ROOT);
-                if (seen.add(name) == false) {
-                    throw new ParsingException(source(option), "duplicate option [{}] for INTO", name);
-                }
-                String value = option.value.getType() == EsqlBaseParser.QUOTED_STRING
-                    ? unquote(option.value.getText())
-                    : option.value.getText();
-                try {
-                    options = options.with(name, value);
-                } catch (IllegalArgumentException e) {
-                    throw new ParsingException(source(option), e.getMessage());
+            for (EntryExpression entry : optionsExpression.entryExpressions()) {
+                if (entry.key() instanceof Literal key && DataType.isString(key.dataType())) {
+                    String name = BytesRefs.toString(key.value()).toLowerCase(Locale.ROOT);
+                    if (seen.add(name) == false) {
+                        throw new ParsingException(entry.source(), "duplicate option [{}] for INTO", name);
+                    }
+                    // A parameter has been replaced by its value by now, so ?r and a literal are read alike.
+                    if (entry.value() instanceof Literal value) {
+                        Object typed = value.value() instanceof BytesRef bytes ? BytesRefs.toString(bytes) : value.value();
+                        try {
+                            options = options.with(name, typed);
+                        } catch (IllegalArgumentException e) {
+                            throw new ParsingException(entry.source(), e.getMessage());
+                        }
+                    } else {
+                        throw new ParsingException(entry.value().source(), "option [{}] for INTO must be a literal or a parameter", name);
+                    }
+                } else {
+                    throw new ParsingException(entry.key().source(), "option names for INTO must be strings");
                 }
             }
         }

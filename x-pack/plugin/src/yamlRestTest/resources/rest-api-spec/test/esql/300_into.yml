@@ -112,7 +112,7 @@ setup:
   - do:
       esql.query:
         body:
-          query: 'FROM src | STATS max_cpu = MAX(cpu) BY host | INTO unrefreshed refresh=false'
+          query: 'FROM src | STATS max_cpu = MAX(cpu) BY host | INTO unrefreshed WITH { "refresh": false }'
   - match: { values.0.1: 2 }
 
   - do:
@@ -159,7 +159,7 @@ setup:
   - do:
       esql.query:
         body:
-          query: 'FROM src METADATA _id | EVAL cpu = cpu + 100 | KEEP _id, host, cpu | INTO dst collisions=keep'
+          query: 'FROM src METADATA _id | EVAL cpu = cpu + 100 | KEEP _id, host, cpu | INTO dst WITH { "collisions": "keep" }'
   - match: { values.0.0: 3 }
   - match: { values.0.1: 0 }
   - match: { values.0.3: 3 }
@@ -167,7 +167,7 @@ setup:
   - do:
       esql.query:
         body:
-          query: 'FROM src METADATA _id | EVAL cpu = cpu + 100 | KEEP _id, host, cpu | INTO dst collisions=replace'
+          query: 'FROM src METADATA _id | EVAL cpu = cpu + 100 | KEEP _id, host, cpu | INTO dst WITH { "collisions": "replace" }'
   - match: { values.0.1: 0 }
   - match: { values.0.2: 3 }
 
@@ -184,7 +184,7 @@ setup:
       esql.query:
         body:
           query: 'FROM src METADATA _id | KEEP _id, host, cpu | INTO dst'
-  - match: { error.reason: "/.*document\\s\\[\\d\\]\\salready\\sexists;\\suse\\scollisions=replace\\sor\\scollisions=keep.*/" }
+  - match: { error.reason: "/.*document\\s\\[\\d\\]\\salready\\sexists;\\suse\\s\"collisions\":\\s\"replace\"\\sor.*/" }
 
 ---
 "INTO refuses what the destination cannot take":
@@ -213,7 +213,7 @@ setup:
       catch: bad_request
       esql.query:
         body:
-          query: 'FROM src | INTO dst collisions=merge'
+          query: 'FROM src | INTO dst WITH { "collisions": "merge" }'
   - match: { error.reason: "/.*invalid\\svalue\\s\\[merge\\]\\sfor\\soption\\s\\[collisions\\].*/" }
 
 ---
@@ -223,14 +223,14 @@ setup:
       esql.query:
         body:
           query: 'FROM src | EVAL max_cpu = CASE(host == "b", "not a number", cpu::keyword) | KEEP host, max_cpu | INTO dst'
-  - match: { error.reason: "/.*failed\\sto\\sparse\\sfield\\s\\[max_cpu\\].*use\\skeep_going=true.*/" }
+  - match: { error.reason: "/.*failed\\sto\\sparse\\sfield\\s\\[max_cpu\\].*use\\s\"keep_going\":\\strue.*/" }
 
 ---
 "INTO reports rows the destination refused with keep_going":
   - do:
       esql.query:
         body:
-          query: 'FROM src | EVAL max_cpu = CASE(host == "b", "not a number", cpu::keyword) | KEEP host, max_cpu | INTO dst keep_going=true'
+          query: 'FROM src | EVAL max_cpu = CASE(host == "b", "not a number", cpu::keyword) | KEEP host, max_cpu | INTO dst WITH { "keep_going": true }'
   - match: { values.0.0: 3 }
   - match: { values.0.1: 2 }
   - match: { values.0.5: 1 }
@@ -279,13 +279,13 @@ setup:
       catch: bad_request
       esql.query:
         body:
-          query: 'FROM src | EVAL `@timestamp` = "2025-06-15T15:06:40Z"::datetime | KEEP `@timestamp`, host, cpu | INTO into-stream collisions=replace'
+          query: 'FROM src | EVAL `@timestamp` = "2025-06-15T15:06:40Z"::datetime | KEEP `@timestamp`, host, cpu | INTO into-stream WITH { "collisions": "replace" }'
   - match: { error.reason: "/.*\\[into-stream\\]\\sis\\sa\\sdata\\sstream,\\swhich\\sonly\\stakes\\snew\\sdocuments.*/" }
 
   - do:
       esql.query:
         body:
-          query: 'FROM src | EVAL `@timestamp` = "2025-06-15T15:06:40Z"::datetime | KEEP `@timestamp`, host, cpu | INTO into-stream collisions=keep'
+          query: 'FROM src | EVAL `@timestamp` = "2025-06-15T15:06:40Z"::datetime | KEEP `@timestamp`, host, cpu | INTO into-stream WITH { "collisions": "keep" }'
   - match: { values.0.0: 3 }
   - match: { values.0.1: 3 }
   - match: { values.0.2: 0 }

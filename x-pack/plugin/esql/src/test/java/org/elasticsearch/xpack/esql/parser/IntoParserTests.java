@@ -7,13 +7,17 @@
 
 package org.elasticsearch.xpack.esql.parser;
 
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.into.IntoOptions;
 import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.junit.Before;
+
+import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.containsString;
@@ -39,34 +43,56 @@ public class IntoParserTests extends AbstractStatementParserTests {
         assertThat(into.destination(), equalTo("my-dst"));
     }
 
-    /** The command and its options are case-insensitive. */
+    /** The command and its options are case-insensitive, and the values are typed. */
     public void testOptions() {
-        Into into = as(query("FROM src | into dst COLLISIONS=Keep, Refresh=FALSE"), Into.class);
+        Into into = as(query("FROM src | into dst WITH { \"COLLISIONS\": \"Keep\", \"Refresh\": false }"), Into.class);
         assertThat(into.options(), equalTo(new IntoOptions(IntoOptions.Collisions.KEEP, false, false, false)));
 
-        into = as(query("FROM src | INTO dst collisions=\"replace\", keep_going=true"), Into.class);
+        into = as(query("FROM src | INTO dst WITH {\"collisions\": \"replace\", \"keep_going\": true}"), Into.class);
         assertThat(into.options(), equalTo(new IntoOptions(IntoOptions.Collisions.REPLACE, true, true, false)));
 
-        into = as(query("FROM src | INTO dst approximate=true"), Into.class);
+        into = as(query("FROM src | INTO dst WITH {\"approximate\": true}"), Into.class);
         assertThat(into.options(), equalTo(new IntoOptions(IntoOptions.Collisions.ABORT, true, false, true)));
 
-        into = as(query("FROM src | INTO dst refresh=true"), Into.class);
+        into = as(query("FROM src | INTO dst WITH {\"refresh\": true}"), Into.class);
         assertThat("refresh is on by default", into.options(), equalTo(IntoOptions.DEFAULT));
         assertThat(as(query("FROM src | INTO dst"), Into.class).options(), equalTo(IntoOptions.DEFAULT));
+        assertThat(as(query("FROM src | INTO dst WITH {}"), Into.class).options(), equalTo(IntoOptions.DEFAULT));
+    }
+
+    /** A parameter stands for its value, with the type it was given. */
+    public void testOptionsFromParameters() {
+        QueryParams params = new QueryParams(
+            List.of(
+                new QueryParam("r", false, DataType.BOOLEAN, ParserUtils.ParamClassification.VALUE),
+                new QueryParam("c", BytesRefs.toBytesRef("keep"), DataType.KEYWORD, ParserUtils.ParamClassification.VALUE)
+            )
+        );
+        Into into = as(query("FROM src | INTO dst WITH {\"refresh\": ?r, \"collisions\": ?c}", params), Into.class);
+        assertThat(into.options(), equalTo(new IntoOptions(IntoOptions.Collisions.KEEP, false, false, false)));
     }
 
     public void testBadOptions() {
         expectError(
-            "FROM src | INTO dst mode=keep",
-            "line 1:21: unknown option [mode] for INTO, expected one of [collisions, refresh, keep_going, approximate]"
+            "FROM src | INTO dst WITH {\"mode\": \"keep\"}",
+            "unknown option [mode] for INTO, expected one of [collisions, refresh, keep_going, approximate]"
         );
         expectError(
-            "FROM src | INTO dst collisions=merge",
-            "invalid value [merge] for option [collisions], expected one of [abort, replace, keep]"
+            "FROM src | INTO dst WITH {\"collisions\": \"merge\"}",
+            "invalid value [merge] for option [collisions], expected one of [\"abort\", \"replace\", \"keep\"]"
         );
-        expectError("FROM src | INTO dst refresh=maybe", "invalid value [maybe] for option [refresh], expected [true] or [false]");
-        expectError("FROM src | INTO dst refresh=true, refresh=false", "line 1:35: duplicate option [refresh] for INTO");
-        expectError("FROM src | INTO dst collisions", "mismatched input");
+        expectError(
+            "FROM src | INTO dst WITH {\"refresh\": \"true\"}",
+            "invalid value [true] for option [refresh], expected a boolean, true or false"
+        );
+        expectError("FROM src | INTO dst WITH {\"refresh\": true, \"REFRESH\": false}", "duplicate option [refresh] for INTO");
+        expectError(
+            "FROM src | INTO dst WITH {\"collisions\": {\"x\": 1}}",
+            "option [collisions] for INTO must be a literal or a parameter"
+        );
+        expectError("FROM src | INTO dst WITH {\"collisions\": 1 + 1}", "mismatched input");
+        expectError("FROM src | INTO dst collisions=keep", "token recognition error at: '='");
+        expectError("FROM src | INTO dst WITH", "mismatched input");
     }
 
     public void testBadDestination() {

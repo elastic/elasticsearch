@@ -79,7 +79,7 @@ public class IntoExecTests extends ESTestCase {
         IntoExec into = new IntoExec(Source.EMPTY, child(), "dst", IntoOptions.DEFAULT, null);
         assertThat(into, not(equalTo(new IntoExec(Source.EMPTY, child(), "dst", IntoOptions.DEFAULT.with("collisions", "keep"), null))));
         assertThat(into, not(equalTo(new IntoExec(Source.EMPTY, child(), "other", IntoOptions.DEFAULT, null))));
-        assertThat(into, not(equalTo(new IntoExec(Source.EMPTY, child(), "dst", IntoOptions.DEFAULT.with("refresh", "false"), null))));
+        assertThat(into, not(equalTo(new IntoExec(Source.EMPTY, child(), "dst", IntoOptions.DEFAULT.with("refresh", false), null))));
     }
 
     public void testIsNeverSerialized() {

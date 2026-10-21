@@ -406,15 +406,7 @@ dedupCommand
     ;
 
 intoCommand
-    : DEV_INTO indexPattern intoCommandOptions?
-    ;
-
-intoCommandOptions
-    : intoCommandOption (COMMA intoCommandOption)*
-    ;
-
-intoCommandOption
-    : name=UNQUOTED_SOURCE ASSIGN value=(UNQUOTED_SOURCE | QUOTED_STRING)
+    : DEV_INTO indexPattern commandNamedParameters
     ;
 
 highlightCommand

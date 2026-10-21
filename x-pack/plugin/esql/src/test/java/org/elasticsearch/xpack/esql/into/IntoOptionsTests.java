@@ -21,10 +21,10 @@ public class IntoOptionsTests extends ESTestCase {
         assertFalse(IntoOptions.DEFAULT.approximate());
     }
 
-    public void testNamesAndValuesAreCaseInsensitive() {
-        IntoOptions options = IntoOptions.DEFAULT.with("Collisions", "KEEP").with("REFRESH", "False").with("Keep_Going", "TRUE");
+    public void testNamesAndCollisionsAreCaseInsensitive() {
+        IntoOptions options = IntoOptions.DEFAULT.with("Collisions", "KEEP").with("REFRESH", false).with("Keep_Going", true);
         assertThat(options, equalTo(new IntoOptions(IntoOptions.Collisions.KEEP, false, true, false)));
-        assertTrue(options.with("APPROXIMATE", "true").approximate());
+        assertTrue(options.with("APPROXIMATE", true).approximate());
         assertThat(IntoOptions.DEFAULT.with("collisions", "Replace").collisions(), equalTo(IntoOptions.Collisions.REPLACE));
         assertThat(IntoOptions.DEFAULT.with("collisions", "abort").collisions(), equalTo(IntoOptions.Collisions.ABORT));
     }
@@ -37,13 +37,16 @@ public class IntoOptionsTests extends ESTestCase {
         );
     }
 
+    /** Values are typed: a boolean option takes a boolean, not the text of one, and collisions takes a string. */
     public void testBadValues() {
         var e = expectThrows(IllegalArgumentException.class, () -> IntoOptions.DEFAULT.with("collisions", "merge"));
         assertThat(e.getMessage(), containsString("invalid value [merge] for option [collisions]"));
-        e = expectThrows(IllegalArgumentException.class, () -> IntoOptions.DEFAULT.with("refresh", "yes"));
-        assertThat(e.getMessage(), containsString("invalid value [yes] for option [refresh]"));
-        e = expectThrows(IllegalArgumentException.class, () -> IntoOptions.DEFAULT.with("keep_going", "maybe"));
-        assertThat(e.getMessage(), containsString("invalid value [maybe] for option [keep_going]"));
+        e = expectThrows(IllegalArgumentException.class, () -> IntoOptions.DEFAULT.with("collisions", true));
+        assertThat(e.getMessage(), containsString("invalid value [true] for option [collisions]"));
+        e = expectThrows(IllegalArgumentException.class, () -> IntoOptions.DEFAULT.with("refresh", "true"));
+        assertThat(e.getMessage(), containsString("invalid value [true] for option [refresh], expected a boolean"));
+        e = expectThrows(IllegalArgumentException.class, () -> IntoOptions.DEFAULT.with("keep_going", 1));
+        assertThat(e.getMessage(), containsString("invalid value [1] for option [keep_going]"));
         e = expectThrows(IllegalArgumentException.class, () -> IntoOptions.DEFAULT.with("approximate", "0"));
         assertThat(e.getMessage(), containsString("invalid value [0] for option [approximate]"));
     }

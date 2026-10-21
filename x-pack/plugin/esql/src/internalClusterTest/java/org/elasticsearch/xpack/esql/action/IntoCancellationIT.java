@@ -58,7 +58,7 @@ public class IntoCancellationIT extends AbstractPausableIntegTestCase {
         QueryPragmas pragmas = new QueryPragmas(Settings.builder().put("data_partitioning", "shard").put("page_size", pageSize()).build());
         ActionFuture<EsqlQueryResponse> response = client().execute(
             EsqlQueryAction.INSTANCE,
-            syncEsqlQueryRequest("FROM test | KEEP foo, pause_me | INTO " + DESTINATION + " refresh=false").pragmas(pragmas)
+            syncEsqlQueryRequest("FROM test | KEEP foo, pause_me | INTO " + DESTINATION + " WITH { \"refresh\": false }").pragmas(pragmas)
         );
         try {
             assertBusy(() -> {

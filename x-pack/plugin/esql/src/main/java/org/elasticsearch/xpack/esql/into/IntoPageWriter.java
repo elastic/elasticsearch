@@ -280,7 +280,7 @@ public final class IntoPageWriter implements PageConsumer {
                 case KEEP -> stats.countVersionConflict();
                 case ABORT -> recordFailure(
                     new ElasticsearchStatusException(
-                        "INTO [{}] failed: document [{}] already exists; use collisions=replace or collisions=keep",
+                        "INTO [{}] failed: document [{}] already exists; use \"collisions\": \"replace\" or \"collisions\": \"keep\"",
                         RestStatus.CONFLICT,
                         itemFailure.getCause(),
                         destination,
@@ -303,7 +303,7 @@ public final class IntoPageWriter implements PageConsumer {
         } else {
             recordFailure(
                 new ElasticsearchStatusException(
-                    "INTO [{}] failed: {}; use " + IntoOptions.KEEP_GOING + "=true to skip rows the destination refuses",
+                    "INTO [{}] failed: {}; use \"" + IntoOptions.KEEP_GOING + "\": true to skip rows the destination refuses",
                     status,
                     cause,
                     destination,

@@ -143,7 +143,7 @@ public final class IntoDestination {
         if (dataStream && options.collisions() == IntoOptions.Collisions.REPLACE) {
             throw new VerificationException(
                 "[{}] is a data stream, which only takes new documents, so INTO cannot replace in it; "
-                    + "use collisions=keep or collisions=abort",
+                    + "use \"collisions\": \"keep\" or \"collisions\": \"abort\"",
                 name
             );
         }

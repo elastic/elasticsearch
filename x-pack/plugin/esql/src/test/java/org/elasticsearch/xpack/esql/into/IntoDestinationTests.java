@@ -101,7 +101,7 @@ public class IntoDestinationTests extends ESTestCase {
             replace.getMessage(),
             containsString(
                 "[dst] is a data stream, which only takes new documents, so INTO cannot replace in it; "
-                    + "use collisions=keep or collisions=abort"
+                    + "use \"collisions\": \"keep\" or \"collisions\": \"abort\""
             )
         );
         List<Attribute> withId = List.of(column("host", DataType.KEYWORD), column(IntoPageWriter.ID_COLUMN, DataType.KEYWORD));

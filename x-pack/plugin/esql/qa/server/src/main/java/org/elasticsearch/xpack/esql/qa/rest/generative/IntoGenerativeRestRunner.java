@@ -94,7 +94,7 @@ public abstract class IntoGenerativeRestRunner extends GenerativeRestTest {
         Pattern.compile("failed to parse field"),
         Pattern.compile("mapper_parsing_exception|document_parsing_exception|strict_dynamic_mapping_exception"),
         Pattern.compile("can't merge|mapping update|Could not dynamically add mapping|object mapping|Limit of total fields"),
-        Pattern.compile("already exists; use collisions="),
+        Pattern.compile("already exists; use \"collisions\""),
         Pattern.compile("timestamp field \\[@timestamp\\] is missing"),
         Pattern.compile("SORT has no effect on what INTO writes"),
         Pattern.compile("Field \\[[^]]*\\] .* cannot be used in columnar|doc values|reconstruct"),

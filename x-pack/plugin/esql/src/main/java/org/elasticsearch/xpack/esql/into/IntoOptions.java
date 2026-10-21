@@ -10,10 +10,12 @@ package org.elasticsearch.xpack.esql.into;
 import java.util.Locale;
 
 /**
- * The options an {@code INTO} command accepts after its destination, as in {@code INTO dst collisions=keep, refresh=false}.
+ * The options an {@code INTO} command accepts after its destination, in a {@code WITH} map as for {@code RERANK}:
+ * {@code INTO dst WITH { "collisions": "keep", "refresh": false }}.
  * <p>
- * Option names and values are case-insensitive. A bad name or value is reported as an {@link IllegalArgumentException}
- * whose message names the option, which the parser turns into a {@code ParsingException} at the option's position.
+ * Option names and the values of {@code collisions} are case-insensitive. A bad name or value is reported as an
+ * {@link IllegalArgumentException} whose message names the option, which the parser turns into a {@code ParsingException}
+ * at the option's position.
  *
  * @param collisions what to do with a row whose document id already exists in the destination
  * @param refresh    whether to refresh the destination once every row has been written, so the rows are searchable
@@ -48,14 +50,16 @@ public record IntoOptions(Collisions collisions, boolean refresh, boolean keepGo
         /** The existing document is kept and the row is counted as a version conflict. */
         KEEP;
 
-        public static Collisions parse(String value) {
-            for (Collisions collisions : values()) {
-                if (collisions.name().equalsIgnoreCase(value)) {
-                    return collisions;
+        public static Collisions parse(Object value) {
+            if (value instanceof String string) {
+                for (Collisions collisions : values()) {
+                    if (collisions.name().equalsIgnoreCase(string)) {
+                        return collisions;
+                    }
                 }
             }
             throw new IllegalArgumentException(
-                "invalid value [" + value + "] for option [" + COLLISIONS + "], expected one of [abort, replace, keep]"
+                "invalid value [" + value + "] for option [" + COLLISIONS + "], expected one of [\"abort\", \"replace\", \"keep\"]"
             );
         }
 
@@ -65,13 +69,16 @@ public record IntoOptions(Collisions collisions, boolean refresh, boolean keepGo
         }
     }
 
-    /** Returns a copy with the named option set, as it was written in the query. */
-    public IntoOptions with(String name, String value) {
+    /**
+     * Returns a copy with the named option set. {@code collisions} takes a string and the others a boolean, as typed in
+     * the query's {@code WITH} map; a value of another type is refused rather than read as text.
+     */
+    public IntoOptions with(String name, Object value) {
         return switch (name.toLowerCase(Locale.ROOT)) {
             case COLLISIONS -> new IntoOptions(Collisions.parse(value), refresh, keepGoing, approximate);
-            case REFRESH -> new IntoOptions(collisions, parseBoolean(REFRESH, value), keepGoing, approximate);
-            case KEEP_GOING -> new IntoOptions(collisions, refresh, parseBoolean(KEEP_GOING, value), approximate);
-            case APPROXIMATE -> new IntoOptions(collisions, refresh, keepGoing, parseBoolean(APPROXIMATE, value));
+            case REFRESH -> new IntoOptions(collisions, booleanValue(REFRESH, value), keepGoing, approximate);
+            case KEEP_GOING -> new IntoOptions(collisions, refresh, booleanValue(KEEP_GOING, value), approximate);
+            case APPROXIMATE -> new IntoOptions(collisions, refresh, keepGoing, booleanValue(APPROXIMATE, value));
             default -> throw new IllegalArgumentException(
                 "unknown option ["
                     + name
@@ -82,14 +89,11 @@ public record IntoOptions(Collisions collisions, boolean refresh, boolean keepGo
         };
     }
 
-    private static boolean parseBoolean(String name, String value) {
-        if ("true".equalsIgnoreCase(value)) {
-            return true;
+    private static boolean booleanValue(String name, Object value) {
+        if (value instanceof Boolean bool) {
+            return bool;
         }
-        if ("false".equalsIgnoreCase(value)) {
-            return false;
-        }
-        throw new IllegalArgumentException("invalid value [" + value + "] for option [" + name + "], expected [true] or [false]");
+        throw new IllegalArgumentException("invalid value [" + value + "] for option [" + name + "], expected a boolean, true or false");
     }
 
     @Override

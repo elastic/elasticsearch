@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperator;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
@@ -30,6 +32,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -38,7 +41,9 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * A {@code partition_spec} overlay projects a file-column filter onto Hive path keys.
  * Rows and {@code files_scanned} are both asserted: a row count cannot tell a dropped
  * file from a never-matching one, and a file count cannot tell a correct answer from
- * a lucky one.
+ * a lucky one. The projection path must still scan the pruned file set; {@code COUNT(*)}
+ * may fold from partition/footer stats under RECHECK (zero files scanned) or else
+ * scan the same pruned set.
  */
 public class ExternalPartitionSpecPruningIT extends AbstractExternalDataSourceIT {
 
@@ -250,7 +255,7 @@ public class ExternalPartitionSpecPruningIT extends AbstractExternalDataSourceIT
             equalTo(expectedIds)
         );
 
-        List<List<Object>> counted = runPruned(dataset, filterClause + " | STATS c = COUNT(*)", totalFiles, expectedFilesScanned);
+        List<List<Object>> counted = runCount(dataset, filterClause, totalFiles, expectedFilesScanned);
         assertThat("expect a single count row", counted.size(), equalTo(1));
         assertThat(
             "[" + filterClause + "] the aggregate path must agree with the projection path",
@@ -283,7 +288,7 @@ public class ExternalPartitionSpecPruningIT extends AbstractExternalDataSourceIT
             } else {
                 if (expectedFilesScanned > 0) {
                     assertThat(
-                        "external scan must run on a data node via the distributed fragment path",
+                        "[" + query + "] external scan must run on a data node via the distributed fragment path",
                         externalScanNodeNames(response).size(),
                         greaterThanOrEqualTo(1)
                     );
@@ -292,6 +297,51 @@ public class ExternalPartitionSpecPruningIT extends AbstractExternalDataSourceIT
                     "[" + tail + "] must scan exactly " + expectedFilesScanned + " of " + totalFiles + " files",
                     profile.filesScanned(),
                     equalTo(expectedFilesScanned)
+                );
+            }
+            return getValuesList(response);
+        }
+    }
+
+    /**
+     * Like {@link #runPruned} for {@code STATS COUNT(*)}: the count may fold from stats or still
+     * execute with the same pruned file set. Discovery can count files before the data-node fold,
+     * so a positive file count does not necessarily imply a physical external scan.
+     */
+    private List<List<Object>> runCount(String dataset, String filterClause, int totalFiles, int expectedFilesScannedIfNotFolded) {
+        QueryPragmas pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.EXTERNAL_DISTRIBUTION.getKey(), "round_robin").build());
+        String query = "FROM " + dataset + " | " + filterClause + " | STATS c = COUNT(*)";
+        var request = syncEsqlQueryRequest(query);
+        request.pragmas(pragmas);
+        request.acceptedPragmaRisks(true);
+        request.profile(true);
+        try (var response = run(request)) {
+            int filesScanned = response.getExecutionInfo().queryProfile().filesScanned();
+            assertThat(
+                "[" + filterClause + "] COUNT(*) must fold (0 scans) or prune to " + expectedFilesScannedIfNotFolded + " of " + totalFiles,
+                filesScanned,
+                either(equalTo(0)).or(equalTo(expectedFilesScannedIfNotFolded))
+            );
+            if (filesScanned > 0) {
+                // LocalSourceOperator has no status, so pair its name with the same data driver's
+                // zero-I/O profile rather than accepting a local operator beside an external scan.
+                boolean dataNodeMetadataFold = response.profile()
+                    .drivers()
+                    .stream()
+                    .filter(driver -> driver.description().equals("data"))
+                    .filter(
+                        driver -> driver.operators()
+                            .stream()
+                            .allMatch(
+                                operator -> operator.bytesRead() == 0
+                                    && (operator.status() instanceof AsyncExternalSourceOperator.Status) == false
+                            )
+                    )
+                    .flatMap(driver -> driver.operators().stream())
+                    .anyMatch(operator -> operator.operator().equals(LocalSourceOperator.class.getSimpleName()));
+                assertTrue(
+                    "COUNT(*) must execute an external scan or a metadata fold on a data node",
+                    externalScanNodeNames(response).isEmpty() == false || dataNodeMetadataFold
                 );
             }
             return getValuesList(response);

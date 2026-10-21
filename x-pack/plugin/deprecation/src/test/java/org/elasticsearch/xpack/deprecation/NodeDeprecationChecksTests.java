@@ -814,6 +814,37 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         );
     }
 
+    public void testTelemetryAgentSettings() {
+        Settings settings = Settings.builder()
+            .put("telemetry.agent.server_url", "http://apm-server:8200")
+            .put("telemetry.agent.global_labels.project_id", "abc123")
+            .put("telemetry.agent.span_compression_enabled", "true")
+            .build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules);
+        final DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "Settings [telemetry.agent.global_labels.project_id, telemetry.agent.server_url, "
+                + "telemetry.agent.span_compression_enabled] are deprecated",
+            "https://ela.st/es-deprecation-9-telemetry-agent-settings",
+            "The Elastic APM Java agent has been removed; telemetry is exported by the OpenTelemetry SDK. "
+                + "Replace [telemetry.agent.server_url] with [telemetry.export.endpoint]. "
+                + "Move each [telemetry.agent.global_labels.<name>] setting to [telemetry.resource.<name>], "
+                + "which attaches it to every exported metric and span. "
+                + "The remaining settings [telemetry.agent.span_compression_enabled] configured the agent itself and have no "
+                + "direct replacement; remove them.",
+            false,
+            null
+        );
+        assertThat(issues, hasItem(expected));
+    }
+
+    public void testTelemetryAgentSettingsNotSet() {
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final List<DeprecationIssue> issues = getDeprecationIssues(Settings.EMPTY, pluginsAndModules);
+        assertThat(issues.stream().anyMatch(i -> i.getUrl().contains("telemetry-agent-settings")), equalTo(false));
+    }
+
     public void testEqlEnabledSetting() {
         Settings settings = Settings.builder().put("xpack.eql.enabled", randomBoolean()).build();
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());

@@ -100,10 +100,11 @@ public class ColumnarStringAutomatonQueryTests extends ESTestCase {
      * cached filter would be handed to the wrong one.
      */
     public void testCacheIdentityFollowsThePattern() {
-        assertEquals(automatonFor("al*a"), automatonFor("al*a"));
-        assertEquals(automatonFor("al*a").hashCode(), automatonFor("al*a").hashCode());
-        assertNotEquals(automatonFor("al*a"), automatonFor("al*b"));
-        assertNotEquals(automatonFor("al*a"), automatonFor("other", "al*a"));
+        final boolean singleValued = randomBoolean();
+        assertEquals(automatonFor("al*a", singleValued), automatonFor("al*a", singleValued));
+        assertEquals(automatonFor("al*a", singleValued).hashCode(), automatonFor("al*a", singleValued).hashCode());
+        assertNotEquals(automatonFor("al*a", singleValued), automatonFor("al*b", singleValued));
+        assertNotEquals(automatonFor("al*a", singleValued), automatonFor("other", "al*a", singleValued));
     }
 
     /**
@@ -131,7 +132,7 @@ public class ColumnarStringAutomatonQueryTests extends ESTestCase {
                     assertEquals(
                         "pattern [" + pattern + "] as an automaton through an overlay",
                         accepted(values, pattern),
-                        found(searcher, automatonFor(pattern))
+                        found(searcher, automatonFor(pattern, false))
                     );
                 }
             }
@@ -148,9 +149,9 @@ public class ColumnarStringAutomatonQueryTests extends ESTestCase {
             d -> d % 7 == 3 ? null : d % 11 == 0 ? "" : d % 5 == 0 ? "alpine-" + d : TERMS[d % TERMS.length]
         );
         try (Directory dir = newDirectory()) {
-            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(ColumnarFieldType.STRING))
+            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(ColumnarTestUtils.singleValuedStringCodec())
                 .setMergePolicy(new LogDocMergePolicy());
-            final FieldType type = ColumnarTestUtils.singleValuedBinaryFieldType();
+            final FieldType type = columnarBinaryFieldType();
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                 for (String value : values) {
                     final Document doc = new Document();
@@ -167,7 +168,7 @@ public class ColumnarStringAutomatonQueryTests extends ESTestCase {
                     assertEquals(
                         "pattern [" + pattern + "] as an automaton through an overlay",
                         accepted(values, pattern),
-                        found(searcher, automatonFor(pattern))
+                        found(searcher, automatonFor(pattern, true))
                     );
                 }
             }
@@ -196,18 +197,18 @@ public class ColumnarStringAutomatonQueryTests extends ESTestCase {
                     assertEquals(
                         "pattern [" + pattern + "] as an automaton",
                         accepted(values, pattern),
-                        found(searcher, automatonFor(pattern))
+                        found(searcher, automatonFor(pattern, false))
                     );
                 }
             }
         }
     }
 
-    private static Query automatonFor(String pattern) {
-        return automatonFor(FIELD, pattern);
+    private static Query automatonFor(String pattern, boolean singleValued) {
+        return automatonFor(FIELD, pattern, singleValued);
     }
 
-    private static Query automatonFor(String field, String pattern) {
+    private static Query automatonFor(String field, String pattern, boolean singleValued) {
         return new ColumnarStringAutomatonQuery(
             field,
             Operations.determinize(
@@ -215,6 +216,7 @@ public class ColumnarStringAutomatonQueryTests extends ESTestCase {
                 Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
             ),
             "pattern=" + pattern,
+            singleValued,
             ScanBudget.UNLIMITED
         );
     }

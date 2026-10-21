@@ -143,6 +143,11 @@ PUT /_cluster/settings
 ```
 
 
+## Telemetry [cluster-telemetry]
+
+The `telemetry.*` settings configure the export of internal metrics and traces in {{es}}. This is not a publicly supported feature. Related settings, their defaults, and the exported metrics and traces can change at any time.
+
+
 ## Persistent tasks allocation [persistent-tasks-allocation]
 
 Plugins can create a kind of tasks called persistent tasks. Those tasks are usually long-lived tasks and are stored in the cluster state, allowing the tasks to be revived after a full cluster restart.

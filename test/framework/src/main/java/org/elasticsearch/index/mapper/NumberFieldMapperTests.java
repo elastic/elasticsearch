@@ -62,6 +62,9 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
+        checker.registerIgnoredParameter("multi_value");
+        checker.registerIgnoredParameter("nullability");
+        checker.registerIgnoredParameter("on_failure");
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", 1));
@@ -506,9 +509,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
             if (docValues == false) {
                 b.field("doc_values", "false");
             } else if (enforceSingleValue) {
-                b.startObject("doc_values");
                 b.field("multi_value", false);
-                b.endObject();
             }
         }
 
@@ -559,7 +560,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.field("ignore_malformed", true);
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
         }));
         DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
@@ -579,7 +580,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.field("ignore_malformed", true);
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
         }));
         DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
@@ -599,7 +600,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.field("ignore_malformed", true);
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
         }));
         DocumentParsingException e = expectThrows(
             DocumentParsingException.class,

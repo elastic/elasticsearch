@@ -73,7 +73,7 @@ public class CrossClusterQueriesWithInvalidLicenseIT extends AbstractEnrichBased
         }
 
         try (EsqlQueryResponse resp = runQuery("FROM xremote*:events | LIMIT 0", requestIncludeMeta)) {
-            assertThat(resp.columns().size(), equalTo(1));
+            assertThat(resp.columns().size(), equalTo(0));
             assertThat(getValuesList(resp).size(), equalTo(0));
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
             assertThat(executionInfo.isCrossClusterSearch(), is(false));

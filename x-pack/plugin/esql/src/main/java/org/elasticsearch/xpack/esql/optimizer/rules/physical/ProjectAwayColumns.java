@@ -13,10 +13,13 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -33,6 +36,7 @@ import java.util.List;
 import static java.lang.Boolean.FALSE;
 import static java.lang.Boolean.TRUE;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 
 /**
  * Adds an explicit project to minimize the amount of attributes sent from the local plan to the coordinator.
@@ -53,8 +57,31 @@ public class ProjectAwayColumns extends ParameterizedRule<PhysicalPlan, Physical
      */
     public static final TransportVersion ZERO_COLUMN_FRAGMENTS = TransportVersion.fromName("esql_zero_column_fragments");
 
+    /**
+     * Name of the placeholder attribute that stands in for the output of an {@link EsRelation} without fields, as long as some node
+     * that runs the fragment cannot handle plans without output columns. Such nodes (before 9.3, #133405) replace every plan
+     * with an empty output by an empty relation, so {@code FROM idx | LIMIT 2} over a relation without fields returns no rows.
+     */
+    private static final String NO_FIELDS_NAME = "<no-fields>";
+
     @Override
     public PhysicalPlan apply(PhysicalPlan plan, PhysicalOptimizerContext context) {
+        if (context.minimumVersion().supports(ZERO_COLUMN_FRAGMENTS) == false) {
+            plan = plan.transformUp(
+                FragmentExec.class,
+                fragment -> fragment.withFragment(
+                    fragment.fragment()
+                        .transformUp(
+                            EsRelation.class,
+                            relation -> relation.output().isEmpty()
+                                ? relation.withAttributes(
+                                    List.of(new ReferenceAttribute(Source.EMPTY, null, NO_FIELDS_NAME, NULL, Nullability.TRUE, null, true))
+                                )
+                                : relation
+                        )
+                )
+            );
+        }
         return apply(plan, context, false);
     }
 

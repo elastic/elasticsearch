@@ -538,3 +538,6 @@ tests:
 - class: org.elasticsearch.upgrades.ColumnarIndexModesFullClusterRestartIT
   method: testColumnar {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/162774
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {yaml=vectordb_columnar/10_usage/vectordb_columnar usage}
+  issue: https://github.com/elastic/elasticsearch/issues/162757

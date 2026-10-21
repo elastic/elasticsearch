@@ -722,6 +722,13 @@ public abstract class Engine implements Closeable {
      */
     public abstract IndexResult index(Index index) throws IOException;
 
+    /**
+     * Perform a batch of document index operations on the engine
+     * @param batch operations to perform, with their mapped columns
+     * @return one {@link IndexResult} per operation, in batch order. Document specific failures are reported as failed
+     * results. So are operations the engine did not attempt because an earlier operation of the batch hit a failure
+     * while the engine stayed healthy; those carry no sequence number.
+     */
     public List<IndexResult> indexBatch(EngineBatch batch) throws IOException {
         throw new UnsupportedOperationException("batch indexing is not supported by this engine");
     }

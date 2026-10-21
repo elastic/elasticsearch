@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
@@ -23,6 +24,9 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -30,13 +34,18 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineException;
+import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
@@ -53,10 +62,13 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class ShardBatchIndexerTests extends IndexShardTestCase {
 
@@ -160,6 +172,21 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
     private IndexShard newColumnarPrimaryShardWithMapping(String mapping) throws IOException {
         IndexMetadata metadata = IndexMetadata.builder("index").putMapping(mapping).settings(COLUMNAR_SETTINGS).primaryTerm(0, 1).build();
         IndexShard shard = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+        trackedShards.add(shard);
+        recoverShardFromStore(shard);
+        return shard;
+    }
+
+    private IndexShard newColumnarPrimaryShard(EngineFactory engineFactory) throws IOException {
+        IndexMetadata metadata = IndexMetadata.builder("index")
+            .putMapping(COLUMNAR_KEYWORD_MAPPING)
+            .settings(COLUMNAR_SETTINGS)
+            .primaryTerm(0, 1)
+            .build();
+        ShardRouting routing = shardRoutingBuilder(new ShardId(metadata.getIndex(), 0), "n1", true, ShardRoutingState.INITIALIZING)
+            .withRecoverySource(RecoverySource.EmptyStoreRecoverySource.INSTANCE)
+            .build();
+        IndexShard shard = newShard(routing, null, metadata, null, engineFactory);
         trackedShards.add(shard);
         recoverShardFromStore(shard);
         return shard;
@@ -572,6 +599,65 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
         }
 
         closeShards(shard);
+    }
+
+    public void testBatchIndexOnPrimaryEngineStopsMidBatch() throws Exception {
+        final EngineException lookupFailure = new EngineException(new ShardId("index", "_na_", 0), "simulated version lookup failure");
+        final AtomicBoolean failNextLookup = new AtomicBoolean();
+        IndexShard shard = newColumnarPrimaryShard(config -> new InternalEngine(config) {
+            // Force a Lucene failure
+            @Override
+            protected <T> T performActionWithDirectoryReader(
+                Engine.SearcherScope scope,
+                CheckedFunction<DirectoryReader, T, IOException> action
+            ) throws EngineException {
+                if (failNextLookup.compareAndSet(true, false)) {
+                    throw lookupFailure;
+                }
+                return super.performActionWithDirectoryReader(scope, action);
+            }
+        });
+
+        failNextLookup.set(true);
+        BulkItemRequest[] items = { new BulkItemRequest(0, columnarIndexRequest("1")), new BulkItemRequest(1, columnarIndexRequest("2")) };
+        BulkPrimaryExecutionContext context = batchIndexOnPrimary(shard, items);
+
+        assertFalse(context.hasMoreOperationsToExecute());
+        for (BulkItemRequest item : items) {
+            BulkItemResponse response = item.getPrimaryResponse();
+            assertTrue(response.isFailed());
+            assertThat(response.getFailure().getCause(), sameInstance(lookupFailure));
+            assertThat(response.getFailure().getSeqNo(), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
+        }
+
+        // the shard is still healthy and the failed items did not consume sequence numbers
+        BulkItemRequest[] retry = { new BulkItemRequest(0, columnarIndexRequest("1")), new BulkItemRequest(1, columnarIndexRequest("2")) };
+        context = batchIndexOnPrimary(shard, retry);
+        assertFalse(context.hasMoreOperationsToExecute());
+        for (int i = 0; i < retry.length; i++) {
+            BulkItemResponse response = retry[i].getPrimaryResponse();
+            assertFalse(response.isFailed());
+            assertThat(response.getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
+            assertThat(response.getResponse().getSeqNo(), equalTo((long) i));
+        }
+
+        closeShards(shard);
+    }
+
+    private BulkPrimaryExecutionContext batchIndexOnPrimary(IndexShard shard, BulkItemRequest[] items) throws Exception {
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(
+            shard.shardId(),
+            SplitShardCountSummary.IRRELEVANT,
+            RefreshPolicy.NONE,
+            items
+        );
+        BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
+        try (SourceBatch batch = buildColumnarBatch(items.length)) {
+            PlainActionFuture<Void> future = new PlainActionFuture<>();
+            shardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
+            future.actionGet();
+        }
+        return context;
     }
 
     public void testBatchIndexOnReplicaSingleDoc() throws Exception {

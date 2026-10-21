@@ -122,7 +122,7 @@ public class ElasticInferenceServiceDocumentExtractionRequestEntityTests extends
             "ocr",
             Map.of("preferEndToEnd", true, "layout", Map.of("columns", 2, "regions", List.of("header", "body"))),
             "targetSelector",
-            List.of("main", Map.of("css", "#post", "weight", 1.5))
+            List.of("main", Map.of("selector", "#post", "weight", 1.5))
         );
         var entity = new ElasticInferenceServiceDocumentExtractionRequestEntity(
             List.of(new InferenceString(DataType.PDF, DataFormat.BASE64, pdfDocValue1)),

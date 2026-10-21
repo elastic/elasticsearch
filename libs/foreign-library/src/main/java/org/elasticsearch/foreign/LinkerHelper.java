@@ -69,6 +69,15 @@ public class LinkerHelper {
     }
 
     /**
+     * Returns a segment's native address for a binding that passes raw pointers to native code.
+     */
+    public static long rawAddress(MemorySegment segment) {
+        assert segment.isNative() : "raw address requires a native memory segment";
+        assert segment.scope().isAlive() : "raw address requires a live memory segment";
+        return segment.address();
+    }
+
+    /**
      * Shared capture-state buffer for {@code @CaptureSystemError} calls. A single segment is enough on
      * any platform: {@link Linker.Option#captureStateLayout()} spans every capture state the platform
      * supports, and only one system-error mechanism ({@code errno} on POSIX, {@code GetLastError} on

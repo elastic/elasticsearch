@@ -28,6 +28,47 @@ import java.lang.foreign.ValueLayout;
  */
 public class BoundsCheckGeneratedClassBehaviorTests extends ProcessorTestCase {
 
+    private static final String RAW_SEGMENT_MEMCMP_LIB = """
+        package test;
+        import java.lang.foreign.MemorySegment;
+        import org.elasticsearch.foreign.Function;
+        import org.elasticsearch.foreign.LibrarySpecification;
+        import org.elasticsearch.foreign.RawAddress;
+        import org.elasticsearch.foreign.VectorSegment;
+        @LibrarySpecification
+        public interface MemCmpLib {
+            @Function("memcmp")
+            int memcmp(
+                @RawAddress @VectorSegment(countParam = "n", elementBits = 8) MemorySegment a,
+                @VectorSegment(countParam = "n", elementBits = 8) MemorySegment b,
+                long n);
+        }
+        """;
+
+    public void testRawAddressRequiresNativeSegment() throws Throwable {
+        LoadedLibrary lib = loadLibrary("test.MemCmpLib", RAW_SEGMENT_MEMCMP_LIB);
+
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment nativeSegment = fill(arena.allocate(8));
+            MemorySegment other = fill(arena.allocate(8));
+            assertEquals(0, (int) lib.call("memcmp", nativeSegment, other, 8L));
+
+            MemorySegment heapSegment = MemorySegment.ofArray(new byte[8]);
+            lib.expectThrows(AssertionError.class, "memcmp", heapSegment, other, 8L);
+        }
+    }
+
+    public void testRawAddressRequiresLiveSegment() throws Throwable {
+        LoadedLibrary lib = loadLibrary("test.MemCmpLib", RAW_SEGMENT_MEMCMP_LIB);
+
+        Arena closedArena = Arena.ofConfined();
+        MemorySegment closedSegment = closedArena.allocate(8);
+        closedArena.close();
+        try (Arena arena = Arena.ofConfined()) {
+            lib.expectThrows(AssertionError.class, "memcmp", closedSegment, arena.allocate(8), 8L);
+        }
+    }
+
     /**
      * Proves the emitted {@code Objects.checkFromIndexSize} call really does throw on an undersized
      * segment, and really does let a correctly-sized call through to the native function.

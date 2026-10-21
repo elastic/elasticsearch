@@ -917,4 +917,16 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
             result[i] = sum;
         }
     }
+
+    @Override
+    public void matrixVectorMultiply(byte[] a, int rows, int cols, byte[] v, int[] result) {
+        for (int i = 0; i < rows; i++) {
+            int ai = i * cols;
+            int sum = 0;
+            for (int j = 0; j < cols; j++) {
+                sum += a[ai + j] * v[j];
+            }
+            result[i] = sum;
+        }
+    }
 }

@@ -35,6 +35,11 @@ public final class Native22ESVectorUtilSupport extends PanamaESVectorUtilSupport
     }
 
     @Override
+    public void matrixVectorMultiply(byte[] a, int rows, int cols, byte[] v, int[] result) {
+        DISTANCE_FUNCS.sgemvI8(MemorySegment.ofArray(a), MemorySegment.ofArray(v), rows, cols, MemorySegment.ofArray(result));
+    }
+
+    @Override
     public float dotProduct(float[] a, int aOffset, float[] b, int bOffset, int length) {
         return DISTANCE_FUNCS.dotProductF32(
             MemorySegment.ofArray(a).asSlice((long) aOffset * Float.BYTES, (long) length * Float.BYTES),

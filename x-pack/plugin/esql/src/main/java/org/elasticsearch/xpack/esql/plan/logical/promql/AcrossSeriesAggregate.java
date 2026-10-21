@@ -196,9 +196,9 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
         // A constant vector is one `{}` series per step whatever the source holds: the aggregate regroups its
         // compile-time table (`sum(vector(1))` is 1), never one copy of it per stored series.
         ir = context.doTranslateTryInline(ir);
-        if (ir.kind().afterInitialAggregation == false && dependsOnlyOnStep(ir)) {
-            // Without a start and end there is no table of the query's steps to regroup: collapse the value, which
-            // reads nothing but the step, to its one series per step so the operator aggregates across it alone.
+        if (ir.kind().afterInitialAggregation == false && context.isOverAnyRow(ir)) {
+            // Not inlined (the query has no start): collapse the value, which reads nothing but the step, to its one
+            // series per step so the operator aggregates across it alone.
             ir = context.collapse(ir, ir.schema(), ir.value());
         }
         TranslationSchema schema = switch (grouping()) {
@@ -219,10 +219,5 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
             result = context.eval(result, TranslationContext.zeroCountAsNull(result.valueColumn()));
         }
         return result;
-    }
-
-    /** Whether the table's value reads no source column but the step, i.e. it is the same for every series. */
-    private static boolean dependsOnlyOnStep(IntermediateResult table) {
-        return table.value().references().stream().allMatch(ref -> ref.semanticEquals(table.step()));
     }
 }

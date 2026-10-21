@@ -4442,6 +4442,13 @@ public class EsqlCapabilities {
          */
         FIX_PROMQL_WITHOUT_CONCRETE_CHILD,
 
+        /**
+         * PromQL {@code vector(s)} is one series in every reduction over it: a binary operator between an aggregate over it
+         * and another aggregate ({@code sum(network.cost) / count(vector(1))}) pairs them by step instead of failing when
+         * the query has no start, and {@code scalar(vector(time()))} is the step time instead of {@code NaN}.
+         */
+        FIX_PROMQL_CONSTANT_IS_ONE_SERIES,
+
         /** Support named subqueries (CTEs) declared with the {@code LET} prefix clause.
          * A {@code LET} clause binds a subquery plan to a name that can be referenced
          * in the main query as a relation or as an {@code IN} operand.

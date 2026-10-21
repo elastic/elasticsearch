@@ -294,6 +294,15 @@ public record TranslationContext(
         return new IntermediateResult(plan, result.schema(), value, step, result.pendingFilter(), Kind.CONSTANT);
     }
 
+    /** Whether the value refers to nothing but a step column: an expression any table with a step column can carry. */
+    public boolean isOverAnyRow(IntermediateResult t) {
+        return t.value().references().stream().allMatch(ref -> isStep(t, ref));
+    }
+
+    public boolean isStep(IntermediateResult t, Attribute attribute) {
+        return attribute.semanticEquals(t.step()) || attribute.semanticEquals(cmd.stepAttribute());
+    }
+
     /**
      * Expressions compose lazily up the tree until they cross an aggregation boundary: once the plan below is
      * aggregated, the expression must materialize as the value column (an Eval) so parents reference it by attribute.

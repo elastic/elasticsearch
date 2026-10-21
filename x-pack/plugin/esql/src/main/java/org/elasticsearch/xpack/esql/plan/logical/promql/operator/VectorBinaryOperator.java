@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
+import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
@@ -37,6 +38,8 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.Inter
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult.Kind;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
@@ -298,8 +301,14 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             boolean scalarOperand = left().resolved() && getType(left()) == SCALAR || right().resolved() && getType(right()) == SCALAR;
             boolean nestedMatch = anyMatchVectorBinaryOperator(left()) || anyMatchVectorBinaryOperator(right());
             // Operands over one label set fold into a shared aggregate. Different concrete label sets match like
-            // Prometheus does, pair by pair on the actual labels, which only the join expresses.
-            if (scalarOperand || (nestedMatch == false && hasMismatchedLabelSets() == false)) {
+            // Prometheus does, pair by pair on the actual labels, which only the join expresses. So does an aggregate
+            // over a constant without a start: it regroups the constant's own collapsed steps, a second aggregation
+            // level the shared aggregate cannot hold.
+            boolean aggregatedConstant = context.cmd().start().value() == null
+                && hasPackedLabels(left().output()) == false
+                && hasPackedLabels(right().output()) == false
+                && (aggregatesConstant(left()) || aggregatesConstant(right()));
+            if (scalarOperand || (nestedMatch == false && aggregatedConstant == false && hasMismatchedLabelSets() == false)) {
                 return translateAggregate(context);
             }
         }
@@ -358,17 +367,17 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         IntermediateResult left,
         IntermediateResult right
     ) {
-        boolean carriesLeft = right.kind().constant && isOverAnyRow(context, left);
+        boolean carriesLeft = right.kind().constant && context.isOverAnyRow(left);
         IntermediateResult table = carriesLeft ? right : left;
         IntermediateResult carried = carriesLeft ? left : right;
-        if (table.kind().constant == false || isOverAnyRow(context, carried) == false) {
+        if (table.kind().constant == false || context.isOverAnyRow(carried) == false) {
             throw new VerificationException(
                 "binary operations between [{}] and [{}] are not supported at this time",
                 left().sourceText(),
                 right().sourceText()
             );
         }
-        Expression carriedValue = carried.value().transformUp(Attribute.class, a -> isStep(context, carried, a) ? table.step() : a);
+        Expression carriedValue = carried.value().transformUp(Attribute.class, a -> context.isStep(carried, a) ? table.step() : a);
         Expression leftValue = carriesLeft ? carriedValue : table.value();
         Expression rightValue = carriesLeft ? table.value() : carriedValue;
         Expression leftExpr = new ToDouble(leftValue.source(), leftValue);
@@ -377,15 +386,6 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         TranslationSchema shape = left.schema().equals(TranslationSchema.EMPTY) == false ? left.schema() : right.schema();
         IntermediateResult result = new IntermediateResult(table.plan(), shape, null, table.step(), table.pendingFilter(), Kind.CONSTANT);
         return context.eval(result, binaryExpr);
-    }
-
-    /** Whether the value refers to nothing but a step column: an expression any table with a step column can carry. */
-    private static boolean isOverAnyRow(TranslationContext context, IntermediateResult t) {
-        return t.value().references().stream().allMatch(ref -> isStep(context, t, ref));
-    }
-
-    private static boolean isStep(TranslationContext context, IntermediateResult t, Attribute attribute) {
-        return attribute.semanticEquals(t.step()) || attribute.semanticEquals(context.cmd().stepAttribute());
     }
 
     /**
@@ -678,6 +678,14 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             result = new Eval(eval.source(), result, eval.fields());
         }
         return result;
+    }
+
+    /** Whether the operand aggregates across a value that reads no stored series, such as {@code sum(vector(1))}. */
+    private static boolean aggregatesConstant(LogicalPlan operand) {
+        return operand.anyMatch(
+            p -> p instanceof AcrossSeriesAggregate agg
+                && agg.child().anyMatch(c -> c instanceof Selector && c instanceof LiteralSelector == false) == false
+        );
     }
 
     private static boolean anyMatchVectorBinaryOperator(LogicalPlan plan) {

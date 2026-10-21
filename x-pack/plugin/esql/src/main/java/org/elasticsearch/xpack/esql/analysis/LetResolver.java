@@ -91,13 +91,13 @@ public final class LetResolver {
         var allBindings = letBindings.stream().map(LetBinding::name).collect(Collectors.toSet());
         for (LetBinding binding : letBindings) {
             // Substitute earlier bindings into this binding's body (sequential scoping).
-            PlanSize bindingSize = new PlanSize(PlanSize.countNodes(binding.plan()), maxPlanNodesCount);
+            PlanSize bindingSize = PlanSize.of(binding.plan(), maxPlanNodesCount);
             var current = substitute(binding.plan(), resolved, sizes, allBindings, bindingSize);
             resolved.put(binding.name(), current);
             sizes.put(binding.name(), bindingSize.size());
         }
         // Substitute the full map into the main query plan.
-        var result = substitute(plan, resolved, sizes, allBindings, new PlanSize(PlanSize.countNodes(plan), maxPlanNodesCount));
+        var result = substitute(plan, resolved, sizes, allBindings, PlanSize.of(plan, maxPlanNodesCount));
         Failure failure = Fork.findUnseparatedFork(result);
         if (failure != null) {
             throw new VerificationException(List.of(failure));

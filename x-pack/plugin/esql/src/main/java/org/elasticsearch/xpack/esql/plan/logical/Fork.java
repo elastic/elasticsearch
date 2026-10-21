@@ -43,6 +43,7 @@ import java.util.stream.Collectors;
 public final class Fork extends MergePlan implements TelemetryAware {
 
     public static final String FORK_FIELD = "_fork";
+    public static final String MULTIPLE_FORKS_ERROR = "Only a single FORK command is supported, but found multiple";
 
     public Fork(Source source, List<LogicalPlan> children, List<Attribute> output) {
         super(source, children, output);
@@ -170,6 +171,9 @@ public final class Fork extends MergePlan implements TelemetryAware {
      * grows exponentially with the number of FORKs. This walk remembers the flag each node's children were walked with, so a shared node
      * is walked again only when a FORK above it has been seen since, and it returns the first offending FORK without hashing anything.
      * An IN subquery still held in an expression is a query scope of its own and is walked as such.
+     * <p>
+     * The FORK reported is the one found below the first, which is also the one the parser reports for two FORKs: the one written
+     * first of a sequence, the inner one of a nesting.
      */
     @Nullable
     public static Failure findUnseparatedFork(LogicalPlan plan) {
@@ -182,7 +186,7 @@ public final class Fork extends MergePlan implements TelemetryAware {
             seen = false;
         } else if (plan.getClass() == Fork.class) {
             if (forkSeen) {
-                return Failure.fail(plan, "Only a single FORK command is supported, but found multiple");
+                return Failure.fail(plan, MULTIPLE_FORKS_ERROR);
             }
             seen = true;
         }
@@ -214,6 +218,7 @@ public final class Fork extends MergePlan implements TelemetryAware {
      * Rejects two user-written FORKs on the same uninterrupted pipeline path. A {@link UnionAll} is a real merge boundary, whether it
      * came from user subqueries, a view, an external dataset, or federation, so each of its branches starts a new FORK segment. The right
      * side of an {@link AbstractSubqueryJoin} is an independently executed query scope and is verified by its own FORK node.
+     * Reports the FORK found below the first, see {@link #findUnseparatedFork}.
      */
     private static void checkForUnseparatedFork(LogicalPlan plan, boolean forkSeen, Failures failures) {
         if (plan instanceof UnionAll unionAll) {
@@ -229,7 +234,7 @@ public final class Fork extends MergePlan implements TelemetryAware {
         boolean seen = forkSeen;
         if (plan.getClass() == Fork.class) {
             if (forkSeen) {
-                failures.add(Failure.fail(plan, "Only a single FORK command is supported, but found multiple"));
+                failures.add(Failure.fail(plan, MULTIPLE_FORKS_ERROR));
                 return;
             }
             seen = true;

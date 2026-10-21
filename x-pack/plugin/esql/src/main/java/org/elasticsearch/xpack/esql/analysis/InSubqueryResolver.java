@@ -537,7 +537,8 @@ public class InSubqueryResolver {
         // resolveInSubqueries is reused here: nested subquery plans are not reachable by the
         // outer transformUp (they live inside InSubquery expressions, not as plan children), so
         // they need their own traversal — but the traversal strategy is identical to the outer one.
-        planSize.add(1 + PlanSize.countNodes(subqueryPlan));
+        planSize.add(1);
+        planSize.addNodesOf(subqueryPlan);
         LogicalPlan subquery = resolveInSubqueries(subqueryPlan, planSize);
         JoinConfig config = new JoinConfig(negated ? JoinTypes.ANTI : JoinTypes.SEMI, leftFields, emptyList(), null);
         semiOrAntiJoins.add(new SemiOrAntiJoinSpec(source, subquery, config, negated));
@@ -667,7 +668,8 @@ public class InSubqueryResolver {
         // resolveInSubqueries is reused here: nested subquery plans are not reachable by the
         // outer transformUp (they live inside InSubquery expressions, not as plan children), so
         // they need their own traversal — but the traversal strategy is identical to the outer one.
-        planSize.add(1 + PlanSize.countNodes(inSubquery.subquery()));
+        planSize.add(1);
+        planSize.addNodesOf(inSubquery.subquery());
         LogicalPlan subquery = resolveInSubqueries(inSubquery.subquery(), planSize);
         Attribute markAttribute = new ReferenceAttribute(
             inSubquery.source(),
@@ -700,7 +702,8 @@ public class InSubqueryResolver {
             return mcs;
         }
         // resolveInSubqueries is reused here: see the single-column overload for the rationale.
-        planSize.add(1 + PlanSize.countNodes(mcs.subquery()));
+        planSize.add(1);
+        planSize.addNodesOf(mcs.subquery());
         LogicalPlan subquery = resolveInSubqueries(mcs.subquery(), planSize);
         Attribute markAttribute = new ReferenceAttribute(
             mcs.source(),

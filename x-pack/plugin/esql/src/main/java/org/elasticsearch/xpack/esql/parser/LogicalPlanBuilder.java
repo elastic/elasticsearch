@@ -163,7 +163,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     private int queryDepth = 0;
-    private boolean forkSeenInScope = false;
+    private int explainCount = 0;
+    private Source forkInScope = null;
+    private int forkBranchDepth = 0;
 
     /** Commands seen so far in the main query and in all its subqueries, see {@link ParsingContext#maxCommandCount()} */
     private int commandCount = 0;
@@ -175,10 +177,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     protected LogicalPlan plan(ParseTree ctx) {
         LogicalPlan p = ParserUtils.typedParsing(this, ctx, LogicalPlan.class);
-        if (p instanceof Explain == false && p.anyMatch(logicalPlan -> logicalPlan instanceof Explain)) {
+        if (p instanceof Explain == false && explainCount > 0) {
             throw new ParsingException(source(ctx), "EXPLAIN does not support downstream commands");
         }
-        if (p instanceof Explain explain && explain.query().anyMatch(logicalPlan -> logicalPlan instanceof Explain)) {
+        if (p instanceof Explain && explainCount > 1) {
             // TODO this one is never reached because the Parser fails to understand multiple round brackets
             throw new ParsingException(source(ctx), "EXPLAIN cannot be used inside another EXPLAIN command");
         }
@@ -499,14 +501,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 context.maxCommandCount()
             );
         }
-        boolean forkSeenInEnclosingScope = forkSeenInScope;
-        forkSeenInScope = false;
+        Source forkInEnclosingScope = forkInScope;
+        int enclosingForkBranchDepth = forkBranchDepth;
+        forkInScope = null;
+        forkBranchDepth = 0;
         LogicalPlan plan = visitSubquerySourceCommand(ctx.subquerySourceCommand());
         List<PlanFactory> processingCommands = visitList(this, ctx.processingCommand(), PlanFactory.class);
         for (PlanFactory processingCommand : processingCommands) {
             plan = processingCommand.apply(plan);
         }
-        forkSeenInScope = forkSeenInEnclosingScope;
+        forkInScope = forkInEnclosingScope;
+        forkBranchDepth = enclosingForkBranchDepth;
         return plan;
     }
 
@@ -956,7 +961,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public Explain visitExplainCommand(EsqlBaseParser.ExplainCommandContext ctx) {
-        return new Explain(source(ctx), plan(ctx.subqueryExpression().query()));
+        LogicalPlan query = plan(ctx.subqueryExpression().query());
+        explainCount++;
+        return new Explain(source(ctx), query);
     }
 
     @Override
@@ -1411,9 +1418,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     @SuppressWarnings("unchecked")
     public PlanFactory visitForkCommand(EsqlBaseParser.ForkCommandContext ctx) {
-        boolean duplicate = forkSeenInScope;
-        forkSeenInScope = true;
+        Source source = source(ctx);
+        if (forkInScope != null) {
+            Source forkNearestSource = forkBranchDepth > 0 ? source : forkInScope;
+            throw new VerificationException(
+                List.of(Failure.fail(new Fork(forkNearestSource, List.of(), List.of()), Fork.MULTIPLE_FORKS_ERROR))
+            );
+        }
+        forkInScope = source;
+        forkBranchDepth++;
         List<PlanFactory> subQueries = visitForkSubQueries(ctx.forkSubQueries());
+        forkBranchDepth--;
         // Hard ceiling: the setting maxValue. The configured cluster setting or pragma is enforced later in Fork.checkBranchCount.
         int maxBranches = QueryPragmas.MAX_BRANCH_COUNT_PER_MERGE_MAX;
         if (subQueries.size() > maxBranches) {
@@ -1422,11 +1437,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         return input -> {
             List<LogicalPlan> subPlans = subQueries.stream().map(planFactory -> planFactory.apply(input)).toList();
-            Fork fork = new Fork(source(ctx), subPlans, List.of());
-            if (duplicate) {
-                throw new VerificationException(List.of(Failure.fail(fork, "Only a single FORK command is supported, but found multiple")));
-            }
-            return fork;
+            return new Fork(source(ctx), subPlans, List.of());
         };
     }
 

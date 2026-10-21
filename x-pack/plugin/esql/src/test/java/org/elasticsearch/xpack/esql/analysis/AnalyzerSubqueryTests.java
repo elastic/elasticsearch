@@ -1900,7 +1900,8 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         }
     }
 
-    // consecutive forks are not supported yet
+    // consecutive forks are not supported yet. Written on one pipeline they are rejected by the parser; the analyzer's own guard is
+    // exercised by the FROM subquery and view cases further below, which the parser scopes separately.
     public void testConsecutiveForksInMainQuery() {
         analyzer().addEmployees("test").error("""
             FROM test

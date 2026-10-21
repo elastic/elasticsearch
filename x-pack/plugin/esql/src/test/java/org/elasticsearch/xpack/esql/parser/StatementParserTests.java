@@ -4240,7 +4240,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         String error = "Only a single FORK command is supported, but found multiple";
         expectVerificationError(
             "FROM a | FORK (WHERE x > 0) (WHERE x < 0) | FORK (WHERE y > 0) (WHERE y < 0)",
-            "Found 1 problem\nline 1:45: " + error
+            "Found 1 problem\nline 1:10: " + error
         );
         expectVerificationError("FROM a | FORK (FORK (WHERE x > 0) (WHERE x < 0)) (WHERE y > 0)", "line 1:16: " + error);
         expectVerificationError(
@@ -4264,6 +4264,18 @@ public class StatementParserTests extends AbstractStatementParserTests {
             """);
         query("FROM a | WHERE x IN (FROM b | FORK (WHERE x > 0) (WHERE x < 0)) | FORK (WHERE y > 0) (WHERE y < 0)");
         query("FROM a | FORK (WHERE x IN (FROM b | FORK (WHERE x > 0) (WHERE x < 0))) (WHERE y > 0)");
+    }
+
+    /**
+     * FORK branches share their input by reference, so FORKs nested through UNION ALL subqueries, which are legal, form a DAG with
+     * 2^40 paths over a few hundred nodes. Nothing in parsing may walk it once per path.
+     */
+    public void testNestedForksSeparatedByUnionAllParseWithoutWalkingEveryPath() {
+        String query = "FROM a | FORK (WHERE x > 0) (WHERE x < 0)";
+        for (int i = 0; i < 40; i++) {
+            query = "FROM (" + query + "), b | FORK (WHERE x > 0) (WHERE x < 0)";
+        }
+        assertThat(query(query), instanceOf(Fork.class));
     }
 
     public void testSecondForkOnOnePipelineInExplainRejectedAfterParsing() {

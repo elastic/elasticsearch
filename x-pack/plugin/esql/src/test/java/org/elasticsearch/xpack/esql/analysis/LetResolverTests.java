@@ -215,13 +215,13 @@ public class LetResolverTests extends ESTestCase {
         );
     }
 
-    /** Each binding adds a FORK over the previous one, so the substituted plan has 2^40 paths over a few dozen nodes. */
-    public void testChainedForkBindingsRejectedWithoutWalkingEveryPath() {
+    /** Each binding adds a FORK over the previous one; the chain stays under the plan-size limit so the FORK rule is what rejects it. */
+    public void testChainedForkBindingsRejected() {
         StringBuilder query = new StringBuilder("LET f0 = (FROM a | FORK (WHERE x > 0) (WHERE x < 0));");
-        for (int i = 1; i < 40; i++) {
+        for (int i = 1; i < 6; i++) {
             query.append(" LET f").append(i).append(" = (FROM f").append(i - 1).append(" | FORK (WHERE x > 0) (WHERE x < 0));");
         }
-        query.append(" FROM f39");
+        query.append(" FROM f5");
         expectThrows(
             VerificationException.class,
             containsString("Only a single FORK command is supported, but found multiple"),
@@ -322,6 +322,19 @@ public class LetResolverTests extends ESTestCase {
             startsWith(MAX_PLAN_NODES_ERROR),
             () -> parseAndResolveLet("LET a = (" + limitChain("src", 250) + "); LET b = (" + limitChain("a", 250) + "); FROM b")
         );
+    }
+
+    /**
+     * FORKs nested through UNION ALL subqueries are legal, but their branches share input by reference, so the substituted plan has
+     * 2^40 paths. The size check has to give up as soon as the limit is passed instead of walking them all.
+     */
+    public void testNestedForksSeparatedByUnionAllRejectedByPlanSizeWithoutWalkingEveryPath() {
+        String query = "FROM q | FORK (WHERE x > 0) (WHERE x < 0)";
+        for (int i = 0; i < 40; i++) {
+            query = "FROM (" + query + "), b | FORK (WHERE x > 0) (WHERE x < 0)";
+        }
+        String statement = "LET q = (FROM a); " + query;
+        expectThrows(VerificationException.class, startsWith(MAX_PLAN_NODES_ERROR), () -> parseAndResolveLet(statement));
     }
 
     public void testMainQueryExceedingPlanSizeIsRejected() {

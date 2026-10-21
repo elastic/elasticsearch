@@ -32,7 +32,7 @@ $$$esql-federation-enabled$$$
     - **Default:** `false`
     - **Valid values:** `true`, `false`
 
-    {applies_to}`stack: experimental 9.6+` {{esql}} Data Federation isn't available on Windows. On a Windows node, this setting has no effect, and {{es}} logs a message at startup.
+    {applies_to}`stack: experimental 9.6+` {{esql}} Data Federation isn't available on Windows. If this setting is `true` on a Windows node, {{es}} ignores it and logs an error at startup. The node still starts.
 
 ## Object limits
 

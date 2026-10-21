@@ -33,6 +33,8 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceAuthorizer;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceDatasets;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -249,6 +251,15 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         var plan = remoteClusterPlan.plan();
         if (plan instanceof ExchangeSinkExec == false) {
             listener.onFailure(new IllegalStateException("expected exchange sink for a remote compute; got " + plan));
+            return;
+        }
+        // Datasets are local to the cluster that registered them: a querying cluster plans a remote cluster's work from
+        // indices only, so a plan reaching here with an external node was not built by any coordinator for this cluster.
+        // Refused before planning, whatever the credential; the querying cluster opened the sink before sending.
+        if (ExternalSourceDatasets.hasExternalNode(plan)) {
+            Exception refusal = ExternalSourceAuthorizer.notLocal();
+            exchangeService.finishSinkHandler(request.sessionId(), refusal);
+            listener.onFailure(refusal);
             return;
         }
         runComputeOnRemoteCluster(

@@ -170,7 +170,7 @@ public class RedactProcessorTests extends ESTestCase {
         }
     }
 
-    public void testRedactDoesNotRegisterItsMatchersWithTheWatchdog() throws Exception {
+    public void testRedactRegistersItsMatchersWithTheWatchdog() throws Exception {
         var config = new HashMap<String, Object>();
         config.put("field", "to_redact");
         config.put("patterns", List.of("%{WORD:WORD}"));
@@ -183,20 +183,32 @@ public class RedactProcessorTests extends ESTestCase {
         var redacted = processor.execute(createIngestDoc(Map.of("to_redact", "secret")));
 
         assertEquals("<WORD>", redacted.getFieldValue("to_redact", String.class));
-        assertEquals(registrationsBeforeExecution, watchdog.registrations.get());
-        assertEquals(unregistrationsBeforeExecution, watchdog.unregistrations.get());
+        assertEquals(registrationsBeforeExecution + 1, watchdog.registrations.get());
+        assertEquals(unregistrationsBeforeExecution + 1, watchdog.unregistrations.get());
     }
 
-    public void testRedactFailsWhenTheWatchdogInterruptsTheMatcher() throws Exception {
+    public void testRedactFailsWhenTheDefaultWatchdogInterruptsTheMatcher() throws Exception {
         var config = new HashMap<String, Object>();
         config.put("field", "to_redact");
-        config.put("patterns", List.of("%{WORD:WORD}"));
+        config.put(
+            "patterns",
+            List.of(
+                "Bonsuche mit folgender Anfrage: Belegart->\\[%{WORD:param2},(?<param5>(\\s*%{NOTSPACE})*)\\] "
+                    + "Zustand->ABGESCHLOSSEN Kassennummer->%{WORD:param9} Bonnummer->%{WORD:param10} Datum->%{DATESTAMP_OTHER:param11}"
+            )
+        );
 
-        var watchdog = new InterruptingMatcherWatchdog();
-        var processor = new RedactProcessor.Factory(mockLicenseState(), watchdog).create(null, "t", "d", config, null);
-        watchdog.activate();
+        var processor = new RedactProcessor.Factory(mockLicenseState(), MatcherWatchdog.newInstance(0)).create(
+            null,
+            "t",
+            "d",
+            config,
+            null
+        );
 
-        expectThrows(ElasticsearchTimeoutException.class, () -> processor.execute(createIngestDoc(Map.of("to_redact", "secret"))));
+        var input = "Bonsuche mit folgender Anfrage: Belegart->[EINGESCHRAENKTER_VERKAUF, VERKAUF, NACHERFASSUNG] "
+            + "Zustand->ABGESCHLOSSEN Kassennummer->2 Bonnummer->6362 Datum->Mon Jan 08 00:01:00 UTC 2018";
+        expectThrows(ElasticsearchTimeoutException.class, () -> processor.execute(createIngestDoc(Map.of("to_redact", input))));
     }
 
     private static class RecordingMatcherWatchdog implements MatcherWatchdog {
@@ -217,29 +229,6 @@ public class RedactProcessorTests extends ESTestCase {
         public void unregister(org.joni.Matcher matcher) {
             unregistrations.incrementAndGet();
         }
-    }
-
-    private static class InterruptingMatcherWatchdog implements MatcherWatchdog {
-        private boolean active;
-
-        void activate() {
-            active = true;
-        }
-
-        @Override
-        public void register(org.joni.Matcher matcher) {
-            if (active) {
-                matcher.interrupt();
-            }
-        }
-
-        @Override
-        public long maxExecutionTimeInMillis() {
-            return 1;
-        }
-
-        @Override
-        public void unregister(org.joni.Matcher matcher) {}
     }
 
     public void testRedactWithPatternNamesRedacted() throws Exception {

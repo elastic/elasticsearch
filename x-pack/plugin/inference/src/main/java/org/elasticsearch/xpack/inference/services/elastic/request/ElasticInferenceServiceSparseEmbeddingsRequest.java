@@ -27,7 +27,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
+import static org.elasticsearch.inference.InferenceRequestMetadata.Field.PRODUCT_USE_CASE;
 
 public class ElasticInferenceServiceSparseEmbeddingsRequest extends ElasticInferenceServiceRequest
     implements
@@ -74,7 +74,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequest extends ElasticInfer
         httpPost.setBody(requestEntity.getBytes(StandardCharsets.UTF_8), ContentType.APPLICATION_JSON);
 
         traceContextHandler.propagateTraceContext(httpPost);
-        httpPost.setHeader(new BasicHeader(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, usageContext.productUseCaseHeaderValue()));
+        httpPost.setHeader(new BasicHeader(PRODUCT_USE_CASE.httpHeader(), usageContext.productUseCaseHeaderValue()));
 
         return httpPost;
     }

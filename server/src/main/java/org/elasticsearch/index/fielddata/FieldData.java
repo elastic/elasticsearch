@@ -197,10 +197,6 @@ public enum FieldData {
         };
     }
 
-    public static SortedNumericLongValues singleton(LongValues values) {
-        return new SingletonSortedNumericLongValues(values);
-    }
-
     /**
      * Returns a single-valued view of the {@link MultiGeoPointValues},
      * if the wrapped {@link SortedNumericDocValues} is a singleton.

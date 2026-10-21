@@ -40,10 +40,13 @@ import java.nio.ByteBuffer;
  *   <li><b>{@code es.arrow.debug_buffers}</b> (default: on when assertions are enabled) — the
  *       thorough, opt-in mode for a correctness-validation pass. Poisons the <em>whole</em> buffer
  *       and enables {@link DirectReadBuffer}'s allocation/free stack-trace capture plus its
- *       double-free / use-after-close throws (see {@link #trackingEnabled()}). It is an explicit
- *       check rather than a Java {@code assert}, so it can be turned on with {@code -Des.arrow.debug_buffers=true}
- *       on a node that is <em>not</em> running with {@code -ea}. Slower (an extra write-pass over
- *       freed bytes, plus a stack walk per allocation), so not for headline timing runs.</li>
+ *       double-free {@link AssertionError} and stack-rich post-close
+ *       {@link IllegalStateException} (see {@link #trackingEnabled()}). Post-close access is
+ *       rejected with an {@link IllegalStateException} even when this mode is off. It is an
+ *       explicit check rather than a Java {@code assert}, so it can be turned on with
+ *       {@code -Des.arrow.debug_buffers=true} on a node that is <em>not</em> running with
+ *       {@code -ea}. Slower (an extra write-pass over freed bytes, plus a stack walk per
+ *       allocation), so not for headline timing runs.</li>
  * </ul>
  *
  * <p>The Arrow debug allocator (enabled via {@code arrow.memory.debug.allocator} in test builds) is
@@ -73,7 +76,8 @@ public final class DirectMemoryDebug {
 
     /**
      * Whether the thorough debug mode ({@code es.arrow.debug_buffers}) is on. {@link DirectReadBuffer}
-     * gates its allocation/free stack-trace capture and its double-free / use-after-close checks on this.
+     * gates its allocation/free stack-trace capture, double-free check, and stack-rich
+     * use-after-close {@link IllegalStateException} on this.
      */
     static boolean trackingEnabled() {
         return DEBUG_TRACKING;
@@ -82,14 +86,15 @@ public final class DirectMemoryDebug {
     /**
      * Overwrite the direct memory backing {@code buffer} with the poison sentinel, just before the
      * buffer is released — the whole buffer under {@code es.arrow.debug_buffers}, otherwise only the
-     * header under {@code es.arrow.poison_freed_buffers}. No-op when both knobs are off, on heap-backed
-     * buffers (test stubs), and does not mutate the caller's {@code position}/{@code limit}.
+     * header under {@code es.arrow.poison_freed_buffers}. No-op when both knobs are off, on
+     * heap-backed or read-only buffers, and does not mutate the caller's
+     * {@code position}/{@code limit}.
      */
     public static void poison(ByteBuffer buffer) {
         if (DEBUG_TRACKING == false && POISON_FREED == false) {
             return;
         }
-        if (buffer == null || buffer.isDirect() == false) {
+        if (buffer == null || buffer.isDirect() == false || buffer.isReadOnly()) {
             return;
         }
         ByteBuffer view = buffer.duplicate();

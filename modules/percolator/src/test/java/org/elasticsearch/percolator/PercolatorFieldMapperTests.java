@@ -46,6 +46,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.escf.EscfBatch;
+import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParserContext;
@@ -55,6 +57,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.RowSource;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TestDocumentParserContext;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -79,11 +82,13 @@ import org.elasticsearch.join.query.HasChildQueryBuilder;
 import org.elasticsearch.join.query.HasParentQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.DummyQueryParserPlugin;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.sourcebatch.SourceRowXContentParser;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -227,6 +232,27 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         );
         mapperService.merge("doc", new CompressedXContent(percolatorMapper), MergeReason.MAPPING_UPDATE);
         fieldType = (PercolatorFieldMapper.PercolatorFieldType) mapperService.fieldType(fieldName);
+    }
+
+    /**
+     * Batch indexing hands the document to the mapper as a {@link RowSource} rather than as bytes. The percolator
+     * parses its query from the document parser, so that parser must be able to resolve named query objects.
+     */
+    public void testPercolatorFieldMapperWithRowSource() throws Exception {
+        addQueryFieldMappings();
+        QueryBuilder queryBuilder = termQuery("field", "value");
+        BytesReference source = BytesReference.bytes(
+            XContentFactory.jsonBuilder().startObject().field(fieldName, queryBuilder).endObject()
+        );
+        try (EscfBatch batch = EscfEncoder.encode(List.of(source), XContentType.JSON)) {
+            RowSource rowSource = new RowSource(SourceRowXContentParser.buildSchemaTree(batch.schema()), batch.row(0), XContentType.JSON);
+            ParsedDocument doc = mapperService.documentMapper()
+                .parse(new SourceToParse("1", rowSource, null, Map.of(), Map.of(), XContentMeteringParserDecorator.NOOP, null));
+
+            assertThat(doc.rootDoc().getFields(fieldType.queryTermsField.name()), hasSize(1));
+            BytesRef qbSource = doc.rootDoc().getFields(fieldType.queryBuilderField.name()).get(0).binaryValue();
+            assertQueryBuilder(qbSource, queryBuilder);
+        }
     }
 
     public void testExtractTerms() throws Exception {

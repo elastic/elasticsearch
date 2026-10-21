@@ -218,8 +218,14 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                         remoteConnectionManager
                     )
                 ) {
+                    final var headerName = randomIdentifier();
+                    final var headerValue = randomIdentifier();
+                    threadPool.getThreadContext().putHeader(headerName, headerValue);
                     PlainActionFuture<Void> connectFuture = new PlainActionFuture<>();
-                    strategy.connect(connectFuture);
+                    strategy.connect(connectFuture.map(r -> {
+                        assertThat(threadPool.getThreadContext().getHeader(headerName), equalTo(headerValue));
+                        return r;
+                    }));
                     connectFuture.actionGet();
 
                     assertTrue(connectionManager.nodeConnected(seedNode));

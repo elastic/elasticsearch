@@ -41,4 +41,17 @@ public interface QueryExecutor {
     ) {
         return false;
     }
+
+    /**
+     * Recomputes {@link Column#indexMapped()} on {@code newSchema} after a command executes. {@link #execute} defaults every column to
+     * {@code true}; implementations mark derived columns {@code false} and inherit flags from {@code previousSchema}. The default
+     * returns {@code newSchema} unchanged.
+     */
+    default List<Column> updateIndexMapped(
+        List<Column> newSchema,
+        List<Column> previousSchema,
+        CommandGenerator.CommandDescription command
+    ) {
+        return newSchema;
+    }
 }

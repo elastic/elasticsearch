@@ -19,8 +19,12 @@ import org.testcontainers.images.ImagePullPolicy;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 import org.testcontainers.utility.DockerImageName;
 
+import java.time.Duration;
+import java.util.concurrent.TimeUnit;
+
 import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -42,7 +46,7 @@ public class PullOrBuildImageTests {
         when(pullPolicy.shouldPull(imageName)).thenReturn(false);
 
         // Create PullOrBuildImage with mocked dependencies
-        PullOrBuildImage image = new PullOrBuildImage(imageName, fallbackImage, () -> dockerClient, pullPolicy);
+        PullOrBuildImage image = new PullOrBuildImage(imageName, fallbackImage, () -> dockerClient, pullPolicy, Duration.ofMinutes(10));
 
         // Execute
         String result = image.get();
@@ -70,10 +74,16 @@ public class PullOrBuildImageTests {
         when(pullPolicy.shouldPull(imageName)).thenReturn(true);
         when(dockerClient.pullImageCmd(remoteImage)).thenReturn(pullImageCmd);
         when(pullImageCmd.exec(any(PullImageResultCallback.class))).thenReturn(callback);
-        when(callback.awaitCompletion()).thenReturn(callback);
+        when(callback.awaitCompletion(PullOrBuildImage.DEFAULT_PULL_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)).thenReturn(true);
 
         // Create PullOrBuildImage with mocked dependencies
-        PullOrBuildImage image = new PullOrBuildImage(imageName, fallbackImage, () -> dockerClient, pullPolicy);
+        PullOrBuildImage image = new PullOrBuildImage(
+            imageName,
+            fallbackImage,
+            () -> dockerClient,
+            pullPolicy,
+            PullOrBuildImage.DEFAULT_PULL_TIMEOUT
+        );
 
         // Execute
         String result = image.get();
@@ -103,7 +113,13 @@ public class PullOrBuildImageTests {
         when(fallbackImage.get()).thenReturn(builtImageId);
 
         // Create PullOrBuildImage with mocked dependencies
-        PullOrBuildImage image = new PullOrBuildImage(imageName, fallbackImage, () -> dockerClient, pullPolicy);
+        PullOrBuildImage image = new PullOrBuildImage(
+            imageName,
+            fallbackImage,
+            () -> dockerClient,
+            pullPolicy,
+            PullOrBuildImage.DEFAULT_PULL_TIMEOUT
+        );
 
         // Execute
         String result = image.get();
@@ -133,7 +149,13 @@ public class PullOrBuildImageTests {
         when(fallbackImage.get()).thenReturn(builtImageId);
 
         // Create PullOrBuildImage with mocked dependencies
-        PullOrBuildImage image = new PullOrBuildImage(imageName, fallbackImage, () -> dockerClient, pullPolicy);
+        PullOrBuildImage image = new PullOrBuildImage(
+            imageName,
+            fallbackImage,
+            () -> dockerClient,
+            pullPolicy,
+            PullOrBuildImage.DEFAULT_PULL_TIMEOUT
+        );
 
         // Execute
         String result = image.get();
@@ -142,6 +164,71 @@ public class PullOrBuildImageTests {
         assertEquals(builtImageId, result);
         verify(dockerClient).pullImageCmd(remoteImage);
         verify(fallbackImage).get();
+    }
+
+    @Test
+    public void testPullTimesOut_FallsBackToBuild() throws Exception {
+        // Setup mocks
+        DockerClient dockerClient = mock(DockerClient.class);
+        PullImageCmd pullImageCmd = mock(PullImageCmd.class);
+        PullImageResultCallback callback = mock(PullImageResultCallback.class);
+        ImageFromDockerfile fallbackImage = mock(ImageFromDockerfile.class);
+        ImagePullPolicy pullPolicy = mock(ImagePullPolicy.class);
+
+        String remoteImage = "registry.example.com/myimage:latest";
+        DockerImageName imageName = DockerImageName.parse(remoteImage);
+        String builtImageId = "sha256:timeout123";
+
+        when(pullPolicy.shouldPull(imageName)).thenReturn(true);
+        when(dockerClient.pullImageCmd(remoteImage)).thenReturn(pullImageCmd);
+        when(pullImageCmd.exec(any(PullImageResultCallback.class))).thenReturn(callback);
+        // Pull did not finish within the timeout
+        when(callback.awaitCompletion(PullOrBuildImage.DEFAULT_PULL_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)).thenReturn(false);
+        when(fallbackImage.get()).thenReturn(builtImageId);
+
+        PullOrBuildImage image = new PullOrBuildImage(
+            imageName,
+            fallbackImage,
+            () -> dockerClient,
+            pullPolicy,
+            PullOrBuildImage.DEFAULT_PULL_TIMEOUT
+        );
+
+        String result = image.get();
+
+        assertEquals(builtImageId, result);
+        verify(dockerClient).pullImageCmd(remoteImage);
+        verify(fallbackImage).get();
+    }
+
+    @Test
+    public void testCustomTimeoutIsUsedForPull() throws Exception {
+        // Setup mocks
+        DockerClient dockerClient = mock(DockerClient.class);
+        PullImageCmd pullImageCmd = mock(PullImageCmd.class);
+        PullImageResultCallback callback = mock(PullImageResultCallback.class);
+        ImageFromDockerfile fallbackImage = mock(ImageFromDockerfile.class);
+        ImagePullPolicy pullPolicy = mock(ImagePullPolicy.class);
+
+        String remoteImage = "registry.example.com/myimage:latest";
+        DockerImageName imageName = DockerImageName.parse(remoteImage);
+        Duration customTimeout = Duration.ofMinutes(5);
+
+        // Image does not exist locally - shouldPull returns true
+        when(pullPolicy.shouldPull(imageName)).thenReturn(true);
+        when(dockerClient.pullImageCmd(remoteImage)).thenReturn(pullImageCmd);
+        when(pullImageCmd.exec(any(PullImageResultCallback.class))).thenReturn(callback);
+        when(callback.awaitCompletion(customTimeout.toMillis(), TimeUnit.MILLISECONDS)).thenReturn(true);
+
+        PullOrBuildImage image = new PullOrBuildImage(imageName, fallbackImage, () -> dockerClient, pullPolicy, customTimeout);
+
+        // Execute
+        String result = image.get();
+
+        // Verify the custom timeout was passed to awaitCompletion
+        assertEquals(remoteImage, result);
+        verify(callback).awaitCompletion(eq(customTimeout.toMillis()), eq(TimeUnit.MILLISECONDS));
+        verify(fallbackImage, never()).get();
     }
 
     @Test
@@ -161,11 +248,19 @@ public class PullOrBuildImageTests {
         when(pullPolicy.shouldPull(imageName)).thenReturn(true);
         when(dockerClient.pullImageCmd(remoteImage)).thenReturn(pullImageCmd);
         when(pullImageCmd.exec(any(PullImageResultCallback.class))).thenReturn(callback);
-        when(callback.awaitCompletion()).thenThrow(new InterruptedException("Pull interrupted"));
+        when(callback.awaitCompletion(PullOrBuildImage.DEFAULT_PULL_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)).thenThrow(
+            new InterruptedException("Pull interrupted")
+        );
         when(fallbackImage.get()).thenReturn(builtImageId);
 
         // Create PullOrBuildImage with mocked dependencies
-        PullOrBuildImage image = new PullOrBuildImage(imageName, fallbackImage, () -> dockerClient, pullPolicy);
+        PullOrBuildImage image = new PullOrBuildImage(
+            imageName,
+            fallbackImage,
+            () -> dockerClient,
+            pullPolicy,
+            PullOrBuildImage.DEFAULT_PULL_TIMEOUT
+        );
 
         // Execute
         String result = image.get();

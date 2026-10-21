@@ -31,11 +31,8 @@ import org.elasticsearch.telemetry.apm.internal.export.TraceSupplier;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_TRACES_ENABLED_SYSTEM_PROPERTY;
-
 /**
- * {@link TraceSupplier} that exports spans via OTLP/gRPC using its own {@link SdkTracerProvider},
- * used when {@code telemetry.otel.traces.enabled=true} is set as a JVM system property.
+ * {@link TraceSupplier} that exports spans via OTLP/gRPC using its own {@link SdkTracerProvider}.
  */
 public class OtelSdkExportTracerSupplier implements TraceSupplier {
 
@@ -83,10 +80,7 @@ public class OtelSdkExportTracerSupplier implements TraceSupplier {
     private OpenTelemetrySdk createOpenTelemetrySdk() {
         String endpoint = OtelSdkSettings.TELEMETRY_EXPORT_ENDPOINT.get(settings);
         if (endpoint == null || endpoint.isEmpty()) {
-            logger.warn(
-                "{}=true but [telemetry.export.endpoint] is not configured; OTel SDK trace export is disabled",
-                OTEL_TRACES_ENABLED_SYSTEM_PROPERTY
-            );
+            logger.warn("[telemetry.export.endpoint] is not configured; trace export is disabled");
             return null;
         }
 

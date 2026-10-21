@@ -37,10 +37,12 @@ import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
@@ -64,6 +66,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.zip.CRC32;
@@ -263,7 +266,11 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         Translog.Operation[] singles = generateRandomOperations(2);
         Translog.Serialized[] serializedSingles = serializeOperations(singles);
-        Translog.IndexBatch batch = buildBatch(List.of(Map.of("k", "v0"), Map.of("k", "v1"), Map.of("k", "v2")), 2L, primaryTerm);
+        IndexOperationBatch.TranslogRecord batch = buildBatch(
+            List.of(Map.of("k", "v0"), Map.of("k", "v1"), Map.of("k", "v2")),
+            2L,
+            primaryTerm
+        );
         Translog.Serialized serializedBatch = serializeBatch(batch);
 
         long currentLocation = 0;
@@ -323,7 +330,7 @@ public class TranslogReplicatorTests extends ESTestCase {
             docs.add(Map.of("k", "v" + i));
             seqNos[i] = i;
         }
-        Translog.IndexBatch batch = buildBatch(docs, 0L, primaryTerm);
+        IndexOperationBatch.TranslogRecord batch = buildBatch(docs, 0L, primaryTerm);
         Translog.Serialized serializedBatch = serializeBatch(batch);
         Translog.Location location = new Translog.Location(0, 0, serializedBatch.length());
         translogReplicator.addRecord(shardId, serializedBatch, seqNos, location);
@@ -337,7 +344,8 @@ public class TranslogReplicatorTests extends ESTestCase {
         assertTranslogContains(objectStoreService.getTranslogBlobContainer(), shardId, exploded.toArray(new Translog.Operation[0]));
     }
 
-    private static Translog.IndexBatch buildBatch(List<Map<String, Object>> docs, long firstSeqNo, long primaryTerm) throws IOException {
+    private static IndexOperationBatch.TranslogRecord buildBatch(List<Map<String, Object>> docs, long firstSeqNo, long primaryTerm)
+        throws IOException {
         List<BytesReference> sources = new ArrayList<>(docs.size());
         for (Map<String, Object> doc : docs) {
             try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
@@ -349,14 +357,35 @@ public class TranslogReplicatorTests extends ESTestCase {
         try (EscfBatch escf = EscfEncoder.encode(sources, XContentType.JSON)) {
             batchData = new BytesArray(escf.data().toBytesRef(), true);
         }
-        List<Translog.IndexBatch.Op> ops = new ArrayList<>(docs.size());
-        for (int i = 0; i < docs.size(); i++) {
-            ops.add(new Translog.IndexBatch.IndexOp(1L, firstSeqNo + i, -1L, i, XContentType.JSON, Uid.encodeId("doc-" + i), null));
+        final int docCount = docs.size();
+        final byte[] statuses = new byte[docCount]; // all ROW_INDEXED
+        final long[] seqNos = new long[docCount];
+        final long[] versions = new long[docCount];
+        final long[] timestamps = new long[docCount];
+        final XContentType[] types = new XContentType[docCount];
+        final BytesRef[] uids = new BytesRef[docCount];
+        for (int i = 0; i < docCount; i++) {
+            seqNos[i] = firstSeqNo + i;
+            versions[i] = 1L;
+            timestamps[i] = -1L;
+            types[i] = XContentType.JSON;
+            uids[i] = Uid.encodeId("doc-" + i);
         }
-        return new Translog.IndexBatch(batchData, primaryTerm, ops);
+        return new IndexOperationBatch.TranslogRecord(
+            primaryTerm,
+            statuses,
+            seqNos,
+            versions,
+            timestamps,
+            types,
+            uids,
+            null,
+            null,
+            batchData
+        );
     }
 
-    private static Translog.Serialized serializeBatch(Translog.IndexBatch batch) throws IOException {
+    private static Translog.Serialized serializeBatch(IndexOperationBatch.TranslogRecord batch) throws IOException {
         try (RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE)) {
             Translog.writeBatchHeaderWithSize(out, batch);
             return Translog.Serialized.create(out.bytes(), batch.batchData(), new CRC32());
@@ -711,6 +740,79 @@ public class TranslogReplicatorTests extends ESTestCase {
             operations[1],
             operations[3],
             operations[2]
+        );
+    }
+
+    public void testTranslogUploadRecordsAttemptsAndTotalDuration() throws IOException {
+        ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
+        long primaryTerm = randomLongBetween(0, 10);
+        int failedAttempts = between(0, 3);
+        long attemptMillis = randomLongBetween(1, 1_000);
+
+        // create a new thread pool to that has specific time so we can check the total duration histogram
+        AtomicLong time = new AtomicLong(0);
+        ThreadPool newThreadPool = new ThreadPool(
+            Settings.builder().put("node.name", TranslogReplicatorTests.class.getSimpleName()).build(),
+            MeterRegistry.NOOP,
+            new DefaultBuiltInExecutorBuilders()
+        ) {
+            @Override
+            public long relativeTimeInMillis() {
+                return time.get();
+            }
+        };
+        ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS);
+        threadPool = newThreadPool;
+
+        AtomicInteger attempt = new AtomicInteger(0);
+        ObjectStoreService objectStoreService = mock(ObjectStoreService.class);
+        when(objectStoreService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
+        doAnswer(invocation -> {
+            time.addAndGet(attemptMillis);
+            if (attempt.incrementAndGet() <= failedAttempts) {
+                invocation.<ActionListener<Void>>getArgument(2).onFailure(new IOException("test"));
+            } else {
+                invocation.<ActionListener<Void>>getArgument(2).onResponse(null);
+            }
+            return null;
+        }).when(objectStoreService).uploadTranslogFile(any(), any(), any());
+
+        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        TranslogReplicator translogReplicator = new TranslogReplicator(
+            threadPool,
+            getSettings(),
+            objectStoreService,
+            mockConsistencyService(),
+            false,
+            (sId) -> primaryTerm,
+            meterRegistry
+        );
+        translogReplicator.doStart();
+        translogReplicator.register(shardId, primaryTerm, seqNo -> {});
+
+        Translog.Serialized[] serialized = serializeOperations(generateRandomOperations(1));
+        Translog.Location location = new Translog.Location(0, 0, serialized[0].length());
+        translogReplicator.add(shardId, serialized[0], 0, location);
+
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        translogReplicator.sync(shardId, location, future);
+        safeGet(future);
+
+        assertThat(
+            meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, TranslogReplicator.TRANSLOG_UPLOAD_ATTEMPTS_HISTOGRAM)
+                .stream()
+                .map(Measurement::getLong)
+                .toList(),
+            equalTo(List.of(failedAttempts + 1L))
+        );
+        assertThat(
+            meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, TranslogReplicator.TRANSLOG_UPLOAD_TOTAL_DURATION_HISTOGRAM)
+                .stream()
+                .map(Measurement::getLong)
+                .toList(),
+            equalTo(List.of((failedAttempts + 1) * attemptMillis))
         );
     }
 

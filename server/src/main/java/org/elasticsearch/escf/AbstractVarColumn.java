@@ -77,7 +77,7 @@ abstract class AbstractVarColumn extends EscfColumn {
     }
 
     @Override
-    final BytesRef getBinaryValue(int row) {
+    public final BytesRef getBinaryValue(int row) {
         int off = intAt(offsets, row);
         return data.slice(off, intAt(offsets, row + 1) - off).toBytesRef();
     }

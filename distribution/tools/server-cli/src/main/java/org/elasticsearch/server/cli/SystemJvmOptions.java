@@ -133,7 +133,11 @@ final class SystemJvmOptions {
     private static Stream<String> enableNativeAccess() {
         var enableNativeAccessOptions = new ArrayList<String>();
         enableNativeAccessOptions.add(
-            "--enable-native-access=org.elasticsearch.nativeaccess,org.elasticsearch.foreign,org.apache.lucene.core,"
+            "--enable-native-access="
+                + "org.apache.lucene.core,"
+                + "org.elasticsearch.foreign,"
+                + "org.elasticsearch.nativeaccess,"
+                + "org.elasticsearch.simdjson,"
                 + "org.elasticsearch.simdvec"
         );
         enableNativeAccessOptions.add("--enable-native-access=ALL-UNNAMED");

@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 160484
+summary: Release `top_hits` from old-connection batched aggs
+type: bug

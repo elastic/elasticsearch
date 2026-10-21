@@ -299,6 +299,43 @@ public class BoundsCheckGeneratedClassBehaviorTests extends ProcessorTestCase {
     }
 
     /**
+     * Proves the emitted {@code Objects.checkFromIndexSize(offset, size, segment.byteSize())} call
+     * really does throw when {@code offset + size} exceeds the segment, and really does let a
+     * correctly-sized call through to the native function. Both {@code offsetParam} and
+     * {@code sizeParam} reference the same {@code long n} parameter so the method arity stays
+     * {@code (a, b, n)}, matching libc {@code memcmp}'s signature on every platform (POSIX
+     * {@code pread} is unavailable via Windows CRT default lookup).
+     */
+    public void testSlicedSegmentCheckThrowsWhenSliceExceedsSegment() throws Throwable {
+        LoadedLibrary lib = loadLibrary("test.MemCmpLib", """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.SlicedSegment;
+            @LibrarySpecification
+            public interface MemCmpLib {
+                @Function("memcmp")
+                int memcmp(
+                    @SlicedSegment(offsetParam = "n", sizeParam = "n") MemorySegment a,
+                    MemorySegment b,
+                    long n);
+            }
+            """);
+
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment a = arena.allocate(10);
+            MemorySegment b = arena.allocate(10);
+            lib.expectThrows(IndexOutOfBoundsException.class, "memcmp", a, b, 9L);
+            lib.expectThrows(IndexOutOfBoundsException.class, "memcmp", a, b, 6L);
+
+            a = fill(arena.allocate(10));
+            b = fill(arena.allocate(10));
+            assertEquals(0, (int) lib.call("memcmp", a, b, 4L));
+        }
+    }
+
+    /**
      * A negative element count must be rejected. Rounding the bit count up to whole bytes with
      * {@code (bits + 7) / 8} would truncate a small negative product toward zero -- for
      * {@code count = -1, elementBits = 8}, {@code (-8 + 7) / 8 == 0} -- and the check would pass a
@@ -328,6 +365,43 @@ public class BoundsCheckGeneratedClassBehaviorTests extends ProcessorTestCase {
             for (long n : new long[] { -1L, -2L }) {
                 lib.expectThrows(IndexOutOfBoundsException.class, "memcmp", a, b, n);
             }
+        }
+    }
+
+    /**
+     * Test that the emitted checks compute the required size correctly as longs, so they work on a
+     * segment larger than {@code Integer.MAX_VALUE} bytes is accepted  (see #143232).
+     */
+    @SuppressWarnings("restricted")
+    public void testChecksDoNotOverflowBeyondIntRange() throws Throwable {
+        LoadedLibrary lib = loadLibrary("test.MemCmpLib", """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.MatrixSegment;
+            import org.elasticsearch.foreign.VectorSegment;
+            @LibrarySpecification
+            public interface MemCmpLib {
+                @Function("memcmp")
+                int memcmp(
+                    @VectorSegment(countParam = "n", elementBits = 8) MemorySegment a,
+                    @MatrixSegment(rowsParam = "n", colsParam = "n", elementBits = 8) MemorySegment b,
+                    long n);
+            }
+            """);
+
+        // rows = cols = n = 50_000 -> the matrix needs n*n = 2.5e9 bytes, more than Integer.MAX_VALUE.
+        final long n = 50_000L;
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment real = arena.allocate(n);
+            // We fake a large segment as a small real allocation reinterpreted to a larger size.
+            // This is safe as the memcmp call below only reads the first n bytes anyway; we just use it to trigger the validation.
+            MemorySegment large = real.reinterpret(n * n);
+            assertEquals(0, (int) lib.call("memcmp", large, large, n));
+
+            MemorySegment tooSmall = real.reinterpret(n * n - 1);
+            lib.expectThrows(IndexOutOfBoundsException.class, "memcmp", large, tooSmall, n);
         }
     }
 

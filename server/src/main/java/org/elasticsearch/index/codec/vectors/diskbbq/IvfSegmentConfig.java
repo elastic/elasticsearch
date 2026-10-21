@@ -46,7 +46,7 @@ public record IvfSegmentConfig(
 
     /**
      * ASH (Asymmetric Scalar Hashing) configuration — used by ASH writers/readers.
-     * ASH handles its own packing via {@code AsymmetricHashingScorer} and does not use {@link QuantEncoding}.
+     * ASH handles its own packing via {@code ESVectorUtil.ashPack} and does not use {@link QuantEncoding}.
      *
      * <p>Mirrors how {@link OsqConfig} wraps {@link QuantEncoding} with both document and query bit widths:
      * {@code bitsPerDim} controls document encoding while {@code queryBitsPerDim} controls query-time
@@ -66,6 +66,22 @@ public record IvfSegmentConfig(
         public static final int DEFAULT_QUERY_BITS_PER_DIM = 4;
         public static final int DEFAULT_TRAINING_ITERATIONS = 5;
         public static final int DEFAULT_TRAINING_FACTOR = 10;
+
+        /**
+         * Training-sample factor used on the flush path only. Flush segments are transient and are
+         * re-trained at merge, so W is learned on a smaller sample there (cheaper training, smaller
+         * temporary allocations) while keeping the recall-critical PCA subspace. Merge uses the full
+         * {@link #trainingFactor()}.
+         */
+        public static final int DEFAULT_FLUSH_TRAINING_FACTOR = 5;
+
+        /**
+         * Returns the training-sample factor to use when learning W at flush time (a reduced
+         * training sample). Merge uses {@link #trainingFactor()}.
+         */
+        public int flushTrainingFactor() {
+            return DEFAULT_FLUSH_TRAINING_FACTOR;
+        }
 
         /**
          * Returns {@code true} if the given bits-per-dimension value is supported for ASH document encoding.

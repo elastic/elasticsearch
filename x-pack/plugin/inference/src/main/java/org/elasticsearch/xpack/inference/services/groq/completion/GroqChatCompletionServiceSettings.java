@@ -19,14 +19,15 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.inference.common.parser.ServiceSettingsOPBuilder;
 import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
+import org.elasticsearch.xpack.inference.common.parser.UpdateServiceSettingsOPBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.groq.GroqRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.groq.GroqService;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields;
-import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -65,22 +66,15 @@ public class GroqChatCompletionServiceSettings extends FilteredXContentObject im
      * @return the parser
      */
     static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields) {
-        ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
-            ModelConfigurations.SERVICE_SETTINGS,
+        var parser = ServiceSettingsOPBuilder.of(
             ignoreUnknownFields,
-            Builder::new
-        );
+            Builder::new,
+            DEFAULT_RATE_LIMIT_SETTINGS,
+            Builder::setRateLimitSettings
+        ).build();
         parser.declareString(Builder::setModelId, new ParseField(ServiceFields.MODEL_ID));
         parser.declareString(Builder::setUrl, new ParseField(ServiceFields.URL));
         parser.declareString(Builder::setOrganizationId, new ParseField(OpenAiServiceFields.ORGANIZATION));
-        parser.declareObject(
-            Builder::setRateLimitSettings,
-            (p, c) -> RateLimitSettings.createParser(c == ConfigurationParseContext.PERSISTENT, DEFAULT_RATE_LIMIT_SETTINGS).apply(p, null),
-            new ParseField(RateLimitSettings.FIELD_NAME)
-        );
-        // api_key appears in the same JSON block as service settings in REST requests; DefaultSecretSettings extracts it separately.
-        // Declare it here as a no-op so the strict REQUEST parser does not reject it as an unknown field.
-        parser.declareString((b, v) -> {}, new ParseField(DefaultSecretSettings.API_KEY));
         return parser;
     }
 
@@ -250,7 +244,10 @@ public class GroqChatCompletionServiceSettings extends FilteredXContentObject im
      */
     private static class Update {
 
-        private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(ModelConfigurations.SERVICE_SETTINGS, Update::new);
+        private static final ObjectParser<Update, Void> PARSER = UpdateServiceSettingsOPBuilder.of(
+            Update::new,
+            Update::setRateLimitSettings
+        ).build();
 
         static {
             StatefulValue.declareNullable(PARSER, (update, value) -> update.organizationId = value, p -> {
@@ -258,10 +255,6 @@ public class GroqChatCompletionServiceSettings extends FilteredXContentObject im
                 validateStringIsNotNullOrEmpty(value, OpenAiServiceFields.ORGANIZATION);
                 return value;
             }, new ParseField(OpenAiServiceFields.ORGANIZATION), ObjectParser.ValueType.STRING_OR_NULL);
-            RateLimitSettings.declareUpdatableRateLimitSettings(PARSER, Update::setRateLimitSettings);
-            // api_key appears in the same JSON block as service settings in update requests; DefaultSecretSettings extracts it separately.
-            // Declare it here as a no-op so the strict parser does not reject it as an unknown field.
-            PARSER.declareString((u, v) -> {}, new ParseField(DefaultSecretSettings.API_KEY));
         }
 
         private StatefulValue<String> organizationId = StatefulValue.undefined();

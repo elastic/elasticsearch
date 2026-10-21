@@ -296,6 +296,11 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
         );
     }
 
+    /** The most documents a binary block of this format holds, and so what a single read of one decompresses. */
+    public int binaryBlockCountThreshold() {
+        return formatConfig.blockCountThreshold();
+    }
+
     @Override
     public DocValuesConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
         return new ES819TSDBDocValuesConsumer(

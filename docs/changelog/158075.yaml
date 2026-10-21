@@ -1,0 +1,6 @@
+pr: 158075
+summary: Report circuit breaker trips during response deserialization as 429
+area: Network
+type: enhancement
+issues:
+ - 158072

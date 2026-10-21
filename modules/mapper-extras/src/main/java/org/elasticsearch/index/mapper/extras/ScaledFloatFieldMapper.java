@@ -10,6 +10,8 @@
 package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DoubleValues;
+import org.apache.lucene.search.LongValues;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.settings.Setting;
@@ -143,7 +145,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                     IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS
                 ),
                 m -> toType(m).docValuesParameters(),
-                indexSettings.getMode().isStrictColumnar()
+                indexSettings
             );
             this.ignoreMalformed = Parameter.explicitBoolParam(
                 "ignore_malformed",
@@ -207,6 +209,9 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             return new Parameter<?>[] {
                 indexed,
                 docValuesParameters,
+                docValuesParameters.multiValue(),
+                docValuesParameters.nullability(),
+                docValuesParameters.onFailure(),
                 stored,
                 ignoreMalformed,
                 meta,
@@ -687,8 +692,8 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected boolean isSingleValueEnforced() {
-        return docValuesParameters.multiValue() == false;
+    protected boolean shouldEnforceSingleValue(XContentParser.Token token) {
+        return docValuesParameters.multiValue() == false && (token != XContentParser.Token.VALUE_NULL || nullValue != null);
     }
 
     @Override
@@ -890,6 +895,23 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         @Override
         public SortedNumericDoubleValues getDoubleValues() {
             final SortedNumericLongValues values = scaledFieldData.getLongValues();
+            // For a singleton field, read straight off the unwrapped LongValues, skipping the
+            // extra SortedNumericLongValues.singleton(...) wrapper layer.
+            final LongValues singleton = SortedNumericLongValues.unwrapSingleton(values);
+            if (singleton != null) {
+                var doubleValues = new DoubleValues() {
+                    @Override
+                    public double doubleValue() throws IOException {
+                        return singleton.longValue() * scalingFactorInverse;
+                    }
+
+                    @Override
+                    public boolean advanceExact(int doc) throws IOException {
+                        return singleton.advanceExact(doc);
+                    }
+                };
+                return SortedNumericDoubleValues.singleton(doubleValues, values.docIdIterator());
+            }
             return new SortedNumericDoubleValues.SortedNumericLongWrapper(values) {
                 @Override
                 public double nextValue() throws IOException {
@@ -909,9 +931,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                     (b, value) -> b.value(decodeForSyntheticSource(value, scalingFactor))
                 )
             );
-            if (ignoreMalformed.value()) {
-                layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
-            }
+            CompositeSyntheticFieldLoader.addFallbackLayers(layers, this, indexSettings);
             return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
         } else {
             var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
@@ -921,9 +941,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                     (b, value) -> b.value(decodeForSyntheticSource(value, scalingFactor))
                 )
             );
-            if (ignoreMalformed.value()) {
-                layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
-            }
+            CompositeSyntheticFieldLoader.addFallbackLayers(layers, this, indexSettings);
             return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
         }
     }

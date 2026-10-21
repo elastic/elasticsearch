@@ -240,7 +240,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
     private static final IndexableFieldType TSID_DV_FIELD_TYPE = new SortedDocValuesField("", new BytesRef()).fieldType();
 
     @Override
-    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         // Support only the modern coordinator-tsid world:
         // - TIME_SERIES_ROUTING_HASH_IN_ID: routing hash is in _id, so routingBuilder is null in
         // createField and routing() on SourceToParse carries the pre-computed hash. This also

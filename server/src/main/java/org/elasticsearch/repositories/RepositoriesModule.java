@@ -19,6 +19,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.snapshots.CachingSnapshotAndShardByStateMetricsService;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
 import org.elasticsearch.telemetry.TelemetryProvider;
@@ -38,6 +39,7 @@ import java.util.function.BiConsumer;
 public final class RepositoriesModule {
 
     private final RepositoriesService repositoriesService;
+    private final SnapshotMetrics snapshotMetrics;
 
     public RepositoriesModule(
         Environment env,
@@ -48,9 +50,13 @@ public final class RepositoriesModule {
         BigArrays bigArrays,
         NamedXContentRegistry namedXContentRegistry,
         RecoverySettings recoverySettings,
-        TelemetryProvider telemetryProvider,
-        SnapshotMetrics snapshotMetrics
+        TelemetryProvider telemetryProvider
     ) {
+        this.snapshotMetrics = new SnapshotMetrics(
+            telemetryProvider.getMeterRegistry(),
+            new CachingSnapshotAndShardByStateMetricsService(clusterService),
+            this::getRepositoryService
+        );
         final RepositoriesMetrics repositoriesMetrics = new RepositoriesMetrics(telemetryProvider.getMeterRegistry());
         Map<String, Repository.Factory> factories = new HashMap<>();
         factories.put(
@@ -137,12 +143,15 @@ public final class RepositoriesModule {
             internalRepositoryTypes,
             threadPool,
             client,
-            preRestoreChecks,
-            snapshotMetrics
+            preRestoreChecks
         );
     }
 
     public RepositoriesService getRepositoryService() {
         return repositoriesService;
+    }
+
+    public SnapshotMetrics getSnapshotMetrics() {
+        return snapshotMetrics;
     }
 }

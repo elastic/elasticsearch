@@ -86,6 +86,7 @@ additional configuration to implement features like IP filtering or TLS (see [Se
 [Route]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/rest/RestHandler.java#L123
 [Security#getHttpTransports]:https://github.com/elastic/elasticsearch/blob/v9.0.1/x-pack/plugin/security/src/main/java/org/elasticsearch/xpack/security/Security.java#L1959
 [Security#getRestHandlerInterceptor]:https://github.com/elastic/elasticsearch/blob/v9.0.1/x-pack/plugin/security/src/main/java/org/elasticsearch/xpack/security/Security.java#L2140
+[ThreadContext]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/common/util/concurrent/ThreadContext.java
 [TransportAction]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/action/support/TransportAction.java
 [ActionPlugin#getRestHandlers]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/plugins/ActionPlugin.java#L76
 
@@ -126,7 +127,7 @@ contribute additional actions via the [getActions][ActionPlugin#getActions] meth
 types used to invoke the action and the logic for performing the action.
 
 `TransportAction`s that are registered in `ActionModule#setupActions` (including those supplied by plugins) are locally bound to their
-[ActionType]. This map of `type -> action` bindings is what [NodeClient] instances use to locate actions in [NodeClient#executeLocally].
+[ActionType]. This map of `type -> action` bindings is what [NodeClient] instances use to locate actions in [NodeClient#executeAndReturnTask].
 
 The actions themselves sometimes dispatch downstream actions to other nodes in the cluster via the transport layer (see
 [TransportService#sendRequest]). To be callable in this way, actions must register themselves with the [TransportService] by calling
@@ -152,7 +153,7 @@ The actions themselves sometimes dispatch downstream actions to other nodes in t
 > [TransportInterceptor]s, which are described below.
 
 ### Action invocation
-The [NodeClient] executes all actions locally on the invoking node using the [NodeClient#executeLocally] method. This method invokes
+The [NodeClient] executes all actions locally on the invoking node using the [NodeClient#executeAndReturnTask] method. This method invokes
 [TaskManager#registerAndExecute] to register a task, execute the action, then unregister the task once the action completes.
 There is more information about task management in the [Distributed architecture guide](./DistributedArchitectureGuide.md#task-management--tracking)
 
@@ -193,7 +194,7 @@ capabilities.
 [NetworkPlugin#getTransportInterceptors]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/plugins/NetworkPlugin.java#L47
 [NetworkPlugin#getTransports]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/plugins/NetworkPlugin.java#L58
 [NetworkPlugin]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/plugins/NetworkPlugin.java
-[NodeClient#executeLocally]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/client/internal/node/NodeClient.java#L101
+[NodeClient#executeAndReturnTask]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/client/internal/node/NodeClient.java#L101
 [NodeClient]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/client/internal/node/NodeClient.java
 [TaskManager#registerAndExecute]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/tasks/TaskManager.java#L175
 [TransportInterceptor]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/transport/TransportInterceptor.java
@@ -380,16 +381,15 @@ See the [public upgrade docs][] for the upgrade process.
 # Observability
 
 Elasticsearch emits logs as described in the [public logging docs][], and exposes a good deal of information about its inner workings using
-all its management and stats APIs. Elasticsearch also integrates with the [Elastic APM Java agent][] to perform distributed tracing (as
-described in [TRACING.md][]) and metrics collection (as described in [METERING.md][]). This agent exposes the data it collects to an
-[OpenTelemetry][] service such as [Elastic APM Server][].
+all its management and stats APIs. Elasticsearch also performs distributed tracing (as described in [TRACING.md][]) and metrics
+collection (as described in [METERING.md][]), exporting both with the [OpenTelemetry][] SDK to a service such as
+[Elastic APM Server][].
 
 [public logging docs]: https://www.elastic.co/docs/deploy-manage/monitor/logging-configuration
-[Elastic APM Java agent]: https://www.elastic.co/docs/reference/apm/agents/java
 [OpenTelemetry]: https://opentelemetry.io/
 [Elastic APM Server]: https://www.elastic.co/docs/solutions/observability/apm
-[TRACING.md]: https://github.com/elastic/elasticsearch/blob/v8.18.3/TRACING.md
-[METERING.md]: https://github.com/elastic/elasticsearch/blob/v8.18.3/modules/apm/METERING.md
+[TRACING.md]: ../../TRACING.md
+[METERING.md]: ../../modules/apm/METERING.md
 
 # Testing
 

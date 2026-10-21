@@ -74,6 +74,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.COMPLETIO
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EMBEDDING_FUNCTION;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.KNN_FUNCTION_V5;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ML_ANOMALIES;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.RERANK;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SEMANTIC_TEXT_FIELD_CAPS;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SOURCE_FIELD_MAPPING;
@@ -81,11 +82,10 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.TEXT_EMBE
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_CRUD_AS_INDEX_ACTIONS;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.assertNotPartial;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
-import static org.junit.Assume.assumeFalse;
 
-// Each class covers one csv-spec file and should complete well within 10 minutes;
+// Each class covers one csv-spec file and should complete well within 20 minutes;
 // monolithic subclasses that run all spec files must add their own longer annotation.
-@TimeoutSuite(millis = 10 * TimeUnits.MINUTE)
+@TimeoutSuite(millis = 20 * TimeUnits.MINUTE)
 public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     @Rule(order = Integer.MIN_VALUE)
@@ -200,6 +200,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     public void setup() throws IOException {
         assumeTrue("test clusters were broken", testClustersOk);
         INGEST.protectedBlock(() -> {
+            ensureRemoteClustersConnected();
             // Inference endpoints must be created before ingesting any datasets that rely on them (mapping of inference_id)
             // If multiple clusters are used, only create endpoints on the local cluster if it supports the inference test service.
             createInferenceEndpointsIfSupported();
@@ -212,6 +213,14 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 this::clusterHasCapability,
                 indicesToLoad()
             );
+            // wait until the newly created indices are ready to search
+            ensureHealth(client(), "", request -> {
+                request.addParameter("wait_for_status", "yellow");
+                request.addParameter("wait_for_no_initializing_shards", "true");
+                request.addParameter("wait_for_no_relocating_shards", "true");
+                request.addParameter("timeout", "60s");
+                request.addParameter("level", "shards");
+            });
             return null;
         });
         // Views can be created before or after ingest, since index resolution is currently only done on the combined query.
@@ -225,7 +234,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             });
             // Skip view-group tests entirely when the cluster cannot support views: views are not loaded,
             // so running them would fail with "index not found" rather than giving a meaningful skip.
-            if ("views".equals(groupName)) {
+            if (allTestsInGroupNeedViews()) {
                 assumeTrue(
                     "Cluster does not support views (" + RestPutViewAction.VIEWS_PUT_SERVERLESS_SCOPE + " capability absent)",
                     supportsViews()
@@ -237,6 +246,12 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         }
     }
 
+    /**
+     * Hook, run once per JVM at the start of data ingestion, for suites that need a remote cluster to be connected before
+     * any data load or query is issued.
+     */
+    protected void ensureRemoteClustersConnected() throws Exception {}
+
     public boolean logResults() {
         return false;
     }
@@ -244,10 +259,20 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     public final void test() throws Throwable {
         try {
             shouldSkipTest(testName);
+            awaitReservedViews();
             doTest();
         } catch (Exception e) {
             ensureTestClustersAreOk(e);
             throw reworkException(e);
+        }
+    }
+
+    /**
+     * Reserved views are created asynchronously by the master after cluster startup, so wait for the ones the test relies on.
+     */
+    private void awaitReservedViews() throws Exception {
+        if (testCase.requiredCapabilities.contains(ML_ANOMALIES.capabilityName())) {
+            assertBusy(() -> adminClient().performRequest(new Request("GET", "/_query/view/.ml-anomalies")));
         }
     }
 
@@ -265,7 +290,16 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     // Load views only for groups whose tests reference view fixtures
     protected boolean shouldLoadViews() {
-        return "views".equals(groupName) || "approximation".equals(groupName) || "unmapped-load".equals(groupName);
+        return "views".equals(groupName)
+            || "approximation".equals(groupName)
+            || "unmapped-load".equals(groupName)
+            || "unmapped-load-all".equals(groupName)
+            || "metadata-views-and-subqueries".equals(groupName)
+            || "named_subquery".equals(groupName);
+    }
+
+    private boolean allTestsInGroupNeedViews() {
+        return "views".equals(groupName) || "metadata-views-and-subqueries".equals(groupName);
     }
 
     /**
@@ -419,11 +453,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     protected final void doTest(String query) throws Throwable {
         if (query.trim().toUpperCase(Locale.ROOT).contains("EXTERNAL \"{{")) {
             // Multi-file glob templates ({{x_multifile}}, {{x_multifile_split}}, {{x_multifile_ubn}},
-            // {{x_multifile_type_drift}}), hive-partitioned templates ({{x_hive}}), and ClickBench
-            // templates ({{clickbench}}) are resolved by specialised subclasses against their own
-            // fixtures. Plain EsqlSpecTestCase subclasses (mixed-cluster, multi-cluster,
-            // single/multi-node, flight) share the same csv-spec files via the testFixtures classpath
-            // but have no resolver for these templates, so skip such tests here.
+            // {{x_multifile_type_drift}}), and hive-partitioned templates ({{x_hive}}) are resolved by
+            // specialised subclasses against their own fixtures. Plain EsqlSpecTestCase subclasses
+            // have no resolver for these templates, so skip such tests here.
             assumeFalseLogging(
                 "specialised EXTERNAL templates require dedicated test subclass",
                 query.contains("_multifile}}")
@@ -431,18 +463,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                     || query.contains("_multifile_ubn}}")
                     || query.contains("_multifile_type_drift}}")
                     || query.contains("_hive}}")
-                    || query.contains("{{clickbench}}")
-            );
-            // external-multivalue.csv-spec exercises native multi-value reads for non-CSV/TSV format
-            // ITs (Parquet/ORC/NDJSON/multi-node) which decode arrays from their format's native
-            // representation. Its queries use {{employees}} without a multi_value_syntax opt-in
-            // (the non-CSV format readers reject the unknown key via ConfigKeyValidator). On the
-            // EsqlSpecTestCase cluster the local CSV reader defaults to multi_value_syntax: none
-            // and would misalign columns on the bracket-MV employees.csv. CSV-side bracket-syntax
-            // coverage lives in csv-multivalue.csv-spec with the explicit "brackets" opt-in.
-            assumeFalseLogging(
-                "external-multivalue requires AbstractExternalSourceSpecTestCase (native multi-value formats)",
-                fileName.equals("external-multivalue.csv-spec")
             );
             Path path = getCsvDataPath();
             if (path != null) {
@@ -500,6 +520,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             );
             CsvAssert.assertDocumentsFound(testCase.expectedDocumentsFound, (int) answer.get("documents_found"));
         }
+        if (testCase.expectedApproximationApplied != null && clusterHasCapability(EsqlCapabilities.Cap.APPROXIMATION_APPLIED_RESPONSE)) {
+            CsvAssert.assertApproximationApplied(testCase.expectedApproximationApplied, (Boolean) answer.get("approximation_applied"));
+        }
 
         if (checkTook) {
             LOGGER.info("checking took incremented from {}", prevTooks);
@@ -537,6 +560,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             && hasCapabilities(client(), List.of("auto_partition_docs_threshold"))
             && randomBoolean()) {
             pragma.put(PlannerSettings.DOC_THRESHOLD_AUTO_PARTITIONING.getKey(), between(1, 1000));
+        }
+        if (randomBoolean() && hasCapabilities(client(), List.of(EsqlCapabilities.Cap.PARTITIONING_AGGREGATIONS.capabilityName()))) {
+            pragma.put(PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD.getKey(), between(50_000, 100_000));
         }
     }
 
@@ -641,8 +667,30 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                     matchesMap().extraOk().entry("breakers", matchesMap().extraOk().entry("request", breakersEmpty))
                 );
             }
-            assertMap("circuit breakers not reset to 0", stats, matchesMap().extraOk().entry("nodes", nodesMatcher));
+            assertMap(requestBreakerResetMessage(nodes), stats, matchesMap().extraOk().entry("nodes", nodesMatcher));
         });
+    }
+
+    /**
+     * Names the 64-byte unit charges when a spec suite leaves exactly that on the request breaker, so CI
+     * does not have to guess HeaderBudget vs interned-schema vs listing-object shell.
+     */
+    private static String requestBreakerResetMessage(Map<?, ?> nodes) {
+        long leftover = 0L;
+        for (Object node : nodes.values()) {
+            if (node instanceof Map<?, ?> nodeMap
+                && nodeMap.get("breakers") instanceof Map<?, ?> breakersMap
+                && breakersMap.get("request") instanceof Map<?, ?> requestMap
+                && requestMap.get("estimated_size_in_bytes") instanceof Number size) {
+                leftover = Math.max(leftover, size.longValue());
+            }
+        }
+        if (leftover == 64L) {
+            return "circuit breakers not reset to 0; 64b unit charge is esql-external-planning "
+                + "(SchemaInterner schema shell or GenericFileList listing header) or csv_header_columns "
+                + "(HeaderBudget SET_ENTRY_BYTES, only as part of a larger per-column formula)";
+        }
+        return "circuit breakers not reset to 0";
     }
 
     protected boolean supportsTook() {

@@ -1539,3 +1539,41 @@ setup:
   - exists: hits.hits.0._source._inference_fields.embedding_field.inference.chunks.embedding_field.0.embeddings
   - match: { hits.hits.0._source._inference_fields.embedding_field.inference.chunks.embedding_field.0.start_offset: 0 }
   - match: { hits.hits.0._source._inference_fields.embedding_field.inference.chunks.embedding_field.0.end_offset: 14 }
+
+---
+"Source-reading clause in nested scope over multi-valued semantic_text does not fail the shard":
+  # Regression test for https://github.com/elastic/elasticsearch/issues/157645.
+  - requires:
+      cluster_features: "search.nested.extract_source_empty_list_fix"
+      reason: NestedIdentity.extractSource returns empty source when the nested path has no objects
+
+  - do:
+      index:
+        index: test-index
+        id: doc_multi_valued
+        refresh: true
+        body:
+          sparse_field: ["inference test", "another inference test"]
+          non_inference_field: "proj"
+
+  - do:
+      search:
+        index: test-index
+        body:
+          size: 0
+          runtime_mappings:
+            rt_project:
+              type: keyword
+              script:
+                source: |
+                  def v = params._source['non_inference_field'];
+                  if (v != null) { emit(v); }
+          query:
+            nested:
+              path: sparse_field.inference.chunks
+              query:
+                term:
+                  rt_project: "proj"
+
+  - match: { _shards.failed: 0 }
+  - match: { hits.total.value: 0 }

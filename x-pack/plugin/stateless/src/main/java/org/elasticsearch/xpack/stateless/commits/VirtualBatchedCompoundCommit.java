@@ -25,6 +25,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -37,6 +38,7 @@ import org.elasticsearch.index.snapshots.blobstore.SlicedInputStream;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.InternalFile;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.TimestampFieldValueRange;
@@ -145,6 +147,8 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     // This is used to avoid adding replicated content for files that are already included in the first region.
     private final int estimatedMaxHeaderSizeInBytes;
 
+    private final UploadStreamHook uploadStreamHook;
+
     public VirtualBatchedCompoundCommit(
         ShardId shardId,
         String nodeEphemeralId,
@@ -155,12 +159,36 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         int cacheRegionSize,
         int estimatedMaxHeaderSizeInBytes
     ) {
+        this(
+            shardId,
+            nodeEphemeralId,
+            primaryTerm,
+            generation,
+            uploadedBlobLocationsSupplier,
+            timeInMillisSupplier,
+            cacheRegionSize,
+            estimatedMaxHeaderSizeInBytes,
+            UploadStreamHook.NOOP
+        );
+    }
+
+    public VirtualBatchedCompoundCommit(
+        ShardId shardId,
+        String nodeEphemeralId,
+        long primaryTerm,
+        long generation,
+        Function<String, BlobLocation> uploadedBlobLocationsSupplier,
+        LongSupplier timeInMillisSupplier,
+        int cacheRegionSize,
+        int estimatedMaxHeaderSizeInBytes,
+        UploadStreamHook uploadStreamHook
+    ) {
         this.shardId = shardId;
         this.nodeEphemeralId = nodeEphemeralId;
         this.uploadedBlobLocationsSupplier = uploadedBlobLocationsSupplier;
         this.pendingCompoundCommits = new ConcurrentSkipListSet<>();
         this.primaryTermAndGeneration = new PrimaryTermAndGeneration(primaryTerm, generation);
-        this.blobFile = new BlobFile(StatelessCompoundCommit.blobNameFromGeneration(generation), primaryTermAndGeneration);
+        this.blobFile = new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(generation), primaryTermAndGeneration);
         this.creationTimeInMillis = timeInMillisSupplier.getAsLong();
         this.notifiedSearchNodeIds = ConcurrentCollections.newConcurrentSet();
         this.cacheRegionSizeInBytes = cacheRegionSize;
@@ -170,6 +198,28 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             );
         }
         this.estimatedMaxHeaderSizeInBytes = estimatedMaxHeaderSizeInBytes;
+        this.uploadStreamHook = uploadStreamHook;
+    }
+
+    /**
+     * Intercepts the input stream returned by {@link #getFrozenInputStreamForUpload(long, long)} while it is consumed, so that tests can
+     * inject delays at specific points of the upload.
+     */
+    public interface UploadStreamHook {
+        UploadStreamHook NOOP = new UploadStreamHook() {};
+
+        /**
+         * Invoked when the upload stream opens an internal file as its next slice. Implementations may delay the call to {@code opener}
+         * or wrap the stream it returns.
+         */
+        default InputStream openInternalFile(String filename, CheckedSupplier<InputStream, IOException> opener) throws IOException {
+            return opener.get();
+        }
+
+        /**
+         * Invoked once the upload stream has been reset to its mark.
+         */
+        default void onReset() {}
     }
 
     public void addNotifiedSearchNodeIds(Collection<String> nodeIds) {
@@ -673,7 +723,15 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             protected InputStream openSlice(int slice) throws IOException {
                 final var offset = offsets.get(slice);
                 final var reader = internalDataReadersByOffset.get(offset);
+                if (reader instanceof InternalFileReader fileReader) {
+                    return uploadStreamHook.openInternalFile(fileReader.filename(), reader::getInputStream);
+                }
                 return reader.getInputStream();
+            }
+
+            @Override
+            protected void onReset() {
+                uploadStreamHook.onReset();
             }
 
             @Override
@@ -714,6 +772,13 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             @Override
             protected InputStream openSlice(int n) throws IOException {
                 var slice = slices.get(n);
+                if (slice.getValue() instanceof InternalFileReader fileReader) {
+                    return uploadStreamHook.openInternalFile(fileReader.filename(), () -> openSliceStream(slice, n));
+                }
+                return openSliceStream(slice, n);
+            }
+
+            private InputStream openSliceStream(Map.Entry<Long, InternalDataReader> slice, int n) throws IOException {
                 long skipBytes = Math.max(0L, offset - slice.getKey());
                 assert skipBytes == 0 || n == 0 : "can be non-zero only for the first entry, but got: " + skipBytes + " for slice " + n;
                 if (skipBytes > 0) {
@@ -736,6 +801,11 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
                     assert stream.markSupported();
                     return stream;
                 }
+            }
+
+            @Override
+            protected void onReset() {
+                uploadStreamHook.onReset();
             }
 
             @Override
@@ -796,6 +866,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
 
     @Override
     public void close() {
+        assert Transports.assertNotTransportThread("can invoke lucene deletion policy");
         decRef();
     }
 

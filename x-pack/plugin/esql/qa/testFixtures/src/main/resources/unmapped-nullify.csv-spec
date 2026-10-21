@@ -935,6 +935,21 @@ TS k8s_unmapped
 2024-05-10T00:01:25.000Z | qa              | null
 ;
 
+countByBucketOfMissingHistogramTsIndex
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fn_bucket_histogram_types
+required_capability: ts_command_v0
+
+SET unmapped_fields="nullify"\;
+TS k8s_unmapped
+| STATS c = COUNT(histogram, bucket) BY bucket = BUCKET(histogram, 1), tbucket = tbucket(1 hour)
+| EVAL bucket = RANGE_MIN(bucket)
+;
+
+c:long | tbucket:datetime         | bucket:null 
+null   | 2024-05-10T00:00:00.000Z | null        
+;
+
 rateOnUnmappedTsIndex
 required_capability: optional_fields_nullify_tech_preview
 required_capability: ts_command_v0
@@ -1039,6 +1054,31 @@ book_no:keyword | author:text                                        | does_not_
 2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott] | null                      | null
 2713            | William Faulkner                                   | null                      | null
 2847            | Colleen Faulkner                                   | null                      | null
+;
+
+// A nullified field never matches, so only the mapped-field leg of the disjunction contributes rows.
+fullTextFunctionsOnNullifiedField
+required_capability: optional_fields_nullify_tech_preview
+required_capability: match_function
+required_capability: match_phrase_function
+required_capability: match_operator_colon
+required_capability: full_text_functions_accept_null_field
+
+SET unmapped_fields="nullify"\;
+FROM books
+| WHERE MATCH(does_not_exist_field, "Faulkner")
+    OR MATCH_PHRASE(does_not_exist_field, "William Faulkner")
+    OR does_not_exist_field:"Faulkner"
+    OR MATCH(author, "Faulkner")
+| KEEP book_no, author
+| SORT book_no
+| LIMIT 3
+;
+
+book_no:keyword | author:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
 ;
 
 tsImplicitTimestampSortBasicWithMissing

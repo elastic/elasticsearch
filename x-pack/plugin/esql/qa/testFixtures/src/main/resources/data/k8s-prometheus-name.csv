@@ -1,0 +1,5 @@
+@timestamp:date,labels.__name__:keyword,labels.pod:keyword,labels.zone:keyword,labels.idx:keyword,metrics.requests:double
+2024-05-10T00:58:01.000Z,requests_total,podA,eu,,10.0
+2024-05-10T00:58:02.000Z,requests_total,podB,us,,20.0
+2024-05-10T00:58:03.000Z,coll,podC,,1,2.0
+2024-05-10T01:58:03.000Z,coll,podC,,2,4.0

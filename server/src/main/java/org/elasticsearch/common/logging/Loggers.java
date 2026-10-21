@@ -51,7 +51,7 @@ public class Loggers {
      */
     static final List<String> RESTRICTED_LOGGERS = NetworkTraceFlag.TRACE_ENABLED
         ? Collections.emptyList()
-        : List.of("org.apache.http", "com.amazonaws.request", "software.amazon.awssdk");
+        : List.of("org.apache.http", "org.apache.hc", "com.amazonaws.request", "software.amazon.awssdk");
 
     public static final Setting<Level> LOG_DEFAULT_LEVEL_SETTING = new Setting<>(
         "logger.level",

@@ -184,7 +184,7 @@ public class FileRolesStoreTests extends ESTestCase {
             AutomatonTestUtil.sameLanguage(
                 group.privilege().getAutomaton(),
                 Operations.determinize(
-                    Operations.union(IndexPrivilege.READ.getAutomaton(), IndexPrivilege.WRITE.getAutomaton()),
+                    Operations.union(List.of(IndexPrivilege.READ.getAutomaton(), IndexPrivilege.WRITE.getAutomaton())),
                     Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
                 )
             )

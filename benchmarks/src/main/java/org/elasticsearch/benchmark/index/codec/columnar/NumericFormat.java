@@ -39,13 +39,12 @@ import org.elasticsearch.columnar.numeric.ColumnarNumericBinaryDocValues;
 import org.elasticsearch.columnar.numeric.NumericBinaryPayload;
 import org.elasticsearch.columnar.numeric.NumericColumnValues;
 import org.elasticsearch.columnar.numeric.NumericPipeline;
-import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
+import org.elasticsearch.index.codec.Elasticsearch96Codec;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormatFactory;
 import org.elasticsearch.index.codec.tsdb.pipeline.FieldContext;
 import org.elasticsearch.index.codec.tsdb.pipeline.MetricRole;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor.DataType;
-import org.elasticsearch.lucene.queries.SortedNumericDocValuesRangeQuery;
 import org.openjdk.jmh.infra.Blackhole;
 
 import java.io.IOException;
@@ -91,9 +90,13 @@ public enum NumericFormat {
                     (f, bs) -> es95FieldContext(workload, f, bs)
                 );
             }
-            case COLUMNAR -> new ColumNARDocValuesFormat((f, t) -> bs -> selectPipeline(workload, bs), blockSize);
+            case COLUMNAR -> new ColumNARDocValuesFormat(
+                (f, t) -> bs -> selectPipeline(workload, bs),
+                f -> ColumnarFieldType.LONG,
+                blockSize
+            );
         };
-        return new Elasticsearch93Lucene104Codec() {
+        return new Elasticsearch96Codec() {
             @Override
             public DocValuesFormat getDocValuesFormatForField(String field) {
                 return dv;
@@ -112,7 +115,7 @@ public enum NumericFormat {
 
     Query rangeQuery(String field, long lower, long upper) {
         return switch (this) {
-            case LUCENE, ES819, ES95 -> new SortedNumericDocValuesRangeQuery(field, lower, upper);
+            case LUCENE, ES819, ES95 -> SortedNumericDocValuesField.newSlowRangeQuery(field, lower, upper);
             case COLUMNAR -> new ColumnarNumericRangeQuery(field, lower, upper);
         };
     }
@@ -204,7 +207,6 @@ public enum NumericFormat {
     private static FieldType columnarFieldType() {
         final FieldType type = new FieldType();
         type.setDocValuesType(DocValuesType.BINARY);
-        type.putAttribute(ColumNARDocValuesFormat.TYPE_ATTRIBUTE, ColumnarFieldType.LONG.name());
         type.freeze();
         return type;
     }

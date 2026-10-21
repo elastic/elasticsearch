@@ -22,6 +22,8 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.configuration.InferenceServiceFeatures;
+import org.elasticsearch.inference.configuration.NonStreamingChatFeature;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
@@ -39,7 +41,7 @@ import org.elasticsearch.xpack.inference.services.ai21.completion.Ai21ChatComple
 import org.elasticsearch.xpack.inference.services.ai21.completion.Ai21ChatCompletionModelCreator;
 import org.elasticsearch.xpack.inference.services.ai21.completion.Ai21ChatCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.ai21.request.Ai21ChatCompletionRequest;
-import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
+import org.elasticsearch.xpack.inference.services.openai.response.OpenAiUnifiedChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -64,7 +66,7 @@ public class Ai21Service extends SenderService<Ai21Model> {
     private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
     private static final ResponseHandler CHAT_COMPLETION_HANDLER = new Ai21ChatCompletionResponseHandler(
         "ai21 chat completions",
-        OpenAiChatCompletionResponseEntity::fromResponse
+        OpenAiUnifiedChatCompletionResponseEntity::fromResponse
     );
 
     private static final TransportVersion ML_INFERENCE_AI21_COMPLETION_ADDED = TransportVersion.fromName(
@@ -183,6 +185,11 @@ public class Ai21Service extends SenderService<Ai21Model> {
     }
 
     @Override
+    public boolean supportsNonStreamingChatCompletion() {
+        return true;
+    }
+
+    @Override
     public boolean usesParserForServiceSettings() {
         return true;
     }
@@ -220,6 +227,7 @@ public class Ai21Service extends SenderService<Ai21Model> {
                     .setName(SERVICE_NAME)
                     .setTaskTypes(SUPPORTED_TASK_TYPES)
                     .setConfigurations(configurationMap)
+                    .setFeatures(InferenceServiceFeatures.of(NonStreamingChatFeature.SUPPORTED_INSTANCE))
                     .build();
             }
         );

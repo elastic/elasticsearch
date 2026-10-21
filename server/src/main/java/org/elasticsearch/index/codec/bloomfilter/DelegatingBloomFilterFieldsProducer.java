@@ -95,6 +95,18 @@ public class DelegatingBloomFilterFieldsProducer extends FieldsProducer {
         final BloomFilter bloomFilter = idBloomFilterSupplier.createBloomFilterInstance();
         return new FilterLeafReader.FilterTerms(terms) {
             @Override
+            public BytesRef getMin() throws IOException {
+                // FilterTerms does not delegate getMin/getMax; without this, Lucene's default getMax binary-searches
+                // via seekCeil with incomplete probes and breaks synthetic _id terms (see TSDBSyntheticIdFieldsProducer).
+                return terms.getMin();
+            }
+
+            @Override
+            public BytesRef getMax() throws IOException {
+                return terms.getMax();
+            }
+
+            @Override
             public TermsEnum iterator() throws IOException {
                 return new LazyFilterTermsEnum() {
                     private TermsEnum termsEnum;

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.services.anthropic.completion;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.test.ESTestCase;
@@ -51,7 +51,7 @@ public class AnthropicChatCompletionModelTests extends ESTestCase {
 
     public void testOf_UnifiedCompletionRequest_OverridesModelId() {
         var model = createChatCompletionModel("api_key", "claude-3-5-sonnet-latest", 1024);
-        var unifiedRequest = new UnifiedCompletionRequest(
+        var unifiedRequest = new UnifiedCompletionRequestBody(
             List.of(new Message(new ContentString("hello"), "user", null, null)),
             "claude-3-5-haiku-latest",
             null,
@@ -71,7 +71,7 @@ public class AnthropicChatCompletionModelTests extends ESTestCase {
 
     public void testOf_UnifiedCompletionRequest_NoModelOverride_ReturnsSameInstance() {
         var model = createChatCompletionModel("api_key", "claude-3-5-sonnet-latest", 1024);
-        var unifiedRequest = UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null)));
+        var unifiedRequest = UnifiedCompletionRequestBody.of(List.of(new Message(new ContentString("hello"), "user", null, null)));
 
         var overriddenModel = AnthropicChatCompletionModel.of(model, unifiedRequest);
 

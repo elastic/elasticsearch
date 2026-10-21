@@ -128,15 +128,36 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
         final int maxTokenCount = indexService == null
             ? IndexSettings.MAX_TOKEN_COUNT_SETTING.get(settings)
             : indexService.getIndexSettings().getMaxTokenCount();
+        final int maxCharCount = indexService == null
+            ? IndexSettings.MAX_ANALYZE_CHAR_COUNT_SETTING.get(settings)
+            : indexService.getIndexSettings().getMaxAnalyzeCharCount();
 
-        return analyze(request, indicesService.getAnalysis(), indexService, maxTokenCount);
+        return analyze(request, indicesService.getAnalysis(), indexService, maxTokenCount, maxCharCount);
     }
 
+    /**
+     * Analyzes the request without a character-count limit. Callers that enforce
+     * {@link IndexSettings#MAX_ANALYZE_CHAR_COUNT_SETTING} should use the {@code maxCharCount} overload.
+     */
     public static AnalyzeAction.Response analyze(
         AnalyzeAction.Request request,
         AnalysisRegistry analysisRegistry,
         IndexService indexService,
         int maxTokenCount
+    ) throws IOException {
+        return analyze(request, analysisRegistry, indexService, maxTokenCount, Integer.MAX_VALUE);
+    }
+
+    /**
+     * Analyzes the request, bounding both the tokens produced ({@code maxTokenCount}) and the characters a
+     * character-filter chain may produce ({@code maxCharCount}); exceeding either limit fails with a {@code 400}.
+     */
+    public static AnalyzeAction.Response analyze(
+        AnalyzeAction.Request request,
+        AnalysisRegistry analysisRegistry,
+        IndexService indexService,
+        int maxTokenCount,
+        int maxCharCount
     ) throws IOException {
 
         IndexSettings settings = indexService == null ? null : indexService.getIndexSettings();
@@ -145,14 +166,14 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
         // need to build it and then close it after use.
         try (Analyzer analyzer = buildCustomAnalyzer(request, analysisRegistry, settings)) {
             if (analyzer != null) {
-                return analyze(request, analyzer, maxTokenCount);
+                return analyze(request, analyzer, maxTokenCount, maxCharCount);
             }
         } catch (IllegalStateException e) {
             throw new IllegalArgumentException("Can not build a custom analyzer", e);
         }
 
         // Otherwise we use a built-in analyzer, which should not be closed
-        return analyze(request, getAnalyzer(request, analysisRegistry, indexService), maxTokenCount);
+        return analyze(request, getAnalyzer(request, analysisRegistry, indexService), maxTokenCount, maxCharCount);
     }
 
     private IndexService getIndexService(ShardId shardId) {
@@ -242,11 +263,14 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
         return null;
     }
 
-    private static AnalyzeAction.Response analyze(AnalyzeAction.Request request, Analyzer analyzer, int maxTokenCount) {
+    private static AnalyzeAction.Response analyze(AnalyzeAction.Request request, Analyzer analyzer, int maxTokenCount, int maxCharCount) {
         if (request.explain()) {
-            return new AnalyzeAction.Response(null, detailAnalyze(request, analyzer, maxTokenCount));
+            return new AnalyzeAction.Response(null, detailAnalyze(request, analyzer, maxTokenCount, maxCharCount));
         }
-        return new AnalyzeAction.Response(simpleAnalyze(request, analyzer, maxTokenCount), null);
+        // On this path the character filters run inside Analyzer#tokenStream, so bound their output by wrapping the analyzer.
+        try (Analyzer limitAnalyzer = new LimitCharCountAnalyzer(analyzer, maxCharCount)) {
+            return new AnalyzeAction.Response(simpleAnalyze(request, limitAnalyzer, maxTokenCount), null);
+        }
     }
 
     private static List<AnalyzeAction.AnalyzeToken> simpleAnalyze(AnalyzeAction.Request request, Analyzer analyzer, int maxTokenCount) {
@@ -294,7 +318,12 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
         return tokens;
     }
 
-    private static AnalyzeAction.DetailAnalyzeResponse detailAnalyze(AnalyzeAction.Request request, Analyzer analyzer, int maxTokenCount) {
+    private static AnalyzeAction.DetailAnalyzeResponse detailAnalyze(
+        AnalyzeAction.Request request,
+        Analyzer analyzer,
+        int maxTokenCount,
+        int maxCharCount
+    ) {
         AnalyzeAction.DetailAnalyzeResponse detailResponse;
         final Set<String> includeAttributes = new HashSet<>();
         if (request.attributes() != null) {
@@ -336,14 +365,14 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
                         reader = charFilterFactories[charFilterIndex].create(reader);
                         Reader readerForWriteOut = new StringReader(charFilteredSource);
                         readerForWriteOut = charFilterFactories[charFilterIndex].create(readerForWriteOut);
-                        charFilteredSource = writeCharStream(readerForWriteOut);
+                        charFilteredSource = writeCharStream(new LimitingReader(readerForWriteOut, maxCharCount));
                         charFiltersTexts[charFilterIndex][textIndex] = charFilteredSource;
                     }
                 }
 
                 // analyzing only tokenizer
                 Tokenizer tokenizer = tokenizerFactory.create();
-                tokenizer.setReader(reader);
+                tokenizer.setReader(new LimitingReader(reader, maxCharCount));
                 tokenizerTokenListCreator.analyze(tokenizer, includeAttributes, positionIncrementGap, offsetGap);
 
                 // analyzing each tokenfilter
@@ -357,7 +386,8 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
                             charFilterFactories,
                             tokenizerFactory,
                             tokenFilterFactories,
-                            tokenFilterIndex + 1
+                            tokenFilterIndex + 1,
+                            maxCharCount
                         );
                         tokenFiltersTokenListCreator[tokenFilterIndex].analyze(stream, includeAttributes, positionIncrementGap, offsetGap);
                     }
@@ -398,13 +428,15 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
             }
 
             TokenListCreator tokenListCreator = new TokenListCreator(maxTokenCount);
-            for (String text : request.text()) {
-                tokenListCreator.analyze(
-                    analyzer.tokenStream(request.field(), text),
-                    includeAttributes,
-                    analyzer.getPositionIncrementGap(request.field()),
-                    analyzer.getOffsetGap(request.field())
-                );
+            try (Analyzer limitAnalyzer = new LimitCharCountAnalyzer(analyzer, maxCharCount)) {
+                for (String text : request.text()) {
+                    tokenListCreator.analyze(
+                        limitAnalyzer.tokenStream(request.field(), text),
+                        includeAttributes,
+                        analyzer.getPositionIncrementGap(request.field()),
+                        analyzer.getOffsetGap(request.field())
+                    );
+                }
             }
             detailResponse = new AnalyzeAction.DetailAnalyzeResponse(
                 new AnalyzeAction.AnalyzeTokenList(name, tokenListCreator.getArrayTokens())
@@ -418,14 +450,15 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
         CharFilterFactory[] charFilterFactories,
         TokenizerFactory tokenizerFactory,
         TokenFilterFactory[] tokenFilterFactories,
-        int current
+        int current,
+        int maxCharCount
     ) {
         Reader reader = new StringReader(source);
         for (CharFilterFactory charFilterFactory : charFilterFactories) {
             reader = charFilterFactory.create(reader);
         }
         Tokenizer tokenizer = tokenizerFactory.create();
-        tokenizer.setReader(reader);
+        tokenizer.setReader(new LimitingReader(reader, maxCharCount));
         TokenStream tokenStream = tokenizer;
         for (int i = 0; i < current; i++) {
             tokenStream = tokenFilterFactories[i].create(tokenStream);
@@ -438,16 +471,21 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
         char[] buf = new char[BUFFER_SIZE];
         int len;
         StringBuilder sb = new StringBuilder();
-        do {
+        // A Reader signals end-of-stream only with -1; a short read is not EOF. Drain until -1 so every character
+        // reaches the wrapping LimitingReader and is counted.
+        while (true) {
             try {
                 len = input.read(buf, 0, BUFFER_SIZE);
             } catch (IOException e) {
                 throw new ElasticsearchException("failed to analyze (charFiltering)", e);
             }
+            if (len < 0) {
+                break;
+            }
             if (len > 0) {
                 sb.append(buf, 0, len);
             }
-        } while (len == BUFFER_SIZE);
+        }
         return sb.toString();
     }
 

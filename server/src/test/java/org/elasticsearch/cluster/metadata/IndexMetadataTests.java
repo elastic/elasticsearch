@@ -946,4 +946,5 @@ public class IndexMetadataTests extends ESTestCase {
             .build();
         assertThat(metadata.sequenceNumbersDisabled(), is(disabled));
     }
+
 }

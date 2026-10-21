@@ -27,13 +27,15 @@ import java.util.List;
 class VersionFieldWildcardQuery extends AutomatonQuery {
 
     private static final Automaton OPTIONAL_NUMERIC_CHARPREFIX = Operations.optional(
-        Operations.concatenate(Automata.makeChar(VersionEncoder.NUMERIC_MARKER_BYTE), Automata.makeCharRange(0x80, 0xFF))
+        Operations.concatenate(List.of(Automata.makeChar(VersionEncoder.NUMERIC_MARKER_BYTE), Automata.makeCharRange(0x80, 0xFF)))
     );
 
     private static final Automaton OPTIONAL_RELEASE_SEPARATOR = Operations.optional(
         Operations.union(
-            Automata.makeChar(VersionEncoder.PRERELEASE_SEPARATOR_BYTE),
-            Automata.makeChar(VersionEncoder.NO_PRERELEASE_SEPARATOR_BYTE)
+            List.of(
+                Automata.makeChar(VersionEncoder.PRERELEASE_SEPARATOR_BYTE),
+                Automata.makeChar(VersionEncoder.NO_PRERELEASE_SEPARATOR_BYTE)
+            )
         )
     );
 

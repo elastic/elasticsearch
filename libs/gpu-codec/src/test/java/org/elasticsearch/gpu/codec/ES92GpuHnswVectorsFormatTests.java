@@ -12,11 +12,10 @@ package org.elasticsearch.gpu.codec;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.TestUtil;
-import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.gpu.CuVSGPUSupport;
+import org.elasticsearch.index.codec.vectors.ESBaseKnnVectorsFormatTestCase;
 import org.junit.BeforeClass;
 
 import static org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat.DEFAULT_BEAM_WIDTH;
@@ -24,11 +23,7 @@ import static org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat.DEFAULT_MAX_C
 
 // CuVS prints tons of logs to stdout
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "https://github.com/rapidsai/cuvs/issues/1310")
-public class ES92GpuHnswVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
-
-    static {
-        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
-    }
+public class ES92GpuHnswVectorsFormatTests extends ESBaseKnnVectorsFormatTestCase {
 
     static Codec codec;
 

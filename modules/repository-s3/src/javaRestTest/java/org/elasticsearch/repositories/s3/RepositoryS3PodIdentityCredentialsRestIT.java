@@ -30,15 +30,14 @@ import org.junit.rules.TestRule;
 import java.util.Set;
 import java.util.function.Supplier;
 
+import static fixture.aws.DynamicIdentifierSupplier.testClassIdentifierSupplier;
+
 /**
  * @see <a href="https://docs.aws.amazon.com/eks/latest/userguide/pod-id-how-it-works.html">How EKS Pod Identity works</a>
  */
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 public class RepositoryS3PodIdentityCredentialsRestIT extends AbstractRepositoryS3RestTestCase {
 
-    private static final String PREFIX = getIdentifierPrefix("RepositoryS3PodIdentityCredentialsRestIT");
-    private static final String BUCKET = PREFIX + "bucket";
-    private static final String BASE_PATH = PREFIX + "base_path";
     private static final String CLIENT = "pod_identity_credentials_client";
 
     private static final Supplier<String> podIdentityTokenSupplier = new LazyInitializable<>(
@@ -47,6 +46,8 @@ public class RepositoryS3PodIdentityCredentialsRestIT extends AbstractRepository
 
     private static final Supplier<String> regionSupplier = new DynamicRegionSupplier();
     private static final DynamicAwsCredentials dynamicCredentials = new DynamicAwsCredentials(regionSupplier, "s3");
+    private static final Supplier<String> bucketSupplier = testClassIdentifierSupplier("bucket");
+    private static final Supplier<String> basePathSupplier = testClassIdentifierSupplier("base_path");
 
     private static final Ec2ImdsHttpFixture podIdentityCredentialsFixture = new Ec2ImdsHttpFixture(
         new Ec2ImdsServiceBuilder(Ec2ImdsVersion.V1).newCredentialsConsumer(dynamicCredentials::addValidCredentials)
@@ -58,8 +59,8 @@ public class RepositoryS3PodIdentityCredentialsRestIT extends AbstractRepository
     private static final S3HttpFixture s3Fixture = new S3HttpFixture(
         true,
         null,
-        BUCKET,
-        BASE_PATH,
+        bucketSupplier,
+        basePathSupplier,
         S3ConsistencyModel::randomConsistencyModel,
         dynamicCredentials::isAuthorized
     );
@@ -88,12 +89,12 @@ public class RepositoryS3PodIdentityCredentialsRestIT extends AbstractRepository
 
     @Override
     protected String getBucketName() {
-        return BUCKET;
+        return bucketSupplier.get();
     }
 
     @Override
     protected String getBasePath() {
-        return BASE_PATH;
+        return basePathSupplier.get();
     }
 
     @Override

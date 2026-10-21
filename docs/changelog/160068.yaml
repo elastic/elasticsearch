@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 160068
+summary: Add a TopN prefilter for limited aggregations
+type: enhancement

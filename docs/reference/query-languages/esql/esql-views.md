@@ -74,7 +74,7 @@ Use the REST API to create, update, delete, and list views:
 ### Query validation [esql-views-validation]
 `PUT /_query/view/<name>` rejects a query that cannot be parsed.
 
-It also analyzes the query without running it. If the query uses an index or column that does not exist, the response carries a `Warning` header. {{es}} still saves the view, so you can create a view before the index it reads from.
+{applies_to}`stack: ga 9.7+` It also analyzes the query without running it. If the query uses an index or column that does not exist, the response carries a `Warning` header. {{es}} still saves the view, so you can create a view before the index it reads from. Earlier versions only check that the query can be parsed and return no warning.
 
 The analysis uses your privileges. An index you cannot read is reported as unknown. Failures unrelated to the query, such as an overloaded cluster, produce no warning.
 

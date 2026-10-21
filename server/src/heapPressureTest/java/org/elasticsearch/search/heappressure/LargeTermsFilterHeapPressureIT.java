@@ -32,8 +32,8 @@ import java.util.stream.IntStream;
  * few overlapping multi-searches whose sub-searches each stay under it exhaust a small heap.
  *
  * <p>This is the shape of a search-tier out-of-memory seen in production: a multi-search whose sub-searches each carry a filter of about
- * 62k ids, as a plain filter or as the filter of a kNN query on a nested vector field. The vector index type does not matter, since the filter
- * is held the same way whichever kNN query it is handed to, so {@code int8_hnsw}, which needs no licensed plugin, is used.
+ * 62k ids, as a plain filter or as the filter of a kNN query on a nested vector field. The vector index type does not matter, since the
+ * filter is held the same way whichever kNN query it is handed to, so {@code int8_hnsw}, which needs no licensed plugin, is used.
  * <p>See <a href="https://github.com/elastic/elasticsearch/issues/162788">#162788</a> for issue details.</p>
  */
 @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/162788")
@@ -178,29 +178,21 @@ public class LargeTermsFilterHeapPressureIT extends SearchHeapPressureTestCase {
     }
 
     private void createIndex() throws IOException {
-        indexDocuments(
-            INDEX,
-            SHARDS,
-            Strings.format(
-                """
-                    {
-                      "id": {"type": "keyword"},
-                      "chunks": {
-                        "type": "nested",
-                        "properties": {
-                          "vector": {"type": "dense_vector", "dims": %d, "index": true, "similarity": "cosine", "index_options": {"type": "int8_hnsw"}}
-                        }
-                      }
-                    }""",
-                DIMS
-            ),
-            DOCS,
-            i -> {
-                String chunks = IntStream.range(0, CHUNKS_PER_DOC)
-                    .mapToObj(c -> Strings.format("{\"vector\": [%s]}", vector(i * CHUNKS_PER_DOC + c)))
-                    .collect(Collectors.joining(","));
-                return Strings.format("{\"id\": \"%s\", \"chunks\": [%s]}", id(i), chunks);
-            }
-        );
+        indexDocuments(INDEX, SHARDS, Strings.format("""
+            {
+              "id": {"type": "keyword"},
+              "chunks": {
+                "type": "nested",
+                "properties": {
+                  "vector": {"type": "dense_vector", "dims": %d, "index": true,
+                        "similarity": "cosine", "index_options": {"type": "int8_hnsw"}}
+                }
+              }
+            }""", DIMS), DOCS, i -> {
+            String chunks = IntStream.range(0, CHUNKS_PER_DOC)
+                .mapToObj(c -> Strings.format("{\"vector\": [%s]}", vector(i * CHUNKS_PER_DOC + c)))
+                .collect(Collectors.joining(","));
+            return Strings.format("{\"id\": \"%s\", \"chunks\": [%s]}", id(i), chunks);
+        });
     }
 }

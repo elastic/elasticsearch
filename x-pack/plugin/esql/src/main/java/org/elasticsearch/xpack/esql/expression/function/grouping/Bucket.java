@@ -902,17 +902,25 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     /**
      * The width of the {@code from}..{@code to} range as a double. {@code unsigned_long} bounds fold to their
      * sortable-encoded representation and must be decoded rather than read with a signed {@code doubleValue()}.
-     * When both bounds are unsigned_long the difference is computed exactly in BigInteger space first: decoding
-     * each side to a double separately can round away the entire range (doubles quantize in steps of up to 2048
-     * near 2^64).
+     * When both bounds are whole numbers and either is unsigned_long the difference is computed exactly in
+     * BigInteger space first: converting each side to a double separately can round away the entire range
+     * (doubles quantize in steps of up to 2048 near 2^64, so e.g. {@code Long.MAX_VALUE} and
+     * {@code Long.MAX_VALUE + 100} become the same double).
      */
     private double numericRange(FoldContext foldContext) {
-        if (from.dataType() == DataType.UNSIGNED_LONG && to.dataType() == DataType.UNSIGNED_LONG) {
-            BigInteger f = NumericUtils.unsignedLongAsBigInteger(((Number) from.fold(foldContext)).longValue());
-            BigInteger t = NumericUtils.unsignedLongAsBigInteger(((Number) to.fold(foldContext)).longValue());
-            return t.subtract(f).doubleValue();
+        DataType fromType = from.dataType();
+        DataType toType = to.dataType();
+        if (fromType.isWholeNumber()
+            && toType.isWholeNumber()
+            && (fromType == DataType.UNSIGNED_LONG || toType == DataType.UNSIGNED_LONG)) {
+            return wholeNumberBound(foldContext, to).subtract(wholeNumberBound(foldContext, from)).doubleValue();
         }
         return foldNumericBound(foldContext, to) - foldNumericBound(foldContext, from);
+    }
+
+    private static BigInteger wholeNumberBound(FoldContext foldContext, Expression e) {
+        long value = ((Number) e.fold(foldContext)).longValue();
+        return e.dataType() == DataType.UNSIGNED_LONG ? NumericUtils.unsignedLongAsBigInteger(value) : BigInteger.valueOf(value);
     }
 
     /**

@@ -1,0 +1,5 @@
+area: Packaging
+issues: []
+pr: 162872
+summary: Block compromised `eMudhra` intermediates in the bundled JDK
+type: bug

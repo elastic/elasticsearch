@@ -267,7 +267,7 @@ public class NumberFieldMapper extends FieldMapper {
                     DocValuesParameter.Values.Cardinality.LOW
                 ),
                 m -> toType(m).docValuesParameters(),
-                indexSettings.getMode().isStrictColumnar()
+                indexSettings
             );
 
             this.ignoreMalformed = Parameter.explicitBoolParam(
@@ -422,6 +422,9 @@ public class NumberFieldMapper extends FieldMapper {
             return new Parameter<?>[] {
                 indexed,
                 docValuesParameters,
+                docValuesParameters.multiValue(),
+                docValuesParameters.nullability(),
+                docValuesParameters.onFailure(),
                 stored,
                 ignoreMalformed,
                 coerce,
@@ -1582,7 +1585,7 @@ public class NumberFieldMapper extends FieldMapper {
                 } else {
                     query = SortedNumericDocValuesField.newSlowRangeQuery(field, l, u);
                 }
-                if (hasDocValues && context.indexSortedOnField(field)) {
+                if (hasDocValues && context.canUseIndexSortRangeQuery(field)) {
                     query = new IndexSortSortedNumericDocValuesRangeQuery(field, l, u, query);
                 }
                 return query;
@@ -1804,7 +1807,7 @@ public class NumberFieldMapper extends FieldMapper {
                     } else {
                         query = SortedNumericDocValuesField.newSlowRangeQuery(field, l, u);
                     }
-                    if (hasDocValues && context.indexSortedOnField(field)) {
+                    if (hasDocValues && context.canUseIndexSortRangeQuery(field)) {
                         query = new IndexSortSortedNumericDocValuesRangeQuery(field, l, u, query);
                     }
                     return query;
@@ -2897,16 +2900,6 @@ public class NumberFieldMapper extends FieldMapper {
             );
         }
         final boolean recordsOffsets = offsetsFieldName != null && indexSettings.getMode().isStrictColumnar();
-        // Outside strict-columnar modes, a non-default synthetic_source_keep makes the row path keep arrays as-is, either as
-        // positional offsets or in _ignored_source, neither of which this path writes. Strict-columnar modes reject the setting.
-        // TODO: lift into FieldMapper once the columnar path honors synthetic_source_keep for every mapper, scalars included.
-        if (source.kind() == EscfColumnKind.ARRAY
-            && indexSettings.getMode().isStrictColumnar() == false
-            && sourceKeepMode().orElse(indexSettings.sourceKeepMode()) != SourceKeepMode.NONE) {
-            throw new UnsupportedOperationException(
-                Strings.format("mapColumnBatch: field [%s] keeps array source outside a strict-columnar index mode", fullPath())
-            );
-        }
         Long nullSortableLong = nullValue != null ? type.toSortableLong(nullValue) : null;
         EscfColumnData outData = NumberColumnTransform.toSortableLongColumn(
             source,

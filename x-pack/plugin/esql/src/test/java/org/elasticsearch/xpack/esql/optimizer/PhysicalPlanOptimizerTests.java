@@ -4049,17 +4049,19 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
+     * The subquery branch is a bare relation once the analyzer strips its wrapper, so the union is a direct-leaf shape
+     * and {@code PushAggregateThroughUnionAll} splits the count into per-branch partials that compile to Lucene-level
+     * {@code EsStatsQueryExec} counts, summed by the combiner aggregate above the merge.
      * {@snippet lang="text":
      * LimitExec[1000[INTEGER],8]
-     * \_AggregateExec[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count()#3],SINGLE,[$$count()$count{r}#4, $$count()$
-     * seen{r}#5],8]
-     *   \_MergeExec[[],UNION]
-     *     |_ExchangeExec[[],false]
-     *     | \_ProjectExec[[]]
-     *     |   \_EsQueryExec[no_fields_index], ...]
-     *     \_ExchangeExec[[],false]
-     *       \_ProjectExec[[]]
-     *         \_EsQueryExec[no_fields_index], ...]
+     * \_AggregateExec[[],[SUM($$partial$$count(){r$}#4,...) AS count()#3],SINGLE,[$$count()$sum{r}#9, $$count()$seen{r}#10],8]
+     *   \_MergeExec[[$$partial$$count(){r$}#4],UNION]
+     *     |_AggregateExec[[],[COUNT(*[KEYWORD],...) AS $$partial$$count()#4],FINAL,...]
+     *     | \_ExchangeExec[[$$partial$$count()$count{r}#5, $$partial$$count()$seen{r}#6],true]
+     *     |   \_EsStatsQueryExec[no_fields_index], stats[BasicStat[name=*, type=COUNT, query=null]], ...]
+     *     \_AggregateExec[[],[COUNT(*[KEYWORD],...) AS $$partial$$count()#4],FINAL,...]
+     *       \_ExchangeExec[[$$partial$$count()$count{r}#7, $$partial$$count()$seen{r}#8],true]
+     *         \_EsStatsQueryExec[no_fields_index], stats[BasicStat[name=*, type=COUNT, query=null]], ...]
      * }
      */
     public void testProjectAwayColumnsWithSubqueryCount() {
@@ -4073,16 +4075,16 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             LimitExec limit = as(plan, LimitExec.class);
             AggregateExec agg = as(limit.child(), AggregateExec.class);
             MergeExec merge = as(agg.child(), MergeExec.class);
-            assertEquals(0, merge.output().size());
+            // The single merged column is the per-branch partial count, summed by the combiner aggregate above.
+            assertEquals(1, merge.output().size());
             assertEquals(2, merge.children().size());
 
             for (PhysicalPlan child : merge.children()) {
-                ExchangeExec exchange = as(child, ExchangeExec.class);
-                assertEquals(0, exchange.output().size());
-                ProjectExec project = as(exchange.child(), ProjectExec.class);
-                assertEquals(0, project.projections().size());
-                EsQueryExec esQuery = as(project.child(), EsQueryExec.class);
-                assertEquals("no_fields_index", esQuery.indexPattern());
+                AggregateExec partial = as(child, AggregateExec.class);
+                ExchangeExec exchange = as(partial.child(), ExchangeExec.class);
+                EsStatsQueryExec statsQuery = as(exchange.child(), EsStatsQueryExec.class);
+                var stat = as(statsQuery.stat(), EsStatsQueryExec.BasicStat.class);
+                assertThat(stat.type(), is(EsStatsQueryExec.StatsType.COUNT));
             }
         }
     }
@@ -10282,6 +10284,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 QueryWarnings.EMIT
             ),
             null,  // OperatorFactoryRegistry - not needed for these tests
+            true,  // snapshotBuild - bare external sources are planned without a registered dataset
             null,  // parallelWorkerExecutor - not needed for these tests
             0,     // esqlWorkerPoolSize - not needed for these tests
             MatcherWatchdog.noop(),

@@ -36,11 +36,13 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.datasources.DrainSimulatingStorageObject;
 import org.elasticsearch.xpack.esql.datasources.NodeByteBudgetService;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
@@ -418,6 +420,11 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         return new StorageObject() {
             @Override
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
 
             @Override
             public StorageIdentity storageIdentity() {
@@ -1084,6 +1091,11 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
 
             @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -1149,6 +1161,11 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
 
             @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -1207,7 +1224,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
      */
     public void testSeparateStreamsEachFetchTailViaRangeRead() throws IOException {
         // Must exceed the sliding window so a tail seek is a suffix GET, not a whole-file fill
-        // (whole-file fills are not stored in FooterByteCache).
+        // (a whole-file fill is stored in FooterByteCache only when the object fits the footer prefetch).
         byte[] data = new byte[ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 1024];
         randomBytes(data);
         final int[] rangeReadCount = { 0 };
@@ -1216,6 +1233,11 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         StorageObject countingStorageObject = new StorageObject() {
             @Override
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
 
             @Override
             public StorageIdentity storageIdentity() {
@@ -1285,6 +1307,11 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         StorageObject rangeOnlyCounting = new StorageObject() {
             @Override
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
 
             @Override
             public StorageIdentity storageIdentity() {
@@ -1377,6 +1404,11 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
 
             @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -1454,7 +1486,12 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         assertEquals(data.length, rangeGets.getFirst()[1]);
     }
 
-    public void testTinyFileWholeFileFillDoesNotEnterFooterCache() throws IOException {
+    /**
+     * An object no larger than the footer prefetch is what the async footer path stores whole as its footer,
+     * so the adapter's whole-file fill must store it too: a later stream over the same key is then served
+     * from the cache with no GET.
+     */
+    public void testTinyFileWholeFileFillIsStoredAsItsFooter() throws IOException {
         byte[] data = new byte[100];
         randomBytes(data);
         List<long[]> rangeGets = new ArrayList<>();
@@ -1469,8 +1506,9 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             assertArrayEquals(data, buf);
         }
         assertEquals(1, rangeGets.size());
-        byte[] cached = footerByteCache.get(adapter.cacheKey());
-        assertNull("whole-file fills must not occupy FooterByteCache", cached);
+        assertEquals(0L, rangeGets.getFirst()[0]);
+        assertEquals(data.length, rangeGets.getFirst()[1]);
+        assertArrayEquals("the whole-file fill is the object's footer entry", data, footerByteCache.get(adapter.cacheKey()));
 
         rangeGets.clear();
         try (SeekableInputStream stream = adapter.newStream()) {
@@ -1480,9 +1518,379 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             stream.readFully(buf);
             assertArrayEquals(data, buf);
         }
+        assertEquals("a second stream is served from the stored entry", 0, rangeGets.size());
+    }
+
+    /**
+     * The whole-file admission bound is the footer prefetch: an object of exactly that size is stored, one
+     * byte larger is not, even though both fit the sliding window and so are filled whole from offset 0.
+     * Larger whole-file fills would displace genuine footers from the byte budget.
+     */
+    public void testWholeFileFillIsStoredOnlyUpToTheFooterPrefetch() throws IOException {
+        assertWholeFileFillStored(ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES, true);
+        assertWholeFileFillStored(ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES + 1, false);
+    }
+
+    private void assertWholeFileFillStored(int size, boolean stored) throws IOException {
+        assertThat(size, Matchers.lessThanOrEqualTo(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE));
+        byte[] data = new byte[size];
+        randomBytes(data);
+        List<long[]> rangeGets = new ArrayList<>();
+        StorageObject storage = createRecordingRangeReadStorageObject(data, rangeGets);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storage, footerByteCache, breaker);
+
+        try (SeekableInputStream stream = adapter.newStream()) {
+            stream.seek(data.length - 8);
+            byte[] trailer = new byte[8];
+            stream.readFully(trailer);
+        }
+        assertEquals(1, rangeGets.size());
+        assertEquals("a file that fits the window is filled whole", 0L, rangeGets.getFirst()[0]);
+        assertEquals(data.length, rangeGets.getFirst()[1]);
+        byte[] cached = footerByteCache.get(adapter.cacheKey());
+        if (stored) {
+            assertArrayEquals("size " + size + " is within the footer prefetch and must be stored", data, cached);
+        } else {
+            assertNull("size " + size + " exceeds the footer prefetch and must not occupy FooterByteCache", cached);
+        }
+
+        rangeGets.clear();
+        try (SeekableInputStream stream = adapter.newStream()) {
+            stream.seek(data.length - 8);
+            byte[] trailer = new byte[8];
+            stream.readFully(trailer);
+        }
+        assertEquals("size " + size, stored ? 0 : 1, rangeGets.size());
+    }
+
+    /**
+     * {@link ParquetStorageObjectAdapter#refillWholeFileFooter()} stores an absent entry with one whole-file
+     * GET, is a no-op while the entry lives, and stores again once the entry is gone.
+     */
+    public void testRefillWholeFileFooterStoresAbsentEntryOnce() throws IOException {
+        byte[] data = new byte[100];
+        randomBytes(data);
+        List<long[]> rangeGets = new ArrayList<>();
+        StorageObject storage = createRecordingRangeReadStorageObject(data, rangeGets);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storage, footerByteCache, breaker);
+
+        adapter.refillWholeFileFooter();
         assertEquals(1, rangeGets.size());
         assertEquals(0L, rangeGets.getFirst()[0]);
         assertEquals(data.length, rangeGets.getFirst()[1]);
+        assertArrayEquals(data, footerByteCache.get(adapter.cacheKey()));
+        assertEquals("the refill leaves no stream open", 0, adapter.trackedStreamCount());
+
+        adapter.refillWholeFileFooter();
+        assertEquals("a live entry is not read again", 1, rangeGets.size());
+
+        footerByteCache.invalidateAll();
+        adapter.refillWholeFileFooter();
+        assertEquals("an expired entry is read again", 2, rangeGets.size());
+        assertArrayEquals(data, footerByteCache.get(adapter.cacheKey()));
+    }
+
+    /**
+     * An object with no version has no cache key at all: {@link FooterByteCache.Key#keyFor} returns null and its
+     * footer is never cached. The adapter must still open and read it. The admission predicate dereferences the
+     * key for its file length, so without the null conjunct this constructor throws.
+     */
+    public void testUnversionedObjectIsNeitherKeyedNorRefilled() throws IOException {
+        byte[] data = new byte[100];
+        randomBytes(data);
+        List<long[]> rangeGets = new ArrayList<>();
+        StorageObject unversioned = createRecordingRangeReadStorageObject(data, rangeGets, null);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(unversioned, footerByteCache, breaker);
+
+        assertNull("an object with no version has no cache key", adapter.cacheKey());
+
+        adapter.refillWholeFileFooter();
+        assertEquals("nothing to refill without a key", 0, rangeGets.size());
+
+        // The object is still readable; it just never reaches the byte cache.
+        byte[] read = new byte[data.length];
+        try (SeekableInputStream stream = adapter.newStream()) {
+            stream.seek(0);
+            stream.readFully(read);
+        }
+        assertArrayEquals(data, read);
+        assertEquals("the read went to storage", 1, rangeGets.size());
+    }
+
+    /**
+     * A refill whose read fails does not fail the caller: the bytes have no consumer of their own, so the scan
+     * still runs on its own coalesced GETs. It also leaves nothing behind: no cache entry, no open stream, and
+     * no window charge on the breaker or the node byte budget. Storage sees the failure twice because
+     * {@code fetchWindowAt} retries a failed {@link FooterByteCache#getOrLoad} with direct I/O before giving up.
+     */
+    public void testRefillWholeFileFooterSwallowsAFailureAndStoresNothing() {
+        byte[] data = new byte[100];
+        randomBytes(data);
+        AtomicInteger attempts = new AtomicInteger();
+        StorageObject failing = new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
+            public InputStream newStream() {
+                throw new UnsupportedOperationException("Full GET not supported in failing harness");
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) throws IOException {
+                attempts.incrementAndGet();
+                throw new IOException("simulated storage failure");
+            }
+
+            @Override
+            public long length() {
+                return data.length;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.ofEpochMilli(0);
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("memory://refill-failure.parquet");
+            }
+        };
+        ParquetIoWatermark watermark = new ParquetIoWatermark(64 * 1024 * 1024);
+        CircuitBreaker limited = new LimitedBreaker("refill", ByteSizeValue.ofMb(16));
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(failing, footerByteCache, limited, watermark);
+
+        adapter.refillWholeFileFooter();
+        assertEquals("the coalesced load and its direct-I/O retry", 2, attempts.get());
+        assertNull("a failed refill stores nothing", footerByteCache.get(adapter.cacheKey()));
+        assertEquals("the failed refill leaves no stream open", 0, adapter.trackedStreamCount());
+        assertEquals("the failed refill refunds its window on the breaker", 0, limited.getUsed());
+        assertEquals("the failed refill refunds its window on the node budget", 0, watermark.used());
+    }
+
+    /**
+     * A budget rejection must be absorbed like a read failure. In production the outermost wrapper is
+     * {@code QueryBudgetedStorageObject}, which {@code FileSourceFactory} installs above the retry layer, and its
+     * permit acquisition turns a timeout into an {@link EsRejectedExecutionException} — neither an
+     * {@link IOException} nor an {@code ExternalException}, so the retry layer never sees it. Left uncaught it
+     * escapes the refill and fails a query that would otherwise have run, just more slowly.
+     */
+    public void testRefillWholeFileFooterAbsorbsABudgetRejection() {
+        byte[] data = new byte[100];
+        randomBytes(data);
+        AtomicInteger attempts = new AtomicInteger();
+        StorageObject rejecting = new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
+            public InputStream newStream() {
+                throw new UnsupportedOperationException("Full GET not supported in rejecting harness");
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                attempts.incrementAndGet();
+                throw new EsRejectedExecutionException("Failed to acquire query concurrency budget permit: simulated");
+            }
+
+            @Override
+            public long length() {
+                return data.length;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.ofEpochMilli(0);
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("memory://refill-rejected.parquet");
+            }
+        };
+        ParquetIoWatermark watermark = new ParquetIoWatermark(64 * 1024 * 1024);
+        CircuitBreaker limited = new LimitedBreaker("refill", ByteSizeValue.ofMb(16));
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(rejecting, footerByteCache, limited, watermark);
+
+        adapter.refillWholeFileFooter();
+        assertEquals("the coalesced load and its direct-I/O retry", 2, attempts.get());
+        assertNull("a rejected refill stores nothing", footerByteCache.get(adapter.cacheKey()));
+        assertEquals("the rejected refill leaves no stream open", 0, adapter.trackedStreamCount());
+        assertEquals("the rejected refill refunds its window on the breaker", 0, limited.getUsed());
+        assertEquals("the rejected refill refunds its window on the node budget", 0, watermark.used());
+    }
+
+    /**
+     * A stream that ends early must not leave a short entry behind. Every consumer reads a cache entry as the
+     * file's suffix — {@code fillFromCachedTail} and {@code lookupFooterCacheHit} both derive its start as
+     * {@code length - entry.length} — so a prefix cached under that contract is served at the wrong offset as
+     * column-chunk data, with no error raised.
+     */
+    public void testRefillWholeFileFooterRejectsAShortReadAndStoresNothing() {
+        byte[] data = new byte[100];
+        randomBytes(data);
+        AtomicInteger attempts = new AtomicInteger();
+        StorageObject truncating = new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
+            public InputStream newStream() {
+                throw new UnsupportedOperationException("Full GET not supported in truncating harness");
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                attempts.incrementAndGet();
+                // Ends after a third of what was asked for, without throwing.
+                return new ByteArrayInputStream(data, (int) position, data.length / 3);
+            }
+
+            @Override
+            public long length() {
+                return data.length;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.ofEpochMilli(0);
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("memory://refill-short-read.parquet");
+            }
+        };
+        ParquetIoWatermark watermark = new ParquetIoWatermark(64 * 1024 * 1024);
+        CircuitBreaker limited = new LimitedBreaker("refill-short", ByteSizeValue.ofMb(16));
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(truncating, footerByteCache, limited, watermark);
+
+        adapter.refillWholeFileFooter();
+        assertNull("a short read stores nothing", footerByteCache.get(adapter.cacheKey()));
+        assertEquals("the coalesced load and its direct-I/O retry", 2, attempts.get());
+        assertEquals("the short read leaves no stream open", 0, adapter.trackedStreamCount());
+        assertEquals("the short read refunds its window on the breaker", 0, limited.getUsed());
+        assertEquals("the short read refunds its window on the node budget", 0, watermark.used());
+
+        // The refill swallows the failure because nothing consumes its bytes, but a read that does need them
+        // must see the early end rather than silently receive a prefix. The loader rejects the short read and
+        // fetchWindowAt's direct-I/O retry reports the same event, so that is the message the caller gets.
+        IOException failure = expectThrows(IOException.class, () -> {
+            try (SeekableInputStream stream = adapter.newStream()) {
+                stream.seek(0);
+            }
+        });
+        assertThat(failure.getMessage(), Matchers.containsString("Unexpected end of stream"));
+        assertNull("still nothing stored", footerByteCache.get(adapter.cacheKey()));
+    }
+
+    /**
+     * An object that fits the footer prefetch but not the cache's per-entry budget is also never served whole,
+     * so there is nothing to refill. This band is operator-reachable: {@code FOOTER_CACHE_SIZE} takes any
+     * positive size, and {@code maxEntryBytes} is a quarter of it, so a 128kb budget puts the per-entry cap at
+     * 32 KiB and leaves every object between that and 64 KiB here. Without the budget conjunct in
+     * {@code wholeFileIsFooter} the refill would issue a whole-object GET per scan and store nothing, because
+     * {@link FooterByteCache#getOrLoad} rejects an entry over the cap after reading it.
+     */
+    public void testRefillWholeFileFooterIsNoopAboveTheCacheEntryBudget() throws IOException {
+        FooterByteCache noEntries = FooterByteCache.fromSettings(
+            Settings.builder().put(ExternalSourceCacheSettings.FOOTER_CACHE_SIZE.getKey(), "1b").build()
+        );
+        byte[] data = new byte[100];
+        randomBytes(data);
+        assertThat(data.length, Matchers.lessThanOrEqualTo(ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES));
+        assertThat(
+            "the object must exceed the cache's per-entry budget",
+            (long) data.length,
+            Matchers.greaterThan(noEntries.maxEntryBytes())
+        );
+        List<long[]> rangeGets = new ArrayList<>();
+        StorageObject storage = createRecordingRangeReadStorageObject(data, rangeGets);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storage, noEntries, breaker);
+
+        adapter.refillWholeFileFooter();
+        assertEquals("an object the cache cannot hold is never read for a refill", 0, rangeGets.size());
+        assertNull(noEntries.get(adapter.cacheKey()));
+    }
+
+    /**
+     * The refill absorbs a storage read failure — its bytes have no consumer, so the scan's own GETs still
+     * serve the query — but it does not absorb a breaker trip. A {@link CircuitBreakingException} from its own
+     * window charge means the request breaker is at its limit while the scan is about to ask for far larger
+     * buffers, so it propagates rather than being hidden at {@code debug}.
+     */
+    public void testRefillWholeFileFooterPropagatesABreakerTrip() {
+        byte[] data = new byte[100];
+        randomBytes(data);
+        List<long[]> rangeGets = new ArrayList<>();
+        StorageObject storage = createRecordingRangeReadStorageObject(data, rangeGets);
+        CircuitBreaker exhausted = new LimitedBreaker("refill-breaker", ByteSizeValue.ofBytes(1));
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storage, footerByteCache, exhausted);
+
+        expectThrows(CircuitBreakingException.class, adapter::refillWholeFileFooter);
+        assertEquals("the trip happens before the GET is issued", 0, rangeGets.size());
+        assertNull("a tripped refill stores nothing", footerByteCache.get(adapter.cacheKey()));
+        assertEquals("the tripped refill leaves no stream open", 0, adapter.trackedStreamCount());
+    }
+
+    /** An object larger than the footer prefetch is never served whole from the cache, so there is nothing to refill. */
+    public void testRefillWholeFileFooterIsNoopAboveFooterPrefetch() throws IOException {
+        byte[] data = new byte[ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES + 1];
+        randomBytes(data);
+        List<long[]> rangeGets = new ArrayList<>();
+        StorageObject storage = createRecordingRangeReadStorageObject(data, rangeGets);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storage, footerByteCache, breaker);
+
+        adapter.refillWholeFileFooter();
+        assertEquals(0, rangeGets.size());
+        assertNull(footerByteCache.get(adapter.cacheKey()));
     }
 
     public void testSeekToEndOfTinyFileDoesNotFetch() throws IOException {
@@ -1508,6 +1916,11 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         StorageObject countingStorageObject = new StorageObject() {
             @Override
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
 
             @Override
             public StorageIdentity storageIdentity() {
@@ -1583,6 +1996,11 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         return new StorageObject() {
             @Override
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
 
             @Override
             public StorageIdentity storageIdentity() {
@@ -1881,7 +2299,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
      */
     public void testSeparateAdaptersDoNotShareCachedRanges() throws IOException {
         // Must exceed the sliding window so a tail seek is a suffix GET, not a whole-file fill
-        // (whole-file fills are not stored in FooterByteCache).
+        // (a whole-file fill is stored in FooterByteCache only when the object fits the footer prefetch).
         byte[] data = new byte[ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 1024];
         random().nextBytes(data);
         final int[] rangeReadCount = { 0 };
@@ -1919,7 +2337,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
      */
     public void testConcurrentTailReadsEachIssueRangeRequest() throws Exception {
         // Must exceed the sliding window so a tail seek is a suffix GET, not a whole-file fill
-        // (whole-file fills are not stored in FooterByteCache).
+        // (a whole-file fill is stored in FooterByteCache only when the object fits the footer prefetch).
         byte[] data = new byte[ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 1024];
         random().nextBytes(data);
         final AtomicInteger rangeReadCount = new AtomicInteger();
@@ -1929,6 +2347,11 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         StorageObject obj = new StorageObject() {
             @Override
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
 
             @Override
             public StorageIdentity storageIdentity() {
@@ -2106,6 +2529,11 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         return new StorageObject() {
             @Override
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
 
             @Override
             public StorageIdentity storageIdentity() {
@@ -2359,9 +2787,19 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
     }
 
     private StorageObject createRecordingRangeReadStorageObject(byte[] data, List<long[]> rangeGets) {
+        return createRecordingRangeReadStorageObject(data, rangeGets, "v1");
+    }
+
+    /** As {@link #createRecordingRangeReadStorageObject(byte[], List)}, with the given version. */
+    private StorageObject createRecordingRangeReadStorageObject(byte[] data, List<long[]> rangeGets, String version) {
         return new StorageObject() {
             @Override
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return version;
+            }
 
             @Override
             public StorageIdentity storageIdentity() {
@@ -2407,6 +2845,11 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         return new StorageObject() {
             @Override
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
 
             @Override
             public StorageIdentity storageIdentity() {
@@ -2496,6 +2939,11 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         return new StorageObject() {
             @Override
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
 
             @Override
             public StorageIdentity storageIdentity() {

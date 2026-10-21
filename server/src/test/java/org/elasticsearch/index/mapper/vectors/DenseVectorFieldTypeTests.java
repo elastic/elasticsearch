@@ -1120,6 +1120,10 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
 
     private static final Class<? extends Query> SLICED_NESTED_QUERY = DiversifyingChildrenIVFKnnFloatSlicedVectorQuery.class;
 
+    /**
+     * Builds the query with post-filtering turned off: the slice tests inspect the bare kNN query and the filter it carries,
+     * which post-filtering would wrap in a {@code PostFilterKnnQuery}.
+     */
     private static Query createSliceAwareKnnQuery(
         DenseVectorFieldType fieldType,
         Query filter,
@@ -1147,6 +1151,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             parentFilter,
             randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
             randomBoolean(),
+            1.0f,
             sliceContext(sliceEnabled, slices)
         );
     }

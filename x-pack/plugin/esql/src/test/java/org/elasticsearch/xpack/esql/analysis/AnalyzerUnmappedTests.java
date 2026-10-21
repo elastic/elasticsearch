@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
+import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
@@ -59,6 +60,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -849,6 +851,119 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         );
     }
 
+    // A reference written inside a view body is not a load candidate: the caller's unmapped_fields setting ends at
+    // the view boundary, so it fails resolution exactly as it would without the setting. End-to-end in ViewSettingsIT.
+    public void testLoadReferenceInsideViewBodyFailsResolution() {
+        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        test().addLanguages()
+            .addView("emp_lang_view", "FROM test, (FROM languages | KEEP language_code, does_not_exist)")
+            .statementError(setUnmappedLoad("""
+                FROM emp_lang_view
+                | KEEP emp_no, language_code
+                """), allOf(containsString("in view [emp_lang_view]"), containsString("Unknown column [does_not_exist]")));
+    }
+
+    // The same boundary under LOAD_ALL, which does not load anything from a view's _source either: a field a view body names fails
+    // resolution as without the setting, whether it is read, kept, dropped or renamed.
+    public void testLoadAllReferenceInsideViewBodyFailsResolution() {
+        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
+        for (String body : List.of(
+            "FROM test | WHERE does_not_exist IS NOT NULL",
+            "FROM test | KEEP emp_no, does_not_exist",
+            "FROM test | DROP does_not_exist",
+            "FROM test | RENAME does_not_exist AS renamed",
+            "FROM test | STATS c = COUNT(does_not_exist)"
+        )) {
+            test().addView("bad_view", body)
+                .statementError(
+                    setUnmappedLoadAll("FROM bad_view"),
+                    allOf(containsString("in view [bad_view]"), containsString("Unknown column [does_not_exist]"))
+                );
+        }
+    }
+
+    public void testNullifyReferenceInsideViewBodyFailsResolution() {
+        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        test().addLanguages()
+            .addView("emp_lang_view", "FROM test, (FROM languages | KEEP language_code, does_not_exist)")
+            .statementError(setUnmappedNullify("""
+                FROM emp_lang_view
+                | KEEP emp_no, language_code
+                """), allOf(containsString("in view [emp_lang_view]"), containsString("Unknown column [does_not_exist]")));
+    }
+
+    // The view's own SET unmapped_fields applies to that definition alone. The caller set nothing.
+    public void testDropInsideLoadViewDropsTheColumnWhenCallerUsesDefault() {
+        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        LogicalPlan plan = test().addView("drop_view", """
+            SET unmapped_fields="load";
+            FROM test | DROP does_not_exist | KEEP emp_no
+            """).statement("FROM drop_view");
+        assertThat(plan.resolved(), is(true));
+        assertThat(Expressions.names(plan.output()), not(hasItem("does_not_exist")));
+    }
+
+    // The view's own SET unmapped_fields=load is what makes field.a load. The caller set nothing, so the flattened-parent
+    // rejection has to use the view's mode.
+    public void testFlattenedSubfieldInsideLoadViewIsRejectedWhenCallerUsesDefault() {
+        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        index1().addView("flat_view", """
+            SET unmapped_fields="load";
+            FROM test | KEEP field.a
+            """)
+            .statementError(
+                "FROM flat_view",
+                containsString(
+                    "Loading subfield [field.a] when parent [field] is of flattened field type is not supported with "
+                        + "unmapped_fields=\"load\""
+                )
+            );
+    }
+
+    public void testLoadSetInsideViewDefinitionResolvesReferenceInThatBody() {
+        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        LogicalPlan plan = test().addView("load_view", """
+            SET unmapped_fields="load";
+            FROM test | KEEP emp_no, does_not_exist
+            """).statement("FROM load_view");
+        assertThat(plan.resolved(), is(true));
+    }
+
+    // A nested view does not inherit the enclosing view's SET. The reference lives in the nested definition, which
+    // did not opt in, so it fails exactly as it would with no setting anywhere.
+    public void testLoadSetInsideViewDoesNotResolveReferenceInsideNestedView() {
+        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        test().addView("inner_view", "FROM test | KEEP emp_no, does_not_exist")
+            .addView("outer_view", """
+                SET unmapped_fields="load";
+                FROM inner_view
+                """)
+            .statementError(
+                "FROM outer_view",
+                allOf(containsString("in view [inner_view]"), containsString("Unknown column [does_not_exist]"))
+            );
+    }
+
+    // The nested view opted in itself. The enclosing view did not, and does not have to: each definition stands alone.
+    public void testLoadSetInsideNestedViewResolvesEvenWhenEnclosingViewDoesNot() {
+        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        LogicalPlan plan = test().addView("inner_view", """
+            SET unmapped_fields="load";
+            FROM test | KEEP emp_no, does_not_exist
+            """).addView("outer_view", "FROM inner_view").statement("FROM outer_view");
+        assertThat(plan.resolved(), is(true));
+    }
+
+    public void testNullifySetInsideViewDefinitionResolvesReferenceInThatBody() {
+        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        LogicalPlan plan = test().addView("null_view", """
+            SET unmapped_fields="nullify";
+            FROM test | KEEP emp_no, does_not_exist
+            """).statement("FROM null_view");
+        assertThat(plan.resolved(), is(true));
+    }
+
     public void testLoadModeDisallowsCrossBranchTypeConflict() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         test().addLanguages().statementError(setUnmappedLoad("""
@@ -1513,39 +1628,38 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         );
     }
 
+    private static final String LOAD_ALL_SUPPORTED_COMMANDS =
+        "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, IP_LOCATION, "
+            + "REGISTERED_DOMAIN, URI_PARTS, USER_AGENT, MV_EXPAND, SAMPLE, CHANGE_POINT, DEDUP, WHERE, SORT, LIMIT, "
+            + "LIMIT BY, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; ";
+
     /**
      * The MVP allow-list of {@link Verifier#checkLoadAllModeSupportedCommands} rejects commands not yet supported, naming the one it found.
      */
     public void testLoadAllModeRejectsUnsupportedCommands() {
         for (var commandAndLabel : List.of(
-            Tuple.tuple("| DISSECT first_name \"%{a}\"", "DISSECT"),
-            Tuple.tuple("| GROK first_name \"%{WORD:a}\"", "GROK"),
-            Tuple.tuple("| MV_EXPAND first_name", "MV_EXPAND")
+            Tuple.tuple("| RERANK \"food\" ON first_name WITH { \"inference_id\" : \"reranking-inference-id\" }", "RERANK")
         )) {
-            test().statementError(
-                setUnmappedLoadAll("FROM test " + commandAndLabel.v1()),
-                containsString(
-                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
-                        + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; ["
-                        + commandAndLabel.v2()
-                        + "] is not supported yet"
-                )
-            );
+            test().addAnalysisTestsInferenceResolution()
+                .statementError(
+                    setUnmappedLoadAll("FROM test METADATA _score " + commandAndLabel.v1()),
+                    containsString(LOAD_ALL_SUPPORTED_COMMANDS + "[" + commandAndLabel.v2() + "] is not supported yet")
+                );
         }
     }
 
-    public void testLoadAllModeAllowsSupportedCommands() {
-        LogicalPlan plan = test().statement(setUnmappedLoadAll("""
-            FROM test
-            | WHERE emp_no > 1
-            | EVAL x = salary + 1
-            | RENAME first_name AS name
-            | KEEP name, x, salary
-            | DROP salary
-            | SORT name
-            | LIMIT 10
-            """));
-        assertThat(Expressions.names(plan.output()), equalTo(List.of("name", "x")));
+    public void testLoadAllModeRejectsFillNull() {
+        assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        for (String fillNull : List.of(
+            "| FILLNULL \"x\" ON first_name",
+            "| FILLNULL DEFAULT ON *",
+            "| KEEP emp_no, f* | FILLNULL 0 ON *"
+        )) {
+            test().statementError(
+                setUnmappedLoadAll("FROM test " + fillNull),
+                containsString(LOAD_ALL_SUPPORTED_COMMANDS + "[FILLNULL] is not supported yet")
+            );
+        }
     }
 
     public void testLoadAllModeAllowsInlineStats() {
@@ -1697,6 +1811,46 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     /**
+     * One warning per view boundary, in the order the fills were recorded, each naming a bounded list of fields.
+     */
+    public void testViewBoundaryNullFillWarnings() {
+        var v1 = new AnalyzerContext.ViewBoundary(UnmappedResolution.LOAD, null, "v1", null, false);
+        var v2 = new AnalyzerContext.ViewBoundary(UnmappedResolution.LOAD, "outer", "v2", "v3", false);
+        Set<AnalyzerContext.ViewBoundaryNullFill> fills = new LinkedHashSet<>();
+        fills.add(new AnalyzerContext.ViewBoundaryNullFill(v1, "a"));
+        fills.add(new AnalyzerContext.ViewBoundaryNullFill(v2, "c"));
+        fills.add(new AnalyzerContext.ViewBoundaryNullFill(v1, "b"));
+        String suffix =
+            " null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself";
+        assertThat(
+            Analyzer.viewBoundaryNullFillWarnings(fills),
+            equalTo(
+                List.of(
+                    "SET unmapped_fields=\"load\" does not affect the contents of view [v1], so fields [a], [b] are" + suffix,
+                    "SET unmapped_fields=\"load\" in view [outer] does not affect the contents of view [v2] nested in view [v3], "
+                        + "so field [c] is"
+                        + suffix
+                )
+            )
+        );
+
+        List<String> names = new ArrayList<>();
+        int extra = randomIntBetween(1, 100);
+        for (int i = 0; i < ViewQuerySettings.MAX_LISTED_NAMES_IN_VIEW_WARNINGS + extra; i++) {
+            names.add("f" + i);
+        }
+        assertThat(
+            Analyzer.viewBoundaryNullFillWarning(
+                new AnalyzerContext.ViewBoundary(UnmappedResolution.LOAD_ALL, null, "v", null, false),
+                names
+            ),
+            containsString(
+                "[f" + (ViewQuerySettings.MAX_LISTED_NAMES_IN_VIEW_WARNINGS - 1) + "] and [" + extra + "] more are null in its rows"
+            )
+        );
+    }
+
+    /**
      * The warning names at most 20 fields. Any further fields, however long their names, only increment the {@code [M] more} count.
      */
     public void testNonLoadablePunksWarningListsAtMost20Fields() {
@@ -1823,18 +1977,12 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
             .statementError(
                 setUnmappedLoadAll("TS test | STATS MAX(RATE(network.bytes_in)) BY host"),
-                containsString(
-                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
-                        + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; [TS] is not supported yet"
-                )
+                containsString(LOAD_ALL_SUPPORTED_COMMANDS + "[TS] is not supported yet")
             );
         test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
             .statementError(
                 setUnmappedLoadAll("TS test | SORT @timestamp | LIMIT 10"),
-                containsString(
-                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
-                        + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; [TS] is not supported yet"
-                )
+                containsString(LOAD_ALL_SUPPORTED_COMMANDS + "[TS] is not supported yet")
             );
     }
 

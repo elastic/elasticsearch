@@ -838,8 +838,8 @@ public class TrackingResultProcessorTests extends ESTestCase {
 
         // each invocation updates key1 with a random int
         assertNotEquals(
-            resultList.get(1).getIngestDocument().getSourceAndMetadata().get(key1),
-            resultList.get(3).getIngestDocument().getSourceAndMetadata().get(key1)
+            resultList.get(1).getIngestDocument().getSource().get(key1),
+            resultList.get(3).getIngestDocument().getSource().get(key1)
         );
     }
 

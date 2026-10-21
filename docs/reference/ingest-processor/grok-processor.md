@@ -266,6 +266,32 @@ POST _ingest/pipeline/_simulate
 
 The `Failed password` pattern only matches from partway into the line, so the result populates `event.original` and not `user.name` or `source.ip`.
 
+To make a specific pattern take priority, ensure it can match from the same position as the competing pattern. Prefix the `Failed password` pattern with `%{GREEDYDATA}` so it also matches from the start of the string. Both patterns now tie at position 0, and the first pattern in the list wins:
+
+```console
+POST _ingest/pipeline/_simulate
+{
+  "docs": [
+    { "_source": { "message": "Oct 16 12:00:01 web01 sshd[4127]: Failed password for root from 10.1.2.3 port 22 ssh2" } }
+  ],
+  "pipeline": {
+    "processors": [
+      {
+        "grok": {
+          "field": "message",
+          "patterns": [
+            "%{GREEDYDATA}Failed password for %{USER:user.name} from %{IP:source.ip}",
+            "%{GREEDYDATA:event.original}"
+          ]
+        }
+      }
+    ]
+  }
+}
+```
+% NOTCONSOLE
+
+The result now populates `user.name` and `source.ip` instead of `event.original`.
 
 ## Validating input without extracting fields [validate-only]
 ```{applies_to}

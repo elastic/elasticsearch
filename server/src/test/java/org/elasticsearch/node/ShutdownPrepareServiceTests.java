@@ -9,6 +9,7 @@
 
 package org.elasticsearch.node;
 
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.tasks.Task;
@@ -23,8 +24,12 @@ import java.util.Set;
 
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class ShutdownPrepareServiceTests extends ESTestCase {
@@ -49,7 +54,7 @@ public class ShutdownPrepareServiceTests extends ESTestCase {
         boolean completed = ShutdownPrepareService.awaitTasksCompleteInternal(
             timeValueMillis(ShutdownPrepareService.AWAIT_TASKS_POLL_INTERVAL.millis() * 3),
             mock(),
-            actionName,
+            Set.of(actionName),
             "finish",
             taskManager,
             null,
@@ -84,7 +89,7 @@ public class ShutdownPrepareServiceTests extends ESTestCase {
         boolean completed = ShutdownPrepareService.awaitTasksCompleteInternal(
             timeValueMillis(ShutdownPrepareService.AWAIT_TASKS_POLL_INTERVAL.millis() * 3),
             mock(),
-            actionName,
+            Set.of(actionName),
             "finish",
             taskManager,
             null,
@@ -142,13 +147,103 @@ public class ShutdownPrepareServiceTests extends ESTestCase {
         ShutdownPrepareService.awaitTasksCompleteInternal(
             timeValueMillis(ShutdownPrepareService.AWAIT_TASKS_POLL_INTERVAL.millis() * 3),
             mock(),
-            actionName,
+            Set.of(actionName),
             "finish",
             taskManager,
             notified::add,
             null
         );
         assertThat(notified, containsInAnyOrder(task1, task2, task3)); // should notify each task exactly once
+    }
+
+    public void testAwaitTasksCompleteInternal_waitsForAllListedActions() {
+        String action1 = "test:action/one";
+        String action2 = "test:action/two";
+        TaskManager taskManager = mock();
+        long taskId1 = randomNonNegativeLong();
+        long taskId2 = randomValueOtherThan(taskId1, ESTestCase::randomNonNegativeLong);
+        Task task1 = newTask(taskId1, action1);
+        Task task2 = newTask(taskId2, action2);
+        when(taskManager.getTasks())
+            // First call: tasks of both actions
+            .thenReturn(Map.of(taskId1, task1, taskId2, task2))
+            // Second call: only the second action's task
+            .thenReturn(Map.of(taskId2, task2))
+            // Third call: empty
+            .thenReturn(Map.of());
+
+        List<Task> notified = new ArrayList<>();
+        boolean completed = ShutdownPrepareService.awaitTasksCompleteInternal(
+            timeValueMillis(ShutdownPrepareService.AWAIT_TASKS_POLL_INTERVAL.millis() * 3),
+            mock(),
+            Set.of(action1, action2),
+            "finish",
+            taskManager,
+            notified::add,
+            null
+        );
+        assertThat(completed, is(true));
+        assertThat(notified, containsInAnyOrder(task1, task2));
+        verify(taskManager, times(3)).getTasks();
+    }
+
+    public void testAwaitTasksCompleteInternal_ignoresUnlistedActions() {
+        String listedAction = "test:action/listed";
+        TaskManager taskManager = mock();
+        long taskId = randomNonNegativeLong();
+        Task unlistedTask = newTask(taskId, "test:action/unlisted");
+        when(taskManager.getTasks()).thenReturn(Map.of(taskId, unlistedTask));
+
+        List<Task> notified = new ArrayList<>();
+        boolean completed = ShutdownPrepareService.awaitTasksCompleteInternal(
+            timeValueMillis(ShutdownPrepareService.AWAIT_TASKS_POLL_INTERVAL.millis() * 3),
+            mock(),
+            Set.of(listedAction),
+            "finish",
+            taskManager,
+            notified::add,
+            null
+        );
+        assertThat(completed, is(true));
+        assertThat(notified, empty());
+    }
+
+    public void testAwaitTasksCompleteInternal_timesOutWithMixedActions() {
+        String action1 = "test:action/one";
+        String action2 = "test:action/two";
+        TaskManager taskManager = mock();
+        long taskId1 = randomNonNegativeLong();
+        long taskId2 = randomValueOtherThan(taskId1, ESTestCase::randomNonNegativeLong);
+        long taskId3 = randomValueOtherThanMany(Set.of(taskId1, taskId2)::contains, ESTestCase::randomNonNegativeLong);
+        Task task1 = newTask(taskId1, action1);
+        Task task2 = newTask(taskId2, action2);
+        Task unlistedTask = newTask(taskId3, "test:action/unlisted");
+        when(taskManager.getTasks()).thenReturn(Map.of(taskId1, task1, taskId2, task2, taskId3, unlistedTask));
+
+        List<Task> timedOut = new ArrayList<>();
+        boolean completed = ShutdownPrepareService.awaitTasksCompleteInternal(
+            timeValueMillis(ShutdownPrepareService.AWAIT_TASKS_POLL_INTERVAL.millis() * 3),
+            mock(),
+            Set.of(action1, action2),
+            "finish",
+            taskManager,
+            null,
+            timedOut::addAll
+        );
+        assertThat(completed, is(false));
+        assertThat(timedOut, containsInAnyOrder(task1, task2));
+    }
+
+    public void testActionsToAwaitIncludeSearch() {
+        assertThat(ShutdownPrepareService.actionsToAwait(List.of()), equalTo(Set.of(TransportSearchAction.NAME)));
+        assertThat(
+            ShutdownPrepareService.actionsToAwait(List.of("test:action/one", "test:action/two", TransportSearchAction.NAME)),
+            equalTo(Set.of(TransportSearchAction.NAME, "test:action/one", "test:action/two"))
+        );
+    }
+
+    private static Task newTask(long id, String action) {
+        return new Task(id, "transport", action, "description", TaskId.EMPTY_TASK_ID, Map.of());
     }
 
     public void testMaybeRequestRelocationForBulkByPaginatedSearch_nonRelocatableLeader() {

@@ -90,6 +90,18 @@ public interface ActionPlugin {
         return Collections.emptyList();
     }
 
+    /**
+     * Returns the names of the actions whose in-flight tasks the node waits for when it shuts down gracefully, in addition to the
+     * search tasks. Without this, tasks that outlive the HTTP request that started them (e.g. async queries) or that run on behalf of a
+     * coordinator on another node would be abandoned when the node closes. Tasks are matched by exact action name on the local task
+     * manager, so the names must equal {@link org.elasticsearch.tasks.Task#getAction()}, including any suffix such as the one of the
+     * async tasks. The wait is bounded by {@code node.maximum_shutdown_grace_period}; tasks still running when it elapses are not
+     * cancelled, the node just proceeds with the shutdown. See {@link org.elasticsearch.node.ShutdownPrepareService}.
+     */
+    default Collection<String> getActionsToAwaitOnShutdown() {
+        return Collections.emptyList();
+    }
+
     final class ActionHandler {
         private final ActionType<?> action;
         private final Class<? extends TransportAction<?, ?>> transportAction;

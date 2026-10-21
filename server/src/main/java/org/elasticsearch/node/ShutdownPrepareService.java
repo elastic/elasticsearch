@@ -26,6 +26,7 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.node.internal.TerminationHandler;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -33,15 +34,19 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * This class was created to extract out the logic from {@link Node#prepareForClose()} to facilitate testing.
@@ -81,21 +86,32 @@ public class ShutdownPrepareService {
 
     private final TimeValue maxTimeout;
     private final TerminationHandler terminationHandler;
+    private final Set<String> actionsToAwait;
     private final List<ShutdownHook> hooks = new ArrayList<>();
     private volatile boolean isShuttingDown = false;
 
+    /**
+     * Creates the service and registers the built-in shutdown hooks.
+     *
+     * @param additionalActionsToAwait names of the actions whose tasks the node waits for during graceful shutdown, in addition to
+     *                                 the search tasks; typically collected from {@link ActionPlugin#getActionsToAwaitOnShutdown()}
+     */
     @SuppressWarnings(value = "this-escape")
     public ShutdownPrepareService(
         Settings settings,
         HttpServerTransport httpServerTransport,
         TransportService transportService,
-        TerminationHandler terminationHandler
+        TerminationHandler terminationHandler,
+        Collection<String> additionalActionsToAwait
     ) {
         this.maxTimeout = MAXIMUM_SHUTDOWN_TIMEOUT_SETTING.get(settings);
         this.terminationHandler = terminationHandler;
+        this.actionsToAwait = actionsToAwait(additionalActionsToAwait);
 
         final var reindexTimeout = MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(settings);
         addShutdownHook("http-server-transport-stop", httpServerTransport::close);
+        // Besides the search tasks, this also drains the tasks of the plugin-declared actions. The hook name is kept for continuity in
+        // the logs and thread names.
         addShutdownHook("async-search-stop", () -> awaitSearchTasksComplete(maxTimeout, transportService.getTaskManager()));
         addShutdownHook("reindex-stop", () -> relocateReindexTasksAndAwaitComplete(reindexTimeout, transportService.getTaskManager()));
         if (terminationHandler != null) {
@@ -199,14 +215,19 @@ public class ShutdownPrepareService {
         @Nullable Consumer<Task> taskNotifier,
         @Nullable Consumer<List<Task>> onTimeout
     ) {
-        return awaitTasksCompleteInternal(timeout, sleeper, taskName, "finish", taskManager, taskNotifier, onTimeout);
+        return awaitTasksCompleteInternal(timeout, sleeper, Set.of(taskName), "finish", taskManager, taskNotifier, onTimeout);
+    }
+
+    /// Waits for the tasks whose action name is any of `actionNames` to finish, without notifying them.
+    protected boolean awaitTasksComplete(TimeValue timeout, Sleeper sleeper, Set<String> actionNames, TaskManager taskManager) {
+        return awaitTasksCompleteInternal(timeout, sleeper, actionNames, "finish", taskManager, null, null);
     }
 
     protected boolean awaitTasksCancellation(TimeValue timeout, Sleeper sleeper, String taskName, TaskManager taskManager) {
-        return awaitTasksCompleteInternal(timeout, sleeper, taskName, "complete", taskManager, null, null);
+        return awaitTasksCompleteInternal(timeout, sleeper, Set.of(taskName), "complete", taskManager, null, null);
     }
 
-    /// Repeatedly polls the `taskManager` to list tasks whose action name is `taskName`, invoking `sleeper` to sleep for
+    /// Repeatedly polls the `taskManager` to list tasks whose action name is any of `actionNames`, invoking `sleeper` to sleep for
     /// [#AWAIT_TASKS_POLL_INTERVAL] between each poll, until either no matching tasks are returned or the total time waited reaches
     /// `timeout`. Invokes `taskNotifier` exactly once for each matching task encountered. Returns true if it found no matching tasks, false
     /// if it timed out or was interrupted. The `waitFor` parameter gives a verb describing what we're waiting for the task to do, to use in
@@ -215,7 +236,7 @@ public class ShutdownPrepareService {
     static boolean awaitTasksCompleteInternal(
         TimeValue timeout,
         Sleeper sleeper,
-        String taskName,
+        Set<String> actionNames,
         String waitFor,
         TaskManager taskManager,
         @Nullable Consumer<Task> taskNotifier,
@@ -224,9 +245,13 @@ public class ShutdownPrepareService {
         long millisWaited = 0;
         Set<Long> tasksNotified = new HashSet<>();
         while (true) {
-            List<Task> tasksRemaining = taskManager.getTasks().values().stream().filter(task -> taskName.equals(task.getAction())).toList();
+            List<Task> tasksRemaining = taskManager.getTasks()
+                .values()
+                .stream()
+                .filter(task -> actionNames.contains(task.getAction()))
+                .toList();
             if (tasksRemaining.isEmpty()) {
-                logger.debug("all {} tasks complete", taskName);
+                logger.debug("all tasks of actions {} complete", actionNames);
                 return true;
             } else {
                 // Notify all remaining tasks that a shutdown is happening, if a notifier is provided and if we have not already done so.
@@ -241,29 +266,37 @@ public class ShutdownPrepareService {
                 // literally just want to wait and not take up resources on this thread for now.
                 millisWaited += AWAIT_TASKS_POLL_INTERVAL.millis();
                 if (TimeValue.ZERO.equals(timeout) == false && millisWaited >= timeout.millis()) {
-                    logger.warn("timed out after waiting [{}] for [{}] {} tasks to {}", timeout, tasksRemaining.size(), taskName, waitFor);
+                    logger.warn(
+                        "timed out after waiting [{}] for [{}] tasks to {}: {}",
+                        timeout,
+                        tasksRemaining.size(),
+                        waitFor,
+                        countPerAction(tasksRemaining)
+                    );
                     if (onTimeout != null) {
                         onTimeout.accept(tasksRemaining);
                     }
                     return false;
                 }
-                logger.debug(
-                    "waiting for [{}] {} tasks to {}, next poll in [{}]",
-                    tasksRemaining.size(),
-                    taskName,
-                    waitFor,
-                    AWAIT_TASKS_POLL_INTERVAL
-                );
+                if (logger.isDebugEnabled()) {
+                    logger.debug(
+                        "waiting for [{}] tasks to {}, next poll in [{}]: {}",
+                        tasksRemaining.size(),
+                        waitFor,
+                        AWAIT_TASKS_POLL_INTERVAL,
+                        countPerAction(tasksRemaining)
+                    );
+                }
                 try {
                     sleeper.sleep(AWAIT_TASKS_POLL_INTERVAL);
                 } catch (InterruptedException ex) {
                     Thread.currentThread().interrupt();
                     logger.warn(
-                        "interrupted while waiting [{}] for [{}] {} tasks to {}",
+                        "interrupted while waiting [{}] for [{}] tasks to {}: {}",
                         timeout,
                         tasksRemaining.size(),
-                        taskName,
-                        waitFor
+                        waitFor,
+                        countPerAction(tasksRemaining)
                     );
                     return false;
                 }
@@ -271,8 +304,18 @@ public class ShutdownPrepareService {
         }
     }
 
+    // package-private for testing
+    static Set<String> actionsToAwait(Collection<String> additionalActionsToAwait) {
+        return Stream.concat(Stream.of(TransportSearchAction.NAME), additionalActionsToAwait.stream())
+            .collect(Collectors.toUnmodifiableSet());
+    }
+
+    private static Map<String, Long> countPerAction(List<Task> tasks) {
+        return tasks.stream().collect(Collectors.groupingBy(Task::getAction, TreeMap::new, Collectors.counting()));
+    }
+
     private void awaitSearchTasksComplete(TimeValue asyncSearchTimeout, TaskManager taskManager) {
-        awaitTasksComplete(asyncSearchTimeout, new Sleeper(), TransportSearchAction.NAME, taskManager, null, null);
+        awaitTasksComplete(asyncSearchTimeout, new Sleeper(), actionsToAwait, taskManager);
     }
 
     private void relocateReindexTasksAndAwaitComplete(TimeValue asyncReindexTimeout, TaskManager taskManager) {

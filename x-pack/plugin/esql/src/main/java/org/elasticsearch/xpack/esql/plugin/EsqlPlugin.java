@@ -29,6 +29,7 @@ import org.elasticsearch.compute.operator.AbstractPageMappingToIteratorOperator;
 import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverStatus;
+import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.GroupedLimitOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.LimitOperator;
@@ -96,6 +97,7 @@ import org.elasticsearch.xpack.esql.action.RestEsqlStopAsyncAction;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.PlanCheckerProvider;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
 import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCapabilities;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
@@ -141,7 +143,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
+import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
+import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.enrich.StreamingLookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
@@ -786,6 +790,34 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             new ActionHandler(PutDatasetAction.INSTANCE, TransportPutDatasetAction.class),
             new ActionHandler(GetDatasetAction.INSTANCE, TransportGetDatasetAction.class),
             new ActionHandler(DeleteDatasetAction.INSTANCE, TransportDeleteDatasetAction.class)
+        );
+    }
+
+    /**
+     * Graceful shutdown waits for:
+     * <ul>
+     *     <li>the async coordinator tasks, which outlive the HTTP request that started them and only complete once the result is
+     *     stored;</li>
+     *     <li>the coordinator tasks started by transport-level callers, which aren't bound to an HTTP connection;</li>
+     *     <li>the compute, exchange and lookup tasks a node runs for a local coordinator or on behalf of one on another node.</li>
+     * </ul>
+     * {@link EsqlStreamQueryAction} is omitted since it is bound to its HTTP connection, which is already drained.
+     */
+    @Override
+    public Collection<String> getActionsToAwaitOnShutdown() {
+        return List.of(
+            EsqlQueryAction.NAME,
+            EsqlQueryAction.NAME + AsyncTaskManagementService.ASYNC_ACTION_SUFFIX,
+            ComputeService.DATA_ACTION_NAME,
+            ComputeService.CLUSTER_ACTION_NAME,
+            DriverTaskRunner.ACTION_NAME,
+            ExchangeService.OPEN_EXCHANGE_ACTION_NAME,
+            ExchangeService.OPEN_EXCHANGE_ACTION_NAME_FOR_CCS,
+            ExchangeService.EXCHANGE_ACTION_NAME,
+            ExchangeService.EXCHANGE_ACTION_NAME_FOR_CCS,
+            ExchangeService.BATCH_EXCHANGE_STATUS_ACTION_NAME,
+            EnrichLookupService.LOOKUP_ACTION_NAME,
+            LookupFromIndexService.LOOKUP_ACTION_NAME
         );
     }
 

@@ -36,6 +36,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.node.internal.TerminationHandler;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.PluginsLoader;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.readiness.ReadinessService;
@@ -61,6 +62,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
 
 /**
  * Provides various service implementations to {@link NodeConstruction}
@@ -228,6 +230,19 @@ class NodeServiceProvider {
         TransportService transportService,
         TerminationHandler terminationHandler
     ) {
-        return new ShutdownPrepareService(settings, httpServerTransport, transportService, terminationHandler);
+        return new ShutdownPrepareService(
+            settings,
+            httpServerTransport,
+            transportService,
+            terminationHandler,
+            actionsToAwaitOnShutdown(pluginsService)
+        );
+    }
+
+    /** The actions whose tasks the plugins ask graceful shutdown to wait for, see {@link ActionPlugin#getActionsToAwaitOnShutdown()}. */
+    static Set<String> actionsToAwaitOnShutdown(PluginsService pluginsService) {
+        return pluginsService.filterPlugins(ActionPlugin.class)
+            .flatMap(p -> p.getActionsToAwaitOnShutdown().stream())
+            .collect(Collectors.toUnmodifiableSet());
     }
 }

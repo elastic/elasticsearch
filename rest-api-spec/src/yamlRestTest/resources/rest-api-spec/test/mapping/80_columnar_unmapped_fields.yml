@@ -19,12 +19,14 @@ setup:
           mappings:
             properties: {}
 
-  # Same index with one concrete field, for the tests that need a mapped field alongside the absorbed ones.
+  # Same index with one concrete field, for the tests that need a mapped field alongside the absorbed ones. A single shard so that a fetch-phase
+  # failure fails the whole search instead of returning partial results from the shards without hits (serverless defaults to several shards).
   - do:
       indices.create:
         index: test_mapped
         body:
           settings:
+            index.number_of_shards: 1
             index.mode: columnar
             index.mapping.flattened_unmapped_fields.enabled: true
           mappings:
@@ -69,8 +71,8 @@ setup:
   - match: { hits.total.value: 0 }
 
 ---
-"the sink itself is never exposed as a field":
-  # The sink is internal storage: absent from everything that enumerates field names, and its own name resolves like any other unmapped name.
+"the sink is listed like other internal metadata fields":
+  # The sink behaves like _ignored_source: a metadata field that cannot be searched, aggregated or fetched, with nothing resolvable under it.
   - do:
       index:
         index: test_mapped
@@ -85,6 +87,16 @@ setup:
         index: test_mapped
         fields: "*"
   - is_true: fields.mapped
+  - match: { fields._unmapped._unmapped.metadata_field: true }
+  - match: { fields._unmapped._unmapped.searchable: false }
+  - match: { fields._unmapped._unmapped.aggregatable: false }
+
+  - do:
+      field_caps:
+        index: test_mapped
+        fields: "*"
+        filters: "-metadata"
+  - is_true: fields.mapped
   - is_false: fields._unmapped
 
   - do:
@@ -94,19 +106,130 @@ setup:
   - match: { hits.hits.0.fields.mapped: [ 42 ] }
   - is_false: hits.hits.0.fields._unmapped
 
-  # Requesting the sink explicitly returns no fields object at all, rather than an error.
+  # Requesting the sink explicitly fails, as for every internal metadata field that is not stored.
   - do:
+      catch: /Cannot fetch values for field \[_unmapped\]/
       search:
         index: test_mapped
         body: { query: { match_all: {} }, fields: [ "_unmapped" ] }
-  - is_false: hits.hits.0.fields
 
-  # An absorbed key addressed through the sink's name does not resolve either.
+  - do:
+      catch: /Cannot query field \[_unmapped\]/
+      search:
+        index: test_mapped
+        body: { query: { term: { _unmapped: "bare-value" } } }
+
+  # An absorbed key addressed through the sink's name does not resolve.
   - do:
       search:
         index: test_mapped
         body: { query: { term: { _unmapped.bare: "bare-value" } } }
   - match: { hits.total.value: 0 }
+
+---
+"include_unmapped reaches absorbed fields under their own paths":
+  # include_unmapped walks _source, which renders absorbed fields at their original dotted paths, so they arrive as ordinary unmapped
+  # fields rather than under the sink.
+  - do:
+      index:
+        index: test_mapped
+        id: "1"
+        refresh: true
+        body:
+          mapped: 42
+          bare: "bare-value"
+          nums: [ 3, 1, 1 ]
+          outer:
+            inner:
+              leaf: "leaf-value"
+
+  - do:
+      search:
+        index: test_mapped
+        body:
+          query: { match_all: {} }
+          fields:
+            - field: "*"
+              include_unmapped: true
+
+  # Mapped fields still arrive through the ordinary path, with their real type.
+  - match: { hits.hits.0.fields.mapped: [ 42 ] }
+
+  # Absorbed leaves arrive one entry per leaf under their own paths, never under the sink.
+  - match: { hits.hits.0.fields.bare: [ "bare-value" ] }
+  - match: { hits.hits.0.fields.outer\.inner\.leaf: [ "leaf-value" ] }
+  - is_false: hits.hits.0.fields._unmapped
+  - is_false: hits.hits.0.fields._unmapped\.bare
+
+  # Absorbed values are strings even where the document held numbers, since the sink stores keywords. Array order and duplicates survive,
+  # which is the document-order encoding strict columnar uses rather than the sorted-unique doc values a lossy flattened field would give.
+  - match: { hits.hits.0.fields.nums: [ "3", "1", "1" ] }
+
+---
+"synthetic _source renders absorbed fields under their own paths":
+  # Absorbed fields come back as if they had never been absorbed: flat dotted paths at the root (the shape subobjects: false gives mapped
+  # fields too), no _unmapped object, and values as strings since the sink stores keywords.
+  - do:
+      index:
+        index: test_mapped
+        id: "1"
+        refresh: true
+        body:
+          mapped: 42
+          bare: "bare-value"
+          num: 7
+          outer:
+            inner:
+              leaf: "leaf-value"
+
+  - do:
+      get:
+        index: test_mapped
+        id: "1"
+  - match: { _source: { bare: "bare-value", mapped: 42, num: "7", outer.inner.leaf: "leaf-value" } }
+
+  # Source filtering applies to each absorbed field's own path, not to the sink's name.
+  - do:
+      get:
+        index: test_mapped
+        id: "1"
+        _source_includes: bare
+  - match: { _source: { bare: "bare-value" } }
+
+---
+"synthetic _source renders absorbed fields inside nested objects":
+  # Each nested element is its own Lucene document and keeps the fields absorbed inside it, so they render inside the element they came
+  # from, relative to it, even in an element that holds nothing mapped.
+  - do:
+      indices.create:
+        index: test_nested
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.flattened_unmapped_fields.enabled: true
+          mappings:
+            properties:
+              n:
+                type: nested
+                properties:
+                  k:
+                    type: keyword
+  - do:
+      index:
+        index: test_nested
+        id: "1"
+        refresh: true
+        body:
+          top: "top-value"
+          n:
+            - { k: "k-value", u: "u1" }
+            - { u: "u2" }
+
+  - do:
+      get:
+        index: test_nested
+        id: "1"
+  - match: { _source: { n: [ { k: "k-value", u: "u1" }, { u: "u2" } ], top: "top-value" } }
 
 ---
 "exists on a mapped object still matches its mapped leaves":

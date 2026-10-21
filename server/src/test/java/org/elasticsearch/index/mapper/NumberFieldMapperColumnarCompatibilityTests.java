@@ -1074,6 +1074,20 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
         });
     }
 
+    /**
+     * Under {@code synthetic_source_keep: all} the row path copies every value, scalars included, into {@code _ignored_source}, which
+     * the columnar path does not write, so the field is not eligible for the columnar path at all.
+     */
+    public void testLongField_tsdbFieldKeepAllNotColumnar() throws IOException {
+        final var mapperService = createMapperService(tsdbSettings(), mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject(FIELD).field("type", "long").field("synthetic_source_keep", "all").endObject();
+        }));
+        final FieldMapper mapper = (FieldMapper) mapperService.mappingLookup().getMapper(FIELD);
+        assertFalse(mapper.supportsColumnarParse(mapperService.getIndexSettings()));
+    }
+
     private void assertTsdbKeepModeArrayBailsOut(Settings settings, CheckedConsumer<XContentBuilder, IOException> mapping)
         throws IOException {
         final var mapperService = createMapperService(settings, mapping(mapping));
@@ -1081,7 +1095,7 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
             UnsupportedOperationException.class,
             () -> mapColumnarLeaf(mapperService, FIELD, "{\"@timestamp\":" + ST_TS_A + ",\"f\":[3,1,3]}")
         );
-        assertTrue(ex.getMessage(), ex.getMessage().contains("keeps array source outside a strict-columnar index mode"));
+        assertTrue(ex.getMessage(), ex.getMessage().contains("may keep array source outside a strict-columnar index mode"));
     }
 
     /** TSDB settings naming both the keyword {@code dim} and the numeric {@code f} as index dimensions. */
@@ -1159,7 +1173,7 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
         // on_failure=FAIL document-level error instead.
         final var mapperService = createMapperService(columnarSettings(), mapping(b -> {
             b.startObject(FIELD).field("type", "long");
-            b.startObject("doc_values").field("nullability", false).endObject();
+            b.field("nullability", false);
             b.endObject();
         }));
         expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":1}", "{\"f\":null}"));

@@ -187,7 +187,10 @@ public class ExternalSourceResolver {
      * Returns a config with the {@link #DATASOURCE_CONFIG_KEY} sub-map removed. Used as the fallback
      * when serializing a plan to a data node whose transport version predates the encrypted-secret
      * carrier (see {@code ExternalSourceExec.writeTo}): such a node cannot deserialize the carrier, so
-     * the credentials are stripped and it reverts to pre-credential-forwarding behavior.
+     * the credentials are stripped and it reverts to pre-credential-forwarding behavior. For a dataset, a
+     * current node does not read the forwarded sub-map at all: it rebuilds the whole config from its own
+     * registry ({@link DatasetConfigResolver}) before planning, so what travels here only matters to older
+     * targets and to the snapshot-only inline {@code EXTERNAL} command, which has no registry entry.
      */
     public static Map<String, Object> planConfig(Map<String, Object> config) {
         if (config == null || config.isEmpty() || config.containsKey(DATASOURCE_CONFIG_KEY) == false) {
@@ -5759,8 +5762,9 @@ public class ExternalSourceResolver {
     /**
      * Whether a declared date {@code format} can apply to this physical type as the epoch unit / parse dialect of a
      * numeric column ({@code epoch_second} reads seconds, {@code yyyyMMdd} reads {@code 20260101}). Excludes temporals
-     * ({@code datetime}/{@code date_nanos}): an annotated timestamp is already an instant, so a format on it could never
-     * apply and stays rejected.
+     * ({@code datetime}/{@code date_nanos}): a column the file has typed temporally -- an annotated {@code TIMESTAMP},
+     * or a {@code TIME}, whose unit the annotation states just as plainly -- is already an instant, so a format on it
+     * could never apply and stays rejected.
      */
     private static boolean isNumericType(DataType type) {
         return type == DataType.INTEGER || type == DataType.LONG || type == DataType.UNSIGNED_LONG || type == DataType.DOUBLE;

@@ -1,0 +1,6 @@
+area: ES|QL
+issues: []
+pr: 162261
+summary: "Support IP_LOCATION, REGISTERED_DOMAIN, URI_PARTS, USER_AGENT, LIMIT BY and\
+  \ DEDUP under unmapped_fields=\"LOAD_ALL\""
+type: enhancement

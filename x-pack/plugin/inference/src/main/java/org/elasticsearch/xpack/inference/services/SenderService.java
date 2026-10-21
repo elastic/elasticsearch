@@ -18,6 +18,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.DecisionRequest;
 import org.elasticsearch.inference.DocumentExtractionRequest;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceService;
@@ -64,10 +65,12 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFrom
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.resolveInferenceTimeout;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedCacheControlUnifiedCompletionOperation;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedDecisionOperation;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedDocumentExtractionOperation;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedEmbeddingOperation;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedReasoningUnifiedCompletionOperation;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedSessionIdUnifiedCompletionOperation;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedTemplateUnifiedCompletionOperation;
 
 public abstract class SenderService<M extends Model> implements InferenceService {
 
@@ -272,6 +275,9 @@ public abstract class SenderService<M extends Model> implements InferenceService
             if (supportsChatCompletionSessionId() == false && body.containsSessionId()) {
                 throwUnsupportedSessionIdUnifiedCompletionOperation(name());
             }
+            if (supportsChatCompletionTemplates() == false && body.containsTemplate()) {
+                throwUnsupportedTemplateUnifiedCompletionOperation(name());
+            }
             if (request.stream() == false && supportsNonStreamingChatCompletion() == false) {
                 throw createUnsupportedNonStreamingChatCompletionException(name());
             }
@@ -290,6 +296,13 @@ public abstract class SenderService<M extends Model> implements InferenceService
     }
 
     protected boolean supportsChatCompletionSessionId() {
+        return false;
+    }
+
+    /**
+     * Whether the service accepts a {@code template} instead of {@code messages}.
+     */
+    protected boolean supportsChatCompletionTemplates() {
         return false;
     }
 
@@ -356,6 +369,16 @@ public abstract class SenderService<M extends Model> implements InferenceService
 
             var resolvedInferenceTimeout = resolveInferenceTimeout(timeout, InputType.UNSPECIFIED, clusterService, model.getTaskType());
             doRerankInfer(model, request, resolvedInferenceTimeout, listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    @Override
+    public void decisionInfer(Model model, DecisionRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
+        try {
+            var resolvedInferenceTimeout = resolveInferenceTimeout(timeout, InputType.UNSPECIFIED, clusterService, model.getTaskType());
+            doDecisionInfer(model, request, resolvedInferenceTimeout, listener);
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -450,6 +473,15 @@ public abstract class SenderService<M extends Model> implements InferenceService
 
     protected void doRerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
         throw new IllegalStateException(Strings.format("New rerank code path invoked for %s service that does not support it", name()));
+    }
+
+    protected void doDecisionInfer(
+        Model model,
+        DecisionRequest request,
+        TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        throwUnsupportedDecisionOperation(name());
     }
 
     protected void doDocumentExtractionInfer(

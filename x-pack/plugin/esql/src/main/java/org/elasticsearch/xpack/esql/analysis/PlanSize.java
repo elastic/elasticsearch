@@ -13,6 +13,8 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.IdentityHashMap;
+import java.util.Map;
 
 /**
  * Running total of plan nodes in the query being expanded, checked against the maximum allowed. Written from inside the async
@@ -28,26 +30,31 @@ public class PlanSize {
     }
 
     /**
-     * A running total that starts with the nodes of the parsed {@code plan}. A FORK repeats its upstream plan in every branch, so a
-     * query within the command limit may already hold {@link QueryPragmas#MAX_BRANCH_COUNT_PER_MERGE_MAX} times {@code max} nodes,
-     * plus the FORK's own, before anything is expanded into it; that much is counted and, as long as nothing is expanded, allowed.
-     * Past that ceiling the plan can only be FORKs nested through subqueries, whose branches share their input by reference and whose
-     * path count grows exponentially, so it is rejected without being walked any further.
+     * A running total that starts with the nodes of the parsed {@code plan}, rejected past {@link QueryPragmas#maxParsedPlanNodes}.
+     * The parser applies {@link #checkParsedPlan} at every FORK it builds; this is the check for plans built elsewhere.
      */
     public static PlanSize of(LogicalPlan plan, int max) {
-        int ceiling = (int) Math.min((long) max * (QueryPragmas.MAX_BRANCH_COUNT_PER_MERGE_MAX + 1), Integer.MAX_VALUE);
-        int size = countNodes(plan, ceiling);
-        if (size > ceiling) {
+        return new PlanSize(checkParsedPlan(plan, max, new IdentityHashMap<>()), max);
+    }
+
+    /**
+     * Counts {@code plan} through {@code sizes} and rejects it past {@link QueryPragmas#maxParsedPlanNodes}. A FORK repeats its
+     * input in every branch and the count follows, so FORKs nested through subqueries are rejected here, before the plan is walked
+     * once per path by anything else. Returns the count.
+     */
+    public static int checkParsedPlan(LogicalPlan plan, int max, Map<LogicalPlan, Integer> sizes) {
+        int size = countNodes(plan, sizes);
+        if (size > QueryPragmas.maxParsedPlanNodes(max)) {
             throw exceeded(max, size);
         }
-        return new PlanSize(size, max);
+        return size;
     }
 
     /**
      * Adds {@code addedNodes} to the total and fails as soon as the maximum is exceeded.
      */
     public void add(int addedNodes) {
-        size += addedNodes;
+        size = (int) Math.min((long) size + addedNodes, Integer.MAX_VALUE);
         if (size > max) {
             throw exceeded(max, size);
         }
@@ -63,11 +70,10 @@ public class PlanSize {
     }
 
     /**
-     * Adds the nodes of {@code plan} to the total. A plan whose FORK branches share their input by reference has one path per
-     * branch combination, so the count stops as soon as the maximum is exceeded rather than walking every path.
+     * Adds the nodes of {@code plan} to the total.
      */
     public void addNodesOf(LogicalPlan plan) {
-        add(countNodes(plan, max - size));
+        add(countNodes(plan));
     }
 
     public int size() {
@@ -75,27 +81,44 @@ public class PlanSize {
     }
 
     /**
-     * Counts the nodes of {@code plan}, a shared child being counted once per parent. Iterative, so deep plans cannot overflow the stack.
+     * Counts the nodes of {@code plan}, a shared child being counted once per parent: the size the plan reaches once analysis copies
+     * a FORK's input per branch.
      */
     public static int countNodes(LogicalPlan plan) {
-        return countNodes(plan, Integer.MAX_VALUE);
+        return countNodes(plan, new IdentityHashMap<>());
     }
 
     /**
-     * Like {@link #countNodes(LogicalPlan)}, but gives up once the count exceeds {@code limit}, returning {@code limit + 1}.
+     * Like {@link #countNodes(LogicalPlan)}, with the count of every node reached kept in {@code sizes} by identity, so that a node
+     * is walked once however many parents hold it and a later count over a plan that contains it finds it ready. FORK branches
+     * share their input by reference, so without this the walk would take one step per path, exponential in the FORKs nested.
+     * Saturates at {@link Integer#MAX_VALUE}. Iterative, so deep plans cannot overflow the stack.
      */
-    private static int countNodes(LogicalPlan plan, int limit) {
-        int count = 0;
+    public static int countNodes(LogicalPlan plan, Map<LogicalPlan, Integer> sizes) {
         Deque<LogicalPlan> pending = new ArrayDeque<>();
         pending.push(plan);
         while (pending.isEmpty() == false) {
-            LogicalPlan node = pending.pop();
-            count++;
-            if (count > limit) {
-                return count;
+            LogicalPlan node = pending.peek();
+            if (sizes.containsKey(node)) {
+                pending.pop();
+                continue;
             }
-            node.children().forEach(pending::push);
+            long size = 1;
+            boolean childrenCounted = true;
+            for (LogicalPlan child : node.children()) {
+                Integer childSize = sizes.get(child);
+                if (childSize == null) {
+                    pending.push(child);
+                    childrenCounted = false;
+                } else {
+                    size += childSize;
+                }
+            }
+            if (childrenCounted) {
+                sizes.put(node, (int) Math.min(size, Integer.MAX_VALUE));
+                pending.pop();
+            }
         }
-        return count;
+        return sizes.get(plan);
     }
 }

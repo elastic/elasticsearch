@@ -26,6 +26,7 @@ import org.elasticsearch.useragent.api.UserAgentParsedInfo;
 import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.analysis.PlanSize;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -119,6 +120,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -169,6 +171,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     /** Commands seen so far in the main query and in all its subqueries, see {@link ParsingContext#maxCommandCount()} */
     private int commandCount = 0;
+
+    /**
+     * Nodes of each plan built so far, kept by identity so that a FORK's input, held by every branch, is counted once and a FORK
+     * above finds it ready, see {@link PlanSize#countNodes(LogicalPlan, Map)}.
+     */
+    private final Map<LogicalPlan, Integer> planSizes = new IdentityHashMap<>();
 
     protected EsqlStatement statement(ParseTree ctx) {
         EsqlStatement p = typedParsing(this, ctx, EsqlStatement.class);
@@ -1437,7 +1445,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         return input -> {
             List<LogicalPlan> subPlans = subQueries.stream().map(planFactory -> planFactory.apply(input)).toList();
-            return new Fork(source(ctx), subPlans, List.of());
+            Fork fork = new Fork(source(ctx), subPlans, List.of());
+            PlanSize.checkParsedPlan(fork, context.maxCommandCount(), planSizes);
+            return fork;
         };
     }
 

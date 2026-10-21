@@ -19,7 +19,9 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.containsString;
@@ -71,19 +73,29 @@ public class PlanSizeTests extends ESTestCase {
         assertThat(PlanSize.of(plan, 500).size(), equalTo(500 * QueryPragmas.MAX_BRANCH_COUNT_PER_MERGE_MAX + 1));
     }
 
-    /** Counting a shared-input DAG once per path would take 2^60 steps; the count gives up as soon as the ceiling is passed. */
-    public void testOfGivesUpOnASharedInputDag() {
+    /** Counting a shared-input DAG once per path would take 2^60 steps; counted once per node it is 61 steps, saturating. */
+    public void testOfRejectsASharedInputDagWithoutWalkingEveryPath() {
         var e = expectThrows(VerificationException.class, () -> PlanSize.of(sharedInputForks(60), 500));
         assertThat(e.getMessage(), containsString("ES|QL query exceeded the maximum of [500] plan nodes allowed"));
-        int ceiling = 500 * (QueryPragmas.MAX_BRANCH_COUNT_PER_MERGE_MAX + 1);
-        assertThat(e.getMessage(), containsString("Found at least [" + (ceiling + 1) + "] plan nodes"));
+        assertThat(e.getMessage(), containsString("Found at least [" + Integer.MAX_VALUE + "] plan nodes"));
+        assertThat(PlanSize.countNodes(sharedInputForks(20)), equalTo((1 << 21) - 1));
     }
 
-    public void testAddNodesOfStopsAtTheRemainingBudget() {
+    /** A FORK above an already counted plan finds its input ready: the shared map makes the second count cost the new nodes only. */
+    public void testCountNodesReusesTheSizesOfEarlierPlans() {
+        Map<LogicalPlan, Integer> sizes = new IdentityHashMap<>();
+        LogicalPlan input = limitChain(10);
+        assertThat(PlanSize.countNodes(input, sizes), equalTo(11));
+        LogicalPlan fork = new Fork(EMPTY, List.of(input, input), List.of());
+        assertThat(PlanSize.countNodes(fork, sizes), equalTo(23));
+        assertThat(sizes.size(), equalTo(12));
+    }
+
+    public void testAddNodesOfFailsPastTheMaximumWithoutOverflowing() {
         PlanSize planSize = new PlanSize(490, 500);
         planSize.addNodesOf(limitChain(4));
         assertThat(planSize.size(), equalTo(495));
         var e = expectThrows(VerificationException.class, () -> planSize.addNodesOf(sharedInputForks(60)));
-        assertThat(e.getMessage(), containsString("Found at least [501] plan nodes"));
+        assertThat(e.getMessage(), containsString("Found at least [" + Integer.MAX_VALUE + "] plan nodes"));
     }
 }

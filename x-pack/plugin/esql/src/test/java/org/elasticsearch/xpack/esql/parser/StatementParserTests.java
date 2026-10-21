@@ -4266,16 +4266,43 @@ public class StatementParserTests extends AbstractStatementParserTests {
         query("FROM a | FORK (WHERE x IN (FROM b | FORK (WHERE x > 0) (WHERE x < 0))) (WHERE y > 0)");
     }
 
+    private static final String MAX_PLAN_NODES_ERROR =
+        "ES|QL query exceeded the maximum of [500] plan nodes allowed after expanding views, subqueries and FORKs.";
+
+    /** {@code depth} FORKs, one per line, each over a UNION ALL of the previous one and another index: 2^depth paths. */
+    private static String nestedForks(int depth) {
+        String query = "FROM a | FORK (WHERE x > 0) (WHERE x < 0)";
+        for (int i = 0; i < depth; i++) {
+            query = "FROM (\n" + query + "\n), b | FORK (WHERE x > 0) (WHERE x < 0)";
+        }
+        return query;
+    }
+
     /**
      * FORK branches share their input by reference, so FORKs nested through UNION ALL subqueries, which are legal, form a DAG with
-     * 2^40 paths over a few hundred nodes. Nothing in parsing may walk it once per path.
+     * 2^depth paths over a few nodes per level. Up to the parsed-plan ceiling they parse, with any command on top, without anything
+     * walking them once per path; the EXPLAIN checks of {@code plan()} and the STATS checks used to.
      */
     public void testNestedForksSeparatedByUnionAllParseWithoutWalkingEveryPath() {
-        String query = "FROM a | FORK (WHERE x > 0) (WHERE x < 0)";
-        for (int i = 0; i < 40; i++) {
-            query = "FROM (" + query + "), b | FORK (WHERE x > 0) (WHERE x < 0)";
-        }
+        String query = nestedForks(9);
         assertThat(query(query), instanceOf(Fork.class));
+        assertThat(query(query + "\n| STATS COUNT(*)"), instanceOf(Aggregate.class));
+        assumeTrue("Requires EXPLAIN capability", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
+        assertThat(query("EXPLAIN (" + query + ")"), instanceOf(Explain.class));
+        expectError("EXPLAIN (" + query + ") | LIMIT 1", "EXPLAIN does not support downstream commands");
+    }
+
+    /**
+     * Past the ceiling the parser rejects the FORK that crosses it, before any later command is applied: a 40-deep nesting has
+     * 2^40 paths and would otherwise take days in any per-path walk.
+     */
+    public void testNestedForksPastTheCeilingRejectedWhileParsing() {
+        for (String suffix : new String[] { "", "\n| STATS COUNT(*)", "\n| WHERE x IN (FROM c)" }) {
+            expectVerificationError(nestedForks(40) + suffix, MAX_PLAN_NODES_ERROR);
+        }
+        expectVerificationError("FROM a | WHERE x IN (" + nestedForks(40) + ")", MAX_PLAN_NODES_ERROR);
+        assumeTrue("Requires EXPLAIN capability", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
+        expectVerificationError("EXPLAIN (" + nestedForks(40) + ")", MAX_PLAN_NODES_ERROR);
     }
 
     public void testSecondForkOnOnePipelineInExplainRejectedAfterParsing() {

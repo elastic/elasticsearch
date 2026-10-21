@@ -325,12 +325,12 @@ public class LetResolverTests extends ESTestCase {
     }
 
     /**
-     * FORKs nested through UNION ALL subqueries are legal, but their branches share input by reference, so the substituted plan has
-     * 2^40 paths. The size check has to give up as soon as the limit is passed instead of walking them all.
+     * FORKs nested through UNION ALL subqueries are legal, but their branches share input by reference, so the parsed plan is already
+     * past the limit and the first binding substituted into it is rejected. The size check must not walk the paths to find that out.
      */
     public void testNestedForksSeparatedByUnionAllRejectedByPlanSizeWithoutWalkingEveryPath() {
         String query = "FROM q | FORK (WHERE x > 0) (WHERE x < 0)";
-        for (int i = 0; i < 40; i++) {
+        for (int i = 0; i < 8; i++) {
             query = "FROM (" + query + "), b | FORK (WHERE x > 0) (WHERE x < 0)";
         }
         String statement = "LET q = (FROM a); " + query;

@@ -105,10 +105,13 @@ SET wildcards_match_views = true;
 FROM my-view-*
 ```
 
-You can also send it in the `_query` request body as `"settings": {"wildcards_match_views": true}`, or change the cluster-wide default by setting `esql.query.settings.wildcards_match_views` in `elasticsearch.yml` or via the cluster settings API. A value set in the query overrides the request body, which overrides the cluster default.
-:::
-:::{applies-item} serverless: preview
-Wildcard patterns don't match views. Query a view by its exact name.
+You can also send it in the `_query` request body as `"settings": {"wildcards_match_views": true}`. A value set in the query overrides the request body.
+
+{applies_to}`stack: ga 9.6+` On Elastic Stack, you can change the cluster-wide
+default by setting `esql.query.settings.wildcards_match_views` in
+`elasticsearch.yml` or through the cluster settings API. The request body
+overrides the cluster default.
+
 :::
 :::{applies-item} stack: preview 9.4-9.5
 Wildcard patterns in `FROM` match registered views automatically.
@@ -186,7 +189,9 @@ serverless: ga
 
 :::{note}
 :applies_to: { "stack": "ga 9.6+", "serverless": "ga" }
-This example requires `wildcards_match_views = true`. By default, wildcards do not match views. Refer to [wildcard patterns and views](#esql-views-wildcards).
+This example requires `wildcards_match_views = true`. By default, wildcards do
+not match views. Refer to [wildcard patterns and views](#esql-views-wildcards)
+and review the [ES|QL view limitations](#esql-views-limitations).
 :::
 
 :::{include} _snippets/commands/examples/views.csv-spec/views_country_wildcard_sum.md

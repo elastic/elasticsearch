@@ -73,39 +73,49 @@ to `true`.
 
 #### Query settings
 
-View definitions handle `SET` differently across versions:
+::::{applies-switch}
+:::{applies-item} { "stack": "ga 9.6+", "serverless": "ga" }
 
-* {applies_to}`{"stack": "preview 9.6+", "serverless": "preview"}` A view
-  definition can set `unmapped_fields`, except for `LOAD_ALL`. Settings that
-  aren't supported in view definitions, including `time_zone`, are rejected.
-* {applies_to}`stack: experimental 9.6+` A view definition can also set
-  `wildcards_match_views` and `wildcards_match_datasets`.
-* {applies_to}`stack: preview 9.4-9.5` A view definition can't contain a `SET`
-  directive.
+Only the following settings are supported in a view definition:
 
-Each supported setting applies only to that view's body and doesn't enter a
-nested view.
+| Setting | Supported values |
+|---|---|
+| [`unmapped_fields`](/reference/query-languages/esql/directives/set.md#esql-unmapped_fields) | `DEFAULT`, `NULLIFY`, and `LOAD`. `LOAD_ALL` is not supported. |
+| [`wildcards_match_views`](/reference/query-languages/esql/directives/set.md#esql-wildcards_match_views) | `true` and `false` |
+| [`wildcards_match_datasets`](/reference/query-languages/esql/directives/set.md#esql-wildcards_match_datasets) {applies_to}`stack: experimental 9.6+` | `true` and `false` |
 
-##### Settings from the calling query
+All other settings, including `time_zone`, are rejected in a view definition.
+:::
+:::{applies-item} stack: preview 9.4-9.5
+A view definition can't contain a `SET` directive.
+:::
+::::
+
+##### Settings across view boundaries
 ```yaml {applies_to}
-stack: preview 9.6+
-serverless: preview
+stack: ga 9.6+
+serverless: ga
 ```
 
-The following query settings stop at the view boundary:
+The three settings supported in view definitions are scoped to each view.
+Values from the calling query, request body, cluster default, or an enclosing
+view don't enter the view. The view uses the value in its definition, or the
+built-in default if unset, and that value doesn't enter a nested view.
 
-* The caller's `unmapped_fields` setting doesn't change field resolution inside
-  the view body. If the view definition doesn't set it, its default applies
-  inside the view body, regardless of the caller's value or the cluster default.
-  This includes `LOAD_ALL`: fields loaded by the caller are `null` for rows from
-  a view unless the view produces those fields itself.
-* {applies_to}`stack: experimental 9.6+` The caller's
-  `wildcards_match_views` and `wildcards_match_datasets` settings don't change
-  wildcard resolution inside the view body. A wildcard in a view body matches
-  views or datasets only when the view definition enables the corresponding
-  setting. Exact names work regardless of these settings.
+Other query settings are rejected in a view definition, but aren't scoped to
+individual views. Their effective value for the calling query can apply while
+evaluating a view. For example, `time_zone` can apply inside a view.
 
-Other settings from the calling query that control the query execution context, such as `time_zone`, can apply inside a view.
+At a view boundary:
+
+* `unmapped_fields`: Fields loaded by an outer query, including with `LOAD_ALL`,
+  are `null` for rows from a view unless the view produces those fields itself.
+* For each supported wildcard setting, exact names work regardless of the
+  setting. A wildcard matches the corresponding target type only when the view
+  definition sets the setting to `true`. If a `true` value from outside the view
+  stops at the boundary and the wildcard would otherwise have matched targets,
+  the response returns a warning that identifies the view and the missed
+  matches.
 
 #### Query parameters
 

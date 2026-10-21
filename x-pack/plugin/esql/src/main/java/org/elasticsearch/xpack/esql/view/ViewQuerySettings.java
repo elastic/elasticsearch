@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.esql.view;
 
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
@@ -118,5 +120,69 @@ public record ViewQuerySettings(UnmappedResolution unmappedFields, boolean wildc
      */
     public boolean requiresViewIdentity() {
         return ViewBoundaryPreservation.settingsRequireViewIdentity(unmappedFields, wildcardsMatchDatasets);
+    }
+
+    /**
+     * At most this many names are listed in one {@link #bracketedList}; the rest are counted. A wide wildcard can match hundreds of
+     * names, and listing them all makes the {@code Warning} header too large for some clients.
+     */
+    public static final int MAX_LISTED_NAMES_IN_VIEW_WARNINGS = 20;
+
+    /**
+     * Where a {@code wildcards_match_*=true} stopped: at the boundary of {@code viewName}, whose definition does not {@code SET}
+     * it. {@code settingView} is the view whose own definition {@code SET} it, or {@code null} when the caller's query did; a
+     * user reading the warning needs to know whether the {@code SET} is theirs to change.
+     */
+    public record WildcardsStop(@Nullable String settingView, String viewName) {}
+
+    /**
+     * The warning for a {@code SET <setting>=true} that stopped as {@code stop} says, at a view whose body has wildcards that
+     * would otherwise have matched {@code names}, which are views or datasets as {@code kind} says. A user who knows the view's
+     * contents may expect the setting to widen them. {@code circularNames} are the views the wildcards also match that enclose
+     * them, the view itself included: the view definition would have to exclude those, since matching one is a circular reference.
+     */
+    public static String wildcardsStoppedAtViewWarning(
+        String setting,
+        WildcardsStop stop,
+        String kind,
+        List<String> names,
+        List<String> circularNames
+    ) {
+        assert names.isEmpty() == false : "nothing to warn about";
+        String circular = circularNames.isEmpty()
+            ? ""
+            : Strings.format(
+                ", excluding view%s %s from its wildcards since matching %s would be a circular reference",
+                circularNames.size() == 1 ? "" : "s",
+                bracketedList(circularNames),
+                circularNames.size() == 1 ? "it" : "them"
+            );
+        return Strings.format(
+            "SET %s=true%s does not affect the contents of view [%s], so its wildcards did not match %s%s %s; "
+                + "use that setting inside the view definition if you wish to change the view behaviour%s",
+            setting,
+            stop.settingView() == null ? "" : " in view [" + stop.settingView() + "]",
+            stop.viewName(),
+            kind,
+            names.size() == 1 ? "" : "s",
+            bracketedList(names),
+            circular
+        );
+    }
+
+    /**
+     * {@code names} as {@code [a], [b]} for the warnings about settings stopped at a view boundary, capped at
+     * {@link #MAX_LISTED_NAMES_IN_VIEW_WARNINGS} names followed by {@code and [N] more}.
+     */
+    public static String bracketedList(List<String> names) {
+        int listed = Math.min(names.size(), MAX_LISTED_NAMES_IN_VIEW_WARNINGS);
+        StringBuilder list = new StringBuilder();
+        for (int i = 0; i < listed; i++) {
+            list.append(i == 0 ? "[" : ", [").append(names.get(i)).append("]");
+        }
+        if (names.size() > listed) {
+            list.append(" and [").append(names.size() - listed).append("] more");
+        }
+        return list.toString();
     }
 }

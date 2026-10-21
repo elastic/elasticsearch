@@ -6174,12 +6174,14 @@ required_capability: optional_fields_load_all_views
 required_capability: settings_scoped_at_view_boundaries
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_view
 | WHERE message == "42"
 | KEEP @timestamp, message, unmapped_message
 ;
+warning:SET unmapped_fields=\"load_all\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 @timestamp:datetime      | message:keyword | unmapped_message:keyword
 2024-10-23T13:33:34.937Z | 42              | null
@@ -6190,11 +6192,13 @@ required_capability: optional_fields_load_all_views
 required_capability: settings_scoped_at_view_boundaries
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_view
 | STATS loaded = COUNT(unmapped_message), rows = COUNT(*)
 ;
+warning:SET unmapped_fields=\"load_all\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 loaded:long | rows:long
 0           | 7
@@ -6221,6 +6225,7 @@ required_capability: settings_scoped_at_view_boundaries
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM (FROM partial_mapping_view | KEEP message, unmapped_message), (FROM employees | KEEP emp_no)
@@ -6228,6 +6233,7 @@ FROM (FROM partial_mapping_view | KEEP message, unmapped_message), (FROM employe
 | KEEP message, unmapped_message
 | SORT message
 ;
+warning:SET unmapped_fields=\"load_all\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 message:keyword | unmapped_message:keyword
 ;
@@ -6238,12 +6244,14 @@ required_capability: settings_scoped_at_view_boundaries
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM (FROM partial_mapping_view | WHERE message == "42"), (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!")
 | KEEP message, unmapped_message
 | SORT message
 ;
+warning:SET unmapped_fields=\"load_all\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 message:keyword        | unmapped_message:keyword
 42                     | null
@@ -6256,6 +6264,7 @@ required_capability: settings_scoped_at_view_boundaries
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM (FROM partial_mapping_view | WHERE message == "42"),
@@ -6263,6 +6272,7 @@ FROM (FROM partial_mapping_view | WHERE message == "42"),
 | KEEP message, unmapped_message
 | SORT message
 ;
+warning:SET unmapped_fields=\"load_all\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 message:keyword        | unmapped_message:keyword
 42                     | null
@@ -6384,12 +6394,14 @@ required_capability: optional_fields_load_all_views
 required_capability: settings_scoped_at_view_boundaries
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data, partial_mapping_view
 | WHERE message == "42"
 | KEEP message, unmapped_message, unmapped_event_duration
 ;
+warning:SET unmapped_fields=\"load_all\" does not affect the contents of view [partial_mapping_view], so fields [unmapped_message], [unmapped_event_duration] are null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 ignoreOrder:true
 
 message:keyword | unmapped_message:keyword | unmapped_event_duration:keyword
@@ -6486,6 +6498,7 @@ required_capability: settings_scoped_at_view_boundaries
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: views_match_wildcards
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="LOAD_ALL"\;
 SET wildcards_match_views=true\;
@@ -6493,6 +6506,7 @@ FROM partial_mapping_view*
 | WHERE message == "42"
 | KEEP message, unmapped_message, event_duration
 ;
+warning:SET unmapped_fields=\"load_all\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 ignoreOrder:true
 
 message:keyword | unmapped_message:keyword | event_duration:long
@@ -6505,12 +6519,15 @@ required_capability: optional_fields_load_all_views
 required_capability: settings_scoped_at_view_boundaries
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data, no_mapping_view, partial_mapping_view
 | WHERE message == "42"
 | KEEP message, event_duration, unmapped_event_duration
 ;
+warning:SET unmapped_fields=\"load_all\" does not affect the contents of view [no_mapping_view], so field [unmapped_event_duration] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warning:SET unmapped_fields=\"load_all\" does not affect the contents of view [partial_mapping_view], so field [unmapped_event_duration] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 ignoreOrder:true
 
 message:keyword | event_duration:long | unmapped_event_duration:keyword
@@ -6784,4 +6801,515 @@ warning:The query has a column named [_unmapped_fields], so the unmapped fields 
 k:long | v:long | _unmapped_fields:keyword | cp:double
 12     | 10     | null                     | null
 13     | 51     | step_change              | 0..1E-20
+;
+
+###########################################################################
+# Compound-output commands, LIMIT BY and DEDUP (#157189)                  #
+###########################################################################
+
+// URI_PARTS adds parts.* columns. They shadow the unmapped parts.domain and parts.port leaves, so those drop out of _unmapped_fields while
+// the others stay. The wildcards parts.* and oth* both keep columns and narrow _unmapped_fields to the leaves they match.
+uriPartsOutputShadowsUnmappedFields
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
+required_capability: uri_parts_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs
+| URI_PARTS parts = url
+| KEEP id, parts.domain, parts.port, parts.*, oth*
+| SORT id
+;
+
+id:keyword | parts.domain:keyword | parts.port:integer | parts.fragment:keyword | parts.path:keyword | parts.extension:keyword | parts.query:keyword | parts.scheme:keyword | parts.user_info:keyword | parts.username:keyword | parts.password:keyword | _unmapped_fields:_source
+1          | www.example.com      | 8080               | null                   | /a                 | null                    | null                | http                 | null                    | null                   | null                   | "{""other"":""x""}"
+2          | example.org          | null               | null                   | /b                 | null                    | null                | https                | null                    | null                   | null                   | "{""other"":""x""}"
+3          | c.example.net        | null               | null                   | /c                 | null                    | null                | http                 | null                    | null                   | null                   | null
+;
+
+// REGISTERED_DOMAIN shadows the unmapped rd.domain leaf in the same way.
+registeredDomainOutputShadowsUnmappedField
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
+required_capability: registered_domain_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs
+| REGISTERED_DOMAIN rd = host
+| KEEP id, rd.*, oth*
+| SORT id
+;
+
+id:keyword | rd.domain:keyword | rd.registered_domain:keyword | rd.top_level_domain:keyword | rd.subdomain:keyword | _unmapped_fields:_source
+1          | www.example.co.uk | example.co.uk                | co.uk                       | www                  | "{""other"":""x""}"
+2          | mail.example.org  | example.org                  | org                         | mail                 | "{""other"":""x""}"
+3          | c.example.net     | example.net                  | net                         | c                    | null
+;
+
+// USER_AGENT shadows the unmapped ua.name leaf.
+userAgentOutputShadowsUnmappedField
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
+required_capability: user_agent_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs
+| USER_AGENT ua = agent
+| KEEP id, ua.name, ua.*, oth*
+| SORT id
+;
+
+id:keyword | ua.name:keyword | ua.version:keyword | ua.os.name:keyword | ua.os.version:keyword | ua.os.full:keyword | ua.device.name:keyword | _unmapped_fields:_source
+1          | Chrome          | 33.0.1750.149      | Mac OS X           | 10.9.2                | Mac OS X 10.9.2    | Mac                    | "{""other"":""x""}"
+2          | Firefox         | 115.0              | Windows            | 10                    | Windows 10         | null                   | "{""other"":""x""}"
+3          | curl            | 8.0.1              | null               | null                  | null               | null                   | null
+;
+
+// IP_LOCATION shadows the unmapped g.country_iso_code leaf.
+ipLocationOutputShadowsUnmappedField
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
+required_capability: ip_location_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs
+| IP_LOCATION g = addr
+| KEEP id, g.country_iso_code, g.*, oth*
+| SORT id
+;
+
+id:keyword | g.country_iso_code:keyword | g.country_name:keyword | g.continent_name:keyword | g.region_iso_code:keyword | g.region_name:keyword | g.city_name:keyword | g.location:geo_point          | _unmapped_fields:_source
+1          | US                         | United States          | North America            | null                      | null                  | null                | POINT (-97.822000 37.751000)  | "{""other"":""x""}"
+2          | AU                         | Australia              | Oceania                  | null                      | null                  | null                | POINT (143.210400 -33.494000) | "{""other"":""x""}"
+3          | FR                         | France                 | Europe                   | null                      | null                  | null                | POINT (2.338700 48.858200)    | null
+;
+
+// LIMIT BY groups by an unmapped field and keeps _unmapped_fields on the surviving rows.
+limitByUnmappedField
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
+required_capability: esql_limit_by
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs
+| SORT id
+| LIMIT 1 BY other
+| KEEP id, other, pa*
+| SORT id
+;
+
+id:keyword | other:keyword | _unmapped_fields:_source
+1          | x             | "{""parts.domain"":""old.example"",""parts.port"":""80""}"
+3          | null          | null
+;
+
+// Rows 1 and 2 share other, so they collapse into one.
+dedupOnUnmappedField
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
+required_capability: dedup_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs
+| KEEP other, ta*
+| DEDUP
+| SORT other
+;
+
+other:keyword | _unmapped_fields:_source
+x             | "{""tag"":""t""}"
+null          | null
+;
+
+dedupIgnoresUnmappedFieldsColumn
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
+required_capability: dedup_command
+required_capability: optional_fields_load_all_inline_stats
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs
+| WHERE id != "3"
+| KEEP other, pa*
+| DEDUP
+| INLINE STATS c = COUNT(*)
+;
+
+other:keyword | _unmapped_fields:_source | c:long
+x             | {any}                    | 1
+;
+
+dedupIgnoresUnmappedFieldsColumnThenKeep
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
+required_capability: dedup_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs
+| WHERE id != "3"
+| KEEP other, pa*
+| DEDUP
+| KEEP other
+;
+
+other:keyword
+x
+;
+
+dedupIgnoresUnmappedFieldsColumnThenStats
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
+required_capability: dedup_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs
+| WHERE id != "3"
+| KEEP other, pa*
+| DEDUP
+| STATS c = COUNT(*)
+;
+
+c:long
+1
+;
+
+dedupOnlyUnmappedFieldsColumn
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
+required_capability: dedup_command
+required_capability: optional_fields_load_all_inline_stats
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs
+| KEEP pa*
+| DEDUP
+| INLINE STATS c = COUNT(*)
+;
+
+_unmapped_fields:_source | c:long
+{any}                    | 1
+;
+
+// Naming an unmapped field anywhere in the query, even after DEDUP, makes it a column of its own, so DEDUP keys on it.
+dedupKeysOnUnmappedFieldNamedAfterIt
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
+required_capability: dedup_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs
+| WHERE id != "3"
+| KEEP other, pa*
+| DEDUP
+| EVAL d = parts.domain
+| KEEP other, d
+| SORT d
+;
+
+other:keyword | d:keyword
+x             | old.example
+x             | old.example2
+;
+
+dedupAfterForkIgnoresUnmappedFieldsColumn
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
+required_capability: dedup_command
+required_capability: optional_fields_load_all_fork
+required_capability: fork_v9
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs
+| FORK (WHERE id == "1") (WHERE id == "2")
+| KEEP other, pa*
+| DEDUP
+;
+
+other:keyword | _unmapped_fields:_source
+x             | {any}
+;
+
+dedupAfterSubqueryIgnoresUnmappedFieldsColumn
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
+required_capability: dedup_command
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs, (FROM unmapped_compound_outputs | WHERE id == "2")
+| WHERE id == "1" OR id == "2"
+| KEEP other, pa*
+| DEDUP
+;
+
+other:keyword | _unmapped_fields:_source
+x             | {any}
+;
+
+disabledSourceWithIncludesAndExcludesSiblings_withDedup
+required_capability: optional_fields_load_all_single_source_column
+required_capability: source_field_mapping
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
+required_capability: dedup_command
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+request_stored: skip
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_source_disabled, unmapped_source_excludes, unmapped_source_includes
+| WHERE id::long == 1 OR id::long == 5
+| KEEP id, a.b*, arr*
+| SORT id::long
+| DEDUP
+;
+
+  id:keyword   |_unmapped_fields:_source
+1              |{any}            
+5              |{any}
+;
+
+
+###########################################################################
+# The new commands over fields that are mapped in one index and not another #
+###########################################################################
+
+// url is a mapped keyword in unmapped_compound_outputs and an unmapped field in unmapped_compound_inputs; URI_PARTS reads both.
+uriPartsOnFieldMappedInOneIndexAndUnmappedInAnother
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
+required_capability: uri_parts_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs, unmapped_compound_inputs
+| URI_PARTS parts = url
+| KEEP id, parts.domain, parts.scheme
+| SORT id
+;
+
+id:keyword | parts.domain:keyword | parts.scheme:keyword
+1          | www.example.com      | http
+2          | example.org          | https
+3          | c.example.net        | http
+b1         | other.example.org    | https
+b2         | www.example.com      | http
+;
+
+// Same for REGISTERED_DOMAIN over host.
+registeredDomainOnFieldMappedInOneIndexAndUnmappedInAnother
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
+required_capability: registered_domain_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs, unmapped_compound_inputs
+| REGISTERED_DOMAIN rd = host
+| KEEP id, rd.registered_domain
+| SORT id
+;
+
+id:keyword | rd.registered_domain:keyword
+1          | example.co.uk
+2          | example.org
+3          | example.net
+b1         | example.com
+b2         | example.co.uk
+;
+
+// Same for USER_AGENT over agent.
+userAgentOnFieldMappedInOneIndexAndUnmappedInAnother
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
+required_capability: user_agent_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs, unmapped_compound_inputs
+| USER_AGENT ua = agent
+| KEEP id, ua.name
+| SORT id
+;
+
+id:keyword | ua.name:keyword
+1          | Chrome
+2          | Firefox
+3          | curl
+b1         | Firefox
+b2         | Chrome
+;
+
+// Same for IP_LOCATION over addr, which is a mapped ip in one index and an unmapped field in the other.
+ipLocationOnFieldMappedInOneIndexAndUnmappedInAnother
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
+required_capability: ip_location_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs, unmapped_compound_inputs
+| IP_LOCATION g = addr
+| KEEP id, g.country_iso_code
+| SORT id
+;
+
+id:keyword | g.country_iso_code:keyword
+1          | US
+2          | AU
+3          | FR
+b1         | US
+b2         | US
+;
+
+// LIMIT BY groups rows by url across both indices: b2 repeats the url of row 1, so only one of them survives.
+limitByFieldMappedInOneIndexAndUnmappedInAnother
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
+required_capability: esql_limit_by
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs, unmapped_compound_inputs
+| SORT id
+| LIMIT 1 BY url
+| KEEP id, url
+| SORT id
+;
+
+id:keyword | url:keyword
+1          | http://www.example.com:8080/a
+2          | https://example.org/b
+3          | http://c.example.net/c
+b1         | https://other.example.org/x
+;
+
+// DEDUP treats a mapped and an unmapped url alike: b2 repeats row 1's url, so the two collapse into one.
+dedupAcrossMappedAndUnmappedIndices
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
+required_capability: dedup_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs, unmapped_compound_inputs
+| KEEP url, ta*
+| DEDUP
+| SORT url
+;
+
+url:keyword                   | _unmapped_fields:_source
+http://c.example.net/c        | null
+http://www.example.com:8080/a | "{""tag"":""t""}"
+https://example.org/b         | "{""tag"":""t""}"
+https://other.example.org/x   | null
+;
+
+dedupAcrossIndicesIgnoresUnmappedFieldsColumn
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
+required_capability: dedup_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs, unmapped_compound_inputs
+| WHERE url == "http://www.example.com:8080/a"
+| KEEP url, pa*
+| DEDUP
+;
+
+url:keyword                   | _unmapped_fields:_source
+http://www.example.com:8080/a | {any}
+;
+
+// Each FORK branch adds its own output columns, which the other branch null-fills.
+forkBranchesWithDifferentCompoundOutputCommands
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
+required_capability: optional_fields_load_all_fork
+required_capability: fork_v9
+required_capability: uri_parts_command
+required_capability: registered_domain_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs
+| WHERE id == "1"
+| FORK (URI_PARTS parts = url | KEEP id, parts.scheme) (REGISTERED_DOMAIN rd = host | KEEP id, rd.registered_domain)
+| SORT _fork
+;
+
+id:keyword | parts.scheme:keyword | _fork:keyword | rd.registered_domain:keyword
+1          | http                 | fork1         | null
+1          | null                 | fork2         | example.co.uk
+;
+
+// An unmapped field that holds something that is not an IP address yields a null location plus the usual warnings, not an error.
+ipLocationOverUnmappedFieldThatIsNotAnIp
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
+required_capability: ip_location_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs
+| WHERE id == "1"
+| IP_LOCATION g = other
+| KEEP id, g.country_iso_code
+;
+warningregex: Line .*: java.lang.IllegalArgumentException:.*
+warningregex: Line .*: evaluation of \[IP_LOCATION.*\] failed, treating result as null.*
+
+id:keyword | g.country_iso_code:keyword
+1          | null
+;
+
+// A properties option limits the columns IP_LOCATION adds, and only those shadow unmapped leaves: g.country_name is produced, so
+// g.country_iso_code, which is not, stays in _unmapped_fields.
+ipLocationWithPropertiesOption
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
+required_capability: ip_location_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs
+| IP_LOCATION g = addr WITH { "properties": ["country_name"] }
+| KEEP id, g.*, oth*
+| SORT id
+;
+
+id:keyword | g.country_name:keyword | _unmapped_fields:_source
+1          | United States          | "{""g.country_iso_code"":""XX"",""other"":""x""}"
+2          | Australia              | "{""g.country_iso_code"":""YY"",""other"":""x""}"
+3          | France                 | null
+;
+
+// An option can add a column: extract_device_type adds ua.device.type next to ua.name, which still shadows the unmapped ua.name leaf.
+userAgentWithDeviceTypeOption
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
+required_capability: user_agent_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs
+| USER_AGENT ua = agent WITH { "extract_device_type": true }
+| KEEP id, ua.name, ua.device.type, oth*
+| SORT id
+;
+
+id:keyword | ua.name:keyword | ua.device.type:keyword | _unmapped_fields:_source
+1          | Chrome          | Desktop                | "{""other"":""x""}"
+2          | Firefox         | Desktop                | "{""other"":""x""}"
+3          | curl            | Other                  | null
+;
+
+// Two commands in different subqueries, one over each of the datasets: each subquery keeps its own output column and its own
+// _unmapped_fields, and the other subquery's column is null-filled.
+compoundOutputCommandsInSubqueries
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+required_capability: uri_parts_command
+required_capability: registered_domain_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM unmapped_compound_outputs | WHERE id == "1" | URI_PARTS parts = url | KEEP id, parts.scheme, oth*),
+     (FROM unmapped_compound_inputs | WHERE id == "b1" | REGISTERED_DOMAIN rd = host | KEEP id, rd.registered_domain, ta*)
+| SORT id
+;
+
+id:keyword | parts.scheme:keyword | rd.registered_domain:keyword | _unmapped_fields:_source
+1          | http                 | null                         | "{""other"":""x""}"
+b1         | null                 | example.com                  | null
 ;

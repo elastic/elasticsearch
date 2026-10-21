@@ -1096,6 +1096,10 @@ public final class ServiceUtils {
         throwUnsupportedTaskOperation(serviceName, "embedding");
     }
 
+    public static void throwUnsupportedDecisionOperation(String serviceName) {
+        throwUnsupportedTaskOperation(serviceName, "decision");
+    }
+
     public static void throwUnsupportedDocumentExtractionOperation(String serviceName) {
         throwUnsupportedTaskOperation(serviceName, "document extraction");
     }

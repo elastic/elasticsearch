@@ -130,14 +130,11 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ),
         GenerativeFeature.UNMAPPED_FIELDS_LOAD,
         UNMAPPED_FIELDS_LOAD_ERRORS,
-        // Permanent design constraint: keep this text identical to Verifier.checkLoadAllModeSupportedCommands.
+        // Permanent design constraint: keep this pattern matching the message of Verifier.checkLoadAllModeSupportedCommands.
         GenerativeFeature.UNMAPPED_FIELDS_LOAD_ALL,
         Sets.union(
             UNMAPPED_FIELDS_LOAD_ERRORS,
-            Set.of(
-                "only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, STATS, INLINE STATS, "
-                    + "LOOKUP JOIN, ENRICH, FORK and subquery commands"
-            )
+            Set.of("only supports the FROM, .* and subquery commands; \\[[^\\]]+\\] is not supported yet")
         ),
         GenerativeFeature.PARQUET_DATASET,
         Set.of(

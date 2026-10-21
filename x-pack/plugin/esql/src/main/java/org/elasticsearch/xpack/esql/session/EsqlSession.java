@@ -1730,6 +1730,7 @@ public class EsqlSession {
             projectMetadata,
             QuerySettings.WILDCARDS_MATCH_DATASETS.get(configuration.resolvedSettings()),
             viewSettings,
+            indexViewOrigins,
             configuration.pragmas(),
             flags,
             planningCpu.meteredCpu(logicalPlanListener.delegateFailureAndWrap((delegate, rewritten) -> {

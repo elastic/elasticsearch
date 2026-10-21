@@ -179,10 +179,11 @@ public class MvPercentileTests extends AbstractScalarFunctionTestCase {
                         "equal values double with an outlier",
                         List.of(DOUBLE, percentileType),
                         () -> new TestCaseSupplier.TestCase(
-                            // percentile 20 of 3 values interpolates between sorted[0] and sorted[1], both 0.1
+                            // percentile 15 of 3 values interpolates between sorted[0] and sorted[1], both 0.1;
+                            // (1 - 0.3) * 0.1 + 0.3 * 0.1 rounds to 0.09999999999999999
                             List.of(
                                 new TestCaseSupplier.TypedData(List.of(0.1, 10., 0.1), DOUBLE, "field"),
-                                percentileWithType(20, percentileType)
+                                percentileWithType(15, percentileType)
                             ),
                             evaluatorString(DOUBLE, percentileType),
                             DOUBLE,

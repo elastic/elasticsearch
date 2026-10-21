@@ -159,7 +159,6 @@ public class ESNextDiskBBQByteVectorsFormatTests extends BaseByteKnnVectorsForma
             MIN_VECTORS_PER_CLUSTER * 4,
             MIN_CENTROIDS_PER_PARENT_CLUSTER,
             DenseVectorFieldMapper.ElementType.BYTE,
-            false,
             null,
             1,
             false,
@@ -167,8 +166,7 @@ public class ESNextDiskBBQByteVectorsFormatTests extends BaseByteKnnVectorsForma
             MIN_VECTORS_PER_CLUSTER * 4,
             null,
             IvfFlushConfigSource.empty(),
-            verifying,
-            false
+            verifying
         );
         IndexWriterConfig iwc = new IndexWriterConfig();
         iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(autoCalibrateFormat));

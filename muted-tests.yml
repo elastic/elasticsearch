@@ -449,12 +449,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {yaml=indices.sort/10_basic/Index Sort}
   issue: https://github.com/elastic/elasticsearch/issues/162591
-- class: org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTests
-  method: testRangeQueryOnIndexSortFieldWithNestedDocs {p0=true p1=ENTERPRISE}
-  issue: https://github.com/elastic/elasticsearch/issues/162719
-- class: org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTests
-  method: testRangeQueryOnIndexSortFieldWithNestedDocs {p0=true p1=BASIC}
-  issue: https://github.com/elastic/elasticsearch/issues/162711
 - class: org.elasticsearch.integration.FieldLevelSecurityTests
   method: testPercolatorConstantKeywordQueryDependsOnIndexingUsersFls
   issue: https://github.com/elastic/elasticsearch/issues/161396

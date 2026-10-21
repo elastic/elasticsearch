@@ -219,6 +219,14 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         // Check all capabilities on the local cluster first.
         super.shouldSkipTest(testName);
 
+        // Inference test service may not be supported on the remote cluster in BWC tests.
+        // Skip tests that require inference endpoints or semantic text inference when remote cluster doesn't support them.
+        assumeTrue(
+            "Multi-cluster tests don't support inference test service when remote cluster doesn't support it",
+            supportsInferenceTestServiceOnLocalCluster()
+                || (super.requiresInferenceEndpointOnLocalCluster() == false && super.requiresSemanticTextInference() == false)
+        );
+
         // Slice tests need the slice dataset, which is not loaded when either cluster predates the current (renamed)
         // slice parameter (see clusterHasCapability). Slice indexing is unreleased, so skip them in a bwc CCS cluster.
         assumeFalse(

@@ -136,6 +136,12 @@ public abstract class AbstractMixedClusterEsqlSpecIT extends EsqlSpecTestCase {
             slicesSupportedOnBwcNode()
                 || testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.METADATA_SLICE.capabilityName()) == false
         );
+        // Inference test service is not supported in mixed-cluster tests (see supportsInferenceTestServiceOnLocalCluster).
+        // Skip tests that require inference endpoints or semantic text inference.
+        CsvTestUtils.assumeTrueLogging(
+            "Mixed-cluster tests don't support inference test service",
+            super.requiresInferenceEndpointOnLocalCluster() == false && super.requiresSemanticTextInference() == false
+        );
         // Stricter than the checkCapabilities call in super.shouldSkipTest, which falls back to testFeatureService when
         // a capability is not reported. adminClient() suffices regardless of which nodes a subclass targets, because
         // _capabilities fans out to every node and ANDs the result, so the answer does not depend on the target.

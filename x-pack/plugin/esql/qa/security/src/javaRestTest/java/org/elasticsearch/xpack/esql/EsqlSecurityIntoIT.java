@@ -193,7 +193,9 @@ public class EsqlSecurityIntoIT extends ESRestTestCase {
 
     private int count(String index) throws IOException {
         Request request = new Request("POST", "_query");
-        XContentBuilder json = JsonXContent.contentBuilder().startObject().field("query", "FROM " + index + " | STATS c = COUNT(*) | LIMIT 10");
+        XContentBuilder json = JsonXContent.contentBuilder()
+            .startObject()
+            .field("query", "FROM " + index + " | STATS c = COUNT(*) | LIMIT 10");
         request.setJsonEntity(Strings.toString(json.endObject()));
         return ((Number) singleRow(client().performRequest(request)).get(0)).intValue();
     }

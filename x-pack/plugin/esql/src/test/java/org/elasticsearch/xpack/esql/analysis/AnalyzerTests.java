@@ -2849,16 +2849,6 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assertDefaultLimitForQuery("FROM test | STATS avg(to_long(network.bytes_in))", DEFAULT_LIMIT);
     }
 
-    public void testInSubquerySortDoesNotSuppressImplicitTimestampSort() {
-        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
-        LogicalPlan plan = tsdb().query("TS test | WHERE host IN (FROM test | SORT host | KEEP host)");
-
-        Limit limit = as(plan, Limit.class);
-        OrderBy orderBy = as(limit.child(), OrderBy.class);
-        assertThat(orderBy.order(), hasSize(1));
-        assertThat(as(orderBy.order().getFirst().child(), FieldAttribute.class).name(), equalTo("@timestamp"));
-    }
-
     public void testLimitForPromQL() {
         assertDefaultLimitForQuery("""
             PROMQL index=test

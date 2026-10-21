@@ -201,8 +201,8 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
         assertFalse(join.right().anyMatch(OrderBy.class::isInstance));
     }
 
-    public void testUnboundedSortInsideInSubqueryWithinJoinSubqueryIsRejected() {
-        VerificationException exception = expectThrows(VerificationException.class, () -> planSubquery("""
+    public void testUnboundedSortInsideInSubqueryWithinJoinSubqueryIsPruned() {
+        LogicalPlan plan = planSubquery("""
             FROM test
             | LEFT OUTER JOIN (
                 FROM test
@@ -210,9 +210,10 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
                 | KEEP languages
               ) ON languages
             | LIMIT 10
-            """, Settings.EMPTY));
+            """, Settings.EMPTY);
 
-        assertThat(exception.getMessage(), containsString("Unbounded SORT not supported yet [SORT emp_no] please add a LIMIT"));
+        SubqueryJoin join = findSubqueryJoin(plan);
+        assertFalse(join.right().anyMatch(OrderBy.class::isInstance));
     }
 
     public void testPropagateEvalFoldablesDoesNotCrossSubqueryJoin() {

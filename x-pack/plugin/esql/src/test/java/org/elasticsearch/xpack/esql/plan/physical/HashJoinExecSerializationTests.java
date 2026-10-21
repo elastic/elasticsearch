@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -85,7 +86,7 @@ public class HashJoinExecSerializationTests extends AbstractPhysicalPlanSerializ
             true
         );
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setTransportVersion(TransportVersion.fromId(Analyzer.ESQL_JOIN_SUBQUERY.id() - 1));
+            out.setTransportVersion(TransportVersionUtils.getPreviousVersion(Analyzer.ESQL_JOIN_SUBQUERY));
             IllegalStateException error = expectThrows(IllegalStateException.class, () -> join.writeTo(out));
             assertThat(error.getMessage(), containsString("without subquery join support"));
         }

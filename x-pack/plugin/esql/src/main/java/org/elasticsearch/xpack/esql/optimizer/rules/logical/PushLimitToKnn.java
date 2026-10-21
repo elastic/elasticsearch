@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
-import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 
 /**
  * Traverses the logical plan and pushes down the limit to the KNN function(s) in filter expressions, so KNN can use
@@ -36,7 +35,7 @@ public class PushLimitToKnn extends OptimizerRules.ParameterizedOptimizerRule<Li
 
     @Override
     public LogicalPlan rule(Limit limit, LogicalOptimizerContext ctx) {
-        return IndependentSubqueryJoin.transformDownInMainScopeSkipBranch(limit, (plan, skipBranch) -> {
+        return limit.transformDownSkipBranch((plan, skipBranch) -> {
             if (plan instanceof Filter filter) {
                 Expression limitAppliedExpression = limitFilterExpressions(filter.condition(), limit, ctx);
                 if (limitAppliedExpression.equals(filter.condition()) == false) {

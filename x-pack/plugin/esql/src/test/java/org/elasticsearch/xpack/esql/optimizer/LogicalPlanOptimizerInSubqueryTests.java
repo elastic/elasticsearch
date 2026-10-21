@@ -74,22 +74,6 @@ public class LogicalPlanOptimizerInSubqueryTests extends AbstractLogicalPlanOpti
         );
     }
 
-    public void testOuterLimitDoesNotSetKnnSubqueryLimit() {
-        String operator = randomBoolean() ? "IN" : "NOT IN";
-        var e = expectThrows(
-            VerificationException.class,
-            () -> optimize(
-                typesAnalyzer().query(
-                    "FROM types | WHERE integer " + operator + " (FROM types | WHERE knn(dense_vector, [0, 1, 2]) | KEEP integer)"
-                )
-            )
-        );
-        assertThat(
-            e.getMessage(),
-            containsString("Knn function must be used with a LIMIT clause after it to set the number of nearest neighbors to find")
-        );
-    }
-
     // -- view with unbounded SORT referenced from an IN subquery tests --
 
     /**

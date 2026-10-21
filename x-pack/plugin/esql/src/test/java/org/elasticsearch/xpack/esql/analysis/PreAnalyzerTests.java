@@ -219,8 +219,8 @@ public class PreAnalyzerTests extends ESTestCase {
     public void testSameIndexPatternWithDifferentIndexModesFails() {
         assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
         expectThrows(
-            IllegalStateException.class,
-            containsString("index pattern 'p' found with different index mode"),
+            EsqlIllegalArgumentException.class,
+            containsString("Index pattern [p] is referenced with multiple index modes"),
             () -> new PreAnalyzer().preAnalyze(TEST_PARSER.parseQuery(randomFrom("FROM (FROM p), (TS p)", "FROM (TS p), (FROM p)")))
         );
     }

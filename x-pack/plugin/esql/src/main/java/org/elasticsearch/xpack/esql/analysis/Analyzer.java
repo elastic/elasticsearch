@@ -3709,14 +3709,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static class AddImplicitLimit extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
         public LogicalPlan apply(LogicalPlan logicalPlan, AnalyzerContext context) {
-            List<LogicalPlan> limits = IndependentSubqueryJoin.collectFirstChildrenInMainScope(logicalPlan, Limit.class::isInstance);
+            List<LogicalPlan> limits = logicalPlan.collectFirstChildren(Limit.class::isInstance);
             // We check whether the query contains a TimeSeriesAggregate to determine if we should apply
             // the default limit for TS queries or for non-TS queries.
             // NOTE: PromqlCommand is translated to TimeSeriesAggregate during optimization.
             // TimeSeriesCollapse is included because const-folded PromQL plans (e.g. literals on empty indices)
             // replace PromqlCommand with a LocalRelation but retain the TimeSeriesCollapse wrapper.
-            boolean isTsAggregate = IndependentSubqueryJoin.collectFirstChildrenInMainScope(
-                logicalPlan,
+            boolean isTsAggregate = logicalPlan.collectFirstChildren(
                 lp -> lp instanceof TimeSeriesAggregate || lp instanceof PromqlCommand || lp instanceof TimeSeriesCollapse
             ).isEmpty() == false;
 
@@ -3752,66 +3751,37 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private LogicalPlan injectTimestampSort(Limit limit) {
-            return injectTimestampSortInSubqueryScopes(limit);
-        }
+            LogicalPlan child = limit.child();
 
-        private LogicalPlan injectTimestampSortInSubqueryScopes(LogicalPlan plan) {
-            LogicalPlan sortedMainScope = injectTimestampSortInMainScope(plan);
-            return IndependentSubqueryJoin.transformUpInMainScope(sortedMainScope, node -> {
-                if (node instanceof IndependentSubqueryJoin join) {
-                    LogicalPlan sortedRight = injectTimestampSortInSubqueryScopes(join.right());
-                    if (sortedRight == join.right()) {
-                        return node;
-                    }
-                    return node.replaceChildren(List.of(join.left(), sortedRight));
-                }
-                return node;
-            });
-        }
-
-        private LogicalPlan injectTimestampSortInMainScope(LogicalPlan plan) {
-            LogicalPlan child = plan instanceof Limit limit ? limit.child() : plan;
-
-            boolean hasExplicitSortOrAggregate = IndependentSubqueryJoin.collectFirstChildrenInMainScope(
-                child,
-                lp -> lp instanceof OrderBy || lp instanceof Aggregate
-            ).isEmpty() == false;
+            boolean hasExplicitSortOrAggregate = child.collectFirstChildren(lp -> lp instanceof OrderBy || lp instanceof Aggregate)
+                .isEmpty() == false;
 
             if (hasExplicitSortOrAggregate) {
-                return plan;
+                return limit;
             }
 
-            boolean hasTimeSeries = IndependentSubqueryJoin.anyMatchInMainScope(
-                child,
-                lp -> lp instanceof EsRelation relation && relation.indexMode().isTsdb()
-            );
+            boolean hasTimeSeries = child.collect(EsRelation.class, r -> r.indexMode().isTsdb()).isEmpty() == false;
             if (hasTimeSeries == false) {
-                return plan;
+                return limit;
             }
 
             // Inject the OrderBy below each (to handle FORK) innermost Limit.
-            return IndependentSubqueryJoin.transformDownInMainScope(plan, node -> {
-                if (node instanceof Limit l) {
-                    if (IndependentSubqueryJoin.collectFirstChildrenInMainScope(l.child(), Limit.class::isInstance).isEmpty()) {
-                        var localChild = l.child();
-                        var localTimestampAttr = IndependentSubqueryJoin.collectFirstChildrenInMainScope(
-                            localChild,
-                            p -> p instanceof EsRelation relation && relation.indexMode().isTsdb()
-                        )
-                            .stream()
-                            .findFirst()
-                            .map(EsRelation.class::cast)
-                            .flatMap(r -> r.output().stream().filter(a -> MetadataAttribute.TIMESTAMP_FIELD.equals(a.name())).findFirst())
-                            .flatMap(ts -> localChild.output().stream().filter(a -> a.id().equals(ts.id())).findFirst());
+            return limit.transformDown(Limit.class, l -> {
+                if (l.child().collect(Limit.class).isEmpty()) {
+                    var localChild = l.child();
+                    var localTimestampAttr = localChild.collect(EsRelation.class, r -> r.indexMode().isTsdb())
+                        .stream()
+                        .findFirst()
+                        .flatMap(r -> r.output().stream().filter(a -> MetadataAttribute.TIMESTAMP_FIELD.equals(a.name())).findFirst())
+                        .flatMap(ts -> localChild.output().stream().filter(a -> a.id().equals(ts.id())).findFirst());
 
-                        if (localTimestampAttr.isPresent()) {
-                            var source = l.source();
-                            Order order = new Order(source, localTimestampAttr.get(), Order.OrderDirection.DESC, Order.NullsPosition.LAST);
-                            return l.replaceChild(new OrderBy(source, localChild, List.of(order)));
-                        }
+                    if (localTimestampAttr.isPresent()) {
+                        var source = l.source();
+                        Order order = new Order(source, localTimestampAttr.get(), Order.OrderDirection.DESC, Order.NullsPosition.LAST);
+                        return l.replaceChild(new OrderBy(source, localChild, List.of(order)));
                     }
                 }
-                return node;
+                return l;
             });
         }
     }

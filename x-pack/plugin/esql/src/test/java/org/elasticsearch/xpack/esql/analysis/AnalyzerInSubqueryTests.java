@@ -8,12 +8,10 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.approximation.ApproximationVerifier;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
@@ -75,26 +73,6 @@ public class AnalyzerInSubqueryTests extends AnalyzerTestCase {
         Project rightProject = as(semiJoin.right(), Project.class);
         EsRelation rightRelation = as(rightProject.child(), EsRelation.class);
         assertEquals("employees", rightRelation.indexPattern());
-    }
-
-    public void testInnerLimitDoesNotChangeOuterDefaultLimit() {
-        LogicalPlan plan = analyzeInSubquery("""
-            FROM employees
-            | WHERE emp_no IN (FROM employees | KEEP emp_no | LIMIT 1)
-            """);
-
-        Limit outerLimit = as(plan, Limit.class);
-        assertThat(
-            as(outerLimit.limit(), Literal.class).value(),
-            equalTo(AnalyzerSettings.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY))
-        );
-        SemiJoin semiJoin = as(outerLimit.child(), SemiJoin.class);
-        assertTrue(
-            semiJoin.right()
-                .anyMatch(
-                    node -> node instanceof Limit innerLimit && innerLimit.limit() instanceof Literal literal && literal.value().equals(1)
-                )
-        );
     }
 
     public void testNotInSubquery() {

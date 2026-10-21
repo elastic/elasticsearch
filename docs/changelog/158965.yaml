@@ -1,0 +1,5 @@
+area: TSDB
+issues: []
+pr: 158965
+summary: Prune the stored `_id` without a recovery source
+type: bug

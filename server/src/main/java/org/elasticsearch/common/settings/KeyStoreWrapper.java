@@ -165,7 +165,7 @@ public class KeyStoreWrapper implements SecureSettings {
     // 5: Lucene directory API changed to LE, ES 8.0
     // 6: increase KDF iteration count, ES 8.14
     // 7: increase cipher key length to 256 bits, ES 9.0
-    // 8: unprotected keystores use a fixed KDF input instead of an empty password, ES 9.6
+    // 8: unprotected keystores use a fixed KDF input instead of an empty password, ES 9.7
 
     /** The metadata format version used to read the current keystore wrapper. */
     private final int formatVersion;

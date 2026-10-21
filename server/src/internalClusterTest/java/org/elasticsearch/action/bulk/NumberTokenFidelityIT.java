@@ -14,12 +14,14 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -36,10 +38,10 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Sends numbers to Elasticsearch in a variety of spellings and checks that they come back the way the client wrote them.
  *
- * <p>Every scenario is its own pair of tests, {@link #testStoredSource} and {@link #testKeywordTerms}, so the test report lists exactly
- * which scenarios pass and which fail. A scenario indexes one document whose only content is a single number (or an array of them),
- * written exactly as the client would write it. The number is mapped both as a number and as a {@code keyword} multi-field, so the
- * spelling is visible to {@code term} queries and aggregations as well as in the stored {@code _source}.
+ * <p>Each combination of scenario, {@link SourceMode} and {@link Check} is its own test, so the test report lists exactly which ones
+ * pass and which fail. A scenario indexes one document whose only content is a single number (or an array of them), written exactly as
+ * the client would write it. The number is mapped both as a number and as a {@code keyword} multi-field, so the spelling is visible to
+ * {@code term} queries and aggregations as well as in {@code _source}.
  *
  * <p>There are two groups of scenarios:
  * <ul>
@@ -47,6 +49,11 @@ import static org.hamcrest.Matchers.equalTo;
  *   <li>float32 tokens, which only exist in the binary formats (SMILE and CBOR). JSON can't express them: every JSON decimal is a
  *       double, even one that happens to be exact as a float32.
  * </ul>
+ *
+ * <p>Synthetic source is covered because a batch can't be rendered back to the client's bytes there either, and because it exercises
+ * different code than stored source does. Which checks make sense depends on the {@link SourceMode}, because some differences are
+ * expected even without batch indexing: synthetic source rebuilds {@code _source} from doc values, and a field kept in ignored source
+ * ({@code synthetic_source_keep: all}) has its keyword sub-field indexed from the parsed value, not from the client's spelling.
  *
  * <p>The tests deliberately do not set {@code indices.batch_indexing}; they run with the default. They are expected to pass when batch
  * indexing is off. When it is on, the ESCF row keeps only a canonical value and a coarse type tag for each number, so the original
@@ -56,6 +63,28 @@ import static org.hamcrest.Matchers.equalTo;
 public class NumberTokenFidelityIT extends ESIntegTestCase {
 
     private static final String INDEX = "numbers";
+
+    private enum SourceMode {
+        /** The default: {@code _source} is stored as the client sent it. */
+        STORED(Check.SOURCE, Check.KEYWORD_TERMS),
+        /** {@code _source} is rebuilt from doc values, so its spelling is not expected to match what was sent. */
+        SYNTHETIC(Check.KEYWORD_TERMS),
+        /** {@code _source} is synthetic, but the number is kept in ignored source as it was parsed. */
+        SYNTHETIC_KEEP_ALL(Check.SOURCE);
+
+        private final List<Check> checks;
+
+        SourceMode(Check... checks) {
+            this.checks = List.of(checks);
+        }
+    }
+
+    private enum Check {
+        /** {@code _source} still says what the client sent. */
+        SOURCE,
+        /** The keyword multi-field was indexed from the token the client sent. */
+        KEYWORD_TERMS
+    }
 
     /**
      * One document to index, and what should be true of it afterwards.
@@ -117,42 +146,76 @@ public class NumberTokenFidelityIT extends ESIntegTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return SCENARIOS.keySet().stream().map(name -> new Object[] { name }).toList();
+        List<Object[]> parameters = new ArrayList<>();
+        for (SourceMode sourceMode : SourceMode.values()) {
+            for (Check check : sourceMode.checks) {
+                for (String scenarioName : SCENARIOS.keySet()) {
+                    parameters.add(new Object[] { scenarioName, sourceMode, check });
+                }
+            }
+        }
+        return parameters;
     }
 
     private final String scenarioName;
     private final Scenario scenario;
+    private final SourceMode sourceMode;
+    private final Check check;
 
-    public NumberTokenFidelityIT(@Name("scenario") String scenarioName) {
+    public NumberTokenFidelityIT(
+        @Name("scenario") String scenarioName,
+        @Name("sourceMode") SourceMode sourceMode,
+        @Name("check") Check check
+    ) {
         this.scenarioName = scenarioName;
         this.scenario = SCENARIOS.get(scenarioName);
+        this.sourceMode = sourceMode;
+        this.check = check;
     }
 
     @Before
     public void indexTheScenario() {
-        assertAcked(prepareCreate(INDEX).setSettings(indexSettings(1, 0)).setMapping("""
+        Settings.Builder settings = indexSettings(1, 0);
+        if (sourceMode != SourceMode.STORED) {
+            settings.put("index.mapping.source.mode", "synthetic");
+        }
+        String keep = sourceMode == SourceMode.SYNTHETIC_KEEP_ALL ? ", \"synthetic_source_keep\": \"all\"" : "";
+        assertAcked(prepareCreate(INDEX).setSettings(settings).setMapping("""
             {
               "properties": {
-                "n": { "type": "double", "fields": { "k": { "type": "keyword" } } },
-                "f": { "type": "float", "fields": { "k": { "type": "keyword" } } }
+                "n": { "type": "double", "fields": { "k": { "type": "keyword" } }%s },
+                "f": { "type": "float", "fields": { "k": { "type": "keyword" } }%s }
               }
             }
-            """));
+            """.formatted(keep, keep)));
         prepareIndex(INDEX).setId(scenarioName).setSource(scenario.source(), scenario.contentType()).get();
         refresh(INDEX);
     }
 
+    public void test() throws IOException {
+        switch (check) {
+            case SOURCE -> assertSourceKeepsTheNumber();
+            case KEYWORD_TERMS -> assertKeywordTermsKeepTheSpelling();
+        }
+    }
+
     /**
-     * The stored {@code _source} should say what the client sent. Both sides are shown as JSON so that a failure is readable, and so
-     * that a float32 token ({@code 123.42}) is distinguishable from the double with the same value ({@code 123.41999816894531}).
+     * {@code _source} should say what the client sent: its spelling in stored source, its parsed value in ignored source. Both sides are
+     * shown as JSON so that a failure is readable, and so that a float32 token ({@code 123.42}) is distinguishable from the double with
+     * the same value ({@code 123.41999816894531}).
      */
-    public void testStoredSource() throws IOException {
-        BytesReference stored = client().prepareGet(INDEX, scenarioName).get().getSourceAsBytesRef();
-        assertThat(toJson(stored), equalTo(toJson(scenario.source())));
+    private void assertSourceKeepsTheNumber() throws IOException {
+        BytesReference actual = client().prepareGet(INDEX, scenarioName).get().getSourceAsBytesRef();
+        String expected = switch (sourceMode) {
+            case STORED -> toJson(scenario.source(), scenario.contentType());
+            case SYNTHETIC_KEEP_ALL -> parsedValuesAsJson(scenario.source(), scenario.contentType());
+            case SYNTHETIC -> throw new AssertionError("synthetic source is not expected to keep the spelling");
+        };
+        assertThat(toJson(actual, XContentHelper.xContentType(actual)), equalTo(expected));
     }
 
     /** The keyword multi-field should be indexed from the token the client sent, so that is the term it should end up with. */
-    public void testKeywordTerms() {
+    private void assertKeywordTermsKeepTheSpelling() {
         var terms = AggregationBuilders.terms("terms").field(scenario.field() + ".k").size(10);
         assertResponse(prepareSearch(INDEX).setSize(0).addAggregation(terms), response -> {
             TreeSet<String> actualTerms = new TreeSet<>();
@@ -163,7 +226,15 @@ public class NumberTokenFidelityIT extends ESIntegTestCase {
         });
     }
 
-    private String toJson(BytesReference source) throws IOException {
-        return XContentHelper.convertToJson(source, false, scenario.contentType());
+    private static String toJson(BytesReference source, XContentType contentType) throws IOException {
+        return XContentHelper.convertToJson(source, false, contentType);
+    }
+
+    /** The source as JSON after each number has been parsed to a Java value, which is how ignored source holds it. */
+    private static String parsedValuesAsJson(BytesReference source, XContentType contentType) throws IOException {
+        Map<String, Object> parsed = XContentHelper.convertToMap(source, false, contentType).v2();
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            return BytesReference.bytes(builder.map(parsed)).utf8ToString();
+        }
     }
 }

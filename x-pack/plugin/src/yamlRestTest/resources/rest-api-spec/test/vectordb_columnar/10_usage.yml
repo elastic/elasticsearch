@@ -2,7 +2,12 @@
 "vectordb_columnar usage":
   - requires:
       cluster_features: ["vectordb_columnar.usage"]
-      reason: "vectordb_columnar usage tracking requires the vectordb_columnar.usage feature"
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ vectordb_columnar_index_mode ]
+      reason: "vectordb_columnar usage tracking requires the vectordb_columnar.usage feature and the vectordb_columnar index mode"
 
   - do: {xpack.usage: {}}
   - match: { vectordb_columnar.available: true }

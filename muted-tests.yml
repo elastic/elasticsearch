@@ -616,3 +616,5 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClustersIT
   method: testRemoteViewFailsQuery
   issue: https://github.com/elastic/elasticsearch/issues/162869
+- class: org.elasticsearch.search.heappressure.LargeTermsFilterHeapPressureIT
+  issue: https://github.com/elastic/elasticsearch/issues/162788

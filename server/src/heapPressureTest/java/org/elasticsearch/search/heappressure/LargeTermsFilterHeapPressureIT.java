@@ -36,7 +36,6 @@ import java.util.stream.IntStream;
  * filter is held the same way whichever kNN query it is handed to, so {@code int8_hnsw}, which needs no licensed plugin, is used.
  * <p>See <a href="https://github.com/elastic/elasticsearch/issues/162788">#162788</a> for issue details.</p>
  */
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/162788")
 public class LargeTermsFilterHeapPressureIT extends SearchHeapPressureTestCase {
 
     private static final String INDEX = "large-terms-filter";

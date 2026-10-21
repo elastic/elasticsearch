@@ -9,19 +9,24 @@ package org.elasticsearch.xpack.esql.view;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResolvedIndexExpression;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.LogManager;
@@ -40,6 +45,7 @@ import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
@@ -54,6 +60,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.view.ViewQuerySettings.WildcardsStop;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -67,6 +74,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -267,6 +275,9 @@ public class ViewResolver {
         Holder<Boolean> hasInSubquery = new Holder<>(false);
         // Running total of plan nodes: starts with the unexpanded query and grows with every view body expanded into it.
         PlanSize planSize = new PlanSize(PlanSize.countNodes(plan), maxPlanNodesCount);
+        // Views a body's wildcards would have matched had an enclosing scope's wildcards_match_views reached it, keyed by where it
+        // stopped.
+        Map<WildcardsStop, StoppedMatches> stoppedWildcardMatches = new LinkedHashMap<>();
         boolean noViews = viewsFeatureEnabled() == false || getMetadata().views().isEmpty();
         if (noViews && InSubqueryResolver.hasInSubquery(plan) == false) {
             listener.onResponse(new ViewResolutionResult(plan, viewQueries, Map.of(), false, IndexViewOrigins.EMPTY));
@@ -281,7 +292,7 @@ public class ViewResolver {
         replaceViews(
             plan,
             projectRouting,
-            wildcardsMatchViews,
+            new ViewsScope(wildcardsMatchViews, null, null, stoppedWildcardMatches),
             wildcardsMatchDatasets && federationAvailable,
             parser,
             new LinkedHashSet<>(),
@@ -292,18 +303,66 @@ public class ViewResolver {
             0,
             boundaryPreservation,
             planSize,
-            listener.delegateFailureAndWrap(
-                (l, rewritten) -> l.onResponse(
-                    new ViewResolutionResult(rewritten, viewQueries, viewSettings, hasInSubquery.get(), indexViewOrigins.build())
-                )
-            )
+            listener.delegateFailureAndWrap((l, rewritten) -> {
+                stoppedWildcardMatches.forEach((stop, matches) -> {
+                    // A view the body is reached through on one path would be circular there, so it is not reported as missed.
+                    matches.missed().removeAll(matches.circular());
+                    if (matches.missed().isEmpty() == false) {
+                        HeaderWarning.addWarning(
+                            "{}",
+                            ViewQuerySettings.wildcardsStoppedAtViewWarning(
+                                QuerySettings.WILDCARDS_MATCH_VIEWS.name(),
+                                stop,
+                                "view",
+                                List.copyOf(matches.missed()),
+                                List.copyOf(matches.circular())
+                            )
+                        );
+                    }
+                });
+                l.onResponse(new ViewResolutionResult(rewritten, viewQueries, viewSettings, hasInSubquery.get(), indexViewOrigins.build()));
+            })
         );
+    }
+
+    /**
+     * The {@code wildcards_match_views} of the scope being resolved: the caller's query or one view body. {@code settingView} is the
+     * view whose definition {@code SET} the scope's {@code true}, or {@code null} for the caller's query. {@code stop} says where the
+     * enclosing scope's {@code true} stopped, at this body's view; the views the body's wildcards would then have matched are added
+     * to {@code stoppedMatches} under it, so the user can be told.
+     */
+    private record ViewsScope(
+        boolean wildcardsMatchViews,
+        @Nullable String settingView,
+        @Nullable WildcardsStop stop,
+        Map<WildcardsStop, StoppedMatches> stoppedMatches
+    ) {
+        ViewsScope forBody(String viewName, boolean bodyWildcardsMatchViews) {
+            boolean stopped = wildcardsMatchViews && bodyWildcardsMatchViews == false;
+            return new ViewsScope(
+                bodyWildcardsMatchViews,
+                bodyWildcardsMatchViews ? viewName : null,
+                stopped ? new WildcardsStop(settingView, viewName) : null,
+                stoppedMatches
+            );
+        }
+    }
+
+    /**
+     * The views a stopped body's wildcards would have matched, not named exactly. {@code circular} are those that enclose the body,
+     * the body's own view included: those are not missed rows, but the view definition must exclude them to follow the advice. A
+     * view that encloses the body on one of the paths reaching it is only reported as circular.
+     */
+    private record StoppedMatches(Set<String> missed, Set<String> circular) {
+        StoppedMatches() {
+            this(new TreeSet<>(), new TreeSet<>());
+        }
     }
 
     private void replaceViews(
         LogicalPlan plan,
         String projectRouting,
-        boolean wildcardsMatchViews,
+        ViewsScope viewsScope,
         boolean resolveDatasets,
         BiFunction<String, String, EsqlStatement> parser,
         LinkedHashSet<String> seenViews,
@@ -340,7 +399,7 @@ public class ViewResolver {
                 case MergePlan mergePlan -> replaceViewsMergePlan(
                     mergePlan,
                     projectRouting,
-                    wildcardsMatchViews,
+                    viewsScope,
                     resolveDatasets,
                     parser,
                     seenInner,
@@ -369,7 +428,7 @@ public class ViewResolver {
                         replaceViews(
                             resolved,
                             projectRouting,
-                            wildcardsMatchViews,
+                            viewsScope,
                             resolveDatasets,
                             parser,
                             seenInner,
@@ -399,7 +458,7 @@ public class ViewResolver {
                         replaceViews(
                             resolved,
                             projectRouting,
-                            wildcardsMatchViews,
+                            viewsScope,
                             resolveDatasets,
                             parser,
                             seenInner,
@@ -429,7 +488,7 @@ public class ViewResolver {
                         replaceViews(
                             resolved,
                             projectRouting,
-                            wildcardsMatchViews,
+                            viewsScope,
                             resolveDatasets,
                             parser,
                             seenInner,
@@ -450,7 +509,7 @@ public class ViewResolver {
                 case AbstractSubqueryJoin subqueryJoin -> replaceViewsSubqueryJoin(
                     subqueryJoin,
                     projectRouting,
-                    wildcardsMatchViews,
+                    viewsScope,
                     resolveDatasets,
                     parser,
                     seenInner,
@@ -469,7 +528,7 @@ public class ViewResolver {
                 case UnresolvedRelation ur -> replaceViewsUnresolvedRelation(
                     ur,
                     projectRouting,
-                    wildcardsMatchViews,
+                    viewsScope,
                     resolveDatasets,
                     parser,
                     seenInner,
@@ -497,7 +556,7 @@ public class ViewResolver {
     private void replaceViewsMergePlan(
         MergePlan mergePlan,
         String projectRouting,
-        boolean wildcardsMatchViews,
+        ViewsScope viewsScope,
         boolean resolveDatasets,
         BiFunction<String, String, EsqlStatement> parser,
         LinkedHashSet<String> seenViews,
@@ -519,7 +578,7 @@ public class ViewResolver {
                 (l, updatedSubplans) -> replaceViews(
                     subplan,
                     projectRouting,
-                    wildcardsMatchViews,
+                    viewsScope,
                     resolveDatasets,
                     parser,
                     seenViews,
@@ -556,7 +615,7 @@ public class ViewResolver {
     private void replaceViewsSubqueryJoin(
         AbstractSubqueryJoin subqueryJoin,
         String projectRouting,
-        boolean wildcardsMatchViews,
+        ViewsScope viewsScope,
         boolean resolveDatasets,
         BiFunction<String, String, EsqlStatement> parser,
         LinkedHashSet<String> seenViews,
@@ -575,7 +634,7 @@ public class ViewResolver {
             l -> replaceViews(
                 origLeft,
                 projectRouting,
-                wildcardsMatchViews,
+                viewsScope,
                 resolveDatasets,
                 parser,
                 seenViews,
@@ -598,7 +657,7 @@ public class ViewResolver {
             (l, newLeft) -> replaceViews(
                 origRight,
                 projectRouting,
-                wildcardsMatchViews,
+                viewsScope,
                 resolveDatasets,
                 parser,
                 seenViews,
@@ -626,7 +685,7 @@ public class ViewResolver {
     private void replaceViewsUnresolvedRelation(
         UnresolvedRelation unresolvedRelation,
         String projectRouting,
-        boolean wildcardsMatchViews,
+        ViewsScope viewsScope,
         boolean resolveDatasets,
         BiFunction<String, String, EsqlStatement> parser,
         LinkedHashSet<String> seenViews,
@@ -638,7 +697,7 @@ public class ViewResolver {
         int depth,
         ViewBoundaryPreservation boundaryPreservation,
         PlanSize planSize,
-        ActionListener<LogicalPlan> listener
+        ActionListener<LogicalPlan> relationListener
     ) {
         indexViewOrigins.record(unresolvedRelation.indexPattern().indexPattern(), seenViews);
         // Avoid re-resolving wildcards preserved for non-view matches in subsequent transformDown visits.
@@ -650,7 +709,7 @@ public class ViewResolver {
             // request is a no-op AND avoids the security layer's empty-indices → "_all"
             // normalization, which would otherwise re-expand to the full cluster lookup and
             // leak "_all" as a literal pattern into downstream merge/concat code.
-            listener.onResponse(unresolvedRelation);
+            relationListener.onResponse(unresolvedRelation);
             return;
         }
         for (String pattern : patterns) {
@@ -658,12 +717,18 @@ public class ViewResolver {
                 seenWildcards.add(pattern);
             }
         }
+        // TS never expands wildcard-matched views, so the view's setting changes nothing there.
+        ActionListener<LogicalPlan> listener = viewsScope.stop() != null
+            && unresolvedRelation.indexMode() != IndexMode.TIME_SERIES
+            && wildcardCouldMatchUnnamedView(patterns)
+                ? reportStoppedWildcardMatches(patterns, projectRouting, resolveDatasets, seenViews, viewsScope, relationListener)
+                : relationListener;
 
         // When wildcards_match_views is off, only patterns with a concrete index expression (no wildcard in the local part)
         // reach the resolver. A cluster-alias wildcard like `*:my-data` is still concrete from the view-matching
         // perspective — the `*` is a project selector, not an index pattern wildcard — so we split off the cluster
         // alias before checking for wildcard characters.
-        String[] viewPatterns = wildcardsMatchViews
+        String[] viewPatterns = viewsScope.wildcardsMatchViews()
             ? patterns
             : Arrays.stream(patterns)
                 .filter(p -> Regex.isSimpleMatchPattern(RemoteClusterAware.splitIndexName(p).indexExpression()) == false)
@@ -783,7 +848,7 @@ public class ViewResolver {
                     replaceViews(
                         body,
                         projectRouting,
-                        bodySettings.wildcardsMatchViews(),
+                        viewsScope.forBody(view.name(), bodySettings.wildcardsMatchViews()),
                         bodySettings.wildcardsMatchDatasets() && federationAvailable,
                         parser,
                         branchSeenViews,
@@ -814,7 +879,7 @@ public class ViewResolver {
                     response,
                     resolvedViews,
                     patterns,
-                    wildcardsMatchViews
+                    viewsScope.wildcardsMatchViews()
                 );
                 if (cpsEnabled) {
                     // Append the per-resolved-view ViewShadowRelations as additional siblings at
@@ -845,6 +910,100 @@ public class ViewResolver {
                 return buildPlanFromBranches(unresolvedRelation, subqueries, depth, effectivePreservation);
             }).addListener(listener);
         }));
+    }
+
+    /** A positive pattern whose local index expression is a wildcard, and so matches views only under wildcards_match_views. */
+    private static boolean isLocalWildcard(String pattern) {
+        return patternIsExclusion(pattern) == false
+            && Regex.isSimpleMatchPattern(RemoteClusterAware.splitIndexName(pattern).indexExpression());
+    }
+
+    /**
+     * Whether a local wildcard in {@code patterns} matches a view they do not name exactly. The lookup in
+     * {@link #reportStoppedWildcardMatches} only returns this project's views, so when none could match it is skipped.
+     */
+    private boolean wildcardCouldMatchUnnamedView(String[] patterns) {
+        Set<String> named = exactNames(patterns);
+        Set<String> viewNames = getMetadata().views().keySet();
+        for (String pattern : patterns) {
+            if (isLocalWildcard(pattern) == false) {
+                continue;
+            }
+            String expression = viewExpression(RemoteClusterAware.splitIndexName(pattern).indexExpression());
+            if (expression == null) {
+                continue;
+            }
+            for (String view : viewNames) {
+                if (named.contains(view) == false && Regex.simpleMatch(expression, view)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** The views {@code patterns} name exactly, as view resolution reads them; see {@link #viewExpression}. */
+    private static Set<String> exactNames(String[] patterns) {
+        Set<String> named = new HashSet<>(patterns.length);
+        for (String pattern : patterns) {
+            String expression = viewExpression(pattern);
+            if (expression != null) {
+                named.add(expression);
+            }
+        }
+        return named;
+    }
+
+    /**
+     * {@code pattern} as view resolution matches it against view names: a {@code ::data} selector reads the view itself, so it is
+     * removed, and date math is evaluated, so a view named through date math counts as named. {@code null} for a {@code ::failures}
+     * selector, which reads no view.
+     */
+    @Nullable
+    private static String viewExpression(String pattern) {
+        Tuple<String, String> split = IndexNameExpressionResolver.splitSelectorExpression(pattern);
+        if (split.v2() != null && IndexComponentSelector.DATA.getKey().equals(split.v2()) == false) {
+            return null;
+        }
+        return IndexNameExpressionResolver.resolveDateMathExpression(split.v1());
+    }
+
+    /**
+     * Once {@code listener}'s relation is resolved, asks which views {@code patterns} would match were wildcards allowed to
+     * match views, and records those not named exactly under {@code scope}'s stop. The request goes through the same
+     * authorization as resolution, so only views the user may see are reported. Views enclosing this body are recorded apart:
+     * matching one would be a circular reference rather than a wider result. A failed lookup only loses the warning.
+     */
+    private ActionListener<LogicalPlan> reportStoppedWildcardMatches(
+        String[] patterns,
+        String projectRouting,
+        boolean resolveDatasets,
+        Set<String> enclosingViews,
+        ViewsScope scope,
+        ActionListener<LogicalPlan> listener
+    ) {
+        return listener.delegateFailureAndWrap((l, resolved) -> {
+            var req = new EsqlResolveViewAction.Request(
+                REST_MASTER_TIMEOUT_DEFAULT,
+                crossProjectModeDecider.crossProjectEnabled(),
+                resolveDatasets
+            );
+            req.setProjectRouting(projectRouting);
+            req.indices(patterns);
+            Set<String> named = exactNames(patterns);
+            doEsqlResolveViewsRequest(req, ActionListener.wrap(response -> {
+                for (View view : response.views()) {
+                    if (named.contains(view.name()) == false) {
+                        StoppedMatches matches = scope.stoppedMatches().computeIfAbsent(scope.stop(), k -> new StoppedMatches());
+                        (enclosingViews.contains(view.name()) ? matches.circular() : matches.missed()).add(view.name());
+                    }
+                }
+                l.onResponse(resolved);
+            }, e -> {
+                log.debug(() -> Strings.format("could not look up views matched by wildcards in view [%s]", scope.stop().viewName()), e);
+                l.onResponse(resolved);
+            }));
+        });
     }
 
     /**

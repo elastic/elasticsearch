@@ -3321,17 +3321,24 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             // Consider minimum pending generation also available to search, since we are in the process of uploading it and search
             // node may have seen it before we process that the upload succeeded. This is also reasonable, because only timing
             // means it is not yet considered uploaded here.
-            // TODO: exclude paused pending-upload BCCs from latestUploading.
-            // See https://github.com/elastic/elasticsearch/pull/160420#discussion_r4243167856
+            // A pending generation above the relocation upload bound is paused and never uploaded by this node. A search
+            // shard registering at that generation may have seen a same-term commit uploaded by the relocation target,
+            // which must not be treated as available by the relocation source. In that case, the registration then fails
+            // with RecoveryCommitTooNewException and is retried against the target.
             Optional<VirtualBatchedCompoundCommit> latestUploading = pendingUploadBccGenerations.values()
                 .stream()
+                .filter(pending -> pauseUpload(pending.commit().getMaxGeneration()) == false)
                 .min(Comparator.comparing(PendingUploadVirtualBatchCompoundCommit::getPrimaryTermAndGeneration))
                 .map(PendingUploadVirtualBatchCompoundCommit::commit);
             var latestUploaded = this.latestUploadedBcc;
             if (latestUploaded == null) {
                 throw new NoShardAvailableActionException(shardId, "indexing shard is initializing");
             }
-            // onOrAfter (really just "on", see next if block) means the shard *is* uploaded, since the search shard saw it
+            // onOrAfter, but only "on" gets through the next `if` block. The search shard read `compoundCommitGeneration`
+            // from the object store, so if the last compound commit of `latestUploading` matches it, then `latestUploading`
+            // has already been uploaded even if we have not yet processed the upload completion. "After" is technically
+            // possible, e.g. when this primary is relocating and the search shard read a commit uploaded by the relocation
+            // target, but the next `if` block then rejects it.
             AbstractBatchedCompoundCommit availableBcc = latestUploading.map(o -> (AbstractBatchedCompoundCommit) o)
                 .filter(bcc -> compoundCommitGeneration.onOrAfter(bcc.lastCompoundCommit().primaryTermAndGeneration()))
                 .orElse(latestUploaded);

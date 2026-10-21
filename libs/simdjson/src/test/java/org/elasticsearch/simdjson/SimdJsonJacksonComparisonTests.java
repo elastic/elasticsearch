@@ -331,6 +331,56 @@ public class SimdJsonJacksonComparisonTests extends SimdJsonTestCase {
         }
     }
 
+    /**
+     * All JSON values up to {@code depth} levels of nesting, built from a number, the empty object
+     * and the empty array. Each level adds arrays of one or two elements and objects of one or two
+     * fields of the previous level, so every combination of empty and non-empty containers nested
+     * in each other, in first and later positions, is covered.
+     */
+    private static List<String> generateValues(int depth) {
+        List<String> values = List.of("1", "{}", "[]");
+        for (int level = 0; level < depth; level++) {
+            List<String> next = new ArrayList<>(values);
+            for (String first : values) {
+                next.add("[" + first + "]");
+                next.add("{\"a\":" + first + "}");
+                for (String second : values) {
+                    next.add("[" + first + "," + second + "]");
+                    next.add("{\"a\":" + first + ",\"b\":" + second + "}");
+                }
+            }
+            values = next;
+        }
+        return values;
+    }
+
+    // Empty and non-empty objects and arrays nested in each other must parse the same as Jackson,
+    // with and without whitespace inside the empty containers.
+    public void testGeneratedNestedContainersAgreeWithJackson() throws IOException {
+        for (String value : generateValues(2)) {
+            String json = "{\"k\":" + value + "}";
+            assertParsersAgree(json);
+            assertParsersAgree(json.replace("{}", "{ }").replace("[]", "[ ]"));
+        }
+    }
+
+    // A comma directly before any closing brace or bracket is a trailing comma, wherever the container
+    // sits and whether or not it is empty. Both parsers must reject every such document.
+    public void testGeneratedTrailingCommaRejectedByBothParsers() {
+        for (String value : generateValues(2)) {
+            String json = "{\"k\":" + value + "}";
+            for (int i = 0; i < json.length(); i++) {
+                char c = json.charAt(i);
+                if (c != '}' && c != ']') {
+                    continue;
+                }
+                String mutated = json.substring(0, i) + "," + json.substring(i);
+                expectThrows(XContentParseException.class, "Jackson accepted " + mutated, () -> walkWithJackson(mutated));
+                expectThrows(JsonParsingException.class, "simdjson accepted " + mutated, () -> walkJson(mutated));
+            }
+        }
+    }
+
     // Both parsers require at least one digit after '.' and after 'e'/'E', and phrase the
     // rejection identically enough that the message can be compared directly (unlike
     // testTrailingGarbageOrMissingDigitsRejectedByBothParsers below).

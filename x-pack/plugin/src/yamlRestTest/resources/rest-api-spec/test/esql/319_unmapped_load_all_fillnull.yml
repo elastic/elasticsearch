@@ -48,7 +48,7 @@ setup:
 teardown:
   - do:
       indices.delete:
-        index: la_fill_mapped,la_fill_source
+        index: la_fill_mapped,la_fill_source,la_fill_punk_mapped,la_fill_punk_source,la_fill_view_src
         ignore_unavailable: true
 
 ---
@@ -195,3 +195,94 @@ teardown:
   - length: { columns: 1 }
   - match: { columns.0.name: id }
   - match: { values: [ [ 1 ], [ 1 ], [ 2 ], [ 2 ] ] }
+
+---
+'FILLNULL on a loadable partially unmapped field fills only the rows with no such field in _source':
+  - do:
+      indices.create:
+        index: la_fill_punk_mapped
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+              n:
+                type: long
+
+  - do:
+      indices.create:
+        index: la_fill_punk_source
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "la_fill_punk_mapped", "_id": "1" } }
+          - { "id": "a1", "n": 1 }
+          - { "index": { "_index": "la_fill_punk_mapped", "_id": "2" } }
+          - { "id": "a2" }
+          - { "index": { "_index": "la_fill_punk_source", "_id": "1" } }
+          - { "id": "b1", "n": 5 }
+          - { "index": { "_index": "la_fill_punk_source", "_id": "2" } }
+          - { "id": "b2" }
+
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_fill_punk_mapped, la_fill_punk_source | FILLNULL 0 ON n | SORT id | LIMIT 10'
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: n }
+  - match: { columns.1.type: long }
+  - match: { values.0.1: 1 }
+  - match: { values.1.1: 0 }
+  - match: { values.2.1: 5 }
+  - match: { values.3.1: 0 }
+
+---
+'FILLNULL ON * inside a view without LOAD_ALL fills the view columns under an outer LOAD_ALL':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ views_with_branching, optional_fields_load_all_views, settings_scoped_at_view_boundaries ]
+      reason: "LOAD_ALL over views is only available with this capability"
+  - do:
+      indices.create:
+        index: la_fill_view_src
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              name:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "la_fill_view_src", "_id": "1" } }
+          - { "name": "a" }
+          - { "index": { "_index": "la_fill_view_src", "_id": "2" } }
+          - { "note": "o" }
+
+  - do:
+      esql.put_view:
+        name: la_fill_view_cols
+        body:
+          query: 'FROM la_fill_view_src | KEEP name, n* | FILLNULL "none" ON *'
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_fill_view_cols | SORT name | LIMIT 10'
+  - length: { columns: 1 }
+  - match: { columns.0.name: name }
+  - match: { columns.0.type: keyword }
+  - match: { values: [ [ "a" ], [ "none" ] ] }

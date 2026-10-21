@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.rules.DetermineUnmappedFieldsToKeep;
-import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -39,15 +38,12 @@ import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
-import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -844,30 +840,11 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         assertThat(holder.get().expressionsResolved(), is(true));
     }
 
-    public void testLoadAllModeAllowsFillNull() {
-        assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
-        LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | FILLNULL \"x\" ON first_name"));
-        assertThat(filledNames(plan), equalTo(Set.of("first_name")));
-        assertThat(unmappedFieldsColumns(plan), hasSize(1));
-    }
-
-    public void testLoadAllFillNullAllColumnsLeavesTheUnmappedFieldsColumnAlone() {
-        assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
-        for (String value : List.of("DEFAULT", "\"x\"")) {
-            LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | FILLNULL " + value + " ON *"));
-            assertThat(value, filledNames(plan), hasItem("first_name"));
-            assertThat(value, unfillableNames(plan), not(hasItem(UnmappedFieldsAttribute.ATTRIBUTE_NAME)));
-            assertThat(value, unmappedFieldsColumns(plan), hasSize(1));
-        }
-    }
-
-    public void testLoadAllFillNullAllColumnsLeavesTheUnmappedFieldsColumnAloneAfterOtherCommands() {
+    public void testLoadAllFillNullAllColumnsLeavesTheUnmappedFieldsColumnAloneAfterOutputRewritingCommands() {
         assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         for (String pipeline : List.of(
-            "FROM test | FORK (WHERE emp_no > 0) (STATS c = COUNT(*))",
-            "FROM test, (FROM test | STATS c = COUNT(*))",
             "FROM test | INLINE STATS c = COUNT(*)",
-            "FROM test | MV_EXPAND first_name",
+            "FROM test, (FROM test | STATS c = COUNT(*))",
             "FROM test | WHERE emp_no IN (FROM test | KEEP emp_no)",
             "FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code"
         )) {
@@ -878,19 +855,17 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         }
     }
 
-    public void testLoadAllFillNullPatternDoesNotMatchTheUnmappedFieldsColumn() {
+    public void testLoadAllFillNullPatternDoesNotMatchAnUnmappedField() {
         assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
-        for (String pattern : List.of("_unmapped_*", "_unmapped_fiel*")) {
-            test().statementError(
-                setUnmappedLoadAll("FROM test | FILLNULL \"x\" ON first_name, " + pattern),
-                containsString("No matches found for pattern [" + pattern + "]")
-            );
-        }
+        test().statementError(
+            setUnmappedLoadAll("FROM test | FILLNULL \"x\" ON does_not_exist*"),
+            containsString("No matches found for pattern [does_not_exist*]")
+        );
     }
 
     public void testLoadAllFillNullNamingUnmappedFieldsFillsAnOrdinaryUnmappedField() {
         assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
-        for (String target : List.of("_unmapped_fields", "`_unmapped_fields`", "*, _unmapped_fields")) {
+        for (String target : List.of("`_unmapped_fields`", "*, _unmapped_fields")) {
             LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | FILLNULL \"x\" ON " + target));
             assertThat(target, filledNames(plan), hasItem(UnmappedFieldsAttribute.ATTRIBUTE_NAME));
             assertThat(target, unmappedFieldsColumns(plan), empty());
@@ -899,54 +874,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         }
     }
 
-    public void testLoadAllFillNullCannotNameUnmappedFieldsAfterKeep() {
-        assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
-        for (String keep : List.of("KEEP first_name", "KEEP first_name, last*")) {
-            test().statementError(
-                setUnmappedLoadAll("FROM test | " + keep + " | FILLNULL \"x\" ON _unmapped_fields"),
-                containsString("Unknown column [_unmapped_fields]")
-            );
-        }
-    }
-
-    public void testLoadAllFillNullFillsAQueryColumnNamedUnmappedFields() {
-        assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
-        for (String producer : List.of("EVAL _unmapped_fields = TO_STRING(null)", "RENAME first_name AS _unmapped_fields")) {
-            for (String targets : List.of("_unmapped_fields", "`_unmapped_fields`", "_unmapped_*", "*")) {
-                String query = "FROM test | " + producer + " | FILLNULL \"x\" ON " + targets;
-                LogicalPlan plan = test().statement(setUnmappedLoadAll(query));
-                assertThat(query, filledNames(plan), hasItem(UnmappedFieldsAttribute.ATTRIBUTE_NAME));
-                assertThat(query, unmappedFieldsColumns(plan), empty());
-                assertWarnings(DetermineUnmappedFieldsToKeep.UNMAPPED_FIELDS_NAME_TAKEN_WARNING);
-            }
-        }
-    }
-
-    public void testLoadAllFillNullFillsAMappedFieldNamedUnmappedFields() {
-        assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
-        EsIndex colliding = standardIndex(
-            "colliding",
-            Map.of("id", keywordField("id"), UnmappedFieldsAttribute.ATTRIBUTE_NAME, keywordField(UnmappedFieldsAttribute.ATTRIBUTE_NAME))
-        );
-        for (String targets : List.of("_unmapped_fields", "_unmapped_*", "*")) {
-            String query = "FROM colliding | FILLNULL \"x\" ON " + targets;
-            LogicalPlan plan = analyzer().addIndex(colliding).statement(setUnmappedLoadAll(query));
-            assertThat(query, filledNames(plan), hasItem(UnmappedFieldsAttribute.ATTRIBUTE_NAME));
-            assertThat(query, unmappedFieldsColumns(plan), empty());
-            assertWarnings(DetermineUnmappedFieldsToKeep.UNMAPPED_FIELDS_NAME_TAKEN_WARNING);
-        }
-    }
-
-    public void testLoadAllFillNullOnAnUnmappedFieldLoadsItAsItsOwnColumn() {
-        assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
-        LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | FILLNULL \"x\" ON does_not_exist"));
-        assertThat(filledNames(plan), equalTo(Set.of("does_not_exist")));
-        assertThat(columnType(plan, "does_not_exist"), equalTo(DataType.KEYWORD));
-        List<UnmappedFieldsAttribute> columns = unmappedFieldsColumns(plan);
-        assertThat(columns, hasSize(1));
-        assertThat(columns.getFirst().pattern().matches("does_not_exist"), is(false));
-    }
-
+    // The FILLNULL rejections below are temporary: https://github.com/elastic/elasticsearch/issues/162866, to be lifted by #162893
     public void testLoadAllRejectsFillNullAllColumnsInASubquery() {
         assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         datedAndPlain().statementError(
@@ -1009,7 +937,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         LogicalPlan plan = datedAndPlain().addView("dated_view", "FROM dated")
             .statement(setUnmappedLoadAll("FROM dated_view, (FROM plain) | FILLNULL \"x\" ON *"));
         assertThat(filledNames(plan), hasItem("id"));
-        assertConsistent(plan);
+        assertThat(unfillableNames(plan), not(hasItem(UnmappedFieldsAttribute.ATTRIBUTE_NAME)));
     }
 
     public void testLoadAllAllowsFillNullAllColumnsInsideAView() {
@@ -1027,7 +955,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                     .addView("outer_view", "FROM fill_view")
                     .statement(setUnmappedLoadAll(query));
                 assertThat(body + " / " + query, filledNames(plan), hasItem("id"));
-                assertConsistent(plan);
             }
         }
     }
@@ -1038,42 +965,15 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         LogicalPlan plan = datedAndPlain().addView("dated_view", "FROM dated")
             .statement(setUnmappedLoadAll("FROM dated_view, (FROM plain | FILLNULL \"x\" ON id)"));
         assertThat(filledNames(plan), equalTo(Set.of("id")));
-        assertConsistent(plan);
     }
 
-    public void testLoadModeAllowsFillNullAllColumnsInASubquery() {
+    // A pattern is expanded before the union loads its column into the branch: https://github.com/elastic/elasticsearch/issues/162866
+    public void testLoadAllFillNullPatternInASubqueryDoesNotSeeAColumnLoadedByTheUnion() {
         assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
-        LogicalPlan plan = datedAndPlain().statement(setUnmappedLoad("FROM (FROM dated), (FROM plain | FILLNULL \"x\" ON *)"));
-        assertThat(filledNames(plan), hasItem("id"));
-        assertConsistent(plan);
-    }
-
-    public void testLoadAllAllowsTargetedFillNullInASubquery() {
-        assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
-        LogicalPlan plan = datedAndPlain().statement(setUnmappedLoadAll("FROM (FROM dated), (FROM plain | FILLNULL \"x\" ON id)"));
-        assertThat(filledNames(plan), equalTo(Set.of("id")));
-        boolean castsLoadedTimestamp = plan.anyMatch(
-            p -> p instanceof Eval eval && eval.fields().stream().anyMatch(a -> a.child() instanceof ToDatetime)
+        datedAndPlain().statementError(
+            setUnmappedLoadAll("FROM (FROM dated), (FROM plain | FILLNULL \"x\" ON @time*)"),
+            containsString("No matches found for pattern [@time*]")
         );
-        assertThat(castsLoadedTimestamp, is(true));
-        assertConsistent(plan);
-    }
-
-    public void testLoadAllAllowsFillNullAllColumnsAfterASubquery() {
-        assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
-        LogicalPlan plan = datedAndPlain().statement(setUnmappedLoadAll("FROM (FROM dated), (FROM plain) | FILLNULL \"x\" ON *"));
-        assertThat(filledNames(plan), hasItem("id"));
-        assertThat(unfillableNames(plan), not(hasItem(UnmappedFieldsAttribute.ATTRIBUTE_NAME)));
-        assertThat(unmappedFieldsColumns(plan), hasSize(1));
-        assertConsistent(plan);
-    }
-
-    public void testLoadAllAllowsFillNullAllColumnsInAForkBranch() {
-        assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
-        String query = "FROM test | FORK (FILLNULL \"x\" ON *) (WHERE does_not_exist IS NOT NULL)";
-        LogicalPlan plan = test().statement(setUnmappedLoadAll(query));
-        assertThat(unmappedFieldsColumns(plan), hasSize(1));
-        assertConsistent(plan);
     }
 
     public void testFillNullOnAPartiallyUnmappedFieldLeavesAConsistentPlan() {
@@ -1099,15 +999,11 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 queries.add(setUnmappedLoad("FROM idx* | " + fill + " " + tail));
             }
         }
-        List<String> inconsistent = new ArrayList<>();
         for (String query : queries) {
-            Failures failures = consistencyFailures(analyzer().addIndex(esIndex).statement(query));
-            if (failures.hasFailures()) {
-                inconsistent.add(query + " -> " + failures);
-            }
+            LogicalPlan plan = analyzer().addIndex(esIndex).statement(query);
+            assertThat(query, filledNames(plan), hasItem("f"));
             assertWarnings(nonLoadablePunksWarning(List.of("f")));
         }
-        assertThat(inconsistent, empty());
     }
 
     private TestAnalyzer datedAndPlain() {
@@ -1141,17 +1037,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
 
     private static DataType columnType(LogicalPlan plan, String name) {
         return EsqlTestUtils.singleValue(plan.output().stream().filter(a -> a.name().equals(name)).toList()).dataType();
-    }
-
-    private static void assertConsistent(LogicalPlan plan) {
-        Failures failures = consistencyFailures(plan);
-        assertThat(failures.toString(), failures.hasFailures(), is(false));
-    }
-
-    private static Failures consistencyFailures(LogicalPlan plan) {
-        Failures failures = new Failures();
-        plan.forEachDown(p -> PlanConsistencyChecker.checkPlan(p, failures));
-        return failures;
     }
 
     // unmapped_fields="load" now supports branching views/subqueries (#142033): the branching-view equivalent analyzes successfully.

@@ -606,6 +606,76 @@ nonexistent-1  | none             | text_state_nonexistent
 unmapped-1     | none             | text_state_unmapped
 ;
 
+fillNullTargetedInSubqueryBranchUnderLoad
+required_capability: optional_fields_load_all_fillnull
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_sample_data METADATA _index | WHERE message == "42"),
+     (FROM no_mapping_sample_data METADATA _index | WHERE unmapped_message == "43" | FILLNULL "none" ON no_such_field)
+| KEEP _index, no_such_field
+| SORT _index
+;
+
+_index:keyword              | no_such_field:keyword
+no_mapping_sample_data      | none
+partial_mapping_sample_data | null
+;
+
+fillNullAllColumnsInSubqueryBranchUnderLoad
+required_capability: optional_fields_load_all_fillnull
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_sample_data METADATA _index | EVAL m = CASE(message == "42", null, message) | KEEP _index, m),
+     (FROM no_mapping_sample_data METADATA _index | EVAL m = CASE(message == "42", null, message) | KEEP _index, m | FILLNULL "filled" ON *)
+| WHERE m IS NULL OR m == "filled"
+| SORT _index
+;
+
+_index:keyword              | m:keyword
+no_mapping_sample_data      | filled
+partial_mapping_sample_data | null
+;
+
+fillNullAllColumnsInForkBranchUnderLoad
+required_capability: optional_fields_load_all_fillnull
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: fork_v9
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| EVAL m = CASE(message == "42", null, message)
+| KEEP m
+| WHERE m IS NULL
+| FORK (FILLNULL "filled" ON *) (WHERE m IS NULL)
+| SORT _fork
+;
+
+m:keyword | _fork:keyword
+filled    | fork1
+null      | fork2
+;
+
+fillNullAllColumnsInSubqueryBranchWithDifferentColumnsUnderLoad
+required_capability: optional_fields_load_all_fillnull
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_sample_data METADATA _index | WHERE message == "42"),
+     (FROM no_mapping_sample_data METADATA _index | WHERE unmapped_message == "43" | FILLNULL "x" ON *)
+| KEEP _index, message
+| SORT _index
+;
+
+_index:keyword              | message:keyword
+no_mapping_sample_data      | null
+partial_mapping_sample_data | 42
+;
+
 // A fully unmapped field loads as keyword, so match requires the exact value: "Connected" alone matches nothing,
 // although analyzed text would match the "Connected to ..." rows.
 matchOnFullyUnmappedKeywordUnderLoad

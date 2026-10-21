@@ -36,10 +36,10 @@ When certain failures occur, a log message is emitted. In the case of a reoccurr
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Specifies the maximum size in bytes an HTTP response is allowed to have, defaults to `50mb`, the maximum configurable value is `100mb`.
 
 `xpack.inference.http.max_total_connections`
-:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Specifies the maximum number of connections the internal connection pool can lease. Defaults to `50`.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Specifies the maximum number of connections the internal connection pool can lease. Defaults to `500`.
 
 `xpack.inference.http.max_route_connections`
-:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Specifies the maximum number of connections a single route can lease from the internal connection pool. If this setting is set to a value equal to or greater than `xpack.inference.http.max_total_connections`, then a single third party service could lease all available connections and other third party services would be unable to lease connections. Defaults to `20`.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Specifies the maximum number of connections a single route can lease from the internal connection pool. If this setting is set to a value equal to or greater than `xpack.inference.http.max_total_connections`, then a single third party service could lease all available connections and other third party services would be unable to lease connections. Defaults to `200`.
 
 `xpack.inference.http.connection_eviction_interval`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Specifies the interval that an eviction thread will run to remove expired and stale connections from the internal connection pool. Decreasing this time value can help improve throughput if multiple third party service are contending for the available connections in the pool. Defaults to one minute (`1m`).

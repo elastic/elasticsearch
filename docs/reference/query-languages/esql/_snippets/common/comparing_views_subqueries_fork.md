@@ -13,7 +13,7 @@
 * **Nested branching.** Support depends on the version.
 
 ::::{applies-switch}
-:::{applies-item} { "stack": "preview 9.6+", "serverless": "preview" }
+:::{applies-item} { "stack": "ga 9.6+", "serverless": "ga" }
 Views, `FROM` subqueries, and `FORK` can be nested. The complete query
 remains subject to the branch and command limits.
 :::
@@ -31,7 +31,7 @@ when the nested branches can be flattened into one branch point.
     is capped at 8 branches by default (`esql.query.max_branch_count_per_merge`).
   * {applies_to}`stack: experimental 9.6+` One dataset pattern expansion is
     capped by `esql.query.max_branch_count_per_merge`, which defaults to 8.
-  * {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview` View
+  * {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` View
     [query compaction](/reference/query-languages/esql/esql-views.md#query-compaction)
     flattens nested view unions only when the flat width is within
     `esql.query.max_branch_count` (20 by default). The same setting caps nested
@@ -63,7 +63,7 @@ Only one `FORK` command is allowed per query, so nested branches aren't possible
 * Views can be nested up to a depth of 10. Cyclic references are not allowed. For example, if `viewA` references `viewB` and `viewB` references `viewC`, then `viewC` cannot reference `viewA`. Cycles are detected at query time.
 
 ::::{applies-switch}
-:::{applies-item} { "stack": "preview 9.6+", "serverless": "preview" }
+:::{applies-item} { "stack": "ga 9.6+", "serverless": "ga" }
 `FROM` subqueries and views can contain further `FROM` subqueries and `FORK`
 commands, subject to the branching limits.
 :::

@@ -7,7 +7,7 @@ A role entry that grants `read` on a view name must not carry DLS or FLS restric
 Views may be nested up to depth 10.
 
 ::::{applies-switch}
-:::{applies-item} { "stack": "preview 9.6+", "serverless": "preview" }
+:::{applies-item} { "stack": "ga 9.6+", "serverless": "ga" }
 View definitions can contain branched query plans created by `FROM` subqueries,
 nested views, and [`FORK`](/reference/query-languages/esql/commands/fork.md).
 These branches can be nested, subject to the branch and command limits described
@@ -26,7 +26,7 @@ be flattened through
 Views can reference remote indices in [cross-cluster search](/reference/query-languages/esql/esql-cross-clusters.md), but you can't query a view that is defined on a remote cluster.
 
 ::::{applies-switch}
-:::{applies-item} stack: preview 9.6+
+:::{applies-item} stack: ga 9.6+
 Remote views are invisible to source resolution. An exact reference such as `FROM cluster:view` returns an `Unknown index` error, and wildcard expressions don't match remote views.
 :::
 :::{applies-item} stack: preview 9.4-9.5
@@ -41,7 +41,7 @@ Views are available in serverless and [cross-project search](/reference/query-la
 #### Query DSL filters
 
 ::::{applies-switch}
-:::{applies-item} { "stack": "preview 9.6+", "serverless": "preview" }
+:::{applies-item} { "stack": "ga 9.6+", "serverless": "ga" }
 A Query DSL filter on the request applies to the output of a view, after the commands in the view definition. If Elasticsearch can't translate a filter clause to ES|QL, it omits that clause for the view and returns a warning. Check the response warnings because omitting a clause can produce more results than the complete filter would.
 :::
 :::{applies-item} stack: preview 9.4-9.5
@@ -115,8 +115,8 @@ are not substituted into the view body.
 
 #### Time series data in views
 ```{applies_to}
-stack: preview 9.6+
-serverless: preview
+stack: ga 9.6+
+serverless: ga
 ```
 
 A view that starts with [`TS`](/reference/query-languages/esql/commands/ts.md)

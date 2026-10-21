@@ -206,7 +206,7 @@ public final class QuerySettings {
     @Param(
         name = "wildcards_match_views",
         type = { "boolean" },
-        since = "ga 9.6+",
+        since = "9.6+",
         description = "When enabled, a wildcard in `FROM` also matches registered views."
             + " Defaults to `false`, so a wildcard does not match a view and a view is reached by its"
             + " exact name. Other abstractions a wildcard matches are unaffected.\n\n"
@@ -218,7 +218,6 @@ public final class QuerySettings {
     public static final QuerySettingDef<Boolean> WILDCARDS_MATCH_VIEWS = QuerySettingDef.bool("wildcards_match_views")
         .withDefault(Boolean.FALSE)
         .withClusterDefault()
-        .withPreview()
         .withRequestBody()
         .build();
 

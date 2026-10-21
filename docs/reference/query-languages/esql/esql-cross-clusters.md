@@ -544,7 +544,7 @@ A view defined on the local cluster can reference remote indices. A view
 defined on a remote cluster can't be queried from the local cluster.
 
 ::::{applies-switch}
-:::{applies-item} stack: preview 9.6+
+:::{applies-item} stack: ga 9.6+
 Remote views are invisible to source resolution. An exact remote view reference
 returns an `Unknown index` error, and wildcard expressions don't match remote
 views.

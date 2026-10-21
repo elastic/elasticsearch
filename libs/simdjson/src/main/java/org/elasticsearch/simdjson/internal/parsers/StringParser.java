@@ -27,10 +27,6 @@ import jdk.incubator.vector.VectorSpecies;
 import org.elasticsearch.simdjson.JsonParsingException;
 import org.elasticsearch.simdjson.SimdJsonSupport;
 
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.VarHandle;
-import java.nio.ByteOrder;
-
 import static org.elasticsearch.simdjson.internal.parsers.CharacterUtils.escape;
 import static org.elasticsearch.simdjson.internal.parsers.CharacterUtils.hexToInt;
 
@@ -59,8 +55,6 @@ import static org.elasticsearch.simdjson.internal.parsers.CharacterUtils.hexToIn
  *       compared via {@code hasQuoteFirst}/{@code hasBackslash}; halves the number of
  *       {@code VectorMask.toLong} conversions per chunk, which profiling showed as the
  *       largest single cost once the scalar length/escape scan above was vectorized.</li>
- *   <li>Adds {@link #rawLength} and {@link #unescape}, an eight-bytes-at-a-time pair for string values already known
- *       to contain escapes, where the vector loop is a poor fit; not present upstream.</li>
  * </ul>
  */
 public final class StringParser {
@@ -78,8 +72,7 @@ public final class StringParser {
      * Slack, in bytes, that a destination buffer must have beyond the longest result
      * {@link #parseString} can write into it. The copy loop stores a whole vector at a time even
      * when only part of it belongs to the string, so a destination sized exactly to the result
-     * would be overrun on the final chunk. {@link #unescape} stores whole eight-byte words and needs
-     * the same slack, which this is never smaller than.
+     * would be overrun on the final chunk.
      */
     public static final int DESTINATION_PADDING = BYTES_PROCESSED;
 
@@ -128,108 +121,6 @@ public final class StringParser {
             }
             src++;
         }
-    }
-
-    private static final VarHandle LONG_LE = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.LITTLE_ENDIAN);
-    private static final long ONES = 0x0101010101010101L;
-    private static final long HIGHS = 0x8080808080808080L;
-    private static final long QUOTES = 0x2222222222222222L;
-    private static final long BACKSLASHES = 0x5C5C5C5C5C5C5C5CL;
-
-    /**
-     * Sets the high bit of every byte of {@code word} that may be a quote or a backslash. Bytes above the first real
-     * match can be flagged spuriously by borrow propagation, but the lowest flagged byte is always exact, which is the
-     * only one the callers look at.
-     */
-    private static long specialBytes(long word) {
-        long q = word ^ QUOTES;
-        long b = word ^ BACKSLASHES;
-        return (((q - ONES) & ~q) | ((b - ONES) & ~b)) & HIGHS;
-    }
-
-    /**
-     * Returns the raw byte length, escapes counted as written, of the string whose opening quote is at {@code idx}:
-     * the number of bytes strictly between the quotes. An escaped quote does not end the string.
-     *
-     * <p>Meant for sizing the destination of {@link #unescape} for a string known to contain escapes. It reads eight
-     * bytes at a time with plain integer arithmetic. The vector comparison used by {@link #scanUnescapedLength} costs
-     * a mask-to-bits conversion per chunk, which is a poor trade when, as with escaped strings, a special byte turns
-     * up every few chunks.
-     */
-    public int rawLength(byte[] buffer, int idx) {
-        int start = idx + 1;
-        int p = start;
-        int bound = buffer.length - Long.BYTES;
-        while (p <= bound) {
-            long special = specialBytes((long) LONG_LE.get(buffer, p));
-            if (special == 0) {
-                p += Long.BYTES;
-                continue;
-            }
-            p += Long.numberOfTrailingZeros(special) >>> 3;
-            if (buffer[p] == QUOTE) {
-                return p - start;
-            }
-            p += 2;
-        }
-        while (true) {
-            byte b = buffer[p];
-            if (b == QUOTE) {
-                return p - start;
-            }
-            p += b == BACKSLASH ? 2 : 1;
-        }
-    }
-
-    /**
-     * Unescapes the JSON string opening at {@code idx} into {@code stringBuffer}, like {@link #parseString}, but eight
-     * bytes at a time without vector masks. Intended for strings that are known to contain escapes, for which it is
-     * the faster of the two: an escape every dozen bytes means a vector chunk is rarely clean, so the vector loop pays
-     * its mask conversion and a method call to copy a few bytes for almost every escape.
-     *
-     * <p>{@code stringBuffer} must be at least {@link #rawLength} plus {@link #DESTINATION_PADDING} bytes long, as for
-     * {@link #parseString}; the padding also covers this method's whole-word stores.
-     *
-     * @return the number of bytes written
-     */
-    public int unescape(byte[] buffer, int idx, byte[] stringBuffer) {
-        int src = idx + 1;
-        int dst = 0;
-        int bound = buffer.length - Long.BYTES;
-        while (src <= bound) {
-            long word = (long) LONG_LE.get(buffer, src);
-            // Stored whether or not it holds special bytes: the ones from the first special byte on are overwritten
-            // by what follows, or lie in the destination's padding.
-            LONG_LE.set(stringBuffer, dst, word);
-            long special = specialBytes(word);
-            if (special == 0) {
-                src += Long.BYTES;
-                dst += Long.BYTES;
-                continue;
-            }
-            int dist = Long.numberOfTrailingZeros(special) >>> 3;
-            src += dist;
-            dst += dist;
-            if (buffer[src] == QUOTE) {
-                return dst;
-            }
-            byte escapeChar = buffer[src + 1];
-            if (escapeChar == 'u') {
-                int codePoint = parseUnicodeCodePoint(buffer, src);
-                src += 6;
-                if (codePoint >= MIN_HIGH_SURROGATE && codePoint <= MAX_HIGH_SURROGATE) {
-                    codePoint = parseLowSurrogate(buffer, src, codePoint);
-                    src += 6;
-                } else if (codePoint >= MIN_LOW_SURROGATE && codePoint <= MAX_LOW_SURROGATE) {
-                    throw new JsonParsingException("Invalid code point. The range U+DC00–U+DFFF is reserved for low surrogate.");
-                }
-                dst += storeCodePointInStringBuffer(codePoint, dst, stringBuffer);
-            } else {
-                stringBuffer[dst++] = escape(escapeChar);
-                src += 2;
-            }
-        }
-        return doParseStringScalar(buffer, src, stringBuffer, dst);
     }
 
     private int doParseString(byte[] buffer, int idx, byte[] stringBuffer, int offset) {

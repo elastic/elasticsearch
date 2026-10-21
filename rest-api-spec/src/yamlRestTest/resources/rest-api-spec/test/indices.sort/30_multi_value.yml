@@ -7,8 +7,8 @@
         - method: PUT
           path: /{index}
           capabilities: [ columnar_index_modes ]
-      cluster_features: ["mapper.doc_values.multi_value_false_alias"]
-      reason: "doc_values.multi_value: false for index sort requires the false alias to be supported on all nodes; columnar index mode required"
+      cluster_features: ["mapper.doc_values.multi_value_false_alias", "mapper.doc_values.top_level_attributes"]
+      reason: "multi_value: false for index sort; columnar index mode required"
 
   - do:
       indices.create:
@@ -25,8 +25,7 @@
             properties:
               rank:
                 type: integer
-                doc_values:
-                  multi_value: false
+                multi_value: false
   - do:
       cluster.health:
         index: test
@@ -40,7 +39,7 @@
         index: test
 
   - match: { test.mappings.properties.rank.type: integer }
-  - match: { test.mappings.properties.rank.doc_values.multi_value: false }
+  - match: { test.mappings.properties.rank.multi_value: false }
 
   - do:
       index:
@@ -150,8 +149,8 @@
         - method: PUT
           path: /{index}
           capabilities: [ columnar_index_modes ]
-      cluster_features: ["mapper.doc_values.multi_value_false_alias"]
-      reason: "doc_values.multi_value: false for index sort requires the false alias to be supported on all nodes; columnar index mode required"
+      cluster_features: ["mapper.doc_values.multi_value_false_alias", "mapper.doc_values.top_level_attributes"]
+      reason: "multi_value: false for index sort; columnar index mode required"
 
   - do:
       indices.create:
@@ -167,8 +166,7 @@
             properties:
               tag:
                 type: keyword
-                doc_values:
-                  multi_value: false
+                multi_value: false
 
   - do:
       cluster.health:
@@ -181,7 +179,7 @@
         index: test_kw
 
   - match: { test_kw.mappings.properties.tag.type: keyword }
-  - match: { test_kw.mappings.properties.tag.doc_values.multi_value: false }
+  - match: { test_kw.mappings.properties.tag.multi_value: false }
 
   # Segment 1: tags c, a, d, b
   - do:
@@ -285,8 +283,8 @@
         - method: PUT
           path: /{index}
           capabilities: [ columnar_index_modes ]
-      cluster_features: ["mapper.doc_values.multi_value_false_alias"]
-      reason: "doc_values.multi_value: false for index sort requires the false alias to be supported on all nodes; columnar index mode required"
+      cluster_features: ["mapper.doc_values.multi_value_false_alias", "mapper.doc_values.top_level_attributes"]
+      reason: "multi_value: false for index sort; columnar index mode required"
 
   - do:
       indices.create:
@@ -305,8 +303,7 @@
                 type: keyword
               rank:
                 type: integer
-                doc_values:
-                  multi_value: false
+                multi_value: false
 
   - do:
       cluster.health:

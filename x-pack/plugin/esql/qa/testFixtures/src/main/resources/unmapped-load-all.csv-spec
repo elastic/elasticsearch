@@ -6174,12 +6174,14 @@ required_capability: optional_fields_load_all_views
 required_capability: settings_scoped_at_view_boundaries
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_view
 | WHERE message == "42"
 | KEEP @timestamp, message, unmapped_message
 ;
+warning:SET unmapped_fields=\"load_all\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 @timestamp:datetime      | message:keyword | unmapped_message:keyword
 2024-10-23T13:33:34.937Z | 42              | null
@@ -6190,11 +6192,13 @@ required_capability: optional_fields_load_all_views
 required_capability: settings_scoped_at_view_boundaries
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_view
 | STATS loaded = COUNT(unmapped_message), rows = COUNT(*)
 ;
+warning:SET unmapped_fields=\"load_all\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 loaded:long | rows:long
 0           | 7
@@ -6221,6 +6225,7 @@ required_capability: settings_scoped_at_view_boundaries
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM (FROM partial_mapping_view | KEEP message, unmapped_message), (FROM employees | KEEP emp_no)
@@ -6228,6 +6233,7 @@ FROM (FROM partial_mapping_view | KEEP message, unmapped_message), (FROM employe
 | KEEP message, unmapped_message
 | SORT message
 ;
+warning:SET unmapped_fields=\"load_all\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 message:keyword | unmapped_message:keyword
 ;
@@ -6238,12 +6244,14 @@ required_capability: settings_scoped_at_view_boundaries
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM (FROM partial_mapping_view | WHERE message == "42"), (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!")
 | KEEP message, unmapped_message
 | SORT message
 ;
+warning:SET unmapped_fields=\"load_all\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 message:keyword        | unmapped_message:keyword
 42                     | null
@@ -6256,6 +6264,7 @@ required_capability: settings_scoped_at_view_boundaries
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM (FROM partial_mapping_view | WHERE message == "42"),
@@ -6263,6 +6272,7 @@ FROM (FROM partial_mapping_view | WHERE message == "42"),
 | KEEP message, unmapped_message
 | SORT message
 ;
+warning:SET unmapped_fields=\"load_all\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 
 message:keyword        | unmapped_message:keyword
 42                     | null
@@ -6384,12 +6394,14 @@ required_capability: optional_fields_load_all_views
 required_capability: settings_scoped_at_view_boundaries
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data, partial_mapping_view
 | WHERE message == "42"
 | KEEP message, unmapped_message, unmapped_event_duration
 ;
+warning:SET unmapped_fields=\"load_all\" does not affect the contents of view [partial_mapping_view], so fields [unmapped_message], [unmapped_event_duration] are null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 ignoreOrder:true
 
 message:keyword | unmapped_message:keyword | unmapped_event_duration:keyword
@@ -6486,6 +6498,7 @@ required_capability: settings_scoped_at_view_boundaries
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: views_match_wildcards
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="LOAD_ALL"\;
 SET wildcards_match_views=true\;
@@ -6493,6 +6506,7 @@ FROM partial_mapping_view*
 | WHERE message == "42"
 | KEEP message, unmapped_message, event_duration
 ;
+warning:SET unmapped_fields=\"load_all\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 ignoreOrder:true
 
 message:keyword | unmapped_message:keyword | event_duration:long
@@ -6505,12 +6519,15 @@ required_capability: optional_fields_load_all_views
 required_capability: settings_scoped_at_view_boundaries
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
+required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data, no_mapping_view, partial_mapping_view
 | WHERE message == "42"
 | KEEP message, event_duration, unmapped_event_duration
 ;
+warning:SET unmapped_fields=\"load_all\" does not affect the contents of view [no_mapping_view], so field [unmapped_event_duration] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warning:SET unmapped_fields=\"load_all\" does not affect the contents of view [partial_mapping_view], so field [unmapped_event_duration] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
 ignoreOrder:true
 
 message:keyword | event_duration:long | unmapped_event_duration:keyword

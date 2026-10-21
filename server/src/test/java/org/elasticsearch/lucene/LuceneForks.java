@@ -21,8 +21,6 @@ import java.util.List;
  * against reaches that release, which is the signal to delete the fork. Forks that are intentional
  * extensions rather than bug fixes are registered with {@link #permanent} so that they can still be
  * found and checked for existence during Lucene upgrades.
- *
- * <p>See the "Forking Lucene classes" runbook for the full procedure.
  */
 public final class LuceneForks {
 

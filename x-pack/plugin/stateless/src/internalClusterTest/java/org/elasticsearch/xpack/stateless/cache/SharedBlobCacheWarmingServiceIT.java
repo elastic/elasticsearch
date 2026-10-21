@@ -742,7 +742,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         assertThat(evaluationsPerShard(warmingServiceOnTargetNode).values(), hasItem(greaterThan(2L)));
     }
 
-    /** How many times {@link SearchRecoveryTimeoutCalculationService#searchRecoveryTimeout} has been called for each shard recovering on a node. */
+    /// How many times [SearchRecoveryTimeoutCalculationService#searchRecoveryTimeout] has been called for each shard recovering on a node.
     private static Map<ShardId, Long> evaluationsPerShard(ObservableSharedBlobCacheWarmingService warmingService) {
         return warmingService.searchRecoveryTimeoutEvaluations().stream().collect(groupingBy(TimeoutEvaluation::shardId, counting()));
     }

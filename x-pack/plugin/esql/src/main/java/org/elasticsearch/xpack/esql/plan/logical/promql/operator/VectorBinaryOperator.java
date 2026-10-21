@@ -614,8 +614,10 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             }
 
             var uniqueAggregates = new LinkedHashSet<Expression>();
-            uniqueAggregates.addAll(addFilter(leftAgg.aggregates(), left.pendingFilter()));
-            uniqueAggregates.addAll(addFilter(rightAgg.aggregates(), right.pendingFilter()));
+            // uniqueAggregates.addAll(addFilter(leftAgg.aggregates(), left.pendingFilter()));
+            // uniqueAggregates.addAll(addFilter(rightAgg.aggregates(), right.pendingFilter()));
+            uniqueAggregates.addAll(withFilter(leftAgg.aggregates(), left.pendingFilter()));
+            uniqueAggregates.addAll(withFilter(rightAgg.aggregates(), right.pendingFilter()));
 
             // Only the aggregate functions need fresh names: both operands define `value`. Grouping columns keep their
             // own names - the command projection finds a passthrough label (`labels.pod`) by its canonical name when the

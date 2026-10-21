@@ -171,8 +171,8 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
 
     /**
      * Each resolved view's own settings are logged under one field keyed by view name, apart from the caller's, which
-     * stay what the caller set. Views whose definition SETs nothing are left out, and a query that resolves no view that
-     * SETs something has no such field.
+     * stay what the caller set. Every resolved view is logged, with the default for each setting its definition does not
+     * SET, and a query that resolves no view has no such field.
      */
     @SuppressWarnings("unchecked")
     public void testLoggingViewSettings() throws Exception {
@@ -194,17 +194,23 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
                     equalTo(
                         Map.of(
                             "nullifying_view",
-                            Map.of("unmapped_fields", "NULLIFY", "wildcards_match_views", "true", "wildcards_match_datasets", "false")
+                            Map.of("unmapped_fields", "NULLIFY", "wildcards_match_views", "true", "wildcards_match_datasets", "false"),
+                            "plain_view",
+                            PLAIN_VIEW_SETTINGS
                         )
                     )
                 );
             }
 
-            for (String noViewSettings : List.of("FROM logged-view-source | LIMIT 100", "FROM plain_view | LIMIT 100")) {
-                try (var resp = run(noViewSettings)) {
-                    var event = appender.getLastEventAndReset();
-                    assertNull(noViewSettings, getMessageField(event, EsqlLogProducer.VIEW_SETTINGS_FIELD));
-                }
+            try (var resp = run("FROM plain_view | LIMIT 100")) {
+                var event = appender.getLastEventAndReset();
+                var viewSettings = (Map<String, Object>) getMessageField(event, EsqlLogProducer.VIEW_SETTINGS_FIELD);
+                assertThat(viewSettings, equalTo(Map.of("plain_view", PLAIN_VIEW_SETTINGS)));
+            }
+
+            try (var resp = run("FROM logged-view-source | LIMIT 100")) {
+                var event = appender.getLastEventAndReset();
+                assertNull(getMessageField(event, EsqlLogProducer.VIEW_SETTINGS_FIELD));
             }
         } finally {
             client().execute(
@@ -213,6 +219,15 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
             ).actionGet(30, TimeUnit.SECONDS);
         }
     }
+
+    private static final Map<String, String> PLAIN_VIEW_SETTINGS = Map.of(
+        "unmapped_fields",
+        "DEFAULT",
+        "wildcards_match_views",
+        "false",
+        "wildcards_match_datasets",
+        "false"
+    );
 
     private void createView(String viewName, String query) {
         assertAcked(

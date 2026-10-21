@@ -43,6 +43,7 @@ import org.junit.BeforeClass;
 
 import java.time.ZoneId;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -71,7 +72,7 @@ public class EsqlQueryLogTests extends ESTestCase {
         .withOverride(QuerySettings.PROJECT_ROUTING, "_alias:_origin")
         .withOverride(QuerySettings.UNMAPPED_FIELDS, UnmappedResolution.NULLIFY)
         .withOverride(QuerySettings.TIME_ZONE, ZoneId.of("Europe/Paris"));
-    /** One view with a SET, logged apart from the caller's settings, and one without, which is not logged. */
+    /** One view with a SET and one without, both logged apart from the caller's settings. */
     private static final Map<String, ViewQuerySettings> VIEW_SETTINGS = Map.of(
         "nullifying_view",
         new ViewQuerySettings(UnmappedResolution.NULLIFY, true, false, Set.of("unmapped_fields", "wildcards_match_views")),
@@ -150,20 +151,23 @@ public class EsqlQueryLogTests extends ESTestCase {
     }
 
     private static void assertViewSettingsLogged(ESLogMessage msg, Map<String, ViewQuerySettings> viewSettings) {
-        if (viewSettings.containsKey("nullifying_view") == false) {
-            // no view, or only views that SET nothing
+        if (viewSettings.isEmpty()) {
             assertThat(msg.getData(), not(hasKey(ELASTICSEARCH_QUERYLOG_VIEW_SETTINGS)));
             return;
         }
-        assertThat(
-            msg.getData().get(ELASTICSEARCH_QUERYLOG_VIEW_SETTINGS),
-            equalTo(
-                Map.of(
-                    "nullifying_view",
-                    Map.of("unmapped_fields", "NULLIFY", "wildcards_match_views", "true", "wildcards_match_datasets", "false")
-                )
-            )
+        // every resolved view, with what its definition SETs and the default for the rest
+        Map<String, Map<String, String>> expected = new HashMap<>();
+        expected.put(
+            "plain_view",
+            Map.of("unmapped_fields", "DEFAULT", "wildcards_match_views", "false", "wildcards_match_datasets", "false")
         );
+        if (viewSettings.containsKey("nullifying_view")) {
+            expected.put(
+                "nullifying_view",
+                Map.of("unmapped_fields", "NULLIFY", "wildcards_match_views", "true", "wildcards_match_datasets", "false")
+            );
+        }
+        assertThat(msg.getData().get(ELASTICSEARCH_QUERYLOG_VIEW_SETTINGS), equalTo(expected));
         // the caller's settings fields are untouched by the views' own
         assertThat(msg.get(ELASTICSEARCH_QUERYLOG_SETTINGS_PREFIX + ".unmapped_fields"), is("NULLIFY"));
     }

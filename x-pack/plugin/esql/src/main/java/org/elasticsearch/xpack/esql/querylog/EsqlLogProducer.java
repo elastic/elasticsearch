@@ -24,8 +24,8 @@ public class EsqlLogProducer implements ActivityLogProducer<EsqlLogContext> {
 
     public static final String SETTINGS_PREFIX = QueryLogging.ES_QUERY_FIELDS_PREFIX + "settings.";
     /**
-     * The settings each resolved view's definition applies to its own body, as {@code {view: {setting: value}}}, for the
-     * views whose definition {@code SET}s something.
+     * The settings each resolved view's body runs with, as {@code {view: {setting: value}}}: what its definition
+     * {@code SET}s, and the default for the rest.
      */
     public static final String VIEW_SETTINGS_FIELD = QueryLogging.ES_QUERY_FIELDS_PREFIX + "view_settings";
     public static final String PROFILE_PREFIX = QueryLogging.ES_QUERY_FIELDS_PREFIX + "esql.profile.";

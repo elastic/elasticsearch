@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * The settings view definitions {@code SET} for their own bodies reach APM on their own counters, apart from the caller's:
  * a setting counts once per query on {@code queries.total} and once per view that sets it on {@code usages.total}, and each
- * value views set it to counts once per query. Settings a definition leaves at their default are not counted.
+ * value a view body resolved it to counts once per query, whether the definition {@code SET} it or left it at its default.
  */
 public class PlanTelemetryViewSettingsTests extends ESTestCase {
 
@@ -50,10 +50,19 @@ public class PlanTelemetryViewSettingsTests extends ESTestCase {
         );
 
         assertThat(telemetry.viewSettings(), equalTo(Map.of("UNMAPPED_FIELDS", 2, "WILDCARDS_MATCH_VIEWS", 1)));
-        // only what a definition SETs: no values for settings left at their default, and nothing for the view that SETs nothing
+        // every view's resolved values, defaults included, even for the view that SETs nothing
         assertThat(
             telemetry.viewResolvedSettings(),
-            equalTo(Map.of("UNMAPPED_FIELDS", Set.of("nullify"), "WILDCARDS_MATCH_VIEWS", Set.of("true")))
+            equalTo(
+                Map.of(
+                    "UNMAPPED_FIELDS",
+                    Set.of("default", "nullify"),
+                    "WILDCARDS_MATCH_VIEWS",
+                    Set.of("false", "true"),
+                    "WILDCARDS_MATCH_DATASETS",
+                    Set.of("false")
+                )
+            )
         );
         // the caller's own settings are what the caller set, whatever the views set
         assertThat(telemetry.settings(), equalTo(Map.of("UNMAPPED_FIELDS", 1)));
@@ -67,11 +76,23 @@ public class PlanTelemetryViewSettingsTests extends ESTestCase {
         assertThat(telemetry.viewResolvedSettings(), anEmptyMap());
     }
 
-    public void testViewsThatSetNothingRecordNothing() {
+    public void testViewsThatSetNothingRecordOnlyDefaults() {
         PlanTelemetry telemetry = telemetry();
         telemetry.viewSettings(List.of(ViewQuerySettings.DEFAULTS, ViewQuerySettings.DEFAULTS));
         assertThat(telemetry.viewSettings(), anEmptyMap());
-        assertThat(telemetry.viewResolvedSettings(), anEmptyMap());
+        assertThat(
+            telemetry.viewResolvedSettings(),
+            equalTo(
+                Map.of(
+                    "UNMAPPED_FIELDS",
+                    Set.of("default"),
+                    "WILDCARDS_MATCH_VIEWS",
+                    Set.of("false"),
+                    "WILDCARDS_MATCH_DATASETS",
+                    Set.of("false")
+                )
+            )
+        );
     }
 
     public void testPublish() {
@@ -101,7 +122,21 @@ public class PlanTelemetryViewSettingsTests extends ESTestCase {
             assertThat(m.attributes().get("success"), equalTo(success));
             resolved.merge(m.attributes().get("feature_name") + "." + m.attributes().get("setting_value"), m.getLong(), Long::sum);
         }
-        assertThat(resolved, equalTo(Map.of("UNMAPPED_FIELDS.nullify", 1L, "UNMAPPED_FIELDS.default", 1L)));
+        assertThat(
+            resolved,
+            equalTo(
+                Map.of(
+                    "UNMAPPED_FIELDS.nullify",
+                    1L,
+                    "UNMAPPED_FIELDS.default",
+                    1L,
+                    "WILDCARDS_MATCH_VIEWS.false",
+                    1L,
+                    "WILDCARDS_MATCH_DATASETS.false",
+                    1L
+                )
+            )
+        );
 
         // nothing reached the caller's counters
         assertThat(measurements(registry, PlanTelemetryManager.SETTING_METRICS), empty());

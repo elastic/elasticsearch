@@ -199,19 +199,19 @@ public class Metrics {
     }
 
     /**
-     * Counts, once per query, the settings the definitions of the views a query resolved {@code SET} explicitly: each
-     * such setting, and each value it was set to. A setting a definition leaves at its default is not counted. The
-     * caller's own settings are counted by {@link #incSetting} and {@link #incResolvedSettings}; a view's never add to those.
+     * Counts, once per query, the settings of the views a query resolved, the way {@link #incSetting} and
+     * {@link #incResolvedSettings} count the caller's: each setting some view's definition {@code SET}s explicitly, and
+     * each value a view body resolved a setting to, whether its definition {@code SET} it or left it at its default.
+     * The caller's own counters never include a view's.
      */
     public void incViewSettings(Collection<ViewQuerySettings> views) {
         Set<CounterMetric> counted = new HashSet<>();
         for (ViewQuerySettings view : views) {
             ResolvedSettings resolved = view.asResolvedSettings();
             for (QuerySettingDef<?> def : applicableViewSettings) {
-                if (view.supplied().contains(def.name()) == false) {
-                    continue;
+                if (view.supplied().contains(def.name())) {
+                    counted.add(viewSettingsMetrics.get(def.name()));
                 }
-                counted.add(viewSettingsMetrics.get(def.name()));
                 var counter = viewResolvedSettingsMetrics.get(def.name()).get(def.telemetryLabel(resolved));
                 assert counter != null;
                 counted.add(counter);

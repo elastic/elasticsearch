@@ -114,17 +114,13 @@ public record ViewQuerySettings(
     }
 
     /**
-     * The {@link #logValues()} of every view in {@code viewSettings} whose definition {@code SET}s something, by view name
-     * in sorted order; empty if none does. The query log records this as one field, so that the user-chosen view names sit
-     * inside its value rather than in field names.
+     * The {@link #logValues()} of every view in {@code viewSettings}, by view name in sorted order; empty if the query
+     * resolved no view. The query log records this as one field, so that the user-chosen view names sit inside its value
+     * rather than in field names.
      */
     public static Map<String, Map<String, String>> logValues(Map<String, ViewQuerySettings> viewSettings) {
         Map<String, Map<String, String>> values = new TreeMap<>();
-        viewSettings.forEach((viewName, settings) -> {
-            if (settings.supplied().isEmpty() == false) {
-                values.put(viewName, settings.logValues());
-            }
-        });
+        viewSettings.forEach((viewName, settings) -> values.put(viewName, settings.logValues()));
         return values;
     }
 

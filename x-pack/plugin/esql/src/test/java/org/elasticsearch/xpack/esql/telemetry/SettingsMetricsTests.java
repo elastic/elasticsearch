@@ -323,8 +323,8 @@ public class SettingsMetricsTests extends ESTestCase {
     public void testIncViewSettings() {
         Metrics metrics = createMetricsWithAllSettings();
 
-        // Two views SET unmapped_fields to different values, counted once per query, per value; only what a definition
-        // SETs is counted, so neither the third view, which SETs nothing, nor any setting left at its default is.
+        // Two views SET unmapped_fields to different values. Only what a definition SETs counts as a usage, but every
+        // view's resolved values count, the third view's defaults included, each once per query, per value.
         metrics.incViewSettings(
             List.of(
                 new ViewQuerySettings(UnmappedResolution.NULLIFY, false, false, Set.of("unmapped_fields")),
@@ -340,8 +340,8 @@ public class SettingsMetricsTests extends ESTestCase {
         assertThat(stats.get(viewValueKey("unmapped_fields", "nullify")), equalTo(1L));
         assertThat(stats.get(viewValueKey("unmapped_fields", "default")), equalTo(1L));
         assertThat(stats.get(viewValueKey("wildcards_match_views", "true")), equalTo(1L));
-        assertThat(stats.get(viewValueKey("wildcards_match_views", "false")), equalTo(0L));
-        assertThat(stats.get(viewValueKey("wildcards_match_datasets", "false")), equalTo(0L));
+        assertThat(stats.get(viewValueKey("wildcards_match_views", "false")), equalTo(1L));
+        assertThat(stats.get(viewValueKey("wildcards_match_datasets", "false")), equalTo(1L));
         assertThat(stats.get(viewValueKey("wildcards_match_datasets", "true")), equalTo(0L));
 
         // the caller's counters are untouched by what views set
@@ -350,14 +350,32 @@ public class SettingsMetricsTests extends ESTestCase {
         assertThat(stats.get(valueKey("unmapped_fields", "default")), equalTo(0L));
     }
 
-    public void testIncViewSettingsWithoutViewsThatSetCountsNothing() {
+    public void testIncViewSettingsWithoutViewsCountsNothing() {
         Metrics metrics = createMetricsWithAllSettings();
-        metrics.incViewSettings(randomBoolean() ? List.of() : List.of(ViewQuerySettings.DEFAULTS, ViewQuerySettings.DEFAULTS));
+        metrics.incViewSettings(List.of());
         Counters stats = metrics.stats();
         for (QuerySettingDef<?> def : ViewQuerySettings.SETTINGS) {
             assertThat(stats.get(Metrics.VIEW_SETTINGS_PREFIX + def.name()), equalTo(0L));
             for (String label : def.telemetryLabels()) {
                 assertThat(stats.get(viewValueKey(def.name(), label)), equalTo(0L));
+            }
+        }
+    }
+
+    /** Views that SET nothing count no usage, but their bodies still resolve every setting to its default, once per query. */
+    public void testIncViewSettingsOfViewsThatSetNothingCountsDefaults() {
+        Metrics metrics = createMetricsWithAllSettings();
+        metrics.incViewSettings(List.of(ViewQuerySettings.DEFAULTS, ViewQuerySettings.DEFAULTS));
+        Counters stats = metrics.stats();
+        for (QuerySettingDef<?> def : ViewQuerySettings.SETTINGS) {
+            assertThat(stats.get(Metrics.VIEW_SETTINGS_PREFIX + def.name()), equalTo(0L));
+            String defaultLabel = def.telemetryLabel(ResolvedSettings.EMPTY);
+            for (String label : def.telemetryLabels()) {
+                assertThat(
+                    def.name() + "." + label,
+                    stats.get(viewValueKey(def.name(), label)),
+                    equalTo(label.equals(defaultLabel) ? 1L : 0L)
+                );
             }
         }
     }

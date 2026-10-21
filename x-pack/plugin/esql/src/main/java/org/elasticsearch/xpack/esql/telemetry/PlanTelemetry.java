@@ -122,18 +122,20 @@ public class PlanTelemetry {
     }
 
     /**
-     * Records the settings the definitions of the views the query resolved {@code SET} explicitly, apart from the caller's:
-     * one usage of a setting per view whose definition sets it, and every value it was set to. A setting a definition
-     * leaves at its default is not recorded.
+     * Records the settings of the views the query resolved, apart from the caller's and the way {@link #setting} and
+     * {@link #resolvedSettings} record those: one usage of a setting per view whose definition {@code SET}s it explicitly,
+     * and every value a view body resolved a setting to, whether its definition {@code SET} it or left it at its default.
      */
     public void viewSettings(Collection<ViewQuerySettings> views) {
         for (ViewQuerySettings view : views) {
             ResolvedSettings resolved = view.asResolvedSettings();
             for (QuerySettingDef<?> def : ViewQuerySettings.SETTINGS) {
-                if (applicableSettings.contains(def) == false || view.supplied().contains(def.name()) == false) {
+                if (applicableSettings.contains(def) == false) {
                     continue;
                 }
-                add(viewSettings, def.name());
+                if (view.supplied().contains(def.name())) {
+                    add(viewSettings, def.name());
+                }
                 viewResolvedSettings.computeIfAbsent(def.name().toUpperCase(Locale.ROOT), k -> new TreeSet<>())
                     .add(def.telemetryLabel(resolved));
             }

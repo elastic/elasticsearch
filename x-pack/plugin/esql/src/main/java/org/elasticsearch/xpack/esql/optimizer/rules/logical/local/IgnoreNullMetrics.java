@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunct
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounter;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
@@ -104,6 +105,10 @@ public final class IgnoreNullMetrics extends OptimizerRules.OptimizerRule<TimeSe
      * The metric {@code expression} reads, directly or through a conversion between counter and gauge, or {@code null} if it
      * reads none. A conversion between counter and gauge keeps every value, so a row without the metric has no value of the
      * expression either, and filtering on the metric drops nothing the aggregate reads.
+     * <p>
+     * A {@code TO_DOUBLE} of such a conversion counts too, because aggregates like {@code avg} cast their {@code long} input to
+     * {@code double}. A {@code TO_DOUBLE} of a metric itself ({@code metric::double}) doesn't.
+     * </p>
      */
     private static Attribute metricOf(Expression expression, AttributeMap<Expression> definitions) {
         return switch (expression) {
@@ -114,7 +119,20 @@ public final class IgnoreNullMetrics extends OptimizerRules.OptimizerRule<TimeSe
             }
             case ToGauge toGauge -> metricOf(toGauge.field(), definitions);
             case ToCounter toCounter -> metricOf(toCounter.field(), definitions);
+            case ToDouble toDouble when isCounterGaugeConversion(toDouble.field(), definitions) -> metricOf(toDouble.field(), definitions);
             default -> null;
+        };
+    }
+
+    private static boolean isCounterGaugeConversion(Expression expression, AttributeMap<Expression> definitions) {
+        return switch (expression) {
+            case ToGauge toGauge -> true;
+            case ToCounter toCounter -> true;
+            case Attribute attr -> {
+                Expression definition = definitions.get(attr);
+                yield definition != null && isCounterGaugeConversion(definition, definitions);
+            }
+            default -> false;
         };
     }
 

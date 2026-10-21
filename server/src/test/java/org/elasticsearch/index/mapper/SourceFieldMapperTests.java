@@ -28,7 +28,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
@@ -695,9 +694,10 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         List<IndexableField> modified = new ArrayList<>();
         for (IndexableField field : parsed.rootDoc()) {
             if (field instanceof MultiValuedBinaryDocValuesField && field.name().equals("kwd")) {
-                MultiValuedBinaryDocValuesField replacement = ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled()
-                    ? new ColumnarBinaryDocValuesField("kwd", MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED)
-                    : new MultiValuedBinaryDocValuesField.SeparateCount("kwd", MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE);
+                MultiValuedBinaryDocValuesField replacement = new ColumnarBinaryDocValuesField(
+                    "kwd",
+                    MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED
+                );
                 replacement.add(new BytesRef("docvalues_value"));
                 modified.add(replacement);
             } else {

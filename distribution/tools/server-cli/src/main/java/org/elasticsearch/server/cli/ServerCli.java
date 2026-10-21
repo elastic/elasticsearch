@@ -35,6 +35,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.Security;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -237,8 +238,17 @@ class ServerCli extends EnvironmentAwareCommand {
     // protected to allow tests to override
     protected void prepareLaunch(Terminal terminal, ProcessInfo processInfo, ServerArgs args, boolean daemonize) throws Exception {
         var tempDir = ServerProcessUtils.setupTempDir(processInfo);
-        // FIPS 140 mode: the provider ships dormant in lib/fips and joins the server JVM only when the node setting asks for it
+        // FIPS 140 mode: the provider ships dormant in lib/fips and joins the server JVM only when the node setting asks for it. This
+        // JVM got the same options from bin/elasticsearch through CLI_JAVA_OPTS; the server's are decided here, from the settings.
         var fipsProperties = FipsOptions.systemProperties(args.nodeSettings(), processInfo.workingDir());
+        if (fipsProperties.isEmpty() == false && Security.getProvider("BCFIPS") == null) {
+            terminal.errorPrintln(
+                "warning: "
+                    + FipsOptions.FIPS_MODE_SETTING
+                    + " is true but the server CLI is not running on the FIPS provider; the server will be, but secure settings and"
+                    + " security auto-configuration were handled by the JDK's own providers (start with bin/elasticsearch)"
+            );
+        }
         var jvmOptions = FipsOptions.withSystemProperties(
             JvmOptionsParser.determineJvmOptions(args, processInfo, tempDir, new MachineDependentHeap()),
             fipsProperties

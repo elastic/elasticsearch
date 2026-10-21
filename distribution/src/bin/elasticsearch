@@ -2,9 +2,18 @@
 
 source "`dirname "$0"`"/elasticsearch-env
 
+# in FIPS 140 mode the preparer (the server CLI that the launcher runs first)
+# gets the same options as a command line tool, through CLI_JAVA_OPTS, so that
+# keystore decryption and security auto-configuration run on the FIPS provider;
+# the launcher adds lib/fips to the preparer's class path. The options come
+# first so that a value the caller sets in CLI_JAVA_OPTS takes precedence. The
+# server's own options are decided by the preparer from the node settings, not
+# inherited from here. See es_fips_java_opts in elasticsearch-env.
+es_fips_java_opts "$@"
+
 # use a small heap size for the CLI tools, and thus the serial collector to
 # avoid stealing many CPU cycles; a user can override by setting CLI_JAVA_OPTS
-CLI_JAVA_OPTS="-Xms4m -Xmx64m -XX:+UseSerialGC ${CLI_JAVA_OPTS}"
+CLI_JAVA_OPTS="${FIPS_JAVA_OPTS[*]} -Xms4m -Xmx64m -XX:+UseSerialGC ${CLI_JAVA_OPTS}"
 
 export JAVA ES_HOME ES_PATH_CONF ES_DISTRIBUTION_TYPE JAVA_TYPE CLI_JAVA_OPTS
 

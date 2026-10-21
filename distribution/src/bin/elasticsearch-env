@@ -92,3 +92,51 @@ ES_PATH_CONF=`cd "$ES_PATH_CONF"; pwd`
 ES_DISTRIBUTION_TYPE=@es.distribution.type@
 
 cd "$ES_HOME"
+
+# FIPS 140 mode is the node setting xpack.security.fips_mode.enabled. A JVM has
+# to be on the FIPS provider before it can read that setting, so a cheap scan of
+# elasticsearch.yml (uncommented lines only), of the caller's own -E arguments
+# and of the Docker settings environment decides whether to ask the fips-options
+# helper, which resolves the settings the way the caller will. The helper prints
+# the JVM options for the provider shipped in lib/fips, one per line, or nothing.
+# A false positive here costs one extra JVM start. Fills the FIPS_JAVA_OPTS array;
+# fails with the helper's status when the setting is on but lib/fips is absent.
+FIPS_JAVA_OPTS=()
+fips_mode_mentioned() {
+  grep -Eqs '^[^#]*fips_mode' "$ES_PATH_CONF/elasticsearch.yml" && return 0
+  case " $* " in *fips_mode*) return 0 ;; esac
+  [ -n "$ES_SETTING_XPACK_SECURITY_FIPS__MODE_ENABLED" ]
+}
+es_fips_java_opts() {
+  fips_mode_mentioned "$@" || return 0
+  # only the -E settings arguments concern the helper; the caller's own options do not
+  FIPS_HELPER_ARGS=()
+  setting_value_next=false
+  for arg in "$@"; do
+    if [ "$setting_value_next" = true ]; then
+      FIPS_HELPER_ARGS+=("$arg")
+      setting_value_next=false
+    elif [ "$arg" = "-E" ]; then
+      FIPS_HELPER_ARGS+=("$arg")
+      setting_value_next=true
+    else
+      case "$arg" in -E*) FIPS_HELPER_ARGS+=("$arg") ;; esac
+    fi
+  done
+  FIPS_HELPER_OUTPUT=$("$JAVA" \
+    -Xms4m -Xmx64m -XX:+UseSerialGC \
+    -Dcli.name=fips-options \
+    -Dcli.script="$0" \
+    -Dcli.libs=lib/tools/server-cli \
+    -Des.path.home="$ES_HOME" \
+    -Des.path.conf="$ES_PATH_CONF" \
+    -Des.distribution.type="$ES_DISTRIBUTION_TYPE" \
+    -cp "$ES_HOME/lib/*:$ES_HOME/lib/cli-launcher/*" \
+    org.elasticsearch.launcher.CliToolLauncher \
+    "${FIPS_HELPER_ARGS[@]}") || return $?
+  while IFS= read -r fips_java_opt; do
+    if [ -n "$fips_java_opt" ]; then
+      FIPS_JAVA_OPTS+=("$fips_java_opt")
+    fi
+  done <<< "$FIPS_HELPER_OUTPUT"
+}

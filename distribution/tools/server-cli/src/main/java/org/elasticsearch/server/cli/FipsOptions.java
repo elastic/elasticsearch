@@ -27,7 +27,9 @@ import java.util.stream.Stream;
  * variable. The provider ships dormant in {@code lib/fips}, a directory that is neither on the server module path nor matched
  * by the class path wildcard of the command line tools, so a node that is not in FIPS mode never loads it. When the setting is
  * true, {@link ServerCli} adds the directory to the server module path and these properties to the server JVM options, and
- * {@link FipsOptionsCommand} prints the same properties for {@code bin/elasticsearch-cli} to pass to a command line tool.
+ * {@link FipsOptionsCommand} prints the same properties for {@code bin/elasticsearch-cli} to pass to a command line tool and for
+ * {@code bin/elasticsearch} to pass to the server CLI itself, so that secure settings and security auto-configuration run on the
+ * provider too.
  *
  * <p> An operator who followed the manual FIPS setup has copied their own copy of the provider into {@code lib} and carries the
  * JVM options in {@code jvm.options} and {@code CLI_JAVA_OPTS}. Such a node gets nothing from here, so that an upgrade does not
@@ -81,6 +83,16 @@ final class FipsOptions {
      * @throws UserException when FIPS mode is on but this distribution does not ship the provider
      */
     static List<String> systemProperties(Settings settings, Path esHome) throws UserException, IOException {
+        return systemProperties(settings, esHome, fipsLib(esHome));
+    }
+
+    /**
+     * @param printedLib the {@code lib/fips} path to name in the properties. Absolute for the server, whose working directory is its
+     *                   logs directory. Relative for the command line tools and the server CLI, whose working directory is ES_HOME:
+     *                   the server launcher splits {@code CLI_JAVA_OPTS} on whitespace, so the options must never contain a space,
+     *                   and an ES_HOME may. The checks still use {@code esHome}, so a wrong working directory fails closed here.
+     */
+    static List<String> systemProperties(Settings settings, Path esHome, Path printedLib) throws UserException, IOException {
         if (isFipsMode(settings) == false || hasOperatorProvider(esHome)) {
             return List.of();
         }
@@ -95,11 +107,11 @@ final class FipsOptions {
             );
         }
         return List.of(
-            "-Djava.security.properties==" + lib.resolve(JAVA_SECURITY_FILE),
+            "-Djava.security.properties==" + printedLib.resolve(JAVA_SECURITY_FILE),
             "-Dorg.bouncycastle.fips.approved_only=true",
             "-Djavax.net.ssl.keyStoreType=BCFKS",
             "-Djavax.net.ssl.trustStoreType=BCFKS",
-            "-Djavax.net.ssl.trustStore=" + lib.resolve(CACERTS_FILE),
+            "-Djavax.net.ssl.trustStore=" + printedLib.resolve(CACERTS_FILE),
             "-Djavax.net.ssl.trustStorePassword=" + CACERTS_PASSWORD
         );
     }

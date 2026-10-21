@@ -22,6 +22,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 /**
  * The helper that {@code bin/elasticsearch-cli} runs before a tool. Its output is a list of JVM options, one per line, so the
@@ -65,7 +66,11 @@ public class FipsOptionsCommandTests extends CommandTestCase {
         String output = execute();
         assertThat(output.lines().count(), equalTo(6L));
         assertThat(output.lines().allMatch(line -> line.startsWith("-D")), is(true));
-        assertThat(output, containsString("-Djava.security.properties==" + fips.resolve(FipsOptions.JAVA_SECURITY_FILE) + "\n"));
+        // paths are relative to ES_HOME (the working directory), never absolute, so that they survive a whitespace split
+        assertThat(output, containsString("-Djava.security.properties==" + Path.of("lib", "fips", FipsOptions.JAVA_SECURITY_FILE) + "\n"));
+        assertThat(output, containsString("-Djavax.net.ssl.trustStore=" + Path.of("lib", "fips", FipsOptions.CACERTS_FILE) + "\n"));
+        assertThat(output, not(containsString(fips.toString())));
+        assertThat(output.lines().anyMatch(line -> line.contains(" ")), is(false));
     }
 
     public void testPrintsOptionsFromSettingArgument() throws Exception {

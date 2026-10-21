@@ -16,6 +16,8 @@ import org.elasticsearch.cli.terminal.Terminal;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.env.Environment;
 
+import java.nio.file.Path;
+
 /**
  * Prints the JVM options that run a command line tool in FIPS 140 mode, one per line, or nothing when the node is not in FIPS mode.
  *
@@ -23,6 +25,10 @@ import org.elasticsearch.env.Environment;
  * it. So {@code bin/elasticsearch-cli} does a cheap scan of the file, the tool's {@code -E} arguments and the environment for the
  * FIPS mode setting, and only on a hit runs this command, which resolves the settings the same way the tool itself will. The
  * script passes the printed options to the tool's JVM and, when there are any, adds {@code lib/fips} to its class path.
+ * {@code bin/elasticsearch} does the same for the server CLI, through {@code CLI_JAVA_OPTS}.
+ *
+ * <p> The paths are printed relative to ES_HOME, which is the working directory of every JVM the scripts start, so that the
+ * options never contain a space and survive the whitespace split of {@code CLI_JAVA_OPTS} in the server launcher.
  */
 class FipsOptionsCommand extends EnvironmentAwareCommand {
 
@@ -32,7 +38,8 @@ class FipsOptionsCommand extends EnvironmentAwareCommand {
 
     @Override
     public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
-        for (String property : FipsOptions.systemProperties(env.settings(), processInfo.workingDir())) {
+        Path relativeLib = FipsOptions.fipsLib(Path.of(""));
+        for (String property : FipsOptions.systemProperties(env.settings(), processInfo.workingDir(), relativeLib)) {
             terminal.println(property);
         }
     }

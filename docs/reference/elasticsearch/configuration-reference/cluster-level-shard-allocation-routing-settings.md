@@ -48,7 +48,18 @@ $$$cluster-routing-allocation-same-shard-host$$$
 $$$cluster-routing-allocation-total-shards-per-node$$$
 
 `cluster.routing.allocation.total_shards_per_node`
-:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Maximum number of primary and replica shards on each node, counted across all indices. Defaults to `-1` (unlimited).
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Maximum number of primary and replica shards 
+allocated to each node. Defaults to `-1` (unlimited).
+
+{{es}} checks this setting during shard allocation. For example, a cluster has a `cluster.routing.allocation.total_shards_per_node` 
+setting of `100` and three nodes with the following shard allocations:
+
+* Node A: 100 shards
+* Node B: 98 shards
+* Node C: 1 shard
+
+If node C fails, {{es}} reallocates its shard to node B. Reallocating the shard to node A would exceed node A’s shard limit.
+
 
 `cluster.routing.allocation.node_concurrent_incoming_recoveries`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) How many concurrent incoming shard recoveries are allowed to happen on a node. Incoming recoveries are the recoveries where the target shard (most likely the replica unless a shard is relocating) is allocated on the node. Defaults to `2`. Increasing this setting may cause shard movements to have a performance impact on other activity in your cluster, but may not make shard movements complete noticeably sooner. We do not recommend adjusting this setting from its default of `2`.

@@ -35,6 +35,7 @@ public class InboundAggregator implements Releasable {
     private Exception aggregationException;
     private boolean canTripBreaker = true;
     private boolean isClosed = false;
+    private BreakerControl breakerControl;
 
     public InboundAggregator(
         Supplier<CircuitBreaker> circuitBreaker,
@@ -63,6 +64,7 @@ public class InboundAggregator implements Releasable {
         assert isAggregating() == false;
         assert firstContent == null && contentAggregation == null;
         currentHeader = header;
+        breakerControl = new BreakerControl(circuitBreaker);
         if (currentHeader.isRequest() && currentHeader.needsToReadVariableHeader() == false) {
             initializeRequestState();
         }
@@ -79,6 +81,19 @@ public class InboundAggregator implements Releasable {
         ensureOpen();
         assert isAggregating();
         if (isShortCircuited() == false) {
+            // Reserve each piece as it arrives so it is checked against the memory in use at that moment. Requests whose action name isn't
+            // known yet are reserved in reserveContentBytes.
+            if (currentHeader.isRequest() && currentHeader.needsToReadVariableHeader() == false && content.length() > 0) {
+                if (reserveBreakerBytes(content.length(), currentHeader.getActionName()) == false) {
+                    releaseContent();
+                    firstContent = null;
+                    contentAggregation = null;
+                    // Release what was reserved now, the control that goes with the short-circuited message starts empty
+                    breakerControl.close();
+                    breakerControl = new BreakerControl(circuitBreaker);
+                    return;
+                }
+            }
             if (isFirstContent()) {
                 firstContent = content.retain();
             } else {
@@ -106,18 +121,18 @@ public class InboundAggregator implements Releasable {
             releasableContent = new ReleasableBytesReference(content, () -> Releasables.close(references));
         }
 
-        final BreakerControl breakerControl = new BreakerControl(circuitBreaker);
         final InboundMessage aggregated = new InboundMessage(currentHeader, releasableContent, breakerControl);
         boolean success = false;
         try {
-            if (aggregated.getHeader().needsToReadVariableHeader()) {
+            final boolean headerParsedWithContent = aggregated.getHeader().needsToReadVariableHeader();
+            if (headerParsedWithContent) {
                 aggregated.getHeader().finishParsingHeader(aggregated.openOrGetStreamInput());
                 if (aggregated.getHeader().isRequest()) {
                     initializeRequestState();
                 }
             }
-            if (isShortCircuited() == false) {
-                checkBreaker(aggregated.getHeader(), aggregated.getContentLength(), breakerControl);
+            if (headerParsedWithContent && isShortCircuited() == false) {
+                reserveContentBytes(aggregated.getHeader(), aggregated.getContentLength());
             }
             if (isShortCircuited()) {
                 aggregated.close();
@@ -160,6 +175,7 @@ public class InboundAggregator implements Releasable {
 
     private void closeCurrentAggregation() {
         releaseContent();
+        Releasables.close(breakerControl);
         resetCurrentAggregation();
     }
 
@@ -175,6 +191,7 @@ public class InboundAggregator implements Releasable {
         firstContent = null;
         contentAggregation = null;
         currentHeader = null;
+        breakerControl = null;
         aggregationException = null;
         canTripBreaker = true;
     }
@@ -205,22 +222,29 @@ public class InboundAggregator implements Releasable {
         return header.isCompressed() == (header.getCompressionScheme() != null);
     }
 
-    private void checkBreaker(final Header header, final int contentLength, final BreakerControl breakerControl) {
-        if (header.isRequest() == false) {
-            return;
-        }
-        assert header.needsToReadVariableHeader() == false;
-
+    // Reserves the bytes on the breaker and records them in the breaker control, so they are released with it. Returns false if the breaker
+    // tripped, which short-circuits the aggregation.
+    private boolean reserveBreakerBytes(int bytes, String label) {
         if (canTripBreaker) {
             try {
-                circuitBreaker.get().addEstimateBytesAndMaybeBreak(contentLength, header.getActionName());
-                breakerControl.setReservedBytes(contentLength);
+                circuitBreaker.get().addEstimateBytesAndMaybeBreak(bytes, label);
             } catch (CircuitBreakingException e) {
                 shortCircuit(e);
+                return false;
             }
         } else {
-            circuitBreaker.get().addWithoutBreaking(contentLength);
-            breakerControl.setReservedBytes(contentLength);
+            circuitBreaker.get().addWithoutBreaking(bytes);
+        }
+        breakerControl.addReservedBytes(bytes);
+        return true;
+    }
+
+    /**
+     * Reserves the content of a request whose action name was only parsed along with the content, so it couldn't be reserved while read.
+     */
+    private void reserveContentBytes(final Header header, final int contentLength) {
+        if (header.isRequest()) {
+            reserveBreakerBytes(contentLength, header.getActionName());
         }
     }
 
@@ -235,9 +259,9 @@ public class InboundAggregator implements Releasable {
             this.circuitBreaker = circuitBreaker;
         }
 
-        private void setReservedBytes(int reservedBytes) {
-            final boolean set = bytesToRelease.compareAndSet(0, reservedBytes);
-            assert set : "Expected bytesToRelease to be 0, found " + bytesToRelease.get();
+        private void addReservedBytes(int reservedBytes) {
+            final int updated = bytesToRelease.addAndGet(reservedBytes);
+            assert updated >= 0 : "Expected bytesToRelease to be non-negative, found " + updated;
         }
 
         @Override

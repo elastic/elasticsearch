@@ -170,6 +170,25 @@ public class CsvColumnarIT extends CsvIT {
         "unmapped_multi_stored_mixed",
         "unmapped_array_data",
         "unmapped_object_data",
+        // mv_expand_unmapped is dynamic:false and read for the tags and deep.items leaves its mapping does not declare, which strict
+        // columnar drops at ingest; mv_expand_mapped only exists to be read alongside it.
+        "mv_expand_mapped",
+        "mv_expand_unmapped",
+        // change_point_mapped carries unmapped leaves (type, pvalue, ...) and change_point_unmapped maps only id, so strict columnar drops
+        // what the tests read at ingest.
+        "change_point_mapped",
+        "change_point_unmapped",
+        // Both are dynamic:false and are read for the fields their mapping does not declare, which strict columnar drops at ingest.
+        "flattened_paths_mapped",
+        "flattened_paths_unmapped",
+        // dynamic:false, read for the undeclared leaves under a nested parent, which strict columnar drops at ingest. The mapped index also
+        // nests parts inside items, and columnar supports only a single level of nesting, so index creation fails outright.
+        "nested_paths_mapped",
+        "nested_paths_unmapped",
+        // dynamic:false and read for the leaves its mapping does not declare, which strict columnar drops at ingest.
+        "unmapped_compound_outputs",
+        // Same again: every field but id is unmapped, so strict columnar drops it at ingest.
+        "unmapped_compound_inputs",
         "synthetic_source_partial_mapping",
         // unmapped_source_* family: dynamic:false with only id mapped; everything else lives in
         // _source / _ignored_source, which strict columnar drops at ingest. unmapped_source_disabled
@@ -753,7 +772,7 @@ public class CsvColumnarIT extends CsvIT {
         /**
          * Sanitizes a mapping JSON string for columnar index mode.
          *
-         * <p>Performs four adjustments in a single parse-serialize pass:
+         * <p>Performs five adjustments in a single parse-serialize pass:
          * <ol>
          *   <li>Removes the top-level {@code "runtime"} section.
          *       {@code IndexMode.COLUMNAR.validateMapping} calls
@@ -784,6 +803,12 @@ public class CsvColumnarIT extends CsvIT {
          *       collapse to a constant. That produces different relevance scores for the same
          *       query, invalidating the csv-spec oracle. Restoring the standard-mode default
          *       makes BM25 scores bit-identical so all score-asserting specs remain valid.</li>
+         *   <li>Injects {@code "index_options": "positions"} into every {@code text} field that omits
+         *       {@code "index_options"}.
+         *       Strictly columnar mode defaults text {@code index_options} to {@code docs} (no
+         *       positions), which breaks positional queries (e.g. {@code MATCH_PHRASE},
+         *       {@code QSTR}/{@code KQL} phrases). Restoring the standard-mode {@code positions}
+         *       default keeps those queries valid so the csv-spec oracle remains valid.</li>
          * </ol>
          */
         private static String sanitizeMapping(String mapping) throws IOException {
@@ -792,6 +817,7 @@ public class CsvColumnarIT extends CsvIT {
             stripStoreTrue(map);
             fixDenseVectorIndexDefault(map);
             fixTextNormsDefault(map);
+            fixTextIndexOptionsDefault(map);
             try (XContentBuilder builder = JsonXContent.contentBuilder()) {
                 builder.map(map);
                 return Strings.toString(builder);
@@ -855,6 +881,26 @@ public class CsvColumnarIT extends CsvIT {
             walkFieldDefs(mappingObject, fieldDef -> {
                 if ("text".equals(fieldDef.get("type")) && fieldDef.containsKey("norms") == false) {
                     fieldDef.put("norms", true);
+                }
+            });
+        }
+
+        /**
+         * Recursively walks the mapping and injects {@code "index_options": "positions"} into every
+         * {@code text} field that does not already declare {@code "index_options"}.
+         *
+         * <p>Strictly columnar mode defaults text {@code index_options} to {@code docs} (no positions),
+         * because positions are not needed to reconstruct values from doc values. That breaks positional
+         * queries (e.g. {@code MATCH_PHRASE}, {@code QSTR}/{@code KQL} phrases), which fail on a field
+         * indexed without position data and therefore diverge from the csv-spec oracle. Restoring the
+         * standard-mode {@code positions} default keeps those queries valid. Multi-fields (reachable via
+         * {@code "fields"}) are covered through {@link #walkFieldDefs}. {@code match_only_text} is a
+         * different type and mapper and is intentionally left untouched.
+         */
+        private static void fixTextIndexOptionsDefault(Map<String, Object> mappingObject) {
+            walkFieldDefs(mappingObject, fieldDef -> {
+                if ("text".equals(fieldDef.get("type")) && fieldDef.containsKey("index_options") == false) {
+                    fieldDef.put("index_options", "positions");
                 }
             });
         }

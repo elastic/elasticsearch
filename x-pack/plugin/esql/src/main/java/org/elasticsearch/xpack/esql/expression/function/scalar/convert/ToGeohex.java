@@ -11,7 +11,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
-import org.elasticsearch.h3.H3;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -31,14 +30,20 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToGeohex;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToGeohex;
 
 public class ToGeohex extends AbstractConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToGeohex", ToGeohex::new);
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToGeohex.class).unary(ToGeohex::new).name("to_geohex");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToGeohex.class)
+        .unary(ToGeohex::new)
+        // Invalid long and string inputs produce a warning and null, instead of failing when rendering the results
+        .capabilities("invalid_input_warns")
+        .name("to_geohex");
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(GEOHEX, (source, fieldEval) -> fieldEval),
-        Map.entry(LONG, (source, fieldEval) -> fieldEval),
+        Map.entry(LONG, ToGeohexFromLongEvaluator.Factory::new),
         Map.entry(KEYWORD, ToGeohexFromStringEvaluator.Factory::new),
         Map.entry(TEXT, ToGeohexFromStringEvaluator.Factory::new)
     );
@@ -97,6 +102,11 @@ public class ToGeohex extends AbstractConvertFunction {
 
     @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })
     static long fromString(BytesRef in) {
-        return H3.stringToH3(in.utf8ToString());
+        return stringToGeohex(in.utf8ToString());
+    }
+
+    @ConvertEvaluator(extraName = "FromLong", warnExceptions = { IllegalArgumentException.class })
+    static long fromLong(long in) {
+        return longToGeohex(in);
     }
 }

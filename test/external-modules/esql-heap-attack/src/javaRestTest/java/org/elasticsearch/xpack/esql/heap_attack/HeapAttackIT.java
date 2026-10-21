@@ -185,6 +185,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
                 .entry("read_nanos", IntOrLongMatcher.isIntOrLong())
                 .entry("read_cpu_nanos", IntOrLongMatcher.isIntOrLong())
                 .entry("cpu_nanos", IntOrLongMatcher.isIntOrLong())
+                .entry("driver_nanos", IntOrLongMatcher.isIntOrLong())
                 .entry("completion_time_in_millis", greaterThan(0L))
                 .entry("expiration_time_in_millis", greaterThan(0L))
                 .entry("start_time_in_millis", greaterThan(0L))
@@ -357,6 +358,26 @@ public class HeapAttackIT extends HeapAttackTestCase {
     }
 
     /**
+     * A wide ROW followed by many DISSECTs. Planning used to rebuild every node's output on each call,
+     * making it quadratic in the number of DISSECTs.
+     */
+    public void testManyDissectFromRow() throws IOException {
+        int columns = 2500;
+        int dissects = 450;
+        StringBuilder query = startQuery();
+        query.append("ROW s=\\\"a\\\"");
+        for (int c = 0; c < columns; c++) {
+            query.append(", c").append(c).append("=1");
+        }
+        for (int d = 0; d < dissects; d++) {
+            query.append("\n| DISSECT s \\\"%{k").append(d).append("}\\\"");
+        }
+        query.append("\n| LIMIT 1\"}");
+        Map<String, Object> response = responseAsMap(query(query.toString(), "columns"));
+        assertThat((List<?>) response.get("columns"), hasSize(1 + columns + dissects));
+    }
+
+    /**
      * Hits a circuit breaker by building many moderately long strings.
      */
     public void testHugeManyConcatFromRow() throws IOException {
@@ -485,7 +506,13 @@ public class HeapAttackIT extends HeapAttackTestCase {
     public void testHugeMvConcat() throws IOException {
         // One doc whose f00 holds 300k values; joined with a ~1kb delimiter that is one huge string.
         initMvLongsIndex(1, 1, 300000, false);
-        assertCircuitBreaks(attempt -> mvConcat(attempt * 999));
+        // Lower the request breaker so the join trips it well before the node runs out of memory.
+        try {
+            setRequestBreakerLimit("20%");
+            assertCircuitBreaks(attempt -> mvConcat(attempt * 999));
+        } finally {
+            setRequestBreakerLimit(null);
+        }
     }
 
     private Map<String, Object> mvConcat(int delimiterLength) throws IOException {
@@ -502,7 +529,13 @@ public class HeapAttackIT extends HeapAttackTestCase {
      */
     public void testHugeToBase64() throws IOException {
         initGiantTextField(1, false, 5);
-        assertCircuitBreaks(attempt -> toBase64Chain(10 + attempt * 4));
+        // Lower the request breaker so the chain trips it well before the node runs out of memory.
+        try {
+            setRequestBreakerLimit("20%");
+            assertCircuitBreaks(attempt -> toBase64Chain(10 + attempt * 4));
+        } finally {
+            setRequestBreakerLimit(null);
+        }
     }
 
     private Map<String, Object> toBase64Chain(int levels) throws IOException {
@@ -670,7 +703,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
     public void testFetchMvLongs() throws IOException {
         int fields = 100;
         initMvLongsIndex(100, fields, 1000, false);
-        Map<?, ?> response = fetchMvLongs();
+        Map<?, ?> response = fetchMvLongs(100);
         ListMatcher columns = matchesList();
         for (int f = 0; f < fields; f++) {
             columns = columns.item(matchesMap().entry("name", String.format(Locale.ROOT, "f%02d", f)).entry("type", "long"));
@@ -679,13 +712,14 @@ public class HeapAttackIT extends HeapAttackTestCase {
     }
 
     public void testFetchTooManyMvLongs() throws IOException {
-        initMvLongsIndex(500, 100, 1000, false);
-        assertCircuitBreaks(attempt -> fetchMvLongs());
+        int docs = scaleToHeap(500);
+        initMvLongsIndex(docs, 100, 1000, false);
+        assertCircuitBreaks(attempt -> fetchMvLongs(docs));
     }
 
-    private Map<String, Object> fetchMvLongs() throws IOException {
+    private Map<String, Object> fetchMvLongs(int docs) throws IOException {
         StringBuilder query = startQuery();
-        query.append("FROM mv_longs\"}");
+        query.append("FROM mv_longs | LIMIT ").append(docs).append("\"}");
         return responseAsMap(query(query.toString(), "columns"));
     }
 
@@ -870,7 +904,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
      * generate a large of buckets. All the aforementioned participates in inflating the size of the grouping state.
      */
     public void testFirstAggWithManyLongs() throws IOException {
-        initMvLongsIndex(5000, 2, 3000, true);
+        initMvLongsIndex(scaleToHeap(5000), 2, 3000, true);
         assertCircuitBreaks(attempt -> aggregateByIdOnManyLongs("FIRST"));
     }
 
@@ -880,7 +914,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
      * @see #testFirstAggWithManyLongs()
      */
     public void testLastAggWithManyLongs() throws IOException {
-        initMvLongsIndex(5000, 2, 3000, true);
+        initMvLongsIndex(scaleToHeap(5000), 2, 3000, true);
         assertCircuitBreaks(attempt -> aggregateByIdOnManyLongs("LAST"));
     }
 
@@ -890,7 +924,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
      * @see #testFirstAggWithManyLongs()
      */
     public void testFirstAggWithGiantText() throws IOException {
-        initGiantTextField(50, true, 3);
+        initGiantTextField(scaleToHeap(50), true, 3);
         assertCircuitBreaks(attempt -> aggregateByIdOnLargeText("FIRST"));
     }
 
@@ -900,7 +934,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
      * @see #testFirstAggWithManyLongs()
      */
     public void testLastAggWithGiantText() throws IOException {
-        initGiantTextField(50, true, 3);
+        initGiantTextField(scaleToHeap(50), true, 3);
         assertCircuitBreaks(attempt -> aggregateByIdOnLargeText("LAST"));
     }
 

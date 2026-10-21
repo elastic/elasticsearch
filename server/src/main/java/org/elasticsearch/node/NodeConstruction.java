@@ -71,6 +71,7 @@ import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitor;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadMetrics;
+import org.elasticsearch.cluster.routing.allocation.shards.LocalRecoveryRetriesHealthTracker;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -1413,7 +1414,8 @@ class NodeConstruction {
                 telemetryProvider,
                 repositoriesService,
                 fileSettingsHealthTracker,
-                projectResolver
+                projectResolver,
+                indicesService
             )
         );
 
@@ -1639,7 +1641,8 @@ class NodeConstruction {
         TelemetryProvider telemetryProvider,
         RepositoriesService repositoriesService,
         FileSettingsHealthTracker fileSettingsHealthTracker,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        IndicesService indicesService
     ) {
 
         MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
@@ -1676,7 +1679,8 @@ class NodeConstruction {
         List<HealthTracker<?>> healthTrackers = List.of(
             new DiskHealthTracker(nodeService, clusterService),
             new RepositoriesHealthTracker(repositoriesService, projectResolver),
-            fileSettingsHealthTracker
+            fileSettingsHealthTracker,
+            new LocalRecoveryRetriesHealthTracker(indicesService)
         );
         LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(settings, clusterService, threadPool, client, healthTrackers);
         HealthInfoCache nodeHealthOverview = HealthInfoCache.create(clusterService);

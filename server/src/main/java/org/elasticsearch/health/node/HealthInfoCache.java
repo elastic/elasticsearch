@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.shards.LocalRecoveryRetriesHealthInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.health.node.selection.HealthNode;
@@ -37,6 +38,8 @@ public class HealthInfoCache implements ClusterStateListener {
     private volatile FileSettingsHealthInfo fileSettingsHealthInfo = INDETERMINATE;
     @Nullable
     private volatile DlmFrozenTransitionsHealthInfo dlmFrozenTransitionsHealthInfo = null;
+    private volatile ConcurrentHashMap<String, LocalRecoveryRetriesHealthInfo> localRecoveryRetriesHealthInfoByNode =
+        new ConcurrentHashMap<>();
     @Nullable
     private volatile DataRecoveryHealthInfo dataRecoveryHealthInfo = null;
     @Nullable
@@ -88,6 +91,28 @@ public class HealthInfoCache implements ClusterStateListener {
         @Nullable DlmFrozenTransitionsHealthInfo latestDlmFrozenTransitionsHealthInfo,
         @Nullable DataRecoveryHealthInfo latestDataRecoveryHealthInfo
     ) {
+        updateNodeHealth(
+            nodeId,
+            diskHealthInfo,
+            latestDslHealthInfo,
+            repositoriesHealthInfo,
+            fileSettingsHealthInfo,
+            latestDlmFrozenTransitionsHealthInfo,
+            latestDataRecoveryHealthInfo,
+            null
+        );
+    }
+
+    public void updateNodeHealth(
+        String nodeId,
+        @Nullable DiskHealthInfo diskHealthInfo,
+        @Nullable DataStreamLifecycleHealthInfo latestDslHealthInfo,
+        @Nullable RepositoriesHealthInfo repositoriesHealthInfo,
+        @Nullable FileSettingsHealthInfo fileSettingsHealthInfo,
+        @Nullable DlmFrozenTransitionsHealthInfo latestDlmFrozenTransitionsHealthInfo,
+        @Nullable DataRecoveryHealthInfo latestDataRecoveryHealthInfo,
+        @Nullable LocalRecoveryRetriesHealthInfo localRecoveryRetriesHealthInfo
+    ) {
         if (diskHealthInfo != null) {
             diskInfoByNode.put(nodeId, diskHealthInfo);
         }
@@ -110,6 +135,9 @@ public class HealthInfoCache implements ClusterStateListener {
                 this.dataRecoveryHealthInfo = latestDataRecoveryHealthInfo;
             }
         }
+        if (localRecoveryRetriesHealthInfo != null) {
+            this.localRecoveryRetriesHealthInfoByNode.put(nodeId, localRecoveryRetriesHealthInfo);
+        }
     }
 
     @Override
@@ -125,6 +153,7 @@ public class HealthInfoCache implements ClusterStateListener {
                 for (DiscoveryNode removedNode : event.nodesDelta().removedNodes()) {
                     diskInfoByNode.remove(removedNode.getId());
                     repositoriesInfoByNode.remove(removedNode.getId());
+                    localRecoveryRetriesHealthInfoByNode.remove(removedNode.getId());
                 }
             }
             // Resetting the cache is not synchronized for efficiency and simplicity.
@@ -140,6 +169,7 @@ public class HealthInfoCache implements ClusterStateListener {
             masterNodeId = null;
             dlmFrozenTransitionsHealthInfo = null;
             dataRecoveryHealthInfo = null;
+            localRecoveryRetriesHealthInfoByNode = new ConcurrentHashMap<>();
         }
     }
 
@@ -150,7 +180,8 @@ public class HealthInfoCache implements ClusterStateListener {
             || fileSettingsHealthInfo != INDETERMINATE
             || masterNodeId != null
             || dlmFrozenTransitionsHealthInfo != null
-            || dataRecoveryHealthInfo != null;
+            || dataRecoveryHealthInfo != null
+            || localRecoveryRetriesHealthInfoByNode.isEmpty() == false;
     }
 
     /**
@@ -165,7 +196,8 @@ public class HealthInfoCache implements ClusterStateListener {
             Map.copyOf(repositoriesInfoByNode),
             fileSettingsHealthInfo,
             dlmFrozenTransitionsHealthInfo,
-            dataRecoveryHealthInfo
+            dataRecoveryHealthInfo,
+            Map.copyOf(localRecoveryRetriesHealthInfoByNode)
         );
     }
 }

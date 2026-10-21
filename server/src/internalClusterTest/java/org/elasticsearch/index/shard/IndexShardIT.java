@@ -77,7 +77,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.BoostProfileEnabled;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -408,9 +408,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         updateClusterSettings(Settings.builder().putNull(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey()).build());
     }
 
-    public void testShardSearchLoadsArePresent() {
-        assumeTrue("Collecting shard search loads requires the boost_profile feature flag", BoostProfileEnabled.FEATURE_FLAG.isEnabled());
-
+    public void testShardSearchLoadsArePresent() throws Exception {
         // Create some indices and some search load
         final int numIndices = randomIntBetween(1, 5);
         final String indexPrefix = randomIdentifier();
@@ -425,6 +423,9 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         final InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) getInstanceFromNode(ClusterInfoService.class);
 
         try {
+            // Explicitly disable collection of search-load stats
+            updateClusterSettings(Settings.builder().put(SearchService.BOOST_PROFILE_ENABLED.getKey(), false).build());
+
             // Stats should not be collected while collection is disabled, even though the searches above have already run
             {
                 ClusterInfoServiceUtils.refresh(clusterInfoService);
@@ -432,27 +433,29 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             }
 
             // Turn on collection of search-load stats.
-            updateClusterSettings(Settings.builder().put(BoostProfileEnabled.BOOST_PROFILE_ENABLED_SETTING.getKey(), true).build());
+            updateClusterSettings(Settings.builder().put(SearchService.BOOST_PROFILE_ENABLED.getKey(), true).build());
 
-            // Force a ClusterInfo refresh to run collection of the search-load stats.
-            ClusterInfoServiceUtils.refresh(clusterInfoService);
-            final Map<ShardId, Double> shardSearchLoads = clusterInfoService.getClusterInfo().getShardSearchLoads();
+            assertBusy(() -> {
+                // Force a ClusterInfo refresh to run collection of the search-load stats.
+                ClusterInfoServiceUtils.refresh(clusterInfoService);
+                final Map<ShardId, Double> shardSearchLoads = clusterInfoService.getClusterInfo().getShardSearchLoads();
 
-            // Verify that each shard has search-load reported.
-            final ClusterState state = getInstanceFromNode(ClusterService.class).state();
-            assertEquals(state.projectState(ProjectId.DEFAULT).metadata().getTotalNumberOfShards(), shardSearchLoads.size());
-            for (IndexMetadata indexMetadata : state.projectState(ProjectId.DEFAULT).metadata()) {
-                double maximumLoadRecorded = 0;
-                for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
-                    final ShardId shardId = new ShardId(indexMetadata.getIndex(), i);
-                    assertTrue(shardSearchLoads.containsKey(shardId));
-                    maximumLoadRecorded = Math.max(shardSearchLoads.get(shardId), maximumLoadRecorded);
+                // Verify that each shard has search-load reported.
+                final ClusterState state = getInstanceFromNode(ClusterService.class).state();
+                assertEquals(state.projectState(ProjectId.DEFAULT).metadata().getTotalNumberOfShards(), shardSearchLoads.size());
+                for (IndexMetadata indexMetadata : state.projectState(ProjectId.DEFAULT).metadata()) {
+                    double maximumLoadRecorded = 0;
+                    for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
+                        final ShardId shardId = new ShardId(indexMetadata.getIndex(), i);
+                        assertTrue(shardSearchLoads.containsKey(shardId));
+                        maximumLoadRecorded = Math.max(shardSearchLoads.get(shardId), maximumLoadRecorded);
+                    }
+                    // Each index should have seen some search-load
+                    assertThat(maximumLoadRecorded, greaterThan(0.0));
                 }
-                // Each index should have seen some search-load
-                assertThat(maximumLoadRecorded, greaterThan(0.0));
-            }
+            });
         } finally {
-            updateClusterSettings(Settings.builder().putNull(BoostProfileEnabled.BOOST_PROFILE_ENABLED_SETTING.getKey()).build());
+            updateClusterSettings(Settings.builder().putNull(SearchService.BOOST_PROFILE_ENABLED.getKey()).build());
         }
     }
 

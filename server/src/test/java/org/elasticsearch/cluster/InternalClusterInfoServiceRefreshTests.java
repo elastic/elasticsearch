@@ -28,6 +28,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.monitor.jvm.JvmStats;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -312,7 +313,8 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
             .put(
                 WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
                 WriteLoadConstraintSettings.WriteLoadDeciderStatus.DISABLED
-            );
+            )
+            .put(SearchService.BOOST_PROFILE_ENABLED.getKey(), false);
     }
 
     private static NoOpClient nodeStatsClient(ThreadPool threadPool) {

@@ -45,7 +45,6 @@ import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.StoreStats;
-import org.elasticsearch.search.BoostProfileEnabled;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -61,6 +60,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_SHARD_WRITE_LOAD_TYPE_SETTING;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.search.SearchService.BOOST_PROFILE_ENABLED;
 
 /**
  * InternalClusterInfoService provides the ClusterInfoService interface,
@@ -103,6 +103,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private volatile boolean diskThresholdEnabled;
     private volatile WriteLoadDeciderStatus writeLoadConstraintEnabled;
     private volatile WriteLoadDeciderShardWriteLoadType writeLoadDeciderShardWriteLoadType;
+    private volatile boolean boostProfileEnabled;
     private volatile TimeValue updateFrequency;
     private volatile TimeValue fetchTimeout;
 
@@ -119,7 +120,6 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private final NodeUsageStatsForThreadPoolsCollector nodeUsageStatsForThreadPoolsCollector;
     private final SearchLaneRequirementsCollector searchLaneRequirementsCollector;
     private final WriteLoadConstraintSettings writeLoadConstraintSettings;
-    private final BoostProfileEnabled boostProfileEnabled;
 
     private AsyncRefresh currentRefresh;
     private RefreshScheduler refreshScheduler;
@@ -163,7 +163,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             WRITE_LOAD_DECIDER_SHARD_WRITE_LOAD_TYPE_SETTING,
             this::setWriteLoadDeciderShardLevelWriteLoadType
         );
-        this.boostProfileEnabled = new BoostProfileEnabled(clusterSettings);
+        clusterSettings.initializeAndWatch(BOOST_PROFILE_ENABLED, this::setBoostProfileEnabled);
     }
 
     private void setDiskThresholdEnabled(boolean diskThresholdEnabled) {
@@ -176,6 +176,10 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
     private void setWriteLoadDeciderShardLevelWriteLoadType(WriteLoadDeciderShardWriteLoadType type) {
         this.writeLoadDeciderShardWriteLoadType = type;
+    }
+
+    private void setBoostProfileEnabled(boolean boostProfileEnabled) {
+        this.boostProfileEnabled = boostProfileEnabled;
     }
 
     private void setFetchTimeout(TimeValue fetchTimeout) {
@@ -239,8 +243,12 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         void execute() {
             logger.trace("starting async refresh");
 
+            final boolean collectSearchLoads = boostProfileEnabled;
             try (var ignoredRefs = fetchRefs) {
-                maybeFetchIndicesStats(diskThresholdEnabled || needIndicesStatsForShardWriteLoads() || boostProfileEnabled.isEnabled());
+                maybeFetchIndicesStats(
+                    diskThresholdEnabled || needIndicesStatsForShardWriteLoads() || collectSearchLoads,
+                    collectSearchLoads
+                );
                 fetchNodeStats(diskThresholdEnabled);
                 fetchEstimatedHeapUsage();
                 maybeFetchNodesUsageStatsForThreadPools(writeLoadConstraintEnabled.atLeastLowThresholdEnabled());
@@ -250,10 +258,10 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             }
         }
 
-        private void maybeFetchIndicesStats(boolean shouldFetch) {
+        private void maybeFetchIndicesStats(boolean shouldFetch, boolean collectSearchLoads) {
             if (shouldFetch) {
                 try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
-                    fetchIndicesStats();
+                    fetchIndicesStats(collectSearchLoads);
                 }
             } else {
                 logger.trace("skipping collecting disk usage info from cluster, notifying listeners with empty indices stats");
@@ -375,8 +383,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             }
         }
 
-        private void fetchIndicesStats() {
-            final boolean collectSearchLoads = boostProfileEnabled.isEnabled();
+        private void fetchIndicesStats(boolean collectSearchLoads) {
             final IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
             indicesStatsRequest.clear();
             if (diskThresholdEnabled) {

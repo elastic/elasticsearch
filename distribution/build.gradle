@@ -364,7 +364,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     // elasticsearch.fips.gradle (FIPS test clusters) and distribution/docker/build.gradle (the cloud_ess_fips image).
     libsFips 'org.bouncycastle:bc-fips:2.0.2'
     libsFips 'org.bouncycastle:bctls-fips:2.0.24'
-    libsFips 'org.bouncycastle:bcutil-fips:2.0.7'
+    libsFips 'org.bouncycastle:bcutil-fips:2.0.8'
   }
 
   /*****************************************************************************

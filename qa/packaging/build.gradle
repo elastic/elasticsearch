@@ -37,7 +37,7 @@ configurations {
 }
 dependencies {
   bcFipsJars 'org.bouncycastle:bc-fips:2.0.2'
-  bcFipsJars 'org.bouncycastle:bcutil-fips:2.0.7'
+  bcFipsJars 'org.bouncycastle:bcutil-fips:2.0.8'
   bcFipsJars 'org.bouncycastle:bctls-fips:2.0.24'
 }
 tasks.withType(Test).configureEach {

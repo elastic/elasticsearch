@@ -104,19 +104,23 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
      * conflicts, COUNT-on-MV bugs, etc.) are covered by value-skipping, the determinism gate, or
      * automatic skip-on-cand-creation-failure — verified empirically with {@code -Dtests.iters=20+}
      * and a follow-up 100-iter run.
+     *
+     * <p>Retired exclusion (October 2026): {@code cartesian_multipolygons} — columnar now ingests
+     * {@code shape} documents, the cand side no longer ends up empty. Verified by hand against a
+     * dev cluster and with 40 green in-suite iterations with the dataset loaded as ref+cand.
      */
     private static final Set<String> EXCLUDED_DATASETS = Set.of(
-        // Mapping designed to be type-incompatible with the standard employees dataset; CSV also
-        // carries deliberate boolean MV duplicates that standard collapses to a scalar while
-        // columnar keeps as a list (false vs [false]).
+        // Carries deliberate duplicates-only keyword MVs (is_rehired: ["false","false"]). Standard
+        // mode's SortedSetDocValues dedups that to a true scalar while columnar keeps a real MV,
+        // which changes downstream semantics, not just rendering: scalar functions return a value
+        // on the standard side but null on the columnar side (measured October 2026 with
+        // concat(still_hired, is_rehired, ...) → "false..." vs null). The rendering half is
+        // absorbed by the singleton unwrap in toCanonicalCells; the semantic half cannot be.
         "employees_incompatible",
         // 245 000+ documents with MV integer fields. Loading both ref_ and cand_ copies makes
         // wide wildcards like FROM ref_* large enough to close the REST connection / kill the
         // test cluster mid-suite.
         "many_numbers",
-        // cartesian_shape cannot be stored via doc values for synthetic source, leaving the cand
-        // index with 0 documents while ref has the full dataset.
-        "cartesian_multipolygons",
         // Unmapped-source fixtures: all are dynamic:false with only `id` mapped, so everything else in the
         // document lands in _source / _ignored_source. Strict columnar drops that content at ingest (it
         // reconstructs _source from doc values), so the ref side surfaces those fields and the cand side
@@ -144,6 +148,13 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
      *
      * <p>Add entries here — with a comment explaining the root cause — as real benign divergences
      * are identified. Follows the house style of {@link GenerativeRestTest#ALLOWED_ERRORS}.
+     *
+     * <p>Retired (October 2026): {@code "does not support match queries"}, originally added for
+     * {@code semantic_text} rejecting full-text queries in columnar mode only. Measured dead on a
+     * dev cluster: MATCH now fails symmetrically on both modes (missing inference endpoint), QSTR
+     * and KQL return zero rows on both modes since the columnar leniency fix (#158872), and
+     * MATCH_PHRASE throws symmetrically with a message ("match_phrase queries") the substring
+     * never matched anyway.
      */
     private static final List<String> ALLOWED_MODE_DIFFERENCE_SUBSTRINGS = List.of(
         // Extremely wide result sets (many indices × many fields) can push the HTTP/YAML response
@@ -153,9 +164,6 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
         // Long-running queries on very large synthetic result sets may time out on the cand side
         // while completing on the ref side. Known performance difference, not a correctness bug.
         "milliseconds timeout on connection",
-        // semantic_text fields reject full-text match queries (qstr/MATCH) in columnar mode with
-        // "does not support match queries", while standard mode handles them. Known mode difference.
-        "does not support match queries",
         // DateExtract.resolveType incorrectly handles null field types (server-side bug). Produces
         // a 500 error on any shard that encounters a null-typed unmapped field in a date_extract()
         // expression. Affects both modes equally but can surface as partial results on one side
@@ -519,11 +527,15 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
         // elements in field order — all produce different output when the input ordering differs.
         // See also: ints.csv-spec:795+, string.csv-spec:696+, mv_expand.csv-spec:104+
         // (skip_columnar markers that document the same ordering divergence for each function).
+        // MV_ZIP pairs elements by position across its two arguments, so a different input order
+        // produces different pairings (measured October 2026: mv_zip(job_positions, last_name)
+        // zipped the lookup value against a different element on each side).
         if (cmdText.contains("MV_SLICE(")
             || cmdText.contains("MV_FIRST(")
             || cmdText.contains("MV_LAST(")
             || cmdText.contains("MV_CONCAT(")
-            || cmdText.contains("MV_DIFFERENCE(")) {
+            || cmdText.contains("MV_DIFFERENCE(")
+            || cmdText.contains("MV_ZIP(")) {
             return false;
         }
         // LEAST / GREATEST applied to multi-value fields are element-wise: they pair up values by
@@ -846,20 +858,23 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
      * Column types whose values are skipped in the row comparison.
      *
      * <ul>
-     *   <li>{@code geo_point}, {@code cartesian_point}: read from stored {@code _source} (standard
-     *       mode) versus synthetic source (columnar mode) can differ at the last displayed decimal
-     *       place due to Lucene's 32-bit integer encoding. Values that sit exactly on a rounding
-     *       boundary (e.g. {@code -171.75 → "-171.7"} vs {@code "-171.8"}) produce differences
-     *       that no fixed significant-figure rounding can reconcile without becoming too coarse to
-     *       catch real bugs.</li>
      *   <li>{@code flattened}: object values contain nested arrays (e.g. {@code host.ip}) whose
      *       element order differs between columnar mode (source-insertion order, via the array-order
-     *       block loader) and standard mode (ascending doc-values order). Skipping prevents
-     *       false-positive failures while schema divergence (missing or renamed column) is still
-     *       caught by the schema check.</li>
+     *       block loader) and standard mode (ascending doc-values order). The whole object renders
+     *       as one string, so the MV cell element-sort cannot reach the nested array. Measured
+     *       (October 2026): un-skipping failed 10 of 10 generative iterations, every failure a pure
+     *       element permutation inside a nested {@code flattened} array. Same root cause as the
+     *       harness-wide MV ordering difference; re-measure if that is ever settled. Schema
+     *       divergence (missing or renamed column) is still caught by the schema check.</li>
      * </ul>
+     *
+     * <p>{@code geo_point} and {@code cartesian_point} were skipped here until October 2026 for
+     * doc-values precision loss, but {@link #normalizeSpatialCoords} (5-significant-figure WKT
+     * rounding) plus the one-rounding-step boundary tolerance in
+     * {@code cellMatchesWithinRoundingTolerance} now absorb that difference: un-skipping them
+     * passed 10 of 10 generative iterations. Do not re-add them without a measured reason.
      */
-    private static final Set<String> SKIP_VALUE_COLUMN_TYPES = Set.of("geo_point", "cartesian_point", "flattened");
+    private static final Set<String> SKIP_VALUE_COLUMN_TYPES = Set.of("flattened");
 
     /**
      * Column types backed by {@code SortedSetDocValues} in standard mode: ES|QL loads these via
@@ -926,7 +941,15 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
                         // ["a","b"] (standard) == ["b","a","a"] (columnar) after sort+dedup.
                         strs = strs.stream().distinct().toList();
                     }
-                    cells.add(strs.toString());
+                    if (strs.size() == 1 && SORTED_SET_BACKED_TYPES.contains(colType)) {
+                        // A duplicates-only MV cell (e.g. keyword ["false","false"]) collapses to a
+                        // single value in standard mode, which renders it as a scalar, while columnar
+                        // keeps the list. After dedup the two sides carry the same one value, so
+                        // unwrap the singleton to the scalar rendering to compare them equal.
+                        cells.add(strs.get(0));
+                    } else {
+                        cells.add(strs.toString());
+                    }
                 } else {
                     cells.add(canonicalValue(val));
                 }

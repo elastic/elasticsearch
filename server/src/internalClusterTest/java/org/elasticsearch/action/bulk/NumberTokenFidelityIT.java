@@ -12,6 +12,7 @@ package org.elasticsearch.action.bulk;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -180,14 +181,14 @@ public class NumberTokenFidelityIT extends ESIntegTestCase {
             settings.put("index.mapping.source.mode", "synthetic");
         }
         String keep = sourceMode == SourceMode.SYNTHETIC_KEEP_ALL ? ", \"synthetic_source_keep\": \"all\"" : "";
-        assertAcked(prepareCreate(INDEX).setSettings(settings).setMapping("""
+        assertAcked(prepareCreate(INDEX).setSettings(settings).setMapping(Strings.format("""
             {
               "properties": {
                 "n": { "type": "double", "fields": { "k": { "type": "keyword" } }%s },
                 "f": { "type": "float", "fields": { "k": { "type": "keyword" } }%s }
               }
             }
-            """.formatted(keep, keep)));
+            """, keep, keep)));
         prepareIndex(INDEX).setId(scenarioName).setSource(scenario.source(), scenario.contentType()).get();
         refresh(INDEX);
     }

@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -629,11 +630,11 @@ public class IndexOperationBatchTests extends ESTestCase {
             assertThat(record.seqNo(2), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
             assertThat(record.uids()[2], nullValue());
 
-            // sparse status arrays: row 1 is the no-op (paired with its reason), row 2 the
-            // preflight failure; indexed row 0 is listed nowhere
+            // sparse no-op entries: row 1 is the no-op (paired with its reason); row 2 is the preflight
+            // failure, recognisable by its unassigned seqNo; indexed row 0 is listed nowhere
             assertArrayEquals(new int[] { 1 }, record.noOps().rows());
             assertArrayEquals(new String[] { "post-lucene failure" }, record.noOps().reasons());
-            assertArrayEquals(new int[] { 2 }, record.preflightRows());
+            assertThat(record.rowStatus(2), equalTo(IndexOperationBatch.TranslogRecord.ROW_PREFLIGHT_ERROR));
         }
     }
 
@@ -698,9 +699,29 @@ public class IndexOperationBatchTests extends ESTestCase {
         }
     }
 
-    public void testToTranslogRecordAssertsContiguousSeqNos() throws IOException {
-        // The record stores only the first replayable row's seqNo, so the engine-stamped seqNos
-        // must form a contiguous range across replayable rows; a gap trips the assertion.
+    public void testToTranslogRecordKeepsSeqNoGapsOnReplica() throws IOException {
+        // A replica takes the seqNos from the primary's responses. They may have a gap where the primary
+        // interleaved other operations between its sub-batches, and the gap must survive into the record.
+        final int n = 2;
+        try (EscfBatch escf = escfBatch(n)) {
+            final BulkItemRequest[] items = new BulkItemRequest[n];
+            final long[] seqNos = { 10L, 12L }; // gap: 11 belongs to another bulk
+            for (int d = 0; d < n; d++) {
+                final IndexRequest req = new IndexRequest("index").id("doc-" + d).source(src(d), XContentType.JSON);
+                items[d] = replicaItem(d, req, seqNos[d], 1L, 1L);
+            }
+            final IndexOperationBatch batch = IndexOperationBatch.initFromBulk(items, 0, n, escf, Engine.Operation.Origin.REPLICA, 1L, 0L);
+            final byte[] statuses = new byte[n]; // all ROW_INDEXED
+            final IndexOperationBatch.TranslogRecord record = batch.toTranslogRecord(statuses, null);
+            assertThat(record.seqNo(0), equalTo(10L));
+            assertThat(record.seqNo(1), equalTo(12L));
+            assertThat(record.operationCount(), equalTo(2));
+        }
+    }
+
+    public void testToTranslogRecordRejectsNonContiguousSeqNosOnPrimary() throws IOException {
+        // The primary reserves one contiguous block per sub-batch and hands it out in row order, so a gap
+        // in a primary batch is an engine bug; the record refuses it rather than write it to the translog.
         final int n = 2;
         try (EscfBatch escf = escfBatch(n)) {
             final IndexOperationBatch batch = IndexOperationBatch.initFromBulk(
@@ -715,7 +736,8 @@ public class IndexOperationBatchTests extends ESTestCase {
             ByteUtils.writeLongLE(10L, batch.seqNoBytes().bytes, 0);
             ByteUtils.writeLongLE(12L, batch.seqNoBytes().bytes, 8); // gap: 10 then 12
             final byte[] statuses = new byte[n]; // all ROW_INDEXED
-            expectThrows(AssertionError.class, () -> batch.toTranslogRecord(statuses, null));
+            final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> batch.toTranslogRecord(statuses, null));
+            assertThat(ex.getMessage(), containsString("primary batch seqNos are not contiguous: row [1] has [12], expected [11]"));
         }
     }
 

@@ -104,9 +104,7 @@ public class ESRestTestCaseTests extends ESTestCase {
         RuntimeException original = new RuntimeException("test failure");
         RuntimeException thrown = expectThrows(RuntimeException.class, () -> evaluateRule(original));
         assertSame(original, thrown);
-        Throwable diagnosis = thrown.getSuppressed()[0];
-        assertEquals("Test cluster is unreachable", diagnosis.getMessage());
-        assertSame(pingFailure, diagnosis.getCause());
+        assertSame(pingFailure, thrown.getSuppressed()[0]);
         assertTrue(ESRestTestCase.clusterUnavailable);
     }
 
@@ -120,9 +118,7 @@ public class ESRestTestCaseTests extends ESTestCase {
         RuntimeException original = new RuntimeException("test failure");
         RuntimeException thrown = expectThrows(RuntimeException.class, () -> evaluateRule(original));
         assertSame(original, thrown);
-        Throwable diagnosis = thrown.getSuppressed()[0];
-        assertEquals("Test cluster is unreachable", diagnosis.getMessage());
-        assertSame(pingFailure, diagnosis.getCause());
+        assertSame(pingFailure, thrown.getSuppressed()[0]);
         assertTrue(ESRestTestCase.clusterUnavailable);
     }
 
@@ -136,9 +132,7 @@ public class ESRestTestCaseTests extends ESTestCase {
         RuntimeException original = new RuntimeException("test failure");
         RuntimeException thrown = expectThrows(RuntimeException.class, () -> evaluateRule(original));
         assertSame(original, thrown);
-        Throwable diagnosis = thrown.getSuppressed()[0];
-        assertEquals("Test cluster is in a bad state", diagnosis.getMessage());
-        assertSame(pingFailure, diagnosis.getCause());
+        assertSame(pingFailure, thrown.getSuppressed()[0]);
         assertTrue(ESRestTestCase.clusterUnavailable);
     }
 

@@ -512,19 +512,17 @@ public abstract class ESRestTestCase extends ESTestCase {
                     try {
                         cluster.checkHealth();
                     } catch (IOException e) {
-                        throw markClusterUnavailable("Test cluster node has died", e, originalFailure);
+                        throw markClusterUnavailable(e, originalFailure);
                     }
                 }
                 RestClient c = adminClient();
                 if (c == null) {
-                    throw markClusterUnavailable("Test cluster client initialization failed", null, originalFailure);
+                    throw markClusterUnavailable(new AssertionError("Test cluster client initialization failed"), originalFailure);
                 }
                 try {
                     c.performRequest(new Request("HEAD", "/"));
-                } catch (ResponseException e) {
-                    throw markClusterUnavailable("Test cluster is in a bad state", e, originalFailure);
                 } catch (Exception e) {
-                    throw markClusterUnavailable("Test cluster is unreachable", e, originalFailure);
+                    throw markClusterUnavailable(e, originalFailure);
                 }
                 throw originalFailure;
             }
@@ -536,9 +534,9 @@ public abstract class ESRestTestCase extends ESTestCase {
      * failure that exposed it. The original failure is returned unchanged so that it stays the reported failure, with the cluster
      * diagnosis available alongside it rather than in place of it.
      */
-    private static Throwable markClusterUnavailable(String message, Throwable cause, Throwable originalFailure) {
+    private static Throwable markClusterUnavailable(Throwable reason, Throwable originalFailure) {
         clusterUnavailable = true;
-        originalFailure.addSuppressed(new AssertionError(message, cause));
+        originalFailure.addSuppressed(reason);
         return originalFailure;
     }
 

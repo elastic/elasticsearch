@@ -64,7 +64,7 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
         var dlmFrozenTransitionsHealth = originalHealthInfo.dlmFrozenTransitionsHealthInfo();
         var dataRecoveryHealth = originalHealthInfo.dataRecoveryHealthInfo();
         var localRecoveryRetriesHealth = originalHealthInfo.localRecoveryRetriesHealthInfoByNode();
-        switch (randomInt(5)) {
+        switch (randomInt(6)) {
             case 0 -> diskHealth = mutateMap(
                 originalHealthInfo.diskInfoByNode(),
                 () -> randomAlphaOfLength(10),

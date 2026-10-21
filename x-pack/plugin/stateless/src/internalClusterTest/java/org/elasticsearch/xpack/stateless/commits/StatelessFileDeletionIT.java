@@ -1990,12 +1990,10 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         // the target pessimistically registered them for its recovery under its node id. Those registrations are only released once the
         // target, now started, replies to a "new commit notification". Rather than waiting for the periodic shard inactivity monitor to
         // emit that notification, we drive the monitor's poll directly on the indexing node on every assertBusy iteration.
-        commitService.updateCommitUseTrackingForInactiveShards(() -> Long.MAX_VALUE);
-        assertBusy(
-            () -> assertThat(shardCommitsContainer.listBlobs(operationPurpose).keySet(), is(equalTo(Set.of(latestUploadedBlob)))),
-            30,
-            TimeUnit.SECONDS
-        );
+        assertBusy(() -> {
+            commitService.updateCommitUseTrackingForInactiveShards(() -> Long.MAX_VALUE);
+            assertThat(shardCommitsContainer.listBlobs(operationPurpose).keySet(), is(equalTo(Set.of(latestUploadedBlob))));
+        }, 30, TimeUnit.SECONDS);
     }
 
     private static void failSearchShard(String indexName, String searchNode) {

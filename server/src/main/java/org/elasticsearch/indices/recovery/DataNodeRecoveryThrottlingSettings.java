@@ -75,9 +75,8 @@ public final class DataNodeRecoveryThrottlingSettings {
     /// Includes both recoveries of unassigned shards and relocations.
     ///
     /// Note that the effective max concurrent recoveries limit also takes into account the heap-based throttle
-    /// [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING]. The effective max concurrent recoveries
-    /// is then `min(max_concurrent_incoming_recoveries, ceil(heapGb * max_concurrent_incoming_recoveries_per_heap_gb))`.
-    /// See [ThrottlingRecoveryService].
+    /// [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING] when applicable (see [#appliesHeapBasedLimit]).
+    /// See [#incomingRecoveryLimits] and [ThrottlingRecoveryService].
     ///
     /// See also [#INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING] which imposes an additional
     /// throttle on relocations only.
@@ -116,7 +115,8 @@ public final class DataNodeRecoveryThrottlingSettings {
 
     /// Controls the max proportion of the max allowed concurrent recoveries count that may be used for relocation recoveries.
     /// The max allowed concurrent recovery count is derived from [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING]
-    /// and [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING]. See [ThrottlingRecoveryService].
+    /// and [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING], when applicable.
+    /// See [ThrottlingRecoveryService].
     ///
     /// Accepts values like `0.5` or `"50%"`. Must be strictly positive: 0 is disallowed (consistent with the minimum of
     /// the other recovery throttle settings).
@@ -246,8 +246,8 @@ public final class DataNodeRecoveryThrottlingSettings {
         );
     }
 
-    /// Heap-based recovery do not apply to search nodes. This matches master behavior which only applies its heap-based
-    /// limit to indexing shards (see StatelessThrottlingConcurrentRecoveriesAllocationDecider`).
+    /// The heap-based recovery limit does not apply to stateless search nodes. This matches master behavior which only
+    /// applies its heap-based limit to indexing shards (see `StatelessThrottlingConcurrentRecoveriesAllocationDecider`).
     ///
     /// Note that only [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING] consults this.
     /// [#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING] only bounds primary relocations out

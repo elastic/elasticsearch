@@ -48,7 +48,7 @@ import static org.hamcrest.Matchers.hasKey;
 /// ratio to [#MIN_PER_HEAP_GB]. The heap-based limit `ceil(heapGb * perHeapGb)` is then 1 whatever the heap. Unit tests
 /// in `ThrottlingRecoveryServiceTests` and `DataNodeRecoveryThrottlingSettingsTests` then cover the limit computation
 /// correctness.
-public class StatelessIndexThrottlingRecoveryIT extends AbstractStatelessPluginIntegTestCase {
+public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPluginIntegTestCase {
 
     /// The smallest allowed per-heap-GB ratio, which deterministically sets heap-based limit to 1.
     private static final double MIN_PER_HEAP_GB = Double.MIN_NORMAL;
@@ -406,13 +406,11 @@ public class StatelessIndexThrottlingRecoveryIT extends AbstractStatelessPluginI
                 ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(),
                 nodeConcurrentRecoveries
             )
-            // The tests do not create new primaries nor rebalance, so these two do not throttle.
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(), between(1, 4))
             .put(
                 ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING.getKey(),
                 between(1, 4)
-            )
-            .put(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED.getKey(), true);
+            );
         // `max(1, round(heapGb * 0))` allows a single concurrent primary relocation whatever the heap.
         settings.put(
             StatelessThrottlingConcurrentRecoveriesAllocationDecider.MIN_HEAP_REQUIRED_FOR_CONCURRENT_PRIMARY_RECOVERIES_SETTING.getKey(),

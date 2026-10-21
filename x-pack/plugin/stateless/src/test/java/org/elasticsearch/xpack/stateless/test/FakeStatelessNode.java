@@ -134,7 +134,6 @@ import java.util.stream.Stream;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static org.elasticsearch.common.settings.ClusterSettings.BUILT_IN_CLUSTER_SETTINGS;
 import static org.elasticsearch.env.Environment.PATH_REPO_SETTING;
-import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.BUCKET_SETTING;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -324,7 +323,7 @@ public class FakeStatelessNode implements Closeable {
                     sharedCacheService,
                     threadPool,
                     clusterSettings,
-                    onlyRole(DiscoveryNodeRole.SEARCH_ROLE),
+                    nodeSettings,
                     ByteSizeValue.ZERO
                 )
             );

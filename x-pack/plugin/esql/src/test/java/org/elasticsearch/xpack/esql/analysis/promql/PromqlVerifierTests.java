@@ -883,6 +883,16 @@ public class PromqlVerifierTests extends ESTestCase {
         );
     }
 
+    public void testLabelReplaceAddingNewLabelUnderLimitReductionsResolves() {
+        // limitk and limit_ratio are across-series reductions like topk and keep the identity of the series they select.
+        for (String query : List.of(
+            "PROMQL index=test step=5m limitk(3, label_replace(sum by (host) (network.bytes_in), \"dst\", \"$1\", \"host\", \"(.+)\"))",
+            "PROMQL index=test step=5m limit_ratio(0.5, label_join(sum by (host) (network.bytes_in), \"dst\", \"-\", \"host\"))"
+        )) {
+            assertTrue(query, tsdb.query(query).resolved());
+        }
+    }
+
     public void testLabelJoinOverBinaryOperatorRejected() {
         // A binary operator's output does not materialize the relabel's source labels as readable columns, so the
         // derivation would silently see them as absent and join empty strings instead of the matched label values.

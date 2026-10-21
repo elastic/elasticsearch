@@ -93,6 +93,34 @@ result:double | zone:keyword | region:keyword
 20.0          | us           | us
 ;
 
+// limitk and limit_ratio are reductions like topk: they keep the identity of the series they select, so the same relabel
+// is supported under them. k=2 / ratio=1.0 keep both aggregated series, which makes the result deterministic.
+label_replace_new_label_under_limitk
+required_capability: promql_command_v0
+required_capability: promql_limitk
+required_capability: promql_label_functions_v2
+PROMQL index=prom-metrics-name step=1h result=(limitk(2, label_replace(sum by (zone) (metrics.requests{pod=~"pod[AB]"}), "region", "$1", "zone", "(.+)")))
+| KEEP result, zone, region
+| SORT result;
+
+result:double | zone:keyword | region:keyword
+10.0          | eu           | eu
+20.0          | us           | us
+;
+
+label_join_new_label_under_limit_ratio
+required_capability: promql_command_v0
+required_capability: promql_limit_ratio
+required_capability: promql_label_functions_v2
+PROMQL index=prom-metrics-name step=1h result=(limit_ratio(1.0, label_join(sum by (zone) (metrics.requests{pod=~"pod[AB]"}), "region", "-", "zone")))
+| KEEP result, zone, region
+| SORT result;
+
+result:double | zone:keyword | region:keyword
+10.0          | eu           | eu
+20.0          | us           | us
+;
+
 
 // label_join concatenates several source labels with a separator into a new `combo` label; by(combo) exposes it.
 label_join_by_derived_label

@@ -637,7 +637,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
      * already reduced to concrete columns (see {@link #identitySource} and {@link #overwritesLabel}). Walking down the plan, each relabel
      * is checked against the nearest enclosing <i>identity consumer</i> - the aggregate, reduction, or binary operator whose
      * output identity it would feed. An {@link AcrossSeriesAggregate} with {@link AcrossSeriesAggregate.Grouping#BY} always
-     * consumes it; a bare (non-aggregated) call or a {@code topk}/{@code bottomk} reduction only when the relabel refines an
+     * consumes it; a bare (non-aggregated) call or an {@link AcrossSeriesReduction} only when the relabel refines an
      * aggregated identity; a {@code without(...)} grouping or a binary operator would require identity-blob rewriting and is
      * rejected.
      *

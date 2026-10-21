@@ -159,7 +159,8 @@ public class PromqlBuiltinFunctionDefinitions {
         .differenceFromPrometheus(
             "Supported in this version only when the derived destination label is consumed by an enclosing `by(...)` "
                 + "aggregation, or when it adds a new label to the result of an enclosed `by(...)` aggregation (optionally "
-                + "under `topk`/`bottomk`). Under an enclosing `by(...)` the destination may be a new label or may overwrite "
+                + "under `topk`, `bottomk`, `limitk` or `limit_ratio`). Under an enclosing `by(...)` the destination may be a "
+                + "new label or may overwrite "
                 + "a stored label (a dimension or `__name__`); over an aggregation it must be a new label. A `without` "
                 + "grouping, a binary operator, or a bare (non-aggregated) call over raw series is rejected. Regular expressions use "
                 + "the RE2 engine (RE2 syntax including `(?P<name>)`, `$1`/`$name`/`${name}` replacement expansion, no "
@@ -199,7 +200,8 @@ public class PromqlBuiltinFunctionDefinitions {
         .differenceFromPrometheus(
             "Supported in this version only when the derived destination label is consumed by an enclosing `by(...)` "
                 + "aggregation, or when it adds a new label to the result of an enclosed `by(...)` aggregation (optionally "
-                + "under `topk`/`bottomk`). Under an enclosing `by(...)` the destination may be a new label or may overwrite "
+                + "under `topk`, `bottomk`, `limitk` or `limit_ratio`). Under an enclosing `by(...)` the destination may be a "
+                + "new label or may overwrite "
                 + "a stored label (a dimension or `__name__`); over an aggregation it must be a new label. A `without` "
                 + "grouping, a binary operator, or a bare (non-aggregated) call over raw series is rejected. Reading or overwriting "
                 + "`__name__` behaves like Prometheus only for Prometheus-style data that stores `__name__` as a label; "

@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEquals;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
@@ -92,7 +91,9 @@ public class WarnNullMisuse implements LogicalPlanPreOptimizerRule {
         if (e instanceof FilteredExpression fe) {
             return ConvertFunction.isExplicitNull(fe.filter()) && fe.delegate().nullable() == Nullability.TRUE;
         }
-        return e instanceof EvaluatorMapper && e instanceof AnyNullIsNull && e.children().stream().anyMatch(ConvertFunction::isExplicitNull);
+        return e instanceof EvaluatorMapper
+            && e instanceof AnyNullIsNull
+            && e.children().stream().anyMatch(ConvertFunction::isExplicitNull);
     }
 
     private static boolean hasExplicitNullInList(In in) {

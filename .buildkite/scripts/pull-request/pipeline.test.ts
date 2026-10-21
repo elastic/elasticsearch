@@ -155,7 +155,7 @@ describe("generatePipelines", () => {
     });
   });
 
-  const laterBranchBwcSteps =(targetBranch: string) => {
+  const laterBranchBwcSteps = (targetBranch: string) => {
     process.env["GITHUB_PR_TARGET_BRANCH"] = targetBranch;
 
     const pipelines = generatePipelines(`${import.meta.dirname}/mocks/pipelines`, ["build.gradle"]);

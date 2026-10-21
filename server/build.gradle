@@ -31,7 +31,7 @@ base {
 }
 
 jacoco {
-  toolVersion = '0.8.15'
+  toolVersion = buildLibs.versions.jacoco.get()
 }
 
 dependencies {
@@ -190,7 +190,7 @@ if (buildParams.snapshotBuild == false) {
 tasks.named("test").configure {
   systemProperty 'es.insecure_network_trace_enabled', 'true'
   jacoco {
-    enabled = providers.environmentVariable('JACOCO_REPORTING_ENABLED').map { it == 'true' }.getOrElse(false)
+    enabled = buildParams.ci
   }
 }
 

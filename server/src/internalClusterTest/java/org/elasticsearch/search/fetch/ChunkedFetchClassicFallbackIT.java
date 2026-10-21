@@ -28,10 +28,10 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * A coordinating node asks for a chunked fetch from every data node that supports it, but a data node only streams chunks when
- * its own {@code search.fetch_phase_chunked_enabled} is on. Otherwise it answers with a classic fetch. These tests run searches
- * through a coordinating node with chunked fetch on against shards that live on a data node with it off, which is the situation
- * during a rolling upgrade from a release where chunked fetch is off by default.
+ * A coordinating node asks for a chunked fetch from every data node that supports it, but a data node streams chunks only when
+ * its own {@code search.fetch_phase_chunked_enabled} is on and it can connect back to the coordinator. Otherwise it answers with a
+ * classic fetch. These tests run searches through a coordinating node with chunked fetch on against shards that live on a data
+ * node with it off, as during a rolling upgrade from a version where chunked fetch is off by default.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class ChunkedFetchClassicFallbackIT extends ESIntegTestCase {
@@ -111,11 +111,12 @@ public class ChunkedFetchClassicFallbackIT extends ESIntegTestCase {
                 SearchHit[] hits = response.getHits().getHits();
                 assertThat(hits.length, equalTo(DOCS));
                 for (int i = 0; i < hits.length; i++) {
-                    int value = ((Number) hits[i].getSourceAsMap().get("value")).intValue();
+                    SearchHit hit = hits[i];
+                    int value = ((Number) hit.getSourceAsMap().get("value")).intValue();
                     assertThat("source value at position " + i, value, equalTo(DOCS - i));
-                    assertThat("sort value of hit " + hits[i].getId(), ((Number) hits[i].getSortValues()[0]).intValue(), equalTo(value));
-                    assertThat("score of hit " + hits[i].getId(), hits[i].getScore(), equalTo((float) value));
-                    assertThat("rank of hit " + hits[i].getId(), hits[i].getRank(), equalTo(-1));
+                    assertThat("sort value of hit " + hit.getId(), ((Number) hit.getSortValues()[0]).intValue(), equalTo(value));
+                    assertThat("score of hit " + hit.getId(), hit.getScore(), equalTo((float) value));
+                    assertThat("rank of hit " + hit.getId(), hit.getRank(), equalTo(-1));
                 }
             }
         );

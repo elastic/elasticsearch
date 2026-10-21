@@ -64,11 +64,6 @@ public record ViewQuerySettings(
         supplied = Set.copyOf(supplied);
     }
 
-    /** Settings with the given values, as if a definition had {@code SET} none of them explicitly. */
-    public ViewQuerySettings(UnmappedResolution unmappedFields, boolean wildcardsMatchViews, boolean wildcardsMatchDatasets) {
-        this(unmappedFields, wildcardsMatchViews, wildcardsMatchDatasets, Set.of());
-    }
-
     /**
      * Settings for a view branch. A view branch has a name; a definition that did not {@code SET} a mode contributes
      * {@link #DEFAULTS}, which is the registry default and not the cluster default.

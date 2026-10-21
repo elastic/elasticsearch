@@ -48,7 +48,7 @@ final class S3EndpointCheck {
      // "s3-control",               // the account-level control plane, which serves no object reads
      // "s3-control-fips",
      // "s3-external-1",            // the legacy us-east-1 alias
-     // "s3express-<az>",           // S3 Express, whose buckets this data source does not read
+     // "s3express-<az>",           // S3 Express, whose buckets S3ResourceCheck refuses by name too
      // "s3express-fips-<az>",      // the same over FIPS 140-validated cryptography
     );
     // end::
@@ -124,7 +124,8 @@ final class S3EndpointCheck {
         if (Strings.hasText(value) == false) {
             return;
         }
-        // S3Configuration.validateSettings refuses these first; refuse rather than permit what this cannot read.
+        // On this branch S3Configuration does not parse the value, so this is its first parse; refuse rather than
+        // permit what this cannot read.
         URI uri;
         try {
             uri = URI.create(value);
@@ -173,7 +174,7 @@ final class S3EndpointCheck {
         return uri.getHost().toLowerCase(Locale.ROOT) + ":" + port;
     }
 
-    /** Package-private for tests. */
+    /** Package-private: {@link S3ResourceCheck} uses it too. */
     static boolean isPermittedHost(String host, String service) {
         if (host == null || host.isEmpty()) {
             return false;

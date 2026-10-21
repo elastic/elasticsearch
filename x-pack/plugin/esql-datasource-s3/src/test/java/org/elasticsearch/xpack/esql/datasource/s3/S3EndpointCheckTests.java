@@ -238,7 +238,7 @@ public class S3EndpointCheckTests extends ESTestCase {
         assertAllRefused(STS_SERVICE, "sts.dualstack.amazonaws.com", "sts-fips.amazonaws.com", "sts-fips.us-east-1.amazonaws.com");
     }
 
-    /** S3 Express endpoints serve only directory buckets, which this data source does not read, so they are refused. */
+    /** {@link S3ResourceCheck} refuses directory buckets by name, so the endpoint that serves them is refused too. */
     public void testRefusesS3ExpressEndpoints() {
         assertAllRefused(S3_SERVICE, "s3express-use1-az4.us-east-1.amazonaws.com", "s3express-control.us-east-1.amazonaws.com");
     }

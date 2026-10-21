@@ -119,6 +119,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
     private final Set<String> compressionExtensions;
     private final BooleanSupplier managedIdentityEnabled;
     private final BooleanSupplier federatedIdentityEnabled;
+    private final BiConsumer<String, ValidationException> resourceCheck;
     /** Per-type settings policy, run on a PUT only. A no-op unless the plugin supplies one. */
     private final BiConsumer<DataSourceConfiguration, ValidationException> datasourceCheck;
 
@@ -127,7 +128,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
         BiFunction<Map<String, Object>, Set<String>, DataSourceConfiguration> configFactory,
         Set<String> supportedSchemes
     ) {
-        this(type, configFactory, supportedSchemes, null, Set.of(), () -> false, () -> false, (c, e) -> {});
+        this(type, configFactory, supportedSchemes, null, Set.of(), () -> false, () -> false, (r, e) -> {}, (c, e) -> {});
     }
 
     private FileDataSourceValidator(
@@ -138,6 +139,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
         Set<String> compressionExtensions,
         BooleanSupplier managedIdentityEnabled,
         BooleanSupplier federatedIdentityEnabled,
+        BiConsumer<String, ValidationException> resourceCheck,
         BiConsumer<DataSourceConfiguration, ValidationException> datasourceCheck
     ) {
         this.type = type;
@@ -147,6 +149,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
         this.compressionExtensions = compressionExtensions;
         this.managedIdentityEnabled = managedIdentityEnabled;
         this.federatedIdentityEnabled = federatedIdentityEnabled;
+        this.resourceCheck = resourceCheck;
         this.datasourceCheck = datasourceCheck;
     }
 
@@ -169,6 +172,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
             compressionExtensions,
             managedIdentityEnabled,
             federatedIdentityEnabled,
+            resourceCheck,
             datasourceCheck
         );
     }
@@ -189,6 +193,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
             compressionExtensions,
             supplier,
             federatedIdentityEnabled,
+            resourceCheck,
             datasourceCheck
         );
     }
@@ -207,6 +212,27 @@ public class FileDataSourceValidator implements DataSourceValidator {
             compressionExtensions,
             managedIdentityEnabled,
             supplier,
+            resourceCheck,
+            datasourceCheck
+        );
+    }
+
+    /**
+     * Returns a new validator that runs {@code check} against the resource URI after the scheme check.
+     * The check receives the raw resource string and the accumulating {@link ValidationException}; it
+     * should call {@link ValidationException#addValidationError} for each problem it finds.
+     * Precedent for the shape: {@link #withManagedIdentityEnabled(BooleanSupplier)}.
+     */
+    public FileDataSourceValidator withResourceCheck(BiConsumer<String, ValidationException> check) {
+        return new FileDataSourceValidator(
+            type,
+            configFactory,
+            supportedSchemes,
+            formatConfigKeyResolver,
+            compressionExtensions,
+            managedIdentityEnabled,
+            federatedIdentityEnabled,
+            check,
             datasourceCheck
         );
     }
@@ -224,6 +250,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
             compressionExtensions,
             managedIdentityEnabled,
             federatedIdentityEnabled,
+            resourceCheck,
             check
         );
     }
@@ -573,6 +600,8 @@ public class FileDataSourceValidator implements DataSourceValidator {
             }
             sb.append(']');
             errors.addValidationError("[resource] must use one of the supported URI schemes " + sb + " but was [" + resource + "]");
+        } else {
+            resourceCheck.accept(resource, errors);
         }
     }
 

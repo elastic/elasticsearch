@@ -182,7 +182,9 @@ public class S3DataSourcePlugin extends Plugin implements DataSourcePlugin {
                     Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
                 )
         );
-        DataSourceValidator v = new FileDataSourceValidator("s3", S3Configuration::fromMap, supportedSchemes())
+        DataSourceValidator v = new FileDataSourceValidator("s3", S3Configuration::fromMap, supportedSchemes()).withResourceCheck(
+            S3ResourceCheck::validate
+        )
             // The cast holds because this same builder is given S3Configuration::fromMap as its config
             // factory above, and the validator passes that factory's own product to the check.
             .withDatasourceCheck((config, errors) -> S3EndpointCheck.validate((S3Configuration) config, allowedByOperator::run, errors));

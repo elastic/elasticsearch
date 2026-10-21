@@ -532,3 +532,6 @@ tests:
 - class: org.elasticsearch.upgrades.ColumnarIndexModesFullClusterRestartIT
   method: testLogsdbColumnar {cluster=OLD}
   issue: https://github.com/elastic/elasticsearch/issues/162770
+- class: org.elasticsearch.upgrades.ColumnarIndexModesFullClusterRestartIT
+  method: testColumnar {cluster=OLD}
+  issue: https://github.com/elastic/elasticsearch/issues/162772

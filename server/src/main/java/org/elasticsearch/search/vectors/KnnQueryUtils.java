@@ -189,7 +189,9 @@ public final class KnnQueryUtils {
     }
 
     /**
-     * Merges two disjoint, individually-sorted int arrays into one sorted array
+     * Merges two individually-sorted int arrays into one sorted array without duplicates. The inputs may
+     * overlap: for nested queries a filtered-out child and the expanded block of a matched sibling share
+     * doc ids, and the retry exclusion set is a union of both.
      */
     public static int[] sortedMerge(int[] a, int[] b) {
         if (a.length == 0) return b.length == 0 ? a : b.clone();
@@ -197,14 +199,23 @@ public final class KnnQueryUtils {
         int[] merged = new int[a.length + b.length];
         int i = 0, j = 0, k = 0;
         while (i < a.length && j < b.length) {
-            merged[k++] = a[i] <= b[j] ? a[i++] : b[j++];
+            if (a[i] < b[j]) {
+                merged[k++] = a[i++];
+            } else if (b[j] < a[i]) {
+                merged[k++] = b[j++];
+            } else {
+                merged[k++] = a[i++];
+                j++;
+            }
         }
         if (i < a.length) {
             System.arraycopy(a, i, merged, k, a.length - i);
+            k += a.length - i;
         } else {
             System.arraycopy(b, j, merged, k, b.length - j);
+            k += b.length - j;
         }
-        return merged;
+        return k == merged.length ? merged : Arrays.copyOf(merged, k);
     }
 
     public static ScoreDoc[] mergeScoreDocArrays(ScoreDoc[] left, ScoreDoc[] right) {

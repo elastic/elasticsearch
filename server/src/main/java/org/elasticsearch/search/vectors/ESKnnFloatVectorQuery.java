@@ -99,14 +99,14 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
     }
 
     /**
-     * {@code excludedDocs} becomes an {@link ExcludeDocsQuery} filter (which Lucene's
+     * {@code excludedDocs} and {@code retryLeaves} become an {@link ExcludeDocsQuery} filter (which Lucene's
      * {@code AbstractKnnVectorQuery#rewrite} converts into {@code AcceptDocs}), and {@code seedDocsPerLeaf}
      * (filter-passing docs only) feed the {@code SeededRetryCollectorManager} as graph entry points.
      */
     @Override
-    public Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[][] seedDocsPerLeaf, int remainingK) {
+    public Query createRetryQuery(IndexReader reader, int[] excludedDocs, boolean[] retryLeaves, int[][] seedDocsPerLeaf, int remainingK) {
         assert postFilterDelegate : "createRetryQuery expects a post-filter delegate, not the user's own query";
-        Query filter = excludedDocs != null && excludedDocs.length > 0 ? new ExcludeDocsQuery(excludedDocs, reader) : null;
+        Query filter = PostFilterableKnnQuery.retryFilter(reader, excludedDocs, retryLeaves);
         return new ESKnnFloatVectorQuery(
             field,
             getTargetCopy(),

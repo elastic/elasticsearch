@@ -363,6 +363,7 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
                     AbstractIVFKnnVectorQuery retry = (AbstractIVFKnnVectorQuery) delegate.createRetryQuery(
                         reader,
                         excluded,
+                        null,
                         new int[0][],
                         remainingK
                     );
@@ -389,6 +390,7 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
                 AbstractIVFKnnVectorQuery retry = (AbstractIVFKnnVectorQuery) delegate.createRetryQuery(
                     reader,
                     new int[0],
+                    null,
                     new int[0][],
                     1
                 );
@@ -408,6 +410,7 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
                 AbstractIVFKnnVectorQuery retry = (AbstractIVFKnnVectorQuery) delegate.createRetryQuery(
                     reader,
                     new int[0],
+                    null,
                     new int[0][],
                     4
                 );

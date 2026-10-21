@@ -330,13 +330,13 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     }
 
     /**
-     * {@code excludedDocs} are composed into {@code AcceptDocs} so the codec skips them
+     * {@code excludedDocs} and {@code retryLeaves} are composed into {@code AcceptDocs} so the codec skips them
      *  during posting-list iteration; {@code seedDocsPerLeaf} are ignored.
      */
     @Override
-    public Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[][] seedDocsPerLeaf, int remainingK) {
+    public Query createRetryQuery(IndexReader reader, int[] excludedDocs, boolean[] retryLeaves, int[][] seedDocsPerLeaf, int remainingK) {
         assert postFilterDelegate : "createRetryQuery expects a post-filter delegate, not the user's own query";
-        Query retryFilter = excludedDocs != null && excludedDocs.length > 0 ? new ExcludeDocsQuery(excludedDocs, reader) : null;
+        Query retryFilter = PostFilterableKnnQuery.retryFilter(reader, excludedDocs, retryLeaves);
         // numCands scales down with k: for IVF the numCands/k ratio is the codec's visit-ratio signal, so
         // carrying the full numCands into a small retry would make the retry explore harder than round 0.
         return clone(retryFilter, remainingK, PostFilterableKnnQuery.numCandsPreservingRatio(numCands, k, remainingK), true);

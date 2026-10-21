@@ -21,6 +21,7 @@ import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.knn.KnnSearchStrategy.Hnsw;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -46,6 +47,8 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
         private float postFilterDelegateSelectivity = Float.NaN;
         private int retryCalls;
         private int[] retryExcludedDocs;
+        private boolean[] retryLeaves;
+        private final List<boolean[]> retryLeavesPerRound = new ArrayList<>();
         private int[][] retrySeedDocs;
         private int retryRemainingK = -1;
         private int finalizeCalls;
@@ -57,9 +60,11 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
             postFilterDelegateSelectivity = selectivity;
         }
 
-        void recordRetry(int[] excluded, int[][] seedDocsPerLeaf, int remainingK) {
+        void recordRetry(int[] excluded, boolean[] retryLeaves, int[][] seedDocsPerLeaf, int remainingK) {
             retryCalls++;
             retryExcludedDocs = excluded.clone();
+            this.retryLeaves = retryLeaves == null ? null : retryLeaves.clone();
+            retryLeavesPerRound.add(this.retryLeaves);
             retrySeedDocs = seedDocsPerLeaf == null ? null : seedDocsPerLeaf.clone();
             retryRemainingK = remainingK;
         }
@@ -88,6 +93,16 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
 
         int[][] retrySeedDocs() {
             return retrySeedDocs;
+        }
+
+        /** Leaf mask of the most recent retry; {@code null} if it searched every leaf. */
+        boolean[] retryLeaves() {
+            return retryLeaves;
+        }
+
+        /** Leaf mask of every retry round, in order. */
+        List<boolean[]> retryLeavesPerRound() {
+            return retryLeavesPerRound;
         }
 
         int retryRemainingK() {
@@ -275,13 +290,13 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
     }
 
     @Override
-    public Query createRetryQuery(IndexReader reader, int[] excluded, int[][] seedDocsPerLeaf, int remainingK) {
+    public Query createRetryQuery(IndexReader reader, int[] excluded, boolean[] retryLeaves, int[][] seedDocsPerLeaf, int remainingK) {
         assert isSorted(excluded) : "excludedDocs must be sorted: " + Arrays.toString(excluded);
         assert allSorted(seedDocsPerLeaf) : "each leaf's seedDocs must be sorted: " + Arrays.deepToString(seedDocsPerLeaf);
         assert remainingK > 0 : "remainingK must be > 0, got " + remainingK;
         assert postFilterDelegate : "createRetryQuery expects a post-filter delegate, not the user's own query";
-        postFilterMeta.recordRetry(excluded, seedDocsPerLeaf, remainingK);
-        Query excludeFilter = excluded.length > 0 ? new ExcludeDocsQuery(excluded, reader) : null;
+        postFilterMeta.recordRetry(excluded, retryLeaves, seedDocsPerLeaf, remainingK);
+        Query excludeFilter = PostFilterableKnnQuery.retryFilter(reader, excluded, retryLeaves);
         return new AssertingKnnQuery(
             vectorType,
             field,

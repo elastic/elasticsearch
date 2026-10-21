@@ -21,6 +21,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.core.Nullable;
 
 import java.util.Arrays;
 import java.util.Objects;
@@ -43,13 +44,29 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
  * The query is pinned to a specific {@link IndexReader} via its context ID and refuses to run
  * against any other reader, since global doc IDs are only meaningful within the reader they
  * were collected from.
+ * <p>
+ * An optional per-leaf mask restricts the query to a subset of leaves: a leaf whose mask entry is
+ * {@code false} gets no scorer at all, which the kNN queries treat as "nothing to search here". The
+ * post-filter retry uses this to re-enter only the leaves that may still hold a missing result
+ * instead of re-running every leaf.
  */
 class ExcludeDocsQuery extends Query {
     private final int[] excludedDocs;
+    @Nullable
+    private final boolean[] searchLeaves;
     private final Object readerContextId;
 
     ExcludeDocsQuery(int[] excludedDocs, IndexReader reader) {
+        this(excludedDocs, null, reader);
+    }
+
+    /**
+     * @param searchLeaves leaves to search, indexed by {@code LeafReaderContext#ord}; {@code null} searches
+     *                     every leaf. A leaf outside the array's range is not searched.
+     */
+    ExcludeDocsQuery(int[] excludedDocs, @Nullable boolean[] searchLeaves, IndexReader reader) {
         this.excludedDocs = Objects.requireNonNull(excludedDocs);
+        this.searchLeaves = searchLeaves;
         this.readerContextId = reader.getContext().id();
     }
 
@@ -70,6 +87,9 @@ class ExcludeDocsQuery extends Query {
 
             @Override
             public ScorerSupplier scorerSupplier(LeafReaderContext context) {
+                if (searchLeaves != null && (context.ord >= searchLeaves.length || searchLeaves[context.ord] == false)) {
+                    return null;
+                }
                 final int leafMaxDoc = context.reader().maxDoc();
                 final int docBase = context.docBase;
                 int end = docBase + leafMaxDoc;
@@ -170,7 +190,10 @@ class ExcludeDocsQuery extends Query {
 
     @Override
     public String toString(String field) {
-        return "ExcludeDocsQuery[count=" + excludedDocs.length + "]";
+        return "ExcludeDocsQuery[count="
+            + excludedDocs.length
+            + (searchLeaves == null ? "" : ", searchLeaves=" + Arrays.toString(searchLeaves))
+            + "]";
     }
 
     @Override
@@ -183,11 +206,13 @@ class ExcludeDocsQuery extends Query {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ExcludeDocsQuery that = (ExcludeDocsQuery) o;
-        return Arrays.equals(excludedDocs, that.excludedDocs) && readerContextId == that.readerContextId;
+        return Arrays.equals(excludedDocs, that.excludedDocs)
+            && Arrays.equals(searchLeaves, that.searchLeaves)
+            && readerContextId == that.readerContextId;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), Arrays.hashCode(excludedDocs), readerContextId);
+        return Objects.hash(classHash(), Arrays.hashCode(excludedDocs), Arrays.hashCode(searchLeaves), readerContextId);
     }
 }

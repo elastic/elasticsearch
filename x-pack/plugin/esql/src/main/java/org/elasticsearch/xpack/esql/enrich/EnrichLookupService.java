@@ -11,7 +11,10 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -36,11 +39,13 @@ import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.enrich.EnrichMetadata;
@@ -358,15 +363,16 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
         DiscoveryNode targetNode,
         TransportRequest transportRequest
     ) {
-        String index = transportRequest.shardId.getIndexName();
-        Map<String, EnrichPolicy> policies = projectResolver.getProjectMetadata(clusterService.state())
-            .custom(EnrichMetadata.TYPE, EnrichMetadata.EMPTY)
-            .getPolicies();
+        ProjectMetadata project = projectResolver.getProjectMetadata(clusterService.state());
+        Map<String, EnrichPolicy> policies = project.custom(EnrichMetadata.TYPE, EnrichMetadata.EMPTY).getPolicies();
         // The lookup below runs with the enrich origin rather than as the user, so restrict it to the
         // indices it exists to read: those created for a local enrich policy.
-        if (isEnrichPolicyIndex(policies, index) == false) {
+        if (isEnrichPolicyIndex(policies, project.index(transportRequest.shardId.getIndex())) == false) {
             delegate.onFailure(
-                Exceptions.authorizationError("enrich lookup on index [{}] is not allowed; it is not the index of an enrich policy", index)
+                Exceptions.authorizationError(
+                    "enrich lookup on index [{}] is not allowed; it is not the index of an enrich policy",
+                    transportRequest.shardId.getIndexName()
+                )
             );
             return;
         }
@@ -385,26 +391,21 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
     }
 
     /**
-     * Whether {@code index} is a concrete index that the enrich policy runner created for one of {@code policies}, i.e.
-     * its name is {@code .enrich-<policy>-<timestamp>} as produced by {@link EnrichPolicy#getIndexName}. The enrich alias
-     * {@code .enrich-<policy>} is not accepted because lookups always target a concrete index.
+     * Whether {@code index} is an index that the enrich policy runner built for one of {@code policies}. The policy is read from
+     * the {@code _meta} of the index's mapping rather than parsed from the index name, because the system index migration renames
+     * enrich indices (appending {@link SystemIndices#UPGRADED_INDEX_SUFFIX}) but copies their mappings. The {@code .enrich-}
+     * prefix is still required, so that an index outside the enrich namespace can't pass by carrying the same {@code _meta}.
      */
-    static boolean isEnrichPolicyIndex(Map<String, EnrichPolicy> policies, String index) {
-        String prefix = EnrichPolicy.ENRICH_INDEX_NAME_BASE;
-        if (index.startsWith(prefix) == false) {
+    static boolean isEnrichPolicyIndex(Map<String, EnrichPolicy> policies, @Nullable IndexMetadata index) {
+        if (index == null || index.getIndex().getName().startsWith(EnrichPolicy.ENRICH_INDEX_NAME_BASE) == false) {
             return false;
         }
-        int timestampStart = index.lastIndexOf('-') + 1;
-        if (timestampStart <= prefix.length() || timestampStart == index.length()) {
+        MappingMetadata mapping = index.mapping();
+        if (mapping == null) {
             return false;
         }
-        for (int i = timestampStart; i < index.length(); i++) {
-            char c = index.charAt(i);
-            if (c < '0' || c > '9') {
-                return false;
-            }
-        }
-        return policies.containsKey(index.substring(prefix.length(), timestampStart - 1));
+        Object policyName = ObjectPath.eval("_meta." + EnrichPolicy.ENRICH_POLICY_NAME_FIELD_NAME, mapping.getSourceAsMap());
+        return policyName instanceof String name && policies.containsKey(name);
     }
 
     protected void hasEnrichPrivilege(ActionListener<Void> outListener) {

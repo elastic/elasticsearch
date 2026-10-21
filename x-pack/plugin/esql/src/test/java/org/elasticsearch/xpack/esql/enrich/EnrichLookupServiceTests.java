@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.enrich;
 
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
@@ -17,44 +20,59 @@ public class EnrichLookupServiceTests extends ESTestCase {
 
     private static final Map<String, EnrichPolicy> POLICIES = Map.of("users", policy(), "multi-part-name", policy());
 
-    public void testConcreteIndexOfExistingPolicyIsAllowed() {
-        assertTrue(EnrichLookupService.isEnrichPolicyIndex(POLICIES, EnrichPolicy.getIndexName("users", randomNonNegativeLong())));
-        assertTrue(
-            EnrichLookupService.isEnrichPolicyIndex(POLICIES, EnrichPolicy.getIndexName("multi-part-name", randomNonNegativeLong()))
-        );
+    public void testIndexOfExistingPolicyIsAllowed() {
+        assertTrue(isEnrichPolicyIndex(EnrichPolicy.getIndexName("users", randomNonNegativeLong()), metaFor("users")));
+        assertTrue(isEnrichPolicyIndex(EnrichPolicy.getIndexName("multi-part-name", randomNonNegativeLong()), metaFor("multi-part-name")));
+    }
+
+    public void testMigratedIndexOfExistingPolicyIsAllowed() {
+        String index = EnrichPolicy.getIndexName("users", randomNonNegativeLong()) + SystemIndices.UPGRADED_INDEX_SUFFIX;
+        assertTrue(isEnrichPolicyIndex(index, metaFor("users")));
+        assertTrue(isEnrichPolicyIndex(index + "-reindexed-for-11", metaFor("users")));
     }
 
     public void testRegularIndexIsRejected() {
-        assertFalse(EnrichLookupService.isEnrichPolicyIndex(POLICIES, "users"));
-        assertFalse(EnrichLookupService.isEnrichPolicyIndex(POLICIES, "users-1700000000000"));
+        assertFalse(isEnrichPolicyIndex("users", metaFor("users")));
+        assertFalse(isEnrichPolicyIndex("users-1700000000000", metaFor("users")));
     }
 
     public void testSystemIndexIsRejected() {
-        assertFalse(EnrichLookupService.isEnrichPolicyIndex(POLICIES, ".security-7"));
-        assertFalse(EnrichLookupService.isEnrichPolicyIndex(POLICIES, ".kibana_1"));
+        assertFalse(isEnrichPolicyIndex(".security-7", metaFor("users")));
+        assertFalse(isEnrichPolicyIndex(".kibana_1", "{}"));
+    }
+
+    public void testEnrichIndexWithoutPolicyNameIsRejected() {
+        assertFalse(isEnrichPolicyIndex(".enrich-users-1700000000000", "{}"));
+        assertFalse(isEnrichPolicyIndex(".enrich-users-1700000000000", "{\"_meta\":{}}"));
+        assertFalse(isEnrichPolicyIndex(".enrich-users-1700000000000", "{\"_meta\":{\"enrich_policy_name\":5}}"));
     }
 
     public void testEnrichIndexOfUnknownPolicyIsRejected() {
-        assertFalse(EnrichLookupService.isEnrichPolicyIndex(POLICIES, EnrichPolicy.getIndexName("other", randomNonNegativeLong())));
-        assertFalse(EnrichLookupService.isEnrichPolicyIndex(POLICIES, EnrichPolicy.getIndexName("name", randomNonNegativeLong())));
-        assertFalse(EnrichLookupService.isEnrichPolicyIndex(Map.of(), EnrichPolicy.getIndexName("users", randomNonNegativeLong())));
+        assertFalse(isEnrichPolicyIndex(".enrich-users-1700000000000", metaFor("other")));
+        assertFalse(EnrichLookupService.isEnrichPolicyIndex(Map.of(), indexMetadata(".enrich-users-1700000000000", metaFor("users"))));
     }
 
-    public void testEnrichAliasIsRejected() {
-        assertFalse(EnrichLookupService.isEnrichPolicyIndex(POLICIES, EnrichPolicy.getBaseName("users")));
+    public void testIndexWithoutMappingIsRejected() {
+        IndexMetadata index = IndexMetadata.builder(".enrich-users-1700000000000")
+            .settings(indexSettings(IndexVersion.current(), 1, 0))
+            .build();
+        assertFalse(EnrichLookupService.isEnrichPolicyIndex(POLICIES, index));
     }
 
-    public void testMalformedEnrichIndexNameIsRejected() {
-        assertFalse(EnrichLookupService.isEnrichPolicyIndex(POLICIES, ".enrich-users-"));
-        assertFalse(EnrichLookupService.isEnrichPolicyIndex(POLICIES, ".enrich-users-12a4"));
-        assertFalse(EnrichLookupService.isEnrichPolicyIndex(POLICIES, ".enrich-users-123-"));
-        assertFalse(EnrichLookupService.isEnrichPolicyIndex(POLICIES, ".enrich--123"));
-        assertFalse(EnrichLookupService.isEnrichPolicyIndex(POLICIES, ".enrich-"));
+    public void testMissingIndexIsRejected() {
+        assertFalse(EnrichLookupService.isEnrichPolicyIndex(POLICIES, null));
     }
 
-    public void testIndexThatOnlyLooksLikeEnrichIsRejected() {
-        assertFalse(EnrichLookupService.isEnrichPolicyIndex(POLICIES, "Xenrich-users-123"));
-        assertFalse(EnrichLookupService.isEnrichPolicyIndex(POLICIES, "enrich-users-123"));
+    private static boolean isEnrichPolicyIndex(String index, String mapping) {
+        return EnrichLookupService.isEnrichPolicyIndex(POLICIES, indexMetadata(index, mapping));
+    }
+
+    private static IndexMetadata indexMetadata(String index, String mapping) {
+        return IndexMetadata.builder(index).settings(indexSettings(IndexVersion.current(), 1, 0)).putMapping(mapping).build();
+    }
+
+    private static String metaFor(String policyName) {
+        return "{\"_meta\":{\"" + EnrichPolicy.ENRICH_POLICY_NAME_FIELD_NAME + "\":\"" + policyName + "\"}}";
     }
 
     private static EnrichPolicy policy() {

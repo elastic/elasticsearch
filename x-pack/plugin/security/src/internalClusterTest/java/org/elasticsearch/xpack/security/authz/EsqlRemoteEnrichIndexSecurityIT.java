@@ -13,7 +13,12 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.reindex.ReindexRequestBuilder;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.integration.EsqlResolveViewRemoteClusterClientRoleIT;
 import org.elasticsearch.license.XPackLicenseState;
@@ -46,8 +51,10 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.test.SecuritySettingsSource.ES_TEST_ROOT_USER;
 import static org.elasticsearch.test.SecuritySettingsSource.TEST_USER_NAME;
@@ -75,6 +82,11 @@ public class EsqlRemoteEnrichIndexSecurityIT extends AbstractMultiClustersTestCa
     private static final String HOST = "192.168.1.2";
     private static final String SECRET = "TOP-SECRET";
     private static final String QUERY = "FROM " + REMOTE_CLUSTER + ":events | ENRICH _remote:hosts ON host WITH os | KEEP host, os";
+    private static final String NO_POLICY_INDEX = ".enrich-unknown-1700000000000";
+    private static final String UNKNOWN_POLICY_INDEX = ".enrich-other-1700000000000";
+
+    @Nullable
+    private String migratedPolicyIndex;
 
     @Override
     protected List<String> remoteClusterAlias() {
@@ -123,10 +135,25 @@ public class EsqlRemoteEnrichIndexSecurityIT extends AbstractMultiClustersTestCa
 
         createIndex(remote, "events", "host");
         index(remote, "events", "host", HOST);
-        for (String index : List.of("secrets", ".enrich-unknown-1700000000000")) {
+        for (String index : List.of("secrets", NO_POLICY_INDEX)) {
             createIndex(remote, index, "ip", "os");
             index(remote, index, "ip", HOST, "os", SECRET);
         }
+        assertAcked(
+            remote.admin()
+                .indices()
+                .prepareCreate(UNKNOWN_POLICY_INDEX)
+                .setSettings(Settings.builder().put("index.number_of_shards", 1))
+                .setMapping(
+                    Map.of(
+                        "_meta",
+                        Map.of(EnrichPolicy.ENRICH_POLICY_NAME_FIELD_NAME, "other"),
+                        "properties",
+                        Map.of("ip", Map.of("type", "keyword"), "os", Map.of("type", "keyword"))
+                    )
+                )
+        );
+        index(remote, UNKNOWN_POLICY_INDEX, "ip", HOST, "os", SECRET);
     }
 
     @After
@@ -144,7 +171,11 @@ public class EsqlRemoteEnrichIndexSecurityIT extends AbstractMultiClustersTestCa
         assertAcked(
             remote.admin()
                 .indices()
-                .prepareDelete("hosts", "events", "secrets", ".enrich-unknown-1700000000000")
+                .prepareDelete(
+                    Stream.of("hosts", "events", "secrets", NO_POLICY_INDEX, UNKNOWN_POLICY_INDEX, migratedPolicyIndex)
+                        .filter(Objects::nonNull)
+                        .toArray(String[]::new)
+                )
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
         );
         // The test cluster wipe skips system indices, so drop the security index created by the system index test.
@@ -153,6 +184,13 @@ public class EsqlRemoteEnrichIndexSecurityIT extends AbstractMultiClustersTestCa
     }
 
     public void testUnmodifiedRemotePlanEnrichesFromPolicyIndex() {
+        try (EsqlQueryResponse resp = runQueryAsTestUser()) {
+            assertThat(rows(resp), equalTo(List.of(List.of(HOST, "Windows"))));
+        }
+    }
+
+    public void testUnmodifiedRemotePlanEnrichesFromMigratedPolicyIndex() {
+        migratedPolicyIndex = migratePolicyIndex();
         try (EsqlQueryResponse resp = runQueryAsTestUser()) {
             assertThat(rows(resp), equalTo(List.of(List.of(HOST, "Windows"))));
         }
@@ -179,9 +217,13 @@ public class EsqlRemoteEnrichIndexSecurityIT extends AbstractMultiClustersTestCa
     }
 
     public void testRemotePlanTargetingEnrichIndexWithoutPolicyIsRejected() {
-        String index = ".enrich-unknown-1700000000000";
-        ElasticsearchSecurityException e = assertTamperedLookupRejected(index);
-        assertThat(e.getMessage(), containsString("enrich lookup on index [" + index + "] is not allowed"));
+        ElasticsearchSecurityException e = assertTamperedLookupRejected(NO_POLICY_INDEX);
+        assertThat(e.getMessage(), containsString("enrich lookup on index [" + NO_POLICY_INDEX + "] is not allowed"));
+    }
+
+    public void testRemotePlanTargetingEnrichIndexOfUnknownPolicyIsRejected() {
+        ElasticsearchSecurityException e = assertTamperedLookupRejected(UNKNOWN_POLICY_INDEX);
+        assertThat(e.getMessage(), containsString("enrich lookup on index [" + UNKNOWN_POLICY_INDEX + "] is not allowed"));
     }
 
     private ElasticsearchSecurityException assertTamperedLookupRejected(String index) {
@@ -204,6 +246,37 @@ public class EsqlRemoteEnrichIndexSecurityIT extends AbstractMultiClustersTestCa
         assertThat(securityException.status(), equalTo(RestStatus.FORBIDDEN));
         assertThat(securityException.getMessage(), containsString("[" + index + "]"));
         return securityException;
+    }
+
+    /**
+     * Does to the policy's enrich index what the system index migration does to it: copies it into an index named with
+     * {@link SystemIndices#UPGRADED_INDEX_SUFFIX}, then deletes the original and points its name and aliases at the copy.
+     */
+    private String migratePolicyIndex() {
+        Client remote = rootClient(REMOTE_CLUSTER);
+        ProjectMetadata project = cluster(REMOTE_CLUSTER).clusterService().state().metadata().getProject();
+        IndexMetadata current = project.index(
+            project.getIndicesLookup().get(EnrichPolicy.getBaseName(POLICY_NAME)).getIndices().getFirst()
+        );
+        String currentName = current.getIndex().getName();
+        String migrated = currentName + SystemIndices.UPGRADED_INDEX_SUFFIX;
+        assertAcked(
+            remote.admin()
+                .indices()
+                .prepareCreate(migrated)
+                .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.hidden", true))
+                .setMapping(current.mapping().getSourceAsMap())
+        );
+        new ReindexRequestBuilder(remote).source(currentName).destination(migrated).refresh(true).get();
+        assertAcked(
+            remote.admin()
+                .indices()
+                .prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .removeIndex(currentName)
+                .addAlias(migrated, currentName)
+                .addAlias(migrated, EnrichPolicy.getBaseName(POLICY_NAME))
+        );
+        return migrated;
     }
 
     private EsqlQueryResponse runQueryAsTestUser() {

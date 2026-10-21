@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.redact;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.grok.GrokBuiltinPatterns;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.VersionType;
@@ -22,6 +23,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -166,6 +168,78 @@ public class RedactProcessorTests extends ESTestCase {
                 redacted.getFieldValue("to_redact", String.class)
             );
         }
+    }
+
+    public void testRedactDoesNotRegisterItsMatchersWithTheWatchdog() throws Exception {
+        var config = new HashMap<String, Object>();
+        config.put("field", "to_redact");
+        config.put("patterns", List.of("%{WORD:WORD}"));
+
+        var watchdog = new RecordingMatcherWatchdog();
+        var processor = new RedactProcessor.Factory(mockLicenseState(), watchdog).create(null, "t", "d", config, null);
+        int registrationsBeforeExecution = watchdog.registrations.get();
+        int unregistrationsBeforeExecution = watchdog.unregistrations.get();
+
+        var redacted = processor.execute(createIngestDoc(Map.of("to_redact", "secret")));
+
+        assertEquals("<WORD>", redacted.getFieldValue("to_redact", String.class));
+        assertEquals(registrationsBeforeExecution, watchdog.registrations.get());
+        assertEquals(unregistrationsBeforeExecution, watchdog.unregistrations.get());
+    }
+
+    public void testRedactFailsWhenTheWatchdogInterruptsTheMatcher() throws Exception {
+        var config = new HashMap<String, Object>();
+        config.put("field", "to_redact");
+        config.put("patterns", List.of("%{WORD:WORD}"));
+
+        var watchdog = new InterruptingMatcherWatchdog();
+        var processor = new RedactProcessor.Factory(mockLicenseState(), watchdog).create(null, "t", "d", config, null);
+        watchdog.activate();
+
+        expectThrows(ElasticsearchTimeoutException.class, () -> processor.execute(createIngestDoc(Map.of("to_redact", "secret"))));
+    }
+
+    private static class RecordingMatcherWatchdog implements MatcherWatchdog {
+        private final AtomicInteger registrations = new AtomicInteger();
+        private final AtomicInteger unregistrations = new AtomicInteger();
+
+        @Override
+        public void register(org.joni.Matcher matcher) {
+            registrations.incrementAndGet();
+        }
+
+        @Override
+        public long maxExecutionTimeInMillis() {
+            return 1;
+        }
+
+        @Override
+        public void unregister(org.joni.Matcher matcher) {
+            unregistrations.incrementAndGet();
+        }
+    }
+
+    private static class InterruptingMatcherWatchdog implements MatcherWatchdog {
+        private boolean active;
+
+        void activate() {
+            active = true;
+        }
+
+        @Override
+        public void register(org.joni.Matcher matcher) {
+            if (active) {
+                matcher.interrupt();
+            }
+        }
+
+        @Override
+        public long maxExecutionTimeInMillis() {
+            return 1;
+        }
+
+        @Override
+        public void unregister(org.joni.Matcher matcher) {}
     }
 
     public void testRedactWithPatternNamesRedacted() throws Exception {

@@ -376,9 +376,32 @@ Existing segments are not rewritten, so the new value applies from the next merg
   The index can contain segments calibrated under different profiles.
   Switching to `quality` can increase disk and memory usage as segments are merged.
 
-### Example
+### Examples
 
-To explicitly disable auto-calibration:
+#### Enabling/disabling auto-calibration
+
+To explicitly enable auto-calibration:
+
+```console
+PUT my-auto-calibrated-index
+{
+  "mappings": {
+    "properties": {
+      "my_vector": {
+        "type": "dense_vector",
+        "dims": 1024,
+        "index": true,
+        "index_options": {
+          "type": "bbq_disk",
+          "auto_calibrate": true
+        }
+      }
+    }
+  }
+}
+```
+
+To explicitly disable it:
 
 ```console
 PUT my-auto-calibrated-index
@@ -399,8 +422,11 @@ PUT my-auto-calibrated-index
 }
 ```
 
-To explicitly use the `quality` profile
-// TODO: Tag as 9.6+ only
+#### Using a specific profile
+
+```{applies_to}
+stack: ga 9.6
+```
 
 ```console
 PUT my-quality-calibrated-index
@@ -413,15 +439,84 @@ PUT my-quality-calibrated-index
         "index": true,
         "index_options": {
           "type": "bbq_disk",
-          "auto_calibrate": "quality"
+          "auto_calibrate": "quality" <1>
         }
       }
     }
   }
 }
 ```
+1. Set the `auto_calibrate` parameter value to the [profile name](#bbq-auto-calibration-profiles).
+
+#### Getting the active configuration
+
+```{applies_to}
+stack: ga 9.6
+```
 
 You can inspect the active configuration for each segment using the [Index Segments API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-segments).
+Set the `include_auto_calibration` query parameter to `true` to include the calibration details:
+
+```console
+GET my-auto-calibrated-index/_segments?include_auto_calibration=true
+```
+
+The following abbreviated response shows two segments of the same shard:
+
+```console-result
+{
+  ...
+  "indices": {
+    "my-auto-calibrated-index": {
+      "shards": {
+        "0": [
+          {
+            ...
+            "segments": {
+              "_a": {
+                ...
+                "auto_calibration": {
+                  "my_vector": { <1>
+                    "calibrated": true, <2>
+                    "type": "osq",
+                    "number_of_vectors": 250000,
+                    "size_in_bytes": 145000000,
+                    "parameters": { <3>
+                      "bits": 2,
+                      "query_bits": 4,
+                      "precondition": true,
+                      "oversample": 2.5
+                    }
+                  }
+                }
+              },
+              "_b": {
+                ...
+                "auto_calibration": {
+                  "my_vector": { <4>
+                    "calibrated": false,
+                    "type": "osq",
+                    "number_of_vectors": 4200,
+                    "size_in_bytes": 2400000
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+```
+1. One entry exists for each `dense_vector` field in the segment, keyed by field name.
+2. `calibrated` reports if the segment was calibrated when it was merged.
+3. `parameters` reports the results of auto-calibration: encoding (`bits` and `query_bits`), whether preconditioning is applied, and the oversampling factor stored for this segment.
+   Refer to [Interaction with other parameters](#interaction-with-other-parameters) for how these values interact with query-time and mapping `oversample` values.
+4. An uncalibrated `dense_vector` field in a segment.
+   No `parameters` are returned.
+   The segment is searched using the mapping settings.
+   A query-time [`rescore_vector.oversample`](/reference/query-languages/query-dsl/query-dsl-knn-query.md#knn-query-top-level-parameters) on the kNN query or retriever overrides the oversampling factor, as described in [Interaction with other parameters](#interaction-with-other-parameters).
 
 ## Oversampling [bbq-oversampling]
 

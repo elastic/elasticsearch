@@ -573,9 +573,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterExternalSourceIT
   method: testRequestFilterOnDatasetAcrossVersions
   issue: https://github.com/elastic/elasticsearch/issues/162854
-- class: org.elasticsearch.xpack.esql.ccq.MultiClustersIT
-  method: testRemoteViewFailsQuery
-  issue: https://github.com/elastic/elasticsearch/issues/162869
 - class: org.elasticsearch.index.mapper.DynamicMappingIT
   method: testConcurrentBulkRequestsWithDynamicMappingUpdates
   issue: https://github.com/elastic/elasticsearch/issues/162912

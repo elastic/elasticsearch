@@ -3261,21 +3261,53 @@ book_no:keyword | _score:double
 7350            | 3.0
 ;
 
-matchOnRuntimeTextOrScore
+matchAndScoreOrMatchOnRuntimeText
 required_capability: match_function
 required_capability: metadata_score
 required_capability: fn_match_runtime_score
 required_capability: runtime_score_fix
 
-// as with indexed fields, a WHERE can't see the score it adds itself, so _score is the 0.0 from before it
+// as with indexed fields, the _score sees the 0.0 from before the WHERE rather than the score of the match it's ANDed
+// with, so only the books matching "Hobbit" pass
 FROM books METADATA _score
 | EVAL content = to_text(concat(title, " ", description))
-| WHERE match(content, "Rings") OR _score > 0.5
-| STATS c = COUNT(*), min_score = MIN(_score), max_score = MAX(_score)
+| WHERE (match(content, "Rings") AND _score > 0.5) OR match(content, "Hobbit")
+| SORT book_no
+| KEEP book_no
 ;
 
-c:long | min_score:double | max_score:double
-10     | 1.0              | 1.0
+book_no:keyword
+1463
+2301
+2675
+2714
+2936
+4023
+4289
+5335
+5996
+6405
+6760
+7350
+7480
+;
+
+matchAndScoreOrMatchOnIndexedField
+required_capability: match_function
+required_capability: metadata_score
+
+// the _score keeps the OR out of Lucene, so it sees the 0.0 from before the WHERE rather than the score of the title
+// match it's ANDed with, and only the books whose title matches "Hobbit" pass
+FROM books METADATA _score
+| WHERE (match(title, "Rings") AND _score > 0.5) OR match(title, "Hobbit")
+| SORT book_no
+| KEEP book_no
+;
+
+book_no:keyword
+4289
+6405
+7480
 ;
 
 matchOnIndexedFieldInComputeAndScoreInOr

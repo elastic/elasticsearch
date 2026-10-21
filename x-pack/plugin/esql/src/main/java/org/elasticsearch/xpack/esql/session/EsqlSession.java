@@ -653,6 +653,26 @@ public class EsqlSession {
 
                     TransportVersion minimumVersion = analyzedPlan.minimumVersion();
 
+                    if (request.analyzeOnly()) {
+                        EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
+                        executionInfo.queryProfile().planningCpuNanos(planningCpu.finish());
+                        listener.onResponse(
+                            new Versioned<>(
+                                new Result(
+                                    analyzedPlan.inner().output(),
+                                    List.of(),
+                                    Map.of(),
+                                    finalConfiguration,
+                                    DriverCompletionInfo.EMPTY,
+                                    executionInfo,
+                                    null
+                                ),
+                                minimumVersion
+                            )
+                        );
+                        return;
+                    }
+
                     // Apply the out-of-band request filter to external-source (dataset) leaves, translated
                     // against each source's schema. Index leaves keep their existing filter path.
                     // Applies the translatable subset and drops the rest with a warning naming each clause.

@@ -87,6 +87,7 @@ import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
 import org.elasticsearch.xpack.esql.action.EsqlStreamQueryAction;
+import org.elasticsearch.xpack.esql.action.PreparedEsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.RestEsqlAsyncQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlDeleteAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlGetAsyncResultAction;
@@ -626,7 +627,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 c.onQueryCompleted(metrics);
             }
         };
-        ViewService viewService = new ViewService(services.clusterService(), parser);
+        ViewService viewService = new ViewService(services.clusterService(), parser, (statement, viewName, listener) -> {
+            var request = PreparedEsqlQueryRequest.analyzeOnly(statement, "view [" + viewName + "]");
+            services.client().execute(EsqlQueryAction.INSTANCE, request, listener.map(response -> null));
+        });
         DataSourceService dataSourceService = new DataSourceService(
             services.clusterService(),
             crudValidators,

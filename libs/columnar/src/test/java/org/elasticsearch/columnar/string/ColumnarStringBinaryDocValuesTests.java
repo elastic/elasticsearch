@@ -205,12 +205,11 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
             final ColumnarStringBinaryDocValues dv = new ColumnarStringBinaryDocValues(reader, reader.iterator(), false);
             final DenseOrdinalReader ordinals = dv.denseOrdinals();
             assertNotNull(ordinals);
-            assertEquals(reader.dictionarySize(), ordinals.size());
             int escaped = 0;
             int inDictionary = 0;
             for (int doc = dv.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = dv.nextDoc()) {
                 final List<BytesRef> valued = Arrays.stream(docSlots[doc]).filter(slot -> slot != null).toList();
-                assertEquals("count at doc " + doc, valued.size(), ordinals.nonNullValueCount());
+                assertEquals("count at doc " + doc, valued.size(), dv.nonNullValueCount());
                 if (valued.size() != 1) {
                     continue;
                 }
@@ -221,7 +220,7 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
                 } else {
                     inDictionary++;
                     assertThat("an ordinal from zero", ordinal, greaterThanOrEqualTo(0));
-                    assertThat("and below the dictionary's size", ordinal, lessThan(ordinals.size()));
+                    assertThat("and below the dictionary's size", ordinal, lessThan(reader.dictionarySize()));
                     assertEquals("doc " + doc, valued.get(0), ordinals.term(ordinal, new BytesRef()));
                 }
             }
@@ -245,8 +244,8 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
             (metadata, reader) -> {
                 final ColumnarStringBinaryDocValues dv = new ColumnarStringBinaryDocValues(reader, reader.iterator(), true);
                 final DenseOrdinalReader ordinals = dv.denseOrdinals();
-                assertEquals(5, ordinals.size());
-                for (int ordinal = ordinals.size() - 1; ordinal >= 0; ordinal--) {
+                assertEquals(5, reader.dictionarySize());
+                for (int ordinal = reader.dictionarySize() - 1; ordinal >= 0; ordinal--) {
                     assertEquals(new BytesRef("term-" + ordinal), ordinals.term(ordinal, new BytesRef()));
                 }
             }

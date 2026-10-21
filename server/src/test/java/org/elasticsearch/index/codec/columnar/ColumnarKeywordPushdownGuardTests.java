@@ -566,19 +566,9 @@ public class ColumnarKeywordPushdownGuardTests extends ESTestCase {
             }
             return new DenseOrdinalReader() {
                 @Override
-                public int size() {
-                    return ordinals.size();
-                }
-
-                @Override
                 public BytesRef term(int ordinal, BytesRef dst) throws IOException {
                     readsAValue();
                     return ordinals.term(ordinal, dst);
-                }
-
-                @Override
-                public int nonNullValueCount() throws IOException {
-                    return ordinals.nonNullValueCount();
                 }
 
                 @Override

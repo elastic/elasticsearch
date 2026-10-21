@@ -32,8 +32,8 @@ import java.util.function.LongConsumer;
  *
  * <p>Only the lookup from term bytes to bucket changes. Sub-aggregations, {@code _doc_count} and
  * {@code significant_terms} counting work as they do in the per-document loop, because the consumer still does the
- * counting. The collector knows nothing of how the column encodes its ordinals: {@link DenseOrdinalReader} says how many
- * values a document has, and which term the one value is.
+ * counting. The collector knows nothing of how the column encodes its ordinals: {@link StringColumnSource#nonNullValueCount}
+ * says how many values a document has, and {@link DenseOrdinalReader} which term the one value is.
  *
  * <p>A document is decided on its own. A document with one value, in the dictionary, is counted from the cache. An
  * escaped value is hashed for each document, as it is without the cache. A document with several values goes to the
@@ -93,11 +93,13 @@ final class ColumnarOrdinalTermsCollector extends LeafBucketCollectorBase {
             return null;
         }
         final DenseOrdinalReader ordinals = source.denseOrdinals();
-        if (ordinals != null && ordinals.size() <= MAX_DICTIONARY_SIZE) {
-            final long[] buckets = ordinalBuckets.reset(ordinals.size(), addRequestCircuitBreakerBytes);
+        final int dictionarySize = source.reader().dictionarySize();
+        if (ordinals != null && dictionarySize <= MAX_DICTIONARY_SIZE) {
+            final long[] buckets = ordinalBuckets.reset(dictionarySize, addRequestCircuitBreakerBytes);
             return new ColumnarOrdinalTermsCollector(
                 values,
                 (BinaryDocValues) source,
+                source,
                 ordinals,
                 buckets,
                 includeExclude,
@@ -110,6 +112,7 @@ final class ColumnarOrdinalTermsCollector extends LeafBucketCollectorBase {
     }
 
     private final BinaryDocValues docValues;
+    private final StringColumnSource source;
     private final DenseOrdinalReader ordinals;
     private final long[] buckets;
     private final IncludeExclude.StringFilter includeExclude;
@@ -121,6 +124,7 @@ final class ColumnarOrdinalTermsCollector extends LeafBucketCollectorBase {
     private ColumnarOrdinalTermsCollector(
         ColumnarPayloadSortableBinaryDocValues values,
         BinaryDocValues docValues,
+        StringColumnSource source,
         DenseOrdinalReader ordinals,
         long[] buckets,
         @Nullable IncludeExclude.StringFilter includeExclude,
@@ -130,6 +134,7 @@ final class ColumnarOrdinalTermsCollector extends LeafBucketCollectorBase {
     ) {
         super(sub, values);
         this.docValues = docValues;
+        this.source = source;
         this.ordinals = ordinals;
         this.buckets = buckets;
         this.includeExclude = includeExclude;
@@ -147,7 +152,7 @@ final class ColumnarOrdinalTermsCollector extends LeafBucketCollectorBase {
         if (docValues.advanceExact(doc) == false) {
             return;
         }
-        final int count = ordinals.nonNullValueCount();
+        final int count = source.nonNullValueCount();
         if (count == 0) {
             return;
         }

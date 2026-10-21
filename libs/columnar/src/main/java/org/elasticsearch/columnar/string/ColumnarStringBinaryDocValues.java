@@ -484,28 +484,10 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
         }
 
         @Override
-        public int size() {
-            return column.dictionarySize();
-        }
-
-        @Override
         public BytesRef term(int ordinal, BytesRef dst) throws IOException {
-            assert ordinal >= 0 && ordinal < size() : "ordinal [" + ordinal + "] names no term in a dictionary of " + size();
+            assert ordinal >= 0 && ordinal < column.dictionarySize()
+                : "ordinal [" + ordinal + "] names no term in a dictionary of " + column.dictionarySize();
             return column.termAt(ordinal + StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL, dst);
-        }
-
-        @Override
-        public int nonNullValueCount() throws IOException {
-            final int rank = iterator.rank();
-            final long first = column.firstValueAddress(rank);
-            final long slots = column.valueCount(rank);
-            int count = 0;
-            for (long slot = first; slot < first + slots; slot++) {
-                if (column.isNullSlot(slot) == false) {
-                    count++;
-                }
-            }
-            return count;
         }
 
         @Override

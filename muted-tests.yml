@@ -78,9 +78,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherIT
   method: testForceCommitPrefetch
   issue: https://github.com/elastic/elasticsearch/issues/147847
-- class: org.elasticsearch.search.aggregations.metrics.LargeTopHitsIT
-  method: test500Queries
-  issue: https://github.com/elastic/elasticsearch/issues/148056
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testStressWithRelocationFailures
   issue: https://github.com/elastic/elasticsearch/issues/148129
@@ -385,9 +382,6 @@ tests:
 - class: org.elasticsearch.xpack.search.AsyncSearchActionIT
   method: testRemoveAsyncIndex
   issue: https://github.com/elastic/elasticsearch/issues/161316
-- class: org.elasticsearch.integration.FieldLevelSecurityTests
-  method: testPercolatorConstantKeywordQueryDependsOnIndexingUsersFls
-  issue: https://github.com/elastic/elasticsearch/issues/161396
 - class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRecoveryIT
   method: testPeerRecovery
   issue: https://github.com/elastic/elasticsearch/issues/161463
@@ -550,3 +544,174 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohexTests
   method: testEvaluateInManyThreads {TestCase=geo_shape with literal precision}
   issue: https://github.com/elastic/elasticsearch/issues/162795
+- class: org.elasticsearch.xpack.esql.qa.csv.CsvFormatSpecIT
+  tasks:
+  - :x-pack:plugin:esql-datasource-csv:qa:v9.6.0#esqlDataSourceBwcCurrentCoordinator
+  - :x-pack:plugin:esql-datasource-csv:qa:v9.6.0#esqlDataSourceBwcOldCoordinator
+  issue: https://github.com/elastic/elasticsearch/issues/162817
+- class: org.elasticsearch.xpack.esql.qa.csv.CsvCompressedFormatSpecIT
+  tasks:
+  - :x-pack:plugin:esql-datasource-csv:qa:v9.6.0#esqlDataSourceBwcCurrentCoordinator
+  - :x-pack:plugin:esql-datasource-csv:qa:v9.6.0#esqlDataSourceBwcOldCoordinator
+  issue: https://github.com/elastic/elasticsearch/issues/162817
+- class: org.elasticsearch.xpack.esql.qa.csv.TsvFormatSpecIT
+  tasks:
+  - :x-pack:plugin:esql-datasource-csv:qa:v9.6.0#esqlDataSourceBwcCurrentCoordinator
+  - :x-pack:plugin:esql-datasource-csv:qa:v9.6.0#esqlDataSourceBwcOldCoordinator
+  issue: https://github.com/elastic/elasticsearch/issues/162817
+- class: org.elasticsearch.xpack.esql.qa.csv.TsvCompressedFormatSpecIT
+  tasks:
+  - :x-pack:plugin:esql-datasource-csv:qa:v9.6.0#esqlDataSourceBwcCurrentCoordinator
+  - :x-pack:plugin:esql-datasource-csv:qa:v9.6.0#esqlDataSourceBwcOldCoordinator
+  issue: https://github.com/elastic/elasticsearch/issues/162817
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonFormatSpecIT
+  tasks:
+  - :x-pack:plugin:esql-datasource-ndjson:qa:v9.6.0#esqlDataSourceBwcCurrentCoordinator
+  - :x-pack:plugin:esql-datasource-ndjson:qa:v9.6.0#esqlDataSourceBwcOldCoordinator
+  issue: https://github.com/elastic/elasticsearch/issues/162817
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  tasks:
+  - :x-pack:plugin:esql-datasource-ndjson:qa:v9.6.0#esqlDataSourceBwcCurrentCoordinator
+  - :x-pack:plugin:esql-datasource-ndjson:qa:v9.6.0#esqlDataSourceBwcOldCoordinator
+  issue: https://github.com/elastic/elasticsearch/issues/162817
+- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
+  tasks:
+  - :x-pack:plugin:esql-datasource-orc:qa:v9.6.0#esqlDataSourceBwcCurrentCoordinator
+  - :x-pack:plugin:esql-datasource-orc:qa:v9.6.0#esqlDataSourceBwcOldCoordinator
+  issue: https://github.com/elastic/elasticsearch/issues/162817
+- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetFormatSpecIT
+  tasks:
+  - :x-pack:plugin:esql-datasource-parquet:qa:v9.6.0#esqlDataSourceBwcCurrentCoordinator
+  - :x-pack:plugin:esql-datasource-parquet:qa:v9.6.0#esqlDataSourceBwcOldCoordinator
+  issue: https://github.com/elastic/elasticsearch/issues/162817
+- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetCompressedFormatSpecIT
+  tasks:
+  - :x-pack:plugin:esql-datasource-parquet:qa:v9.6.0#esqlDataSourceBwcCurrentCoordinator
+  - :x-pack:plugin:esql-datasource-parquet:qa:v9.6.0#esqlDataSourceBwcOldCoordinator
+  issue: https://github.com/elastic/elasticsearch/issues/162817
+- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetCompressedMultifileSpecIT
+  tasks:
+  - :x-pack:plugin:esql-datasource-parquet:qa:v9.6.0#esqlDataSourceBwcCurrentCoordinator
+  - :x-pack:plugin:esql-datasource-parquet:qa:v9.6.0#esqlDataSourceBwcOldCoordinator
+  issue: https://github.com/elastic/elasticsearch/issues/162817
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecDenseVectorCommandIT
+  methods:
+  - "test {csv-spec:dense_vector_command.dense vector command output feeds runtime knn filter}"
+  - "test {csv-spec:dense_vector_command.dense vector command output feeds runtime knn with boost and score}"
+  - "test {csv-spec:dense_vector_command.dense vector command output feeds runtime knn with score}"
+  - "test {csv-spec:dense_vector_command.dense vector command output feeds runtime knn with similarity threshold}"
+  - "test {csv-spec:dense_vector_command.dense vector command over an eval column feeds runtime knn}"
+  - "test {csv-spec:dense_vector_command.dense vector command suffix output feeds runtime knn}"
+  - "test {csv-spec:dense_vector_command.dense_vector command can embed a field called suffix}"
+  - "test {csv-spec:dense_vector_command.dense_vector command can name its output column suffix}"
+  - "test {csv-spec:dense_vector_command.dense_vector command chained clauses with different naming forms}"
+  - "test {csv-spec:dense_vector_command.dense_vector command explicit name shadows an existing same-named column}"
+  - "test {csv-spec:dense_vector_command.dense_vector command keeps only the used named column}"
+  - "test {csv-spec:dense_vector_command.dense_vector command named output consumed by v_cosine}"
+  - "test {csv-spec:dense_vector_command.dense_vector command named output on a null value produces a null vector}"
+  - "test {csv-spec:dense_vector_command.dense_vector command names the output over an index for docs}"
+  - "test {csv-spec:dense_vector_command.dense_vector command naming combined with options}"
+  - "test {csv-spec:dense_vector_command.dense_vector command on a multi-valued field embeds the first value}"
+  - "test {csv-spec:dense_vector_command.dense_vector command output name matching its input replaces it}"
+  - "test {csv-spec:dense_vector_command.dense_vector command text runs against an embedding endpoint}"
+  - "test {csv-spec:dense_vector_command.dense_vector command with a custom suffix over a single field}"
+  - "test {csv-spec:dense_vector_command.dense_vector command with a custom suffix over multiple fields}"
+  - "test {csv-spec:dense_vector_command.dense_vector command with a custom suffix over multiple indexed fields}"
+  - "test {csv-spec:dense_vector_command.dense_vector command with an explicit output name over an index}"
+  - "test {csv-spec:dense_vector_command.dense_vector command with an explicit output name}"
+  - "test {csv-spec:dense_vector_command.dense_vector command with explicit text type}"
+  - "test {csv-spec:dense_vector_command.dense_vector command with image type}"
+  tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#csvSpecTestsCurrentCoordinator
+  issue: https://github.com/elastic/elasticsearch/issues/162818
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecHighlightIT
+  methods:
+  - "test {csv-spec:highlight.implicitOnSemanticTextDenseViaStar}"
+  - "test {csv-spec:highlight.implicitOnSemanticTextViaStar}"
+  tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#csvSpecTestsCurrentCoordinator
+  issue: https://github.com/elastic/elasticsearch/issues/162818
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecHighlightIT
+  methods:
+  - "test {csv-spec:highlight.implicitOnSemanticTextDenseViaStar}"
+  - "test {csv-spec:highlight.implicitOnSemanticTextViaStar}"
+  tasks:
+  - :x-pack:plugin:esql:qa:server:multi-clusters:v9.6.0#csvSpecTests#newToOld
+  - :x-pack:plugin:esql:qa:server:multi-clusters:v9.6.0#csvSpecTests#oldToNew
+  issue: https://github.com/elastic/elasticsearch/issues/162818
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecDenseVectorCommandIT
+  methods:
+  - "test {csv-spec:dense_vector_command.dense vector command output feeds runtime knn filter}"
+  - "test {csv-spec:dense_vector_command.dense vector command output feeds runtime knn with boost and score}"
+  - "test {csv-spec:dense_vector_command.dense vector command output feeds runtime knn with score}"
+  - "test {csv-spec:dense_vector_command.dense vector command output feeds runtime knn with similarity threshold}"
+  - "test {csv-spec:dense_vector_command.dense vector command over an eval column feeds runtime knn}"
+  - "test {csv-spec:dense_vector_command.dense vector command suffix output feeds runtime knn}"
+  - "test {csv-spec:dense_vector_command.dense_vector command can embed a field called suffix}"
+  - "test {csv-spec:dense_vector_command.dense_vector command can name its output column suffix}"
+  - "test {csv-spec:dense_vector_command.dense_vector command chained clauses with different naming forms}"
+  - "test {csv-spec:dense_vector_command.dense_vector command explicit name shadows an existing same-named column}"
+  - "test {csv-spec:dense_vector_command.dense_vector command keeps only the used named column}"
+  - "test {csv-spec:dense_vector_command.dense_vector command named output consumed by v_cosine}"
+  - "test {csv-spec:dense_vector_command.dense_vector command named output on a null value produces a null vector}"
+  - "test {csv-spec:dense_vector_command.dense_vector command names the output over an index for docs}"
+  - "test {csv-spec:dense_vector_command.dense_vector command naming combined with options}"
+  - "test {csv-spec:dense_vector_command.dense_vector command on a multi-valued field embeds the first value}"
+  - "test {csv-spec:dense_vector_command.dense_vector command output name matching its input replaces it}"
+  - "test {csv-spec:dense_vector_command.dense_vector command text runs against an embedding endpoint}"
+  - "test {csv-spec:dense_vector_command.dense_vector command with a custom suffix over a single field}"
+  - "test {csv-spec:dense_vector_command.dense_vector command with a custom suffix over multiple fields}"
+  - "test {csv-spec:dense_vector_command.dense_vector command with a custom suffix over multiple indexed fields}"
+  - "test {csv-spec:dense_vector_command.dense_vector command with an explicit output name over an index}"
+  - "test {csv-spec:dense_vector_command.dense_vector command with an explicit output name}"
+  - "test {csv-spec:dense_vector_command.dense_vector command with explicit text type}"
+  - "test {csv-spec:dense_vector_command.dense_vector command with image type}"
+  tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#csvSpecTestsOldCoordinator
+  issue: https://github.com/elastic/elasticsearch/issues/162817
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecHighlightIT
+  methods:
+  - "test {csv-spec:highlight.implicitOnSemanticTextDenseViaStar}"
+  - "test {csv-spec:highlight.implicitOnSemanticTextViaStar}"
+  tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#csvSpecTestsOldCoordinator
+  issue: https://github.com/elastic/elasticsearch/issues/162817
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecDenseVectorCommandIT
+  methods:
+  - "test {csv-spec:dense_vector_command.dense vector command output feeds runtime knn filter}"
+  - "test {csv-spec:dense_vector_command.dense vector command output feeds runtime knn with boost and score}"
+  - "test {csv-spec:dense_vector_command.dense vector command output feeds runtime knn with score}"
+  - "test {csv-spec:dense_vector_command.dense vector command output feeds runtime knn with similarity threshold}"
+  - "test {csv-spec:dense_vector_command.dense vector command over an eval column feeds runtime knn}"
+  - "test {csv-spec:dense_vector_command.dense vector command suffix output feeds runtime knn}"
+  - "test {csv-spec:dense_vector_command.dense_vector command can embed a field called suffix}"
+  - "test {csv-spec:dense_vector_command.dense_vector command can name its output column suffix}"
+  - "test {csv-spec:dense_vector_command.dense_vector command chained clauses with different naming forms}"
+  - "test {csv-spec:dense_vector_command.dense_vector command explicit name shadows an existing same-named column}"
+  - "test {csv-spec:dense_vector_command.dense_vector command keeps only the used named column}"
+  - "test {csv-spec:dense_vector_command.dense_vector command named output consumed by v_cosine}"
+  - "test {csv-spec:dense_vector_command.dense_vector command named output on a null value produces a null vector}"
+  - "test {csv-spec:dense_vector_command.dense_vector command names the output over an index for docs}"
+  - "test {csv-spec:dense_vector_command.dense_vector command naming combined with options}"
+  - "test {csv-spec:dense_vector_command.dense_vector command on a multi-valued field embeds the first value}"
+  - "test {csv-spec:dense_vector_command.dense_vector command output name matching its input replaces it}"
+  - "test {csv-spec:dense_vector_command.dense_vector command text runs against an embedding endpoint}"
+  - "test {csv-spec:dense_vector_command.dense_vector command with a custom suffix over a single field}"
+  - "test {csv-spec:dense_vector_command.dense_vector command with a custom suffix over multiple fields}"
+  - "test {csv-spec:dense_vector_command.dense_vector command with a custom suffix over multiple indexed fields}"
+  - "test {csv-spec:dense_vector_command.dense_vector command with an explicit output name over an index}"
+  - "test {csv-spec:dense_vector_command.dense_vector command with an explicit output name}"
+  - "test {csv-spec:dense_vector_command.dense_vector command with explicit text type}"
+  - "test {csv-spec:dense_vector_command.dense_vector command with image type}"
+  tasks:
+  - :x-pack:plugin:esql:qa:server:multi-clusters:v9.6.0#csvSpecTests#oldToNew
+  issue: https://github.com/elastic/elasticsearch/issues/162817
+- class: org.elasticsearch.upgrades.CombineDynamicMappingUpdatesRollingUpgradeIT
+  method: testTimeSeriesDataStreamDefault {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/162839
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterExternalSourceIT
+  method: testExternalSourceWireCompatibilityInBothDirections
+  issue: https://github.com/elastic/elasticsearch/issues/162852
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterExternalSourceIT
+  method: testRequestFilterOnDatasetAcrossVersions
+  issue: https://github.com/elastic/elasticsearch/issues/162854

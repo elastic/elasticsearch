@@ -175,10 +175,6 @@ public class ColumnarOrdinalTermsCollectorTests extends ESTestCase {
             return new Search(segments, deleted, tagged, filter, true);
         }
 
-        int numDocs() {
-            return segments.stream().mapToInt(s -> s.length).sum();
-        }
-
         String[] docs() {
             return segments.stream().flatMap(Arrays::stream).toArray(String[]::new);
         }

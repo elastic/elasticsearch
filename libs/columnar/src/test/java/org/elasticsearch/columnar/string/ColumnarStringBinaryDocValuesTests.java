@@ -181,10 +181,10 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
     }
 
     /**
-     * A document says how many values it holds, and a document of one says which dictionary term it is, or that it escaped.
+     * Each document is answered on its own: no value, several, one escaped, or the dense ordinal of its one value.
      * A document of several slots with one non-null slot holds one value, and a null slot is no value.
      */
-    public void testSingleTermOrdinalNamesTheOneValue() throws IOException {
+    public void testDenseTermOrdinalAnswersForEachDocument() throws IOException {
         final String[] terms = { "alpha", "bravo", "charlie" };
         final BytesRef[][] docSlots = new BytesRef[between(400, 1200)][];
         for (int d = 0; d < docSlots.length; d++) {
@@ -230,7 +230,7 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
     }
 
     /** A term is looked up by ordinal at any time, not only for the document just visited. */
-    public void testDictionaryLooksUpAnyOrdinal() throws IOException {
+    public void testTermAtLooksUpAnyOrdinal() throws IOException {
         final BytesRef[] docValues = new BytesRef[between(100, 400)];
         for (int d = 0; d < docValues.length; d++) {
             docValues[d] = new BytesRef("term-" + (d % 5));

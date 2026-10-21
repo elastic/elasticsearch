@@ -412,6 +412,11 @@ public abstract class FullTextFunction extends Function
             // the first, e.g. both LIMIT and MV_EXPAND each get their own failure if both precede the function.
             // Match that behavior here instead of stopping at the first shadowing ancestor found.
             plan.forEachDown(LogicalPlan.class, lp -> {
+                // QSTR/KQL name their fields inside an opaque string, so they have no attribute references and the optimizer
+                // pushes them into the INLINE STATS aggregate's input, changing its result. MATCH has references and is unaffected.
+                if (lp instanceof InlineStats || lp instanceof InlineJoin) {
+                    failures.add(fail(plan, "[{}] {} cannot be used after INLINE STATS", exp.functionName(), exp.functionType()));
+                }
                 ShadowingCommand hit = asShadowingCommand(lp, indexedNames);
                 if (hit != null) {
                     // Anchored at `plan` (the Filter/LookupJoin itself), matching checkCommandsBeforeExpression's own
@@ -436,7 +441,7 @@ public abstract class FullTextFunction extends Function
                     failures.add(
                         fail(
                             plan,
-                            "{} {} is not supported on federated data sources [{}]; it requires an index. "
+                            "[{}] {} is not supported on federated data sources [{}]; it requires an index. "
                                 + "Use MATCH(field, \"term\") for full-text search on non-indexed data.",
                             exp.functionName(),
                             exp.functionType(),

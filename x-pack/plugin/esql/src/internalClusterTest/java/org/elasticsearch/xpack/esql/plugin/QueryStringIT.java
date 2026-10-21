@@ -279,11 +279,23 @@ public class QueryStringIT extends AbstractEsqlIntegTestCase {
         var query = """
             FROM test
             | LOOKUP JOIN test_lookup ON id
-            | WHERE id > 0 AND QSTR("lookup_content: fox")
+            | WHERE id > 0 AND QSTR("content: fox")
+            | KEEP id, lookup_content
+            | SORT id
             """;
 
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("line 3:3: [QSTR] function cannot be used after LOOKUP"));
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "lookup_content"));
+            assertValues(
+                resp.values(),
+                List.of(
+                    List.of(2, "This is a brown dog"),
+                    List.of(3, "This dog is really brown"),
+                    List.of(4, "The dog is brown but this document is very very long"),
+                    List.of(5, "There is also a white cat")
+                )
+            );
+        }
     }
 
     public void testQstrAfterInlineStats() {
@@ -337,11 +349,12 @@ public class QueryStringIT extends AbstractEsqlIntegTestCase {
             FROM test
             | WHERE false
             | LOOKUP JOIN test_lookup ON id
-            | WHERE qstr("lookup_content: fox")
+            | WHERE qstr("content: fox")
             """;
 
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[QSTR] function cannot be used after LOOKUP"));
+        try (var resp = run(query)) {
+            assertValues(resp.values(), List.of());
+        }
     }
 
     public void testAnalyzeWildcardAppliesStemming() {

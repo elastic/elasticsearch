@@ -2276,7 +2276,8 @@ public class VerifierTests extends AnalyzerTestCase {
             "from test | stats c = count(id) by title | inline stats m = max(c) by title | where match(title, \"Meditation\")",
             containsString("[MATCH] function cannot be used after STATS")
         );
-        // KQL/QSTR are unaffected: their own stricter allow-list rejects INLINE STATS regardless
+        // KQL/QSTR stay rejected: they have no attribute references, so the optimizer pushes them into the INLINE STATS
+        // aggregate's input and changes its result. MATCH references a field and stays above the aggregate.
         fullText().error(
             "from test | inline stats m = max(id) by category | where kql(\"title: Meditation\")",
             containsString("[KQL] function cannot be used after INLINE")

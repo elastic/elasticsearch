@@ -224,6 +224,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -2245,6 +2246,39 @@ public class SnapshotResiliencyTests extends ESTestCase {
             TransportInterceptor createTransportInterceptor(DiscoveryNode node);
         }
 
+        // There is a deadlock condition where processPendingDeletes awaits on shard snapshots which may be scheduled
+        // after the processPendingDeletes task. In production these tasks run on different threadpools, and processPendingDeletes
+        // waits for 30 minutes. To simulate that here, we reschedule the processPendingDeletes task into the future each time we encounter
+        // it until it is the last task in the queue.
+        private Function<Runnable, Runnable> deferProcessPendingDeletes(Function<Runnable, Runnable> runnableWrapper) {
+            return runnable -> {
+                if (isProcessPendingDeletes(runnable) == false) {
+                    return runnableWrapper.apply(runnable);
+                }
+                final Runnable wrapped = runnableWrapper.apply(runnable);
+                return new Runnable() {
+                    @Override
+                    public void run() {
+                        if (deterministicTaskQueue.hasRunnableTasks()) {
+                            logger.debug("--> deferring {} because other DTQ tasks may hold shard locks", runnable);
+                            deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis() + 1, this);
+                            return;
+                        }
+                        wrapped.run();
+                    }
+
+                    @Override
+                    public String toString() {
+                        return runnable.toString();
+                    }
+                };
+            };
+        }
+
+        private static boolean isProcessPendingDeletes(Runnable task) {
+            return task.toString().contains("processPendingDeletes[");
+        }
+
         private final class TestClusterNode {
 
             private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
@@ -2299,7 +2333,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 this.node = node;
                 this.transportInterceptorFactory = transportInterceptorFactory;
                 final Environment environment = createEnvironment(node.getName());
-                threadPool = deterministicTaskQueue.getThreadPool(runnable -> DeterministicTaskQueue.onNodeLog(node, runnable));
+                threadPool = deterministicTaskQueue.getThreadPool(
+                    deferProcessPendingDeletes(runnable -> DeterministicTaskQueue.onNodeLog(node, runnable))
+                );
                 masterService = new FakeThreadPoolMasterService(node.getName(), threadPool, deterministicTaskQueue::scheduleNow);
                 final Settings settings = environment.settings();
                 client = new NodeClient(settings, threadPool);

@@ -166,6 +166,7 @@ public class KeyRotationExecutorTests extends ESTestCase {
         Map<String, KeyEntry> entries = new HashMap<>();
         entries.put("old", entry(100L));
         entries.put("active", entry(500L));
+        entries.put("lastDeactivated", entry(450L));
         entries.put("recent", entry(400L));
         ProjectEncryptionKeyMetadata existing = new ProjectEncryptionKeyMetadata(
             entries,
@@ -176,16 +177,17 @@ public class KeyRotationExecutorTests extends ESTestCase {
         );
         ClusterState state = stateWith(existing);
 
-        Tuple<ClusterState, Void> result = executor.executeTask(new KeyRotationCoordinator.RetireKeysTask(450L), state);
+        Tuple<ClusterState, Void> result = executor.executeTask(new KeyRotationCoordinator.RetireKeysTask(420L), state);
 
         ProjectEncryptionKeyMetadata metadata = metadataOf(result.v1());
-        assertEquals("only 'old' should have been retired", Set.of("active", "recent"), metadata.getKeys().keySet());
+        assertEquals("only 'old' should have been retired", Set.of("active", "lastDeactivated", "recent"), metadata.getKeys().keySet());
         assertEquals("active", metadata.getActiveKeyId());
     }
 
     public void testRetireKeysNeverRetiresActiveKey() {
         Map<String, KeyEntry> entries = new HashMap<>();
         entries.put("active", entry(100L));
+        entries.put("previous", entry(75L));
         entries.put("old", entry(50L));
         ProjectEncryptionKeyMetadata existing = new ProjectEncryptionKeyMetadata(
             entries,
@@ -200,7 +202,7 @@ public class KeyRotationExecutorTests extends ESTestCase {
         Tuple<ClusterState, Void> result = executor.executeTask(new KeyRotationCoordinator.RetireKeysTask(cutoff), state);
 
         ProjectEncryptionKeyMetadata metadata = metadataOf(result.v1());
-        assertEquals(Set.of("active"), metadata.getKeys().keySet());
+        assertEquals(Set.of("active", "previous"), metadata.getKeys().keySet());
         assertEquals("active", metadata.getActiveKeyId());
     }
 

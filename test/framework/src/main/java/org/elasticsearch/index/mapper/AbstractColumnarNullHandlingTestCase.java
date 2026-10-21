@@ -36,6 +36,8 @@ import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.ElasticsearchStoredFieldsFormat;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
@@ -44,10 +46,10 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.sourcebatch.SourceSchema;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -92,27 +94,29 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
         return "a value";
     }
 
-    @Before
-    public void assumeColumnarCodecEnabled() {
-        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
-    }
-
     /**
      * A columnar index with the codec on and the field indexed. {@code index} is set explicitly because a strictly columnar index
      * defaults it to {@code false} for keyword (see {@code IndexSettings#INDEX_DISABLED_BY_DEFAULT}), and postings are exactly what
      * these tests are about.
      */
     protected static Settings codecSettings() {
-        return columnarSettings(true);
+        return columnarSettings();
     }
 
-    /** A strictly columnar index, with the ColumNAR codec writing the doc values or the in-order column doing it. */
-    protected static Settings columnarSettings(boolean withCodec) {
+    /** A strictly columnar index. */
+    protected static Settings columnarSettings() {
         return Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), withCodec)
             .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
             .build();
+    }
+
+    /**
+     * The version to create a strictly columnar index at, so that the ColumNAR codec writes its doc values or, for an index created
+     * before {@link IndexVersions#COLUMNAR_CODEC_NO_FEATURE_FLAG}, the in-order column does.
+     */
+    protected static IndexVersion columnarVersion(boolean withCodec) {
+        return withCodec ? IndexVersion.current() : IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG);
     }
 
     protected MapperService codecMapperService() throws IOException {
@@ -132,13 +136,14 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
     protected void assertSourceUnderBothCodecs(String expected, CheckedConsumer<XContentBuilder, IOException> doc) throws IOException {
         for (boolean withCodec : new boolean[] { true, false }) {
             MapperService mapperService = createMapperService(
-                columnarSettings(withCodec),
+                columnarVersion(withCodec),
+                columnarSettings(),
                 mapping(b -> b.startObject(FIELD).field("type", fieldTypeName()).field("index", true).endObject())
             );
-            // Otherwise a setting that quietly stopped taking effect would leave both halves running the same layout, and the
+            // Otherwise a version that quietly stopped selecting the codec would leave both halves running the same layout, and the
             // agreement this asserts would be worth nothing.
             assertEquals(
-                "the codec setting has to take effect for this to compare anything",
+                "the index version has to select the codec for this to compare anything",
                 withCodec,
                 ColumnarDocValuesFormatSelector.useColumnarCodec(mapperService.getIndexSettings())
             );
@@ -190,7 +195,8 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
         );
         for (boolean withCodec : new boolean[] { true, false }) {
             MapperService mapperService = createMapperService(
-                columnarSettings(withCodec),
+                columnarVersion(withCodec),
+                columnarSettings(),
                 mapping(b -> b.startObject(FIELD).field("type", fieldTypeName()).field("index", true).endObject())
             );
             final List<String> matched = new ArrayList<>();

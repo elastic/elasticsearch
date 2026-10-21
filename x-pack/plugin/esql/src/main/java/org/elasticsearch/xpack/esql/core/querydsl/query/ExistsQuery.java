@@ -50,9 +50,10 @@ public class ExistsQuery extends Query {
     }
 
     /**
-     * An {@code exists} query that matches nothing on shards where {@link #mappedFieldType} treats the field
-     * as missing. It keeps the {@code exists} wire format, so a node that receives it over the wire runs a
-     * plain {@link ExistsQueryBuilder}.
+     * An {@code exists} query that matches nothing on shards where {@link #mappedFieldType} treats the field as missing.
+     * It keeps the {@code exists} wire name, so it deserializes as a plain {@link ExistsQueryBuilder}. That is safe because
+     * it is only serialized for can-match, which never calls {@link #doToQuery}. Adding fields requires its own registered name
+     * and a transport version.
      */
     private static class MappedOnlyExistsQueryBuilder extends ExistsQueryBuilder {
         MappedOnlyExistsQueryBuilder(String fieldName) {

@@ -1499,26 +1499,29 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     public void testScorePredicateInFilterSeesItsSearchScore() throws IOException {
+        double foxScore = matchScore("fox", "quick fox");
+        assertThat(foxScore, greaterThan(0.0));
         Expression condition = new And(
             Source.EMPTY,
             runtimeMatch("fox"),
-            greaterThanOf(SCORE, new Literal(Source.EMPTY, 0.5, DataType.DOUBLE))
+            greaterThanOf(SCORE, new Literal(Source.EMPTY, foxScore / 2, DataType.DOUBLE))
         );
         List<Double> scores = scoresAfterFilter(condition, "quick fox", "lazy dog");
         // Only the row matching "fox" passes, with the search's score rather than the 0.0 from before it.
-        assertThat(scores, hasSize(1));
-        assertThat(scores.get(0), greaterThan(0.5));
+        assertThat(scores, contains(foxScore));
     }
 
     public void testScorePredicateInOrSeesOtherSearchScore() throws IOException {
+        double foxScore = matchScore("fox", "quick fox");
+        assertThat(foxScore, greaterThan(0.0));
         Expression scoreInOr = new Or(
             Source.EMPTY,
             runtimeMatch("dog"),
-            greaterThanOf(SCORE, new Literal(Source.EMPTY, 0.5, DataType.DOUBLE))
+            greaterThanOf(SCORE, new Literal(Source.EMPTY, foxScore / 2, DataType.DOUBLE))
         );
         List<Double> scores = scoresAfterFilter(new And(Source.EMPTY, runtimeMatch("fox"), scoreInOr), "quick fox", "lazy dog", "fox dog");
         // "quick fox" passes on the score of the "fox" match, rather than the 0.0 from before it, and "fox dog" scores both.
-        assertThat(scores, contains(1.0, 2.0));
+        assertThat(scores, contains(foxScore, matchScore("fox", "fox dog") + matchScore("dog", "fox dog")));
     }
 
     public void testConditionWithoutSearchBeforeScorePredicateIsNotScored() throws IOException {
@@ -1546,6 +1549,13 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         Match match = new Match(Source.EMPTY, CONTENT, Literal.keyword(Source.EMPTY, query), null);
         assertTrue(match.isRuntimeSearch());
         return match;
+    }
+
+    /** The score a runtime match on {@code query} gives a row of {@code content}. */
+    private double matchScore(String query, String content) throws IOException {
+        List<Double> scores = scoresAfterFilter(runtimeMatch(query), content);
+        assertThat(scores, hasSize(1));
+        return scores.get(0);
     }
 
     /** The {@code _score} of each row of {@code contents}, all starting at 0.0, that passes a filter on {@code condition}. */

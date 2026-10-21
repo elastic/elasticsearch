@@ -104,12 +104,20 @@ For additional operations, see [*Connectors UI in {{kib}}*](/reference/search-co
 
 To connect to Exchange Server, the connector fetches Active Directory users with the help of the `ldap3` Python library, then reads each mailbox through Exchange Web Services (EWS).
 
+The connector supports two authentication methods: NTLM and Kerberos.
+
+
+#### NTLM [es-connectors-exchange-server-client-ntlm]
+
 With `auth_method: ntlm` (default), the service account you configure in `username` and `password` needs:
 
 * Permission to read user objects from Active Directory.
 * The Exchange `ApplicationImpersonation` role for the mailboxes you want to sync. The connector opens each mailbox with impersonation, so valid credentials alone are not enough.
 
-With `auth_method: kerberos`, the connector uses GSSAPI for LDAP and EWS. Install the optional Kerberos dependencies on the connector host: `pip install 'elasticsearch-connectors[kerberos]'` (building `gssapi` may require krb5 development packages). You must provide a valid Kerberos ticket for the service account on the host running the connector (for example by setting `KRB5CCNAME`). Username and password are not used. The service account still needs the same Active Directory and Exchange permissions.
+
+#### Kerberos [es-connectors-exchange-server-client-kerberos]
+
+With `auth_method: kerberos`, the connector uses GSSAPI for LDAP and EWS. Install the optional Kerberos dependencies on the connector host: `pip install 'elasticsearch-connectors[kerberos]'` (building `gssapi` might require krb5 development packages). You must provide a valid Kerberos ticket for the service account on the host running the connector (for example by setting `KRB5CCNAME`). Username and password are not used. The service account still needs the same Active Directory and Exchange permissions.
 
 
 ### FIPS mode [es-connectors-exchange-server-client-fips]

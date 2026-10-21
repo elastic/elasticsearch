@@ -109,7 +109,10 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         .capabilities(
             "histogram_types",
             // unsigned_long from/to bounds are decoded instead of being read in their sortable-encoded form
-            "unsigned_long_bounds"
+            "unsigned_long_bounds",
+            // date_nanos accepted as from/to, and the 4-arg span + range form (BUCKET(date, 1 month, from, to)).
+            // Both landed in 9.5.0 without a capability; this one gates their tests.
+            "date_nanos_bounds_span_range"
         )
         .name("bucket", "bin");
     public static final TransportVersion ESQL_BUCKET_OFFSET = TransportVersion.fromName("esql_bucket_offset");
@@ -384,16 +387,38 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         returnType = { "double", "date", "date_nanos", "double_range" },
         signatures = {
             @Signature(params = { "date", "date_period|time_duration" }, returnType = "date"),
-            @Signature(params = { "date", "integer|long", "date|STRING", "date|STRING" }, returnType = "date"),
+            @Signature(
+                params = { "date", "date_period|time_duration", "date|date_nanos|STRING", "date|date_nanos|STRING" },
+                returnType = "date"
+            ),
+            @Signature(params = { "date", "integer|long", "date|date_nanos|STRING", "date|date_nanos|STRING" }, returnType = "date"),
             @Signature(params = { "date_nanos", "date_period|time_duration" }, returnType = "date_nanos"),
-            @Signature(params = { "date_nanos", "integer|long", "date|STRING", "date|STRING" }, returnType = "date_nanos"),
-            // unsigned_long is in NUMERIC but not supported by BUCKET; list the accepted numerics explicitly.
-            @Signature(params = { "integer|long|double", "double|integer|long" }, returnType = "double"),
-            @Signature(params = { "integer|long|double", "integer", "integer|long|double", "integer|long|double" }, returnType = "double"),
+            @Signature(
+                params = { "date_nanos", "date_period|time_duration", "date|date_nanos|STRING", "date|date_nanos|STRING" },
+                returnType = "date_nanos"
+            ),
+            @Signature(
+                params = { "date_nanos", "integer|long", "date|date_nanos|STRING", "date|date_nanos|STRING" },
+                returnType = "date_nanos"
+            ),
+            // unsigned_long works as a numeric field and as a from/to bound. It is not a valid buckets/count/span argument.
+            @Signature(params = { "integer|long|double|unsigned_long", "double|integer|long" }, returnType = "double"),
+            @Signature(
+                params = {
+                    "integer|long|double|unsigned_long",
+                    "integer|long",
+                    "integer|long|double|unsigned_long",
+                    "integer|long|double|unsigned_long" },
+                returnType = "double"
+            ),
             // Histograms are bucketed like numbers, but return the non-empty double_range buckets.
             @Signature(params = { "exponential_histogram|tdigest", "double|integer|long" }, returnType = "double_range"),
             @Signature(
-                params = { "exponential_histogram|tdigest", "integer", "integer|long|double", "integer|long|double" },
+                params = {
+                    "exponential_histogram|tdigest",
+                    "integer|long",
+                    "integer|long|double|unsigned_long",
+                    "integer|long|double|unsigned_long" },
                 returnType = "double_range"
             ) },
         briefSummary = "Creates groups of values (buckets) from a datetime or numeric input.",
@@ -507,7 +532,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         Source source,
         @Param(
             name = "field",
-            type = { "integer", "long", "double", "date", "date_nanos", "exponential_histogram", "tdigest" },
+            type = { "integer", "long", "double", "unsigned_long", "date", "date_nanos", "exponential_histogram", "tdigest" },
             description = "Numeric, date or histogram expression from which to derive buckets."
         ) Expression field,
         @Param(
@@ -518,14 +543,14 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         ) Expression buckets,
         @Param(
             name = "from",
-            type = { "integer", "long", "double", "date", "keyword", "text" },
+            type = { "integer", "long", "double", "unsigned_long", "date", "date_nanos", "keyword", "text" },
             hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             optional = true,
             description = "Start of the range. Can be a number, a date or a date expressed as a string."
         ) Expression from,
         @Param(
             name = "to",
-            type = { "integer", "long", "double", "date", "keyword", "text" },
+            type = { "integer", "long", "double", "unsigned_long", "date", "date_nanos", "keyword", "text" },
             hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             optional = true,
             description = "End of the range. Can be a number, a date or a date expressed as a string."

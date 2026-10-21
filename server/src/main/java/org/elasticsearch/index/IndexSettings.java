@@ -707,10 +707,10 @@ public final class IndexSettings {
     );
 
     /**
-     * Path prefix of the dimensions that are hashed into the second byte of the tsid of time series indices created on or after
-     * {@link IndexVersions#TSID_PREFIXED_DIMENSIONS_HASH}. Since the tsid is the primary index sort key and its first byte is
+     * Path prefix of the dimensions that are hashed into the second and third bytes of the tsid of time series indices created on or
+     * after {@link IndexVersions#TSID_PREFIXED_DIMENSIONS_HASH}. Since the tsid is the primary index sort key and its first byte is
      * derived from the metric name, this clusters the time series of one metric by the resource they come from. Set it to an empty
-     * string to keep that byte from the hash over all dimensions instead. Final because changing it would change the tsids of
+     * string to keep those bytes from the hash over all dimensions instead. Final because changing it would change the tsids of
      * existing time series. See {@link org.elasticsearch.cluster.routing.TsidBuilder}.
      */
     public static final Setting<String> TIME_SERIES_TSID_DIMENSIONS_PREFIX = Setting.simpleString(

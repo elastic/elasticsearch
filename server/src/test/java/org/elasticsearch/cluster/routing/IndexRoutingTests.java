@@ -833,11 +833,11 @@ public class IndexRoutingTests extends ESTestCase {
         assertIndexShard(before, withThirdResource, 0);
         assertIndexShard(before, withOtherOperation, 3);
         assertIndexShard(before, withoutResource, 1);
-        assertIndexShard(after, withResource, 5);
-        assertIndexShard(after, withFlatResource, 5);
-        assertIndexShard(after, withOtherResource, 5);
-        assertIndexShard(after, withThirdResource, 4);
-        assertIndexShard(after, withOtherOperation, 5);
+        assertIndexShard(after, withResource, 4);
+        assertIndexShard(after, withFlatResource, 4);
+        assertIndexShard(after, withOtherResource, 2);
+        assertIndexShard(after, withThirdResource, 3);
+        assertIndexShard(after, withOtherOperation, 4);
         assertIndexShard(after, withoutResource, 1);
     }
 
@@ -847,7 +847,7 @@ public class IndexRoutingTests extends ESTestCase {
         String dimensions = "resource.attributes.*,attributes.*,_metric_names_hash";
         Map<String, Object> source = Map.of(
             "_metric_names_hash",
-            "def",
+            "abc",
             "resource.attributes.host.name",
             "host-1",
             "attributes.operation",
@@ -868,9 +868,9 @@ public class IndexRoutingTests extends ESTestCase {
             randomBoolean(),
             Settings.builder().put(IndexSettings.TIME_SERIES_TSID_DIMENSIONS_PREFIX.getKey(), "").build()
         );
-        assertIndexShard(defaultPrefix, source, 0);
-        assertIndexShard(customPrefix, source, 2);
-        assertIndexShard(disabledPrefix, source, 5);
+        assertIndexShard(defaultPrefix, source, 2);
+        assertIndexShard(customPrefix, source, 7);
+        assertIndexShard(disabledPrefix, source, 6);
     }
 
     public void testRoutingPathReadWithInvalidString() {

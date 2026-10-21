@@ -51,7 +51,7 @@ public class TsidBuilder {
     /** Position of the prefixed-dimensions hash in the single-prefix-byte layout: right after the prefix byte. */
     static final int PREFIXED_DIMENSIONS_HASH_OFFSET = 1;
     /** Width of the prefixed-dimensions hash in the single-prefix-byte layout. */
-    static final int PREFIXED_DIMENSIONS_HASH_BYTES = 1;
+    static final int PREFIXED_DIMENSIONS_HASH_BYTES = 2;
 
     static final long LONG_VALUE_TAG = 1L;
     static final long DOUBLE_VALUE_TAG = 2L;
@@ -274,7 +274,7 @@ public class TsidBuilder {
 
     /**
      * Whether the single-prefix-byte layout also carries the hash of the dimensions under
-     * {@link org.elasticsearch.index.IndexSettings#TIME_SERIES_TSID_DIMENSIONS_PREFIX} in its second byte. Implies
+     * {@link org.elasticsearch.index.IndexSettings#TIME_SERIES_TSID_DIMENSIONS_PREFIX} in its second and third bytes. Implies
      * {@link #useSingleBytePrefixLayout}.
      */
     public static boolean usePrefixedDimensionsHash(IndexVersion indexVersion) {
@@ -352,18 +352,18 @@ public class TsidBuilder {
      *         see {@link #computeSingleBytePrefix}.
      *     </li>
      *     <li>
-     *         Byte 1: a similarity byte of the names and values of the dimensions whose path starts with
+     *         Bytes 1-2: the low bytes of a hash over the names and values of the dimensions whose path starts with
      *         {@code dimensionsPrefix}, so that the series of one metric are clustered by resource. Only written when
      *         {@code dimensionsPrefix} is non-null and at least one dimension matches it; otherwise, and for indices created
-     *         before {@link IndexVersions#TSID_PREFIXED_DIMENSIONS_HASH}, this byte keeps the full hash and the layout is the
+     *         before {@link IndexVersions#TSID_PREFIXED_DIMENSIONS_HASH}, these bytes keep the full hash and the layout is the
      *         original single-prefix-byte one.
      *     </li>
      *     <li>The remaining bytes: a hash over all dimension names and values, for uniqueness.</li>
      * </ul>
-     * Byte 1 is a hash, so a given metric still spreads over the partitions the codec derives from the first bytes of the
+     * Bytes 1-2 are a hash, so a given metric still spreads over the partitions the codec derives from the first bytes of the
      * tsid, but no further than the number of distinct resources it is reported from.
      *
-     * @param dimensionsPrefix the path prefix of the dimensions hashed into byte 1, or null to leave the full hash there,
+     * @param dimensionsPrefix the path prefix of the dimensions hashed into bytes 1-2, or null to leave the full hash there,
      *                         see {@link TsidLayout#effectiveDimensionsPrefix()}
      */
     private BytesRef buildSingleBytePrefixTsid(@Nullable String dimensionsPrefix) {
@@ -563,7 +563,7 @@ public class TsidBuilder {
         return new BytesRef(tsid);
     }
 
-    /** Writes the low {@link #PREFIXED_DIMENSIONS_HASH_BYTES} byte(s) of {@code h1}, little-endian, at the hash's position in the tsid. */
+    /** Writes the low {@link #PREFIXED_DIMENSIONS_HASH_BYTES} bytes of {@code h1}, little-endian, at the hash's position in the tsid. */
     private static void writePrefixedDimensionsHash(MurmurHash3.Hash128 prefixedDimensionsHash, byte[] tsid) {
         long h1 = prefixedDimensionsHash.h1;
         for (int i = 0; i < PREFIXED_DIMENSIONS_HASH_BYTES; i++) {

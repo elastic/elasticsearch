@@ -56,8 +56,8 @@ public record TsidLayout(IndexVersion indexVersion, String dimensionsPrefix) {
     }
 
     /**
-     * The path prefix of the dimensions that are hashed into the second byte of the tsid, or {@code null} when that
-     * byte comes from the hash over all dimensions: for indices created before {@link IndexVersions#TSID_PREFIXED_DIMENSIONS_HASH}
+     * The path prefix of the dimensions that are hashed into the second and third bytes of the tsid, or {@code null} when those
+     * bytes come from the hash over all dimensions: for indices created before {@link IndexVersions#TSID_PREFIXED_DIMENSIONS_HASH}
      * and for an empty {@link #dimensionsPrefix()}.
      */
     @Nullable

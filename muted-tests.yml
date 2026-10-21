@@ -170,6 +170,9 @@ tests:
 - class: org.elasticsearch.snapshots.SnapshotResiliencyTests
   method: testConcurrentSnapshotDeleteAndDeleteIndex
   issue: https://github.com/elastic/elasticsearch/issues/162449
+- class: org.elasticsearch.xpack.transform.integration.TransformDestIndexIT
+  method: testUnattendedTransformDestIndexCreatedDuringUpdate_DeferValidation
+  issue: https://github.com/elastic/elasticsearch/issues/162888
 
 # Examples:
 #

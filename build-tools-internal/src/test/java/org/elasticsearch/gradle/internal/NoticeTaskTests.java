@@ -57,9 +57,26 @@ public class NoticeTaskTests {
         File second = sourceDir("second", "Same.java");
         Project project = ProjectBuilder.builder().withProjectDir(temporaryFolder.newFolder("project")).build();
 
-        List<File> sorted = NoticeTask.sortedSourceFiles(project.files(new File(second, "Same.java"), new File(first, "Same.java")));
+        List<File> sorted = NoticeTask.sortedSourceFiles(
+            project.files(new File(second, "Same.java"), new File(first, "Same.java")),
+            temporaryFolder.getRoot()
+        );
 
         assertEquals(List.of(new File(first, "Same.java"), new File(second, "Same.java")), sorted);
+    }
+
+    /**
+     * Ties are broken on a path that is independent of the checkout location and the platform's path separator, which
+     * would otherwise order e.g. {@code x/Same.java} and {@code xA/Same.java} differently on Windows and Unix.
+     */
+    @Test
+    public void portablePathIsRelativeAndSlashSeparated() {
+        File base = temporaryFolder.getRoot();
+        File file = new File(new File(new File(base, "a"), "b"), "Same.java");
+        assertEquals("a/b/Same.java", NoticeTask.portablePath(base, file));
+        assertTrue(NoticeTask.portablePath(base, new File(new File(base, "x"), "Same.java")).compareTo(
+            NoticeTask.portablePath(base, new File(new File(base, "xA"), "Same.java"))
+        ) < 0);
     }
 
     private String generateNotice(String name, File... sourceDirs) throws IOException {

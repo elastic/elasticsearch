@@ -134,7 +134,7 @@ public class SearchTransportServiceTests extends ESTestCase {
     }
 
     public void testPopulateBwcLastChunkBytesOmitsPositionsForOlderCoordinators() throws IOException {
-        assertBwcLastChunkBytes(TransportVersionUtils.getPreviousVersion(CHUNKED_FETCH_DOC_ID_ORDER), false);
+        assertBwcLastChunkBytes(TransportVersionUtils.randomVersionNotSupporting(CHUNKED_FETCH_DOC_ID_ORDER), false);
     }
 
     private static void assertBwcLastChunkBytes(TransportVersion coordinatorVersion, boolean withPositions) throws IOException {

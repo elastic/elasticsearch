@@ -72,6 +72,7 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
 
+    private static final int NO_RANK = -1;
     private static final ShardId TEST_SHARD_ID = new ShardId(new Index("test-index", "test-uuid"), 0);
 
     private ThreadPool threadPool;
@@ -454,7 +455,7 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
                 SearchHit hit = hits[i];
                 assertThat(hit.getId(), equalTo("doc-" + i));
                 assertThat(hit.getScore(), equalTo(scores[i]));
-                assertThat(hit.getRank(), equalTo(-1));
+                assertThat(hit.getRank(), equalTo(NO_RANK));
             }
             assertNull(result.getLastChunkBytes());
             assertThat(result.getLastChunkHitCount(), equalTo(0));

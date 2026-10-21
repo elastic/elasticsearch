@@ -38,6 +38,7 @@ public class ChunkedFetchClassicFallbackIT extends ESIntegTestCase {
 
     private static final String INDEX = "classic_fallback";
     private static final int DOCS = 12;
+    private static final int NO_RANK = -1;
 
     private String startClusterAndIndex() throws Exception {
         internalCluster().startMasterOnlyNode();
@@ -71,7 +72,7 @@ public class ChunkedFetchClassicFallbackIT extends ESIntegTestCase {
             response -> {
                 assertThat(response.getHits().getHits().length, equalTo(DOCS));
                 for (SearchHit hit : response.getHits().getHits()) {
-                    assertThat("rank of hit " + hit.getId(), hit.getRank(), equalTo(-1));
+                    assertThat("rank of hit " + hit.getId(), hit.getRank(), equalTo(NO_RANK));
                 }
             }
         );
@@ -94,7 +95,6 @@ public class ChunkedFetchClassicFallbackIT extends ESIntegTestCase {
         );
     }
 
-    /** Descending, so that the scores run against the sort order: a misplaced hit then shows up as a wrong order. */
     public void testFieldSortWithTrackedScores() throws Exception {
         String coordinator = startClusterAndIndex();
         assertNoFailuresAndResponse(
@@ -116,7 +116,7 @@ public class ChunkedFetchClassicFallbackIT extends ESIntegTestCase {
                     assertThat("source value at position " + i, value, equalTo(DOCS - i));
                     assertThat("sort value of hit " + hit.getId(), ((Number) hit.getSortValues()[0]).intValue(), equalTo(value));
                     assertThat("score of hit " + hit.getId(), hit.getScore(), equalTo((float) value));
-                    assertThat("rank of hit " + hit.getId(), hit.getRank(), equalTo(-1));
+                    assertThat("rank of hit " + hit.getId(), hit.getRank(), equalTo(NO_RANK));
                 }
             }
         );

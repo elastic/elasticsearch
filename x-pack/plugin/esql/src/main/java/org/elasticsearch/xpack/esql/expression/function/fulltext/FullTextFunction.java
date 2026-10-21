@@ -414,6 +414,7 @@ public abstract class FullTextFunction extends Function
             }
         });
 
+        Set<String> inheritedSourceTexts = inheritedSourceTexts(plan);
         condition.forEachDown(typeToken, exp -> {
             // No early exit: forEachDown always walks the full subtree (Node#forEachDown has no short-circuit),
             // and checkCommandsBeforeExpression's existing walk reports every violating ancestor rather than just
@@ -421,7 +422,22 @@ public abstract class FullTextFunction extends Function
             // Match that behavior here instead of stopping at the first shadowing ancestor found.
             plan.forEachDown(LogicalPlan.class, lp -> {
                 ShadowingCommand hit = asShadowingCommand(lp, indexedNames);
-                if (hit != null) {
+                if (hit != null && inheritedSourceTexts.contains(lp.sourceText())) {
+                    // An alignment node the analyzer inserted into a UnionAll branch has no command of its own, e.g.
+                    // `TOLONG(counter) AS counter`, added because counter metrics can't flow through a UnionAll. It inherits
+                    // the whole FROM clause as its source text, the signal checkCommandsBeforeExpression already uses. Naming
+                    // it "EVAL" would point the user at a command they never wrote and a field they never mentioned, so
+                    // report the FROM clause instead, as the old allow-list did.
+                    failures.add(
+                        fail(
+                            plan,
+                            "[{}] {} cannot be used after {}",
+                            exp.functionName(),
+                            exp.functionType(),
+                            abbreviateSource(lp.sourceText())
+                        )
+                    );
+                } else if (hit != null) {
                     // Anchored at `plan` (the Filter/LookupJoin itself), matching checkCommandsBeforeExpression's own
                     // convention - its failures are all `fail(plan, ...)`, never `fail(lp, ...)`, even though `lp` is
                     // the specific ancestor that triggered the check.
@@ -513,11 +529,7 @@ public abstract class FullTextFunction extends Function
         java.util.function.Function<E, String> typeErrorMsgProvider,
         Failures failures
     ) {
-        Set<String> inheritedSourceTexts = new HashSet<>();
-        plan.forEachDown(UnionAll.class, unionAll -> inheritedSourceTexts.add(unionAll.sourceText()));
-        // A filter pushed into a UnionAll branch is checked independently after optimization, when its ancestor
-        // UnionAll is no longer visible from this subtree. Such a filter inherits the UnionAll branch source.
-        inheritedSourceTexts.add(plan.sourceText());
+        Set<String> inheritedSourceTexts = inheritedSourceTexts(plan);
         condition.forEachDown(typeToken, exp -> {
             // A runtime search is evaluated row by row over the values already in the page (see RuntimeSearch) instead
             // of querying a Lucene index, so it doesn't need a shard context or push-down to a data node.
@@ -550,9 +562,7 @@ public abstract class FullTextFunction extends Function
                     } else if (inheritedSourceTexts.contains(sourceText)) {
                         // UnionAll and analyzer-generated nodes around it can inherit the complete multi-source FROM clause. Report that
                         // clause instead of its misleading first token.
-                        errorMessage = sourceText.length() > Node.TO_STRING_MAX_WIDTH
-                            ? sourceText.substring(0, Node.TO_STRING_MAX_WIDTH) + "..."
-                            : sourceText;
+                        errorMessage = abbreviateSource(sourceText);
                     } else {
                         errorMessage = sourceText.split(" ")[0].toUpperCase(Locale.ROOT);
                     }
@@ -565,6 +575,23 @@ public abstract class FullTextFunction extends Function
                 }
             });
         });
+    }
+
+    /**
+     * Source texts that belong to the multi-source {@code FROM} clause rather than to a command the user wrote: UnionAll and
+     * the analyzer-inserted alignment nodes around it inherit it.
+     */
+    private static Set<String> inheritedSourceTexts(LogicalPlan plan) {
+        Set<String> inheritedSourceTexts = new HashSet<>();
+        plan.forEachDown(UnionAll.class, unionAll -> inheritedSourceTexts.add(unionAll.sourceText()));
+        // A filter pushed into a UnionAll branch is checked independently after optimization, when its ancestor
+        // UnionAll is no longer visible from this subtree. Such a filter inherits the UnionAll branch source.
+        inheritedSourceTexts.add(plan.sourceText());
+        return inheritedSourceTexts;
+    }
+
+    private static String abbreviateSource(String sourceText) {
+        return sourceText.length() > Node.TO_STRING_MAX_WIDTH ? sourceText.substring(0, Node.TO_STRING_MAX_WIDTH) + "..." : sourceText;
     }
 
     /**

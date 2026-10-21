@@ -6,6 +6,7 @@
  */
 
 import org.elasticsearch.gradle.internal.AbstractDependenciesTask
+import org.elasticsearch.gradle.transform.FilteringJarTransform
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
@@ -29,6 +30,35 @@ base {
   archivesName = 'x-pack-inference'
 }
 
+def guavaDependency = 'com.google.guava:guava:33.7.2-jre'
+def failureAccessDependency = 'com.google.guava:failureaccess:1.0.3'
+
+configurations {
+  unmodularGuava {
+    canBeConsumed = false
+    canBeResolved = true
+    transitive = false
+    attributes {
+      attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, Category.LIBRARY))
+      attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, Usage.JAVA_RUNTIME))
+      attribute(TargetJvmEnvironment.TARGET_JVM_ENVIRONMENT_ATTRIBUTE, objects.named(TargetJvmEnvironment, TargetJvmEnvironment.STANDARD_JVM))
+      attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, FilteringJarTransform.FILTERED_JAR_TYPE)
+    }
+  }
+}
+
+FilteringJarTransform.registerTransform(dependencies) { spec ->
+  spec.exclude('module-info.class')
+  spec.exclude('META-INF/versions/*/module-info.class')
+}
+
+// Guava's and failureaccess' explicit modules are never resolved into the plugin's module layer, so bundle them as automatic modules
+def unmodularGuavaFiles = configurations.unmodularGuava
+esplugin.bundleSpec.from(unmodularGuavaFiles)
+esplugin.bundleSpec.exclude { FileTreeElement e ->
+  (e.file.name.startsWith('guava-') || e.file.name.startsWith('failureaccess-')) && unmodularGuavaFiles.files.contains(e.file) == false
+}
+
 dependencies {
   implementation project(path: ':libs:logging')
   compileOnly project(":server")
@@ -43,7 +73,10 @@ dependencies {
   testImplementation project(':x-pack:plugin:ml')
   clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
 
-  runtimeOnly 'com.google.guava:guava:32.0.1-jre'
+  runtimeOnly guavaDependency
+  unmodularGuava guavaDependency
+  runtimeOnly failureAccessDependency
+  unmodularGuava failureAccessDependency
   implementation 'com.google.code.gson:gson:2.10'
   implementation "com.google.protobuf:protobuf-java-util:${versions.protobuf}"
   implementation "com.google.protobuf:protobuf-java:${versions.protobuf}"
@@ -63,6 +96,12 @@ dependencies {
   implementation 'io.opencensus:opencensus-contrib-http-util:0.31.1'
   implementation 'org.apache.commons:commons-lang3:3.20.0'
   implementation 'org.apache.commons:commons-text:1.15.0'
+
+  /* Apache HttpClient 5 reactive bridge for streaming responses (httpclient5/httpcore5 themselves are provided by x-pack-core) */
+  implementation("org.apache.httpcomponents.core5:httpcore5-reactive:${versions.httpcore5}") {
+    // httpcore5 is already provided at runtime by the extended plugin x-pack-core
+    exclude group: 'org.apache.httpcomponents.core5', module: 'httpcore5'
+  }
 
   /* AWS SDK v2 */
   implementation("software.amazon.awssdk:bedrockruntime:${versions.awsv2sdk}")
@@ -155,7 +194,7 @@ dependencies {
   // Reactor
   api "io.projectreactor.netty:reactor-netty-core:${versions.azureReactorNetty}"
   api "io.projectreactor.netty:reactor-netty-http:${versions.azureReactorNetty}"
-  api "io.projectreactor:reactor-core:3.7.19"
+  api "io.projectreactor:reactor-core:3.8.7"
   api "org.reactivestreams:reactive-streams:${versions.reactive_streams}"
 
   runtimeOnly "org.cryptomator:siv-mode:1.5.2"
@@ -167,6 +206,7 @@ dependencies {
 tasks.withType(AbstractDependenciesTask).configureEach {
   mapping from: /azure-.*/, to: 'azure'
   mapping from: /google-auth-.*/, to: 'google-auth'
+  mapping from: /failureaccess.*/, to: 'guava'
   mapping from: /google-http-.*/, to: 'google-http'
   mapping from: /msal4j.*/, to: 'msal4j'
   mapping from: /reactor-netty-.*/, to: 'reactor-netty'
@@ -230,20 +270,12 @@ tasks.named("thirdPartyAudit").configure {
     'com.google.protobuf.MessageSchema',
     'com.google.protobuf.UnsafeUtil$Android32MemoryAccessor',
     'com.google.protobuf.UnsafeUtil$Android64MemoryAccessor',
-    'com.google.common.cache.Striped64',
-    'com.google.common.cache.Striped64$1',
-    'com.google.common.cache.Striped64$Cell',
-    'com.google.common.hash.Striped64',
-    'com.google.common.hash.Striped64$1',
-    'com.google.common.hash.Striped64$Cell',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
-    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
     'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
-    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+    'com.google.common.util.concurrent.AbstractFutureState$UnsafeAtomicHelper',
     'io.netty.util.internal.PlatformDependent0',
     'io.netty.util.internal.PlatformDependent0$1',
     'io.netty.util.internal.PlatformDependent0$2',
@@ -339,8 +371,6 @@ tasks.named("thirdPartyAudit").configure {
     'com.google.api.gax.tracing.BaseApiTracer',
     'com.google.api.gax.tracing.SpanName',
     'com.google.api.pathtemplate.PathTemplate',
-    'com.google.common.util.concurrent.internal.InternalFutureFailureAccess',
-    'com.google.common.util.concurrent.internal.InternalFutures',
     'com.google.longrunning.CancelOperationRequest',
     'com.google.longrunning.CancelOperationRequest$Builder',
     'com.google.longrunning.DeleteOperationRequest',
@@ -460,6 +490,48 @@ tasks.named("thirdPartyAudit").configure {
 
   // Optional/platform-specific and transitive dependencies not on audit classpath
   ignoreMissingClasses(
+    // optional Apache HttpClient 4 transport of google-http-client; inference uses the default NetHttpTransport
+    'org.apache.http.ConnectionReuseStrategy',
+    'org.apache.http.Header',
+    'org.apache.http.HttpEntity',
+    'org.apache.http.HttpEntityEnclosingRequest',
+    'org.apache.http.HttpHost',
+    'org.apache.http.HttpRequest',
+    'org.apache.http.HttpResponse',
+    'org.apache.http.HttpVersion',
+    'org.apache.http.RequestLine',
+    'org.apache.http.StatusLine',
+    'org.apache.http.client.AuthenticationHandler',
+    'org.apache.http.client.HttpClient',
+    'org.apache.http.client.HttpRequestRetryHandler',
+    'org.apache.http.client.RedirectHandler',
+    'org.apache.http.client.RequestDirector',
+    'org.apache.http.client.UserTokenHandler',
+    'org.apache.http.client.methods.HttpEntityEnclosingRequestBase',
+    'org.apache.http.client.methods.HttpRequestBase',
+    'org.apache.http.config.Registry',
+    'org.apache.http.config.RegistryBuilder',
+    'org.apache.http.conn.ClientConnectionManager',
+    'org.apache.http.conn.ConnectionKeepAliveStrategy',
+    'org.apache.http.conn.params.ConnManagerParams',
+    'org.apache.http.conn.params.ConnRouteParams',
+    'org.apache.http.conn.routing.HttpRoutePlanner',
+    'org.apache.http.conn.scheme.PlainSocketFactory',
+    'org.apache.http.conn.scheme.SchemeRegistry',
+    'org.apache.http.conn.socket.PlainConnectionSocketFactory',
+    'org.apache.http.conn.ssl.SSLSocketFactory',
+    'org.apache.http.conn.ssl.X509HostnameVerifier',
+    'org.apache.http.entity.AbstractHttpEntity',
+    'org.apache.http.impl.client.DefaultHttpClient',
+    'org.apache.http.impl.client.HttpClientBuilder',
+    'org.apache.http.impl.conn.PoolingHttpClientConnectionManager',
+    'org.apache.http.params.HttpConnectionParams',
+    'org.apache.http.params.HttpParams',
+    'org.apache.http.params.HttpProtocolParams',
+    'org.apache.http.protocol.HttpContext',
+    'org.apache.http.protocol.HttpProcessor',
+    'org.apache.http.protocol.HttpRequestExecutor',
+
     // from reactory-netty metric collection
     'io.micrometer.context.ContextAccessor',
     'io.micrometer.context.ContextRegistry',

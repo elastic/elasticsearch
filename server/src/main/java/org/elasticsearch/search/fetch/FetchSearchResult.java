@@ -167,6 +167,25 @@ public final class FetchSearchResult extends SearchPhaseResult {
     }
 
     /**
+     * Hands a coordinator charge to a caller that takes over releasing it. The bytes stay charged across the
+     * handoff, and {@link #deallocate()} no longer gives them back. The caller has to release to the breaker the
+     * charge was made against, which both sides reach through the node's one breaker service.
+     *
+     * @return the bytes handed over, or {@code 0} if there is no coordinator charge
+     */
+    public long transferCoordinatorCharge() {
+        assert hasReferences() : "handing over a charge must hold a reference";
+        if (chargedOnCoordinator == false) {
+            return 0L;
+        }
+        long bytes = searchHitsSizeBytes;
+        searchHitsSizeBytes = 0L;
+        searchHitsSizeBytesBreaker = null;
+        chargedOnCoordinator = false;
+        return bytes;
+    }
+
+    /**
      * Callers release once the response is written. {@link #deallocate()} cannot guarantee that ordering, so it only
      * catches results dropped before the release.
      */

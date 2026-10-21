@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -18,6 +19,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperatorStatusTests;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
 import java.util.List;
@@ -33,9 +35,11 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
             "test",
             "elasticsearch",
             "node-1",
+            "elasticsearch[node-1][esql_worker][T#1]",
             123413220000L,
             123413243214L,
             123213L,
+            223213L,
             55L,
             DriverStatus.Status.RUNNING,
             List.of(
@@ -55,10 +59,13 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
               "description" : "test",
               "cluster_name" : "elasticsearch",
               "node_name" : "node-1",
+              "thread_name" : "elasticsearch[node-1][esql_worker][T#1]",
               "started" : "1973-11-29T09:27:00.000Z",
               "last_updated" : "1973-11-29T09:27:23.214Z",
               "cpu_nanos" : 123213,
               "cpu_time" : "123.2micros",
+              "driver_nanos" : 223213,
+              "driver_time" : "223.2micros",
               "documents_found" : 222,
               "values_loaded" : 1000,
               "iterations" : 55,
@@ -113,6 +120,18 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
             }""".replace("$$THREAD", Thread.currentThread().getName())));
     }
 
+    /**
+     * {@code driver_nanos} is not sent to nodes that predate it. They see 0, and {@code cpu_nanos} still round-trips.
+     */
+    public void testDriverNanosNotSentToOlderNodes() throws IOException {
+        DriverStatus original = createTestInstance();
+        TransportVersion beforeDriverNanos = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("esql_driver_nanos"));
+        DriverStatus copy = copyInstance(original, beforeDriverNanos);
+        assertThat(copy.cpuNanos(), equalTo(original.cpuNanos()));
+        assertThat(copy.driverNanos(), equalTo(0L));
+        assertThat(copy.iterations(), equalTo(original.iterations()));
+    }
+
     @Override
     protected Writeable.Reader<DriverStatus> instanceReader() {
         return DriverStatus::readFrom;
@@ -125,6 +144,8 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
             randomIdentifier(),
             randomIdentifier(),
             randomIdentifier(),
+            randomIdentifier(),
+            randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
@@ -160,27 +181,31 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
         var description = instance.description();
         var clusterName = instance.clusterName();
         var nodeName = instance.nodeName();
+        var threadName = instance.threadName();
         long started = instance.started();
         long lastUpdated = instance.lastUpdated();
         long cpuNanos = instance.cpuNanos();
+        long driverNanos = instance.driverNanos();
         long iterations = instance.iterations();
         var status = instance.status();
         var completedOperators = instance.completedOperators();
         var activeOperators = instance.activeOperators();
         var sleeps = instance.sleeps();
-        switch (between(0, 11)) {
+        switch (between(0, 13)) {
             case 0 -> sessionId = randomValueOtherThan(sessionId, ESTestCase::randomIdentifier);
             case 1 -> description = randomValueOtherThan(description, ESTestCase::randomIdentifier);
             case 2 -> clusterName = randomValueOtherThan(clusterName, ESTestCase::randomIdentifier);
             case 3 -> nodeName = randomValueOtherThan(nodeName, ESTestCase::randomIdentifier);
-            case 4 -> started = randomValueOtherThan(started, ESTestCase::randomNonNegativeLong);
-            case 5 -> lastUpdated = randomValueOtherThan(lastUpdated, ESTestCase::randomNonNegativeLong);
-            case 6 -> cpuNanos = randomValueOtherThan(cpuNanos, ESTestCase::randomNonNegativeLong);
-            case 7 -> iterations = randomValueOtherThan(iterations, ESTestCase::randomNonNegativeLong);
-            case 8 -> status = randomValueOtherThan(status, this::randomStatus);
-            case 9 -> completedOperators = randomValueOtherThan(completedOperators, DriverStatusTests::randomOperatorStatuses);
-            case 10 -> activeOperators = randomValueOtherThan(activeOperators, DriverStatusTests::randomOperatorStatuses);
-            case 11 -> sleeps = randomValueOtherThan(sleeps, DriverSleepsTests::randomDriverSleeps);
+            case 4 -> threadName = randomValueOtherThan(threadName, ESTestCase::randomIdentifier);
+            case 5 -> started = randomValueOtherThan(started, ESTestCase::randomNonNegativeLong);
+            case 6 -> lastUpdated = randomValueOtherThan(lastUpdated, ESTestCase::randomNonNegativeLong);
+            case 7 -> cpuNanos = randomValueOtherThan(cpuNanos, ESTestCase::randomNonNegativeLong);
+            case 8 -> iterations = randomValueOtherThan(iterations, ESTestCase::randomNonNegativeLong);
+            case 9 -> status = randomValueOtherThan(status, this::randomStatus);
+            case 10 -> completedOperators = randomValueOtherThan(completedOperators, DriverStatusTests::randomOperatorStatuses);
+            case 11 -> activeOperators = randomValueOtherThan(activeOperators, DriverStatusTests::randomOperatorStatuses);
+            case 12 -> sleeps = randomValueOtherThan(sleeps, DriverSleepsTests::randomDriverSleeps);
+            case 13 -> driverNanos = randomValueOtherThan(driverNanos, ESTestCase::randomNonNegativeLong);
             default -> throw new UnsupportedOperationException();
         }
         return new DriverStatus(
@@ -188,9 +213,11 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
             description,
             clusterName,
             nodeName,
+            threadName,
             started,
             lastUpdated,
             cpuNanos,
+            driverNanos,
             iterations,
             status,
             completedOperators,

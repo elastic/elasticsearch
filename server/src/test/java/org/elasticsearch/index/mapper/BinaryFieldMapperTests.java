@@ -19,9 +19,14 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.escf.EscfBatch;
+import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
+import org.elasticsearch.sourcebatch.SourceRowXContentParser;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
@@ -29,6 +34,7 @@ import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.empty;
@@ -103,6 +109,32 @@ public class BinaryFieldMapperTests extends MapperTestCase {
         byte[] value = new byte[100];
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", value)));
         assertThat(doc.rootDoc().getFields("field"), empty());
+    }
+
+    /**
+     * A binary value arrives in JSON as a base64 string. When the document is a batch row parsed in place, as the sequential
+     * fallback of batch indexing does, the mapper must decode it exactly as it does from {@link BytesSource}.
+     */
+    public void testStoredAndDocValuesFromBatchRow() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("store", true);
+            b.field("doc_values", true);
+        }));
+
+        final byte[] value = randomByteArrayOfLength(between(1, 100));
+        final BytesReference json = new BytesArray("{\"field\":\"" + Base64.getEncoder().encodeToString(value) + "\"}");
+
+        ParsedDocument fromBytes = mapperService.documentMapper().parse(new SourceToParse("1", json, XContentType.JSON));
+        try (EscfBatch batch = EscfEncoder.encode(List.of(json), XContentType.JSON)) {
+            RowSource row = new RowSource(SourceRowXContentParser.buildSchemaTree(batch.schema()), batch.row(0), XContentType.JSON);
+            ParsedDocument fromRow = mapperService.documentMapper()
+                .parse(new SourceToParse("1", row, null, Map.of(), Map.of(), XContentMeteringParserDecorator.NOOP, null));
+
+            assertEquals(new BytesRef(value), fromBytes.rootDoc().getBinaryValue("field"));
+            assertEquals(new BytesRef(value), fromRow.rootDoc().getBinaryValue("field"));
+            assertEquals(fromBytes.rootDoc().getFields("field").size(), fromRow.rootDoc().getFields("field").size());
+        }
     }
 
     public void testStoredValue() throws IOException {

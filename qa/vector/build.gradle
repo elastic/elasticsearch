@@ -56,7 +56,7 @@ dependencies {
   // the annotations, so Guava is a normal compile+runtime dependency here rather than compileOnly. The Guava
   // compile-classpath ban is relaxed for this module via the forbiddenDependencies block below; our own code must
   // not use Guava. Keeping it off the compileOnly configuration lets dependencyLicenses still account for its license.
-  implementation 'com.google.guava:guava:33.6.0-jre'
+  implementation 'com.google.guava:guava:33.7.2-jre'
   // This project is modular, so Guava is resolved on the module path. Its module-info declares
   // "requires com.google.common.util.concurrent.internal", which failureaccess provides, so
   // failureaccess must be on the compile classpath too or the module graph fails to resolve.

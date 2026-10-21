@@ -68,6 +68,7 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
 import java.util.function.IntConsumer;
+import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.blobcache.BlobCacheUtils.ensureSeek;
@@ -381,6 +382,12 @@ public class IndexDirectory extends ByteSizeDirectory {
         }
     }
 
+    private Set<String> localFiles() {
+        try (var ignored = readLock.acquire()) {
+            return Set.copyOf(localFiles.keySet());
+        }
+    }
+
     public void sync(Collection<String> names) {
         // noop, data on local drive need not be safely persisted
     }
@@ -526,6 +533,9 @@ public class IndexDirectory extends ByteSizeDirectory {
                     localFile.markAsUploaded();
                 }
             });
+        }
+        if (cacheDirectory.getCacheService().isEvictObsoleteRegionsEnabled()) {
+            cacheDirectory.maybeScheduleObsoleteRegionsEviction(this::localFiles);
         }
     }
 
@@ -1195,8 +1205,12 @@ public class IndexDirectory extends ByteSizeDirectory {
         }
 
         @Override
-        public boolean withMemorySegmentSlice(long offset, long length, CheckedConsumer<MemorySegment, IOException> action)
-            throws IOException {
+        public boolean withMemorySegmentSlice(
+            long offset,
+            long length,
+            IntFunction<MemorySegment> scratch,
+            CheckedConsumer<MemorySegment, IOException> action
+        ) throws IOException {
             if (length < getBufferSize()) {
                 // A read this small is cheaper through the buffer: one refill serves several consecutive reads, whereas every
                 // direct access pays for an executeLocallyOrReopen. This is the same trade-off readBytes makes with its own
@@ -1224,7 +1238,7 @@ public class IndexDirectory extends ByteSizeDirectory {
                     return true;
                 }
                 if (inner instanceof DirectAccessInput dai) {
-                    return dai.withMemorySegmentSlice(offset, length, action);
+                    return dai.withMemorySegmentSlice(offset, length, scratch, action);
                 }
                 return false;
             });

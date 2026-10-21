@@ -664,8 +664,7 @@ public class SnapshotResiliencyTestHelper {
                     emptyMap(),
                     threadPool,
                     client,
-                    List.of(),
-                    SnapshotMetrics.NOOP
+                    List.of()
                 );
                 snapshotsService = new SnapshotsService(
                     settings,
@@ -935,7 +934,8 @@ public class SnapshotResiliencyTestHelper {
                         DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings()),
                         featureService,
                         new TimeSeriesEligibleWriteWindowLocator(),
-                        DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings())
+                        DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings()),
+                        bigArrays
                     )
                 );
                 final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(

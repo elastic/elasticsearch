@@ -54,7 +54,7 @@ dependencies {
   // the annotations, so Guava is a normal compile+runtime dependency here rather than compileOnly. The Guava
   // compile-classpath ban is relaxed for this module via the forbiddenDependencies block below; our own code must
   // not use Guava. Keeping it off the compileOnly configuration lets dependencyLicenses still account for its license.
-  implementation 'com.google.guava:guava:33.6.0-jre'
+  implementation 'com.google.guava:guava:33.7.2-jre'
   runtimeOnly 'com.google.guava:failureaccess:1.0.3'
   runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}"
   runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}"

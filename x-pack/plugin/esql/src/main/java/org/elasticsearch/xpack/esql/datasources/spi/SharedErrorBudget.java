@@ -58,7 +58,7 @@ public final class SharedErrorBudget {
      * {@code ListCorruptionHandler}) should call this. Adapter-side drops use
      * {@link #addErrors(int)}.
      */
-    public void addReaderBatch(int rows, int errors) {
+    public void addReaderBatch(long rows, long errors) {
         this.rowCount += rows;
         this.errorCount += errors;
     }

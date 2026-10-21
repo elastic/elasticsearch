@@ -21,7 +21,7 @@ esplugin {
   classname = 'org.elasticsearch.repositories.gcs.GoogleCloudStoragePlugin'
 }
 
-def guavaVersion = '33.6.0-jre'
+def guavaVersion = '33.7.2-jre'
 
 dependencies {
   // dependencies consistent with 'com.google.cloud:google-cloud-storage-bom:2.71.0'

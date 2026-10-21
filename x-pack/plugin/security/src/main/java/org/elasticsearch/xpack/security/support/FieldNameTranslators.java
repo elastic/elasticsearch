@@ -88,14 +88,31 @@ public final class FieldNameTranslators {
      * The stored principal is the whole {@code namespace/service} pair, so a namespace is selected with a prefix
      * query on {@code username} and there are no separate namespace or service fields to translate. The description
      * shares the {@code text} field that role descriptions are stored in, so it answers to the same kinds of query,
-     * and like the other text fields of the index it has no fielddata to sort on.
+     * and like the other text fields of the index it has no fielddata to sort on. The creator is stored in the
+     * {@code creator} object that API keys established and the creation time in their {@code creation_time} field, so
+     * both are translated; the updater is stored under the names the response uses, except that either author's
+     * {@code username} is stored as {@code principal}, as an API key's creator is. Either author's realm domain, full
+     * name and email are stored, as an API key creator's are, but are not reported and so are not offered for
+     * querying either.
      */
     public static final FieldNameTranslators SERVICE_ACCOUNT_FIELD_NAME_TRANSLATORS = new FieldNameTranslators(
         List.of(
             idemFieldNameTranslator("username"),
             idemFieldNameTranslator("roles"),
             idemFieldNameTranslator("enabled"),
-            idemFieldNameTranslator("description", false)
+            idemFieldNameTranslator("description", false),
+            new SimpleFieldNameTranslator("creator.principal", "created_by.username"),
+            new SimpleFieldNameTranslator("creator.realm", "created_by.realm"),
+            new SimpleFieldNameTranslator("creator.realm_type", "created_by.realm_type"),
+            new SimpleFieldNameTranslator("creator.api_key.id", "created_by.api_key.id"),
+            new SimpleFieldNameTranslator("creator.api_key.name", "created_by.api_key.name"),
+            new SimpleFieldNameTranslator("creation_time", "created_at"),
+            new SimpleFieldNameTranslator("updated_by.principal", "updated_by.username"),
+            idemFieldNameTranslator("updated_by.realm"),
+            idemFieldNameTranslator("updated_by.realm_type"),
+            idemFieldNameTranslator("updated_by.api_key.id"),
+            idemFieldNameTranslator("updated_by.api_key.name"),
+            new SimpleFieldNameTranslator("update_time", "updated_at")
         )
     );
 

@@ -13,12 +13,12 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.core.Nullable;
 
 import java.util.HashMap;
 import java.util.List;
@@ -26,8 +26,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
-
-import static java.util.stream.Collectors.toList;
 
 /**
  * This {@link AllocationDecider} controls shard allocation based on
@@ -164,8 +162,6 @@ public class AwarenessAllocationDecider extends AllocationDecider {
             return YES_NOT_ENABLED;
         }
 
-        final boolean debug = allocation.debugDecision();
-
         if (indexMetadata.getAutoExpandReplicas().expandToAllNodes()) {
             return YES_AUTO_EXPAND_ALL;
         }
@@ -174,7 +170,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
         for (String awarenessAttribute : awarenessAttributes) {
             // the node the shard exists on must be associated with an awareness attribute
             if (node.node().getAttributes().containsKey(awarenessAttribute) == false) {
-                return debug ? debugNoMissingAttribute(awarenessAttribute, awarenessAttributes) : Decision.NO;
+                return createMissingAttributeNoDecision(allocation, awarenessAttribute, awarenessAttributes);
             }
 
             final Set<String> actualAttributeValues = allocation.routingNodes().getAttributeValues(awarenessAttribute);
@@ -216,36 +212,46 @@ public class AwarenessAllocationDecider extends AllocationDecider {
 
             final int maximumShardsPerAttributeValue = (shardCount + valueCount - 1) / valueCount; // ceil(shardCount/valueCount)
             if (shardsForTargetAttributeValue > maximumShardsPerAttributeValue) {
-                return debug
-                    ? debugNoTooManyCopies(
-                        shardCount,
-                        awarenessAttribute,
-                        node.node().getAttributes().get(awarenessAttribute),
-                        valueCount,
-                        actualAttributeValues.stream().sorted().collect(toList()),
-                        forcedValues == null ? null : forcedValues.stream().sorted().collect(toList()),
-                        shardsForTargetAttributeValue,
-                        maximumShardsPerAttributeValue
-                    )
-                    : Decision.NO;
+                return createTooManyCopiesNoDecision(
+                    allocation,
+                    shardCount,
+                    awarenessAttribute,
+                    node.node().getAttributes().get(awarenessAttribute),
+                    valueCount,
+                    actualAttributeValues,
+                    forcedValues,
+                    shardsForTargetAttributeValue,
+                    maximumShardsPerAttributeValue
+                );
             }
         }
 
         return YES_ALL_MET;
     }
 
-    private static Decision debugNoTooManyCopies(
+    private static Decision createTooManyCopiesNoDecision(
+        RoutingAllocation allocation,
         int shardCount,
         String attributeName,
         String attributeValue,
         int numberOfAttributes,
-        List<String> realAttributes,
-        List<String> forcedAttributes,
+        Set<String> realAttributes,
+        @Nullable List<String> forcedAttributes,
         int actualShardCount,
         int maximumShardCount
     ) {
-        return Decision.single(
-            Decision.Type.NO,
+        // Only prepare these parameters if debugDecision is on, they won't be used otherwise
+        final var sortedRealAttributes = allocation.debugDecision() ? realAttributes.stream().sorted().toList() : null;
+        final String forcedAwarenessString;
+        if (allocation.debugDecision()) {
+            forcedAwarenessString = forcedAttributes == null
+                ? "no forced awareness"
+                : forcedAttributes.stream().sorted().toList() + " from forced awareness";
+        } else {
+            forcedAwarenessString = null;
+        }
+        return allocation.decision(
+            Decision.NO,
             NAME,
             "there are [%d] copies of this shard and [%d] values for attribute [%s] (%s from nodes in the cluster and %s) so there "
                 + "may be at most [%d] copies of this shard allocated to nodes with each value, but (including this copy) there "
@@ -253,8 +259,8 @@ public class AwarenessAllocationDecider extends AllocationDecider {
             shardCount,
             numberOfAttributes,
             attributeName,
-            realAttributes,
-            forcedAttributes == null ? "no forced awareness" : forcedAttributes + " from forced awareness",
+            sortedRealAttributes,
+            forcedAwarenessString,
             maximumShardCount,
             actualShardCount,
             attributeName,
@@ -262,14 +268,18 @@ public class AwarenessAllocationDecider extends AllocationDecider {
         );
     }
 
-    private static Decision debugNoMissingAttribute(String awarenessAttribute, List<String> awarenessAttributes) {
-        return Decision.single(
-            Decision.Type.NO,
+    private static Decision createMissingAttributeNoDecision(
+        RoutingAllocation allocation,
+        String awarenessAttribute,
+        List<String> awarenessAttributes
+    ) {
+        return allocation.decision(
+            Decision.NO,
             NAME,
             "node does not contain the awareness attribute [%s]; required attributes cluster setting [%s=%s]",
             awarenessAttribute,
             CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(),
-            Strings.collectionToCommaDelimitedString(awarenessAttributes)
+            awarenessAttributes
         );
     }
 

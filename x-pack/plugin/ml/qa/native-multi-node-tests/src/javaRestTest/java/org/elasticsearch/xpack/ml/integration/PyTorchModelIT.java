@@ -14,7 +14,6 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
@@ -371,23 +370,8 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
 
             // The native process reports its resident set size (current and OS peak) periodically. Elasticsearch surfaces
             // these, summed across nodes, as runtime_native_memory_bytes / peak_runtime_native_memory_bytes in
-            // model_size_stats. When running against an ml-cpp that emits periodic RSS (the coordinated PR build sets
-            // -Dtests.ml.expect_native_rss=true) we enforce the full end-to-end chain, waiting for the first report.
-            // Otherwise the check is best-effort so it does not flake against a released ml-cpp that does not report RSS
-            // within the short test window.
-            boolean requireNativeRss = Booleans.parseBoolean(System.getProperty("tests.ml.expect_native_rss", "false"));
-            try {
-                // Wait for the periodic native RSS report so this is a genuine end-to-end check when running against an
-                // ml-cpp that emits it, then assert the full accounting chain.
-                assertBusy(() -> assertNativeRuntimeMemorySurfaced(modelId), 30, TimeUnit.SECONDS);
-            } catch (AssertionError noReportYet) {
-                // A released ml-cpp without periodic reporting never sends RSS, so tolerate its absence to avoid flaking -
-                // unless -Dtests.ml.expect_native_rss=true demands it (the coordinated ml-cpp + ES build).
-                if (requireNativeRss) {
-                    throw noReportYet;
-                }
-                logger.info("native RSS not reported within timeout; skipping strict runtime-native-memory assertion");
-            }
+            // model_size_stats.
+            assertBusy(() -> assertNativeRuntimeMemorySurfaced(modelId), 30, TimeUnit.SECONDS);
         }
     }
 

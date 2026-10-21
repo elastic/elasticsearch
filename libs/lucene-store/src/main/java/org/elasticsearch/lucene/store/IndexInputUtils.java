@@ -27,8 +27,8 @@ import java.util.function.IntFunction;
  * Utility for obtaining a {@link MemorySegment} view of data in an
  * {@link IndexInput} and passing it to a caller-supplied action. The
  * segment may come from a {@link MemorySegmentAccessInput} (mmap),
- * a {@link DirectAccessInput} (e.g. blob-cache), or a
- * heap copy as a last resort.
+ * a {@link DirectAccessInput} (e.g. blob-cache), or a copy into a
+ * caller-supplied scratch segment as a last resort.
  *
  * <p>All resource management (ref-counting, buffer release) is handled
  * internally — callers never see a closeable resource.
@@ -53,23 +53,22 @@ public final class IndexInputUtils {
      * {@link MemorySegmentAccessInput#segmentSliceOrNull}. If that
      * returns {@code null}, it tries a direct {@link MemorySegment}
      * view via {@link DirectAccessInput}. As a last resort it copies the
-     * data onto the heap using a byte array obtained from
-     * {@code scratchSupplier}.
+     * data into a scratch segment obtained from {@code scratchSupplier}.
      *
      * <p> The memory segment passed to {@code action} is valid only for
      * the duration of the call. Callers must not retain references to it.
      *
      * @param in              the index input positioned at the data to read
      * @param length          the number of bytes to read
-     * @param scratchSupplier supplies a byte array of at least the requested
-     *                        length, used only on the heap-copy fallback path
+     * @param scratchSupplier supplies a writable off-heap segment of exactly the
+     *                        requested length, used only on the copying fallback path
      * @param action          the function to apply to the memory segment
      * @return the result of applying {@code action}
      */
     public static <R> R withSlice(
         IndexInput in,
         long length,
-        IntFunction<byte[]> scratchSupplier,
+        IntFunction<MemorySegment> scratchSupplier,
         CheckedFunction<MemorySegment, R, IOException> action
     ) throws IOException {
         checkInputType(in);
@@ -86,7 +85,7 @@ public final class IndexInputUtils {
             long offset = in.getFilePointer();
             @SuppressWarnings("unchecked")
             R[] result = (R[]) new Object[1];
-            boolean available = dai.withMemorySegmentSlice(offset, length, seg -> result[0] = action.apply(seg));
+            boolean available = dai.withMemorySegmentSlice(offset, length, scratchSupplier, seg -> result[0] = action.apply(seg));
             if (available) {
                 in.seek(offset + length);
                 return result[0];
@@ -103,14 +102,14 @@ public final class IndexInputUtils {
      *
      * @param in              the index input positioned at the data to read
      * @param length          the number of bytes to read
-     * @param scratchSupplier supplies a byte array of at least the requested
-     *                        length, used only on the heap-copy fallback path
+     * @param scratchSupplier supplies a writable off-heap segment of exactly the
+     *                        requested length, used only on the copying fallback path
      * @param action          the action to perform on the memory segment
      */
     public static float withFloatSlice(
         IndexInput in,
         long length,
-        IntFunction<byte[]> scratchSupplier,
+        IntFunction<MemorySegment> scratchSupplier,
         CheckedToFloatFunction<MemorySegment, IOException> action
     ) throws IOException {
         checkInputType(in);
@@ -126,7 +125,7 @@ public final class IndexInputUtils {
         if (in instanceof DirectAccessInput dai) {
             long offset = in.getFilePointer();
             float[] result = new float[1];
-            boolean available = dai.withMemorySegmentSlice(offset, length, seg -> result[0] = action.applyAsFloat(seg));
+            boolean available = dai.withMemorySegmentSlice(offset, length, scratchSupplier, seg -> result[0] = action.applyAsFloat(seg));
             if (available) {
                 in.seek(offset + length);
                 return result[0];
@@ -144,14 +143,14 @@ public final class IndexInputUtils {
      *
      * @param in              the index input positioned at the data to read
      * @param length          the number of bytes to read
-     * @param scratchSupplier supplies a byte array of at least the requested
-     *                        length, used only on the heap-copy fallback path
+     * @param scratchSupplier supplies a writable off-heap segment of exactly the
+     *                        requested length, used only on the copying fallback path
      * @param action          the action to perform on the memory segment
      */
     public static void withVoidSlice(
         IndexInput in,
         long length,
-        IntFunction<byte[]> scratchSupplier,
+        IntFunction<MemorySegment> scratchSupplier,
         CheckedConsumer<MemorySegment, IOException> action
     ) throws IOException {
         checkInputType(in);
@@ -166,7 +165,7 @@ public final class IndexInputUtils {
         }
         if (in instanceof DirectAccessInput dai) {
             long offset = in.getFilePointer();
-            boolean available = dai.withMemorySegmentSlice(offset, length, action);
+            boolean available = dai.withMemorySegmentSlice(offset, length, scratchSupplier, action);
             if (available) {
                 in.seek(offset + length);
                 return;
@@ -343,31 +342,33 @@ public final class IndexInputUtils {
         }
     }
 
-    /**
-     * Reads bytes from the index input and applies the action to a heap {@link MemorySegment}
-     * wrapping the data. On JDK 22+ a heap segment can be passed directly to a native downcall
-     * (the linker copies it in when the target function is marked critical), so the segment is
-     * wrapped in place with no extra copy. The segment is valid only for the duration of the call.
-     */
     private static <R> R copyAndApply(
         IndexInput in,
         int bytesToRead,
-        IntFunction<byte[]> scratchSupplier,
+        IntFunction<MemorySegment> scratchSupplier,
         CheckedFunction<MemorySegment, R, IOException> action
     ) throws IOException {
-        byte[] buf = scratchSupplier.apply(bytesToRead);
+        MemorySegment scratch = scratchSupplier.apply(bytesToRead);
+        assert scratch.byteSize() == bytesToRead : "scratch segment must be have the exact requested size";
+        assert validateNativeSegment(scratch, "scratch segment");
+        byte[] buf = new byte[bytesToRead];
         in.readBytes(buf, 0, bytesToRead);
-        return action.apply(MemorySegment.ofArray(buf).asSlice(0, bytesToRead));
+        MemorySegment.copy(buf, 0, scratch, ValueLayout.JAVA_BYTE, 0, bytesToRead);
+        return action.apply(scratch);
     }
 
     private static void copyAndAccept(
         IndexInput in,
         int bytesToRead,
-        IntFunction<byte[]> scratchSupplier,
+        IntFunction<MemorySegment> scratchSupplier,
         CheckedConsumer<MemorySegment, IOException> action
     ) throws IOException {
-        byte[] buf = scratchSupplier.apply(bytesToRead);
+        MemorySegment scratch = scratchSupplier.apply(bytesToRead);
+        assert scratch.byteSize() == bytesToRead : "scratch segment must be have the exact requested size";
+        assert validateNativeSegment(scratch, "scratch segment");
+        byte[] buf = new byte[bytesToRead];
         in.readBytes(buf, 0, bytesToRead);
-        action.accept(MemorySegment.ofArray(buf).asSlice(0, bytesToRead));
+        MemorySegment.copy(buf, 0, scratch, ValueLayout.JAVA_BYTE, 0, bytesToRead);
+        action.accept(scratch);
     }
 }

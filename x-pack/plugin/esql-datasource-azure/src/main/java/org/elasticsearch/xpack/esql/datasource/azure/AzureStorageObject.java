@@ -20,12 +20,18 @@ import com.azure.storage.blob.specialized.BlobInputStream;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalPlanningIo;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -47,6 +53,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * Supports full and range reads, and metadata retrieval with caching.
  */
 public final class AzureStorageObject extends AbstractMeteredStorageObject {
+    private static final Logger logger = LogManager.getLogger(AzureStorageObject.class);
 
     private final BlobClient blobClient;
     private final BlobAsyncClient blobAsyncClient;
@@ -60,6 +67,8 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
     private volatile Boolean cachedExists;
     /** First strong ETag returned by a download; sent as If-Match on later ones and reported as {@link #contentGeneration()}. */
     private final AtomicReference<String> pinnedEtag = new AtomicReference<>();
+    /** Quoted ETag the last metadata probe saw, reported by {@link #probedVersion()}. It never becomes the pin by itself. */
+    private volatile String probedEtag;
 
     public AzureStorageObject(BlobClient blobClient, String container, String blobName, StoragePath path) {
         this(blobClient, null, container, blobName, path);
@@ -172,17 +181,13 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
     @Override
     public InputStream newStream() throws IOException {
         long startNanos = System.nanoTime();
-        long bytes = 0L;
         try {
             BlobInputStream blobStream = validateOpenedBlob(blobClient.openInputStream(null, requestConditions()));
-            if (cachedLength != null) {
-                bytes = cachedLength;
-            }
-            return new AzureTransientTypingInputStream(blobStream, path);
+            return metered(new AzureTransientTypingInputStream(blobStream, path));
         } catch (Exception e) {
             throw throwReadFailure("Failed to read object from", e);
         } finally {
-            counters.addRequest(System.nanoTime() - startNanos, bytes);
+            counters.addRequest(System.nanoTime() - startNanos, 0L);
         }
     }
 
@@ -206,19 +211,16 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             if (throttling && bse.getResponse() != null) {
                 retryAfterMs = ExternalUnavailableException.parseRetryAfterMs(bse.getResponse().getHeaderValue("Retry-After"));
             }
-            return new ExternalUnavailableException(
-                throttling,
-                retryAfterMs,
-                cause,
-                "Azure store unavailable reading [{}] (HTTP {})",
-                path,
-                bse.getStatusCode()
-            );
+            Condition condition = throttling ? Condition.STORE_THROTTLED : Condition.STORE_UNAVAILABLE;
+            logger.debug("Azure {} for [{}]", condition, path.objectName(), cause);
+            return new ExternalUnavailableException(condition, path, "HTTP " + bse.getStatusCode(), "", throttling, retryAfterMs);
         }
         if (cause instanceof BlobStorageException precondition && precondition.getStatusCode() == 412) {
-            return new ExternalObjectChangedException(cause, "Object changed during read of [{}]", path);
+            logger.debug("Azure precondition failed for [{}]", path.objectName(), cause);
+            return new ExternalObjectChangedException(path);
         }
-        return new IOException(context + " " + path, cause);
+        logger.debug("Unrecognized read failure for [{}]", path.objectName(), cause);
+        return new IOException(context + " [" + path.objectName() + "]", cause);
     }
 
     /**
@@ -248,7 +250,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             // READ_TO_END: the offset-only BlobRange reads from position to the end of the blob — no length() lookup.
             BlobRange range = toEnd ? new BlobRange(position) : new BlobRange(position, length);
             BlobInputStream blobStream = validateOpenedBlob(blobClient.openInputStream(range, requestConditions()));
-            return new AzureTransientTypingInputStream(blobStream, path);
+            return metered(new AzureTransientTypingInputStream(blobStream, path));
         } catch (Exception e) {
             if (toEnd && e instanceof BlobStorageException bse && bse.getStatusCode() == 416) {
                 // Open-ended read at/after the end of an (empty or shorter) object: nothing to read. The SPI
@@ -257,7 +259,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             }
             throw throwReadFailure("Range request failed for", e);
         } finally {
-            counters.addRequest(System.nanoTime() - startNanos, toEnd ? 0L : length);
+            counters.addRequest(System.nanoTime() - startNanos, 0L);
         }
     }
 
@@ -267,7 +269,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             fetchMetadata();
         }
         if (cachedExists != null && cachedExists == false) {
-            throw new IOException("Object not found: " + path);
+            throw new ExternalClientException(Condition.OBJECT_NOT_FOUND, path, "", "");
         }
         return cachedLength;
     }
@@ -308,6 +310,36 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
         return pinnedEtag.get();
     }
 
+    /** The ETag the metadata probe saw. Reads are not conditional on it until a pin is seeded from it. */
+    @Override
+    public String probedVersion() {
+        return probedEtag;
+    }
+
+    /**
+     * Seeds the pin with the ETag a listing reported, so the first download is conditional on it. A weak ETag is not a
+     * byte-for-byte identifier, so it is ignored, and so is any ETag when a pin is already set.
+     */
+    void seedVersion(String version) {
+        String quoted = quotedEtag(version);
+        if (quoted != null) {
+            pinnedEtag.compareAndSet(null, quoted);
+        }
+    }
+
+    /**
+     * The ETag as the conditional headers spell it, in quotes. List Blobs returns it without the quotes that Get Blob and
+     * Get Properties use, so a listed ETag is quoted here before it is compared with a download's. Weak and absent ETags
+     * are not versions, so they give {@code null}.
+     */
+    @Nullable
+    static String quotedEtag(@Nullable String etag) {
+        if (etag == null || etag.isBlank() || etag.regionMatches(true, 0, "W/", 0, 2)) {
+            return null;
+        }
+        return etag.startsWith("\"") ? etag : "\"" + etag + "\"";
+    }
+
     private BlobRequestConditions requestConditions() {
         BlobRequestConditions conditions = new BlobRequestConditions();
         String etag = pinnedEtag.get();
@@ -319,21 +351,24 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
 
     /** Weak ETags ({@code W/"..."}) are not byte-for-byte identifiers, so they are never used as a pin. */
     private void observeEtag(String etag) {
+        // Compared in the quoted form the conditional headers use. List Blobs reports an ETag unquoted, while Get Properties
+        // and downloads quote it, so a seeded version and an observed one can differ in quoting for the same blob.
+        String observed = quotedEtag(etag);
         String current = pinnedEtag.get();
-        if (etag == null || etag.isBlank() || etag.regionMatches(true, 0, "W/", 0, 2)) {
+        if (observed == null) {
             if (current != null) {
-                throw new ExternalObjectChangedException("Object generation could not be verified during read of [{}]", path);
+                throw new ExternalObjectChangedException(path);
             }
             return;
         }
         if (current == null) {
-            if (pinnedEtag.compareAndSet(null, etag)) {
+            if (pinnedEtag.compareAndSet(null, observed)) {
                 return;
             }
             current = pinnedEtag.get();
         }
-        if (current.equals(etag) == false) {
-            throw new ExternalObjectChangedException("Object changed during read of [{}]", path);
+        if (current.equals(observed) == false) {
+            throw new ExternalObjectChangedException(path);
         }
     }
 
@@ -376,7 +411,9 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
     private void fetchMetadata() throws IOException {
         try {
             var properties = blobClient.getProperties();
+            ExternalPlanningIo.addMetadataGet(0);
             cachedExists = true;
+            probedEtag = quotedEtag(properties.getETag());
             // getProperties() transfers no blob bytes: it reports whatever version is current, which is
             // not necessarily the one reads are pinned to. It must neither establish the pin nor
             // overwrite the pinned version's size (already set by the download that pinned it).
@@ -386,12 +423,13 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             }
             cachedLastModified = properties.getLastModified() != null ? properties.getLastModified().toInstant() : null;
         } catch (Exception e) {
+            ExternalPlanningIo.addMetadataGet(0);
             if (e instanceof BlobStorageException bse && bse.getStatusCode() == 404) {
                 setNotFound();
             } else if (e instanceof BlobStorageException bse && bse.getStatusCode() == 403) {
                 fetchMetadataViaRangeGet();
             } else {
-                throw new IOException("Failed to get metadata for " + path, e);
+                throw new IOException("Failed to get metadata for [" + path.objectName() + "]", e);
             }
         }
     }
@@ -411,12 +449,14 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
                 null
             );
             var headers = response.getDeserializedHeaders();
+            ExternalPlanningIo.addMetadataGet(output.size());
             cachedExists = true;
+            probedEtag = quotedEtag(headers.getETag());
             observeEtag(headers.getETag());
             Long total = ContentRangeParser.parseTotalLength(headers.getContentRange());
             if (total == null) {
                 throw new IOException(
-                    "Failed to determine object size for " + path + ": Content-Range header missing from range GET response"
+                    "Failed to determine size for [" + path.objectName() + "]: Content-Range header missing from range GET response"
                 );
             }
             cachedLength = total;
@@ -424,6 +464,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
         } catch (IOException e) {
             throw e;
         } catch (Exception e) {
+            ExternalPlanningIo.addMetadataGet(0);
             if (e instanceof BlobStorageException bse && bse.getStatusCode() == 404) {
                 setNotFound();
             } else if (e instanceof BlobStorageException bse && bse.getStatusCode() == 412) {
@@ -431,7 +472,10 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
                 // path reports; keep the typing rather than flattening it to a client-class 400.
                 throw throwReadFailure("Failed to get metadata for", e);
             } else {
-                throw new IOException("Failed to get metadata for " + path + " (properties denied, range GET also failed)", e);
+                throw new IOException(
+                    "Failed to get metadata for [" + path.objectName() + "] (properties denied, range GET also failed)",
+                    e
+                );
             }
         }
     }
@@ -633,6 +677,6 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
 
     @Override
     public String toString() {
-        return "AzureStorageObject{container=" + container + ", blobName=" + blobName + ", path=" + path + "}";
+        return "AzureStorageObject[" + path.objectName() + "]";
     }
 }

@@ -857,11 +857,7 @@ public class TextFieldMapperTests extends MapperTestCase {
             // Terms (indexed) column assertions.
             assertNotNull("multi_value=false columnar text must write an indexed terms column", termsColumn);
             assertTrue("terms column must be tokenized", termsColumn.fieldType().tokenized());
-            assertEquals(
-                "terms column must use DOCS_AND_FREQS_AND_POSITIONS",
-                IndexOptions.DOCS_AND_FREQS_AND_POSITIONS,
-                termsColumn.fieldType().indexOptions()
-            );
+            assertEquals("terms column must use DOCS in strictly columnar mode", IndexOptions.DOCS, termsColumn.fieldType().indexOptions());
             assertEquals("terms column must have no doc values", DocValuesType.NONE, termsColumn.fieldType().docValuesType());
             assertFalse("terms column must not be stored", termsColumn.fieldType().stored());
             ObjectTupleCursor<BytesRef> termsCursor = termsColumn.tuples();
@@ -2757,6 +2753,98 @@ public class TextFieldMapperTests extends MapperTestCase {
             }
         }
         assertTrue("Should have a doc_values field in columnar mode by default", hasDocValuesField);
+    }
+
+    public void testDefaultIndexOptionsIsDocsWhenIndexModeIsColumnar() throws IOException {
+        assertDefaultIndexOptionsIsDocsInColumnarMode(IndexMode.COLUMNAR);
+    }
+
+    public void testDefaultIndexOptionsIsDocsWhenIndexModeIsColumnarLogsdb() throws IOException {
+        assertDefaultIndexOptionsIsDocsInColumnarMode(IndexMode.LOGSDB_COLUMNAR);
+    }
+
+    public void testDefaultIndexOptionsIsPositionsWhenIndexModeIsVectordbColumnar() throws IOException {
+        assumeTrue("vectordb_columnar index mode requires snapshot build", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
+        // vectordb_columnar is search-optimized, so it keeps the "positions" default rather than dropping to "docs".
+        Settings indexSettings = getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.VECTORDB_COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(indexSettings, mapping(b -> b.startObject("field").field("type", "text").endObject()))
+            .documentMapper();
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.field("@timestamp", Instant.now());
+            b.field("field", "a quick brown fox");
+        }));
+        assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, indexedFieldIndexOptions(doc, "field"));
+    }
+
+    private void assertDefaultIndexOptionsIsDocsInColumnarMode(IndexMode indexMode) throws IOException {
+        Settings.Builder indexSettingsBuilder = getIndexSettingsBuilder();
+        indexSettingsBuilder.put(IndexSettings.MODE.getKey(), indexMode.getName());
+        Settings indexSettings = indexSettingsBuilder.build();
+
+        // Strictly columnar indices read values from doc values and default norms off, so an omitted index_options defaults to
+        // "docs" rather than "positions".
+        DocumentMapper mapper = createMapperService(indexSettings, mapping(b -> b.startObject("field").field("type", "text").endObject()))
+            .documentMapper();
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.field("@timestamp", Instant.now());
+            b.field("field", "a quick brown fox");
+        }));
+        assertEquals(IndexOptions.DOCS, indexedFieldIndexOptions(doc, "field"));
+
+        // An explicit index_options still overrides the columnar default.
+        DocumentMapper explicitMapper = createMapperService(
+            indexSettings,
+            mapping(b -> b.startObject("field").field("type", "text").field("index_options", "positions").endObject())
+        ).documentMapper();
+        ParsedDocument explicitDoc = explicitMapper.parse(source(b -> {
+            b.field("@timestamp", Instant.now());
+            b.field("field", "a quick brown fox");
+        }));
+        assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, indexedFieldIndexOptions(explicitDoc, "field"));
+
+        // index_phrases needs positions; when it is set without an explicit index_options the columnar default stays "positions".
+        DocumentMapper phrasesMapper = createMapperService(
+            indexSettings,
+            mapping(b -> b.startObject("field").field("type", "text").field("index_phrases", true).endObject())
+        ).documentMapper();
+        ParsedDocument phrasesDoc = phrasesMapper.parse(source(b -> {
+            b.field("@timestamp", Instant.now());
+            b.field("field", "a quick brown fox");
+        }));
+        assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, indexedFieldIndexOptions(phrasesDoc, "field"));
+    }
+
+    public void testDefaultIndexOptionsBeforeVersionKeepsPositionsInColumnarMode() throws IOException {
+        // Indices created before TEXT_INDEX_OPTIONS_DOCS_BY_DEFAULT_IN_COLUMNAR keep the historical "positions" default so their
+        // existing segments (which may already carry positions) stay consistent on upgrade.
+        IndexVersion oldVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.TEXT_INDEX_OPTIONS_DOCS_BY_DEFAULT_IN_COLUMNAR);
+        Settings indexSettings = getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(
+            oldVersion,
+            indexSettings,
+            mapping(b -> b.startObject("field").field("type", "text").endObject())
+        ).documentMapper();
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.field("@timestamp", Instant.now());
+            b.field("field", "a quick brown fox");
+        }));
+        assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, indexedFieldIndexOptions(doc, "field"));
+    }
+
+    public void testDefaultIndexOptionsIsPositionsInStandardMode() throws IOException {
+        // Standard (non-columnar) indices keep the historical "positions" default when index_options is omitted.
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "text")));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "a quick brown fox")));
+        assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, indexedFieldIndexOptions(doc, "field"));
+    }
+
+    private static IndexOptions indexedFieldIndexOptions(ParsedDocument doc, String field) {
+        for (IndexableField indexableField : doc.rootDoc().getFields(field)) {
+            if (indexableField.fieldType().indexOptions() != IndexOptions.NONE) {
+                return indexableField.fieldType().indexOptions();
+            }
+        }
+        throw new AssertionError("no indexed field found for [" + field + "]");
     }
 
     public void testTextKeepsOwnDocValuesInColumnarMode() throws IOException {

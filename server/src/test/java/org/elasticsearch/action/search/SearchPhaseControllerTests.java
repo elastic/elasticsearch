@@ -615,7 +615,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         try (
             SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
                 fixedExecutor,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                NoopCircuitBreaker.INSTANCE,
                 () -> false,
                 SearchProgressListener.NOOP,
                 request,
@@ -739,7 +739,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         try (
             SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
                 fixedExecutor,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                NoopCircuitBreaker.INSTANCE,
                 () -> false,
                 SearchProgressListener.NOOP,
                 request,
@@ -802,7 +802,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         try (
             SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
                 fixedExecutor,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                NoopCircuitBreaker.INSTANCE,
                 () -> false,
                 SearchProgressListener.NOOP,
                 request,
@@ -864,7 +864,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         try (
             SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
                 fixedExecutor,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                NoopCircuitBreaker.INSTANCE,
                 () -> false,
                 SearchProgressListener.NOOP,
                 request,
@@ -930,7 +930,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         try (
             SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
                 fixedExecutor,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                NoopCircuitBreaker.INSTANCE,
                 () -> false,
                 SearchProgressListener.NOOP,
                 request,
@@ -987,7 +987,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         try (
             SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
                 fixedExecutor,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                NoopCircuitBreaker.INSTANCE,
                 () -> false,
                 SearchProgressListener.NOOP,
                 request,
@@ -1042,7 +1042,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         try (
             SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
                 fixedExecutor,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                NoopCircuitBreaker.INSTANCE,
                 () -> false,
                 SearchProgressListener.NOOP,
                 request,
@@ -1100,7 +1100,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         try (
             SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
                 fixedExecutor,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                NoopCircuitBreaker.INSTANCE,
                 () -> false,
                 SearchProgressListener.NOOP,
                 request,
@@ -1246,7 +1246,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             try (
                 SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
                     fixedExecutor,
-                    new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                    NoopCircuitBreaker.INSTANCE,
                     () -> false,
                     progressListener,
                     request,
@@ -1391,7 +1391,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         try (
             SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
                 fixedExecutor,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                NoopCircuitBreaker.INSTANCE,
                 () -> false,
                 SearchProgressListener.NOOP,
                 request,

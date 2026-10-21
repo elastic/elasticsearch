@@ -57,6 +57,25 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
         });
     }
 
+    /** A run of documents holding a value is reported to its end, so a consumer can take it whole. */
+    public void testRunOfDocuments() throws IOException {
+        final BytesRef[] dense = dense(between(50, 500));
+        withSurface(dense, dv -> {
+            assertEquals(0, dv.nextDoc());
+            assertEquals("every document holds a value", dense.length, dv.docIDRunEnd());
+        });
+        final BytesRef[] sparse = sparse(between(200, 800));
+        withSurface(sparse, dv -> {
+            for (int doc = dv.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = dv.nextDoc()) {
+                final int runEnd = dv.docIDRunEnd();
+                assertTrue("a run holds the document it is asked at", runEnd > doc);
+                for (int d = doc; d < runEnd; d++) {
+                    assertNotNull("document " + d + " is inside a run", sparse[d]);
+                }
+            }
+        });
+    }
+
     /** Re-asking for the current document must not move the cursor or change the value. */
     public void testAdvanceExactIsRepeatable() throws IOException {
         final BytesRef[] docValues = dense(between(20, 100));

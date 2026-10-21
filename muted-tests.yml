@@ -97,9 +97,6 @@ tests:
 - class: org.elasticsearch.backwards.RareTermsIT
   method: testSingleValuedString
   issue: https://github.com/elastic/elasticsearch/issues/147853
-- class: org.elasticsearch.search.aggregations.metrics.LargeTopHitsIT
-  method: test500Queries
-  issue: https://github.com/elastic/elasticsearch/issues/148056
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testStressWithRelocationFailures
   issue: https://github.com/elastic/elasticsearch/issues/148129
@@ -449,9 +446,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {yaml=indices.sort/10_basic/Index Sort}
   issue: https://github.com/elastic/elasticsearch/issues/162591
-- class: org.elasticsearch.integration.FieldLevelSecurityTests
-  method: testPercolatorConstantKeywordQueryDependsOnIndexingUsersFls
-  issue: https://github.com/elastic/elasticsearch/issues/161396
 - class: org.elasticsearch.search.SearchServiceSingleNodeTests
   method: testWaitOnRefreshFailsIfCheckpointNotIndexed
   issue: https://github.com/elastic/elasticsearch/issues/162761
@@ -461,3 +455,21 @@ tests:
 - class: org.elasticsearch.test.apmintegration.OTelMetricsBufferSurvivesRestartIT
   method: testPreExistingBufferFilesDrainAfterRestart
   issue: https://github.com/elastic/elasticsearch/issues/161602
+- class: org.elasticsearch.xpack.downsample.DownsampleActionSingleNodeTests
+  method: testDownsampleResumesAfterPersistentTaskRemoved
+  issue: https://github.com/elastic/elasticsearch/issues/162858
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
+  method: "testEvaluate {TestCase=field: <random mv UNORDERED doubles>, percentile: <positive int>}"
+  issue: https://github.com/elastic/elasticsearch/issues/162860
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
+  method: "testEvaluate {TestCase=field: <random mv SORTED_ASCENDING doubles>, percentile: <positive int>}"
+  issue: https://github.com/elastic/elasticsearch/issues/162862
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
+  method: "testEvaluate {TestCase=field: <random mv DEDUPLICATED_UNORDERD doubles>, percentile: <positive int>}"
+  issue: https://github.com/elastic/elasticsearch/issues/162864
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
+  method: "testEvaluate {TestCase=field: <random mv DEDUPLICATED_AND_SORTED_ASCENDING doubles>, percentile: <positive int>}"
+  issue: https://github.com/elastic/elasticsearch/issues/162867
+- class: org.elasticsearch.index.codec.tsdb.ES819DocValuesDuelTests
+  method: testDuel
+  issue: https://github.com/elastic/elasticsearch/issues/162874

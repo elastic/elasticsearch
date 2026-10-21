@@ -173,10 +173,17 @@ class TransformFailureHandler {
      * @param numFailureRetries the number of configured retries
      */
     private void handleBulkIndexingException(BulkIndexingException bulkIndexingException, boolean unattended, int numFailureRetries) {
-        // A shard that is being restored from a snapshot is handled like a cluster block on the destination index
-        if (bulkIndexingException.getCause() instanceof ClusterBlockException
-            || bulkIndexingException.getCause() instanceof ShardRestoringException) {
+        if (bulkIndexingException.getCause() instanceof ClusterBlockException) {
             context.setIsWaitingForIndexToUnblock(true);
+            retryWithoutIncrementingFailureCount(
+                bulkIndexingException,
+                bulkIndexingException.getDetailedMessage(),
+                unattended,
+                numFailureRetries
+            );
+        } else if (bulkIndexingException.getCause() instanceof ShardRestoringException) {
+            // A restore opens the index and sets no cluster block, so there is no block to wait on: do not set the waiting flag.
+            // The restore is transient and can be long, so retry without counting it against the failure retries.
             retryWithoutIncrementingFailureCount(
                 bulkIndexingException,
                 bulkIndexingException.getDetailedMessage(),

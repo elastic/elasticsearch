@@ -224,8 +224,9 @@ public class TransformFailureHandlerTests extends ESTestCase {
     }
 
     /**
-     * On the bulk path it is handled like a {@link ClusterBlockException} on the destination index: an uncounted retry, so the
-     * transform waits for the restore instead of failing.
+     * On the bulk path it is an uncounted retry, so the transform keeps retrying through the restore instead of failing. Unlike a
+     * {@link ClusterBlockException}, a restore sets no cluster block on the destination index, so the transform must not be marked as
+     * waiting for an index block to be removed.
      */
     public void testHandleIndexerFailure_BulkIndexExceptionWrappingShardRestoringException() {
         final BulkIndexingException bulkIndexingException = new BulkIndexingException(
@@ -234,7 +235,7 @@ public class TransformFailureHandlerTests extends ESTestCase {
             randomBoolean()
         );
 
-        List.of(true, false).forEach((unattended) -> { assertClusterBlockHandled(bulkIndexingException, unattended); });
+        List.of(true, false).forEach((unattended) -> { assertUncountedRetryWithoutBlockWait(bulkIndexingException, unattended); });
     }
 
     private void assertRetryIfUnattendedOtherwiseFail(Exception e) {
@@ -283,6 +284,23 @@ public class TransformFailureHandlerTests extends ESTestCase {
         assertNoFailure(handler, e, contextListener, settings, false);
         assertNoFailure(handler, e, contextListener, settings, false);
         assertTrue(context.isWaitingForIndexToUnblock());
+    }
+
+    private void assertUncountedRetryWithoutBlockWait(Exception e, boolean unattended) {
+        String transformId = randomAlphaOfLength(10);
+        SettingsConfig settings = new SettingsConfig.Builder().setNumFailureRetries(2).setUnattended(unattended).build();
+
+        MockTransformAuditor auditor = MockTransformAuditor.createMockAuditor();
+        MockTransformContextListener contextListener = new MockTransformContextListener();
+        TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, contextListener);
+        context.setPageSize(500);
+
+        TransformFailureHandler handler = new TransformFailureHandler(auditor, context, transformId);
+
+        assertNoFailure(handler, e, contextListener, settings, false);
+        assertNoFailure(handler, e, contextListener, settings, false);
+        assertNoFailure(handler, e, contextListener, settings, false);
+        assertFalse(context.isWaitingForIndexToUnblock());
     }
 
     private void assertFailure(Exception e) {

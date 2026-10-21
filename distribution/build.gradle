@@ -14,6 +14,7 @@ import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.ConcatFilesTask
 import org.elasticsearch.gradle.internal.DependenciesInfoPlugin
 import org.elasticsearch.gradle.internal.NoticeTask
+import org.elasticsearch.gradle.internal.distribution.BundledJdkBlockedCertsTask
 import org.elasticsearch.gradle.internal.distribution.BundledJdkPlatforms
 import org.elasticsearch.gradle.internal.distribution.ModulePlatforms
 import org.elasticsearch.gradle.internal.distribution.TokenExpansions
@@ -297,6 +298,46 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
   }
 
+  /*
+   * SHA-256 fingerprints of certificates the bundled JDK must not trust, in addition to the ones in the JDK's own
+   * lib/security/blocked.certs. The packaging tests check that the bundled JDK rejects them, see BlockedCertificates.
+   * Entries can be removed once the bundled JDK no longer trusts the certificates by itself, for example because
+   * OpenJDK removed the roots that issued them from cacerts, or once the certificates expire.
+   */
+  List<String> additionalBlockedCerts = [
+    // eMudhra intermediate CAs with compromised private keys, each issued by an emSign G3 root and cross-signed by
+    // Sectigo's AAA Certificate Services root, see https://bugzilla.mozilla.org/show_bug.cgi?id=2083449. The
+    // certificates issued by the emSign roots expire on 2040-04-28 and the ones issued by AAA on 2028-12-31.
+    '42C4ACCD12C4F59597925E1A08A7A90102608543809308D50EC427E118BA1493', // EM DV TLS CA - G3B (emSign Root TLS CA - G3)
+    '45A883F349AEDFD5F3A649B5498FFB121712BA8B448F3F2A91DBC5A766FCDDBE', // EM DV TLS CA - G3B (AAA Certificate Services)
+    '98B896625C0C230ADEEC3EB2CF6AAD5001ECF9156A68644E82374CE5833BC25B', // EM OV TLS CA - G3B (emSign Root TLS CA - G3)
+    '5F1DED4DD590AF74631290CF073B122A2AAC6A1FA479778A0BD43579BD832699', // EM OV TLS CA - G3B (AAA Certificate Services)
+    'E7568FE6E12331F4FD7DE61DA4C7559D0F8EB192A218D4741A3BA75184333838', // EM EV TLS CA - G3B (emSign Root TLS CA - G3)
+    '579480AEA166290BD3C643589E795FC0D0E54E86505D180F1DFF99EFD3199512', // EM EV TLS CA - G3B (AAA Certificate Services)
+    '0164D7CEAE5BB909C272AF151FF44B1177AE9B47D9424B94F1D9558C30934D19', // EM DV TLS CA - G3C (emSign Root TLS CA - G3)
+    '62B7F9868263F72F6911FC78CEAF72C1979158B7368BF648683BB2AA39B02E72', // EM DV TLS CA - G3C (AAA Certificate Services)
+    'CB6E15165AC802E9B3F993F16C25D41F4E81C21EBDE71AE1B012AC00BF9C7C3F', // EM OV TLS CA - G3C (emSign Root TLS CA - G3)
+    '7485B51C0ED192878FA1D2F948FB529AE1842CC5086C4B67F7BE5B2039DE9489', // EM OV TLS CA - G3C (AAA Certificate Services)
+    '432EC25F0D28DE9006D97BF752F17BBB2CD41F669933FCB072D9A1148D0261F3', // EM EV TLS CA - G3C (emSign Root TLS CA - G3)
+    'FD9D5C2DBBD4995AB69B8D50C439D9527B00529199C2FD01B2174EB58F07021F', // EM EV TLS CA - G3C (AAA Certificate Services)
+    '9E39DE2881273ACC225A149C72BA3E0F51424963669AB633EE1DC7DF5DB067B4', // EM OV CS CA - G3B (emSign Root CS CA - G3)
+    'A496E23AC0CAB8155FC9B117B97EAE368EFCBB9041AEC8804D5A308D2D01C2D8', // EM OV CS CA - G3B (AAA Certificate Services)
+    '4B2460A466F95FD40113BCDCCA2CEB29B3B093921DE45474DA7DF48874C630B1', // EM OV CS CA - G3C (emSign Root CS CA - G3)
+    '84112972B8E59D14560AE7E7119654474AAD119990CF3722BFC1E3B91615E1FD', // EM OV CS CA - G3C (AAA Certificate Services)
+  ]
+
+  BundledJdkPlatforms.PLATFORMS.each { platform ->
+    BundledJdkPlatforms.architecturesFor(platform, bundledJdkMajor).each { architecture ->
+      String jdkName = BundledJdkPlatforms.jdkName(platform, architecture)
+      def jdk = project.jdks.getByName(jdkName)
+      tasks.register("${jdkName}BlockedCerts", BundledJdkBlockedCertsTask) {
+        jdkBlockedCerts.from(files(jdk).asFileTree.matching { include "${BundledJdkPlatforms.securityDir(platform)}/blocked.certs" })
+        additionalFingerprints.set(additionalBlockedCerts)
+        outputFile.set(layout.buildDirectory.file("jdk-security/${jdkName}/blocked.certs"))
+      }
+    }
+  }
+
 
   // TODO: the map needs to be an input of the tasks, so that when it changes, the task will re-run...
   /*****************************************************************************
@@ -527,8 +568,15 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     }
 
     jdkFiles = { Project project, String os, String architecture ->
+      String jdkName = BundledJdkPlatforms.jdkName(os, architecture)
       return copySpec {
-        from project.jdks.getByName(BundledJdkPlatforms.jdkName(os, architecture))
+        from(project.jdks.getByName(jdkName)) {
+          // replaced by the copy with additional blocked certificates below
+          exclude "${BundledJdkPlatforms.securityDir(os)}/blocked.certs"
+        }
+        into(BundledJdkPlatforms.securityDir(os)) {
+          from project.tasks.named("${jdkName}BlockedCerts")
+        }
         exclude "demo/**"
         /*
          * The Contents/MacOS directory interferes with notarization, and is unused by our distribution, so we exclude

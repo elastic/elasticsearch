@@ -9,6 +9,7 @@
 
 package org.elasticsearch.packaging.test;
 
+import org.elasticsearch.packaging.util.BlockedCertificates;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Packages;
 import org.elasticsearch.packaging.util.Shell.Result;
@@ -61,6 +62,10 @@ public class PackageTests extends PackagingTestCase {
         assertInstalled(distribution());
         verifyPackageInstallation(installation, distribution(), sh);
         setFileSuperuser("test_superuser", "test_superuser_password");
+    }
+
+    public void test11BundledJdkRejectsBlockedCertificates() {
+        BlockedCertificates.assertBundledJdkRejectsCompromisedCertificates(sh, installation.bundledJdk, BlockedCertificates.checkDir());
     }
 
     public void test20PluginsCommandWhenNoPlugins() {

@@ -14,6 +14,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.apache.http.client.fluent.Request;
+import org.elasticsearch.packaging.util.BlockedCertificates;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ProcessInfo;
@@ -57,6 +58,7 @@ import static org.elasticsearch.packaging.util.FileUtils.deleteIfExists;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
 import static org.elasticsearch.packaging.util.docker.Docker.chownWithPrivilegeEscalation;
 import static org.elasticsearch.packaging.util.docker.Docker.copyFromContainer;
+import static org.elasticsearch.packaging.util.docker.Docker.copyToContainer;
 import static org.elasticsearch.packaging.util.docker.Docker.existsInContainer;
 import static org.elasticsearch.packaging.util.docker.Docker.findInContainer;
 import static org.elasticsearch.packaging.util.docker.Docker.getContainerId;
@@ -415,6 +417,16 @@ public class DockerTests extends PackagingTestCase {
             .anyMatch(line -> line.contains("amazonrootca"));
 
         assertTrue("Expected Amazon trusted cert in cacerts", matches);
+    }
+
+    /**
+     * Checks that the bundled JDK rejects compromised certificates. The image replaces the JDK's `cacerts` but must keep
+     * the JDK's `blocked.certs` from the distribution.
+     */
+    public void test043BundledJdkRejectsBlockedCertificates() {
+        final Path checkDir = Path.of("/tmp/blocked-certs");
+        copyToContainer(BlockedCertificates.checkDir(), checkDir);
+        BlockedCertificates.assertBundledJdkRejectsCompromisedCertificates(sh, installation.bundledJdk, checkDir);
     }
 
     /**

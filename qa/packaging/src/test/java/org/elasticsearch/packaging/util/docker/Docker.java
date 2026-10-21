@@ -363,6 +363,17 @@ public class Docker {
     }
 
     /**
+     * Copies a file or directory from the local filesystem into the container
+     * @param from the file or directory to copy
+     * @param to the location to place the copy in the container
+     */
+    public static void copyToContainer(Path from, Path to) {
+        final String script = "docker cp " + from + " " + containerId + ":" + to;
+        logger.debug("Copying file to container with: " + script);
+        sh.run(script);
+    }
+
+    /**
      * Checks whether a path exists in the Docker container.
      * @param path the path that ought to exist
      * @return whether the path exists

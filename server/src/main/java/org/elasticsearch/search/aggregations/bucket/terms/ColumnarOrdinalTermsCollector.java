@@ -31,8 +31,8 @@ import java.util.function.LongConsumer;
  *
  * <p>Only the lookup from term bytes to bucket changes. Sub-aggregations, {@code _doc_count} and
  * {@code significant_terms} counting work as they do in the per-document loop, because the consumer still does the
- * counting. The collector knows nothing of how the column encodes its ordinals: {@link StringColumnSource#nonNullValueCount}
- * says how many values a document has, and {@link StringColumnSource#denseTermOrdinal} which term the one value is.
+ * counting. The collector knows nothing of how the column encodes its ordinals: {@link StringColumnSource#denseTermOrdinal}
+ * says for each document whether it has no value, several, an escaped one, or which term its one value is.
  *
  * <p>A document is decided on its own. A document with one value, in the dictionary, is counted from the cache. An
  * escaped value is hashed for each document, as it is without the cache. A document with several values goes to the
@@ -146,15 +146,14 @@ final class ColumnarOrdinalTermsCollector extends LeafBucketCollectorBase {
         if (docValues.advanceExact(doc) == false) {
             return;
         }
-        final int count = source.nonNullValueCount();
-        if (count == 0) {
+        final int ordinal = source.denseTermOrdinal();
+        if (ordinal == StringColumnSource.NO_VALUE) {
             return;
         }
-        if (count > 1) {
+        if (ordinal == StringColumnSource.MULTI_VALUED) {
             fallback.collect(doc, 0);
             return;
         }
-        final int ordinal = source.denseTermOrdinal();
         if (ordinal == StringColumnSource.ESCAPED) {
             final BytesRef escaped = source.escapedValue(scratch);
             if (includeExclude == null || includeExclude.accept(escaped)) {

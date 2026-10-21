@@ -30,15 +30,23 @@ public interface StringColumnSource {
     /** Whether a document's blob is its one value's own bytes rather than a payload of its slots. */
     boolean singleValued();
 
+    /** {@link #denseTermOrdinal} answer: the document holds no value. */
+    int NO_VALUE = -1;
+
     /** {@link #denseTermOrdinal} answer: the document's one value is not in the dictionary. Read it with {@link #escapedValue}. */
-    int ESCAPED = -1;
+    int ESCAPED = -2;
+
+    /** {@link #denseTermOrdinal} answer: the document holds more than one non-null value. */
+    int MULTI_VALUED = -3;
 
     /**
-     * The dense ordinal of the one value the document these values are positioned on holds, so a caller that counts or
-     * groups by value can work with small ints and read each term once rather than once for each document. Only for a
-     * column with a dictionary, which {@code reader().hasDictionary()} says, and only for a document that
-     * {@link #nonNullValueCount()} says holds exactly one value. A null slot is no value, so a document of several slots
-     * with one non-null slot holds one value.
+     * What the document these values are positioned on holds, in one call, so a caller that counts or groups by value can
+     * work with small ints and read each term once rather than once for each document. Only for a column with a
+     * dictionary, which {@code reader().hasDictionary()} says.
+     *
+     * <p>The answer is the dense ordinal of the document's one value, or {@link #NO_VALUE}, {@link #ESCAPED} or
+     * {@link #MULTI_VALUED}. A null slot is no value, so a document of several slots with one non-null slot holds one
+     * value. A caller sends a {@link #MULTI_VALUED} document to a path that reads all its values.
      *
      * <p>A dense ordinal runs from zero up to {@code reader().dictionarySize()}, so a caller can index an array by it. It is
      * not the ordinal the column stores, which reserves values for a null slot and for the marker of an escaped value, and

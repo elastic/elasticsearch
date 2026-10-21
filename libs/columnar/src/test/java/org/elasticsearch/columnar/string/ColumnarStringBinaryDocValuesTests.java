@@ -209,11 +209,12 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
             for (int doc = dv.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = dv.nextDoc()) {
                 final List<BytesRef> valued = Arrays.stream(docSlots[doc]).filter(slot -> slot != null).toList();
                 assertEquals("count at doc " + doc, valued.size(), dv.nonNullValueCount());
-                if (valued.size() != 1) {
-                    continue;
-                }
                 final int ordinal = dv.denseTermOrdinal();
-                if (ordinal == StringColumnSource.ESCAPED) {
+                if (valued.isEmpty()) {
+                    assertEquals("doc " + doc, StringColumnSource.NO_VALUE, ordinal);
+                } else if (valued.size() > 1) {
+                    assertEquals("doc " + doc, StringColumnSource.MULTI_VALUED, ordinal);
+                } else if (ordinal == StringColumnSource.ESCAPED) {
                     escaped++;
                     assertEquals("doc " + doc, valued.get(0), dv.escapedValue(new BytesRef()));
                 } else {

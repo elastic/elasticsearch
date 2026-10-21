@@ -115,14 +115,19 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
         final int rank = iterator.rank();
         final long first = reader.firstValueAddress(rank);
         final long slots = reader.valueCount(rank);
+        int found = NO_VALUE;
         for (long slot = first; slot < first + slots; slot++) {
             final int ordinal = dictionary.ordinalAt(slot);
-            if (ordinal != StringColumnMetadata.Dictionary.NULL_ORDINAL) {
-                valueSlot = slot;
-                return ordinal == dictionary.escapeOrdinal() ? ESCAPED : ordinal - StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL;
+            if (ordinal == StringColumnMetadata.Dictionary.NULL_ORDINAL) {
+                continue;
             }
+            if (found != NO_VALUE) {
+                return MULTI_VALUED;
+            }
+            found = ordinal == dictionary.escapeOrdinal() ? ESCAPED : ordinal - StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL;
+            valueSlot = slot;
         }
-        throw new IllegalStateException("the document holds no value");
+        return found;
     }
 
     @Override

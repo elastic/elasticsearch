@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.qa.rest;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
@@ -224,7 +225,8 @@ public final class EsqlDataSourceMixedClusterTestSupport {
                     new Node(
                         nodesInfo.evaluate("nodes." + id + ".name"),
                         version,
-                        nodesInfo.evaluate("nodes." + id + ".http.publish_address")
+                        nodesInfo.evaluate("nodes." + id + ".http.publish_address"),
+                        nodesInfo.evaluate("nodes." + id + ".roles")
                     )
                 );
             }
@@ -303,5 +305,14 @@ public final class EsqlDataSourceMixedClusterTestSupport {
     /**
      * One node returned by {@code GET /_nodes}.
      */
-    public record Node(String name, Version version, String httpAddress) {}
+    public record Node(String name, Version version, String httpAddress, List<String> roles) {
+
+        /**
+         * Whether the planner may place an external-source scan on this node. Nodes with the {@code index} role are never
+         * given one, so a stateless cluster's index nodes coordinate and write but do not read external data.
+         */
+        public boolean runsExternalScans() {
+            return roles.contains(DiscoveryNodeRole.INDEX_ROLE.roleName()) == false;
+        }
+    }
 }

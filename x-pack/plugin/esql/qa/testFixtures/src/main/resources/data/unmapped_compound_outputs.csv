@@ -1,0 +1,4 @@
+id:keyword,url:keyword,host:keyword,agent:keyword,addr:ip,parts.domain:keyword,parts.port:keyword,rd.domain:keyword,ua.name:keyword,g.country_iso_code:keyword,other:keyword,tag:keyword
+1,http://www.example.com:8080/a,www.example.co.uk,Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2) AppleWebKit/537.36 (KHTML\, like Gecko) Chrome/33.0.1750.149 Safari/537.36,8.8.8.8,old.example,80,old.rd,old.ua,XX,x,t
+2,https://example.org/b,mail.example.org,Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/115.0,1.1.1.1,old.example2,81,old.rd2,old.ua2,YY,x,t
+3,http://c.example.net/c,c.example.net,curl/8.0.1,9.9.9.9,,,,,,,

@@ -55,6 +55,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.UnmappedFields;
 import org.elasticsearch.index.query.support.AutoPrefilteringScope;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.search.QueryParserHelper;
@@ -133,6 +134,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private boolean cacheable = true;
     private final SetOnce<Boolean> frozen = new SetOnce<>();
     private Set<String> fieldsInIndex = null;
+    private UnmappedFields unmappedFields = null;
 
     private final Map<String, Query> namedQueries = new HashMap<>();
     private NestedScope nestedScope;
@@ -642,6 +644,18 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return indexSortConfig.hasPrimarySortOnField(field);
     }
 
+    /**
+     * Whether a range query on the field can use Lucene's {@code IndexSortSortedNumericDocValuesRangeQuery}.
+     */
+    public boolean canUseIndexSortRangeQuery(String field) {
+        // NOTE: Workaround for a Lucene bug, see https://github.com/elastic/elasticsearch/issues/162656.
+        // That query binary searches the values of all documents in a segment and needs them sorted.
+        // The index sort only applies to the root document of a block, so the values of the nested
+        // documents are not in sort order.
+        // Remove this check once Lucene handles segments with document blocks.
+        return nestedLookup() == NestedLookup.EMPTY && indexSortedOnField(field);
+    }
+
     public ParsedQuery toQuery(QueryBuilder queryBuilder) {
         reset();
         try {
@@ -784,16 +798,29 @@ public class SearchExecutionContext extends QueryRewriteContext {
         if (searcher == null) {
             return false;
         }
-        if (fieldsInIndex == null) {
-            fieldsInIndex = new HashSet<>();
+        Set<String> fields = fieldsInIndex;
+        if (fields == null) {
+            Set<String> names = new HashSet<>();
             for (LeafReaderContext ctx : searcher.getIndexReader().leaves()) {
                 FieldInfos fis = ctx.reader().getFieldInfos();
                 for (FieldInfo fi : fis) {
-                    fieldsInIndex.add(fi.name);
+                    names.add(fi.name);
                 }
             }
+            // Immutable, so that a thread racing on the unsynchronized field can only see a complete set.
+            fields = fieldsInIndex = Set.copyOf(names);
         }
-        return fieldsInIndex.contains(fieldname);
+        return fields.contains(fieldname);
+    }
+
+    /**
+     * The fields of this shard's documents that its mapping does not declare.
+     */
+    public UnmappedFields unmappedFields() {
+        if (unmappedFields == null) {
+            unmappedFields = new UnmappedFields(indexSettings, mappingLookup, searcher == null ? null : this::fieldExistsInIndex);
+        }
+        return unmappedFields;
     }
 
     /**

@@ -24,7 +24,7 @@ import static org.elasticsearch.xpack.esql.datasources.spi.AdmissionGate.RescueR
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
- * U2: a wedged FIFO head is granted over the cap as a plain hold, once per call, then the
+ * A wedged FIFO head is granted over the cap as a plain hold, once per call, then the
  * normal grant loop runs. The rescued hold is not the overshoot owner.
  */
 public class NodeByteBudgetRescueTests extends ESTestCase {

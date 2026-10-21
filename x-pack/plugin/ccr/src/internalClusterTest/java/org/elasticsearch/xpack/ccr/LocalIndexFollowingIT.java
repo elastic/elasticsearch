@@ -9,10 +9,12 @@ package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -73,6 +75,30 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
 
         client().execute(ResumeFollowAction.INSTANCE, getResumeFollowRequest("follower")).get();
         assertBusy(() -> assertHitCount(client().prepareSearch("follower"), firstBatchNumDocs + secondBatchNumDocs + thirdBatchNumDocs));
+        ensureEmptyWriteBuffers();
+    }
+
+    /**
+     * A follower index always records that it may hold unmapped fields, whatever its leader recorded, and that difference
+     * does not prevent following from being resumed.
+     */
+    public void testFollowerRecordsUnmappedFieldRetention() throws Exception {
+        assertAcked(
+            client().admin().indices().prepareCreate("leader").setSource(getIndexSettings(1, 0, Collections.emptyMap()), XContentType.JSON)
+        );
+        ensureGreen("leader");
+        prepareIndex("leader").setSource("{}", XContentType.JSON).get();
+        client().execute(PutFollowAction.INSTANCE, getPutFollowRequest("leader", "follower")).get();
+        assertBusy(() -> assertHitCount(client().prepareSearch("follower"), 1));
+
+        var metadata = getInstanceFromNode(ClusterService.class).state().metadata().getProject();
+        assertFalse(IndexSettings.RETAINS_UNMAPPED_FIELDS_SETTING.get(metadata.index("leader").getSettings()));
+        assertTrue(IndexSettings.RETAINS_UNMAPPED_FIELDS_SETTING.get(metadata.index("follower").getSettings()));
+
+        client().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request(TEST_REQUEST_TIMEOUT, "follower")).get();
+        prepareIndex("leader").setSource("{}", XContentType.JSON).get();
+        client().execute(ResumeFollowAction.INSTANCE, getResumeFollowRequest("follower")).get();
+        assertBusy(() -> assertHitCount(client().prepareSearch("follower"), 2));
         ensureEmptyWriteBuffers();
     }
 

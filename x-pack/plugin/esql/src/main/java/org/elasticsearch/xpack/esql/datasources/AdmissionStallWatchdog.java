@@ -41,7 +41,8 @@ import java.util.function.LongSupplier;
  * Warns when an external-source admission gate has been stalled for {@link #DEFAULT_STALL}.
  * Stall is per-gate: {@link AdmissionGate.StallPolicy#HOLDERS} (permits, budget, segmentators)
  * skips while holders exist; {@link AdmissionGate.StallPolicy#GRANT_AGE} (byte budget) keys
- * on waiters with no grant, ignoring holders. WARN is rate-limited by {@link #DEFAULT_QUIET}.
+ * on waiters with no grant, ignoring holders. WARN is rate-limited by
+ * {@link #DEFAULT_QUIET}.
  * Byte-gate rescue uses {@link #DEFAULT_RESCUE}, not the stall or quiet windows: one FIFO
  * grant per rescue window, then the normal grant loop. Rescue WARN is a possible stall, not
  * a user error.
@@ -209,6 +210,14 @@ final class AdmissionStallWatchdog implements AdmissionTracker, Closeable {
         }
         long now = nanoTime.getAsLong();
         dumpByteBudget();
+        AdmissionGate bytes = probe(AdmissionTracker.GATE_BYTES);
+        if (bytes != null) {
+            try {
+                bytes.failCancelledWaiters();
+            } catch (Exception e) {
+                logger.warn("failCancelledWaiters failed", e);
+            }
+        }
         StringBuilder graph = null;
         long oldestStalled = 0L;
         for (Map.Entry<String, GateWaitState> entry : waits.entrySet()) {
@@ -446,6 +455,7 @@ final class AdmissionStallWatchdog implements AdmissionTracker, Closeable {
         oldestWaitGauge.close();
     }
 
+    /** {@code millisSinceGrant} is time since the last grant, not since a byte release. */
     record GateStats(String name, int waiters, int holders, long oldestWaitMillis, long millisSinceGrant) {}
 
     private static final class GateWaitState {

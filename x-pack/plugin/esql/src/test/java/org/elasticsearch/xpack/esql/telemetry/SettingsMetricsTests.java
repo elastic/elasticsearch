@@ -9,14 +9,20 @@ package org.elasticsearch.xpack.esql.telemetry;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
+import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
+import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 
+import java.time.ZoneId;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.telemetry.Metrics.SETTINGS_PREFIX;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class SettingsMetricsTests extends ESTestCase {
 
@@ -207,5 +213,87 @@ public class SettingsMetricsTests extends ESTestCase {
         metrics.incSetting("project_routing");
         stats = metrics.stats();
         assertFalse("project_routing should still not be registered", hasMetric(stats, SETTINGS_PREFIX + "project_routing"));
+    }
+
+    private static String valueKey(String setting, String label) {
+        return Metrics.RESOLVED_SETTINGS_PREFIX + setting + "." + label;
+    }
+
+    public void testResolvedSettingsInitialized() {
+        Counters stats = createMetricsWithAllSettings().stats();
+
+        // Every label of every setting has a counter, and the counters sit apart from the settings.<name> ones.
+        for (QuerySettingDef<?> def : QuerySettings.all()) {
+            assertThat(def.telemetryLabels(), not(empty()));
+            for (String label : def.telemetryLabels()) {
+                assertTrue("Missing metric for " + valueKey(def.name(), label), hasMetric(stats, valueKey(def.name(), label)));
+                assertThat(stats.get(valueKey(def.name(), label)), equalTo(0L));
+            }
+        }
+    }
+
+    public void testResolvedSettingsDependOnEnvironment() {
+        // project_routing only applies on serverless
+        String key = valueKey("project_routing", "set");
+        assertFalse(hasMetric(createMetricsStatefulNonSnapshot().stats(), key));
+        assertTrue(hasMetric(createMetricsServerlessNonSnapshot().stats(), key));
+        assertThat(createMetricsServerlessNonSnapshot().stats().get(key), equalTo(0L));
+    }
+
+    public void testIncResolvedSettings() {
+        Metrics metrics = createMetricsWithAllSettings();
+
+        // Every applicable setting is counted, each under the value it resolved to, the ones left at their default included.
+        ResolvedSettings tuned = ResolvedSettings.EMPTY.withOverride(QuerySettings.UNMAPPED_FIELDS, UnmappedResolution.NULLIFY)
+            .withOverride(QuerySettings.TIME_ZONE, ZoneId.of("Europe/Rome"))
+            .withOverride(QuerySettings.APPROXIMATION, new ApproximationSettings(20_000, 0.95));
+        metrics.incResolvedSettings(tuned);
+
+        Counters stats = metrics.stats();
+        assertThat(stats.get(valueKey("unmapped_fields", "nullify")), equalTo(1L));
+        assertThat(stats.get(valueKey("unmapped_fields", "default")), equalTo(0L));
+        assertThat(stats.get(valueKey("time_zone", "set")), equalTo(1L));
+        assertThat(stats.get(valueKey("time_zone", "default")), equalTo(0L));
+        assertThat(stats.get(valueKey("approximation", "map")), equalTo(1L));
+        assertThat(stats.get(valueKey("column_metadata", "false")), equalTo(1L));
+        // the counters for the settings supplied are separate from the ones for the values they resolved to
+        assertThat(stats.get(SETTINGS_PREFIX + "time_zone"), equalTo(0L));
+
+        // a second query that leaves everything at its default adds to the default counters, and nothing else
+        metrics.incResolvedSettings(ResolvedSettings.EMPTY);
+        stats = metrics.stats();
+        assertThat(stats.get(valueKey("unmapped_fields", "default")), equalTo(1L));
+        assertThat(stats.get(valueKey("unmapped_fields", "nullify")), equalTo(1L));
+        assertThat(stats.get(valueKey("time_zone", "default")), equalTo(1L));
+        assertThat(stats.get(valueKey("time_zone", "set")), equalTo(1L));
+        assertThat(stats.get(valueKey("approximation", "false")), equalTo(1L));
+        assertThat(stats.get(valueKey("column_metadata", "false")), equalTo(2L));
+    }
+
+    public void testIncResolvedSettingsDefaultsEverySetting() {
+        Metrics metrics = createMetricsWithAllSettings();
+        metrics.incResolvedSettings(ResolvedSettings.EMPTY);
+
+        // exactly one label of each setting was counted
+        Counters stats = metrics.stats();
+        for (QuerySettingDef<?> def : QuerySettings.all()) {
+            long total = 0;
+            for (String label : def.telemetryLabels()) {
+                total += stats.get(valueKey(def.name(), label));
+            }
+            assertThat("Wrong total for setting: " + def.name(), total, equalTo(1L));
+        }
+    }
+
+    public void testIncResolvedSettingsIgnoresSettingsNotApplicable() {
+        // project_routing only applies on serverless: on stateful it has no counter, and counting still works
+        Metrics stateful = createMetricsStatefulNonSnapshot();
+        stateful.incResolvedSettings(ResolvedSettings.EMPTY);
+        assertFalse(hasMetric(stateful.stats(), valueKey("project_routing", "default")));
+        assertThat(stateful.stats().get(valueKey("time_zone", "default")), equalTo(1L));
+
+        Metrics serverless = createMetricsServerlessNonSnapshot();
+        serverless.incResolvedSettings(ResolvedSettings.EMPTY);
+        assertThat(serverless.stats().get(valueKey("project_routing", "default")), equalTo(1L));
     }
 }

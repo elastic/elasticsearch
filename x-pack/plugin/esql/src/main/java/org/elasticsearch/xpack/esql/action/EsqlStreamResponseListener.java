@@ -16,19 +16,23 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xpack.esql.plugin.TransportEsqlStreamQueryAction;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -36,9 +40,13 @@ import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Flow;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
+
+import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
 
 /**
  * REST listener for the streaming ES|QL query endpoint. Subscribes to a {@link PageStreamPublisher}
@@ -51,10 +59,14 @@ import java.util.concurrent.atomic.AtomicReference;
  *       {@code include_execution_metadata: true} (local-only queries included), on cross-cluster queries with
  *       {@code include_ccs_metadata: true}, or when a partial result carries cluster failures), optionally
  *       followed by a {@code "profile"} object when {@code profile: true} was set.</li>
- *   <li>Last line (failure after header): {@code {"status":N,"took":N,"is_partial":false,"warnings":[...],
- *       "error":{"type":"...","reason":"..."}}}</li>
- *   <li>On pre-header error: same terminal-record shape with an error HTTP status code on the response line itself.</li>
+ *   <li>Last line (failure after the first values line): {@code {"status":N,"took":N,"is_partial":false,"warnings":[...],
+ *       "error":{<standard ES error shape with root_cause, type, reason, caused_by>}}}</li>
+ *   <li>Failure before the first values line: the terminal record is the only line, and the response carries
+ *       the error HTTP status code.</li>
  * </ul>
+ *
+ * <p>The HTTP response is not sent until the publisher delivers the first page, the success footer or the
+ * error. So a {@code 200} response never ends in an error without at least one values line before it.</p>
  *
  * <p>Each logical unit maps to one {@link ChunkedRestResponseBodyPart}. The columns and error parts each
  * emit a single small NDJSON line and ignore the {@code sizeHint} argument to {@code encodeChunk}. The
@@ -71,22 +83,48 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
     private static final byte[] NEWLINE = "\n".getBytes(StandardCharsets.UTF_8);
 
     private final RestChannel channel;
+    private final ThreadContext threadContext;
+    private final long startNanos = System.nanoTime();
     private final AtomicBoolean terminalEmitted = new AtomicBoolean(false);
-    private volatile boolean streamStarted = false;
+    private volatile boolean subscribed = false;
     private final StreamingSubscriber subscriber = new StreamingSubscriber();
 
     private final Object continuationMonitor = new Object();
     private ActionListener<ChunkedRestResponseBodyPart> nextBodyPartListener;
     private ChunkedRestResponseBodyPart pendingTerminalPart;
+    private ChunkedRestResponseBodyPart pendingPagePart;
 
     private volatile PageStreamPublisher publisher;
     private volatile List<ColumnInfoImpl> columns;
     private volatile boolean[] nullColumns;
     private volatile ZoneId zoneId;
     private final AtomicReference<Page> inFlightPage = new AtomicReference<>();
+    private volatile Supplier<ThreadContext.StoredContext> contextRestorer;
+    private boolean responseSent = false;
 
-    public EsqlStreamResponseListener(RestChannel channel) {
+    private volatile PageStreamPublisher.StreamFooter preHeaderFailureFooter;
+
+    public EsqlStreamResponseListener(RestChannel channel, ThreadContext threadContext) {
         this.channel = channel;
+        this.threadContext = threadContext;
+    }
+
+    void setPreHeaderFailureFooter(PageStreamPublisher.StreamFooter footer) {
+        this.preHeaderFailureFooter = footer;
+    }
+
+    private PageStreamPublisher.StreamFooter fallbackFailureFooter(Exception e) {
+        long elapsedMillis = (System.nanoTime() - startNanos) / 1_000_000L;
+        return new PageStreamPublisher.StreamFooter(
+            ExceptionsHelper.status(e).getStatus(),
+            elapsedMillis,
+            false,
+            TransportEsqlStreamQueryAction.footerWarnings(threadContext, DriverCompletionInfo.EMPTY),
+            null,
+            null,
+            e,
+            null
+        );
     }
 
     public ActionListener<EsqlStreamQueryAction.ResultStream> resultStreamListener() {
@@ -96,7 +134,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
     @Override
     public void onResponse(ActionResponse.Empty empty) {
         // Compute has finished; the footer was already delivered through publisher.completeWithFooter.
-        assert streamStarted : "the transport action completed successfully without ever initializing the stream";
+        assert subscribed : "the transport action completed successfully without ever initializing the stream";
     }
 
     private void initializeStream(EsqlStreamQueryAction.ResultStream resultStream) throws IOException {
@@ -105,10 +143,10 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
         this.nullColumns = resultStream.nullColumns();
         this.zoneId = resultStream.zoneId();
         assert zoneId != null : "ResultStream must carry the resolved query time zone";
-        NdjsonColumnsBodyPart columnsBodyPart = new NdjsonColumnsBodyPart(resultStream.columns(), resultStream.nullColumns());
+        this.contextRestorer = threadContext.newRestorableContext(false);
         resultStream.publisher().subscribe(subscriber);
-        channel.sendResponse(RestResponse.chunked(RestStatus.OK, columnsBodyPart, this::release));
-        streamStarted = true;
+        subscribed = true;
+        subscriber.subscription.request(1);
     }
 
     private void release() {
@@ -128,7 +166,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
     @Override
     public void onFailure(Exception e) {
         try {
-            if (streamStarted) {
+            if (subscribed) {
                 logger.debug("transport failure after stream started; delivering the error via the publisher", e);
                 return;
             }
@@ -136,18 +174,13 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                 logger.debug("failure response already sent; discarding duplicate onFailure", e);
                 return;
             }
-            RestStatus status = ExceptionsHelper.status(e);
-            PageStreamPublisher.StreamFooter footer = new PageStreamPublisher.StreamFooter(
-                status.getStatus(),
-                0L,
-                false,
-                List.of(),
-                null,
-                null,
-                e,
-                null
-            );
-            channel.sendResponse(RestResponse.chunked(status, new NdjsonFooterBodyPart(footer), this::release));
+            PageStreamPublisher.StreamFooter footer = preHeaderFailureFooter != null ? preHeaderFailureFooter : fallbackFailureFooter(e);
+            RestStatus status = RestStatus.fromCode(footer.status());
+            RestResponse response = RestResponse.chunked(status, new NdjsonFooterBodyPart(footer), this::release);
+            if (e instanceof ElasticsearchException ese) {
+                response.copyHeaders(ese);
+            }
+            channel.sendResponse(response);
         } catch (Exception inner) {
             inner.addSuppressed(e);
             logger.error("failed to send failure response", inner);
@@ -159,18 +192,58 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
         }
     }
 
-    private void requestNextChunk(ActionListener<ChunkedRestResponseBodyPart> listener) {
-        ChunkedRestResponseBodyPart terminal;
+    private void sendDeferred(RestStatus status, ChunkedRestResponseBodyPart firstPart, @Nullable Exception error) {
+        try (ThreadContext.StoredContext ignored = contextRestorer.get()) {
+            try {
+                RestResponse response = RestResponse.chunked(status, firstPart, this::release);
+                if (error instanceof ElasticsearchException ese) {
+                    response.copyHeaders(ese);
+                }
+                channel.sendResponse(response);
+            } catch (Exception e) {
+                onDeferredSendFailure(status, e);
+            }
+        }
+    }
+
+    private void onDeferredSendFailure(RestStatus status, Exception e) {
+        logger.warn("failed to send streaming response", e);
+        terminalEmitted.set(true);
         synchronized (continuationMonitor) {
-            terminal = pendingTerminalPart;
-            if (terminal != null) {
+            pendingPagePart = null;
+            pendingTerminalPart = null;
+        }
+        release();
+        publisher.failStream(e);
+        if (status != RestStatus.OK) {
+            return;
+        }
+        try {
+            PageStreamPublisher.StreamFooter footer = fallbackFailureFooter(e);
+            RestStatus errorStatus = RestStatus.fromCode(footer.status());
+            channel.sendResponse(RestResponse.chunked(errorStatus, new NdjsonFooterBodyPart(footer), this::release));
+        } catch (Exception inner) {
+            inner.addSuppressed(e);
+            logger.warn("failed to send failure response", inner);
+        }
+    }
+
+    private void requestNextChunk(ActionListener<ChunkedRestResponseBodyPart> listener) {
+        ChunkedRestResponseBodyPart ready;
+        synchronized (continuationMonitor) {
+            if (pendingPagePart != null) {
+                ready = pendingPagePart;
+                pendingPagePart = null;
+            } else if (pendingTerminalPart != null) {
+                ready = pendingTerminalPart;
                 pendingTerminalPart = null;
             } else {
+                ready = null;
                 nextBodyPartListener = listener;
             }
         }
-        if (terminal != null) {
-            listener.onResponse(terminal);
+        if (ready != null) {
+            listener.onResponse(ready);
         } else {
             // IMPORTANT: subscription.request(1) must be called *after* releasing continuationMonitor.
             // PageStreamPublisher.deliverPages() calls subscriber.onNext() outside its own monitor, and
@@ -193,6 +266,16 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
 
         @Override
         public void onNext(Page page) {
+            if (responseSent == false) {
+                responseSent = true;
+                Page previous = inFlightPage.getAndSet(page);
+                assert previous == null : "a page is already in flight before the response was sent";
+                synchronized (continuationMonitor) {
+                    pendingPagePart = new NdjsonPageBodyPart(page, columns, nullColumns, zoneId);
+                }
+                sendDeferred(RestStatus.OK, new NdjsonColumnsBodyPart(columns, nullColumns), null);
+                return;
+            }
             ActionListener<ChunkedRestResponseBodyPart> next;
             synchronized (continuationMonitor) {
                 next = nextBodyPartListener;
@@ -213,18 +296,14 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                 Exception e = throwable instanceof Exception ex ? ex : new RuntimeException(throwable);
                 PageStreamPublisher.StreamFooter footer = publisher.footer();
                 if (footer == null) {
-                    footer = new PageStreamPublisher.StreamFooter(
-                        ExceptionsHelper.status(e).getStatus(),
-                        0L,
-                        false,
-                        List.of(),
-                        null,
-                        null,
-                        e,
-                        null
-                    );
+                    footer = fallbackFailureFooter(e);
                 }
                 ChunkedRestResponseBodyPart footerPart = new NdjsonFooterBodyPart(footer);
+                if (responseSent == false) {
+                    responseSent = true;
+                    sendDeferred(RestStatus.fromCode(footer.status()), footerPart, footer.error());
+                    return;
+                }
                 ActionListener<ChunkedRestResponseBodyPart> next;
                 synchronized (continuationMonitor) {
                     next = nextBodyPartListener;
@@ -245,6 +324,14 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
             if (terminalEmitted.compareAndSet(false, true)) {
                 PageStreamPublisher.StreamFooter footer = publisher.footer();
                 ChunkedRestResponseBodyPart footerPart = new NdjsonFooterBodyPart(footer);
+                if (responseSent == false) {
+                    responseSent = true;
+                    synchronized (continuationMonitor) {
+                        pendingTerminalPart = footerPart;
+                    }
+                    sendDeferred(RestStatus.OK, new NdjsonColumnsBodyPart(columns, nullColumns), null);
+                    return;
+                }
                 ActionListener<ChunkedRestResponseBodyPart> next;
                 synchronized (continuationMonitor) {
                     next = nextBodyPartListener;
@@ -530,21 +617,19 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                             b.field("bytes_read", ci.bytesRead());
                             b.field("read_nanos", ci.readNanos());
                             b.field("cpu_nanos", ci.cpuNanos());
+                            b.field("driver_nanos", ci.driverNanos());
                         }
                         if (footer.clusters() != null) {
                             b.field("_clusters");
                             footer.clusters().toXContent(b, p);
                         }
                         if (footer.error() != null) {
-                            b.startObject("error");
-                            Throwable cause = ExceptionsHelper.unwrapCause(footer.error());
-                            String type = ElasticsearchException.getExceptionName(cause);
-                            String reason = footer.error() instanceof ElasticsearchException ese
-                                ? ese.getDetailedMessage()
-                                : (footer.error().getMessage() != null ? footer.error().getMessage() : type);
-                            b.field("type", type);
-                            b.field("reason", reason);
-                            b.endObject();
+                            ElasticsearchException.generateFailureXContent(
+                                b,
+                                errorParams(footer.status()),
+                                footer.error(),
+                                channel.detailedErrorsEnabled()
+                            );
                         }
                         return b;
                     });
@@ -586,6 +671,14 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
         public String getResponseContentTypeString() {
             return NDJSON_CONTENT_TYPE;
         }
+    }
+
+    private ToXContent.Params errorParams(int statusCode) {
+        ToXContent.Params params = channel.request();
+        if (statusCode != RestStatus.UNAUTHORIZED.getStatus() && params.paramAsBoolean("error_trace", RestController.ERROR_TRACE_DEFAULT)) {
+            params = new ToXContent.DelegatingMapParams(Map.of(REST_EXCEPTION_SKIP_STACK_TRACE, "false"), params);
+        }
+        return params;
     }
 
     @FunctionalInterface

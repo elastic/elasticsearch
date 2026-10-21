@@ -843,10 +843,24 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      */
     @Nullable
     public DataStreamLifecycle getEffectiveDataLifecycle(boolean minimumLifecycleEnabled) {
-        if (lifecycle == null && minimumLifecycleEnabled && indexMode == IndexMode.TIME_SERIES) {
+        if (isMinimumLifecycleApplicable(minimumLifecycleEnabled)) {
             return DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE;
         }
         return lifecycle;
+    }
+
+    /**
+     * Returns true if the minimum lifecycle is applicable for this data stream.
+     */
+    public boolean isMinimumLifecycleApplicable(boolean minimumLifecycleEnabled) {
+        return lifecycle == null && minimumLifecycleEnabled && indexMode == IndexMode.TIME_SERIES;
+    }
+
+    /**
+     * Returns true if the minimum lifecycle is applicable for this index.
+     */
+    public boolean isMinimumLifecycleApplicable(String index, boolean minimumLifecycleEnabled) {
+        return backingIndices.containsIndex(index) && isMinimumLifecycleApplicable(minimumLifecycleEnabled);
     }
 
     /**
@@ -935,7 +949,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         @Nullable DataStreamAutoShardingEvent autoShardingEvent
     ) {
         ensureNotReplicated();
-
+        ensureSafeMigrationToTimeSeries(indexModeFromTemplate);
         return unsafeRollover(writeIndex, generation, indexModeFromTemplate, autoShardingEvent);
     }
 
@@ -950,8 +964,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     ) {
         IndexMode dsIndexMode = this.indexMode;
         if (dsIndexMode != indexModeFromTemplate) {
-            if (IndexMode.isTsdb(indexModeFromTemplate) && (dsIndexMode == IndexMode.LOGSDB || dsIndexMode == IndexMode.LOGSDB_COLUMNAR)) {
-                LOGGER.warn("Changing [{}] index mode from [{}] to [{}]", name, indexModeFromTemplate, dsIndexMode);
+            if (IndexMode.isTsdb(indexModeFromTemplate) && (dsIndexMode != null && dsIndexMode != IndexMode.STANDARD)) {
+                LOGGER.warn("Changing [{}] index mode from [{}] to [{}]", name, dsIndexMode, indexModeFromTemplate);
             }
             dsIndexMode = indexModeFromTemplate;
         }
@@ -1013,6 +1027,23 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     private void ensureNotReplicated() {
         if (replicated) {
             throw new IllegalArgumentException("data stream [" + name + "] cannot be rolled over, because it is a replicated data stream");
+        }
+    }
+
+    private void ensureSafeMigrationToTimeSeries(IndexMode indexModeFromTemplate) {
+        IndexMode dsIndexMode = this.indexMode == null ? IndexMode.STANDARD : this.indexMode;
+        if (IndexMode.isTsdb(indexModeFromTemplate) && IndexMode.isTsdb(dsIndexMode) == false && dsIndexMode != IndexMode.STANDARD) {
+            throw new IllegalArgumentException(
+                "data stream ["
+                    + name
+                    + "] cannot be rolled over, because migrating from ["
+                    + dsIndexMode.getName()
+                    + "] to ["
+                    + indexModeFromTemplate.getName()
+                    + "] is not supported, please first change the [index.mode] in the template to ["
+                    + IndexMode.STANDARD.getName()
+                    + "], roll over, and try again."
+            );
         }
     }
 

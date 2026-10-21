@@ -251,7 +251,7 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
                 }
 
                 boolean cancelIfRecoveryStarted = false;
-                if (recoveryCanBeCancelledIfStarted(shardRouting, routingNodes)) {
+                if (recoveryCanBeCancelledIfStarted(shardRouting, allocation)) {
                     final var canRemainDecision = allocation.deciders().canRemain(shardRouting, routingNode, allocation);
                     cancelIfRecoveryStarted = canRemainDecision.type() == Decision.Type.NO;
                 }
@@ -266,15 +266,25 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
         return cancellationRequests;
     }
 
-    private static boolean recoveryCanBeCancelledIfStarted(ShardRouting shardRouting, RoutingNodes routingNodes) {
+    private static boolean recoveryCanBeCancelledIfStarted(ShardRouting shardRouting, RoutingAllocation allocation) {
         assert shardRouting.initializing() : "calling recoveryCanBeCancelledIfStarted for non-initializing shard " + shardRouting;
+
+        // Some shards relocations can take a long time due (e.g. stateless search shard recoveries due to offline warming,
+        // or stateful ones). If the source node is shutting down, don't delay its evacuation by discarding ongoing work
+        // even if the target node is also shutting down. Prioritize the one that got its SIGTERM first (in most cases),
+        // even if this means doing duplicate work.
+        final NodesShutdownMetadata nodeShutdowns = allocation.metadata().nodeShutdowns();
+        if (shardRouting.relocatingNodeId() != null && nodeShutdowns.isNodeMarkedForRemoval(shardRouting.relocatingNodeId())) {
+            return false;
+        }
         if (shardRouting.primary()) {
             return shardRouting.relocatingNodeId() != null;
         }
         if (shardRouting.role().equals(ShardRouting.Role.SEARCH_ONLY) == false) {
             return true;
         }
-        return routingNodes.assignedShards(shardRouting.shardId())
+        return allocation.routingNodes()
+            .assignedShards(shardRouting.shardId())
             .stream()
             .filter(ShardRouting::active)
             .anyMatch(s -> s.role().equals(ShardRouting.Role.SEARCH_ONLY));

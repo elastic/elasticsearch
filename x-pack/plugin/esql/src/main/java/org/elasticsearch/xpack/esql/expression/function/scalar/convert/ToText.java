@@ -104,8 +104,9 @@ public class ToText extends AbstractConvertFunction
         returnType = "text",
         briefSummary = "Converts a value to text.",
         description = "Converts an input value into text.",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.5.0") },
-        preview = true,
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.5.0"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.6.0") },
         examples = { @Example(file = "convert", tag = "to_text") }
     )
     public ToText(

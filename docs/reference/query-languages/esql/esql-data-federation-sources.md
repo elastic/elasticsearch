@@ -309,6 +309,13 @@ To grant read access for each data source type, refer to:
 
 - **Amazon S3**: Allow `s3:GetObject` on the dataset's objects, and `s3:ListBucket` on the bucket when a dataset's resource is a prefix or a glob pattern. For a complete policy and troubleshooting, refer to [grant read access in Amazon S3](esql-data-federation-s3.md#s3-permissions).
 
+## Audit logging
+
+With [audit logging enabled](docs-content://deploy-manage/security/logging-configuration/enabling-audit-logs.md),
+creating, updating, and deleting data sources generates `security_config_change` events. Refer to
+[put_data_source](../../elasticsearch/elasticsearch-audit-events.md#event-put-data-source), and
+[delete_data_source](../../elasticsearch/elasticsearch-audit-events.md#event-delete-data-source).
+
 ## Next steps
 
 Continue with the following data-source tasks:

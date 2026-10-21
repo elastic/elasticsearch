@@ -16,7 +16,7 @@ import java.util.Map;
 
 /**
  * Test mapper that records, in its {@code feature_seen} parameter, what {@link MapperMergeContext#clusterHasFeature} returned
- * when it was last merged.
+ * when it was last merged. Its {@code gated} parameter can only be parsed if the cluster supports {@link #PROBE_FEATURE}.
  */
 public class FeatureProbeFieldMapper extends FieldMapper {
 
@@ -38,6 +38,9 @@ public class FeatureProbeFieldMapper extends FieldMapper {
             null
         );
 
+        private final Parameter<Boolean> gated = Parameter.boolParam("gated", true, m -> ((FeatureProbeFieldMapper) m).gated, false)
+            .requiresFeatures(PROBE_FEATURE);
+
         public Builder(String name) {
             super(name);
         }
@@ -46,9 +49,13 @@ public class FeatureProbeFieldMapper extends FieldMapper {
             return featureSeen.getValue();
         }
 
+        public boolean gated() {
+            return gated.getValue();
+        }
+
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[] { featureSeen };
+            return new Parameter<?>[] { featureSeen, gated };
         }
 
         @Override
@@ -68,20 +75,27 @@ public class FeatureProbeFieldMapper extends FieldMapper {
                 leafName(),
                 new MockFieldMapper.FakeFieldType(context.buildFullName(leafName())),
                 builderParams(this, context),
-                featureSeen.getValue()
+                featureSeen.getValue(),
+                gated.getValue()
             );
         }
     }
 
     private final String featureSeen;
+    private final boolean gated;
 
-    private FeatureProbeFieldMapper(String simpleName, MappedFieldType fieldType, BuilderParams params, String featureSeen) {
+    private FeatureProbeFieldMapper(String simpleName, MappedFieldType fieldType, BuilderParams params, String featureSeen, boolean gated) {
         super(simpleName, fieldType, params);
         this.featureSeen = featureSeen;
+        this.gated = gated;
     }
 
     public String featureSeen() {
         return featureSeen;
+    }
+
+    public boolean gated() {
+        return gated;
     }
 
     @Override

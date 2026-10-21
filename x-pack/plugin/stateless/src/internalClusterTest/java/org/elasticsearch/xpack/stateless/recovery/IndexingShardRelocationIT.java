@@ -1276,7 +1276,6 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
             ThreadPool threadPool,
             TelemetryProvider telemetryProvider,
             ClusterSettings clusterSettings,
-            WarmingRatioProvider warmingRatioProvider,
             SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
         ) {
             if (clusterSettings.get(ENABLED_WARMING)) {
@@ -1285,7 +1284,6 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
                     threadPool,
                     telemetryProvider,
                     clusterSettings,
-                    warmingRatioProvider,
                     searchRecoveryTimeoutCalculationService
                 );
             }
@@ -1294,7 +1292,6 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
                 threadPool,
                 telemetryProvider,
                 clusterSettings,
-                warmingRatioProvider,
                 searchRecoveryTimeoutCalculationService
             ) {
                 @Override
@@ -1303,6 +1300,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
                     IndexShard indexShard,
                     StatelessCompoundCommit commit,
                     BlobStoreCacheDirectory directory,
+                    WarmingRatioProvider warmingRatioProvider,
                     @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
                     boolean preWarmForIdLookup,
                     ActionListener<Void> listener
@@ -1311,7 +1309,16 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
                     // the number of written regions in cache after the shard is started we are sure no other regions are likely to be
                     // warmed afterward.
                     var subscribableListener = new SubscribableListener<Void>();
-                    super.warmCache(type, indexShard, commit, directory, endTargetsToWarm, false, subscribableListener);
+                    super.warmCache(
+                        type,
+                        indexShard,
+                        commit,
+                        directory,
+                        warmingRatioProvider,
+                        endTargetsToWarm,
+                        false,
+                        subscribableListener
+                    );
                     safeAwait(subscribableListener);
                     subscribableListener.addListener(listener);
                 }
@@ -1487,9 +1494,10 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         var cacheService = internalCluster().getInstance(StatelessPlugin.SharedBlobCacheServiceSupplier.class, indexNode2).get();
         // In case of hollow being disabled, we expect to have created one BCC which fits in one region, and thus we expect one cache write.
         // In case of hollow being enabled, we expect to have 2 BCCs, due to one more being created due to the hollow flush, and only the
-        // 2nd hollow BCC to be read. Its region 0 is prewarmed before the BCC header is read, so the read is a cache hit.
+        // 2nd hollow BCC to be read.
         assertThat(cacheService.getStats().writeCount(), equalTo(1L));
-        assertThat(cacheService.getStats().missCount(), equalTo(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.get(hollowNodeSettings) ? 0L : 1L));
+        // Region 0 prewarming races with the BCC header read to fill region 0, and only the read records a miss.
+        assertThat(cacheService.getStats().missCount(), lessThanOrEqualTo(1L));
         assertThat(cacheService.getStats().numberOfRegions(), greaterThan(1));
     }
 

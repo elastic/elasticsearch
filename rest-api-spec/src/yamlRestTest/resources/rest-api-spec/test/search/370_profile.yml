@@ -606,3 +606,64 @@ profile includes coordinator request metadata:
   - match: { profile.request.source.profile: true }
   - match: { profile.request.source.size: 3 }
   - match: { profile.request.source.query.term.keyword.value: "a" }
+
+---
+profile rescore:
+  - requires:
+      cluster_features: "search.profile.rescore"
+      reason: rescore profile results require TransportVersion rescore_profile
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "test", "_id": "2"}}'
+          - '{"keyword": ["a", "c"]}'
+          - '{"index": {"_index": "test", "_id": "3"}}'
+          - '{"keyword": ["c"]}'
+
+  - do:
+      search:
+        index: test
+        body:
+          profile: true
+          query:
+            term:
+              keyword: "a"
+          rescore:
+            window_size: 1
+            query:
+              rescore_query:
+                term:
+                  keyword: "c"
+
+  - length: { profile.shards.0.rescore: 1 }
+  - match: { profile.shards.0.rescore.0.type: query }
+  - match: { profile.shards.0.rescore.0.description: "keyword:c" }
+  - gt: { profile.shards.0.rescore.0.time_in_nanos: 0 }
+  - match: { profile.shards.0.rescore.0.breakdown: {} }
+  - match: { profile.shards.0.rescore.0.debug: { window_size: 1 } }
+  - is_false: profile.shards.0.rescore.0.children
+  # the rescore query is still profiled next to the main query, tagged with the position of its rescorer
+  - length: { profile.shards.0.searches.0.query: 2 }
+  - match: { profile.shards.0.searches.0.query.0.description: "keyword:a" }
+  - is_false: profile.shards.0.searches.0.query.0.debug
+  - match: { profile.shards.0.searches.0.query.1.description: "keyword:c" }
+  - match: { profile.shards.0.searches.0.query.1.debug: { rescorer: 0 } }
+
+---
+profile without rescore has no rescore section:
+  - requires:
+      cluster_features: "search.profile.rescore"
+      reason: rescore profile results require TransportVersion rescore_profile
+
+  - do:
+      search:
+        index: test
+        body:
+          profile: true
+          query:
+            term:
+              keyword: "a"
+
+  - is_false: profile.shards.0.rescore

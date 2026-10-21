@@ -53,6 +53,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -67,6 +68,9 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     /** Tracks per-span local depth in Context to enforce {@link OtelSdkSettings#TELEMETRY_TRACING_MAX_DEPTH}. */
     private static final ContextKey<Integer> SPAN_LOCAL_DEPTH_KEY = ContextKey.named("es.apm.span.local_depth");
+
+    /** Counter shared by all spans under the same local root to enforce {@link OtelSdkSettings#TELEMETRY_TRACING_MAX_SPANS}. */
+    private static final ContextKey<AtomicInteger> SPAN_LOCAL_COUNT_KEY = ContextKey.named("es.apm.span.local_count");
 
     /** Holds in-flight span information. */
     private final Map<String, Context> spans = ConcurrentCollections.newConcurrentMap();
@@ -87,6 +91,9 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     /** Maximum local span depth on the OTel SDK path; see {@link OtelSdkSettings#TELEMETRY_TRACING_MAX_DEPTH}. */
     private volatile int maxTraceDepth;
+
+    /** Maximum number of spans under a local root on the OTel SDK path; see {@link OtelSdkSettings#TELEMETRY_TRACING_MAX_SPANS}. */
+    private volatile int maxSpans;
 
     /** Whether to attach exception stack traces on the OTel SDK path;
      *  see {@link OtelSdkSettings#TELEMETRY_TRACING_RECORD_EXCEPTION_STACKS}. */
@@ -125,6 +132,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         this.labelFilterAutomaton = buildAutomaton(labelFilters, List.of());
         this.enabled = APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.get(settings);
         this.maxTraceDepth = maxTraceDepth;
+        this.maxSpans = OtelSdkSettings.TELEMETRY_TRACING_MAX_SPANS.get(settings);
         this.recordExceptionStacks = recordExceptionStacks;
     }
 
@@ -161,6 +169,10 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     public void setMaxTraceDepth(int maxTraceDepth) {
         this.maxTraceDepth = maxTraceDepth;
+    }
+
+    public void setMaxSpans(int maxSpans) {
+        this.maxSpans = maxSpans;
     }
 
     public void setRecordExceptionStacks(boolean recordExceptionStacks) {
@@ -242,17 +254,28 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             // Attempt to fetch a local parent context first, otherwise look for a remote parent
             final Context localParentContext = traceContext.getTransient(Task.PARENT_APM_TRACE_CONTEXT);
 
-            // Depth is parent's depth + 1, or 0 for a root span; remote traceparent doesn't count.
+            // max_depth and max_spans apply per local root: the first span of a request on this node, even if it continues a
+            // remote trace. A child gets its parent's depth + 1 and shares its parent's span counter, which excludes the root.
             final int localDepth;
+            final AtomicInteger localSpanCount;
             if (localParentContext != null) {
                 Integer parentDepth = localParentContext.get(SPAN_LOCAL_DEPTH_KEY);
                 localDepth = (parentDepth != null ? parentDepth : 0) + 1;
+
+                AtomicInteger parentSpanCount = localParentContext.get(SPAN_LOCAL_COUNT_KEY);
+                localSpanCount = parentSpanCount != null ? parentSpanCount : new AtomicInteger();
             } else {
                 localDepth = 0;
+                localSpanCount = new AtomicInteger();
             }
 
             if (localDepth > maxTraceDepth) {
                 logger.trace("Skipping span [{}] [{}] at local depth {} (maxTraceDepth={})", spanId, spanName, localDepth, maxTraceDepth);
+                return null;
+            }
+
+            if (localDepth > 0 && (localSpanCount.get() > maxSpans || localSpanCount.incrementAndGet() > maxSpans)) {
+                logger.trace("Skipping span [{}] [{}] as the local root reached maxSpans={}", spanId, spanName, maxSpans);
                 return null;
             }
 
@@ -278,7 +301,10 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
                 return null; // return null to discard and not record in map of spans
             }
 
-            final Context contextForNewSpan = Context.current().with(span).with(SPAN_LOCAL_DEPTH_KEY, localDepth);
+            final Context contextForNewSpan = Context.current()
+                .with(span)
+                .with(SPAN_LOCAL_DEPTH_KEY, localDepth)
+                .with(SPAN_LOCAL_COUNT_KEY, localSpanCount);
             if (span.isRecording()) {
                 logger.trace("Recording trace [{}] [{}]", spanId, spanName);
                 updateThreadContext(traceContext, services, contextForNewSpan);

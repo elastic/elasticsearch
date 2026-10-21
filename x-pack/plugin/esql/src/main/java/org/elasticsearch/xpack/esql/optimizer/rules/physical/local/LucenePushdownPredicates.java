@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
@@ -87,6 +88,31 @@ public interface LucenePushdownPredicates {
     boolean supportsLoaderConfig(FieldAttribute field, BlockLoaderFunctionConfig config, MappedFieldType.FieldExtractPreference preference);
 
     /**
+     * Whether a predicate over this attribute's value can be answered from the values its doc values hold, which a
+     * {@code text} field keeping its values in a column can do. The index of such a field holds no exact form of the
+     * value - only the tokens it analyzes into - so this is the one way a predicate over it is pushed.
+     */
+    boolean hasValueQueries(FieldAttribute attr);
+
+    /**
+     * Whether a predicate over this attribute's value can be pushed to Lucene at all: either it is pushable as it
+     * stands - an exact form its index holds, or a metadata attribute - or its values answer the query themselves.
+     */
+    default boolean isPushableValueAttribute(Expression exp) {
+        if (isPushableAttribute(exp)) {
+            return true;
+        }
+        // A field the block loader synthesizes, or one that may be unmapped on a shard, keeps no values of its own. A
+        // union-typed field keeps values of the type each index mapped, and the plan asks about the type they are
+        // converted to on load, so the values a column holds are not the ones the predicate names.
+        return exp instanceof FieldAttribute fa
+            && fa.field() instanceof PotentiallyUnmappedKeywordEsField == false
+            && fa.field() instanceof FunctionEsField == false
+            && fa.field() instanceof UnionTypeEsField == false
+            && hasValueQueries(fa);
+    }
+
+    /**
      * We see fields as pushable if either they are aggregatable or they are indexed.
      * This covers non-indexed cases like <code>AbstractScriptFieldType</code> which hard-coded <code>isAggregatable</code> to true,
      * as well as normal <code>FieldAttribute</code>'s which can only be pushed down if they are indexed.
@@ -107,6 +133,14 @@ public interface LucenePushdownPredicates {
             return fa.dataType() != DataType.TEXT || hasExactSubfield(fa);
         }
         return false;
+    }
+
+    /**
+     * Whether this attribute is pushable only over the values it keeps, which decides both the name a query names and
+     * the semantics it asks for: the value whole rather than the tokens a text field's index holds.
+     */
+    static boolean pushesOverValuesOnly(LucenePushdownPredicates predicates, Expression exp) {
+        return predicates.isPushableAttribute(exp) == false && predicates.isPushableValueAttribute(exp);
     }
 
     static boolean isPushableTextFieldAttribute(Expression exp) {
@@ -196,6 +230,12 @@ public interface LucenePushdownPredicates {
             public boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute attr, String value) {
                 return false;
             }
+
+            @Override
+            public boolean hasValueQueries(FieldAttribute attr) {
+                // No mapping access during can_match: a field's values are not known to answer anything.
+                return false;
+            }
         };
     }
 
@@ -249,6 +289,11 @@ public interface LucenePushdownPredicates {
             @Override
             public boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute attr, String value) {
                 return stats.canUseEqualityOnSyntheticSourceDelegate(attr.fieldName(), value);
+            }
+
+            @Override
+            public boolean hasValueQueries(FieldAttribute attr) {
+                return stats.hasValueQueries(attr.fieldName());
             }
         };
     }

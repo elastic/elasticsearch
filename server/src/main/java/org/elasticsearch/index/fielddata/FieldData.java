@@ -15,6 +15,7 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.LongValues;
 import org.apache.lucene.util.BytesRef;
@@ -42,7 +43,7 @@ public enum FieldData {
      * Return a {@link SortedNumericDoubleValues} that doesn't contain any value.
      */
     public static SortedNumericDoubleValues emptySortedNumericDoubles() {
-        return singleton(DoubleValues.EMPTY);
+        return SortedNumericDoubleValues.singleton(DoubleValues.EMPTY, DocIdSetIterator.empty());
     }
 
     /**
@@ -123,7 +124,7 @@ public enum FieldData {
             } else {
                 longBits = new SortableLongBitsNumericDocValues(singleton);
             }
-            return SortedNumericLongValues.singleton(longBits);
+            return SortedNumericLongValues.singleton(longBits, values.docIdIterator());
         } else {
             if (values instanceof SortableLongBitsToSortedNumericDoubleValues) {
                 return ((SortableLongBitsToSortedNumericDoubleValues) values).getLongValues();
@@ -147,7 +148,7 @@ public enum FieldData {
             } else {
                 doubles = new SortableLongBitsToNumericDoubleValues(singleton);
             }
-            return singleton(doubles);
+            return SortedNumericDoubleValues.singleton(doubles, values.docIdIterator());
         } else {
             if (values instanceof SortableLongBitsSortedNumericDocValues) {
                 return ((SortableLongBitsSortedNumericDocValues) values).getDoubleValues();
@@ -161,6 +162,21 @@ public enum FieldData {
      * Wrap the provided {@link SortedNumericDocValues} instance to cast all values to doubles.
      */
     public static SortedNumericDoubleValues castToDouble(final SortedNumericLongValues values) {
+        final LongValues singleton = SortedNumericLongValues.unwrapSingleton(values);
+        if (singleton != null) {
+            var doubleValues = new DoubleValues() {
+                @Override
+                public double doubleValue() throws IOException {
+                    return singleton.longValue();
+                }
+
+                @Override
+                public boolean advanceExact(int doc) throws IOException {
+                    return singleton.advanceExact(doc);
+                }
+            };
+            return SortedNumericDoubleValues.singleton(doubleValues, values.docIdIterator());
+        }
         return new SortedNumericDoubleValues.SortedNumericLongWrapper(values) {
             @Override
             public double nextValue() throws IOException {
@@ -179,13 +195,6 @@ public enum FieldData {
                 return (long) values.nextValue();
             }
         };
-    }
-
-    /**
-     * Returns a multi-valued view over the provided {@link DoubleValues}.
-     */
-    public static SortedNumericDoubleValues singleton(DoubleValues values) {
-        return SortedNumericDoubleValues.singleton(values);
     }
 
     /**

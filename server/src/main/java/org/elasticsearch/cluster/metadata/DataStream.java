@@ -829,11 +829,38 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
-     * Retrieves the lifecycle configuration meant for the backing indices.
+     * Retrieves the explicit lifecycle configuration as persisted on the data stream's state.
+     * This may differ from the effective lifecycle that can be retrieved by
+     * {@link #getEffectiveDataLifecycle(boolean)}
      */
     @Nullable
     public DataStreamLifecycle getDataLifecycle() {
         return lifecycle;
+    }
+
+    /**
+     * Retrieves the <b>effective</b> lifecycle configuration meant for the backing indices.
+     */
+    @Nullable
+    public DataStreamLifecycle getEffectiveDataLifecycle(boolean minimumLifecycleEnabled) {
+        if (isMinimumLifecycleApplicable(minimumLifecycleEnabled)) {
+            return DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE;
+        }
+        return lifecycle;
+    }
+
+    /**
+     * Returns true if the minimum lifecycle is applicable for this data stream.
+     */
+    public boolean isMinimumLifecycleApplicable(boolean minimumLifecycleEnabled) {
+        return lifecycle == null && minimumLifecycleEnabled && indexMode == IndexMode.TIME_SERIES;
+    }
+
+    /**
+     * Returns true if the minimum lifecycle is applicable for this index.
+     */
+    public boolean isMinimumLifecycleApplicable(String index, boolean minimumLifecycleEnabled) {
+        return backingIndices.containsIndex(index) && isMinimumLifecycleApplicable(minimumLifecycleEnabled);
     }
 
     /**
@@ -869,8 +896,16 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      */
     @Nullable
     public DataStreamLifecycle getDataLifecycleForIndex(Index index) {
+        return getEffectiveLifecycleForIndex(index, false);
+    }
+
+    /**
+     * Retrieves the correct lifecycle for the provided index. Returns null if the index does not belong to this data stream
+     */
+    @Nullable
+    public DataStreamLifecycle getEffectiveLifecycleForIndex(Index index, boolean minimumLifecycleEnabled) {
         if (backingIndices.containsIndex(index.getName())) {
-            return getDataLifecycle();
+            return getEffectiveDataLifecycle(minimumLifecycleEnabled);
         }
         if (failureIndices.containsIndex(index.getName())) {
             return getFailuresLifecycle();
@@ -914,7 +949,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         @Nullable DataStreamAutoShardingEvent autoShardingEvent
     ) {
         ensureNotReplicated();
-
+        ensureSafeMigrationToTimeSeries(indexModeFromTemplate);
         return unsafeRollover(writeIndex, generation, indexModeFromTemplate, autoShardingEvent);
     }
 
@@ -929,8 +964,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     ) {
         IndexMode dsIndexMode = this.indexMode;
         if (dsIndexMode != indexModeFromTemplate) {
-            if (IndexMode.isTsdb(indexModeFromTemplate) && (dsIndexMode == IndexMode.LOGSDB || dsIndexMode == IndexMode.LOGSDB_COLUMNAR)) {
-                LOGGER.warn("Changing [{}] index mode from [{}] to [{}]", name, indexModeFromTemplate, dsIndexMode);
+            if (IndexMode.isTsdb(indexModeFromTemplate) && (dsIndexMode != null && dsIndexMode != IndexMode.STANDARD)) {
+                LOGGER.warn("Changing [{}] index mode from [{}] to [{}]", name, dsIndexMode, indexModeFromTemplate);
             }
             dsIndexMode = indexModeFromTemplate;
         }
@@ -992,6 +1027,23 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     private void ensureNotReplicated() {
         if (replicated) {
             throw new IllegalArgumentException("data stream [" + name + "] cannot be rolled over, because it is a replicated data stream");
+        }
+    }
+
+    private void ensureSafeMigrationToTimeSeries(IndexMode indexModeFromTemplate) {
+        IndexMode dsIndexMode = this.indexMode == null ? IndexMode.STANDARD : this.indexMode;
+        if (IndexMode.isTsdb(indexModeFromTemplate) && IndexMode.isTsdb(dsIndexMode) == false && dsIndexMode != IndexMode.STANDARD) {
+            throw new IllegalArgumentException(
+                "data stream ["
+                    + name
+                    + "] cannot be rolled over, because migrating from ["
+                    + dsIndexMode.getName()
+                    + "] to ["
+                    + indexModeFromTemplate.getName()
+                    + "] is not supported, please first change the [index.mode] in the template to ["
+                    + IndexMode.STANDARD.getName()
+                    + "], roll over, and try again."
+            );
         }
     }
 
@@ -1349,7 +1401,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             indices,
             effectiveRetention,
             indexMetadataSupplier,
-            this::isIndexManagedByDataStreamLifecycle,
+            indexMetadata -> isIndexManagedByDataStreamLifecycle(indexMetadata, false),
             nowSupplier
         );
     }
@@ -1437,11 +1489,15 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
-     * Checks if the provided backing index is managed by the data stream lifecycle as part of this data stream.
+     * Checks if the provided backing index is effectively managed by the data stream lifecycle as part of this data stream.
      * If the index is not a backing index or a failure store index of this data stream, or we cannot supply its metadata
      * we return false.
      */
-    public boolean isIndexManagedByDataStreamLifecycle(Index index, Function<String, IndexMetadata> indexMetadataSupplier) {
+    public boolean isIndexManagedByDataStreamLifecycle(
+        Index index,
+        Function<String, IndexMetadata> indexMetadataSupplier,
+        boolean minimumLifecycleEnabled
+    ) {
         if (containsIndex(index.getName()) == false) {
             return false;
         }
@@ -1450,20 +1506,17 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             // the index was deleted
             return false;
         }
-        return isIndexManagedByDataStreamLifecycle(indexMetadata);
+        return isIndexManagedByDataStreamLifecycle(indexMetadata, minimumLifecycleEnabled);
     }
 
     /**
-     * This is the raw definition of an index being managed by the data stream lifecycle. An index is managed by the data stream lifecycle
-     * if it's part of a data stream that has a data stream lifecycle configured and enabled and depending on the value of
-     * {@link org.elasticsearch.index.IndexSettings#PREFER_ILM_SETTING} having an ILM policy configured will play into the decision.
-     * This method also skips any validation to make sure the index is part of this data stream, hence the private
-     * access method.
+     * Checks if the provided backing index is effectively managed by the data stream lifecycle as part of this data stream.
+     * If the index is not a backing index or a failure store index of this data stream we return false.
      */
-    private boolean isIndexManagedByDataStreamLifecycle(IndexMetadata indexMetadata) {
+    private boolean isIndexManagedByDataStreamLifecycle(IndexMetadata indexMetadata, boolean minimumLifecycleEnabled) {
         Settings settings = indexMetadata.getSettings();
         IndexMode indexMode = indexMetadata.getIndexMode();
-        var lifecycle = getDataLifecycleForIndex(indexMetadata.getIndex());
+        var lifecycle = getEffectiveLifecycleForIndex(indexMetadata.getIndex(), minimumLifecycleEnabled);
         return lifecycleManagedBy(indexMetadata.getLifecyclePolicyName(), lifecycle, settings, indexMode) == LifecycleManagedBy.DLM;
     }
 
@@ -1484,6 +1537,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         if (indexMode == IndexMode.LOOKUP) {
             return LifecycleManagedBy.UNMANAGED;
         }
+        assert ilmPolicy == null || Strings.hasText(ilmPolicy);
         boolean lifecycleEnabled = dataStreamLifecycle != null && dataStreamLifecycle.enabled();
         if (ilmPolicy != null && lifecycleEnabled) {
             // when both ILM and data stream lifecycle are configured, choose depending on the configured preference for this backing index

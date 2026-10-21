@@ -16,9 +16,11 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
 import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.CredentialPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceUsageAccumulator;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
@@ -26,6 +28,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
+import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -77,6 +80,9 @@ public final class DataSourceModule implements Closeable {
     private final DataSourceCapabilities capabilities;
     private final ExternalSourceMetrics externalSourceMetrics;
     private final DecompressionCodecRegistry codecRegistry;
+    @Nullable
+    private final AdmissionStallWatchdog admissionWatchdog;
+    private final NodeByteBudget nodeByteBudget;
 
     public DataSourceModule(
         List<DataSourcePlugin> dataSourcePlugins,
@@ -224,6 +230,49 @@ public final class DataSourceModule implements Closeable {
         @Nullable ExecutorService splitDiscoveryExecutor,
         @Nullable DatasetListingService listingService
     ) {
+        this(
+            dataSourcePlugins,
+            capabilities,
+            settings,
+            blockFactory,
+            executor,
+            credentials,
+            managedIdentityEnabled,
+            // Test wiring: read the setting directly, as the managed-identity test constructors of
+            // StorageProviderRegistry do. Production passes EsqlPlugin's dynamically updated supplier.
+            () -> ExternalSourceSettings.FEDERATED_IDENTITY_ENABLED.get(settings != null ? settings : Settings.EMPTY),
+            threadPool,
+            environment,
+            resourceWatcherService,
+            meterRegistry,
+            localFileAccess,
+            splitDiscoveryExecutor,
+            listingService
+        );
+    }
+
+    /**
+     * @param federatedIdentityEnabled whether providers may be built with federated (workload-identity) auth; applied,
+     *                                 with {@code managedIdentityEnabled}, as the {@link CredentialPolicy} every plugin
+     *                                 receives through {@link StorageProviderServices}
+     */
+    public DataSourceModule(
+        List<DataSourcePlugin> dataSourcePlugins,
+        DataSourceCapabilities capabilities,
+        Settings settings,
+        BlockFactory blockFactory,
+        ExecutorService executor,
+        DataSourceCredentials credentials,
+        BooleanSupplier managedIdentityEnabled,
+        BooleanSupplier federatedIdentityEnabled,
+        @Nullable ThreadPool threadPool,
+        @Nullable Environment environment,
+        @Nullable ResourceWatcherService resourceWatcherService,
+        @Nullable MeterRegistry meterRegistry,
+        LocalFileAccess localFileAccess,
+        @Nullable ExecutorService splitDiscoveryExecutor,
+        @Nullable DatasetListingService listingService
+    ) {
         this.capabilities = capabilities;
         this.credentials = credentials;
         // Always create a live accumulator so phone-home counters work even when APM is disabled.
@@ -237,12 +286,20 @@ public final class DataSourceModule implements Closeable {
         // Runnable::run; scheduling onto that would run tryAcquire on [scheduler]. Preload parks
         // esql_external_io on timed actionGet; same-pool retry queues until that wait expires.
         RetryScheduler retryScheduler = retryStartScheduler(threadPool, splitDiscoveryExecutor);
+        AdmissionStallWatchdog watchdog = null;
+        AdmissionTracker admissionTracker = AdmissionTracker.NOOP;
+        if (threadPool != null) {
+            watchdog = new AdmissionStallWatchdog(threadPool, meterRegistry != null ? meterRegistry : MeterRegistry.NOOP);
+            admissionTracker = watchdog;
+        }
+        this.admissionWatchdog = watchdog;
         this.storageProviderRegistry = new StorageProviderRegistry(
             settings,
             credentials,
             managedIdentityEnabled,
             retryScheduler,
-            effectiveLocalFileAccess
+            effectiveLocalFileAccess,
+            admissionTracker
         );
 
         this.codecRegistry = new DecompressionCodecRegistry();
@@ -251,7 +308,9 @@ public final class DataSourceModule implements Closeable {
                 this.codecRegistry.register(codec);
             }
         }
-        this.formatReaderRegistry = new FormatReaderRegistry(this.codecRegistry);
+        this.nodeByteBudget = NodeByteBudgetService.forHeap();
+        this.formatReaderRegistry = new FormatReaderRegistry(this.codecRegistry, this.nodeByteBudget);
+        this.formatReaderRegistry.setAdmissionTracker(admissionTracker);
 
         Map<String, ExternalSourceFactory> sourceFactoryMap = new LinkedHashMap<>();
         Map<String, SourceOperatorFactoryProvider> operatorFactoryProviders = new HashMap<>();
@@ -266,7 +325,14 @@ public final class DataSourceModule implements Closeable {
                 }
             });
 
-            LazyPluginState state = new LazyPluginState(plugin, settings, executor, environment, resourceWatcherService);
+            LazyPluginState state = new LazyPluginState(
+                plugin,
+                settings,
+                executor,
+                environment,
+                resourceWatcherService,
+                CredentialPolicy.of(managedIdentityEnabled, federatedIdentityEnabled)
+            );
 
             // A DataSourcePlugin's storageProviders(StorageProviderServices) may allocate node-level
             // resources (e.g. token-file watchers). This SPI-discovery instance never receives the
@@ -396,7 +462,8 @@ public final class DataSourceModule implements Closeable {
             blockFactory,
             effectiveLocalFileAccess,
             externalSourceMetrics,
-            listingService
+            listingService,
+            admissionTracker
         );
         sourceFactoryMap.put("file", fileFallback);
         // Also register under each format name so OperatorFactoryRegistry can look up
@@ -459,6 +526,9 @@ public final class DataSourceModule implements Closeable {
     @Override
     public void close() throws IOException {
         List<Closeable> all = new ArrayList<>();
+        if (admissionWatchdog != null) {
+            all.add(admissionWatchdog);
+        }
         all.add(storageProviderRegistry);
         all.addAll(managedCloseables);
         IOUtils.close(all);
@@ -483,6 +553,40 @@ public final class DataSourceModule implements Closeable {
     /** The node-level external-source telemetry holder. Always a live instance backed by a real {@link DataSourceUsageAccumulator}. */
     public ExternalSourceMetrics externalSourceMetrics() {
         return externalSourceMetrics;
+    }
+
+    /** Shared I/O byte tickets for this node. */
+    public NodeByteBudget nodeByteBudget() {
+        return nodeByteBudget;
+    }
+
+    /** Null when this module was built without a {@link ThreadPool} (unit-test constructors). */
+    @Nullable
+    public AdmissionStallWatchdog admissionWatchdog() {
+        return admissionWatchdog;
+    }
+
+    /**
+     * Writes live admission gauges (used, limit, untracked, waiters, rescues, permits) into
+     * {@code counters} under {@code datasources.admission.*}.
+     */
+    public void populateAdmissionStats(org.elasticsearch.xpack.core.watcher.common.stats.Counters counters) {
+        DataSourceCounters.populateAdmission(counters, nodeByteBudget, admissionWatchdog, permitSnapshots());
+    }
+
+    /** Live {@code [available, max]} per scheme that has a permit limiter. */
+    public Map<String, int[]> permitSnapshots() {
+        return storageProviderRegistry == null ? Map.of() : storageProviderRegistry.permitSnapshots();
+    }
+
+    /**
+     * Toggles byte-budget rescue. Production wires this to
+     * {@link ExternalSourceSettings#ADMISSION_RESCUE_ENABLED}.
+     */
+    public void setAdmissionRescueEnabled(boolean enabled) {
+        if (admissionWatchdog != null) {
+            admissionWatchdog.setRescueEnabled(enabled);
+        }
     }
 
     public DecompressionCodecRegistry codecRegistry() {
@@ -570,6 +674,7 @@ public final class DataSourceModule implements Closeable {
         private final Environment environment;
         @Nullable
         private final ResourceWatcherService resourceWatcherService;
+        private final CredentialPolicy credentialPolicy;
         private volatile Map<String, StorageProviderFactory> storageFactoriesCache;
         private volatile Map<String, FormatReaderFactory> formatFactoriesCache;
         private volatile Map<String, ConnectorFactory> connectorFactoriesCache;
@@ -580,13 +685,15 @@ public final class DataSourceModule implements Closeable {
             Settings settings,
             ExecutorService executor,
             @Nullable Environment environment,
-            @Nullable ResourceWatcherService resourceWatcherService
+            @Nullable ResourceWatcherService resourceWatcherService,
+            CredentialPolicy credentialPolicy
         ) {
             this.plugin = plugin;
             this.settings = settings;
             this.executor = executor;
             this.environment = environment;
             this.resourceWatcherService = resourceWatcherService;
+            this.credentialPolicy = credentialPolicy;
         }
 
         Map<String, StorageProviderFactory> storageFactories() {
@@ -594,7 +701,7 @@ public final class DataSourceModule implements Closeable {
                 synchronized (this) {
                     if (storageFactoriesCache == null) {
                         storageFactoriesCache = plugin.storageProviders(
-                            new StorageProviderServices(settings, executor, environment, resourceWatcherService)
+                            new StorageProviderServices(settings, executor, environment, resourceWatcherService, credentialPolicy)
                         );
                     }
                 }

@@ -8,12 +8,14 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
@@ -62,11 +64,17 @@ public class QueryConcurrencyBudgetTests extends ESTestCase {
     }
 
     public void testTimeoutThrows() throws Exception {
-        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(1, 50L, null);
+        RecordingTracker tracker = new RecordingTracker();
+        ConcurrencyBudgetAllocator allocator = new ConcurrencyBudgetAllocator(10, 50L, tracker, "s3");
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(1, 50L, allocator, tracker);
         budget.acquire();
 
         expectThrows(TimeoutException.class, budget::acquire);
 
+        assertEquals("budget/s3", tracker.lastGate);
+        assertEquals(0, tracker.outstanding.get());
+        assertEquals(0, tracker.grants.get());
+        assertEquals(1, tracker.finished.get());
         budget.release();
     }
 
@@ -388,6 +396,36 @@ public class QueryConcurrencyBudgetTests extends ESTestCase {
         budget.release();
     }
 
+    public void testNonWinnerPinsWhenNoLivePin() {
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(1, 60_000L, null);
+        RowGroupIo older = bound(budget, 10);
+        RowGroupIo newer = bound(budget, 1);
+        assertTrue("a free pin is not restricted to the query winner", newer.tryPinOvershoot());
+        assertTrue(newer.isPinned());
+        assertSame(newer, budget.favoured());
+        assertFalse("a second live pin must be refused", older.tryPinOvershoot());
+        newer.unpin();
+        assertFalse(newer.isPinned());
+        assertTrue(older.tryPinOvershoot());
+        assertTrue(older.isPinned());
+    }
+
+    public void testPinMakesOwnerFavoured() throws Exception {
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(1, 60_000L, null);
+        RowGroupIo first = bound(budget, 5);
+        RowGroupIo owner = bound(budget, 10);
+        budget.acquire();
+        Thread firstWaiter = startAcquire(budget, first);
+        awaitWaiters(budget, 1);
+        budget.release();
+        firstWaiter.join(5_000);
+        assertSame(first, budget.favoured());
+        assertTrue(owner.tryPinOvershoot());
+        assertTrue(owner.isPinned());
+        assertSame("pin favours the overshoot owner for GET grants", owner, budget.favoured());
+        budget.release();
+    }
+
     public void testFinishRemovesLeaseFromRegistry() {
         QueryConcurrencyBudget budget = new QueryConcurrencyBudget(2, 60_000L, null);
         RowGroupIo a = bound(budget, 1);
@@ -405,7 +443,7 @@ public class QueryConcurrencyBudgetTests extends ESTestCase {
         QueryConcurrencyBudget budget = new QueryConcurrencyBudget(2, 60_000L, null);
         RowGroupIo lease = new RowGroupIo();
         AtomicBoolean wakeSawLock = new AtomicBoolean();
-        lease.setWake(() -> wakeSawLock.set(budget.isLockHeldByCurrentThread()));
+        lease.setWake("test", () -> wakeSawLock.set(budget.isLockHeldByCurrentThread()));
         budget.bind(lease);
         budget.close();
         assertTrue(lease.isCancelled());
@@ -523,5 +561,31 @@ public class QueryConcurrencyBudgetTests extends ESTestCase {
 
     private static void awaitWaiters(QueryConcurrencyBudget budget, int expected) throws Exception {
         assertBusy(() -> assertEquals(expected, budget.waiterCount()));
+    }
+
+    private static final class RecordingTracker implements AdmissionTracker {
+        private final AtomicInteger outstanding = new AtomicInteger();
+        private final AtomicInteger grants = new AtomicInteger();
+        private final AtomicInteger finished = new AtomicInteger();
+        private volatile String lastGate;
+
+        @Override
+        public Wait waitStarted(String gate, String waiter) {
+            lastGate = gate;
+            outstanding.incrementAndGet();
+            return new Wait() {
+                @Override
+                public void granted() {
+                    outstanding.decrementAndGet();
+                    grants.incrementAndGet();
+                }
+
+                @Override
+                public void finished() {
+                    outstanding.decrementAndGet();
+                    finished.incrementAndGet();
+                }
+            };
+        }
     }
 }

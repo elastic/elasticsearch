@@ -101,9 +101,12 @@ null   | null
 
 withNullP
 required_capability: mv_pseries_weighted_sum
+required_capability: warn_null_misuse
 
 ROW x=[1.0, 2.0, 3.0] | EVAL score = MV_PSERIES_WEIGHTED_SUM(x, null)
 ;
+
+warning:Line 1:38: Expression [MV_PSERIES_WEIGHTED_SUM(x, null)] always evaluates to NULL.
 
 x:double        | score:null
 [1.0, 2.0, 3.0] | null

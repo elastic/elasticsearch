@@ -24,7 +24,7 @@ public class FoldNull extends OptimizerRules.OptimizerExpressionRule<Expression>
     public Expression rule(Expression e, LogicalOptimizerContext ctx) {
         if (e instanceof EvaluatorMapper
             && (Expressions.isGuaranteedNull(e)
-                || (e instanceof AnyNullIsNull && e.children().stream().anyMatch(Expressions::isGuaranteedNull)))) {
+            || (e instanceof AnyNullIsNull && e.children().stream().anyMatch(Expressions::isGuaranteedNull)))) {
             return Literal.of(e, null);
         }
         return e;

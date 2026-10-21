@@ -13,9 +13,11 @@ import com.google.protobuf.MessageLite;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -79,7 +81,8 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
             }
 
             ProcessingContext finalContext = context;
-            bulkRequestBuilder.execute(listener.delegateFailure((delegate, bulkResponse) -> {
+            BulkRequest bulkRequest = bulkRequestBuilder.request();
+            ActionListener<BulkResponse> bulkListener = listener.delegateFailure((delegate, bulkResponse) -> {
                 if (finalContext.getIgnoredItems() > 0
                     || finalContext.getWarningMessage().isEmpty() == false
                     || needsPartialSuccess(bulkResponse)) {
@@ -87,7 +90,11 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
                 } else {
                     delegate.onResponse(new OTLPActionResponse(BytesArray.EMPTY));
                 }
-            }));
+            });
+            ActionListener.run(
+                ActionListener.runBefore(bulkListener, bulkRequest::releasePreBuiltBatches),
+                l -> client.execute(TransportBulkAction.TYPE, bulkRequest, l)
+            );
 
         } catch (InvalidProtocolBufferException e) {
             logger.debug("invalid OTLP protobuf payload", e);
@@ -204,13 +211,28 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
         RestStatus status = RestStatus.OK;
         int failures = 0;
         int failedBulkItems = 0;
+        int duplicates = 0;
+        boolean hasPrimaryTelemetryDuplicate = false;
+        String duplicateMessageSample = null;
         BulkItemResponse[] bulkItems = bulkResponse.getItems();
         for (int i = 0; i < bulkItems.length; i++) {
             BulkItemResponse.Failure failure = bulkItems[i].getFailure();
             boolean failureStoreRedirect = isFailureStoreRedirect(bulkItems[i]);
             if (failure != null || failureStoreRedirect) {
                 failedBulkItems++;
-                if (context.isPrimaryTelemetryDoc(i) == false) {
+                if (failure != null && failure.getStatus() == RestStatus.CONFLICT) {
+                    // A conflict means a document with the same _id has already been indexed.
+                    // This is almost always caused by a client retrying a request that was already (partially) indexed,
+                    // e.g. after a timeout. We don't count these as rejected items,
+                    // as clients would otherwise report the data as dropped even though it's stored.
+                    duplicates++;
+                    if (context.isPrimaryTelemetryDoc(i)) {
+                        hasPrimaryTelemetryDuplicate = true;
+                    }
+                    if (duplicateMessageSample == null) {
+                        duplicateMessageSample = failure.getMessage();
+                    }
+                } else if (context.isPrimaryTelemetryDoc(i) == false) {
                     context.recordNonPrimaryTelemetryDocFailure(bulkItems[i]);
                 } else if (failure != null) {
                     // we're counting each document as one item here
@@ -232,8 +254,8 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
                 }
             }
         }
-        if (bulkItems.length == failedBulkItems) {
-            // all items failed, so we report total items as failures
+        if (bulkItems.length == failedBulkItems && hasPrimaryTelemetryDuplicate == false) {
+            // All primary telemetry failed, so we report total items as failures even if exemplars were duplicates.
             failures = context.totalItems();
         }
         StringBuilder failureMessageBuilder = new StringBuilder();
@@ -255,6 +277,13 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
         }
         if (failureStoreRedirects > 0) {
             failureMessageBuilder.append("Redirected ").append(failureStoreRedirects).append(" documents to the failure store.\n");
+        }
+        if (duplicates > 0) {
+            logger.debug("skipped [{}] duplicate documents. Sample error message: [{}]", duplicates, duplicateMessageSample);
+            // Reported as a warning without increasing the rejected-item count
+            failureMessageBuilder.append("Skipped ")
+                .append(duplicates)
+                .append(" duplicate documents that were already indexed with the same id.\n");
         }
         failureMessageBuilder.append(context.getIgnoredItemsMessage(10));
         failureMessageBuilder.append(context.getWarningMessage());

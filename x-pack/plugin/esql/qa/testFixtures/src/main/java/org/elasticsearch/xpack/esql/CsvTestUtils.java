@@ -430,7 +430,7 @@ public final class CsvTestUtils {
 
         CsvColumn[] columns = null;
 
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         try (BufferedReader reader = reader(source)) {
             String line;
             int lineNumber = 1;

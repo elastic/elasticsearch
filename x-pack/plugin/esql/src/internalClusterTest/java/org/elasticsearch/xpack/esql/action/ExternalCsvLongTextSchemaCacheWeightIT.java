@@ -26,10 +26,11 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
- * End-to-end guard for {@code elastic/esql-planning#2075}: after a MIN/MAX harvest over CSV files whose
+ * End-to-end guard: after a MIN/MAX harvest over CSV files whose
  * text cells are a megabyte wide, the coordinator schema cache's retained weight must stay inside its
  * slice of {@code esql.external.cache.size}, and oversized extrema must not be retained.
  */
@@ -78,14 +79,18 @@ public class ExternalCsvLongTextSchemaCacheWeightIT extends AbstractExternalData
             retained,
             lessThanOrEqualTo(schemaBudget)
         );
-        // Megabyte-wide extrema exceed the per-entry ceiling (quarter of the schema slice at a 2mb
-        // total budget — well above the tiny-budget floor), so refuse-before-put leaves no per-file
-        // schema entries. Retained-weight ≤ budget is the durable bound; count == 0 is the refuse-path
-        // signal for this fixture's ceiling coupling.
+        // Megabyte-wide extrema exceed the STATISTICS per-entry ceiling, so refuse-before-put leaves no
+        // measurements retained. The schema records themselves are retained, and that is the point of the
+        // separation: an oversized extremum used to make the whole record unretainable, because the record
+        // carried both the file's shape and the measurement, so refusing the measurement refused the schema
+        // too and every file re-inferred on the next query.
+        assertThat("oversized long-text extrema must not be retained", (Integer) stats.get("statistics_cache.count"), equalTo(0));
+        assertThat("but the schema records they were measured against must be", (Integer) stats.get("schema_cache.count"), greaterThan(0));
+        long statisticsBudget = (Long) stats.get("statistics_budget_bytes");
         assertThat(
-            "oversized long-text extrema must not be retained in the schema cache",
-            (Integer) stats.get("schema_cache.count"),
-            equalTo(0)
+            "statistics retained weight must stay inside its own budget",
+            ExternalSourceCacheTestAccess.retainedStatisticsWeightBytes(cacheService),
+            lessThanOrEqualTo(statisticsBudget)
         );
     }
 }

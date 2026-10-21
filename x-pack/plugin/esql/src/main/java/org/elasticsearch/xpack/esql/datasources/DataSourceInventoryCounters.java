@@ -12,7 +12,7 @@ import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
+import org.elasticsearch.telemetry.metric.LongAsyncMeasurement;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.esql.datasources.datasource.DataSourceService;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
@@ -21,10 +21,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DataSourceTelemetryVocabular
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.DatasetShape;
 
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
@@ -99,15 +96,16 @@ public final class DataSourceInventoryCounters {
         }
     }
 
-    public Collection<LongWithAttributes> datasourceObservations(ProjectMetadata project) {
-        return datasourceObservations(project, dataSourceService == null ? type -> null : dataSourceService::validatorFor);
+    public void recordDatasourceObservations(ProjectMetadata project, LongAsyncMeasurement measurement) {
+        recordDatasourceObservations(project, dataSourceService == null ? type -> null : dataSourceService::validatorFor, measurement);
     }
 
-    public Collection<LongWithAttributes> datasetObservations(ProjectMetadata project) {
-        return datasetObservations(
+    public void recordDatasetObservations(ProjectMetadata project, LongAsyncMeasurement measurement) {
+        recordDatasetObservations(
             project,
             dataSourceService == null ? type -> null : dataSourceService::validatorFor,
-            dataSourceModule == null ? null : dataSourceModule.codecRegistry()
+            dataSourceModule == null ? null : dataSourceModule.codecRegistry(),
+            measurement
         );
     }
 
@@ -116,9 +114,10 @@ public final class DataSourceInventoryCounters {
      * OTEL last-write-wins on identical attributes, so emitting {@code 1} per object would collapse
      * two anonymous S3 sources to a single series of 1.
      */
-    public static Collection<LongWithAttributes> datasourceObservations(
+    public static void recordDatasourceObservations(
         ProjectMetadata project,
-        @Nullable Function<String, DataSourceValidator> validatorFor
+        @Nullable Function<String, DataSourceValidator> validatorFor,
+        LongAsyncMeasurement measurement
     ) {
         DataSourceMetadata dsMetadata = DataSourceMetadata.get(project);
         Map<Map<String, Object>, Long> counts = new LinkedHashMap<>();
@@ -135,13 +134,14 @@ public final class DataSourceInventoryCounters {
                 // skip this object; the rest of the inventory still publishes
             }
         }
-        return observations(counts);
+        record(counts, measurement);
     }
 
-    public static Collection<LongWithAttributes> datasetObservations(
+    public static void recordDatasetObservations(
         ProjectMetadata project,
         @Nullable Function<String, DataSourceValidator> validatorFor,
-        @Nullable DecompressionCodecRegistry codecs
+        @Nullable DecompressionCodecRegistry codecs,
+        LongAsyncMeasurement measurement
     ) {
         DataSourceMetadata dsMetadata = DataSourceMetadata.get(project);
         DatasetMetadata datasetMetadata = DatasetMetadata.get(project);
@@ -168,15 +168,13 @@ public final class DataSourceInventoryCounters {
                 // skip this object; the rest of the inventory still publishes
             }
         }
-        return observations(counts);
+        record(counts, measurement);
     }
 
-    private static Collection<LongWithAttributes> observations(Map<Map<String, Object>, Long> counts) {
-        List<LongWithAttributes> out = new ArrayList<>(counts.size());
+    private static void record(Map<Map<String, Object>, Long> counts, LongAsyncMeasurement measurement) {
         for (var entry : counts.entrySet()) {
-            out.add(new LongWithAttributes(entry.getValue(), entry.getKey()));
+            measurement.record(entry.getValue(), entry.getKey());
         }
-        return out;
     }
 
     private static void emitDenseZeros(Counters counters) {

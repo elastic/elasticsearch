@@ -15,6 +15,7 @@ import com.fasterxml.jackson.core.exc.StreamConstraintsException;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapEstimates;
 import org.elasticsearch.xpack.esql.datasources.spi.TemporalInference;
 import org.elasticsearch.xpack.esql.datasources.spi.TypeWidening;
@@ -82,6 +84,9 @@ public class NdJsonSchemaInferrer {
      */
     static final long FIELD_INFO_BYTES = 256L;
 
+    /** Set once at the start of {@link #doInferSchema}; {@link FieldInfo#addType} reports into it directly. */
+    private List<Widening> widenings;
+
     /** Label the inference charges are made under, so a trip names the work that was refused. */
     static final String BREAKER_LABEL = "ndjson_schema_inference";
 
@@ -97,18 +102,28 @@ public class NdJsonSchemaInferrer {
     }
 
     /**
+     * One within-file widen worth reporting: a field whose inferred type moved because its sampled
+     * values disagree — a fold to {@link DataType#KEYWORD}, or a {@code long}/{@code double} merge.
+     * Mirrors {@code CsvSchemaInferrer.Widening}, feeding the same warning channel
+     * ({@code NdJsonFormatReader}) and the same {@link org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata#widenedColumns()}.
+     *
+     * @param row 1-based record number, within the inference sample, that carried {@code value}
+     */
+    public record Widening(String columnName, DataType fromType, DataType toType, String value, int row) {}
+
+    /**
      * Infers schema from an NDJSON input stream, reading up to maxLines.
      * When {@code datetimeFormatter} is null, falls back to {@link #STRICT_DATE_OPTIONAL_TIME}.
      * <p>
      * The field tree and the column list built from it are charged to {@code breaker} while they exist, and released
      * before returning, so the breaker bounds a schema while it is built. The returned attributes belong to the caller,
      * and whether they stay charged after that is the caller's choice: the multi-file gather and the schema interner
-     * charge what they keep, while a single-file resolve and a data-node read keep it uncharged. A flattened nested field
-     * is named by its whole dotted path, so the column list can be orders of magnitude larger than the input that
-     * produced it. A {@code CircuitBreakingException} propagates unchanged and stops inference. It is not a malformed
-     * line, so it must never be caught as one.
+     * charge what they keep, as does a streaming data-node read for the schema it binds, while a single-file resolve keeps
+     * it uncharged. A flattened nested field is named by its whole dotted path, so the column list can be orders of
+     * magnitude larger than the input that produced it. A {@code CircuitBreakingException} propagates unchanged and stops
+     * inference. It is not a malformed line, so it must never be caught as one.
      * <p>
-     * More than {@code maxFields} fields, objects and leaves alike, fails inference with a client error naming
+     * More than {@code maxFields} fields, objects and leaves alike, fails inference with an {@code ExternalClientException} (400) naming
      * {@code schema_max_fields}. Like the breaker, that is not a malformed line: it stops inference at once. Fields are
      * counted as a line is parsed, so the line that crosses the cap is read to its end first, and if it turns out to be
      * malformed it is skipped like any other and its fields are discarded.
@@ -120,7 +135,19 @@ public class NdJsonSchemaInferrer {
         DateFormatter datetimeFormatter,
         CircuitBreaker breaker
     ) throws IOException {
-        return inferSampledSchema(inputStream, maxLines, maxFields, datetimeFormatter, breaker).schema();
+        return inferSchema(inputStream, maxLines, maxFields, datetimeFormatter, breaker, new ArrayList<>());
+    }
+
+    /** As above, reporting every within-sample widen worth surfacing to the user into {@code widenings}. */
+    public static List<Attribute> inferSchema(
+        InputStream inputStream,
+        int maxLines,
+        int maxFields,
+        DateFormatter datetimeFormatter,
+        CircuitBreaker breaker,
+        List<Widening> widenings
+    ) throws IOException {
+        return inferSampledSchema(inputStream, maxLines, maxFields, datetimeFormatter, breaker, widenings).schema();
     }
 
     /** Schema plus how many records the sample actually consumed. */
@@ -133,9 +160,21 @@ public class NdJsonSchemaInferrer {
         DateFormatter datetimeFormatter,
         CircuitBreaker breaker
     ) throws IOException {
+        return inferSampledSchema(inputStream, maxLines, maxFields, datetimeFormatter, breaker, new ArrayList<>());
+    }
+
+    /** As above, reporting every within-sample widen worth surfacing to the user into {@code widenings}. */
+    public static SampledSchema inferSampledSchema(
+        InputStream inputStream,
+        int maxLines,
+        int maxFields,
+        DateFormatter datetimeFormatter,
+        CircuitBreaker breaker,
+        List<Widening> widenings
+    ) throws IOException {
         NdJsonSchemaInferrer inferrer = new NdJsonSchemaInferrer(maxFields, datetimeFormatter, breaker);
         try {
-            List<Attribute> schema = inferrer.doInferSchema(inputStream, maxLines);
+            List<Attribute> schema = inferrer.doInferSchema(inputStream, maxLines, widenings);
             return new SampledSchema(schema, inferrer.lineCount);
         } finally {
             inferrer.breaker.addWithoutBreaking(-inferrer.reservedBytes);
@@ -147,7 +186,8 @@ public class NdJsonSchemaInferrer {
         reservedBytes += bytes;
     }
 
-    private List<Attribute> doInferSchema(InputStream inputStream, int maxLines) throws IOException {
+    private List<Attribute> doInferSchema(InputStream inputStream, int maxLines, List<Widening> widenings) throws IOException {
+        this.widenings = widenings;
         FieldInfo root = new FieldInfo(null, null);
         NdJsonUtils.LineTerminatorTrackingStream tracking = new NdJsonUtils.LineTerminatorTrackingStream(inputStream);
         JsonParser parser = NdJsonUtils.JSON_FACTORY.createParser(tracking);
@@ -191,7 +231,9 @@ public class NdJsonSchemaInferrer {
                     // yet turn out to be malformed. Only a well-formed line fails inference; a malformed one is
                     // skipped like any other, without its fields counting toward the cap.
                     if (restOfRecordParses(parser)) {
-                        throw new IllegalArgumentException(fieldCapMessage(maxFields));
+                        // A deterministic limit, so a 400; typed rather than an IllegalArgumentException so that every
+                        // rail keeps the message, and the same refusal CSV, TSV and Parquet give.
+                        throw ExternalClientException.schemaTooWide(fieldCapMessage(maxFields));
                     }
                     logger.debug("Malformed NDJSON at line {} past the field cap", lineCount);
                     discardFieldsFrom(lineStart);
@@ -267,8 +309,8 @@ public class NdJsonSchemaInferrer {
             );
         }
         return LoggerMessageFormat.format(
-            "NDJSON schema inference found more than [{}] fields; raise [{}] in the dataset settings or the "
-                + "WITH clause to infer a wider schema",
+            "NDJSON schema inference found more than [{}] fields; raise [esql.external.schema_max_fields] or the dataset's [{}] "
+                + "to infer a wider schema",
             maxFields,
             NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS
         );
@@ -325,13 +367,13 @@ public class NdJsonSchemaInferrer {
             case VALUE_NUMBER_INT -> {
                 switch (parser.getNumberType()) {
                     case INT:
-                        field.addType(DataType.INTEGER);
+                        field.addType(DataType.INTEGER, lineCount + 1, parser::getText);
                         return;
                     case LONG:
-                        field.addType(DataType.LONG);
+                        field.addLongType(lineCount + 1, parser.getLongValue(), parser::getText);
                         return;
                     case BIG_INTEGER: {
-                        field.addType(DataType.DOUBLE);
+                        field.addType(DataType.DOUBLE, lineCount + 1, parser::getText);
                         var location = parser.getTokenLocation();
                         logger.debug(
                             "Big integers are not supported, falling back to double [{}, line: {}, column: {}]",
@@ -342,8 +384,8 @@ public class NdJsonSchemaInferrer {
                     }
                 }
             } // conservative size
-            case VALUE_NUMBER_FLOAT -> field.addType(DataType.DOUBLE); // conservative size
-            case VALUE_TRUE, VALUE_FALSE -> field.addType(DataType.BOOLEAN);
+            case VALUE_NUMBER_FLOAT -> field.addType(DataType.DOUBLE, lineCount + 1, parser::getText); // conservative size
+            case VALUE_TRUE, VALUE_FALSE -> field.addType(DataType.BOOLEAN, lineCount + 1, parser::getText);
             case VALUE_NULL -> field.nullable = true;
             // Ignore all other events
         }
@@ -435,6 +477,21 @@ public class NdJsonSchemaInferrer {
         final int idx;
         final FieldInfo parent;
         final String name;
+        /**
+         * The single type that represents every value seen for this field so far, folded in arrival order —
+         * unlike {@link #types} (an unordered set, resolved only at the end by {@link #resolveType}), this is
+         * updated incrementally so {@link #addType} can tell exactly which value moved it and to what, the
+         * same question {@code CsvSchemaInferrer.narrowCandidate} answers for CSV. {@code null} until the
+         * first non-null value.
+         */
+        DataType runningType;
+        /**
+         * Whether a long-shaped value outside the range a double represents exactly has been seen for
+         * this field. Gates a reported long/double merge so an ordinary field mixing whole numbers and
+         * decimals (e.g. {@code 1}, {@code 2}, {@code 1.5}) is not flagged — nothing is actually lost
+         * there, since every value round-trips through double exactly. See {@link #addLongType}.
+         */
+        boolean sawPrecisionLosingLong;
 
         FieldInfo(FieldInfo parent, String name) {
             // fields holds the root too, so this admits exactly maxFields fields below it.
@@ -459,15 +516,136 @@ public class NdJsonSchemaInferrer {
             return children.computeIfAbsent(name, (n) -> new FieldInfo(this, n));
         }
 
-        void addType(DataType type) {
-            types.add(type);
+        /**
+         * Dotted path from the root, or {@code null} for the root itself; labels a reported {@link Widening}.
+         * Walks {@link #parent} on demand rather than being cached per node: a widen is rare, so paying the
+         * walk only then (and iteratively, not recursively, so a pathologically deep chain can't overflow the
+         * stack either) beats charging every node — including ones that never widen — the O(path length)
+         * string it would take to cache this eagerly.
+         */
+        String fullName() {
+            if (parent == null) {
+                return null;
+            }
+            Deque<String> segments = new ArrayDeque<>();
+            for (FieldInfo node = this; node.parent != null; node = node.parent) {
+                segments.push(node.name);
+            }
+            StringBuilder path = new StringBuilder();
+            for (String segment : segments) {
+                if (path.isEmpty() == false) {
+                    path.append('.');
+                }
+                path.append(segment);
+            }
+            return path.toString();
+        }
+
+        /**
+         * Records one sampled value's type, updating the running fold and reporting a {@link Widening} the
+         * moment it moves to {@link DataType#KEYWORD} — gated exactly like {@code SchemaReconciliation}'s
+         * cross-file {@code emitKeywordFallbackWarnings}: a lossless promotion (e.g. {@code integer ->
+         * long}) stays silent. The first value a field ever sees never widens anything (there is nothing
+         * yet to move away from), matching {@code CsvSchemaInferrer.narrowCandidate}'s treatment of an
+         * unconfirmed column. A {@code long}/{@code double} merge is handled by {@link #addLongType}
+         * instead (for a {@code LONG} value) or below (for a {@code DOUBLE} value arriving after a
+         * {@code LONG} already settled the field) — see that method's javadoc for why the two are split.
+         * <p>
+         * A type already contributing to the fold changes nothing if seen again — {@code join} is
+         * idempotent — so re-seeing it is skipped before the join, both as an optimization and because
+         * {@code updated != previous} below only ever holds on a genuinely new type: {@code previous}
+         * already absorbed every type seen so far, so joining it with one of those again is a no-op.
+         * {@code value} is a {@link CheckedSupplier} rather than a plain {@code String} so the caller (a scalar
+         * token in the hot inference loop) only pays for materializing it when a {@link Widening} is
+         * actually about to be built — rare, since most values confirm a field's already-settled type.
+         * Safe to resolve synchronously here (never stored past this call): the backing
+         * {@code JsonParser} stays positioned on the current token for the whole call.
+         */
+        void addType(DataType type, int row, CheckedSupplier<String, IOException> value) throws IOException {
             fieldsSeen.set(idx);
+            if (types.add(type) == false) {
+                return;
+            }
+            DataType previous = runningType;
+            DataType updated = previous == null ? type : TypeWidening.join(previous, type);
+            if (previous != null) {
+                boolean becameKeyword = updated == DataType.KEYWORD && updated != previous;
+                // Only the DOUBLE side of a long/double merge reaches here — see addLongType for the
+                // LONG side, including the repeat-value case this method's types.add-gated shape can't see.
+                boolean becameLongDoubleMerge = updated == DataType.DOUBLE
+                    && type == DataType.DOUBLE
+                    && types.contains(DataType.LONG)
+                    && sawPrecisionLosingLong;
+                if (becameKeyword) {
+                    widenings.add(new Widening(fullName(), previous, updated, value.get(), row));
+                } else if (becameLongDoubleMerge) {
+                    widenings.add(new Widening(fullName(), previous, updated, value.get(), row));
+                }
+            }
+            runningType = updated;
+        }
+
+        /**
+         * Like {@link #addType}, but for a {@code LONG}-typed value, which is the only type that needs
+         * to track precision-loss risk: whether any long-shaped value's magnitude exceeds what a
+         * {@code double} represents exactly (see {@link #sawPrecisionLosingLong}). Takes the primitive
+         * {@code longValue} Jackson has already parsed, rather than text, because that check must run on
+         * every {@code LONG} value — including a repeat one, when {@code type} is already a member of
+         * {@link #types} and {@link #addType}'s {@code types.add}-gated shape would otherwise never look
+         * at it again — and a primitive comparison costs nothing there the common case needs to pay for
+         * with a materialized string.
+         * <p>
+         * A merge is only reported when {@link #sawPrecisionLosingLong} is true: a field mixing whole
+         * numbers and decimals entirely within the range a double represents exactly (e.g. {@code 1},
+         * {@code 2}, {@code 1.5}) must not be flagged, since nothing is actually lost there. The merge
+         * usually surfaces on the call that adds {@code LONG} to {@link #types} for the first time, with
+         * {@code DOUBLE} already a member (the symmetric case — {@code DOUBLE} arriving after
+         * {@code LONG} — is {@link #addType}'s). But membership alone isn't the whole story: the latch
+         * can flip on a call whose type is already a member — a second, larger {@code LONG} crossing
+         * 2^53 after a smaller one already settled the field on {@code LONG} — and {@code types.add}
+         * returning {@code false} for that call would otherwise hide the merge behind the early return.
+         * Handled there explicitly, reporting {@code LONG} as both the shape of this value and the
+         * field's prior committed type, since a repeat {@code LONG} call can only be reached once the
+         * field is already settled on {@code LONG}.
+         */
+        void addLongType(int row, long longValue, CheckedSupplier<String, IOException> value) throws IOException {
+            fieldsSeen.set(idx);
+            boolean precisionLatchJustSet = false;
+            if (sawPrecisionLosingLong == false) {
+                sawPrecisionLosingLong = longValue > MAX_SAFE_DOUBLE_INTEGER || longValue < -MAX_SAFE_DOUBLE_INTEGER;
+                precisionLatchJustSet = sawPrecisionLosingLong;
+            }
+            if (types.add(DataType.LONG) == false) {
+                if (precisionLatchJustSet && types.contains(DataType.DOUBLE)) {
+                    widenings.add(new Widening(fullName(), DataType.LONG, DataType.DOUBLE, value.get(), row));
+                }
+                return;
+            }
+            DataType previous = runningType;
+            DataType updated = previous == null ? DataType.LONG : TypeWidening.join(previous, DataType.LONG);
+            if (previous != null) {
+                boolean becameKeyword = updated == DataType.KEYWORD && updated != previous;
+                boolean becameLongDoubleMerge = updated == DataType.DOUBLE && types.contains(DataType.DOUBLE) && sawPrecisionLosingLong;
+                if (becameKeyword) {
+                    widenings.add(new Widening(fullName(), previous, updated, value.get(), row));
+                } else if (becameLongDoubleMerge) {
+                    // previous can equal updated here (field already DOUBLE from a genuine decimal,
+                    // now seeing its first — precision-losing — LONG): report LONG, this value's own
+                    // shape, rather than previous, since fromType == toType == DOUBLE says nothing.
+                    DataType fromType = previous == updated ? DataType.LONG : previous;
+                    widenings.add(new Widening(fullName(), fromType, updated, value.get(), row));
+                }
+            }
+            runningType = updated;
         }
 
         DataType resolveType() {
             return resolveObservedTypes(types);
         }
     }
+
+    /** Every {@code long} at or below this magnitude round-trips through {@code double} exactly. */
+    private static final long MAX_SAFE_DOUBLE_INTEGER = 1L << 53;
 
     /**
      * The single type that represents everything observed for one field.
@@ -505,13 +683,14 @@ public class NdJsonSchemaInferrer {
      * strings, no later value pays a date parse. Without it every sampled value of a keyword column
      * would be parsed as a date and the result thrown away.
      */
-    private void inferStringType(FieldInfo field, String text) {
+    private void inferStringType(FieldInfo field, String text) throws IOException {
         if (field.types.contains(DataType.KEYWORD)) {
-            field.addType(DataType.KEYWORD);
+            field.addType(DataType.KEYWORD, lineCount + 1, () -> text);
             return;
         }
         TemporalAccessor parsed = tryParseDateTime(text);
-        field.addType(parsed == null ? DataType.KEYWORD : forcesDateNanos(parsed) ? DataType.DATE_NANOS : DataType.DATETIME);
+        DataType type = parsed == null ? DataType.KEYWORD : forcesDateNanos(parsed) ? DataType.DATE_NANOS : DataType.DATETIME;
+        field.addType(type, lineCount + 1, () -> text);
     }
 
     /**

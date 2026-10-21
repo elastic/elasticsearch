@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
@@ -34,7 +35,7 @@ import static org.hamcrest.Matchers.empty;
 public class NdJsonFormatReaderRecognizedKeysTests extends ESTestCase {
 
     private static final BlockFactory NOOP_BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("noop"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     public void testRecognizedKeysSetIsExpected() {
@@ -189,7 +190,7 @@ public class NdJsonFormatReaderRecognizedKeysTests extends ESTestCase {
 
     /**
      * {@code schema_sample_size} is a base dataset field: {@code FileDataSourceValidator} bounds it
-     * at PUT time ([1, 20000]) and never forwards it to the format validator, so the validator must
+     * at PUT time ([1, 40000]) and never forwards it to the format validator, so the validator must
      * ignore it rather than duplicate the check with a second message. The reader still rejects a
      * non-positive value on the query path, where the WITH config arrives unfiltered.
      */
@@ -281,5 +282,25 @@ public class NdJsonFormatReaderRecognizedKeysTests extends ESTestCase {
             return "500";
         }
         return "dd-MM-yyyy";
+    }
+
+    public void testDatasetAuditSettings() {
+        for (var field : NdJsonDataSourcePlugin.FORMAT_CONFIG_KEYS) {
+            var request = new PutDatasetAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                "dataset",
+                "datasource",
+                "resource",
+                null,
+                Map.of(field, "test-value")
+            );
+
+            assertEquals(
+                "Unexpected audit value for setting [" + field + "]",
+                "test-value",
+                request.auditFields().get("settings." + field)
+            );
+        }
     }
 }

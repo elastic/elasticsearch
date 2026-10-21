@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.into;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -143,6 +144,15 @@ public class IntoPageWriterTests extends ESTestCase {
                             new VersionConflictEngineException(SHARD, id, "document already exists (current version [1])")
                         )
                     );
+                    case FORBIDDEN -> BulkItemResponse.failure(
+                        i,
+                        request.opType(),
+                        new BulkItemResponse.Failure(
+                            DESTINATION,
+                            id,
+                            new ElasticsearchSecurityException("action [indices:data/write/index] is unauthorized", RestStatus.FORBIDDEN)
+                        )
+                    );
                     case REFUSED -> BulkItemResponse.failure(
                         i,
                         request.opType(),
@@ -168,7 +178,8 @@ public class IntoPageWriterTests extends ESTestCase {
         CREATED,
         UPDATED,
         CONFLICT,
-        REFUSED
+        REFUSED,
+        FORBIDDEN
     }
 
     private static final List<Attribute> COLUMNS = List.of(
@@ -492,15 +503,33 @@ public class IntoPageWriterTests extends ESTestCase {
         assertThat(client.refreshes, hasSize(0));
     }
 
-    public void testRefreshFailureFailsTheQuery() {
+    /**
+     * The rows are written by the time the refresh runs, so its failure (a caller allowed to write but not to refresh,
+     * say) does not fail the query, which a retry would answer by writing everything again. It is reported instead.
+     */
+    public void testRefreshFailureIsReportedNotFatal() {
         IntoPageWriter writer = writer(IntoOptions.DEFAULT, COLUMNS);
         writer.accept(page(new String[] { "a" }, new double[] { 1 }));
         writer.finish();
         client.answer(Outcome.CREATED);
-        Exception boom = new IllegalStateException("refresh boom");
-        client.refreshListeners.remove(0).onFailure(boom);
+        client.refreshListeners.remove(0).onFailure(new IllegalStateException("action [indices:admin/refresh] is unauthorized"));
         assertTrue(writer.isFinished());
-        assertThat(writer.failure(), sameInstance(boom));
+        assertThat(writer.failure(), nullValue());
+        assertThat(writer.stats().created(), equalTo(1L));
+        assertThat(writer.refreshWarning(), containsString("could not refresh the destination"));
+        assertThat(writer.refreshWarning(), containsString("indices:admin/refresh] is unauthorized"));
+    }
+
+    /** An item the caller may not write is not a row the destination dislikes: it fails the query even with keep_going. */
+    public void testForbiddenItemFailsTheQueryEvenWithKeepGoing() {
+        IntoPageWriter writer = writer(KEEP_GOING, COLUMNS);
+        writer.accept(page(new String[] { "a", "b" }, new double[] { 1, 2 }));
+        writer.finish();
+        client.answer(Outcome.CREATED, Outcome.FORBIDDEN);
+        assertTrue(writer.isFinished());
+        assertThat(writer.failure(), instanceOf(ElasticsearchStatusException.class));
+        assertThat(((ElasticsearchStatusException) writer.failure()).status(), equalTo(RestStatus.FORBIDDEN));
+        assertThat(writer.stats().failures(), equalTo(0L));
     }
 
     /**

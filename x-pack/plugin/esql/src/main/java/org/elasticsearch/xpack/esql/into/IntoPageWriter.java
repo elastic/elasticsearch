@@ -22,6 +22,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
@@ -57,7 +58,8 @@ import java.util.function.Supplier;
  * <p>
  * Takes part in the driver's lifecycle: the driver is held back while {@link #MAX_CONCURRENT_BULKS} bulks are
  * outstanding, and the query only completes once every bulk has been acknowledged and, unless {@code refresh=false}, the
- * destination has been refreshed. Each outstanding request is also registered with the {@link DriverContext}, so a
+ * destination has been refreshed; a refresh that fails is reported as a warning rather than failing the query, since
+ * the rows are written. Each outstanding request is also registered with the {@link DriverContext}, so a
  * cancelled query waits for its writes to settle before it reports. An async {@code STOP} reaches the writer through
  * the driver's stop hooks: from then on no further page is written, the bulks in flight settle, and the query
  * answers with the statistics of what was written, flagged as partial.
@@ -89,6 +91,8 @@ public final class IntoPageWriter implements PageConsumer {
     private boolean finished;
     private boolean stopped;
     private boolean refreshing;
+    @Nullable
+    private String refreshWarning;
     private boolean done;
     private SubscribableListener<Void> waiting;
 
@@ -259,7 +263,19 @@ public final class IntoPageWriter implements PageConsumer {
     private void onItemFailure(BulkItemResponse item) {
         assert Thread.holdsLock(this);
         BulkItemResponse.Failure itemFailure = item.getFailure();
-        if (itemFailure.getStatus() == RestStatus.CONFLICT) {
+        if (itemFailure.getStatus() == RestStatus.UNAUTHORIZED || itemFailure.getStatus() == RestStatus.FORBIDDEN) {
+            // The caller may not write to the destination: that is not a row the destination dislikes, so keep_going
+            // does not apply and the query fails, as it does when the whole bulk is refused.
+            recordFailure(
+                new ElasticsearchStatusException(
+                    "INTO [{}] failed: {}",
+                    itemFailure.getStatus(),
+                    itemFailure.getCause(),
+                    destination,
+                    itemFailure.getCause().getMessage()
+                )
+            );
+        } else if (itemFailure.getStatus() == RestStatus.CONFLICT) {
             switch (options.collisions()) {
                 case KEEP -> stats.countVersionConflict();
                 case ABORT -> recordFailure(
@@ -371,14 +387,19 @@ public final class IntoPageWriter implements PageConsumer {
         return false;
     }
 
+    /** Why the final refresh did not happen, or null if it did or was not asked for. It does not fail the query. */
+    @Nullable
+    public synchronized String refreshWarning() {
+        return refreshWarning;
+    }
+
     private void refresh() {
         final ActionListener<BroadcastResponse> listener = ActionListener.wrap(response -> {
             if (response.getFailedShards() > 0) {
                 refreshed(
                     new ElasticsearchException(
-                        "INTO [{}] failed: refresh failed on [{}] shards",
+                        "refresh failed on [{}] shards",
                         response.getShardFailures()[0].getCause(),
-                        destination,
                         response.getFailedShards()
                     )
                 );
@@ -395,7 +416,13 @@ public final class IntoPageWriter implements PageConsumer {
         final SubscribableListener<Void> release;
         synchronized (this) {
             if (e != null) {
-                recordFailure(e);
+                // The rows are in, so the query succeeded; what is lost is only when they become searchable. Failing here
+                // would invite a retry that writes them again, so it is reported instead.
+                refreshWarning = Strings.format(
+                    "INTO [%s] wrote its rows but could not refresh the destination (%s), so they may not be searchable yet",
+                    destination,
+                    e.getMessage()
+                );
             }
             refreshing = false;
             done = true;

@@ -110,7 +110,6 @@ import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
-import org.elasticsearch.xpack.esql.into.IntoDestination;
 import org.elasticsearch.xpack.esql.into.IntoOptions;
 import org.elasticsearch.xpack.esql.into.IntoStats;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
@@ -853,8 +852,9 @@ public class EsqlSession {
         executionInfo.queryProfile().planningCpuNanos(planningCpu.finish());
 
         if (intoContext != null) {
-            // Checked before anything is read, so a query that cannot be written does not write part of itself.
-            verifyIntoDestination(optimizedPlan, configuration);
+            // Refused before anything is read. The destination is checked later, in ComputeService, once the caller is
+            // known to be allowed to write to it.
+            verifyInto(configuration);
         }
 
         // In explain mode, wrap the listener to transform results into EXPLAIN table format.
@@ -1084,21 +1084,16 @@ public class EsqlSession {
     }
 
     /**
-     * Refuses an {@code INTO} query whose output the destination cannot take, before any of it is read. The destination
-     * has to exist or be described by a template, and the columns have to fit its mapping. {@code unmapped_fields=LOAD_ALL}
-     * is refused: its {@code _unmapped_fields} column is a JSON object of each document's unmapped fields, which the
-     * writer would store as one object field of that name rather than as the top-level fields it stands for, and whose
-     * keys the mapping check cannot see up front.
+     * Refuses an {@code INTO} query that cannot be written whatever the destination is: {@code unmapped_fields=LOAD_ALL}
+     * adds an {@code _unmapped_fields} column, a JSON object of each document's unmapped fields, which the writer would
+     * store as one object field of that name rather than as the top-level fields it stands for, and whose keys the
+     * mapping check cannot see up front. The destination itself is checked by {@code ComputeService}, once the caller is
+     * known to be allowed to write to it.
      */
-    private void verifyIntoDestination(LogicalPlan optimizedPlan, Configuration configuration) {
+    private void verifyInto(Configuration configuration) {
         if (QuerySettings.UNMAPPED_FIELDS.get(configuration.resolvedSettings()).loadsAllUnmappedFields()) {
             throw new VerificationException("INTO cannot be used with [unmapped_fields=LOAD_ALL]");
         }
-        if (projectMetadata == null) {
-            throw new IllegalStateException("INTO needs the project metadata to resolve [" + intoContext.destination() + "]");
-        }
-        IntoDestination destination = IntoDestination.resolve(projectMetadata, intoContext.destination());
-        destination.validate(optimizedPlan.output(), intoContext.options());
     }
 
     /** Puts the {@code INTO} root back on the final plan, so its rows are written and the result is the statistics row. */

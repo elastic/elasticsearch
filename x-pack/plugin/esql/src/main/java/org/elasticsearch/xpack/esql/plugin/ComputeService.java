@@ -15,6 +15,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -98,6 +99,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
+import org.elasticsearch.xpack.esql.into.IntoAuthorizer;
+import org.elasticsearch.xpack.esql.into.IntoDestination;
 import org.elasticsearch.xpack.esql.into.IntoPageWriter;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalVerifier;
@@ -1115,6 +1118,49 @@ public class ComputeService {
             // external blob-store pool after ExternalSourceResolver dispatches resolution there.
             EsqlPlugin.externalBlobStorePool()
         );
+        final IntoExec intoPlan = physicalPlan instanceof StreamingOutputExec streaming && streaming.child() instanceof IntoExec into ? into
+            : physicalPlan instanceof IntoExec into ? into
+            : null;
+        if (intoPlan == null) {
+            executeChecked(sessionId, rootTask, flags, physicalPlan, configuration, foldContext, execInfo, planTimeProfile, listener);
+            return;
+        }
+        // The destination is looked at only once the caller is known to be allowed to write to it, so a refusal never
+        // tells a caller without that privilege what the destination is or whether it exists. Checked before anything is
+        // read, so a query that cannot be written does not write part of itself.
+        final PhysicalPlan plan = physicalPlan;
+        IntoAuthorizer.authorize(
+            client,
+            intoPlan.destination(),
+            intoPlan.options(),
+            new ThreadedActionListener<>(
+                threadPool.executor(ThreadPool.Names.SEARCH),
+                true,
+                listener.delegateFailureAndWrap((l, ignored) -> {
+                    try {
+                        ProjectMetadata project = projectResolver.getProjectMetadata(clusterService.state());
+                        IntoDestination.resolve(project, intoPlan.destination()).validate(intoPlan.child().output(), intoPlan.options());
+                    } catch (Exception e) {
+                        l.onFailure(e);
+                        return;
+                    }
+                    executeChecked(sessionId, rootTask, flags, plan, configuration, foldContext, execInfo, planTimeProfile, l);
+                })
+            )
+        );
+    }
+
+    private void executeChecked(
+        String sessionId,
+        CancellableTask rootTask,
+        EsqlFlags flags,
+        PhysicalPlan physicalPlan,
+        Configuration configuration,
+        FoldContext foldContext,
+        EsqlExecutionInfo execInfo,
+        PlanTimeProfile planTimeProfile,
+        ActionListener<Result> listener
+    ) {
         PageStreamPublisher.Producer streamProducer = null;
         if (physicalPlan instanceof StreamingOutputExec streaming && streaming.child() instanceof IntoExec into) {
             // A client may stream everything; there is nothing to stream here until the write is over, and then only
@@ -1145,6 +1191,9 @@ public class ComputeService {
                             )
                     );
                     return;
+                }
+                if (writer.refreshWarning() != null) {
+                    HeaderWarning.addWarning(writer.refreshWarning());
                 }
                 Page stats = writer.stats().toPage(blockFactory);
                 List<Page> pages;

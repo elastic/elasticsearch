@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.inference.InferenceString.EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED;
+import static org.elasticsearch.inference.InferenceString.HTML_INPUT_SUPPORT_ADDED;
 import static org.elasticsearch.inference.InferenceString.URL_INPUT_FORMAT_SUPPORT_ADDED;
 import static org.elasticsearch.inference.InferenceStringTests.TEST_DATA_URI;
 import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
@@ -111,8 +112,9 @@ public class DocumentExtractionActionRequestTests extends AbstractBWCWireSeriali
     /**
      * Versions before {@link InferenceString#EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED} throw an exception when serializing pdf
      * inputs, which every document extraction request may carry, and versions before
-     * {@link InferenceString#URL_INPUT_FORMAT_SUPPORT_ADDED} throw an exception when serializing URL-format inputs, so we filter those
-     * out of the bwc versions to avoid test failures. Both guards live in {@link InferenceString} and are tested directly by
+     * {@link InferenceString#URL_INPUT_FORMAT_SUPPORT_ADDED} throw an exception when serializing URL-format inputs, and versions before
+     * {@link InferenceString#HTML_INPUT_SUPPORT_ADDED} throw an exception when serializing html inputs, so we filter those out of the bwc
+     * versions to avoid test failures. All guards live in {@link InferenceString} and are tested directly by
      * {@link DocumentExtractionRequestTests}.
      */
     @Override
@@ -120,6 +122,7 @@ public class DocumentExtractionActionRequestTests extends AbstractBWCWireSeriali
         return super.bwcVersions().stream()
             .filter(version -> version.supports(EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED))
             .filter(version -> version.supports(URL_INPUT_FORMAT_SUPPORT_ADDED))
+            .filter(version -> version.supports(HTML_INPUT_SUPPORT_ADDED))
             .toList();
     }
 

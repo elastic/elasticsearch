@@ -145,6 +145,10 @@ public class LocalBulk extends ExportBulk {
 
     /**
      * Log the first {@link #MAX_EXCEPTIONS_TO_LOG} exceptions, and any unique ones after that
+     * <p>
+     * We log the first {@link #MAX_EXCEPTIONS_TO_LOG} exceptions unconditionally just in case
+     * our uniqueness heuristic has some blind spots (e.g., if they are all wrapped by some
+     * wrapper exception that {@link ExceptionsHelper#unwrapCause(Throwable)} is not aware of).
      *
      * @param exception The {@link ExportException} containing the doc-level exceptions
      */

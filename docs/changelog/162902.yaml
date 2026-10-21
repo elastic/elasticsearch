@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 162902
+summary: Wait for in-flight tasks on graceful shutdown
+type: enhancement

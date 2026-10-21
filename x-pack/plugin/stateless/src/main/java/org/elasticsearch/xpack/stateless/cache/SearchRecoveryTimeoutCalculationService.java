@@ -342,12 +342,13 @@ public class SearchRecoveryTimeoutCalculationService {
                 TimeValue.timeValueMillis(Math.round(Math.min(remaining, dataVolumeMs * concurrentRelocations))),
                 TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME
             );
+        } else {
+            return new SearchRecoveryTimeout(
+                TimeValue.timeValueMillis(Math.round(Math.min(remaining, equalShareMs * concurrentRelocations))),
+                TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE,
+                equalShareMs
+            );
         }
-        return new SearchRecoveryTimeout(
-            TimeValue.timeValueMillis(Math.round(Math.min(remaining, equalShareMs * concurrentRelocations))),
-            TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE,
-            equalShareMs
-        );
     }
 
     /// Counts relocations whose source is `sourceNodeId` and whose target is `targetNodeId` (i.e. shards relocating

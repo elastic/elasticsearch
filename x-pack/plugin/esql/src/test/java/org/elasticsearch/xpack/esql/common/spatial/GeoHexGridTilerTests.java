@@ -31,6 +31,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * Ported from {@code GeoHexTilerTests} in the spatial module: every case checks the recursive search of
@@ -174,10 +176,11 @@ public class GeoHexGridTilerTests extends ESTestCase {
     }
 
     /**
-     * The cell limit bounds the work as well as the output, at any precision. The tiler relates about two tiles per cell
-     * it adds, plus a fixed cost per level while it descends to the first cells, so a regression that stops honouring the
-     * limit or stops pruning fails here instead of only making the function slow. Without the limit a world-sized shape at
-     * precision 15 would relate billions of tiles, so the counting tiler fails as soon as the budget is spent.
+     * The cell limit bounds the work as well as the output, at any precision. The tiler relates or bounds-checks at most
+     * about three tiles per cell it adds, plus a fixed cost per level while it descends to the first cells, so a regression
+     * that stops honouring the limit or stops pruning fails here instead of only making the function slow. Without the limit a
+     * world-sized shape at precision 15 would visit billions of tiles, so the counting tiler fails as soon as the budget is
+     * spent. The cells must match the real tiler's, so the counting tiler cannot skip work the real one does.
      */
     public void testCellLimitBoundsWork() throws Exception {
         List<Geometry> geometries = List.of(
@@ -191,12 +194,13 @@ public class GeoHexGridTilerTests extends ESTestCase {
                 for (int maxCells : new int[] { 100, 1_000, 10_000 }) {
                     for (GeoBoundingBox bounds : new GeoBoundingBox[] { null, bbox }) {
                         String description = geometry + " at precision " + precision + " with bounds " + bounds + " and limit " + maxCells;
-                        RelateCountingTiler tiler = new RelateCountingTiler(
-                            GeoHexGridTiler.makeGridTiler(precision, bounds),
-                            3L * maxCells + 200L * precision,
-                            description
-                        );
-                        tiler.cells(shape, maxCells, w -> {});
+                        GeoHexGridTiler delegate = GeoHexGridTiler.makeGridTiler(precision, bounds);
+                        WorkCountingTiler tiler = new WorkCountingTiler(delegate, 3L * maxCells + 200L * precision, description);
+                        List<String> truncations = new ArrayList<>();
+                        long[] cells = tiler.cells(shape, maxCells, truncations::add);
+                        assertThat(description, cells, equalTo(delegate.cells(shape, maxCells, w -> {})));
+                        assertThat(description, cells.length, lessThanOrEqualTo(maxCells));
+                        assertThat(description, truncations, hasSize(lessThanOrEqualTo(1)));
                     }
                 }
             }
@@ -290,37 +294,47 @@ public class GeoHexGridTilerTests extends ESTestCase {
     }
 
     /**
-     * Delegates to a real tiler and fails once {@link #relateTile} has been called more than {@code maxRelates} times.
+     * Delegates to a real tiler and fails once it has related or bounds-checked more than {@code maxVisits} tiles.
      */
-    private static class RelateCountingTiler extends GeoHexGridTiler {
+    private static class WorkCountingTiler extends GeoHexGridTiler {
         private final GeoHexGridTiler delegate;
-        private final long maxRelates;
+        private final long maxVisits;
         private final String description;
-        private long relates;
+        private long visits;
 
-        RelateCountingTiler(GeoHexGridTiler delegate, long maxRelates, String description) {
+        WorkCountingTiler(GeoHexGridTiler delegate, long maxVisits, String description) {
             super(delegate.precision());
             this.delegate = delegate;
-            this.maxRelates = maxRelates;
+            this.maxVisits = maxVisits;
             this.description = description;
         }
 
         @Override
         protected boolean h3IntersectsBounds(long h3) {
+            countVisit();
             return delegate.h3IntersectsBounds(h3);
         }
 
         @Override
         protected GeoRelation relateTile(GeoShapeDocValues shape, long h3) throws IOException {
-            if (++relates > maxRelates) {
-                throw new AssertionError("related more than " + maxRelates + " tiles for " + description);
-            }
+            countVisit();
             return delegate.relateTile(shape, h3);
         }
 
+        /**
+         * Always false, so that {@code setAllValuesByRecursion} asks {@link #h3IntersectsBounds} about every cell it visits
+         * instead of skipping the check. The cells are unchanged as long as the delegate is unbounded, where every cell is in
+         * bounds, or the shape is not inside the delegate's bounds.
+         */
         @Override
         protected boolean valueInsideBounds(GeoShapeDocValues shape) {
-            return delegate.valueInsideBounds(shape);
+            return false;
+        }
+
+        private void countVisit() {
+            if (++visits > maxVisits) {
+                throw new AssertionError("visited more than " + maxVisits + " tiles for " + description);
+            }
         }
     }
 }

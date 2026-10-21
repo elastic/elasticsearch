@@ -16,6 +16,7 @@ import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.StandardValidator;
+import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.support.MapXContentParser;
@@ -61,14 +62,26 @@ public final class GeometryParser {
      * Json structure: valid geojson definition
      */
     public Geometry parseGeometry(Object value) throws ElasticsearchParseException {
+        return parseGeometry(value, 1);
+    }
+
+    /**
+     * Parses the value as a {@link Geometry}, where {@code depth} is the number of nested lists that have already been
+     * entered. Nesting is bounded because this method recurses once per level, as does every writer of the resulting
+     * geometry, so an unbounded value would exhaust the stack rather than fail the request.
+     */
+    private Geometry parseGeometry(Object value, int depth) throws ElasticsearchParseException {
         if (value instanceof List<?> values) {
             if (values.size() == 2 && values.get(0) instanceof Number) {
                 GeoPoint point = GeoUtils.parseGeoPoint(values, ignoreZValue);
                 return new Point(point.lon(), point.lat());
             } else {
+                if (depth > WellKnownText.MAX_NESTED_DEPTH) {
+                    throw new ElasticsearchParseException("maximum nested depth of [{}] exceeded", WellKnownText.MAX_NESTED_DEPTH);
+                }
                 List<Geometry> geometries = new ArrayList<>(values.size());
                 for (Object object : values) {
-                    geometries.add(parseGeometry(object));
+                    geometries.add(parseGeometry(object, depth + 1));
                 }
                 return new GeometryCollection<>(geometries);
             }

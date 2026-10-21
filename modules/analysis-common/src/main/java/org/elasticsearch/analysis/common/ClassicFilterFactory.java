@@ -29,4 +29,8 @@ public class ClassicFilterFactory extends AbstractTokenFilterFactory {
         return new ClassicFilter(tokenStream);
     }
 
+    @Override
+    public Object sharingKey() {
+        return getClass();
+    }
 }

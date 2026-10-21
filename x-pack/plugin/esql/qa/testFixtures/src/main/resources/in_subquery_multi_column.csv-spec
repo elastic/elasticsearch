@@ -4,33 +4,41 @@ basicMultiColumnInSubquery
 required_capability: where_in_subquery_without_view
 required_capability: where_in_multi_column_subquery
 
+// tag::basic_multi_column_in_subquery[]
 FROM employees
 | WHERE (emp_no, salary) IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no, salary)
 | SORT emp_no
 | KEEP emp_no, first_name, salary
+// end::basic_multi_column_in_subquery[]
 ;
 
+// tag::basic_multi_column_in_subquery-result[]
 emp_no:integer | first_name:keyword | salary:integer
 10001          | Georgi             | 57305
 10002          | Bezalel            | 56371
 10003          | Parto              | 61805
+// end::basic_multi_column_in_subquery-result[]
 ;
 
 basicMultiColumnNotInSubquery
 required_capability: where_in_subquery_without_view
 required_capability: where_in_multi_column_subquery
 
+// tag::basic_multi_column_not_in_subquery[]
 FROM employees
 | WHERE (emp_no, salary) NOT IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no, salary)
 | SORT emp_no
 | KEEP emp_no, first_name
 | LIMIT 3
+// end::basic_multi_column_not_in_subquery[]
 ;
 
+// tag::basic_multi_column_not_in_subquery-result[]
 emp_no:integer | first_name:keyword
 10004          | Chirstian
 10005          | Kyoichi
 10006          | Anneke
+// end::basic_multi_column_not_in_subquery-result[]
 ;
 
 multiColumnInSubqueryEmptyResults
@@ -1155,14 +1163,18 @@ required_capability: where_in_subquery_without_view
 required_capability: where_in_multi_column_subquery
 required_capability: where_in_subquery_with_case_coalesce_is_null
 
+// tag::multi_column_in_subquery_in_case[]
 FROM employees
 | WHERE CASE((emp_no, salary) IN (FROM employees | WHERE emp_no == 10001 | KEEP emp_no, salary), true, false)
 | SORT emp_no
 | KEEP emp_no, salary
+// end::multi_column_in_subquery_in_case[]
 ;
 
+// tag::multi_column_in_subquery_in_case-result[]
 emp_no:integer | salary:integer
 10001          | 57305
+// end::multi_column_in_subquery_in_case-result[]
 ;
 
 multiColumnInSubqueryInCoalesce
@@ -1578,6 +1590,7 @@ required_capability: where_in_subquery_without_view
 required_capability: where_in_multi_column_subquery
 required_capability: eval_in_subquery
 
+// tag::multi_column_in_subquery_in_eval[]
 FROM employees
 | EVAL m = (emp_no, salary) IN (FROM employees
                                 | SORT emp_no ASC
@@ -1586,12 +1599,15 @@ FROM employees
 | WHERE m
 | SORT emp_no
 | KEEP emp_no
+// end::multi_column_in_subquery_in_eval[]
 ;
 
+// tag::multi_column_in_subquery_in_eval-result[]
 emp_no:integer
 10001
 10002
 10003
+// end::multi_column_in_subquery_in_eval-result[]
 ;
 
 multiColumnInSubqueryInEqualsInEval
@@ -1775,6 +1791,23 @@ max_bytes:long | cluster:keyword | pod:keyword | is_match:boolean
 6637           | staging         | one         | false
 7403           | staging         | three       | false
 5187           | staging         | two         | false
+;
+
+multiColumnInSubqueryInStatsWhere
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: stats_where_in_subquery
+
+// tag::multi_column_in_subquery_in_stats_where[]
+FROM employees
+| STATS c = COUNT(*) WHERE (emp_no, salary) IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no, salary)
+// end::multi_column_in_subquery_in_stats_where[]
+;
+
+// tag::multi_column_in_subquery_in_stats_where-result[]
+c:long
+3
+// end::multi_column_in_subquery_in_stats_where-result[]
 ;
 
 multiColumnInSubqueryInStatsWhereRowSource

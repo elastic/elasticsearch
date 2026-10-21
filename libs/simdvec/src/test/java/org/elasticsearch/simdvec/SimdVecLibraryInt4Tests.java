@@ -132,105 +132,60 @@ public class SimdVecLibraryInt4Tests extends SimdVecLibraryTests {
         assertArrayEquals(expectedScores, bulkScores, 0f);
     }
 
-    public void testInt4BulkWithOffsets() {
+    public void testInt4BulkMasked() {
         assumeTrue(notSupportedMsg(), supported());
-        final int dims = size;
-        final int packedLen = dims / 2;
-        final int numVecs = randomIntBetween(2, 101);
-
-        var offsets = new int[numVecs];
-        var unpackedValues = new byte[numVecs][dims];
-        var packedValues = new byte[numVecs][packedLen];
-        var packedSegment = arena.allocate((long) packedLen * numVecs);
-        var offsetsSegment = arena.allocate((long) numVecs * Integer.BYTES);
-
-        for (int i = 0; i < numVecs; i++) {
-            offsets[i] = randomInt(numVecs - 1);
-            offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, i, offsets[i]);
-            randomBytesBetween(unpackedValues[i], MIN_INT4_VALUE, MAX_INT4_VALUE);
-            packedValues[i] = packNibbles(unpackedValues[i]);
-            MemorySegment.copy(packedValues[i], 0, packedSegment, ValueLayout.JAVA_BYTE, (long) i * packedLen, packedLen);
-        }
-
-        int queryOrd = randomInt(numVecs - 1);
-        float[] expectedScores = new float[numVecs];
-        scalarSimilarityBulkWithOffsets(unpackedValues[queryOrd], packedValues, offsets, expectedScores);
-
-        var nativeQuerySeg = arena.allocate(dims);
-        MemorySegment.copy(unpackedValues[queryOrd], 0, nativeQuerySeg, ValueLayout.JAVA_BYTE, 0L, dims);
-        var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
-
-        similarityBulkWithOffsets(packedSegment, nativeQuerySeg, packedLen, packedLen, offsetsSegment, numVecs, bulkScoresSeg);
-        assertScoresEquals(expectedScores, bulkScoresSeg);
+        doTestInt4BulkMasked(0, false);
     }
 
-    public void testInt4BulkWithOffsetsAndPitch() {
+    public void testInt4BulkMaskedWithPitch() {
         assumeTrue(notSupportedMsg(), supported());
-        final int dims = size;
-        final int packedLen = dims / 2;
-        final int numVecs = randomIntBetween(2, 101);
-
-        var offsets = new int[numVecs];
-        var unpackedValues = new byte[numVecs][dims];
-        var packedValues = new byte[numVecs][packedLen];
-
-        int pitch = packedLen + Float.BYTES;
-        var packedSegment = arena.allocate((long) numVecs * pitch);
-        var offsetsSegment = arena.allocate((long) numVecs * Integer.BYTES);
-
-        for (int i = 0; i < numVecs; i++) {
-            offsets[i] = randomInt(numVecs - 1);
-            offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, i, offsets[i]);
-            randomBytesBetween(unpackedValues[i], MIN_INT4_VALUE, MAX_INT4_VALUE);
-            packedValues[i] = packNibbles(unpackedValues[i]);
-            MemorySegment.copy(packedValues[i], 0, packedSegment, ValueLayout.JAVA_BYTE, (long) i * pitch, packedLen);
-        }
-
-        int queryOrd = randomInt(numVecs - 1);
-        float[] expectedScores = new float[numVecs];
-        scalarSimilarityBulkWithOffsets(unpackedValues[queryOrd], packedValues, offsets, expectedScores);
-
-        var nativeQuerySeg = arena.allocate(dims);
-        MemorySegment.copy(unpackedValues[queryOrd], 0, nativeQuerySeg, ValueLayout.JAVA_BYTE, 0L, dims);
-        var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
-
-        similarityBulkWithOffsets(packedSegment, nativeQuerySeg, packedLen, pitch, offsetsSegment, numVecs, bulkScoresSeg);
-        assertScoresEquals(expectedScores, bulkScoresSeg);
+        doTestInt4BulkMasked(Float.BYTES, false);
     }
 
-    public void testInt4BulkWithOffsetsHeapSegments() {
+    public void testInt4BulkMaskedHeapSegments() {
         assumeTrue(notSupportedMsg(), supported());
+        doTestInt4BulkMasked(0, true);
+    }
+
+    private void doTestInt4BulkMasked(int extraData, boolean heapQueryAndScores) {
         final int dims = size;
         final int packedLen = dims / 2;
-        final int numVecs = randomIntBetween(2, 101);
+        final int pitch = packedLen + extraData;
+        final int count = randomIntBetween(1, Integer.SIZE);
+        final int mask = randomBulkMask(count);
 
-        var offsets = new int[numVecs];
-        var unpackedValues = new byte[numVecs][dims];
-        var packedValues = new byte[numVecs][packedLen];
-        var packedSegment = arena.allocate((long) packedLen * numVecs);
-
-        for (int i = 0; i < numVecs; i++) {
-            offsets[i] = randomInt(numVecs - 1);
+        var unpackedValues = new byte[count][dims];
+        var packedSegment = arena.allocate((long) count * pitch);
+        for (int i = 0; i < count; i++) {
             randomBytesBetween(unpackedValues[i], MIN_INT4_VALUE, MAX_INT4_VALUE);
-            packedValues[i] = packNibbles(unpackedValues[i]);
-            MemorySegment.copy(packedValues[i], 0, packedSegment, ValueLayout.JAVA_BYTE, (long) i * packedLen, packedLen);
+            MemorySegment.copy(packNibbles(unpackedValues[i]), 0, packedSegment, ValueLayout.JAVA_BYTE, (long) i * pitch, packedLen);
         }
+        var unpackedQuery = new byte[dims];
+        randomBytesBetween(unpackedQuery, MIN_INT4_VALUE, MAX_INT4_VALUE);
 
-        int queryOrd = randomInt(numVecs - 1);
-        float[] expectedScores = new float[numVecs];
-        scalarSimilarityBulkWithOffsets(unpackedValues[queryOrd], packedValues, offsets, expectedScores);
+        // the dot product of the unpacked values is the one of the packed document with the unpacked query
+        float[] expectedScores = unselectedScores(count);
+        ScalarOperations.bulkMasked(SimdVecLibrary.SimilarityFunction.DOT_PRODUCT, unpackedQuery, unpackedValues, mask, expectedScores);
 
-        float[] bulkScores = new float[numVecs];
-        similarityBulkWithOffsets(
-            packedSegment,
-            MemorySegment.ofArray(unpackedValues[queryOrd]),
-            packedLen,
-            packedLen,
-            MemorySegment.ofArray(offsets),
-            numVecs,
-            MemorySegment.ofArray(bulkScores)
-        );
-        assertArrayEquals(expectedScores, bulkScores, 0f);
+        if (heapQueryAndScores) {
+            float[] bulkScores = unselectedScores(count);
+            similarityBulkMasked(
+                packedSegment,
+                MemorySegment.ofArray(unpackedQuery),
+                packedLen,
+                pitch,
+                mask,
+                count,
+                MemorySegment.ofArray(bulkScores)
+            );
+            assertArrayEquals(expectedScores, bulkScores, 0f);
+        } else {
+            var nativeQuerySeg = arena.allocate(dims);
+            MemorySegment.copy(unpackedQuery, 0, nativeQuerySeg, ValueLayout.JAVA_BYTE, 0L, dims);
+            var bulkScoresSeg = unselectedScoresSegment(count);
+            similarityBulkMasked(packedSegment, nativeQuerySeg, packedLen, pitch, mask, count, bulkScoresSeg);
+            assertScoresEquals(expectedScores, bulkScoresSeg);
+        }
     }
 
     public void testInt4BulkSparse() {
@@ -373,33 +328,29 @@ public class SimdVecLibraryInt4Tests extends SimdVecLibraryTests {
         assertThat(ex.getMessage(), containsString("out of bounds for length"));
     }
 
-    // Verifies that individual offset values are bounds-checked against the data segment.
-    public void testBulkOffsetsOutOfRange() {
+    public void testBulkMaskedIllegalArgs() {
         assumeTrue(notSupportedMsg(), supported());
         final int packedLen = size / 2;
-        // INT4 length is packedLen (bytes) not element count; checkBulkOffsets computes
-        // rowBytes = packedLen * 4 / 8 which truncates to 0 when packedLen < 2.
-        assumeTrue("INT4 bounds check requires packedLen >= 2", packedLen >= 2);
-        final int numVecs = 3;
-        var packedSegment = arena.allocate((long) packedLen * numVecs);
+        final int count = 3;
+        var packedSegment = arena.allocate((long) packedLen * count);
         var query = arena.allocate(size);
-        var scores = arena.allocate((long) numVecs * Float.BYTES);
-        var offsetsSegment = arena.allocate((long) numVecs * Integer.BYTES);
+        var scores = arena.allocate((long) Integer.SIZE * Float.BYTES);
 
-        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 0, 0);
-        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 1, numVecs);
-        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 2, 0);
-        Exception ex = expectThrows(
+        // a vector past the end of the block is selected
+        Exception ex = expectThrows(IAE, () -> similarityBulkMasked(packedSegment, query, packedLen, packedLen, 1 << count, count, scores));
+        assertThat(ex.getMessage(), containsString("selects vectors beyond count"));
+
+        // a block larger than the mask
+        var largePackedSegment = arena.allocate((long) packedLen * (Integer.SIZE + 1));
+        var largeScores = arena.allocate((long) (Integer.SIZE + 1) * Float.BYTES);
+        ex = expectThrows(
             IOOBE,
-            () -> similarityBulkWithOffsets(packedSegment, query, packedLen, packedLen, offsetsSegment, numVecs, scores)
+            () -> similarityBulkMasked(largePackedSegment, query, packedLen, packedLen, 1, Integer.SIZE + 1, largeScores)
         );
         assertThat(ex.getMessage(), containsString("out of bounds for length"));
 
-        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 1, -1);
-        ex = expectThrows(
-            IOOBE,
-            () -> similarityBulkWithOffsets(packedSegment, query, packedLen, packedLen, offsetsSegment, numVecs, scores)
-        );
+        // a block larger than the dataset
+        ex = expectThrows(IOOBE, () -> similarityBulkMasked(packedSegment, query, packedLen, packedLen, 1, count + 1, scores));
         assertThat(ex.getMessage(), containsString("out of bounds for length"));
     }
 
@@ -411,16 +362,16 @@ public class SimdVecLibraryInt4Tests extends SimdVecLibraryTests {
         getVectorDistance().dotProductI4Bulk(packedDocs, unpackedQuery, packedLen, count, result);
     }
 
-    void similarityBulkWithOffsets(
+    void similarityBulkMasked(
         MemorySegment packedDocs,
         MemorySegment unpackedQuery,
         int packedLen,
         int pitch,
-        MemorySegment offsets,
+        int mask,
         int count,
         MemorySegment result
     ) {
-        getVectorDistance().dotProductI4BulkWithOffsets(packedDocs, unpackedQuery, packedLen, pitch, offsets, count, result);
+        getVectorDistance().dotProductI4BulkMasked(packedDocs, unpackedQuery, packedLen, pitch, mask, count, result);
     }
 
     void similarityBulkSparse(MemorySegment addresses, MemorySegment unpackedQuery, int packedLen, int count, MemorySegment result) {
@@ -430,12 +381,6 @@ public class SimdVecLibraryInt4Tests extends SimdVecLibraryTests {
     static void scalarSimilarityBulk(byte[] unpackedQuery, byte[][] packedData, float[] scores) {
         for (int i = 0; i < packedData.length; i++) {
             scores[i] = dotProductI4SinglePacked(unpackedQuery, packedData[i]);
-        }
-    }
-
-    static void scalarSimilarityBulkWithOffsets(byte[] unpackedQuery, byte[][] packedData, int[] offsets, float[] scores) {
-        for (int i = 0; i < packedData.length; i++) {
-            scores[i] = dotProductI4SinglePacked(unpackedQuery, packedData[offsets[i]]);
         }
     }
 }

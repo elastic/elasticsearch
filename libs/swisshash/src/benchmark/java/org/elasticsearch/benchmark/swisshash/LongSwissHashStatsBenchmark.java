@@ -86,7 +86,7 @@ public class LongSwissHashStatsBenchmark {
     public void setup() {
         stream = generate(cardinality, (int) (cardinality * DUP_FACTOR), SKEW);
         recycler = PageCacheRecycler.NON_RECYCLING_INSTANCE;
-        breaker = new NoopCircuitBreaker("dummy");
+        breaker = NoopCircuitBreaker.INSTANCE;
     }
 
     private LongSwissHash newSwiss() {

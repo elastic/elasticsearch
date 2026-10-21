@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.nullValue;
  * under multiple merge rounds.
  */
 public class SharedGlobalTopKTests extends ESTestCase {
-    private final CircuitBreaker breaker = new NoopCircuitBreaker(CircuitBreaker.REQUEST);
+    private final CircuitBreaker breaker = NoopCircuitBreaker.INSTANCE;
     private final BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
 
     public void testPartialGlobalHeapDoesNotPublish() {

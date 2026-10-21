@@ -63,7 +63,9 @@ import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConst
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocation;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.inference.DeploymentPathUnsafeIdTelemetry;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
@@ -100,6 +102,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
     private final MlMemoryTracker memoryTracker;
     private final InferenceAuditor auditor;
     private final ProjectResolver projectResolver;
+    private final DeploymentPathUnsafeIdTelemetry deploymentPathUnsafeIdTelemetry;
 
     @Inject
     public TransportStartTrainedModelDeploymentAction(
@@ -112,7 +115,8 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         TrainedModelAssignmentService trainedModelAssignmentService,
         MlMemoryTracker memoryTracker,
         InferenceAuditor auditor,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        DeploymentPathUnsafeIdTelemetry deploymentPathUnsafeIdTelemetry
     ) {
         super(
             StartTrainedModelDeploymentAction.NAME,
@@ -130,6 +134,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         this.trainedModelAssignmentService = Objects.requireNonNull(trainedModelAssignmentService);
         this.auditor = Objects.requireNonNull(auditor);
         this.projectResolver = Objects.requireNonNull(projectResolver);
+        this.deploymentPathUnsafeIdTelemetry = Objects.requireNonNull(deploymentPathUnsafeIdTelemetry);
     }
 
     @Override
@@ -141,6 +146,9 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
     ) throws Exception {
         var remainingTime = RemainingTime.from(Instant::now, request.getTimeout());
         logger.debug(() -> "[" + request.getDeploymentId() + "] received deploy request for model [" + request.getModelId() + "]");
+        if (MlStrings.isValidPathSafeId(request.getDeploymentId()) == false) {
+            deploymentPathUnsafeIdTelemetry.recordPathUnsafeDeploymentIdStart();
+        }
         if (MachineLearningField.ML_API_FEATURE.check(licenseState) == false) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
             return;

@@ -32,7 +32,6 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
-import org.elasticsearch.xpack.esql.datasources.spi.ColumnarRowDropHelper;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.SharedErrorBudget;
@@ -45,7 +44,6 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.time.DateTimeException;
 import java.time.Duration;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -76,10 +74,16 @@ final class ParquetColumnDecoding {
 
     static long convertTimestampToMillis(long raw, LogicalTypeAnnotation logicalType) {
         if (logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts) {
+            // Only the MILLIS arm is reachable today: a TIMESTAMP(MICROS|NANOS) column renders date_nanos, and a
+            // declared `date` over it is not a fused pair, so it narrows through castBlock rather than arriving
+            // here. The sub-millisecond arms are kept, and floor rather than truncate with `/`, so that they agree
+            // with that narrowing -- which floors -- if a route ever does reach them. Java's `/` rounds toward
+            // zero, so the two would disagree by a millisecond below the epoch, which is the range that route
+            // would exist to open.
             return switch (ts.getUnit()) {
                 case MILLIS -> raw;
-                case MICROS -> raw / 1_000;
-                case NANOS -> raw / 1_000_000;
+                case MICROS -> Math.floorDiv(raw, 1_000L);
+                case NANOS -> Math.floorDiv(raw, 1_000_000L);
             };
         }
         return raw;
@@ -98,10 +102,26 @@ final class ParquetColumnDecoding {
     static final long MAX_MICROS_AS_NANOS = Long.MAX_VALUE / NANOS_PER_MICRO;
     static final long MIN_MICROS_AS_NANOS = Long.MIN_VALUE / NANOS_PER_MICRO;
 
-    /** Whether {@code logicalType} is a {@code TIMESTAMP(MICROS)} annotation (the only unit whose nanos scaling can overflow). */
-    static boolean isMicrosTimestamp(LogicalTypeAnnotation logicalType) {
-        return logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts
-            && ts.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS;
+    /**
+     * Whether {@code logicalType} states that an INT64 temporal column's raw value is microseconds, and so needs the
+     * ×1_000 scale to reach the epoch-nanoseconds a {@code DATE_NANOS} block holds: {@code TIMESTAMP(MICROS)} or
+     * {@code TIME(MICROS)}.
+     *
+     * <p>This predicate decides the scale itself, not merely whether to range-check it: {@link PageColumnReader}
+     * reads it into a boolean and multiplies by {@link #NANOS_PER_MICRO} only when it is true, so narrowing it back
+     * to {@code TIMESTAMP} would silently stop scaling every {@code TIME(MICROS)} column.
+     *
+     * <p>Only the timestamp can overflow the scale. A well-formed {@code TIME} value is a microsecond-of-day, so it
+     * is bounded by 86_400_000_000 -- {@link #MAX_MICROS_AS_NANOS} divided by about 107_000 -- which makes the
+     * overflow guard paired with this predicate dead for such a column rather than wrong for it. A file that
+     * violates its own annotation is still nulled by that guard; see {@link #decodeCanNull}.
+     */
+    static boolean isMicrosTemporal(LogicalTypeAnnotation logicalType) {
+        if (logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts) {
+            return ts.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS;
+        }
+        return logicalType instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation time
+            && time.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS;
     }
 
     /**
@@ -120,8 +140,12 @@ final class ParquetColumnDecoding {
             return true; // a format parse can fail per value
         }
         if (primitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT32) {
-            // The only INT32 datetime is an inferred DATE (days -> millis), which never nulls; a format arm is
-            // already handled above. So a no-format INT32 keeps its IS NULL pushdown.
+            // Every route an INT32 takes to a temporal block is total. DatetimeDecode gives it two arms over three
+            // annotation cases (DATE_DAYS scales days to millis; INT32_EPOCH_MILLIS covers both a TIME(MILLIS),
+            // already the millisecond of day, and a uint32 declared `date`, whose widened value is reinterpreted).
+            // The castBlock routes are total too: the INTEGER arm is a widen, and the DOUBLE arm of an INT32 DECIMAL
+            // divides by a power of ten, whose quotient can be neither non-finite nor outside long range. A format
+            // arm is handled above, so a no-format INT32 keeps its IS NULL pushdown.
             return false;
         }
         if (primitiveType.getPrimitiveTypeName() != PrimitiveType.PrimitiveTypeName.INT64) {
@@ -132,11 +156,27 @@ final class ParquetColumnDecoding {
             && ts.getUnit() == LogicalTypeAnnotation.TimeUnit.MILLIS;
         boolean nanosAnnotated = logical instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts2
             && ts2.getUnit() == LogicalTypeAnnotation.TimeUnit.NANOS;
+        // A TIME value is a time of day, so a well-formed one is at most 86_400_000_000 microseconds -- which is
+        // MAX_MICROS_AS_NANOS divided by about 107_000 -- and neither its scale nor its narrowing can null. But
+        // nothing enforces that a file obeys its own annotation, and a MICROS value past that bound is nulled by
+        // microsOverflowsNanos like any other, so only the units with no guard on their path relax here. Trusting
+        // the annotation instead would push IS NULL over a column whose decode can null, which drops rows.
+        boolean timeAnnotated = logical instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation time2
+            && time2.getUnit() != LogicalTypeAnnotation.TimeUnit.MICROS;
         return switch (declaredType) {
-            // Identity reads never null; every rescaling read can overflow at its edge.
-            case DATETIME -> (logical == null || millisAnnotated) == false;
-            // Bare INT64 rejects negatives via castBlock; NANOS is the identity; MICROS/MILLIS scale and can overflow.
-            case DATE_NANOS -> nanosAnnotated == false;
+            // An identity read never nulls, and neither does a narrowing: floorDiv is total over the whole long
+            // domain. MICROS declines because its decode genuinely nulls: a column rendering date_nanos read as
+            // `date` is NOT a fusedInDecode pair, so it decodes to nanoseconds first, where microsOverflowsNanos
+            // nulls anything outside the nanosecond domain, and only then narrows. The decline is necessary, not
+            // conservative, and must not be relaxed while that two-step route stands -- this predicate gates
+            // row-group pruning, so a wrong `false` here drops rows. The MICROS arm of the TIME units is the same
+            // case. Relaxing it also needs the arm decided by FILE type rather than declared: a uint64 column
+            // reaches `date` through Numbers.toLong, which throws at or above 2^63, and a scale-0 DECIMAL through
+            // safeDoubleToLong.
+            case DATETIME -> (logical == null || millisAnnotated || nanosAnnotated || timeAnnotated) == false;
+            // A bare INT64 widens millis->nanos via castBlock and nulls pre-epoch/post-2262 values; NANOS is the
+            // identity; MICROS/MILLIS scale and can overflow.
+            case DATE_NANOS -> (nanosAnnotated || timeAnnotated) == false;
             default -> true;
         };
     }
@@ -152,7 +192,7 @@ final class ParquetColumnDecoding {
      * previously each re-derived it, which is how one of them was always wrong.
      *
      * <p>Note the direction flips on the DECLARED type, not on the file: a {@code TIMESTAMP(MICROS)} column decodes
-     * to nanos ({@code raw x 1000}) when it infers {@code date_nanos}, and to millis ({@code raw / 1000}, truncating)
+     * to nanos ({@code raw x 1000}) when it infers {@code date_nanos}, and to millis ({@code floorDiv(raw, 1000)})
      * when it is declared {@code date}. An explicit declaration is allowed to be lossy — that is the point of
      * declaring it — but the pruning must know which way the map goes.
      *
@@ -177,14 +217,19 @@ final class ParquetColumnDecoding {
             return scale == null ? null : new DeclaredTypeCoercions.RawDecodeRelation.ScaleUp(scale);
         }
         if (logical == null) {
-            // A bare INT64 reads as the declared type's own unit — the fused identity.
-            return new DeclaredTypeCoercions.RawDecodeRelation.Identity();
+            // A bare INT64 is epoch millis (DeclaredTypeCoercions' unit rule): the fused identity under datetime, the
+            // castBlock millis->nanos widen under date_nanos — the same relation a declared epoch_millis format has.
+            return switch (declaredType) {
+                case DATETIME -> new DeclaredTypeCoercions.RawDecodeRelation.Identity();
+                case DATE_NANOS -> new DeclaredTypeCoercions.RawDecodeRelation.ScaleUp(NANOS_PER_MILLI);
+                default -> null;
+            };
         }
         if (logical instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts) {
             return switch (declaredType) {
                 case DATETIME -> switch (ts.getUnit()) {
                     case MILLIS -> new DeclaredTypeCoercions.RawDecodeRelation.Identity();
-                    // narrowed through DateUtils.toMilliSeconds: one decoded milli covers a band of raw ticks
+                    // narrowed by floor division (DeclaredTypeCoercions): one decoded milli covers a band of raw ticks
                     case MICROS -> new DeclaredTypeCoercions.RawDecodeRelation.ScaleDown(1_000L);
                     case NANOS -> new DeclaredTypeCoercions.RawDecodeRelation.ScaleDown(1_000_000L);
                 };
@@ -196,8 +241,29 @@ final class ParquetColumnDecoding {
                 default -> null;
             };
         }
-        // TIME (nanos-of-day, not an epoch), DECIMAL, unsigned INT64 (sign-wrap ordering), and anything this method
-        // has never heard of: the scan applies a transform not modeled here, so no stats decision is safe.
+        if (logical instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation time) {
+            // A TIME column reads as DATE_NANOS holding a nanosecond-of-day, so the relation is the same unit scale
+            // the TIMESTAMP arm above applies for the same two units -- what the value counts from does not enter the
+            // bound arithmetic. Sound against the footer because a TIME column's raw values compare chronologically
+            // under signed comparison, the precondition decodeTemporalStat states for publishing their min/max.
+            // Only a DATE_NANOS target gets a relation. A declared `date` over a TIME column composes to
+            // floorDiv(raw x 1000, 1e6) == floorDiv(raw, 1000), i.e. the ScaleDown(1000) the TIMESTAMP(MICROS) arm
+            // above already uses, so an arm for it is expressible -- it is simply not written, and declining costs
+            // pruning rather than rows.
+            //
+            // MILLIS declines rather than publishing a relation. The Parquet spec puts TIME(MILLIS) on an INT32 and
+            // parquet-mr enforces it -- Types rejects the pair with "TIME(MILLIS,true) can only annotate INT32" -- so
+            // the arm is unreachable through that API. It declines anyway because the two sides would disagree if it
+            // ever were reached: timeNanoMultiplier scales MILLIS by 1, while a nanosecond target wants 1_000_000.
+            // Declining loses pruning; publishing the mismatched relation would lose rows.
+            return declaredType == DataType.DATE_NANOS ? switch (time.getUnit()) {
+                case NANOS -> new DeclaredTypeCoercions.RawDecodeRelation.Identity();
+                case MICROS -> new DeclaredTypeCoercions.RawDecodeRelation.ScaleUp(NANOS_PER_MICRO);
+                case MILLIS -> null;
+            } : null;
+        }
+        // DECIMAL, unsigned INT64 (sign-wrap ordering), and anything this method has never heard of: the scan
+        // applies a transform not modeled here, so no stats decision is safe.
         return null;
     }
 
@@ -209,7 +275,7 @@ final class ParquetColumnDecoding {
      * transforms it summarizes, so the two cannot drift when a logical type is added:
      * <ul>
      *   <li>{@code DATE} — {@link #dateDaysToMillis} scales days ×86_400_000 to epoch-millis;</li>
-     *   <li>{@code TIMESTAMP(MICROS)} / {@code TIME(MICROS)} — {@link #convertTimestampToNanos} / the time nanos
+     *   <li>{@code TIMESTAMP(MICROS)} / {@code TIME(MICROS)} — {@link #convertTemporalToNanos} / the time nanos
      *       multiplier scale ×1_000 to nanos ({@code MILLIS}/{@code NANOS} are identity);</li>
      *   <li>{@code DECIMAL(scale>0)} — the value reader divides the unscaled integer by 10^scale.</li>
      * </ul>
@@ -236,19 +302,31 @@ final class ParquetColumnDecoding {
     }
 
     /**
-     * Converts a Parquet INT64 timestamp value to epoch-nanoseconds for a {@code DATE_NANOS} column:
-     * {@code MICROS} is scaled by 1_000, {@code NANOS} passes through. {@code MILLIS} is included for
-     * completeness (×1_000_000) although the type mapper only routes {@code MICROS}/{@code NANOS}
-     * timestamps to {@code DATE_NANOS}. Callers must guard {@code MICROS} inputs against overflow via
-     * {@link #microsOverflowsNanos(long)}; this method does not check.
+     * Converts a Parquet INT64 temporal value to the nanoseconds a {@code DATE_NANOS} column holds:
+     * {@code MICROS} is scaled by 1_000, {@code NANOS} passes through. {@code TIMESTAMP(MILLIS)} is included for
+     * completeness (×1_000_000) although the type mapper routes it to {@code DATETIME}. Callers must guard
+     * {@code MICROS} inputs against overflow via {@link #microsOverflowsNanos(long)}; this method does not check.
+     *
+     * <p>A {@code TIME} annotation takes the same unit arithmetic, because the unit question is the same one: the
+     * file states a unit and the block holds nanoseconds. What the result counts from differs -- a {@code TIMESTAMP}
+     * is an offset from the epoch, a {@code TIME} a nanosecond-of-day, which {@code DATE_NANOS} renders as an
+     * instant on 1970-01-01, at the annotation's own precision.
+     *
+     * <p>This method is the row-at-a-time and list path. The vectorized reader applies the same factor inline over
+     * its batch array, gated on {@link #isMicrosTemporal}, and the footer-statistic decode
+     * ({@link #decodeTemporalStat}) applies {@link #timeNanoMultiplier}; all three agree by construction, since for
+     * a {@code TIME} column every one of them is x1_000 for {@code MICROS} and the identity otherwise.
      */
-    static long convertTimestampToNanos(long raw, LogicalTypeAnnotation logicalType) {
+    static long convertTemporalToNanos(long raw, LogicalTypeAnnotation logicalType) {
         if (logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts) {
             return switch (ts.getUnit()) {
                 case MILLIS -> raw * 1_000_000L;
                 case MICROS -> raw * NANOS_PER_MICRO;
                 case NANOS -> raw;
             };
+        }
+        if (logicalType instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation time) {
+            return raw * timeNanoMultiplier(time);
         }
         return raw;
     }
@@ -265,10 +343,9 @@ final class ParquetColumnDecoding {
     static void warnTimestampOutOfRange(ColumnInfo info, @Nullable Consumer<String> warningSink) {
         ColumnDescriptor descriptor = info.descriptor();
         String column = descriptor == null ? "<unknown>" : String.join(".", descriptor.getPath());
-        String warning = "Parquet timestamp column ["
-            + column
-            + "] contains values outside the representable date_nanos range (~1677-09-21 to 2262-04-11); "
-            + "such values are returned as null";
+        // The outcome is the same in every error_mode: no caller charges the budget or drops the row. A scalar is
+        // nulled; a LIST element is dropped, and the list is null only when every element is out of range.
+        String warning = "column [" + column + "]: timestamps outside the [date_nanos] range (1677-09-21 to 2262-04-11); returning null";
         if (warningSink != null) {
             warningSink.accept(warning);
         } else {
@@ -288,8 +365,9 @@ final class ParquetColumnDecoding {
      * parse time, so identical bytes with an identical declared format yield the identical instant. Preserves
      * nulls and multi-value positions. Does NOT take ownership of {@code source}; the caller closes it.
      * An unparseable value routes through {@link DeclaredTypeCoercions#onCoercionFailure} with the same
-     * per-position semantics as {@code castBlock}: a live {@code warnings} sink nulls the whole position and
-     * records one Warning, a {@code null} sink (strict, {@code fail_fast}) propagates the failure.
+     * semantics as {@code castBlock}: a live {@code warnings} sink records one Warning per value and nulls a
+     * single-valued cell or removes the value from a multi-valued one (nulling it only when none parses), a
+     * {@code null} sink (strict, {@code fail_fast}) propagates the failure.
      */
     static Block bytesBlockToDatetimeMillis(
         Block source,
@@ -304,7 +382,7 @@ final class ParquetColumnDecoding {
     /**
      * Overload of {@link #bytesBlockToDatetimeMillis} that additionally reports failed positions to
      * {@code failedPositionSink} for {@code skip_row} callers. When non-null, a parse failure at position
-     * {@code p} still nulls the cell in the returned block and calls {@code failedPositionSink.accept(p)}
+     * {@code p} still nulls (or truncates) the cell in the returned block and calls {@code failedPositionSink.accept(p)}
      * so the caller's {@link org.elasticsearch.xpack.esql.datasources.spi.ColumnarRowDropHelper} can drop
      * the whole row at the page emit point.
      */
@@ -322,7 +400,6 @@ final class ParquetColumnDecoding {
         }
         BytesRefBlock bytes = (BytesRefBlock) source;
         BytesRef scratch = new BytesRef();
-        long[] parsed = null;
         boolean skipRow = failedPositionSink != null;
         try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(positions)) {
             for (int pos = 0; pos < positions; pos++) {
@@ -334,37 +411,40 @@ final class ParquetColumnDecoding {
                     try {
                         builder.appendLong(DeclaredTypeCoercions.parseDatetimeMillis(value.utf8ToString(), dateFormatter));
                     } catch (IllegalArgumentException | DateTimeException e) {
-                        DeclaredTypeCoercions.onCoercionFailure(columnName, DataType.KEYWORD, DataType.DATETIME, e, warnings, skipRow);
+                        DeclaredTypeCoercions.onCoercionFailure(columnName, DataType.KEYWORD, DataType.DATETIME, e, warnings);
                         if (skipRow) failedPositionSink.accept(pos);
                         builder.appendNull();
                     }
                 } else {
-                    // Parse the whole position before appending: a failure mid-entry cannot be
-                    // rolled back on the builder, and the bulk model nulls the whole position.
-                    if (parsed == null || parsed.length < count) {
-                        parsed = new long[count];
-                    }
+                    // castBlock's multi-value rule: an unparseable value is removed and the parseable ones kept,
+                    // the entry opening on the first of them; under skip_row the first failure drops the row.
                     int firstIdx = bytes.getFirstValueIndex(pos);
-                    boolean failed = false;
-                    for (int v = 0; v < count && failed == false; v++) {
-                        BytesRef value = bytes.getBytesRef(firstIdx + v, scratch);
-                        try {
-                            parsed[v] = DeclaredTypeCoercions.parseDatetimeMillis(value.utf8ToString(), dateFormatter);
-                        } catch (IllegalArgumentException | DateTimeException e) {
-                            DeclaredTypeCoercions.onCoercionFailure(columnName, DataType.KEYWORD, DataType.DATETIME, e, warnings, skipRow);
-                            failed = true;
-                        }
-                    }
-                    if (failed) {
-                        if (skipRow) failedPositionSink.accept(pos);
-                        builder.appendNull();
-                        continue;
-                    }
-                    builder.beginPositionEntry();
+                    boolean open = false;
                     for (int v = 0; v < count; v++) {
-                        builder.appendLong(parsed[v]);
+                        BytesRef value = bytes.getBytesRef(firstIdx + v, scratch);
+                        long millis;
+                        try {
+                            millis = DeclaredTypeCoercions.parseDatetimeMillis(value.utf8ToString(), dateFormatter);
+                        } catch (IllegalArgumentException | DateTimeException e) {
+                            if (skipRow) {
+                                DeclaredTypeCoercions.onCoercionFailure(columnName, DataType.KEYWORD, DataType.DATETIME, e, warnings);
+                                failedPositionSink.accept(pos);
+                                break;
+                            }
+                            DeclaredTypeCoercions.onCoercionFailure(columnName, DataType.KEYWORD, DataType.DATETIME, e, warnings, true);
+                            continue;
+                        }
+                        if (open == false) {
+                            builder.beginPositionEntry();
+                            open = true;
+                        }
+                        builder.appendLong(millis);
                     }
-                    builder.endPositionEntry();
+                    if (open) {
+                        builder.endPositionEntry();
+                    } else {
+                        builder.appendNull();
+                    }
                 }
             }
             return builder.build();
@@ -423,7 +503,19 @@ final class ParquetColumnDecoding {
             // Mirror the scan path: TIME_MILLIS (physical INT32) stays raw ms; TIME_MICROS/NANOS
             // scale to nanoseconds via timeNanoMultiplier. Signed comparison of these physical
             // values is chronological, so footer min/max ordering is preserved.
-            return type.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT32 ? raw : raw * timeNanoMultiplier(time);
+            //
+            // The micros overflow guard is the same one the TIMESTAMP(MICROS) arm above carries, and it has to be
+            // here for the same reason: the scan NULLS a microsecond value with no nanosecond representation, so a
+            // stat that wrapped instead would publish a bound the scan never produces and serve it to MIN/MAX. Only
+            // a file violating its own annotation reaches it -- a microsecond-of-day cannot exceed 86_400_000_000 --
+            // but nothing enforces that a file obeys its annotation, which is the same standard decodeCanNull is
+            // conservative under. NANOS multiplies by one and cannot overflow.
+            if (type.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT32) {
+                return raw;
+            }
+            return time.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS && microsOverflowsNanos(raw)
+                ? null
+                : raw * timeNanoMultiplier(time);
         }
         return null;
     }
@@ -447,11 +539,104 @@ final class ParquetColumnDecoding {
 
     /**
      * Returns the multiplier needed to convert a Parquet TIME_* value to nanoseconds.
-     * TIME_MICROS values are stored as microseconds and must be multiplied by 1_000;
-     * TIME_MILLIS and TIME_NANOS are stored in their final unit (ms handled as INTEGER, ns as-is).
+     * TIME_MICROS values are stored as microseconds and must be multiplied by 1_000; TIME_NANOS is already in its
+     * final unit. TIME_MILLIS does not reach this method: it is physically an INT32 and renders {@code datetime},
+     * whose millisecond-of-day is the value itself.
      */
     static long timeNanoMultiplier(LogicalTypeAnnotation.TimeLogicalTypeAnnotation time) {
         return time.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS ? 1_000L : 1L;
+    }
+
+    // ---- Datetime decode classification ----
+
+    /**
+     * Which arm decodes a column into a {@code datetime} block.
+     *
+     * <p>A {@code datetime} column reaches a decode loop either at the file's own type or through a coercion that
+     * {@link DeclaredTypeCoercions#fusedInDecode} folded into the loop, and the second case is why the arm cannot be
+     * read off the physical primitive name: the pair being coerced is stated in ESQL types
+     * ({@code long -> datetime}, {@code keyword -> datetime}) and several Parquet shapes reach the same pair through
+     * different physical types. An {@code INT32} is a day count only when the file says {@code DATE}; carrying
+     * {@code UINT_32} it renders ESQL {@code long}, and carrying {@code TIME(MILLIS)} it renders {@code datetime},
+     * whose millisecond-of-day needs no scaling. A text column is {@code BINARY} or
+     * {@code FIXED_LEN_BYTE_ARRAY}, both of which render ESQL {@code keyword}.
+     *
+     * <p>Both decode engines classify here, so neither can key the choice on a different thing, and the resulting
+     * value equals what {@link DeclaredTypeCoercions#castBlock} produces over the column's inferred decode — the
+     * invariant the deferred late-materialization route relies on.
+     */
+    enum DatetimeDecode {
+        /** 12-byte {@code INT96}: Julian day plus nanos-of-day. */
+        INT96,
+        /** A text column: parse each value with the column's declared format. */
+        STRING_PARSE,
+        /** {@code INT32} carrying {@code DATE}: the value is a day count. */
+        DATE_DAYS,
+        /**
+         * An {@code INT32} that is not {@code DATE}: the value is epoch millis. Reached by a column rendering ESQL
+         * {@code long} and, since TIME became a temporal type, by an inferred {@code TIME(MILLIS)} rendering
+         * {@code datetime} — whose millisecond-of-day IS the epoch-millis instant on 1970-01-01, so the same
+         * pass-through is right for both.
+         */
+        INT32_EPOCH_MILLIS,
+        /** An {@code INT64}: the annotation's own unit normalization, then epoch millis. */
+        INT64_EPOCH_MILLIS
+    }
+
+    /** Classifies {@code info}'s {@code datetime} decode; see {@link DatetimeDecode}. */
+    static DatetimeDecode datetimeDecodeFor(ColumnInfo info) {
+        if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT96) {
+            return DatetimeDecode.INT96;
+        }
+        DataType fileType = info.fileEsqlType() == null ? info.esqlType() : info.fileEsqlType();
+        if (DataType.isString(fileType)) {
+            return DatetimeDecode.STRING_PARSE;
+        }
+        boolean int32 = info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32;
+        // The physical half of the test is load-bearing, not belt-and-braces: DATE_DAYS reads with the 32-bit
+        // accessor, and DATE is only a legal annotation on an INT32. An illegal DATE on an INT64 stays on the
+        // 64-bit arm rather than being read at the wrong width.
+        if (int32 && info.logicalType() instanceof LogicalTypeAnnotation.DateLogicalTypeAnnotation) {
+            return DatetimeDecode.DATE_DAYS;
+        }
+        return int32 ? DatetimeDecode.INT32_EPOCH_MILLIS : DatetimeDecode.INT64_EPOCH_MILLIS;
+    }
+
+    /**
+     * Whether an {@code INT32} column's value widens to {@code long} as unsigned: the annotation overload of
+     * {@link #isUnsignedInt32(PrimitiveType)}, for the arms that hold the annotation rather than the primitive. Only
+     * {@code uint32} does. A bare {@code INT32}, a {@code TIME}, a narrower unsigned annotation and every other
+     * annotation sign-extend, which for {@code uint8} and {@code uint16} is the same value either way, since those
+     * fit the positive int range.
+     */
+    static boolean isUnsignedInt32(@Nullable LogicalTypeAnnotation logical) {
+        return logical instanceof LogicalTypeAnnotation.IntLogicalTypeAnnotation intLogical
+            && intLogical.isSigned() == false
+            && intLogical.getBitWidth() == 32;
+    }
+
+    /**
+     * The value the inferred ESQL {@code long} read of an {@code INT32} column produces, which widens {@code uint32}
+     * rather than sign-extending it. A declared {@code datetime} reinterprets that number as epoch millis, but the
+     * reinterpretation belongs to the caller.
+     *
+     * <p>No bit-width check is needed. {@code intType(32, false)} is the only annotation that renders {@code long}
+     * from an {@code INT32} at all: a {@code uint8} or {@code uint16} renders {@code integer}, which is not a fused
+     * {@code datetime} pair and never reaches this method -- and would widen identically anyway, both maxima fitting
+     * the positive int range.
+     */
+    static long int32AsInferredLong(int raw, @Nullable LogicalTypeAnnotation logical) {
+        return isUnsignedInt32(logical) ? Integer.toUnsignedLong(raw) : raw;
+    }
+
+    /**
+     * The value the inferred read of an {@code INT64} column produces: a {@code TIMESTAMP} annotation's unit narrowed
+     * to millis, and a bare {@code INT64} unchanged. As with {@link #int32AsInferredLong}, reinterpreting the result
+     * as an epoch is the caller's step. No {@code TIME} case: an INT64 {@code TIME} column renders
+     * {@code DATE_NANOS}, so it never reaches a fused {@code long -> datetime} decode.
+     */
+    static long int64AsInferredLong(long raw, @Nullable LogicalTypeAnnotation logical) {
+        return convertTimestampToMillis(raw, logical);
     }
 
     // ---- Unsigned integer logical-type checks ----
@@ -573,6 +758,21 @@ final class ParquetColumnDecoding {
         return sb.toString();
     }
 
+    /**
+     * The text an inferred {@code keyword} read of this column produces, which is what a declared
+     * {@code keyword -> datetime} coercion must parse: a {@code UUID}-annotated column renders as the canonical
+     * 8-4-4-4-12 hex string, every other binary as its own UTF-8 bytes. The list arm did not do this -- it parsed
+     * the raw 16 bytes -- so a {@code LIST<FIXED_LEN_BYTE_ARRAY(16)>} annotated {@code UUID} and declared
+     * {@code date} returned an instant decoded out of UUID bytes, while a scalar column of the identical shape is
+     * refused and the inferred read of the same list renders hex. Routing the parse through this method makes the
+     * list agree with both.
+     */
+    static String declaredTextOf(Binary binary, @Nullable LogicalTypeAnnotation logical) {
+        return logical instanceof LogicalTypeAnnotation.UUIDLogicalTypeAnnotation
+            ? formatUuid(binary.getBytes())
+            : binary.toStringUsingUTF8();
+    }
+
     // ---- Skip helpers ----
 
     /**
@@ -629,11 +829,7 @@ final class ParquetColumnDecoding {
             this.fileLocation = fileLocation;
             this.chargedRows = deduplicateRecoveries ? new HashMap<>() : null;
             this.sharedBudget = sharedBudget;
-            this.warnings = SkipWarnings.of(
-                errorPolicy,
-                "Parquet file [" + fileLocation + "] has malformed LIST repetition levels; invalid fragments were skipped",
-                warningSink
-            );
+            this.warnings = SkipWarnings.of(errorPolicy, "Malformed list data in [" + fileLocation + "]; skipping it", warningSink);
         }
 
         boolean isStrict() {
@@ -651,17 +847,15 @@ final class ParquetColumnDecoding {
             }
             errorCount++;
             recoveredListErrorCount++;
-            String detail = "Parquet column ["
+            String detail = "column ["
                 + columnName
-                + "] in file ["
-                + fileLocation
-                + "] row group ["
+                + "], row group ["
                 + (rowGroupOrdinal + 1)
-                + "] started row ["
+                + "], row ["
                 + rowOrdinal
-                + "] at a non-zero repetition level; discarded ["
+                + "]: ["
                 + discardedValues
-                + "] orphan values";
+                + "] list values dropped";
             warnings.add(detail);
             // Structural corruption is discovered while streaming. As with the text readers, a
             // ratio can trip before later good rows have a chance to dilute it.
@@ -670,14 +864,15 @@ final class ParquetColumnDecoding {
                 sharedBudget.addErrors(1);
                 sharedBudget.ensureRowsAtLeast(Math.max(1L, rowsSeen));
             }
-            checkBudget(warnings);
-            logger.log(errorPolicy.logErrors() ? Level.INFO : Level.DEBUG, detail);
+            checkBudget();
+            // The response detail omits the file (the summary names it); the log line has no summary, so it names it here.
+            logger.log(errorPolicy.logErrors() ? Level.INFO : Level.DEBUG, "Malformed list data in [" + fileLocation + "]: " + detail);
         }
 
         /**
          * Completes one decoded batch and charges row drops to the same counter as recovered LIST fragments.
          */
-        void completeBatch(int sourceRows, int droppedRows, @Nullable SkipWarnings droppedRowWarnings) {
+        void completeBatch(int sourceRows, int droppedRows) {
             completedRows += sourceRows;
             rowsSeen = Math.max(rowsSeen, completedRows);
             errorCount += droppedRows;
@@ -689,10 +884,10 @@ final class ParquetColumnDecoding {
                 sharedBudget.ensureRowsAtLeast(completedRows);
                 sharedBudget.addErrors(droppedRows);
             }
-            checkBudget(recoveredListErrorCount > 0 ? warnings : droppedRowWarnings);
+            checkBudget();
         }
 
-        private void checkBudget(@Nullable SkipWarnings budgetWarnings) {
+        private void checkBudget() {
             String errorKind;
             if (droppedRowErrorCount == 0) {
                 errorKind = "structural errors";
@@ -702,24 +897,20 @@ final class ParquetColumnDecoding {
                 errorKind = "errors";
             }
             if (sharedBudget != null) {
-                sharedBudget.checkBudget(budgetWarnings, errorKind);
+                sharedBudget.checkBudget(errorKind);
                 return;
             }
             if (errorPolicy.isBudgetExceeded(errorCount, rowsSeen) == false) {
                 return;
             }
-            if (budgetWarnings != null) {
-                budgetWarnings.add(ColumnarRowDropHelper.budgetExceededWarning(errorPolicy, fileLocation, errorCount, rowsSeen, errorKind));
-            }
             throw new ParsingException(
                 Source.EMPTY,
-                "Error budget exceeded: [{}] {} in [{}] decoded rows in [{}]; maximum allowed is [{}] errors or [{}] ratio",
+                "[{}] {} in [{}] rows of [{}]; {}",
                 errorCount,
                 errorKind,
                 rowsSeen,
                 fileLocation,
-                errorPolicy.maxErrors(),
-                errorPolicy.maxErrorRatio()
+                errorPolicy.trippedLimit(errorCount)
             );
         }
 
@@ -939,8 +1130,7 @@ final class ParquetColumnDecoding {
      * one non-deduplicable line per file on a glob read. Shared with the read paths that own the collector so the
      * text has one source of truth.
      */
-    static final String NULL_LIST_ELEMENTS_SUMMARY = "Parquet lists with null elements were read with those elements "
-        + "omitted; an ES|QL multivalued field cannot hold null";
+    static final String NULL_LIST_ELEMENTS_SUMMARY = "Lists hold null elements, which a multivalued field cannot; dropping them";
 
     /**
      * The per-column detail for a LIST read that dropped null elements. {@code columnName} is the attribute name the
@@ -953,9 +1143,7 @@ final class ParquetColumnDecoding {
      * batches, row groups, or files hit it.
      */
     static String nullListElementsMessage(String columnName) {
-        return "Parquet list column ["
-            + columnName
-            + "] contains lists with null elements; the column returns fewer values than the file holds";
+        return "column [" + columnName + "]: lists with null elements";
     }
 
     /**
@@ -1096,13 +1284,11 @@ final class ParquetColumnDecoding {
             case INTEGER -> readListIntColumn(input, maxDef, rows, blockFactory, tally);
             case LONG -> {
                 if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32) {
-                    // TIME_MILLIS: physical INT32 widened to long (raw ms value, no unit conversion)
-                    yield readListInt32AsLongColumn(input, maxDef, rows, blockFactory, tally);
+                    // uint32 is the one INT32 annotation that renders ESQL long, and its values above 2^31 must
+                    // widen UNSIGNED. The scalar arms take that distinction as a parameter, so this one does too.
+                    yield readListInt32AsLongColumn(input, maxDef, rows, blockFactory, tally, info.logicalType());
                 }
-                long multiplier = info.logicalType() instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation time
-                    ? timeNanoMultiplier(time)
-                    : 1L;
-                yield readListLongColumn(input, maxDef, rows, blockFactory, multiplier, tally);
+                yield readListLongColumn(input, maxDef, rows, blockFactory, tally);
             }
             case UNSIGNED_LONG -> readListUnsignedLongColumn(input, maxDef, rows, blockFactory, tally);
             case DOUBLE -> readListDoubleColumn(input, maxDef, rows, blockFactory, tally);
@@ -1202,13 +1388,10 @@ final class ParquetColumnDecoding {
         int maxDef,
         int rows,
         BlockFactory blockFactory,
-        long multiplier,
         NullElementTally tally
     ) {
         try (var builder = blockFactory.newLongBlockBuilder(rows)) {
-            Runnable appender = multiplier == 1
-                ? () -> builder.appendLong(input.reader().getLong())
-                : () -> builder.appendLong(input.reader().getLong() * multiplier);
+            Runnable appender = () -> builder.appendLong(input.reader().getLong());
             for (int row = 0; row < rows; row++) {
                 readListRow(input, maxDef, builder, appender, tally);
             }
@@ -1216,15 +1399,24 @@ final class ParquetColumnDecoding {
         }
     }
 
+    /**
+     * Reads a LIST whose {@code INT32} elements render ESQL {@code long}, widening each element the way the scalar
+     * read of the same annotation widens it: {@code uint32} unsigned, everything else sign-extended. The annotation
+     * is the whole input to that choice, which is why it is a parameter rather than read from the primitive.
+     */
     private static Block readListInt32AsLongColumn(
         ListColumnReader input,
         int maxDef,
         int rows,
         BlockFactory blockFactory,
-        NullElementTally tally
+        NullElementTally tally,
+        @Nullable LogicalTypeAnnotation logical
     ) {
+        boolean unsigned = isUnsignedInt32(logical);
         try (var builder = blockFactory.newLongBlockBuilder(rows)) {
-            Runnable appender = () -> builder.appendLong(input.reader().getInteger());
+            Runnable appender = unsigned
+                ? () -> builder.appendLong(Integer.toUnsignedLong(input.reader().getInteger()))
+                : () -> builder.appendLong(input.reader().getInteger());
             for (int row = 0; row < rows; row++) {
                 readListRow(input, maxDef, builder, appender, tally);
             }
@@ -1317,16 +1509,31 @@ final class ParquetColumnDecoding {
         @Nullable IntConsumer failedPositionSink,
         NullElementTally tally
     ) {
-        // Declared string->datetime coercion for LIST<string> columns: parse each element via the shared
-        // scalar with the column's declared format (ISO default), mirroring the flat decode paths. A parse
-        // failure follows castBlock's bulk semantics (whole position nulls, or propagates when strict), so
-        // this arm gathers each row before appending.
-        if (info.parquetType() == PrimitiveType.PrimitiveTypeName.BINARY) {
+        // The element's decode is classified exactly as a flat column's (see DatetimeDecode), so a LIST and a
+        // scalar of the same physical shape read the same way. Keying it on the physical name alone handed every
+        // element that was not a bare INT64 -- a DATE's day count, a uint32, a TIME, an INT96, fixed-width text --
+        // to getLong(), which the column reader does not implement for those types.
+        DatetimeDecode decode = datetimeDecodeFor(info);
+        if (decode == DatetimeDecode.STRING_PARSE) {
+            // Declared string->datetime coercion for LIST<string> columns: parse each element via the shared
+            // scalar with the column's declared format (ISO default), mirroring the flat decode paths. A parse
+            // failure follows castBlock's multi-value rule (the element is removed, or the failure propagates when
+            // strict).
             return readListStringDatetimeColumn(input, info, rows, blockFactory, columnName, warnings, failedPositionSink, tally);
         }
         try (var builder = blockFactory.newLongBlockBuilder(rows)) {
             int maxDef = info.maxDefLevel();
-            Runnable appender = () -> builder.appendLong(convertTimestampToMillis(input.reader().getLong(), info.logicalType()));
+            LogicalTypeAnnotation logical = info.logicalType();
+            Runnable appender = switch (decode) {
+                case DATE_DAYS -> () -> builder.appendLong(dateDaysToMillis(input.reader().getInteger()));
+                case INT32_EPOCH_MILLIS -> () -> builder.appendLong(int32AsInferredLong(input.reader().getInteger(), logical));
+                case INT64_EPOCH_MILLIS -> () -> builder.appendLong(int64AsInferredLong(input.reader().getLong(), logical));
+                case INT96 -> () -> {
+                    byte[] bytes = input.reader().getBinary().getBytes();
+                    builder.appendLong(int96ToEpochMillis(bytes, 0, bytes.length));
+                };
+                case STRING_PARSE -> throw new AssertionError("handled before the loop: " + decode);
+            };
             for (int row = 0; row < rows; row++) {
                 readListRow(input, maxDef, builder, appender, tally);
             }
@@ -1337,12 +1544,13 @@ final class ParquetColumnDecoding {
     /**
      * The string&rarr;datetime LIST decode: walks each row's repetition levels like
      * {@link #readListRow} (defined elements append, null elements are skipped, a row with no
-     * defined element is a null position) but parses the row into a primitive scratch first so a
-     * mid-row parse failure can null the WHOLE position — {@code castBlock}'s bulk semantics —
-     * instead of leaving a half-built entry. On failure the remaining elements are still
-     * materialised (not parsed) so the column reader's data cursor stays in lock-step with its
-     * level cursor for the rows that follow. {@code warnings} carries the per-position failure
-     * sink; {@code null} = strict, the failure propagates. A skipped null element is recorded on
+     * defined element is a null position) and follows {@code castBlock}'s multi-value rule: an
+     * unparseable element is removed and the parseable ones kept, the position entry opening lazily
+     * on the first of them, so a row none of whose elements parses is a null position. Under
+     * {@code skip_row} the first failure drops the row and the rest are not parsed, but every element
+     * is still materialised so the column reader's data cursor stays in lock-step with its level
+     * cursor for the rows that follow. {@code warnings} carries the per-value failure sink;
+     * {@code null} = strict, the failure propagates. A skipped null element is recorded on
      * {@code tally} for {@link #readListColumn} to announce, exactly as in {@link #readListRow}.
      */
     private static Block readListStringDatetimeColumn(
@@ -1357,13 +1565,12 @@ final class ParquetColumnDecoding {
     ) {
         int maxDef = info.maxDefLevel();
         DateFormatter dateFormatter = info.dateFormatter();
-        long[] parsed = new long[8];
         boolean skipRow = failedPositionSink != null;
         try (var builder = blockFactory.newLongBlockBuilder(rows)) {
             for (int row = 0; row < rows; row++) {
                 input.ensureRowStart();
-                int count = 0;
-                boolean failed = false;
+                boolean open = false;
+                boolean rowDropped = false;
                 boolean rowDone = false;
                 while (rowDone == false) {
                     int elementDef = input.currentDefinitionLevel();
@@ -1371,24 +1578,35 @@ final class ParquetColumnDecoding {
                         tally.recordIfNullElement(elementDef);
                         input.consumeUndefined();
                     } else {
-                        // Always read the value so the data cursor advances even after a failure.
-                        String value = input.reader().getBinary().toStringUsingUTF8();
-                        if (failed == false) {
-                            if (count == parsed.length) {
-                                parsed = Arrays.copyOf(parsed, count * 2);
-                            }
+                        // Always read the value so the data cursor advances, also past a row skip_row drops. The
+                        // text render stays inside the try: formatUuid rejects a UUID annotation over anything but
+                        // 16 bytes, and that is a per-value failure for the error policy to handle, not a reason to
+                        // abandon the read with the cursor un-consumed.
+                        Binary raw = input.reader().getBinary();
+                        if (rowDropped == false) {
                             try {
-                                parsed[count++] = DeclaredTypeCoercions.parseDatetimeMillis(value, dateFormatter);
+                                String value = declaredTextOf(raw, info.logicalType());
+                                long millis = DeclaredTypeCoercions.parseDatetimeMillis(value, dateFormatter);
+                                if (open == false) {
+                                    builder.beginPositionEntry();
+                                    open = true;
+                                }
+                                builder.appendLong(millis);
                             } catch (IllegalArgumentException | DateTimeException e) {
-                                DeclaredTypeCoercions.onCoercionFailure(
-                                    columnName,
-                                    DataType.KEYWORD,
-                                    DataType.DATETIME,
-                                    e,
-                                    warnings,
-                                    skipRow
-                                );
-                                failed = true;
+                                if (skipRow) {
+                                    DeclaredTypeCoercions.onCoercionFailure(columnName, DataType.KEYWORD, DataType.DATETIME, e, warnings);
+                                    failedPositionSink.accept(row);
+                                    rowDropped = true;
+                                } else {
+                                    DeclaredTypeCoercions.onCoercionFailure(
+                                        columnName,
+                                        DataType.KEYWORD,
+                                        DataType.DATETIME,
+                                        e,
+                                        warnings,
+                                        true
+                                    );
+                                }
                             }
                         }
                         input.consumeAfterRead();
@@ -1396,18 +1614,12 @@ final class ParquetColumnDecoding {
                     rowDone = input.hasRemaining() == false || input.currentRepetitionLevel() == 0;
                 }
                 input.rowCompleted();
-                if (failed || count == 0) {
-                    // failed: bulk semantics null the whole position (already warned above).
-                    // count == 0: null list, empty list, or all-null elements — a null position,
-                    // matching readListRow's no-defined-values branch.
-                    if (failed && skipRow) failedPositionSink.accept(row);
-                    builder.appendNull();
-                } else {
-                    builder.beginPositionEntry();
-                    for (int v = 0; v < count; v++) {
-                        builder.appendLong(parsed[v]);
-                    }
+                if (open) {
                     builder.endPositionEntry();
+                } else {
+                    // A null list, an empty list, all-null elements, or no element parsed: a null position,
+                    // matching readListRow's no-defined-values branch.
+                    builder.appendNull();
                 }
             }
             return builder.build();
@@ -1415,8 +1627,9 @@ final class ParquetColumnDecoding {
     }
 
     /**
-     * Reads a LIST of {@code DATE_NANOS} timestamps (Parquet INT64 {@code TIMESTAMP(MICROS|NANOS)}) into a
-     * {@code LongBlock} of epoch-nanoseconds. {@code MICROS} elements whose scaled value would overflow the
+     * Reads a LIST of {@code DATE_NANOS} elements -- a Parquet INT64 {@code TIMESTAMP(MICROS|NANOS)}, or a
+     * {@code TIME(MICROS|NANOS)} whose value is a nanosecond of day -- into a {@code LongBlock}. {@code MICROS}
+     * elements whose scaled value would overflow the
      * representable {@code date_nanos} range are dropped from their list (mirroring how the generic list reader
      * already skips null elements); a list whose elements <em>all</em> overflow becomes a null position. A single
      * deduplicated warning is reported when any element was dropped. This uses a lazy {@code beginPositionEntry} so
@@ -1435,7 +1648,7 @@ final class ParquetColumnDecoding {
     ) {
         int maxDef = info.maxDefLevel();
         LogicalTypeAnnotation logical = info.logicalType();
-        boolean micros = isMicrosTimestamp(logical);
+        boolean micros = isMicrosTemporal(logical);
         boolean[] anyOverflow = { false };
         try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(rows)) {
             for (int row = 0; row < rows; row++) {
@@ -1512,7 +1725,7 @@ final class ParquetColumnDecoding {
             builder.beginPositionEntry();
             open = true;
         }
-        builder.appendLong(convertTimestampToNanos(raw, logical));
+        builder.appendLong(convertTemporalToNanos(raw, logical));
         return open;
     }
 

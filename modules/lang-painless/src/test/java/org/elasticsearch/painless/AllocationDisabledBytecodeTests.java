@@ -177,6 +177,17 @@ public class AllocationDisabledBytecodeTests extends ScriptTestCase {
         assertThat(asm, containsString("checkDefConcatAlloc"));
     }
 
+    public void testDefConcatChargeDoesNotBoxPrimitiveOperandWhenEnabled() {
+        // A def + primitive passes the primitive's fixed cost as a long, so the check must not box the value.
+        String asm = bytecode("def a = 'ab'; def c = a + 5; return c;", 1024 * 1024L);
+        assertThat(asm, containsString("checkDefConcatAlloc"));
+        assertThat(asm, not(containsString("Integer.valueOf")));
+        // Same for a two-slot primitive on the other side.
+        asm = bytecode("def a = 'ab'; def c = 5.0 + a; return c;", 1024 * 1024L);
+        assertThat(asm, containsString("checkDefConcatAlloc"));
+        assertThat(asm, not(containsString("Double.valueOf")));
+    }
+
     public void testNoEmittedTrackingBytecodeForDefCallWhenDisabled() {
         // A def-dispatched call to an annotated target must be clean when tracking is off.
         String asm = bytecode("def s = 'hello'; s.substring(0, 3); return 1;", -1L);
@@ -210,6 +221,43 @@ public class AllocationDisabledBytecodeTests extends ScriptTestCase {
         assertThat(asm, containsString("lambdaBootstrapWithAllocation"));
     }
 
+    public void testNoRegexOperatorChargeBytecodeWhenDisabled() {
+        // The regex operators emit their own Augmentation.matcher call, so they need their own guard.
+        String asm = bytecode("boolean b = 'foo' ==~ /foo/; return 1;", -1L);
+        assertThat(asm, not(containsString("$checkAllocBytes")));
+        assertThat(asm, not(containsString("AllocationGuard")));
+    }
+
+    public void testRegexOperatorChargeBytecodePresentWhenEnabled() {
+        // Charged inline as a constant, so there is no estimator call to look for.
+        String asm = bytecode("boolean b = 'foo' ==~ /foo/; return 1;", 1024 * 1024L);
+        assertThat(asm, containsString("$checkAllocBytes"));
+    }
+
+    public void testNoListLiteralChargeBytecodeWhenDisabled() {
+        // A list literal emits its own constructor and adds, so it needs its own guard.
+        String asm = bytecode("List l = ['a', 'b']; return 1;", -1L);
+        assertThat(asm, not(containsString("$checkAllocBytes")));
+        assertThat(asm, not(containsString("AllocationGuard")));
+    }
+
+    public void testListLiteralChargeBytecodePresentWhenEnabled() {
+        String asm = bytecode("List l = ['a', 'b']; return 1;", 1024 * 1024L);
+        assertThat(asm, containsString("$checkAllocBytes"));
+    }
+
+    public void testNoMapLiteralChargeBytecodeWhenDisabled() {
+        // Same for a map literal.
+        String asm = bytecode("Map m = ['a': 'b']; return 1;", -1L);
+        assertThat(asm, not(containsString("$checkAllocBytes")));
+        assertThat(asm, not(containsString("AllocationGuard")));
+    }
+
+    public void testMapLiteralChargeBytecodePresentWhenEnabled() {
+        String asm = bytecode("Map m = ['a': 'b']; return 1;", 1024 * 1024L);
+        assertThat(asm, containsString("$checkAllocBytes"));
+    }
+
     public void testDefCallChargeIsBootstrapSideNotEmittedWhenEnabled() {
         // Unlike the statically-typed path (see testEstimatorBytecodePresentWhenEnabled), a def call's estimator charge is
         // applied at runtime inside Def.lookupMethod (the bootstrap), not with emitted per-site bytecode — so even with tracking
@@ -219,5 +267,53 @@ public class AllocationDisabledBytecodeTests extends ScriptTestCase {
         String asm = bytecode("def s = 'hello'; s.substring(0, 3); return 'x';", 1024 * 1024L);
         assertThat(asm, not(containsString("AllocationEstimators")));
         assertThat(asm, not(containsString("sanitizeEstimate")));
+    }
+
+    public void testDefGetterLoadPassesScriptOnlyWhenTracking() {
+        // getLats() carries an @allocates estimator, so a def load of .lats passes the script only when tracking is on.
+        String off = bytecode("def g = null; def a = g.lats; return 1;", -1L);
+        assertThat(off, containsString("lats(Ljava/lang/Object;)Ljava/lang/Object;"));
+        assertThat(off, not(containsString("$checkAllocBytes")));
+        String on = bytecode("def g = null; def a = g.lats; return 1;", 1024 * 1024L);
+        assertThat(on, containsString("lats(Ljava/lang/Object;Lorg/elasticsearch/painless/PainlessScript$Script;)Ljava/lang/Object;"));
+    }
+
+    public void testDefBracketLoadPassesScriptExceptForStringKeys() {
+        // A def bracket read may hit a @script_aware list get(int), so it passes the script even with tracking off, as a def call
+        // to get(int) does. The charge stays on the bootstrap side. A String index can only be a map key and never passes it.
+        String pushed = "arrayLoad(Ljava/lang/Object;ILorg/elasticsearch/painless/PainlessScript$Script;)Ljava/lang/Object;";
+        String off = bytecode("def l = params.l; def v = l[0]; return 1;", -1L);
+        assertThat(off, containsString(pushed));
+        assertThat(off, not(containsString("$checkAllocBytes")));
+        String on = bytecode("def l = params.l; def v = l[0]; return 1;", 1024 * 1024L);
+        assertThat(on, containsString(pushed));
+        assertThat(on, not(containsString("AllocationEstimators")));
+        String key = bytecode("def m = params; def v = m['k']; return 1;", 1024 * 1024L);
+        assertThat(key, containsString("arrayLoad(Ljava/lang/Object;Ljava/lang/String;)Ljava/lang/Object;"));
+        // A numeric dot shortcut is the same list read, so it passes the script too. A plain name with no annotated getter
+        // does not.
+        String dot = bytecode("def l = params.l; def v = l.0; return 1;", -1L);
+        assertThat(dot, containsString("0(Ljava/lang/Object;Lorg/elasticsearch/painless/PainlessScript$Script;)Ljava/lang/Object;"));
+        assertThat(dot, not(containsString("$checkAllocBytes")));
+        String plain = bytecode("def m = params; def v = m.other; return 1;", 1024 * 1024L);
+        assertThat(plain, containsString("other(Ljava/lang/Object;)Ljava/lang/Object;"));
+    }
+
+    public void testDefStoreInLambdaCapturesScriptOnlyWhenItLoads() {
+        // A def bracket store alone leaves the lambda static. A compound store loads too, and that load may need the script, so
+        // the lambda becomes an instance method with the script in hand.
+        String store = bytecode("def l = params.l; Optional.of(1).map(x -> { l[0] = x; return x; }); return 1;", 1024 * 1024L);
+        assertThat(store, containsString("public static synthetic lambda$"));
+        String compound = bytecode("def l = params.l; Optional.of(1).map(x -> { l[0] += x; return x; }); return 1;", 1024 * 1024L);
+        assertThat(compound, containsString("public synthetic lambda$"));
+        assertThat(compound, not(containsString("public static synthetic lambda$")));
+        String dotCompound = bytecode("def l = params.l; Optional.of(1).map(x -> { l.0 += x; return x; }); return 1;", 1024 * 1024L);
+        assertThat(dotCompound, containsString("public synthetic lambda$"));
+        assertThat(dotCompound, not(containsString("public static synthetic lambda$")));
+        // A name with no annotated getter, or a String key, never pushes the script, so those compound stores stay static too.
+        String plainName = bytecode("def m = params; Optional.of(1).map(x -> { m.other += x; return x; }); return 1;", 1024 * 1024L);
+        assertThat(plainName, containsString("public static synthetic lambda$"));
+        String stringKey = bytecode("def m = params; Optional.of(1).map(x -> { m['k'] += x; return x; }); return 1;", 1024 * 1024L);
+        assertThat(stringKey, containsString("public static synthetic lambda$"));
     }
 }

@@ -17,6 +17,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.settings.Settings;
@@ -61,6 +62,8 @@ import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -450,7 +453,8 @@ public class TransformIndexerStateTests extends ESTestCase {
             auditor,
             null,
             new TransformIndexerStats(),
-            context
+            context,
+            Clock.systemUTC()
         );
 
         assertFalse(indexer.triggerSaveState());
@@ -501,6 +505,55 @@ public class TransformIndexerStateTests extends ESTestCase {
 
         // after time has passed, trigger should work again
         indexer.setTimeMillis(371_001);
+    }
+
+    // previously the monotonic clock was treated as epoch time, so every checkpoint below the count bound was deleted
+    public void testCleanupOldCheckpointsHonorsRetentionPeriod() {
+        assertCleanupOldCheckpoints(TimeValue.timeValueDays(30).millis());
+    }
+
+    // previously nanoTime * 1000 overflowed after ~106.75 days of host uptime and cleanup was silently skipped
+    public void testCleanupOldCheckpointsAfterMonotonicClockOverflow() {
+        assertCleanupOldCheckpoints(TimeValue.timeValueDays(150).millis());
+    }
+
+    private void assertCleanupOldCheckpoints(long monotonicClockMillis) {
+        TransformConfig config = createTransformConfig();
+        TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 150, mock(TransformContext.Listener.class));
+        Clock clock = Clock.fixed(Instant.ofEpochMilli(randomLongBetween(1_600_000_000_000L, 2_000_000_000_000L)), ZoneOffset.UTC);
+        final MockedTransformIndexerForStatePersistenceTesting indexer = createMockIndexerForStatePersistenceTesting(
+            config,
+            new AtomicReference<>(IndexerState.STARTED),
+            null,
+            threadPool,
+            auditor,
+            null,
+            new TransformIndexerStats(),
+            context,
+            clock
+        );
+
+        long now = clock.millis();
+        long outsideRetention = now - TimeValue.timeValueDays(20).millis();
+        long insideRetention = now - TimeValue.timeValueMinutes(1).millis();
+        for (long checkpoint = 1; checkpoint <= 150; checkpoint++) {
+            long timestamp = checkpoint <= 100 ? outsideRetention : insideRetention;
+            transformConfigManager.putTransformCheckpoint(
+                new TransformCheckpoint(config.getId(), timestamp, checkpoint, Map.of(), null),
+                ActionListener.noop()
+            );
+        }
+
+        indexer.setTimeMillis(monotonicClockMillis);
+        PlainActionFuture<Void> cleanup = new PlainActionFuture<>();
+        indexer.cleanupOldCheckpoints(cleanup);
+        safeGet(cleanup);
+
+        for (long checkpoint = 1; checkpoint <= 150; checkpoint++) {
+            PlainActionFuture<TransformCheckpoint> stored = new PlainActionFuture<>();
+            transformConfigManager.getTransformCheckpoint(config.getId(), checkpoint, stored);
+            assertThat("checkpoint [" + checkpoint + "]", safeGet(stored).isEmpty(), equalTo(checkpoint <= 100));
+        }
     }
 
     public void testStopAtCheckpoint() throws Exception {
@@ -865,7 +918,8 @@ public class TransformIndexerStateTests extends ESTestCase {
                 mock(CrossProjectModeDecider.class),
                 projectId -> false,
                 mock(ProjectResolver.class),
-                mock(TransformCloudCredentialManager.class)
+                mock(TransformCloudCredentialManager.class),
+                Clock.systemUTC()
             ),
             new MockTimebasedCheckpointProvider(config),
             config,
@@ -1087,7 +1141,8 @@ public class TransformIndexerStateTests extends ESTestCase {
             mock(CrossProjectModeDecider.class),
             projectId -> false,
             mock(ProjectResolver.class),
-            mock(TransformCloudCredentialManager.class)
+            mock(TransformCloudCredentialManager.class),
+            Clock.systemUTC()
         );
 
         MockedTransformIndexer indexer = new MockedTransformIndexer(
@@ -1113,7 +1168,8 @@ public class TransformIndexerStateTests extends ESTestCase {
         TransformAuditor transformAuditor,
         TransformIndexerPosition initialPosition,
         TransformIndexerStats jobStats,
-        TransformContext context
+        TransformContext context,
+        Clock clock
     ) {
         CheckpointProvider checkpointProvider = new MockTimebasedCheckpointProvider(config);
         transformConfigManager.putTransformConfiguration(config, ActionListener.noop());
@@ -1121,12 +1177,13 @@ public class TransformIndexerStateTests extends ESTestCase {
             transformConfigManager,
             mock(TransformCheckpointService.class),
             transformAuditor,
-            new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
+            new TransformScheduler(clock, threadPool, Settings.EMPTY, TimeValue.ZERO),
             mock(TransformNode.class),
             mock(CrossProjectModeDecider.class),
             projectId -> false,
             mock(ProjectResolver.class),
-            mock(TransformCloudCredentialManager.class)
+            mock(TransformCloudCredentialManager.class),
+            clock
         );
 
         MockedTransformIndexerForStatePersistenceTesting indexer = new MockedTransformIndexerForStatePersistenceTesting(

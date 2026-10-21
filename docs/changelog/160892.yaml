@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 160885
+pr: 160892
+summary: Ignore docs links in storage-path guard
+type: bug

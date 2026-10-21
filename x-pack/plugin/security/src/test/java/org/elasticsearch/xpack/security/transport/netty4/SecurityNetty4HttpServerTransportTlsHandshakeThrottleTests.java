@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.transport.netty4;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
@@ -78,6 +79,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.telemetry.InstrumentType.LONG_ASYNC_COUNTER;
@@ -136,6 +138,26 @@ public class SecurityNetty4HttpServerTransportTlsHandshakeThrottleTests extends 
         Queue<HandshakeBlock> handshakeBlockQueue,
         MeterRegistry meterRegistry
     ) {
+        return createServerTransport(
+            threadPool,
+            sharedGroupFactory,
+            maxConcurrentTlsHandshakes,
+            maxDelayedTlsHandshakes,
+            handshakeBlockQueue,
+            meterRegistry,
+            ch -> {}
+        );
+    }
+
+    private Netty4HttpServerTransport createServerTransport(
+        ThreadPool threadPool,
+        SharedGroupFactory sharedGroupFactory,
+        int maxConcurrentTlsHandshakes,
+        int maxDelayedTlsHandshakes,
+        Queue<HandshakeBlock> handshakeBlockQueue,
+        MeterRegistry meterRegistry,
+        Consumer<Channel> extraPipelineSetup
+    ) {
         final var dynamicConfiguration = randomBoolean();
 
         final Settings.Builder builder = Settings.builder();
@@ -188,6 +210,7 @@ public class SecurityNetty4HttpServerTransportTlsHandshakeThrottleTests extends 
                     @Override
                     protected void initChannel(Channel ch) throws Exception {
                         super.initChannel(ch);
+                        extraPipelineSetup.accept(ch);
 
                         final var workerThread = Thread.currentThread();
                         final var handshakeCounter = inflightHandshakesByEventLoop.computeIfAbsent(
@@ -989,4 +1012,99 @@ public class SecurityNetty4HttpServerTransportTlsHandshakeThrottleTests extends 
     private static final String CURRENT_DELAYED_METRIC = METRIC_PREFIX + "delayed.current";
     private static final String TOTAL_DELAYED_METRIC = METRIC_PREFIX + "delayed.total";
     private static final String TOTAL_DROPPED_METRIC = METRIC_PREFIX + "dropped.total";
+
+    /**
+     * Inbound handler that splits the first inbound {@link ByteBuf} into a random number of pieces at random offsets and delivers them as
+     * separate {@code channelRead} events, simulating a TLS ClientHello that arrives across multiple TCP segments.
+     */
+    private static class PacketSplitter extends ChannelInboundHandlerAdapter {
+        private boolean fired = false;
+        private boolean splitting = false;
+
+        @Override
+        public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+            if (fired || !(msg instanceof ByteBuf buf) || buf.readableBytes() < 2) {
+                ctx.fireChannelRead(msg);
+                return;
+            }
+            fired = true;
+            splitting = true;
+            final int pieces = Math.min(ESTestCase.between(2, 8), buf.readableBytes());
+            final ByteBuf[] chunks = new ByteBuf[pieces];
+            for (int i = 0; i < pieces - 1; i++) {
+                chunks[i] = chunk(buf, ESTestCase.between(1, buf.readableBytes() - (pieces - 1 - i)));
+            }
+            chunks[pieces - 1] = chunk(buf, buf.readableBytes());
+            buf.release();
+            ctx.fireChannelRead(chunks[0]);
+            scheduleChunks(ctx, chunks, 1);
+        }
+
+        // Each piece is copied into its own exactly-sized contiguous buffer, like a socket read that filled the receive
+        // buffer. Slices of the (composite) test-allocator buffer would take a different ByteToMessageDecoder cumulator
+        // path in which re-delivered fragments are already drained, masking the pre-fix issue.
+        private static ByteBuf chunk(ByteBuf buf, int n) {
+            return Unpooled.buffer(n).writeBytes(buf, n);
+        }
+
+        private void scheduleChunks(ChannelHandlerContext ctx, ByteBuf[] chunks, int index) {
+            ctx.executor().execute(() -> {
+                ctx.fireChannelRead(chunks[index]);
+                if (index + 1 < chunks.length) {
+                    scheduleChunks(ctx, chunks, index + 1);
+                } else {
+                    splitting = false;
+                    ctx.fireChannelReadComplete();
+                }
+            });
+        }
+
+        @Override
+        public void channelReadComplete(ChannelHandlerContext ctx) {
+            if (splitting == false) {
+                ctx.fireChannelReadComplete();
+            }
+        }
+    }
+
+    /**
+     * Verifies that a TLS ClientHello fragmented across multiple channelRead calls is handled correctly.
+     * The {@link PacketSplitter} handler splits the first inbound buffer into several contiguous pieces and
+     * delivers them as separate channelRead events to HandshakeThrottleHandler, simulating a ClientHello that
+     * arrives across multiple TCP segments.
+     */
+    public void testThrottleWithFragmentedClientHello() {
+        final List<Releasable> releasables = new ArrayList<>();
+        try {
+            final var threadPool = newThreadPool(releasables);
+            final var sharedGroupFactory = new SharedGroupFactory(Settings.builder().put(Netty4Plugin.WORKER_COUNT.getKey(), 1).build());
+            final var handshakeBlockQueue = ConcurrentCollections.<HandshakeBlock>newBlockingQueue();
+            final var meterRegistry = new RecordingMeterRegistry();
+
+            final var serverTransport = createServerTransport(
+                threadPool,
+                sharedGroupFactory,
+                between(1, 5),
+                between(0, 100),
+                handshakeBlockQueue,
+                meterRegistry,
+                ch -> ch.pipeline().addBefore("initial-tls-handshake-throttle", "packet-splitter", new PacketSplitter())
+            );
+            releasables.add(serverTransport);
+
+            final var handshakeCompletePromises = startClientsAndGetHandshakeCompletePromises(
+                1,
+                randomFrom(serverTransport.boundAddress().boundAddresses()),
+                releasables
+            );
+
+            getNextBlock(handshakeBlockQueue).unblock();
+            handshakeCompletePromises.forEach(ESTestCase::safeAwait);
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        } finally {
+            Collections.reverse(releasables);
+            Releasables.close(releasables);
+        }
+    }
 }

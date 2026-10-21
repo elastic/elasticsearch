@@ -101,7 +101,7 @@ public class DefaultRestChannel extends AbstractRestChannel {
         if (HttpUtils.shouldCloseConnection(httpRequest)) {
             toClose.add(() -> CloseableChannel.closeChannel(httpChannel));
         }
-        toClose.add(() -> instrumentation.end(request, restResponse));
+        toClose.add(instrumentation.prepareEnd(threadContext, request, restResponse));
         toClose.add(restResponse);
 
         boolean success = false;

@@ -1,0 +1,1 @@
+FROM (FROM heavy_a, heavy_b), (FROM heavy_b) | WHERE emp_no > 10

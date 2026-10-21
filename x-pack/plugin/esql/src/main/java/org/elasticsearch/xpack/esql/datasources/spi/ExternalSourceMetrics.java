@@ -13,10 +13,12 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.telemetry.metric.MetricAttributes;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceTelemetryVocabulary.Type;
 
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -30,8 +32,8 @@ import java.util.stream.Collectors;
  * This first cut covers the object-store read layer. The per-{@code StorageObject}
  * {@link StorageObjectMetricsCounters} already tracks request count, request nanos, bytes read and
  * retries for the query profile; this holder bridges those same events to the registry. The counters
- * call {@link #recordRequest} / {@link #recordRetry} once a metrics holder is attached to them (see
- * {@code StorageObject#attachMetrics}); when none is attached they use {@link #NOOP}.
+ * call {@link #recordRequest} / {@link #recordRetry} / {@link #recordBytes} once a metrics holder is
+ * attached to them (see {@code StorageObject#attachMetrics}); when none is attached they use {@link #NOOP}.
  */
 public final class ExternalSourceMetrics {
 
@@ -41,7 +43,7 @@ public final class ExternalSourceMetrics {
     /** Wall time of a single object-store read request, in milliseconds. */
     public static final String STORAGE_REQUESTS_DURATION = "es.esql.datasources.storage.requests.duration.histogram";
 
-    /** Bytes returned by object-store reads, before decompression. */
+    /** Physical bytes received from object-store reads, before outer decompression. */
     public static final String STORAGE_BYTES_READ_TOTAL = "es.esql.datasources.storage.bytes_read.total";
 
     /** Automatic retries issued by the cross-provider retry decorator. */
@@ -63,7 +65,9 @@ public final class ExternalSourceMetrics {
     public static final String STORAGE_READ_STALL_DURATION = "es.esql.datasources.storage.read_stall.duration.histogram";
 
     /**
-     * One completed external-source query at the coordinator (dimensioned by {@link #OUTCOME_ATTRIBUTE}). Counts
+     * One completed external-source query at the coordinator, dimensioned by {@link #OUTCOME_ATTRIBUTE} and
+     * {@link #CLIENT_ATTRIBUTE}, and on failure by {@link #ERROR_TYPE_ATTRIBUTE} and {@link #STATUS_ATTRIBUTE}. Storage type and
+     * format are on {@link #QUERIES_BY_SOURCE_TOTAL} instead, to keep this instrument's cardinality bounded. Counts
      * queries whose ANALYZED plan contained an external source; a query that fails DURING analysis (before the
      * external-source flag is set) is not attributed here — its discovery failure is captured by
      * {@link #DISCOVERY_FAILURES_TOTAL} instead.
@@ -73,10 +77,23 @@ public final class ExternalSourceMetrics {
     /** Wall time of a completed external-source query, in milliseconds. */
     public static final String QUERY_DURATION = "es.esql.datasources.query.duration.histogram";
 
-    /** External-source queries that ended in cancellation. */
+    /**
+     * External-source queries split by storage type and format, dimensioned by {@link #OUTCOME_ATTRIBUTE},
+     * {@link #TYPE_ATTRIBUTE} and {@link #FORMAT_ATTRIBUTE}. It is a separate instrument from {@link #QUERIES_TOTAL} so that the
+     * client and failure dimensions do not multiply with the storage type and format.
+     */
+    public static final String QUERIES_BY_SOURCE_TOTAL = "es.esql.datasources.queries.by_source.total";
+
+    /**
+     * Wall time of external-source queries split by storage type and format, dimensioned by {@link #OUTCOME_ATTRIBUTE},
+     * {@link #TYPE_ATTRIBUTE} and {@link #FORMAT_ATTRIBUTE}. The counterpart of {@link #QUERIES_BY_SOURCE_TOTAL}.
+     */
+    public static final String QUERY_BY_SOURCE_DURATION = "es.esql.datasources.query.by_source.duration.histogram";
+
+    /** External-source queries that ended in cancellation, dimensioned by {@link #CLIENT_ATTRIBUTE}. */
     public static final String QUERIES_CANCELLED_TOTAL = "es.esql.datasources.queries.cancelled.total";
 
-    /** External-source queries that returned partial results. */
+    /** External-source queries that returned partial results, dimensioned by {@link #CLIENT_ATTRIBUTE}. */
     public static final String QUERIES_PARTIAL_TOTAL = "es.esql.datasources.queries.partial.total";
 
     /**
@@ -102,7 +119,10 @@ public final class ExternalSourceMetrics {
     /** Estimated bytes across the files discovered by external-source listing per resolved path (a query may resolve several). */
     public static final String DISCOVERY_BYTES_SCANNED = "es.esql.datasources.discovery.bytes_scanned.histogram";
 
-    /** External-source discovery attempts that failed to resolve. */
+    /**
+     * External-source discovery attempts that failed to resolve, dimensioned by {@link #TYPE_ATTRIBUTE},
+     * {@link #ERROR_TYPE_ATTRIBUTE} and {@link #STATUS_ATTRIBUTE}.
+     */
     public static final String DISCOVERY_FAILURES_TOTAL = "es.esql.datasources.discovery.failures.total";
 
     /** Rows parsed out of a format reader by the external-source scan operator. */
@@ -139,13 +159,14 @@ public final class ExternalSourceMetrics {
     /**
      * Storage and CRUD type dimension, normalised to {@link DataSourceTelemetryVocabulary.Type} via
      * {@link Type#fromScheme(String)}: {@code s3}, {@code gcs}, {@code azure}, {@code http},
-     * {@code local}, {@code unknown}.
+     * {@code local}, {@code unknown}. On the by-source query instruments it also takes {@link #MIXED}.
      */
     public static final String TYPE_ATTRIBUTE = "es_datasource_type";
 
     /**
-     * Scan-format dimension on the four scan-operator instruments only, a closed set:
-     * {@code parquet}, {@code csv}, {@code tsv}, {@code ndjson}, {@code orc}, {@code other}, {@code unresolved}.
+     * Scan-format dimension on the four scan-operator instruments and on the by-source query instruments, a closed set:
+     * {@code parquet}, {@code csv}, {@code tsv}, {@code ndjson}, {@code orc}, {@code other}, {@code unresolved}. On the
+     * by-source query instruments it also takes {@link #MIXED}.
      */
     public static final String FORMAT_ATTRIBUTE = "es_datasource_format";
 
@@ -157,6 +178,21 @@ public final class ExternalSourceMetrics {
 
     /** Rejection reason, present only when {@link #OP_ATTRIBUTE} is {@code rejected}. */
     public static final String REASON_ATTRIBUTE = "es_datasource_reason";
+
+    /**
+     * HTTP status of the failure, a handful of {@link org.elasticsearch.rest.RestStatus} codes in practice (never a free
+     * string). Present only on failed external-source queries ({@link #OUTCOME_ATTRIBUTE} {@code failure}), failed
+     * discovery attempts and rejected configuration changes.
+     */
+    public static final String STATUS_ATTRIBUTE = "es_datasource_status";
+
+    /**
+     * Failure category, a closed set ({@link DataSourceUsageAccumulator#ERROR_TYPE_NAMES}). Uses the unprefixed
+     * {@link MetricAttributes#ERROR_TYPE} name, which the APM metric validator allows as a standard attribute.
+     * Present on the same series as {@link #STATUS_ATTRIBUTE}, except rejected configuration changes (which have
+     * {@link #REASON_ATTRIBUTE} instead).
+     */
+    public static final String ERROR_TYPE_ATTRIBUTE = MetricAttributes.ERROR_TYPE;
 
     /**
      * Schema-resolution dimension on the discovery histograms, a closed low-cardinality set:
@@ -185,6 +221,58 @@ public final class ExternalSourceMetrics {
 
     /** Cancelled query outcome. */
     public static final String OUTCOME_CANCELLED = "cancelled";
+
+    /**
+     * Client dimension on the query instruments, a closed low-cardinality set derived from the
+     * {@code X-elastic-product-origin} request header (see {@link #clientFromOrigin(String)}). The raw header value is
+     * never a label: an unbounded origin string would explode the series count.
+     */
+    public static final String CLIENT_ATTRIBUTE = "es_datasource_client";
+
+    /** The label of a query whose external sources disagree on a storage type or a format. */
+    public static final String MIXED = DataSourceUsageAccumulator.MIXED;
+
+    /** Query sent by Kibana ({@code X-elastic-product-origin: kibana}). */
+    public static final String CLIENT_KIBANA = DataSourceUsageAccumulator.CLIENT_KIBANA;
+
+    /** Query that carried no {@code X-elastic-product-origin} header, or a blank one. */
+    public static final String CLIENT_NONE = DataSourceUsageAccumulator.CLIENT_NONE;
+
+    /** Query that carried an origin header with any value other than the named ones above. */
+    public static final String CLIENT_OTHER = DataSourceUsageAccumulator.CLIENT_OTHER;
+
+    /** The closed set of client labels, shared with the phone-home counters. */
+    public static final List<String> CLIENT_NAMES = DataSourceUsageAccumulator.CLIENT_NAMES;
+
+    /**
+     * CPU-component dimension on {@link #QUERY_CPU_TOTAL}, a closed set:
+     * {@code execution}, {@code read}, {@code planning}, {@code split_discovery}.
+     */
+    public static final String CPU_COMPONENT_ATTRIBUTE = "es_datasource_cpu_component";
+
+    /**
+     * Real per-thread CPU time (via {@code ThreadMXBean}) spent by drivers executing the query, plus the CPU time
+     * operators meter on other threads for their driver, such as parallel aggregation workers and the connector producer
+     * threads of {@code AsyncConnectorSourceOperatorFactory}. File-based format-reader producer threads are reported
+     * under {@link #CPU_COMPONENT_READ}.
+     */
+    public static final String CPU_COMPONENT_EXECUTION = "execution";
+
+    /** Real per-thread CPU time spent by format-reader producer threads (via {@code ThreadMXBean}). */
+    public static final String CPU_COMPONENT_READ = "read";
+
+    /** Real CPU time spent planning the query ({@code EsqlQueryProfile#planningCpuNanos}), as used by the Serverless billing formula. */
+    public static final String CPU_COMPONENT_PLANNING = "planning";
+
+    /** Real per-thread CPU time spent by split-discovery (via {@code ThreadMXBean}). */
+    public static final String CPU_COMPONENT_SPLIT_DISCOVERY = "split_discovery";
+
+    /**
+     * Total CPU consumed by successful external-source queries, broken down by
+     * {@link #CPU_COMPONENT_ATTRIBUTE}. Unit: nanoseconds. Intended to approximate the Serverless
+     * billing signal; exact alignment may drift as the billing formula evolves.
+     */
+    public static final String QUERY_CPU_TOTAL = "es.esql.datasources.query.cpu.total";
 
     /**
      * No-op holder backed by {@link MeterRegistry#NOOP}, used where no node registry is available
@@ -231,6 +319,18 @@ public final class ExternalSourceMetrics {
         Map.of(OUTCOME_ATTRIBUTE, OUTCOME_CANCELLED)
     );
 
+    /** Pre-built, immutable single-entry {@link #CPU_COMPONENT_ATTRIBUTE} attribute maps for the closed CPU-component set. */
+    private static final Map<String, Map<String, Object>> CPU_COMPONENT_ATTRIBUTES = Map.of(
+        CPU_COMPONENT_EXECUTION,
+        Map.of(CPU_COMPONENT_ATTRIBUTE, CPU_COMPONENT_EXECUTION),
+        CPU_COMPONENT_READ,
+        Map.of(CPU_COMPONENT_ATTRIBUTE, CPU_COMPONENT_READ),
+        CPU_COMPONENT_PLANNING,
+        Map.of(CPU_COMPONENT_ATTRIBUTE, CPU_COMPONENT_PLANNING),
+        CPU_COMPONENT_SPLIT_DISCOVERY,
+        Map.of(CPU_COMPONENT_ATTRIBUTE, CPU_COMPONENT_SPLIT_DISCOVERY)
+    );
+
     private final LongCounter requestsTotal;
     private final LongHistogram requestDuration;
     private final LongCounter bytesReadTotal;
@@ -240,6 +340,8 @@ public final class ExternalSourceMetrics {
     private final LongHistogram readStallDuration;
     private final LongCounter queriesTotal;
     private final LongHistogram queryDuration;
+    private final LongCounter queriesBySourceTotal;
+    private final LongHistogram queryBySourceDuration;
     private final LongCounter queriesCancelledTotal;
     private final LongCounter queriesPartialTotal;
     private final LongHistogram queryTimeToFirstRow;
@@ -254,6 +356,7 @@ public final class ExternalSourceMetrics {
     private final LongCounter readerPoolRejectedTotal;
     private final LongCounter breakerTrippedTotal;
     private final LongCounter configChangesTotal;
+    private final LongCounter queryCpuTotal;
 
     public ExternalSourceMetrics(MeterRegistry meterRegistry) {
         this(meterRegistry, null);
@@ -310,6 +413,16 @@ public final class ExternalSourceMetrics {
         this.queryDuration = meterRegistry.registerLongHistogram(
             QUERY_DURATION,
             "Wall time of an ES|QL query that scanned an external data source",
+            "ms"
+        );
+        this.queriesBySourceTotal = meterRegistry.registerLongCounter(
+            QUERIES_BY_SOURCE_TOTAL,
+            "ES|QL queries that scanned an external data source, dimensioned by outcome, storage type and format",
+            "unit"
+        );
+        this.queryBySourceDuration = meterRegistry.registerLongHistogram(
+            QUERY_BY_SOURCE_DURATION,
+            "Wall time of an ES|QL query that scanned an external data source, dimensioned by outcome, storage type and format",
             "ms"
         );
         this.queriesCancelledTotal = meterRegistry.registerLongCounter(
@@ -382,12 +495,22 @@ public final class ExternalSourceMetrics {
             "ES|QL data-source or dataset configuration changes (create, update, delete, rejected)",
             "unit"
         );
+        this.queryCpuTotal = meterRegistry.registerLongCounter(
+            QUERY_CPU_TOTAL,
+            "CPU consumed by successful ES|QL queries that scanned an external data source, "
+                + "broken down by component (execution, read, planning, split_discovery).",
+            "ns"
+        );
     }
 
     /**
      * Records one completed read request: increments the request count, adds the bytes read, and
      * observes the request duration. {@code scheme} is the raw storage scheme, folded to {@link #TYPE_ATTRIBUTE}
      * via {@link Type#fromScheme(String)}.
+     * <p>
+     * Pass filled-buffer size when this event is the only byte source. Pass {@code bytes = 0} and
+     * publish received bytes separately via {@link #recordBytes} so a later stream close cannot
+     * mint a second request.
      * <p>
      * Best-effort: an instrumentation failure is swallowed (logged at {@code TRACE}) so it can never break the
      * caller's read/query/producer path — every public {@code recordX} method self-guards this way.
@@ -409,6 +532,28 @@ public final class ExternalSourceMetrics {
         }
     }
 
+    /**
+     * Records received bytes for an already-counted request. Increments
+     * {@link #STORAGE_BYTES_READ_TOTAL} and phone-home {@code storageBytesRead} only — does not
+     * increment {@code storage.requests.total}. Used once at stream close after {@code addRequest}
+     * booked the GET with {@code bytes = 0}. Best-effort (self-guarded).
+     */
+    public void recordBytes(long bytes, String scheme) {
+        if (bytes <= 0) {
+            return;
+        }
+        try {
+            Type type = Type.fromScheme(scheme);
+            Map<String, Object> attributes = typeAttrsForToken(type.key());
+            bytesReadTotal.incrementBy(bytes, attributes);
+            if (usageAccumulator != null) {
+                usageAccumulator.recordBytes(type, bytes);
+            }
+        } catch (Exception e) {
+            logger.trace("telemetry: recordBytes failed", e);
+        }
+    }
+
     /** Records one automatic retry against the given storage {@code scheme}. Best-effort (self-guarded). */
     public void recordRetry(String scheme) {
         try {
@@ -423,15 +568,18 @@ public final class ExternalSourceMetrics {
     }
 
     /**
-     * Records one object-store read that exhausted retries and gave up terminally on the given {@code scheme}.
-     * Best-effort (self-guarded).
+     * Records one object-store read that exhausted retries and gave up terminally on the given {@code scheme}. The give-up
+     * is classified like a failed query: {@code errorType} is folded to {@link DataSourceUsageAccumulator#ERROR_TYPE_NAMES}
+     * (null becomes {@code other}). {@code status} is the HTTP status the object store returned, not the REST status of the
+     * failure, and is omitted when null (a fault that was not an HTTP response has none). Best-effort (self-guarded).
      */
-    public void recordError(String scheme) {
+    public void recordError(String scheme, @Nullable String errorType, @Nullable String status) {
         try {
             Type type = Type.fromScheme(scheme);
-            errorsTotal.incrementBy(1, typeAttrsForToken(type.key()));
+            String canonicalErrorType = canonicalErrorType(errorType);
+            errorsTotal.incrementBy(1, failureAttrs(typeAttrsForToken(type.key()), canonicalErrorType, status));
             if (usageAccumulator != null) {
-                usageAccumulator.recordError(type);
+                usageAccumulator.recordError(type, canonicalErrorType);
             }
         } catch (Exception e) {
             logger.trace("telemetry: recordError failed", e);
@@ -470,29 +618,78 @@ public final class ExternalSourceMetrics {
     }
 
     /**
+     * The dimensions of one external-source query, carried together so the query recording methods keep a bounded argument
+     * list. {@code client} is one of {@link #CLIENT_NAMES}. {@code storageType} and {@code format} are the query's
+     * external-source labels, or {@link #MIXED} when its sources disagree; {@code null} means the query has none, and the
+     * APM attribute is omitted (the phone-home counts it as {@code unknown} / {@code unresolved}).
+     */
+    public record QueryLabels(String client, @Nullable String storageType, @Nullable String format) {}
+
+    /**
      * Records one completed external-source query: increments {@link #QUERIES_TOTAL} tagged with {@code outcome},
      * observes {@link #QUERY_DURATION} carrying the same {@code outcome} (so latency can be split by
      * success/failure/cancelled), and increments {@link #QUERIES_CANCELLED_TOTAL} when the outcome is
-     * {@link #OUTCOME_CANCELLED} and {@link #QUERIES_PARTIAL_TOTAL} when {@code partial} is set.
+     * {@link #OUTCOME_CANCELLED} and {@link #QUERIES_PARTIAL_TOTAL} when {@code partial} is set. The cancelled and partial
+     * counters carry only the {@link #CLIENT_ATTRIBUTE} dimension, so they can be split by client too. The same outcome, with
+     * the storage type and format, also goes to {@link #QUERIES_BY_SOURCE_TOTAL} and {@link #QUERY_BY_SOURCE_DURATION}.
+     * <p>
+     * When the outcome is {@link #OUTCOME_FAILURE}, {@code errorType} (one of
+     * {@link DataSourceUsageAccumulator#ERROR_TYPE_NAMES}) and {@code status} (the HTTP status code) are added as
+     * {@link #ERROR_TYPE_ATTRIBUTE} / {@link #STATUS_ATTRIBUTE} to both instruments, so the failure series is split
+     * by cause while the success and cancelled series are unchanged. Either may be {@code null}, in which case that
+     * attribute is omitted (and the phone-home counters use {@code other}).
      * <p>
      * Attribution scope: this is only reached for queries whose ANALYZED plan contained an external source. A
      * query that fails during analysis (before the external-source flag is set) is not counted here; its discovery
-     * failure is captured by {@link #recordDiscoveryFailure()} / {@link #DISCOVERY_FAILURES_TOTAL}. Best-effort
+     * failure is captured by {@link #recordDiscoveryFailure} / {@link #DISCOVERY_FAILURES_TOTAL}. Best-effort
      * (self-guarded).
+     * <p>
+     * The {@code labels} are the query's client, storage type and format. The client is clamped to {@link #CLIENT_NAMES}, so
+     * an unknown value is published as {@link #CLIENT_OTHER}. The storage type and format are published on
+     * {@link #QUERIES_BY_SOURCE_TOTAL} and {@link #QUERY_BY_SOURCE_DURATION} only, and are omitted when null. Use
+     * {@link #clientFromOrigin(String)} to derive the client from a request.
      */
-    public void recordQuery(String outcome, long durationMillis, boolean partial) {
+    public void recordQuery(
+        QueryLabels labels,
+        String outcome,
+        long durationMillis,
+        boolean partial,
+        @Nullable String errorType,
+        @Nullable String status
+    ) {
         try {
-            Map<String, Object> attributes = outcomeAttrs(outcome);
+            // Clamp before anything is emitted, so a token outside the closed set can neither become an APM attribute nor
+            // make the two sinks disagree.
+            String canonicalErrorType = errorType == null ? null : canonicalErrorType(errorType);
+            String canonicalClient = canonicalClient(labels.client());
+            String canonicalStorageType = canonicalStorageLabel(labels.storageType());
+            String canonicalFormat = canonicalFormatLabel(labels.format());
+            Map<String, Object> attributes = OUTCOME_FAILURE.equals(outcome)
+                ? failureAttrs(Map.of(OUTCOME_ATTRIBUTE, OUTCOME_FAILURE), canonicalErrorType, status)
+                : outcomeAttrs(outcome);
+            attributes = clientAttrs(attributes, canonicalClient);
+            Map<String, Object> clientOnlyAttrs = clientAttrs(Map.of(), canonicalClient);
+            Map<String, Object> sourceAttrs = sourceAttrs(outcome, canonicalStorageType, canonicalFormat);
             queriesTotal.incrementBy(1, attributes);
             queryDuration.record(Math.max(0L, durationMillis), attributes);
+            queriesBySourceTotal.incrementBy(1, sourceAttrs);
+            queryBySourceDuration.record(Math.max(0L, durationMillis), sourceAttrs);
             if (OUTCOME_CANCELLED.equals(outcome)) {
-                queriesCancelledTotal.incrementBy(1);
+                queriesCancelledTotal.incrementBy(1, clientOnlyAttrs);
             }
             if (partial) {
-                queriesPartialTotal.incrementBy(1);
+                queriesPartialTotal.incrementBy(1, clientOnlyAttrs);
             }
             if (usageAccumulator != null) {
-                usageAccumulator.recordQuery(outcome, durationMillis, partial);
+                usageAccumulator.recordQuery(
+                    canonicalClient,
+                    canonicalStorageType,
+                    canonicalFormat,
+                    outcome,
+                    durationMillis,
+                    partial,
+                    canonicalErrorType
+                );
             }
         } catch (Exception e) {
             logger.trace("telemetry: recordQuery failed", e);
@@ -543,12 +740,20 @@ public final class ExternalSourceMetrics {
         }
     }
 
-    /** Records one external-source discovery attempt that failed to resolve. Best-effort (self-guarded). */
-    public void recordDiscoveryFailure() {
+    /**
+     * Records one external-source discovery attempt that failed to resolve, on the given storage {@code scheme}
+     * (folded to {@link #TYPE_ATTRIBUTE}), with the failure category {@code errorType} (one of
+     * {@link DataSourceUsageAccumulator#ERROR_TYPE_NAMES}) and the HTTP {@code status} code. Best-effort
+     * (self-guarded).
+     */
+    public void recordDiscoveryFailure(@Nullable String scheme, String errorType, @Nullable String status) {
         try {
-            discoveryFailuresTotal.incrementBy(1);
+            // Clamp before anything is emitted (see recordQuery).
+            String canonicalErrorType = canonicalErrorType(errorType);
+            Map<String, Object> typeAttributes = typeAttrs(scheme);
+            discoveryFailuresTotal.incrementBy(1, failureAttrs(typeAttributes, canonicalErrorType, status));
             if (usageAccumulator != null) {
-                usageAccumulator.recordDiscoveryFailure();
+                usageAccumulator.recordDiscoveryFailure(canonicalErrorType);
             }
         } catch (Exception e) {
             logger.trace("telemetry: recordDiscoveryFailure failed", e);
@@ -610,13 +815,34 @@ public final class ExternalSourceMetrics {
      * Best-effort (self-guarded).
      */
     public void recordConfigChange(String kind, String op, String type, String reason) {
+        recordConfigChange(kind, op, type, reason, null);
+    }
+
+    /**
+     * As {@link #recordConfigChange(String, String, String, String)}, additionally tagging a {@code rejected} change
+     * with the HTTP {@code status} of the refusal ({@link #STATUS_ATTRIBUTE}; omitted when {@code null}).
+     * Phone-home gets the change by kind × op, by kind × type, and, when rejected, by kind × reason.
+     */
+    public void recordConfigChange(String kind, String op, String type, String reason, @Nullable String status) {
         try {
-            Map<String, Object> attributes = "rejected".equals(op)
-                ? Map.of(KIND_ATTRIBUTE, kind, OP_ATTRIBUTE, op, TYPE_ATTRIBUTE, type, REASON_ATTRIBUTE, reason)
-                : Map.of(KIND_ATTRIBUTE, kind, OP_ATTRIBUTE, op, TYPE_ATTRIBUTE, type);
+            boolean rejected = "rejected".equals(op);
+            Map<String, Object> attributes;
+            if (rejected) {
+                attributes = new HashMap<>();
+                attributes.put(KIND_ATTRIBUTE, kind);
+                attributes.put(OP_ATTRIBUTE, op);
+                attributes.put(TYPE_ATTRIBUTE, type);
+                attributes.put(REASON_ATTRIBUTE, reason);
+                if (status != null) {
+                    attributes.put(STATUS_ATTRIBUTE, status);
+                }
+                attributes = Map.copyOf(attributes);
+            } else {
+                attributes = Map.of(KIND_ATTRIBUTE, kind, OP_ATTRIBUTE, op, TYPE_ATTRIBUTE, type);
+            }
             configChangesTotal.incrementBy(1, attributes);
             if (usageAccumulator != null) {
-                usageAccumulator.recordConfigChange(kind, op);
+                usageAccumulator.recordConfigChange(kind, op, Type.fromTypeId(type), reason);
             }
         } catch (Exception e) {
             logger.trace("telemetry: recordConfigChange failed", e);
@@ -642,6 +868,35 @@ public final class ExternalSourceMetrics {
     @Nullable
     public DataSourceUsageAccumulator usageAccumulator() {
         return usageAccumulator;
+    }
+
+    /**
+     * Records the CPU consumed by one successful external-source query, broken down by component.
+     * Clamps negative values to zero. Skips zero-valued components to avoid noise.
+     * <p>
+     * The components match those of the Serverless billing formula; exact alignment with the billing
+     * signal may drift as the formula evolves. All components are real per-thread CPU time (via
+     * {@code ThreadCpuTimer}); see {@link #CPU_COMPONENT_EXECUTION} for what {@code execution} covers. {@code planning}
+     * comes from {@code EsqlQueryProfile#planningCpuNanos}, which only covers the work metered by {@code PlanningCpuTracker}.
+     * <p>
+     * Best-effort (self-guarded).
+     */
+    public void recordQueryCpu(long execution, long read, long planning, long splitDiscovery) {
+        try {
+            long e = Math.max(0L, execution);
+            long r = Math.max(0L, read);
+            long p = Math.max(0L, planning);
+            long sd = Math.max(0L, splitDiscovery);
+            if (e > 0) queryCpuTotal.incrementBy(e, CPU_COMPONENT_ATTRIBUTES.get(CPU_COMPONENT_EXECUTION));
+            if (r > 0) queryCpuTotal.incrementBy(r, CPU_COMPONENT_ATTRIBUTES.get(CPU_COMPONENT_READ));
+            if (p > 0) queryCpuTotal.incrementBy(p, CPU_COMPONENT_ATTRIBUTES.get(CPU_COMPONENT_PLANNING));
+            if (sd > 0) queryCpuTotal.incrementBy(sd, CPU_COMPONENT_ATTRIBUTES.get(CPU_COMPONENT_SPLIT_DISCOVERY));
+            if (usageAccumulator != null) {
+                usageAccumulator.recordQueryCpu(e, r, p, sd);
+            }
+        } catch (Exception ex) {
+            logger.trace("telemetry: recordQueryCpu failed", ex);
+        }
     }
 
     /**
@@ -735,9 +990,84 @@ public final class ExternalSourceMetrics {
         return resolved.configName();
     }
 
+    /**
+     * Folds a failure category into the closed {@link DataSourceUsageAccumulator#ERROR_TYPE_NAMES} set: anything outside it,
+     * including {@code null}, becomes {@link DataSourceUsageAccumulator#ERROR_TYPE_OTHER}. The classifier only returns members
+     * of the set; this is the boundary that publishes the label, so it does not rely on that.
+     */
+    static String canonicalErrorType(@Nullable String errorType) {
+        return errorType != null && DataSourceUsageAccumulator.ERROR_TYPE_NAMES.contains(errorType)
+            ? errorType
+            : DataSourceUsageAccumulator.ERROR_TYPE_OTHER;
+    }
+
+    /**
+     * Returns {@code base} plus {@link #ERROR_TYPE_ATTRIBUTE} and {@link #STATUS_ATTRIBUTE} (each omitted when
+     * {@code null}). Only used on the failure paths, so allocating a map per call is not a hot-path concern; the
+     * value space is closed ({@code errorType}) or a handful of HTTP codes ({@code status}).
+     */
+    private static Map<String, Object> failureAttrs(Map<String, Object> base, @Nullable String errorType, @Nullable String status) {
+        if (errorType == null && status == null) {
+            return base;
+        }
+        Map<String, Object> attributes = new HashMap<>(base);
+        if (errorType != null) {
+            attributes.put(ERROR_TYPE_ATTRIBUTE, errorType);
+        }
+        if (status != null) {
+            attributes.put(STATUS_ATTRIBUTE, status);
+        }
+        return Map.copyOf(attributes);
+    }
+
     /** Returns the pre-built {@link #OUTCOME_ATTRIBUTE} attribute map for {@code outcome} (a fresh map for any unknown). */
     private static Map<String, Object> outcomeAttrs(String outcome) {
         return OUTCOME_ATTRIBUTES.getOrDefault(outcome, Map.of(OUTCOME_ATTRIBUTE, outcome));
+    }
+
+    /**
+     * Folds the value of the {@code X-elastic-product-origin} request header into the closed {@link #CLIENT_NAMES} set:
+     * absent or blank is {@link #CLIENT_NONE}; {@code kibana} and any {@code kibana-*} origin (compared
+     * case-insensitively, e.g. a Kibana feature that sets its own suffix) is {@link #CLIENT_KIBANA}; and any other value is
+     * {@link #CLIENT_OTHER}. The header value itself is never returned.
+     */
+    public static String clientFromOrigin(@Nullable String origin) {
+        if (origin == null || origin.isBlank()) {
+            return CLIENT_NONE;
+        }
+        String normalized = origin.strip().toLowerCase(Locale.ROOT);
+        boolean kibana = normalized.equals(CLIENT_KIBANA) || normalized.startsWith(CLIENT_KIBANA + "-");
+        return kibana ? CLIENT_KIBANA : CLIENT_OTHER;
+    }
+
+    /**
+     * Folds a client label into the closed {@link #CLIENT_NAMES} set: anything outside it, including {@code null}, becomes
+     * {@link #CLIENT_OTHER}. Mirrors {@link #canonicalErrorType(String)}: the label is published only after this clamp.
+     */
+    static String canonicalClient(@Nullable String client) {
+        return client != null && CLIENT_NAMES.contains(client) ? client : CLIENT_OTHER;
+    }
+
+    /**
+     * The attributes of the by-source query instruments: the outcome, plus {@link #TYPE_ATTRIBUTE} and {@link #FORMAT_ATTRIBUTE}
+     * when known. The arguments must already be canonical.
+     */
+    private static Map<String, Object> sourceAttrs(String outcome, @Nullable String storageType, @Nullable String format) {
+        Map<String, Object> attributes = new HashMap<>(outcomeAttrs(outcome));
+        if (storageType != null) {
+            attributes.put(TYPE_ATTRIBUTE, storageType);
+        }
+        if (format != null) {
+            attributes.put(FORMAT_ATTRIBUTE, format);
+        }
+        return Map.copyOf(attributes);
+    }
+
+    /** Returns {@code base} plus {@link #CLIENT_ATTRIBUTE}. {@code client} must already be canonical. */
+    private static Map<String, Object> clientAttrs(Map<String, Object> base, String client) {
+        Map<String, Object> attributes = new HashMap<>(base);
+        attributes.put(CLIENT_ATTRIBUTE, client);
+        return Map.copyOf(attributes);
     }
 
     /**
@@ -760,5 +1090,44 @@ public final class ExternalSourceMetrics {
         }
         String lower = format.toLowerCase(Locale.ROOT);
         return DataSourceUsageAccumulator.FORMAT_NAMES_SET.contains(lower) ? lower : DataSourceUsageAccumulator.FORMAT_OTHER_NAME;
+    }
+
+    /**
+     * The storage-type label of a query: {@code null} stays {@code null} (no label), {@link #MIXED} and every
+     * {@link Type} key are kept, and anything else becomes {@code unknown}.
+     */
+    static String canonicalStorageLabel(@Nullable String storageType) {
+        if (storageType == null || MIXED.equals(storageType)) {
+            return storageType;
+        }
+        for (Type type : Type.values()) {
+            if (type.key().equals(storageType)) {
+                return storageType;
+            }
+        }
+        return Type.UNKNOWN.key();
+    }
+
+    /**
+     * The format label of a query: {@code null} stays {@code null} (no label), {@link #MIXED} and every
+     * {@link DataSourceUsageAccumulator#FORMAT_NAMES} entry are kept, and anything else becomes {@code other}.
+     */
+    static String canonicalFormatLabel(@Nullable String format) {
+        if (format == null || MIXED.equals(format)) {
+            return format;
+        }
+        return DataSourceUsageAccumulator.FORMAT_NAMES.contains(format) ? format : DataSourceUsageAccumulator.FORMAT_OTHER_NAME;
+    }
+
+    /**
+     * The storage-type label of an external source, folded from the scheme of its {@code location}. A location without a
+     * scheme ({@link StoragePath#of} rejects it) has no storage type that can be named, so it is {@code unknown}.
+     */
+    public static String storageTypeOf(@Nullable String location) {
+        try {
+            return canonicalScheme(StoragePath.of(location).scheme());
+        } catch (IllegalArgumentException e) {
+            return Type.UNKNOWN.key();
+        }
     }
 }

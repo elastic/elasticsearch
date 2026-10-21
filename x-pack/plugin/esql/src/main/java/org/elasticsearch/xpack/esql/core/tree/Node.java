@@ -168,15 +168,19 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
 
     @SuppressWarnings("unchecked")
     public boolean anyMatch(Predicate<? super T> predicate) {
-        boolean result = predicate.test((T) this);
-        if (result == false) {
-            for (T child : children) {
-                if (child.anyMatch(predicate)) {
-                    return true;
-                }
+        Deque<T> stack = new ArrayDeque<>();
+        stack.push((T) this);
+        while (stack.isEmpty() == false) {
+            T node = stack.pop();
+            if (predicate.test(node)) {
+                return true;
+            }
+            List<T> nodeChildren = node.children();
+            for (int c = nodeChildren.size() - 1; c >= 0; c--) {
+                stack.push(nodeChildren.get(c));
             }
         }
-        return result;
+        return false;
     }
 
     /**

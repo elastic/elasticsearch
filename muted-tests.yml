@@ -505,9 +505,6 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {yaml=vectordb_columnar/10_usage/vectordb_columnar usage}
   issue: https://github.com/elastic/elasticsearch/issues/162757
-- class: org.elasticsearch.action.RejectionActionIT
-  method: testRemoteReductionRejectionWithPendingCoordinatorReduction
-  issue: https://github.com/elastic/elasticsearch/issues/162791
 - class: org.elasticsearch.index.mapper.TextFieldPhraseWithoutPositionsTests
   method: testWithIndexPrefixes
   issue: https://github.com/elastic/elasticsearch/issues/162793

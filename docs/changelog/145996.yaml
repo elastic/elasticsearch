@@ -8,7 +8,6 @@ issues:
  - 162782
  - 145887
  - 162780
- - 162860
 pr: 145996
 summary: Fix `MvPercentile` precision on edge cases and unmute tests
 type: bug

@@ -50,7 +50,7 @@ public class MatrixVectorMultiplyBenchmark {
 
     // ASH defaults are 10240 x 1024
     // also use an odd number to exercise the tails
-    @Param({ "192", "481", "768", "10240" })
+    @Param({ "192", "481", "768", "1024", "4096" })
     int m;
 
     @Param({ "192", "481", "768", "1024" })

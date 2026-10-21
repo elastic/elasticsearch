@@ -165,6 +165,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     private int queryDepth = 0;
     private boolean forkSeenInScope = false;
 
+    /** Commands seen so far in the main query and in all its subqueries, see {@link ParsingContext#maxCommandCount()} */
+    private int commandCount = 0;
+
     protected EsqlStatement statement(ParseTree ctx) {
         EsqlStatement p = typedParsing(this, ctx, EsqlStatement.class);
         return p;
@@ -258,6 +261,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 "ES|QL statement exceeded the maximum query depth allowed ({}): [{}]",
                 MAX_QUERY_DEPTH,
                 ctx.getText()
+            );
+        }
+        commandCount++;
+        if (commandCount > context.maxCommandCount()) {
+            throw new ParsingException(
+                "ES|QL statement exceeded the maximum of [{}] commands allowed, including the commands in its subqueries",
+                context.maxCommandCount()
             );
         }
         try {
@@ -480,6 +490,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public LogicalPlan visitSubquery(EsqlBaseParser.SubqueryContext ctx) {
+        // Subquery commands are parsed as a flat list rather than through visitCompositeQuery, so the limits are enforced here.
+        commandCount += ctx.processingCommand().size();
+        if (commandCount > context.maxCommandCount()) {
+            throw new ParsingException(
+                source(ctx),
+                "ES|QL statement exceeded the maximum of [{}] commands allowed, including the commands in its subqueries",
+                context.maxCommandCount()
+            );
+        }
         boolean forkSeenInEnclosingScope = forkSeenInScope;
         forkSeenInScope = false;
         LogicalPlan plan = visitSubquerySourceCommand(ctx.subquerySourceCommand());
@@ -1425,6 +1444,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return list;
     }
 
+    // TODO: FORK branch commands are not added to commandCount, so they do not count towards ParsingContext#maxCommandCount.
+    // See https://github.com/elastic/esql-planning/issues/2322
     @Override
     public PlanFactory visitForkSubQuery(EsqlBaseParser.ForkSubQueryContext ctx) {
         var subCtx = ctx.forkSubQueryCommand();

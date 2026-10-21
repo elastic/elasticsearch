@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.util.List;
 
@@ -266,7 +267,8 @@ public class LetParserTests extends AbstractStatementParserTests {
             "LET x = (FROM a | LIMIT 1); FROM x",
             new QueryParams(),
             new org.elasticsearch.xpack.esql.inference.InferenceSettings(org.elasticsearch.common.settings.Settings.EMPTY),
-            "my_view"
+            "my_view",
+            ViewResolver.DEFAULT_MAX_PLAN_NODES_COUNT
         );
         assertThat(stmt.letBindings().size(), is(1));
         assertThat(stmt.letBindings().get(0).name(), is("x"));
@@ -280,12 +282,13 @@ public class LetParserTests extends AbstractStatementParserTests {
             "LET x = (FROM a | FORK (WHERE p > 0) (WHERE p < 0)); FROM x | FORK (WHERE q > 0) (WHERE q < 0)",
             new QueryParams(),
             new org.elasticsearch.xpack.esql.inference.InferenceSettings(org.elasticsearch.common.settings.Settings.EMPTY),
-            "my_view"
+            "my_view",
+            ViewResolver.DEFAULT_MAX_PLAN_NODES_COUNT
         );
         expectThrows(
             VerificationException.class,
             containsString("Only a single FORK command is supported, but found multiple"),
-            () -> LetResolver.resolve(stmt.plan(), stmt.letBindings())
+            () -> LetResolver.resolve(stmt.plan(), stmt.letBindings(), ViewResolver.DEFAULT_MAX_PLAN_NODES_COUNT)
         );
     }
 

@@ -185,8 +185,13 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
      * Parses the query string into an {@link EsqlStatement} and validates its settings.
      * Overridden by {@link PreparedEsqlQueryRequest} to return a pre-built statement directly.
      */
-    public EsqlStatement parse(EsqlParser parser, SettingsValidationContext settingsValidationCtx, InferenceSettings inferenceSettings) {
-        EsqlStatement statement = parser.parse(query(), params(), inferenceSettings);
+    public EsqlStatement parse(
+        EsqlParser parser,
+        SettingsValidationContext settingsValidationCtx,
+        InferenceSettings inferenceSettings,
+        int maxCommandCount
+    ) {
+        EsqlStatement statement = parser.parse(query(), params(), inferenceSettings, maxCommandCount);
         QuerySettings.validate(statement, settingsValidationCtx);
         return statement;
     }

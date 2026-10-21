@@ -362,6 +362,32 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
         }
     }
 
+    /**
+     * A single rounding point (all existing values fall into one bucket) must not tag the whole main
+     * query with the point: documents without a value for the field have to stay in the null bucket.
+     * The SearchStats date range (2023-10-20 to 2023-10-23) collapses to one point for month-sized
+     * buckets. See the capability {@code FIX_ROUND_TO_PUSHDOWN_SINGLE_POINT_NULL_BUCKET}.
+     */
+    public void testSingleRoundingPointKeepsNullBucket() {
+        for (String dateHistogram : List.of("date_trunc(1 month, date)", "bucket(date, 1 month)", "round_to(date, \"2023-10-01\"::date)")) {
+            String query = LoggerMessageFormat.format(null, """
+                from test
+                | stats count(*) by x = {}
+                """, dateHistogram);
+
+            ExchangeExec exchange = validatePlanBeforeExchange(query, DataType.DATETIME);
+            var queryBuilderAndTags = getBuilderAndTagsFromStats(exchange, DataType.DATETIME);
+
+            List<Object> nullTags = new ArrayList<>(1);
+            nullTags.add(null);
+            var expectedQueryBuilderAndTags = List.of(
+                new EsQueryExec.QueryBuilderAndTags(existsQuery("date").boost(0), List.of(dateTimeToLong("2023-10-01"))),
+                new EsQueryExec.QueryBuilderAndTags(boolQuery().mustNot(existsQuery("date").boost(0)), nullTags)
+            );
+            verifyQueryAndTags(expectedQueryBuilderAndTags, queryBuilderAndTags);
+        }
+    }
+
     // test if the combine query is generated correctly when there are other functions that can be pushed down
     public void testDateTruncBucketTransformToQueryAndTagsWithOtherPushdownFunctions() {
         for (String dateHistogram : dateHistograms) {

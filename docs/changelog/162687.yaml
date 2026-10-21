@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 162687
+summary: "ESQL:DS: Authorize datasets named by received compute plans"
+type: enhancement

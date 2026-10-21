@@ -36,8 +36,9 @@ export interface ClassifiedTest {
 // Contract 1: flakiness-refs.json (bootstrap -> Java resolver)
 //
 // Heterogeneous input references. A changed-file ref carries a repo-relative path; an unmute ref carries
-// a class name (+ optional method descriptor); an explicit ref carries a developer-supplied spec. The Java
-// resolver (build-tools-internal) turns these into a plan.
+// a class name (+ optional method descriptor, plus optional task filters when only some tasks were unmuted);
+// an explicit ref carries a developer-supplied spec. The Java resolver (build-tools-internal) turns these
+// into a plan.
 // ---------------------------------------------------------------------------
 export interface FlakinessRef {
   source: "changed-file" | "unmute" | "explicit";
@@ -45,6 +46,8 @@ export interface FlakinessRef {
   className?: string; // unmute
   method?: string; // unmute
   spec?: string; // explicit
+  includeTasks?: string[]; // unmute
+  excludeTasks?: string[]; // unmute
 }
 
 export interface FlakinessRefsFile {
@@ -231,22 +234,28 @@ export const DEFAULT_AGENT_CONFIG: AgentConfig = {
 };
 
 // ---------------------------------------------------------------------------
-// Label-gated blocking
+// Blocking
 //
 // Flakiness detection reports rather than blocks: every batch step and the analyze step run through
 // never-fail.sh, which exits 0 whatever the wrapped command did (that script's header explains why a
-// soft_fail step is not an alternative). A team that trusts the signal can opt out of that for its own
-// PRs, and then proven flakiness turns the build red.
+// soft_fail step is not an alternative). Proven flakiness turns the build red on a non-PR build, on every
+// PR while BLOCK_ALL_PRS is on, and otherwise on a PR carrying one of BLOCKING_LABELS.
 //
 // The whole decision lives in the analyze step (entrypoints/analyze.ts `shouldBlock`), which is the only
-// place that has both the labels and deriveOutcome's verdict. Detection, resolution, batching and
-// reporting never look at labels.
+// place that has the build's PR number, labels and deriveOutcome's verdict. Detection, resolution, batching
+// and reporting never look at labels.
 // ---------------------------------------------------------------------------
+
+/** Makes proven flakiness fail every PR build; BLOCKING_LABELS is then a no-op. */
+export const BLOCK_ALL_PRS = false;
 
 /**
  * PR labels that make flakiness detection blocking. A team opts in by adding its GitHub label here.
  */
-export const BLOCKING_LABELS: readonly string[] = ["Team:Core/Infra"];
+export const BLOCKING_LABELS: readonly string[] = [
+  "Team:Core/Infra",
+  "Team:Distributed",
+];
 
 /**
  * The exit code the analyze step uses to report proven flakiness, and the only one never-fail.sh
@@ -269,7 +278,6 @@ export const FLAKINESS_PROVEN_EXIT_CODE = 42;
  *
  * Matching is exact, as in .buildkite/scripts/pull-request/pipeline.ts. Buildkite captures the variable
  * when the build is created, so labelling an open PR takes effect on its next build.
- * The manually-triggered pipeline has no PR and therefore no labels, so it is never blocking.
  */
 export function matchedBlockingLabels(labels: string): string[] {
   return labels

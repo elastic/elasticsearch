@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+  - 162818
+pr: 162844
+summary: Skip ES|QL CSV-spec tests requiring inference services in unsupported mixed-cluster and multi-cluster test contexts
+type: bug

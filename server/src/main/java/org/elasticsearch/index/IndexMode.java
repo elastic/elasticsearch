@@ -20,7 +20,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
@@ -955,16 +954,11 @@ public enum IndexMode {
         return version.supports(getMinimalSupportedVersion());
     }
 
-    public static final FeatureFlag VECTORDB_COLUMNAR_FEATURE_FLAG = new FeatureFlag("vectordb_columnar_index_mode");
-
     /**
-     * Returns only the index modes that are available in the current build.
-     * The vectordb_columnar mode is excluded in non-snapshot builds where its feature flag is disabled.
+     * Returns all available index modes.
      */
     public static IndexMode[] availableModes() {
-        return Arrays.stream(values())
-            .filter(m -> VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled() || m != VECTORDB_COLUMNAR)
-            .toArray(IndexMode[]::new);
+        return values();
     }
 
     private final String name;
@@ -1139,10 +1133,6 @@ public enum IndexMode {
                     + "]"
             );
         };
-
-        if (mode == IndexMode.VECTORDB_COLUMNAR && VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
-            throw new IllegalArgumentException("[" + value + "] index mode is only available in snapshot builds.");
-        }
         return mode;
     }
 

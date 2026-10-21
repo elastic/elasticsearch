@@ -111,7 +111,7 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
     @Override
     public DenseOrdinalReader denseOrdinals() {
         if (denseOrdinals == null && reader instanceof DictionaryStringColumnReader dictionary) {
-            denseOrdinals = new DenseOrdinalReader(dictionary, iterator);
+            denseOrdinals = new DictionaryOrdinals(dictionary);
         }
         return denseOrdinals;
     }
@@ -470,5 +470,63 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
             }
 
         };
+    }
+
+    /** The dense ordinals of a dictionary column, read for whichever document these doc values are positioned on. */
+    private final class DictionaryOrdinals implements DenseOrdinalReader {
+        private final DictionaryStringColumnReader column;
+
+        /** The slot {@link #ordinal} last answered for, which {@link #escapedValue} reads. */
+        private long valueSlot = -1;
+
+        DictionaryOrdinals(DictionaryStringColumnReader column) {
+            this.column = column;
+        }
+
+        @Override
+        public int size() {
+            return column.dictionarySize();
+        }
+
+        @Override
+        public BytesRef term(int ordinal, BytesRef dst) throws IOException {
+            assert ordinal >= 0 && ordinal < size() : "ordinal [" + ordinal + "] names no term in a dictionary of " + size();
+            return column.termAt(ordinal + StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL, dst);
+        }
+
+        @Override
+        public int nonNullValueCount() throws IOException {
+            final int rank = iterator.rank();
+            final long first = column.firstValueAddress(rank);
+            final long slots = column.valueCount(rank);
+            int count = 0;
+            for (long slot = first; slot < first + slots; slot++) {
+                if (column.isNullSlot(slot) == false) {
+                    count++;
+                }
+            }
+            return count;
+        }
+
+        @Override
+        public int ordinal() throws IOException {
+            final int rank = iterator.rank();
+            final long first = column.firstValueAddress(rank);
+            final long slots = column.valueCount(rank);
+            for (long slot = first; slot < first + slots; slot++) {
+                final int ordinal = column.ordinalAt(slot);
+                if (ordinal != StringColumnMetadata.Dictionary.NULL_ORDINAL) {
+                    valueSlot = slot;
+                    return ordinal == column.escapeOrdinal() ? ESCAPED : ordinal - StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL;
+                }
+            }
+            throw new IllegalStateException("the document holds no value");
+        }
+
+        @Override
+        public BytesRef escapedValue(BytesRef dst) throws IOException {
+            assert valueSlot >= 0 : "no document has answered with a value";
+            return column.resolveEscape(valueSlot, dst);
+        }
     }
 }

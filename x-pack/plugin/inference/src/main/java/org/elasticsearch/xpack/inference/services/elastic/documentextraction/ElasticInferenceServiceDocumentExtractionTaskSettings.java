@@ -79,7 +79,8 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettings implements Ta
 
     /**
      * Parses task settings from a raw config map. Unknown fields are rejected for {@link ConfigurationParseContext#REQUEST} and ignored
-     * for {@link ConfigurationParseContext#PERSISTENT}, so settings persisted by a newer version can still be read. A null or empty map produces {@link #EMPTY_SETTINGS}.
+     * for {@link ConfigurationParseContext#PERSISTENT}, so settings persisted by a newer version can still be read. A null or empty map
+     * produces {@link #EMPTY_SETTINGS}.
      */
     public static ElasticInferenceServiceDocumentExtractionTaskSettings fromMap(
         @Nullable Map<String, Object> map,

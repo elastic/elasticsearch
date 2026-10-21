@@ -9,13 +9,20 @@ package org.elasticsearch.xpack.inference.services.elastic.documentextraction;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionTaskSettings.CssSettings;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -23,11 +30,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionTaskSettings.CSS;
-import static org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionTaskSettings.CssSettings.EXTRACT_ONLY;
-import static org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionTaskSettings.CssSettings.REMOVE;
 import static org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionTaskSettings.EMPTY_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionTaskSettings.OUTPUT_FORMAT;
+import static org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionTaskSettings.PARAMETERS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -38,6 +43,9 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettingsTests extends 
 
     private static final TransportVersion INFERENCE_API_EIS_DOCUMENT_EXTRACTION_ADDED = TransportVersion.fromName(
         "inference_api_eis_document_extraction_added"
+    );
+    private static final TransportVersion INFERENCE_API_EIS_DOCUMENT_EXTRACTION_PARAMETERS = TransportVersion.fromName(
+        "inference_api_eis_document_extraction_parameters"
     );
 
     public void testFromMap_WithNullMap_ReturnsEmptySettings() {
@@ -52,14 +60,7 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettingsTests extends 
         var settings = fromMap(Map.of(OUTPUT_FORMAT, "markdown"));
 
         assertThat(settings.outputFormat(), is("markdown"));
-        assertThat(settings.css(), is(CssSettings.EMPTY));
-    }
-
-    public void testFromMap_ParsesCssSettings() {
-        var settings = fromMap(Map.of(CSS, Map.of(EXTRACT_ONLY, List.of(".main-content", "#post-body"), REMOVE, List.of("nav"))));
-
-        assertThat(settings.outputFormat(), nullValue());
-        assertThat(settings.css(), is(new CssSettings(List.of(".main-content", "#post-body"), List.of("nav"))));
+        assertThat(settings.parameters(), is(Map.of()));
     }
 
     public void testFromMap_WithNonStringOutputFormat_Throws() {
@@ -77,19 +78,91 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettingsTests extends 
         );
     }
 
-    public void testFromMap_WithNonObjectCss_Throws() {
-        var exception = expectThrows(XContentParseException.class, () -> fromMap(Map.of(CSS, "nav")));
-
-        assertThat(exception.getMessage(), containsString("css doesn't support values of type: VALUE_STRING"));
-    }
-
-    public void testFromMap_WithNonArraySelectors_Throws() {
-        var exception = expectThrows(
-            XContentParseException.class,
-            () -> fromMap(Map.of(CSS, Map.of(EXTRACT_ONLY, Map.of("selector", ".main-content"))))
+    public void testFromMap_ParsesParametersWithoutValidatingThem() {
+        // Parameters are defined by the Elastic Inference Service, so arbitrary keys and nested values pass in both parse contexts.
+        // The names and values below are made-up values only demonstrating the pass-through; they are not valid Jina Reader parameters.
+        var parameters = Map.<String, Object>of(
+            "preset",
+            "ocr",
+            "page",
+            2,
+            "with_alt",
+            true,
+            "selectors",
+            List.of("nav", "footer"),
+            "nested",
+            Map.of("key", "value")
         );
 
-        assertThat(exception.getMessage(), containsString("[task_settings] failed to parse field [css]"));
+        var settings = fromMap(Map.of(PARAMETERS, parameters));
+
+        assertThat(settings.parameters(), is(parameters));
+        assertThat(settings.outputFormat(), nullValue());
+    }
+
+    /**
+     * Made-up parameters only demonstrating the pass-through; they are not valid Jina Reader parameters.
+     * <p>
+     * Parameters are free-form: embedded objects, arrays and arrays of objects are kept as they are, at any depth, so that they reach
+     * the Elastic Inference Service unchanged.
+     */
+    private static Map<String, Object> embeddedParameters() {
+        return Map.of(
+            "preset",
+            "ocr",
+            "ocr",
+            Map.of("preferEndToEnd", true, "layout", Map.of("columns", 2, "regions", List.of("header", "body"))),
+            "targetSelector",
+            List.of("main", Map.of("css", "#post", "weight", 1.5))
+        );
+    }
+
+    public void testFromMap_KeepsEmbeddedObjectsAndArrays() {
+        var settings = fromMap(Map.of(PARAMETERS, embeddedParameters()));
+
+        assertThat(settings.parameters(), is(embeddedParameters()));
+    }
+
+    public void testSerialization_KeepsEmbeddedObjectsAndArrays() throws IOException {
+        var settings = new ElasticInferenceServiceDocumentExtractionTaskSettings("markdown", embeddedParameters());
+
+        var copy = copyWriteable(settings, getNamedWriteableRegistry(), instanceReader(), TransportVersion.current());
+
+        assertThat(copy.parameters(), is(embeddedParameters()));
+    }
+
+    public void testPersistedSettings_KeepEmbeddedObjectsAndArrays() throws IOException {
+        // As stored on an inference endpoint: written as XContent, then read back in the persistent context
+        var settings = new ElasticInferenceServiceDocumentExtractionTaskSettings(null, embeddedParameters());
+        var stored = XContentHelper.convertToMap(
+            BytesReference.bytes(settings.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)),
+            false,
+            XContentType.JSON
+        ).v2();
+
+        var restored = ElasticInferenceServiceDocumentExtractionTaskSettings.fromMap(stored, ConfigurationParseContext.PERSISTENT);
+
+        assertThat(restored, is(settings));
+    }
+
+    public void testOf_ReplacesEmbeddedObjectsAsAWhole() {
+        // The merge is per top-level parameter: an object set in the request replaces the stored one rather than being merged into it.
+        // The parameters are made-up values only demonstrating the pass-through; they are not valid Jina Reader parameters.
+        var stored = new ElasticInferenceServiceDocumentExtractionTaskSettings(
+            null,
+            Map.of("preset", "pdf", "ocr", Map.of("preferEndToEnd", true, "inlineFormula", true))
+        );
+        var request = new ElasticInferenceServiceDocumentExtractionTaskSettings(null, Map.of("ocr", Map.of("preferEndToEnd", false)));
+
+        var merged = ElasticInferenceServiceDocumentExtractionTaskSettings.of(stored, request);
+
+        assertThat(merged.parameters(), is(Map.of("preset", "pdf", "ocr", Map.of("preferEndToEnd", false))));
+    }
+
+    public void testFromMap_WithNonObjectParameters_Throws() {
+        var exception = expectThrows(XContentParseException.class, () -> fromMap(Map.of(PARAMETERS, "page=2")));
+
+        assertThat(exception.getMessage(), containsString("parameters doesn't support values of type: VALUE_STRING"));
     }
 
     public void testFromMap_WithUnknownField_ThrowsForRequestContext() {
@@ -113,56 +186,62 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettingsTests extends 
         assertThat(settings, is(new ElasticInferenceServiceDocumentExtractionTaskSettings("markdown")));
     }
 
-    public void testFromMap_WithUnknownCssField_ThrowsForRequestContext() {
+    public void testFromMap_WithTopLevelPreset_ThrowsForRequestContext() {
+        // The preset is one of the parameters, not a task setting of its own
+        var exception = expectThrows(
+            XContentParseException.class,
+            () -> ElasticInferenceServiceDocumentExtractionTaskSettings.fromMap(Map.of("preset", "ocr"), ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(exception.getMessage(), containsString("[task_settings] unknown field [preset]"));
+    }
+
+    public void testFromMap_WithRemovedCssSettings_ThrowsForRequestContext() {
         var exception = expectThrows(
             XContentParseException.class,
             () -> ElasticInferenceServiceDocumentExtractionTaskSettings.fromMap(
-                Map.of(CSS, Map.of(EXTRACT_ONLY, List.of(".main-content"), "wait_for", List.of("#x"))),
+                Map.of("css", Map.of("extract_only", List.of(".main-content"))),
                 ConfigurationParseContext.REQUEST
             )
         );
 
-        assertThat(exception.getMessage(), containsString("[task_settings] failed to parse field [css]"));
-        assertThat(exception.getCause().getMessage(), containsString("[css] unknown field [wait_for]"));
+        assertThat(exception.getMessage(), containsString("[task_settings] unknown field [css]"));
     }
 
-    public void testFromMap_WithUnknownCssField_IgnoresItForPersistentContext() {
+    public void testFromMap_WithRemovedCssSettings_IgnoresThemForPersistentContext() {
+        // Endpoints stored by an earlier version may still carry css settings
         var settings = ElasticInferenceServiceDocumentExtractionTaskSettings.fromMap(
-            Map.of(CSS, Map.of(EXTRACT_ONLY, List.of(".main-content"), "wait_for", List.of("#x"))),
+            Map.of(OUTPUT_FORMAT, "markdown", "css", Map.of("extract_only", List.of(".main-content"), "remove", List.of("nav"))),
             ConfigurationParseContext.PERSISTENT
         );
 
-        assertThat(settings.css(), is(new CssSettings(List.of(".main-content"), null)));
-    }
-
-    public void testFromMap_ForwardsSelectorsWithoutValidatingThem() {
-        // Selector validation is left to the Elastic Inference Service, so empty lists and blank selectors are passed through
-        var settings = fromMap(Map.of(CSS, Map.of(EXTRACT_ONLY, List.of(), REMOVE, List.of(".main-content", " "))));
-
-        assertThat(settings.css(), is(new CssSettings(List.of(), List.of(".main-content", " "))));
+        assertThat(settings, is(new ElasticInferenceServiceDocumentExtractionTaskSettings("markdown")));
     }
 
     public void testOf_RequestSettingsOverrideStoredSettings() {
-        var stored = new ElasticInferenceServiceDocumentExtractionTaskSettings("markdown", new CssSettings(List.of(".a"), List.of("nav")));
-        var request = new ElasticInferenceServiceDocumentExtractionTaskSettings("text", new CssSettings(List.of(".b"), List.of("footer")));
+        var stored = new ElasticInferenceServiceDocumentExtractionTaskSettings("markdown", Map.of("preset", "pdf"));
+        var request = new ElasticInferenceServiceDocumentExtractionTaskSettings("text", Map.of("preset", "ocr"));
 
         assertThat(ElasticInferenceServiceDocumentExtractionTaskSettings.of(stored, request), is(request));
     }
 
     public void testOf_FallsBackToStoredSettingsWhenRequestSettingsAreEmpty() {
-        var stored = new ElasticInferenceServiceDocumentExtractionTaskSettings("markdown", new CssSettings(List.of(".a"), List.of("nav")));
+        var stored = new ElasticInferenceServiceDocumentExtractionTaskSettings("markdown", Map.of("preset", "pdf"));
 
         assertThat(ElasticInferenceServiceDocumentExtractionTaskSettings.of(stored, EMPTY_SETTINGS), is(stored));
     }
 
-    public void testOf_MergesCssSettingsPerField() {
-        var stored = new ElasticInferenceServiceDocumentExtractionTaskSettings("markdown", new CssSettings(List.of(".a"), List.of("nav")));
-        var request = new ElasticInferenceServiceDocumentExtractionTaskSettings(null, new CssSettings(List.of(".b"), null));
+    public void testOf_MergesParametersPerKey() {
+        var stored = new ElasticInferenceServiceDocumentExtractionTaskSettings(
+            "markdown",
+            Map.of("preset", "pdf", "retain_images", "none")
+        );
+        var request = new ElasticInferenceServiceDocumentExtractionTaskSettings(null, Map.of("preset", "ocr", "page", 3));
 
         var merged = ElasticInferenceServiceDocumentExtractionTaskSettings.of(stored, request);
 
         assertThat(merged.outputFormat(), is("markdown"));
-        assertThat(merged.css(), is(new CssSettings(List.of(".b"), List.of("nav"))));
+        assertThat(merged.parameters(), is(Map.of("preset", "ocr", "page", 3, "retain_images", "none")));
     }
 
     public void testUpdatedTaskSettings_ReplacesOutputFormat() {
@@ -173,19 +252,26 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettingsTests extends 
         assertThat(updated, is(new ElasticInferenceServiceDocumentExtractionTaskSettings("text")));
     }
 
-    public void testUpdatedTaskSettings_ReplacesCssSettingsAndKeepsOutputFormat() {
-        var settings = new ElasticInferenceServiceDocumentExtractionTaskSettings("markdown", new CssSettings(List.of(".a"), null));
+    public void testUpdatedTaskSettings_MergesParameters() {
+        var settings = new ElasticInferenceServiceDocumentExtractionTaskSettings("markdown", Map.of("preset", "pdf", "page", 1));
 
-        var updated = settings.updatedTaskSettings(new HashMap<>(Map.of(CSS, new HashMap<>(Map.of(REMOVE, List.of("nav"))))));
+        var updated = settings.updatedTaskSettings(
+            new HashMap<>(Map.of(PARAMETERS, new HashMap<>(Map.of("preset", "pdf+", "retain_images", "none"))))
+        );
 
         assertThat(
             updated,
-            is(new ElasticInferenceServiceDocumentExtractionTaskSettings("markdown", new CssSettings(List.of(".a"), List.of("nav"))))
+            is(
+                new ElasticInferenceServiceDocumentExtractionTaskSettings(
+                    "markdown",
+                    Map.of("preset", "pdf+", "page", 1, "retain_images", "none")
+                )
+            )
         );
     }
 
     public void testUpdatedTaskSettings_WithEmptyMap_KeepsSettings() {
-        var settings = new ElasticInferenceServiceDocumentExtractionTaskSettings("markdown", new CssSettings(List.of(".a"), null));
+        var settings = new ElasticInferenceServiceDocumentExtractionTaskSettings("markdown", Map.of("preset", "ocr"));
 
         assertThat(settings.updatedTaskSettings(new HashMap<>()), is(settings));
     }
@@ -202,13 +288,56 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettingsTests extends 
         assertTrue(EMPTY_SETTINGS.isEmpty());
         assertTrue(new ElasticInferenceServiceDocumentExtractionTaskSettings("").isEmpty());
         assertFalse(new ElasticInferenceServiceDocumentExtractionTaskSettings("markdown").isEmpty());
-        assertFalse(new ElasticInferenceServiceDocumentExtractionTaskSettings(null, new CssSettings(List.of(".a"), null)).isEmpty());
-        assertFalse(new ElasticInferenceServiceDocumentExtractionTaskSettings(null, new CssSettings(null, List.of("nav"))).isEmpty());
+        assertFalse(new ElasticInferenceServiceDocumentExtractionTaskSettings(null, Map.of("preset", "ocr")).isEmpty());
     }
 
-    public void testEmptySettings_HaveNoOutputFormatAndNoCssSettings() {
+    public void testEmptySettings_HaveNoValues() {
         assertThat(EMPTY_SETTINGS.outputFormat(), nullValue());
-        assertThat(EMPTY_SETTINGS.css(), is(CssSettings.EMPTY));
+        assertThat(EMPTY_SETTINGS.parameters(), is(Map.of()));
+    }
+
+    /**
+     * Nodes on a version before the parameters were added serialize css settings, which must be read and discarded.
+     */
+    public void testReadFromEarlierVersion_DiscardsCssSettings() throws IOException {
+        var earlierVersion = TransportVersionUtils.getPreviousVersion(INFERENCE_API_EIS_DOCUMENT_EXTRACTION_PARAMETERS);
+        assertTrue(earlierVersion.supports(INFERENCE_API_EIS_DOCUMENT_EXTRACTION_ADDED));
+
+        try (var out = new BytesStreamOutput()) {
+            out.setTransportVersion(earlierVersion);
+            out.writeOptionalString("markdown");
+            out.writeOptionalStringCollection(List.of(".main-content"));
+            out.writeOptionalStringCollection(List.of("nav"));
+
+            try (var in = out.bytes().streamInput()) {
+                in.setTransportVersion(earlierVersion);
+                var settings = new ElasticInferenceServiceDocumentExtractionTaskSettings(in);
+
+                assertThat(settings, is(new ElasticInferenceServiceDocumentExtractionTaskSettings("markdown")));
+                assertThat(in.available(), is(0));
+            }
+        }
+    }
+
+    /**
+     * Nodes on a version before the parameters were added expect css settings, which are written as unset.
+     */
+    public void testWriteToEarlierVersion_WritesUnsetCssSettings() throws IOException {
+        var earlierVersion = TransportVersionUtils.getPreviousVersion(INFERENCE_API_EIS_DOCUMENT_EXTRACTION_PARAMETERS);
+        var settings = new ElasticInferenceServiceDocumentExtractionTaskSettings("markdown", Map.of("preset", "ocr", "page", 2));
+
+        try (var out = new BytesStreamOutput()) {
+            out.setTransportVersion(earlierVersion);
+            settings.writeTo(out);
+
+            try (var in = out.bytes().streamInput()) {
+                in.setTransportVersion(earlierVersion);
+                assertThat(in.readOptionalString(), is("markdown"));
+                assertThat(in.readOptionalStringCollectionAsList(), nullValue());
+                assertThat(in.readOptionalStringCollectionAsList(), nullValue());
+                assertThat(in.available(), is(0));
+            }
+        }
     }
 
     private static ElasticInferenceServiceDocumentExtractionTaskSettings fromMap(@Nullable Map<String, Object> map) {
@@ -226,19 +355,24 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettingsTests extends 
     }
 
     public static ElasticInferenceServiceDocumentExtractionTaskSettings createRandom() {
-        return new ElasticInferenceServiceDocumentExtractionTaskSettings(randomOutputFormat(), randomCssSettings());
+        return new ElasticInferenceServiceDocumentExtractionTaskSettings(randomOutputFormat(), randomParameters());
     }
 
     private static String randomOutputFormat() {
         return randomBoolean() ? null : randomAlphaOfLengthBetween(1, 10);
     }
 
-    private static CssSettings randomCssSettings() {
-        return new CssSettings(randomSelectors(), randomSelectors());
-    }
-
-    private static List<String> randomSelectors() {
-        return randomBoolean() ? null : randomList(1, 3, () -> randomAlphaOfLengthBetween(1, 10));
+    private static Map<String, Object> randomParameters() {
+        return randomBoolean()
+            ? Map.of()
+            : randomMap(
+                1,
+                3,
+                () -> Tuple.<String, Object>tuple(
+                    randomAlphaOfLengthBetween(1, 10),
+                    randomFrom(randomAlphaOfLength(5), randomInt(), randomBoolean())
+                )
+            );
     }
 
     @Override
@@ -246,23 +380,19 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettingsTests extends 
         ElasticInferenceServiceDocumentExtractionTaskSettings instance
     ) {
         var outputFormat = instance.outputFormat();
-        var css = instance.css();
-        switch (randomInt(2)) {
+        var parameters = instance.parameters();
+        switch (randomInt(1)) {
             case 0 -> outputFormat = randomValueOtherThan(
                 outputFormat,
                 ElasticInferenceServiceDocumentExtractionTaskSettingsTests::randomOutputFormat
             );
-            case 1 -> css = new CssSettings(
-                randomValueOtherThan(css.extractOnly(), ElasticInferenceServiceDocumentExtractionTaskSettingsTests::randomSelectors),
-                css.remove()
-            );
-            case 2 -> css = new CssSettings(
-                css.extractOnly(),
-                randomValueOtherThan(css.remove(), ElasticInferenceServiceDocumentExtractionTaskSettingsTests::randomSelectors)
+            case 1 -> parameters = randomValueOtherThan(
+                parameters,
+                ElasticInferenceServiceDocumentExtractionTaskSettingsTests::randomParameters
             );
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new ElasticInferenceServiceDocumentExtractionTaskSettings(outputFormat, css);
+        return new ElasticInferenceServiceDocumentExtractionTaskSettings(outputFormat, parameters);
     }
 
     @Override
@@ -270,7 +400,11 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettingsTests extends 
         ElasticInferenceServiceDocumentExtractionTaskSettings instance,
         TransportVersion version
     ) {
-        return instance;
+        if (version.supports(INFERENCE_API_EIS_DOCUMENT_EXTRACTION_PARAMETERS)) {
+            return instance;
+        }
+        // Earlier versions drop the parameters
+        return new ElasticInferenceServiceDocumentExtractionTaskSettings(instance.outputFormat());
     }
 
     /**

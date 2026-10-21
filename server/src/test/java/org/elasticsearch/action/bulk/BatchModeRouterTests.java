@@ -318,12 +318,11 @@ public class BatchModeRouterTests extends ESTestCase {
      * rejection at create time with a message pointing to the upcoming follow-up.
      */
     public void testRejectsMultipleBatches() throws IOException {
-        try (EscfBatch batchA = buildBatch(1); EscfBatch batchB = buildBatch(1)) {
-            BulkRequest request = new BulkRequest();
-            request.setPreBuiltBatches(Map.of("index-a", batchA, "index-b", batchB));
-            var e = expectThrows(IllegalArgumentException.class, () -> BatchModeRouter.create(request, true, recycler));
-            assertThat(e.getMessage(), containsString("at most one is supported in step 1"));
-        }
+        BulkRequest request = new BulkRequest();
+        request.setPreBuiltBatches(Map.of("index-a", buildBatch(1), "index-b", buildBatch(1)));
+        var e = expectThrows(IllegalArgumentException.class, () -> BatchModeRouter.create(request, true, recycler));
+        assertThat(e.getMessage(), containsString("at most one is supported in step 1"));
+        assertFalse(request.hasPreBuiltBatches());
     }
 
     public void testSingleShardAllRowsRouted() throws IOException {
@@ -456,15 +455,14 @@ public class BatchModeRouterTests extends ESTestCase {
     }
 
     public void testRejectsItemWithoutSourceRow() throws IOException {
-        try (EscfBatch batch = buildBatch(1)) {
-            // Item has inline source — no source-row reference.
-            IndexRequest request = new IndexRequest("myindex").id("doc-0").source(new HashMap<>());
-            BulkRequest bulkRequest = new BulkRequest();
-            bulkRequest.add(request);
-            bulkRequest.setPreBuiltBatches(Map.of("myindex", batch));
-            var e = expectThrows(IllegalArgumentException.class, () -> BatchModeRouter.create(bulkRequest, true, recycler));
-            assertThat(e.getMessage(), containsString("must carry a source-row reference"));
-        }
+        // Item has inline source — no source-row reference.
+        IndexRequest request = new IndexRequest("myindex").id("doc-0").source(new HashMap<>());
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(request);
+        bulkRequest.setPreBuiltBatches(Map.of("myindex", buildBatch(1)));
+        var e = expectThrows(IllegalArgumentException.class, () -> BatchModeRouter.create(bulkRequest, true, recycler));
+        assertThat(e.getMessage(), containsString("must carry a source-row reference"));
+        assertFalse(bulkRequest.hasPreBuiltBatches());
     }
 
     public void testRejectsRowBearingItemWithNoBatchForItsName() throws IOException {
@@ -488,25 +486,23 @@ public class BatchModeRouterTests extends ESTestCase {
     }
 
     public void testRejectsInlineItemForAnUnbatchedName() throws IOException {
-        try (EscfBatch batch = buildBatch(1)) {
-            // Inline source in a bulk that carries batches: its shard's rows could not line up with its items.
-            IndexRequest request = new IndexRequest("otherindex").id("doc-0").source(new HashMap<>());
-            BulkRequest bulkRequest = new BulkRequest();
-            bulkRequest.add(request);
-            bulkRequest.setPreBuiltBatches(Map.of("myindex", batch));
-            var e = expectThrows(IllegalArgumentException.class, () -> BatchModeRouter.create(bulkRequest, true, recycler));
-            assertThat(e.getMessage(), containsString("must carry a source-row reference"));
-        }
+        // Inline source in a bulk that carries batches: its shard's rows could not line up with its items.
+        IndexRequest request = new IndexRequest("otherindex").id("doc-0").source(new HashMap<>());
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(request);
+        bulkRequest.setPreBuiltBatches(Map.of("myindex", buildBatch(1)));
+        var e = expectThrows(IllegalArgumentException.class, () -> BatchModeRouter.create(bulkRequest, true, recycler));
+        assertThat(e.getMessage(), containsString("must carry a source-row reference"));
+        assertFalse(bulkRequest.hasPreBuiltBatches());
     }
 
     public void testRejectsNonIndexRequestItem() throws IOException {
-        try (EscfBatch batch = buildBatch(1)) {
-            BulkRequest bulkRequest = new BulkRequest();
-            bulkRequest.add(new DeleteRequest("myindex", "doc-0"));
-            bulkRequest.setPreBuiltBatches(Map.of("myindex", batch));
-            var e = expectThrows(IllegalArgumentException.class, () -> BatchModeRouter.create(bulkRequest, true, recycler));
-            assertThat(e.getMessage(), containsString("cannot be mixed with pre-built source batches"));
-        }
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(new DeleteRequest("myindex", "doc-0"));
+        bulkRequest.setPreBuiltBatches(Map.of("myindex", buildBatch(1)));
+        var e = expectThrows(IllegalArgumentException.class, () -> BatchModeRouter.create(bulkRequest, true, recycler));
+        assertThat(e.getMessage(), containsString("cannot be mixed with pre-built source batches"));
+        assertFalse(bulkRequest.hasPreBuiltBatches());
     }
 
     /**

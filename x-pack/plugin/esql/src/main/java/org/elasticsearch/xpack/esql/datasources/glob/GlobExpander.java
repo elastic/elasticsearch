@@ -38,6 +38,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * Expands glob patterns and comma-separated path lists into resolved {@link FileList} instances.
@@ -578,6 +579,17 @@ public final class GlobExpander {
             sb.append(isPattern(segment) ? effectivePattern(segment, hints, partitionConfig) : segment);
         }
         return sb.toString();
+    }
+
+    /**
+     * Compiles the glob syntax used by file listing for matching object names relative to the listing prefix.
+     *
+     * @param glob the path portion after the listing prefix
+     * @return a predicate that accepts names matched by {@code glob}
+     */
+    public static Predicate<String> compileGlobMatcher(String glob) {
+        GlobMatcher matcher = new GlobMatcher(glob);
+        return matcher::matches;
     }
 
     /**

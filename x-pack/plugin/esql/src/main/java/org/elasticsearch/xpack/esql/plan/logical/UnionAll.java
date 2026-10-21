@@ -241,8 +241,8 @@ public class UnionAll extends MergePlan {
      * Summarizes the merge plans under {@code plan}. A subtree with no merge plan is one producer leaf. Otherwise its leaf count is the
      * sum of its children's leaves. Its depth is the longest child depth, plus one when {@code plan} is itself a merge plan. The right
      * side of a {@link Join} is excluded: a {@code LOOKUP JOIN} (and {@code INLINE STATS}) lookup/stub is not a union producer leaf, and
-     * the right side of an {@link IndependentSubqueryJoin} is an independently executed query counted via {@link #checkInSubqueryLimits}. The
-     * first and deepest unions provide distinct failure locations when both limits are exceeded.
+     * the right side of an {@link IndependentSubqueryJoin} is an independently executed query counted via
+     * {@link #checkInSubqueryLimits}. The first and deepest unions provide distinct failure locations when both limits are exceeded.
      */
     private static UnionStats unionStats(LogicalPlan plan) {
         MergePlan first = plan instanceof MergePlan mergePlan ? mergePlan : null;

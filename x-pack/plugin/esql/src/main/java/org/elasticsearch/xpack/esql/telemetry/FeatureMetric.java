@@ -116,7 +116,7 @@ public enum FeatureMetric {
     RENAME(Rename.class::isInstance),
     LOOKUP_JOIN(plan -> plan instanceof LookupJoin lookupJoin && lookupJoin.config().joinOnConditions() == null),
     LOOKUP_JOIN_ON_EXPRESSION(plan -> plan instanceof LookupJoin lookupJoin && lookupJoin.config().joinOnConditions() != null),
-    JOIN_SUBQUERY(SubqueryJoin.class::isInstance),
+    LOOKUP_JOIN_SUBQUERY(SubqueryJoin.class::isInstance),
     LOOKUP(Lookup.class::isInstance),
     CHANGE_POINT(ChangePoint.class::isInstance),
     INLINE_STATS(InlineStats.class::isInstance),

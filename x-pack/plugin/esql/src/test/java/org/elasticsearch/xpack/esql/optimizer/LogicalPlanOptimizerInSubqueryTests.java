@@ -44,6 +44,10 @@ public class LogicalPlanOptimizerInSubqueryTests extends AbstractLogicalPlanOpti
         assertThat(e.getMessage(), containsString("IN subquery [" + inSubquery + "] cannot yet have an unbounded SORT"));
     }
 
+    public void testOuterSortPrunesUnboundedSortInSubquery() {
+        planInSubquery("FROM test | WHERE emp_no IN (FROM test | SORT emp_no | KEEP emp_no) | SORT emp_no");
+    }
+
     // -- KNN inside IN subquery tests --
     /**
      * Verifies that a {@code KNN} function inside an IN / NOT IN subquery without a LIMIT in the subquery is rejected: KNN needs

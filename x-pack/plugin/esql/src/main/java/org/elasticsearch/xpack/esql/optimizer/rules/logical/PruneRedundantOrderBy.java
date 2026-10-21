@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.SortAgnostic;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoin;
 
 import java.util.ArrayDeque;
@@ -82,7 +81,7 @@ public class PruneRedundantOrderBy extends OptimizerRules.OptimizerRule<LogicalP
                 result.add(ob);
                 toCheck.push(ob.child());
             } else if (p instanceof SortAgnostic) {
-                for (LogicalPlan child : IndependentSubqueryJoin.mainScopeChildren(p)) {
+                for (LogicalPlan child : p.children()) {
                     toCheck.push(child);
                 }
             }

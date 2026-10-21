@@ -30,12 +30,12 @@ import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.FROM;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.GROK;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.INLINE_STATS;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.IN_SUBQUERY;
-import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.JOIN_SUBQUERY;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.KEEP;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LIMIT;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LIMIT_BY;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LOOKUP_JOIN;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LOOKUP_JOIN_ON_EXPRESSION;
+import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LOOKUP_JOIN_SUBQUERY;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.MV_EXPAND;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.PROMQL;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.RENAME;
@@ -252,7 +252,7 @@ public class VerifierMetricsTests extends ESTestCase {
             ROW key = 1, left_value = "left"
             | LEFT OUTER JOIN (ROW key = 1, right_value = "right") ON key
             """);
-        assertMetrics(c, Map.of(JOIN_SUBQUERY, 1L, ROW, 1L));
+        assertMetrics(c, Map.of(LOOKUP_JOIN_SUBQUERY, 1L, ROW, 1L));
     }
 
     public void testBinaryPlanAfterStatsExpressionJoin() {

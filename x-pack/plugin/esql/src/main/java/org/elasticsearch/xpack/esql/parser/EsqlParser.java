@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 
 import java.util.BitSet;
 import java.util.EmptyStackException;
@@ -171,7 +172,12 @@ public class EsqlParser {
     /**
      * Parse a view query with the given view name. The view name is used to tag all Source objects
      * so they can be correctly deserialized when the view positions exceed the outer query's length.
-     * SET statements are not allowed in view bodies and are rejected with a {@link ParsingException}.
+     * A view definition may {@code SET} only the settings that are scoped at view boundaries for callers
+     * ({@code unmapped_fields}, {@code wildcards_match_views}, {@code wildcards_match_datasets}); any other
+     * setting is rejected with a {@link ParsingException} — see {@link ViewQuerySettings#validate}. A setting the
+     * definition does not {@code SET} stays at its registry default. A cluster default, such as
+     * {@code esql.query.settings.unmapped_fields}, applies to a query run on its own and does not apply once that
+     * query is stored as a view: the definition stays self-contained if the cluster default later changes.
      */
     public EsqlStatement parseView(
         String query,
@@ -185,9 +191,7 @@ public class EsqlParser {
             log.debug("Parsed view '{}' logical plan:\n{}", viewName, parsed.plan());
             log.debug("Parsed settings:\n[{}]", parsed.settings().stream().map(QuerySetting::toString).collect(joining("; ")));
         }
-        if (parsed.settings() != null && parsed.settings().isEmpty() == false) {
-            throw new ParsingException(parsed.settings().getFirst().source(), "SET statements are not allowed in views");
-        }
+        ViewQuerySettings.validate(parsed.settings(), parsed);
         return parsed;
     }
 

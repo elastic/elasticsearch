@@ -464,3 +464,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
   method: "testEvaluate {TestCase=field: <random mv UNORDERED doubles>, percentile: <positive int>}"
   issue: https://github.com/elastic/elasticsearch/issues/162860
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
+  method: "testEvaluate {TestCase=field: <random mv SORTED_ASCENDING doubles>, percentile: <positive int>}"
+  issue: https://github.com/elastic/elasticsearch/issues/162862

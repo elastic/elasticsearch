@@ -693,7 +693,10 @@ class NodeConstruction {
         MetadataCreateIndexService metadataCreateIndexService,
         IndexSettingProviders indexSettingProviders
     ) {
-        DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(clusterService.getClusterSettings());
+        DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(
+            clusterService.getClusterSettings(),
+            clusterService.getSettings()
+        );
         modules.bindToInstance(DataStreamLifecycleSettings.class, dataStreamLifecycleSettings);
         modules.bindToInstance(
             DataStreamFailureStoreSettings.class,
@@ -1421,7 +1424,9 @@ class NodeConstruction {
             final RecoveryMetricsCollector recoveryMetricsCollector = new RecoveryMetricsCollector(
                 telemetryProvider,
                 throttlingRecoveryService,
-                threadPool.relativeTimeInMillisSupplier()
+                threadPool.relativeTimeInMillisSupplier(),
+                clusterService.getClusterSettings(),
+                JvmInfo.jvmInfo().getMem().getHeapMax()
             );
             recoverySchedulingListeners.addListener(recoveryMetricsCollector);
             final PeerRecoverySourceService peerRecovery = new PeerRecoverySourceService(

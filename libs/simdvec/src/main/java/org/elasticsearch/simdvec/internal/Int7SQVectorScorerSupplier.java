@@ -14,6 +14,7 @@ import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.apache.lucene.util.quantization.LegacyQuantizedByteVectorValues;
 import org.elasticsearch.lucene.store.IndexInputUtils;
+import org.elasticsearch.lucene.store.SegmentBufferScratch;
 import org.elasticsearch.simdvec.QuantizedByteVectorValuesAccess;
 import org.elasticsearch.simdvec.SimdVecLibrary;
 
@@ -35,6 +36,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
     final FixedSizeSegmentScratch secondScratch;
     final AddressesScratch addrsScratch = new AddressesScratch();
     final OffsetsScratch offsetsScratch = new OffsetsScratch();
+    final SegmentBufferScratch scoresScratch = new SegmentBufferScratch();
     final float[] maxScore = new float[] { Float.NEGATIVE_INFINITY };
 
     protected Int7SQVectorScorerSupplier(IndexInput input, LegacyQuantizedByteVectorValues values, float scoreCorrectionConstant) {
@@ -76,7 +78,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
                 vectorTotalBytes,
                 numNodes,
                 addrsScratch,
-                addrs -> maxScore[0] = bulkScoreFromSegment(addrs, query, queryOffsetValue, MemorySegment.ofArray(scores), numNodes)
+                addrs -> maxScore[0] = bulkScoreFromSegment(addrs, query, queryOffsetValue, scores, numNodes)
             );
             if (resolved == false) {
                 maxScore[0] = scorePerVectorFallback(scores, numNodes, query, offsets, queryOffsetValue);
@@ -121,7 +123,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
         MemorySegment addresses,
         MemorySegment query,
         float queryOffsetValue,
-        MemorySegment scores,
+        float[] scores,
         int numNodes
     );
 
@@ -172,17 +174,18 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
             MemorySegment addresses,
             MemorySegment query,
             float queryOffsetValue,
-            MemorySegment scores,
+            float[] scores,
             int numNodes
         ) {
-            DISTANCE_FUNCS.squareDistanceI7uBulkSparse(addresses, query, dims, numNodes, scores);
+            MemorySegment segment = scoresScratch.apply(numNodes * Float.BYTES);
+            DISTANCE_FUNCS.squareDistanceI7uBulkSparse(addresses, query, dims, numNodes, segment);
 
             float max = Float.NEGATIVE_INFINITY;
             for (int i = 0; i < numNodes; ++i) {
-                var squareDistance = scores.getAtIndex(ValueLayout.JAVA_FLOAT, i);
+                var squareDistance = segment.getAtIndex(ValueLayout.JAVA_FLOAT, i);
                 float adjustedDistance = squareDistance * scoreCorrectionConstant;
                 float adjustedScore = 1 / (1f + adjustedDistance);
-                scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, adjustedScore);
+                scores[i] = adjustedScore;
                 max = Math.max(max, adjustedScore);
             }
             return max;
@@ -213,20 +216,21 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
             MemorySegment addresses,
             MemorySegment query,
             float queryOffsetValue,
-            MemorySegment scores,
+            float[] scores,
             int numNodes
         ) {
-            DISTANCE_FUNCS.dotProductI7uBulkSparse(addresses, query, dims, numNodes, scores);
+            MemorySegment segment = scoresScratch.apply(numNodes * Float.BYTES);
+            DISTANCE_FUNCS.dotProductI7uBulkSparse(addresses, query, dims, numNodes, segment);
 
             // Java-side adjustment
             float max = Float.NEGATIVE_INFINITY;
             for (int i = 0; i < numNodes; ++i) {
-                var dotProduct = scores.getAtIndex(ValueLayout.JAVA_FLOAT, i);
+                var dotProduct = segment.getAtIndex(ValueLayout.JAVA_FLOAT, i);
                 MemorySegment vectorAddress = addresses.getAtIndex(ValueLayout.ADDRESS, i).reinterpret(vectorTotalBytes);
                 var vectorOffsetValue = vectorAddress.get(ValueLayout.JAVA_FLOAT_UNALIGNED, dims);
                 float adjustedDistance = dotProduct * scoreCorrectionConstant + queryOffsetValue + vectorOffsetValue;
                 float adjustedScore = Math.max((1 + adjustedDistance) / 2, 0f);
-                scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, adjustedScore);
+                scores[i] = adjustedScore;
                 max = Math.max(max, adjustedScore);
             }
             return max;
@@ -260,20 +264,21 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
             MemorySegment addresses,
             MemorySegment query,
             float queryOffsetValue,
-            MemorySegment scores,
+            float[] scores,
             int numNodes
         ) {
-            DISTANCE_FUNCS.dotProductI7uBulkSparse(addresses, query, dims, numNodes, scores);
+            MemorySegment segment = scoresScratch.apply(numNodes * Float.BYTES);
+            DISTANCE_FUNCS.dotProductI7uBulkSparse(addresses, query, dims, numNodes, segment);
 
             // Java-side adjustment
             float max = Float.NEGATIVE_INFINITY;
             for (int i = 0; i < numNodes; ++i) {
-                var dotProduct = scores.getAtIndex(ValueLayout.JAVA_FLOAT, i);
+                var dotProduct = segment.getAtIndex(ValueLayout.JAVA_FLOAT, i);
                 MemorySegment vectorAddress = addresses.getAtIndex(ValueLayout.ADDRESS, i).reinterpret(vectorTotalBytes);
                 var vectorOffsetValue = vectorAddress.get(ValueLayout.JAVA_FLOAT_UNALIGNED, dims);
                 float adjustedDistance = dotProduct * scoreCorrectionConstant + queryOffsetValue + vectorOffsetValue;
                 adjustedDistance = adjustedDistance < 0 ? 1 / (1 + -1 * adjustedDistance) : adjustedDistance + 1;
-                scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, adjustedDistance);
+                scores[i] = adjustedDistance;
                 max = Math.max(max, adjustedDistance);
             }
             return max;

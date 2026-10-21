@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.gradle.internal.nativelibs;
 
+import org.elasticsearch.gradle.internal.ProjectSubscribeServicePlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
@@ -25,9 +26,9 @@ import java.util.Map;
  *
  * <p>Applied to the project owning the native sources. The build is described by
  * {@link NativeLibraryBuildExtension}; the result is offered through the
- * {@value #ELEMENTS_CONFIGURATION} consumable configuration, which consumers depend on as a project
- * dependency. Whether the library is downloaded or compiled is decided by
- * {@link BuildNativeLibraryTask}, not by the consumer.
+ * {@value #ELEMENTS_CONFIGURATION} consumable configuration, and the project registers itself for
+ * {@link NativeLibraries#TOPIC}, which is how a collector finds it. Whether the library is
+ * downloaded or compiled is decided by {@link BuildNativeLibraryTask}, not by the consumer.
  */
 public class NativeLibraryBuildPlugin implements Plugin<Project> {
 
@@ -79,6 +80,12 @@ public class NativeLibraryBuildPlugin implements Plugin<Project> {
             configuration.getAttributes().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
         });
         project.getArtifacts().add(ELEMENTS_CONFIGURATION, buildTask.flatMap(BuildNativeLibraryTask::getOutputDir));
+
+        project.getPlugins()
+            .apply(ProjectSubscribeServicePlugin.class)
+            .getService()
+            .get()
+            .registerProjectForTopic(NativeLibraries.TOPIC, project);
     }
 
     /** The declared source patterns, resolved against the project directory. */

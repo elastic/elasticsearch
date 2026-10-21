@@ -118,6 +118,7 @@ public final class FirstDocIdGroupingAggregatorFunction implements GroupingAggre
             assert false : "expected doc vector for first_doc_id";
             throw new IllegalStateException("expected doc vector for first_doc_id");
         }
+        docVector.ensureOnTheNodeThatReadThem("first_doc_id");
         return new AddInput() {
             @Override
             public void add(int positionOffset, IntArrayBlock groupIds) {

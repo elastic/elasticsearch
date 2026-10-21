@@ -36,9 +36,10 @@ public enum ElementType {
     BYTES_REF(6, "BytesRef", BlockFactory::newBytesRefBlockBuilder, BytesRefBlock::readFrom),
 
     /**
-     * Blocks that reference individual lucene documents.
+     * Blocks that reference individual lucene documents. Only blocks whose rows left the node that read them travel, see
+     * {@link DocBlock#writeTo}.
      */
-    DOC(7, "Doc", DocBlock::newBlockBuilder, in -> { throw new UnsupportedOperationException("can't read doc blocks"); }),
+    DOC(7, "Doc", DocBlock::newBlockBuilder, DocBlock::readFrom),
 
     /**
      * Composite blocks which contain array of sub-blocks.

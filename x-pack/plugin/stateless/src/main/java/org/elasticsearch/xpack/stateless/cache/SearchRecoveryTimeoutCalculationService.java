@@ -219,13 +219,7 @@ public class SearchRecoveryTimeoutCalculationService {
         if (node == null) {
             return 0;
         }
-        int count = 0;
-        for (ShardRouting shard : node) {
-            if (shard.state() == ShardRoutingState.STARTED) {
-                count++;
-            }
-        }
-        return count;
+        return node.numberOfShardsWithState(ShardRoutingState.STARTED);
     }
 
     private static boolean hasActiveShutdownForRemovalNodes(ClusterState state) {

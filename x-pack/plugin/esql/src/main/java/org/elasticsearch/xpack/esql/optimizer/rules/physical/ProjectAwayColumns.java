@@ -59,14 +59,17 @@ public class ProjectAwayColumns extends ParameterizedRule<PhysicalPlan, Physical
 
     /**
      * Name of the placeholder attribute that stands in for the output of an {@link EsRelation} without fields, as long as some node
-     * that runs the fragment cannot handle plans without output columns. Such nodes (before 9.3, #133405) replace every plan
-     * with an empty output by an empty relation, so {@code FROM idx | LIMIT 2} over a relation without fields returns no rows.
+     * that runs the fragment predates {@link #PLAN_WITH_NO_COLUMNS}. Such nodes (before 9.3, #133405) replace every plan with an empty
+     * output by an empty relation, so {@code FROM idx | LIMIT 2} over a relation without fields returns no rows. Newer nodes must not
+     * get it: they do not know how to produce it and fail with "optimized incorrectly due to missing references" (#125866).
      */
     private static final String NO_FIELDS_NAME = "<no-fields>";
 
+    private static final TransportVersion PLAN_WITH_NO_COLUMNS = TransportVersion.fromName("esql_plan_with_no_columns");
+
     @Override
     public PhysicalPlan apply(PhysicalPlan plan, PhysicalOptimizerContext context) {
-        if (context.minimumVersion().supports(ZERO_COLUMN_FRAGMENTS) == false) {
+        if (context.minimumVersion().supports(PLAN_WITH_NO_COLUMNS) == false) {
             plan = plan.transformUp(
                 FragmentExec.class,
                 fragment -> fragment.withFragment(

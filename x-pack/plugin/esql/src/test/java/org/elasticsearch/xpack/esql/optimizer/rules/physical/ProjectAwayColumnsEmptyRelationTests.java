@@ -29,7 +29,8 @@ import static org.hamcrest.Matchers.empty;
 
 /**
  * Nodes that predate #133405 (before 9.3) replace every plan with an empty output by an empty relation, so {@link ProjectAwayColumns}
- * must not ship them a relation without fields, e.g. when the query does not reference any field of the index.
+ * must not ship them a relation without fields, e.g. when the query does not reference any field of the index. Newer nodes must not
+ * get the placeholder.
  */
 public class ProjectAwayColumnsEmptyRelationTests extends ESTestCase {
 
@@ -40,6 +41,15 @@ public class ProjectAwayColumnsEmptyRelationTests extends ESTestCase {
 
     public void testRelationWithoutFieldsIsKeptForNodesThatSupportZeroColumnFragments() {
         var relation = relationInFragment(rule(TransportVersion.current()));
+        assertThat(relation.output(), empty());
+    }
+
+    /**
+     * Nodes from 9.3 on keep a plan without output columns, and they fail on the placeholder (#125866), so they must not get it
+     * even though they still need the placeholder column of {@link ProjectAwayColumns#ALL_FIELDS_PROJECTED}.
+     */
+    public void testRelationWithoutFieldsIsKeptForNodesFrom93() {
+        var relation = relationInFragment(rule(TransportVersion.fromName("esql_plan_with_no_columns")));
         assertThat(relation.output(), empty());
     }
 

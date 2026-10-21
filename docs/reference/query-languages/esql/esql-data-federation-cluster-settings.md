@@ -159,6 +159,7 @@ $$$esql-external-managed-identity-enabled$$$
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Enables `auth: "managed_identity"`, which uses the node's own cloud identity through the instance metadata service (IMDS). Intended for single-cloud, single-tenant deployments. Never enable it in multi-tenant clusters. When the {{operator-feature}} is enabled, only operator users can update this setting. Refer to the managed identity row in [authentication models](esql-data-federation-sources.md#authentication) for guidance.
 
     - {applies_to}`stack: deprecated 9.6+, experimental =9.5` **Previous name:** `esql.datasource.managed_identity.enabled`, still accepted with a deprecation warning
+    - {applies_to}`stack: deprecated 9.5+` **Previous name:** `esql.datasource.workload_identity.enabled`, still accepted with a deprecation warning
     - **Default:** `false`
     - **Valid values:** `true`, `false`
 
@@ -179,7 +180,7 @@ $$$esql-external-cache-enabled$$$
 `esql.external.cache.enabled` {applies_to}`stack: experimental 9.6+`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Enables the external-source cache for inferred schemas and file listings.
 
-    - {applies_to}`stack: deprecated 9.6+, experimental =9.5` **Previous name:** `esql.source.cache.enabled`
+    - {applies_to}`stack: deprecated 9.6+, experimental =9.5` **Previous name:** `esql.source.cache.enabled`, still accepted with a deprecation warning
     - **Default:** `true`
     - **Valid values:** `true`, `false`
 
@@ -188,7 +189,7 @@ $$$esql-external-cache-size$$$
 `esql.external.cache.size` {applies_to}`stack: experimental 9.6+`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Memory budget for the cache.
 
-    - {applies_to}`stack: deprecated 9.6+, experimental =9.5` **Previous name:** `esql.source.cache.size`
+    - {applies_to}`stack: deprecated 9.6+, experimental =9.5` **Previous name:** `esql.source.cache.size`, still accepted with a deprecation warning
     - **Default:**
       - {applies_to}`stack: experimental 9.6+` 0.5% of heap
       - {applies_to}`stack: experimental =9.5` 0.4% of heap
@@ -205,7 +206,7 @@ $$$esql-external-cache-listing-ttl$$$
 `esql.external.cache.listing.ttl` {applies_to}`stack: experimental 9.6+`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) How long a file listing stays fresh after it's written. A file added or removed becomes visible on the next query once this elapses. Lower it when changes must be visible sooner.
 
-    - {applies_to}`stack: deprecated 9.6+, experimental =9.5` **Previous name:** `esql.source.cache.listing.ttl`
+    - {applies_to}`stack: deprecated 9.6+, experimental =9.5` **Previous name:** `esql.source.cache.listing.ttl`, still accepted with a deprecation warning
     - **Default:**
       - {applies_to}`stack: experimental 9.6+` `5m`
       - {applies_to}`stack: experimental =9.5` `30s`

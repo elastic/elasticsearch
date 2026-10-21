@@ -173,6 +173,36 @@ public class GeoHexGridTilerTests extends ESTestCase {
         assertThat(warnings, equalTo(List.of("ST_GEOHEX generated more than 100 grid cells")));
     }
 
+    /**
+     * The cell limit bounds the work as well as the output, at any precision. The tiler relates about two tiles per cell
+     * it adds, plus a fixed cost per level while it descends to the first cells, so a regression that stops honouring the
+     * limit or stops pruning fails here instead of only making the function slow. Without the limit a world-sized shape at
+     * precision 15 would relate billions of tiles, so the counting tiler fails as soon as the budget is spent.
+     */
+    public void testCellLimitBoundsWork() throws Exception {
+        List<Geometry> geometries = List.of(
+            new Rectangle(-180, 180, 90, -90),
+            wkt("POLYGON((-120 10, -60 -40, 20 -50, 90 -10, 150 30, 100 70, 0 60, -80 70, -120 10))")
+        );
+        GeoBoundingBox bbox = new GeoBoundingBox(new GeoPoint(60, -30), new GeoPoint(-20, 80));
+        for (Geometry geometry : geometries) {
+            GeoShapeDocValues shape = shape(geometry);
+            for (int precision : new int[] { 1, 2, 3, 4, 6, 8, 15 }) {
+                for (int maxCells : new int[] { 100, 1_000, 10_000 }) {
+                    for (GeoBoundingBox bounds : new GeoBoundingBox[] { null, bbox }) {
+                        String description = geometry + " at precision " + precision + " with bounds " + bounds + " and limit " + maxCells;
+                        RelateCountingTiler tiler = new RelateCountingTiler(
+                            GeoHexGridTiler.makeGridTiler(precision, bounds),
+                            3L * maxCells + 200L * precision,
+                            description
+                        );
+                        tiler.cells(shape, maxCells, w -> {});
+                    }
+                }
+            }
+        }
+    }
+
     private void assertBruteAndRecursive(Geometry geometry) throws Exception {
         int precision = randomIntBetween(1, 4);
         GeoHexGridTiler tiler = GeoHexGridTiler.makeGridTiler(precision, null);
@@ -257,5 +287,40 @@ public class GeoHexGridTilerTests extends ESTestCase {
 
     private static double quantizeLon(double lon) {
         return GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(lon));
+    }
+
+    /**
+     * Delegates to a real tiler and fails once {@link #relateTile} has been called more than {@code maxRelates} times.
+     */
+    private static class RelateCountingTiler extends GeoHexGridTiler {
+        private final GeoHexGridTiler delegate;
+        private final long maxRelates;
+        private final String description;
+        private long relates;
+
+        RelateCountingTiler(GeoHexGridTiler delegate, long maxRelates, String description) {
+            super(delegate.precision());
+            this.delegate = delegate;
+            this.maxRelates = maxRelates;
+            this.description = description;
+        }
+
+        @Override
+        protected boolean h3IntersectsBounds(long h3) {
+            return delegate.h3IntersectsBounds(h3);
+        }
+
+        @Override
+        protected GeoRelation relateTile(GeoShapeDocValues shape, long h3) throws IOException {
+            if (++relates > maxRelates) {
+                throw new AssertionError("related more than " + maxRelates + " tiles for " + description);
+            }
+            return delegate.relateTile(shape, h3);
+        }
+
+        @Override
+        protected boolean valueInsideBounds(GeoShapeDocValues shape) {
+            return delegate.valueInsideBounds(shape);
+        }
     }
 }

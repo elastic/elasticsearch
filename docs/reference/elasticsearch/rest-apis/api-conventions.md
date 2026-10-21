@@ -369,7 +369,7 @@ Global index templates that match all indices are not applied to hidden indices.
 
 ### System indices [system-indices]
 
-{{es}} stores some configuration and state information in internal *system indices*. Do not directly access or modify system indices as they contain data essential to the operation of the system. Do not copy the contents of system indices between clusters. Modifying the contents of a system index may irreparably damage your cluster.
+{{es}} stores some configuration and state information in internal *system indices*. Do not directly access or modify system indices as they contain data essential to the operation of the system. Do not copy the contents of system indices between clusters. Modifying the contents of a system index can irreparably damage your cluster.
 
 ::::{important}
 Direct access to system indices is deprecated and will be forbidden in a future version.

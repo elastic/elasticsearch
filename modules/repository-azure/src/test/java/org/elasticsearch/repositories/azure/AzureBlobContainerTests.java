@@ -180,15 +180,47 @@ public class AzureBlobContainerTests extends AbstractAzureServerTestCase {
         }
     }
 
+    public void testSinglePartCopy() throws IOException {
+        final AzureBlobContainer blobContainer = asInstanceOf(AzureBlobContainer.class, createBlobContainerWithSasToken(between(1, 3)));
+        final AzureBlobStore blobStore = blobContainer.getBlobStore();
+        final byte[] data = randomByteArrayOfLength(between(1, Math.toIntExact(blobStore.maxCopySizeBeforeMultipart())));
+        final String sourceBlobName = randomIdentifier();
+        final String destBlobName = randomIdentifier();
+        blobStore.writeBlob(OperationPurpose.CLUSTER_STATE, sourceBlobName, BytesReference.fromByteBuffer(ByteBuffer.wrap(data)), false);
+
+        blobContainer.copyBlob(
+            randomPurpose(),
+            blobContainer,
+            sourceBlobName,
+            destBlobName,
+            data.length,
+            randomBoolean() ? null : Runnable::run
+        );
+
+        assertArrayEquals(data, BytesReference.toBytes(Streams.readFully(blobContainer.readBlob(randomPurpose(), destBlobName))));
+        assertThat(blobStore.stats().get(AzureBlobStore.Operation.COPY_BLOB.getKey()).operations(), greaterThan(0L));
+        assertThat(blobStore.stats().get(AzureBlobStore.Operation.PUT_BLOCK_FROM_URL.getKey()).operations(), equalTo(0L));
+    }
+
+    private enum CopyExecutor {
+        NONE,
+        SINGLE_THREAD,
+        MULTIPLE_THREADS
+    }
+
+    public void testMultipartCopyWithoutExecutor() throws Exception {
+        testMultipartCopy(CopyExecutor.NONE);
+    }
+
     public void testConcurrentMultipartCopySingleThread() throws Exception {
-        testConcurrentMultipartCopy(true);
+        testMultipartCopy(CopyExecutor.SINGLE_THREAD);
     }
 
     public void testConcurrentMultipartCopyMultipleThreads() throws Exception {
-        testConcurrentMultipartCopy(false);
+        testMultipartCopy(CopyExecutor.MULTIPLE_THREADS);
     }
 
-    private void testConcurrentMultipartCopy(boolean singleThread) throws Exception {
+    private void testMultipartCopy(CopyExecutor copyExecutor) throws Exception {
         final AzureBlobContainer blobContainer = asInstanceOf(AzureBlobContainer.class, createBlobContainerWithSasToken(between(1, 3)));
         final AzureBlobStore blobStore = blobContainer.getBlobStore();
         final long partSize = blobStore.maxCopySizeBeforeMultipart();
@@ -213,12 +245,16 @@ public class AzureBlobContainerTests extends AbstractAzureServerTestCase {
             previousHandler.handle(exchange);
         });
 
-        final int numThreads = singleThread ? 1 : nbParts;
-        final ExecutorService executorService = Executors.newFixedThreadPool(numThreads);
-        try {
-            blobContainer.copyBlob(randomPurpose(), blobContainer, sourceBlobName, destBlobName, blobSize, executorService);
-        } finally {
-            ESTestCase.terminate(executorService);
+        if (copyExecutor == CopyExecutor.NONE) {
+            blobContainer.copyBlob(randomPurpose(), blobContainer, sourceBlobName, destBlobName, blobSize, null);
+        } else {
+            final int numThreads = copyExecutor == CopyExecutor.SINGLE_THREAD ? 1 : nbParts;
+            final ExecutorService executorService = Executors.newFixedThreadPool(numThreads);
+            try {
+                blobContainer.copyBlob(randomPurpose(), blobContainer, sourceBlobName, destBlobName, blobSize, executorService);
+            } finally {
+                ESTestCase.terminate(executorService);
+            }
         }
 
         assertThat(stageBlockFromUrlCalls.get(), equalTo(nbParts));
@@ -239,20 +275,6 @@ public class AzureBlobContainerTests extends AbstractAzureServerTestCase {
                 Runnable::run
             )
         );
-    }
-
-    public void testSmallCopyWithExecutorUsesBeginCopy() throws IOException {
-        final AzureBlobContainer blobContainer = asInstanceOf(AzureBlobContainer.class, createBlobContainer(between(1, 3)));
-        final AzureBlobStore blobStore = blobContainer.getBlobStore();
-        // Below the multipart copy threshold, even with an executor we use async Copy Blob
-        final byte[] data = randomByteArrayOfLength(between(1, Math.toIntExact(blobStore.maxCopySizeBeforeMultipart())));
-        final String sourceBlobName = randomIdentifier();
-        final String destBlobName = randomIdentifier();
-        blobStore.writeBlob(OperationPurpose.CLUSTER_STATE, sourceBlobName, BytesReference.fromByteBuffer(ByteBuffer.wrap(data)), false);
-
-        blobContainer.copyBlob(randomPurpose(), blobContainer, sourceBlobName, destBlobName, data.length, Runnable::run);
-        assertArrayEquals(data, BytesReference.toBytes(Streams.readFully(blobContainer.readBlob(randomPurpose(), destBlobName))));
-        assertThat(blobStore.stats().get(AzureBlobStore.Operation.COPY_BLOB.getKey()).operations(), greaterThan(0L));
     }
 
     protected void sendBlobHeaders(HttpExchange exchange, byte[] blobContents) {

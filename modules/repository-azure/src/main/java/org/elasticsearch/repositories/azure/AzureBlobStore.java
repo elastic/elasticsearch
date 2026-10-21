@@ -857,11 +857,8 @@ public class AzureBlobStore implements BlobStore {
                     final long partSize = maxCopySizeBeforeMultipart();
                     // Put Block From URL requires the source to be public or authorized by a SAS in the source URL,
                     // see https://learn.microsoft.com/en-us/rest/api/storageservices/put-block-from-url
-                    // A block blob can also have at most MAX_BLOCKS_PER_BLOB committed blocks.
-                    if (executor != null
-                        && Strings.hasText(sasToken)
-                        && blobSize > partSize
-                        && blobSize <= MAX_BLOCKS_PER_BLOB * partSize) {
+                    // A block blob can also have at most 50,000 committed blocks.
+                    if (Strings.hasText(sasToken) && blobSize > partSize && blobSize <= MAX_BLOCKS_PER_BLOB * partSize) {
                         final BlockBlobClient blockBlobClient = blobSyncClient.getBlockBlobClient();
                         final int nbParts = ConcurrentMultipartHelper.numberOfParts(blobSize, partSize);
                         final String[] blockIds = new String[nbParts];
@@ -870,16 +867,28 @@ public class AzureBlobStore implements BlobStore {
                         }
 
                         final String finalSourceUrl = sourceUrl;
-                        ConcurrentMultipartHelper.runConcurrentParts(
-                            blobSize,
-                            partSize,
-                            executor,
-                            (partNum, offset, curPartSize, lastPart) -> blockBlobClient.stageBlockFromUrl(
-                                blockIds[partNum],
-                                finalSourceUrl,
-                                new BlobRange(offset, curPartSize)
-                            )
-                        );
+                        if (executor == null) {
+                            final long lastPartSize = blobSize - (long) (nbParts - 1) * partSize;
+                            for (int partNum = 0; partNum < nbParts; partNum++) {
+                                final long curPartSize = partNum == nbParts - 1 ? lastPartSize : partSize;
+                                blockBlobClient.stageBlockFromUrl(
+                                    blockIds[partNum],
+                                    finalSourceUrl,
+                                    new BlobRange((long) partNum * partSize, curPartSize)
+                                );
+                            }
+                        } else {
+                            ConcurrentMultipartHelper.runConcurrentParts(
+                                blobSize,
+                                partSize,
+                                executor,
+                                (partNum, offset, curPartSize, lastPart) -> blockBlobClient.stageBlockFromUrl(
+                                    blockIds[partNum],
+                                    finalSourceUrl,
+                                    new BlobRange(offset, curPartSize)
+                                )
+                            );
+                        }
 
                         final var commitOptions = new BlockBlobCommitBlockListOptions(Arrays.asList(blockIds));
                         resolveAccessTier(purpose).ifPresent(commitOptions::setTier);

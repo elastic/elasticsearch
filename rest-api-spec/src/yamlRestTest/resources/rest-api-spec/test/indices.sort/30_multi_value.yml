@@ -17,6 +17,9 @@
           settings:
             index.mode: columnar
             number_of_shards: 1
+            # the _doc order assertions below rely on the searched copy being a single merged segment. A replica that
+            # is still recovering when the force merge runs is skipped by it and can keep the unmerged segments.
+            number_of_replicas: 0
             refresh_interval: -1
             index.sort.field: rank
             # ensure no relocation as tests rely on segments.
@@ -159,6 +162,9 @@
           settings:
             index.mode: columnar
             number_of_shards: 1
+            # the _doc order assertions below rely on the searched copy being a single merged segment. A replica that
+            # is still recovering when the force merge runs is skipped by it and can keep the unmerged segments.
+            number_of_replicas: 0
             refresh_interval: -1
             index.sort.field: tag
             routing.rebalance.enable: "none"
@@ -293,6 +299,9 @@
           settings:
             index.mode: columnar
             number_of_shards: 1
+            # the _doc order assertions below rely on the searched copy being a single merged segment. A replica that
+            # is still recovering when the force merge runs is skipped by it and can keep the unmerged segments.
+            number_of_replicas: 0
             refresh_interval: -1
             index.sort.field: ["category", "rank"]
             index.sort.order: ["asc", "asc"]
@@ -425,6 +434,9 @@
             index.mode: columnar
             index.mapping.doc_values.multi_value: false
             number_of_shards: 1
+            # the _doc order assertions below rely on the searched copy being a single merged segment. A replica that
+            # is still recovering when the force merge runs is skipped by it and can keep the unmerged segments.
+            number_of_replicas: 0
             refresh_interval: -1
             index.sort.field: tag
             index.sort.order: desc

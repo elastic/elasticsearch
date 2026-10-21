@@ -97,7 +97,7 @@ public class TransformFailureHandlerTests extends ESTestCase {
             randomBoolean()
         );
 
-        List.of(true, false).forEach((unattended) -> { assertClusterBlockHandled(bulkIndexingException, unattended); });
+        List.of(true, false).forEach((unattended) -> { assertUncountedRetry(bulkIndexingException, unattended, true); });
     }
 
     public void testHandleIndexerFailure_IrrecoverableBulkIndexException() {
@@ -235,7 +235,7 @@ public class TransformFailureHandlerTests extends ESTestCase {
             randomBoolean()
         );
 
-        List.of(true, false).forEach((unattended) -> { assertUncountedRetryWithoutBlockWait(bulkIndexingException, unattended); });
+        List.of(true, false).forEach((unattended) -> { assertUncountedRetry(bulkIndexingException, unattended, false); });
     }
 
     private void assertRetryIfUnattendedOtherwiseFail(Exception e) {
@@ -269,7 +269,11 @@ public class TransformFailureHandlerTests extends ESTestCase {
         }
     }
 
-    private void assertClusterBlockHandled(Exception e, boolean unattended) {
+    /**
+     * Asserts that the failure is retried without counting against {@code num_failure_retries}, so the transform never fails, and
+     * that the transform is (or is not) marked as waiting for an index block to be removed.
+     */
+    private void assertUncountedRetry(Exception e, boolean unattended, boolean expectWaitingForIndexToUnblock) {
         String transformId = randomAlphaOfLength(10);
         SettingsConfig settings = new SettingsConfig.Builder().setNumFailureRetries(2).setUnattended(unattended).build();
 
@@ -283,24 +287,7 @@ public class TransformFailureHandlerTests extends ESTestCase {
         assertNoFailure(handler, e, contextListener, settings, false);
         assertNoFailure(handler, e, contextListener, settings, false);
         assertNoFailure(handler, e, contextListener, settings, false);
-        assertTrue(context.isWaitingForIndexToUnblock());
-    }
-
-    private void assertUncountedRetryWithoutBlockWait(Exception e, boolean unattended) {
-        String transformId = randomAlphaOfLength(10);
-        SettingsConfig settings = new SettingsConfig.Builder().setNumFailureRetries(2).setUnattended(unattended).build();
-
-        MockTransformAuditor auditor = MockTransformAuditor.createMockAuditor();
-        MockTransformContextListener contextListener = new MockTransformContextListener();
-        TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, contextListener);
-        context.setPageSize(500);
-
-        TransformFailureHandler handler = new TransformFailureHandler(auditor, context, transformId);
-
-        assertNoFailure(handler, e, contextListener, settings, false);
-        assertNoFailure(handler, e, contextListener, settings, false);
-        assertNoFailure(handler, e, contextListener, settings, false);
-        assertFalse(context.isWaitingForIndexToUnblock());
+        assertEquals(expectWaitingForIndexToUnblock, context.isWaitingForIndexToUnblock());
     }
 
     private void assertFailure(Exception e) {

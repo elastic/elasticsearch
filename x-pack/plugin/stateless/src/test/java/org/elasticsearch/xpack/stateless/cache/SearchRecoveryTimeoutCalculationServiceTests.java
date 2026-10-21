@@ -33,6 +33,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings;
 import org.elasticsearch.test.ESTestCase;
@@ -66,6 +67,7 @@ import static org.elasticsearch.xpack.stateless.cache.SearchRecoveryWarmingTestU
 import static org.elasticsearch.xpack.stateless.cache.SearchRecoveryWarmingTestUtils.initializingSearchReplica;
 import static org.elasticsearch.xpack.stateless.cache.SearchRecoveryWarmingTestUtils.mockIndexShard;
 import static org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.totalBytesToWarm;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -824,28 +826,29 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
 
         // previous context -> pair(v1: contexts of the re-evaluated plan that extend the wait, v2: contexts that stop it)
         final Map<TimeoutContext, Tuple<Set<TimeoutContext>, Set<TimeoutContext>>> transitions = Map.of(
-            // no shutdown involved yet: everything but "nothing to wait for" extends, including the first data-volume plan
+            // no shutdown involved yet: everything but "nothing to wait for" and a reshard target plan (which never extends a wait)
+            // extends, including the first data-volume plan
             anotherActiveCopy,
             Tuple.tuple(
-                EnumSet.of(anotherActiveCopy, reshardTarget, noShutdown, metadataPresent, dataVolume, equalShare),
-                EnumSet.of(graceElapsed, skip)
+                EnumSet.of(anotherActiveCopy, noShutdown, metadataPresent, dataVolume, equalShare),
+                EnumSet.of(reshardTarget, graceElapsed, skip)
             ),
             noShutdown,
             Tuple.tuple(
-                EnumSet.of(anotherActiveCopy, reshardTarget, noShutdown, metadataPresent, dataVolume, equalShare),
-                EnumSet.of(graceElapsed, skip)
+                EnumSet.of(anotherActiveCopy, noShutdown, metadataPresent, dataVolume, equalShare),
+                EnumSet.of(reshardTarget, graceElapsed, skip)
             ),
             // staying in "metadata present" does not extend again
             metadataPresent,
             Tuple.tuple(
-                EnumSet.of(anotherActiveCopy, reshardTarget, noShutdown, dataVolume, equalShare),
-                EnumSet.of(metadataPresent, graceElapsed, skip)
+                EnumSet.of(anotherActiveCopy, noShutdown, dataVolume, equalShare),
+                EnumSet.of(reshardTarget, metadataPresent, graceElapsed, skip)
             ),
             // within the shutdown phase only time saved by finished shards is handed out, a data-volume plan never follows
             equalShare,
             Tuple.tuple(
-                EnumSet.of(anotherActiveCopy, reshardTarget, noShutdown, metadataPresent, equalShare),
-                EnumSet.of(dataVolume, graceElapsed, skip)
+                EnumSet.of(anotherActiveCopy, noShutdown, metadataPresent, equalShare),
+                EnumSet.of(reshardTarget, dataVolume, graceElapsed, skip)
             )
         );
 
@@ -879,6 +882,216 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                     equalTo(extending.contains(context))
                 );
             }
+        }
+    }
+
+    /// A [SearchRecoveryTimeoutCalculationService] whose plan calculation returns a fixed plan, so that
+    /// [SearchRecoveryTimeoutCalculationService#extendedTimeout] can be tested without building cluster state (which the real calculation
+    /// needs, and which [#testShouldExtendAfterForEveryTransition] and the tests above already cover).
+    private static class FixedPlanCalculationService extends SearchRecoveryTimeoutCalculationService {
+
+        private final SearchRecoveryTimeout plan;
+        private final List<Long> bytesToWarmSeen = new ArrayList<>();
+        private final List<SearchRecoveryTimeout> previousPlansSeen = new ArrayList<>();
+
+        FixedPlanCalculationService(ThreadPool threadPool, Settings settings, SearchRecoveryTimeout plan) {
+            super(Mockito.mock(StatelessSharedBlobCacheService.class), threadPool, newClusterSettings(settings), ByteSizeValue.ZERO);
+            this.plan = plan;
+        }
+
+        @Override
+        public SearchRecoveryTimeout searchRecoveryTimeout(
+            ClusterState state,
+            IndexShard indexShard,
+            long bytesToWarm,
+            @Nullable SearchRecoveryTimeout previousPlan
+        ) {
+            bytesToWarmSeen.add(bytesToWarm);
+            previousPlansSeen.add(previousPlan);
+            return plan;
+        }
+
+        SearchRecoveryTimeout extendedTimeout(
+            long totalBytesToWarm,
+            long bytesWarmedSoFar,
+            SearchRecoveryTimeout latestPlan,
+            TimeValue elapsed
+        ) {
+            // the shard is only passed through to the (overridden) calculation
+            return extendedTimeout(
+                ClusterState.EMPTY_STATE,
+                Mockito.mock(IndexShard.class),
+                totalBytesToWarm,
+                bytesWarmedSoFar,
+                latestPlan,
+                elapsed
+            );
+        }
+    }
+
+    private static Settings reevaluationSettings(boolean enabled, TimeValue totalTimeoutCap, TimeValue abortThreshold) {
+        return Settings.builder()
+            .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), enabled)
+            .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TOTAL_TIMEOUT_CAP_SETTING.getKey(), totalTimeoutCap)
+            .put(
+                SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING.getKey(),
+                abortThreshold
+            )
+            .build();
+    }
+
+    private static SearchRecoveryTimeout extendablePlan(long timeoutMillis) {
+        return new SearchRecoveryTimeout(
+            TimeValue.timeValueMillis(timeoutMillis),
+            TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN
+        );
+    }
+
+    /// With re-evaluation disabled the wait ends at the first expiry, and the plan is not even recalculated.
+    public void testExtendedTimeoutSkipsWhenReevaluationDisabled() {
+        try (var threadPool = new TestThreadPool(getTestName())) {
+            final var settings = reevaluationSettings(false, TimeValue.timeValueSeconds(10), TimeValue.timeValueMillis(50));
+            final var service = new FixedPlanCalculationService(threadPool, settings, extendablePlan(200));
+
+            final var result = service.extendedTimeout(1_000L, 0L, extendablePlan(200), TimeValue.ZERO);
+
+            assertThat(result.awaitWarming(), is(false));
+            assertThat(service.bytesToWarmSeen, is(empty()));
+        }
+    }
+
+    /// A plan whose context is not extendable ends the wait at its expiry whatever the re-evaluation would say, and is not recalculated.
+    public void testExtendedTimeoutSkipsWhenLatestPlanIsNotExtendable() {
+        try (var threadPool = new TestThreadPool(getTestName())) {
+            final var settings = reevaluationSettings(true, TimeValue.timeValueSeconds(10), TimeValue.timeValueMillis(50));
+            final var service = new FixedPlanCalculationService(threadPool, settings, extendablePlan(200));
+
+            for (final var context : TimeoutContext.values()) {
+                if (context.extendable() == false) {
+                    final var latestPlan = new SearchRecoveryTimeout(TimeValue.timeValueMillis(200), context);
+                    assertThat(context.name(), service.extendedTimeout(1_000L, 0L, latestPlan, TimeValue.ZERO).awaitWarming(), is(false));
+                }
+            }
+            assertThat(service.bytesToWarmSeen, is(empty()));
+        }
+    }
+
+    /// The re-evaluated plan must be allowed to follow the latest one, see [SearchRecoveryTimeout#shouldExtendAfter]: a data-volume plan
+    /// never follows a plan computed for a source that is already shutting down.
+    public void testExtendedTimeoutSkipsWhenReevaluatedPlanMayNotFollowLatestPlan() {
+        try (var threadPool = new TestThreadPool(getTestName())) {
+            final var settings = reevaluationSettings(true, TimeValue.timeValueSeconds(10), TimeValue.timeValueMillis(50));
+            final var latestPlan = new SearchRecoveryTimeout(
+                TimeValue.timeValueMillis(200),
+                TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE,
+                2500.0
+            );
+            final var reevaluated = new SearchRecoveryTimeout(
+                TimeValue.timeValueMillis(200),
+                TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME
+            );
+            assertThat(reevaluated.shouldExtendAfter(latestPlan), is(false));
+            final var service = new FixedPlanCalculationService(threadPool, settings, reevaluated);
+
+            assertThat(service.extendedTimeout(1_000L, 0L, latestPlan, TimeValue.ZERO).awaitWarming(), is(false));
+            assertThat("the plan was recalculated against the latest plan", service.previousPlansSeen, equalTo(List.of(latestPlan)));
+        }
+    }
+
+    /// An extension within the total budget is returned as calculated, keeping its context and per-shard share.
+    public void testExtendedTimeoutReturnsReevaluatedPlanWithinBudget() {
+        try (var threadPool = new TestThreadPool(getTestName())) {
+            final var settings = reevaluationSettings(true, TimeValue.timeValueMillis(1_000), TimeValue.timeValueMillis(50));
+            final var reevaluated = new SearchRecoveryTimeout(
+                TimeValue.timeValueMillis(200),
+                TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE,
+                2500.0
+            );
+            final var service = new FixedPlanCalculationService(threadPool, settings, reevaluated);
+
+            final var result = service.extendedTimeout(1_000L, 0L, extendablePlan(200), TimeValue.timeValueMillis(300));
+
+            assertThat(result, equalTo(reevaluated));
+        }
+    }
+
+    /// The extension is cut to what is left of the total timeout cap after the time already waited, so a wait cannot exceed the cap by
+    /// being extended.
+    public void testExtendedTimeoutIsCappedToTheRemainingTotalBudget() {
+        try (var threadPool = new TestThreadPool(getTestName())) {
+            final var settings = reevaluationSettings(true, TimeValue.timeValueMillis(300), TimeValue.timeValueMillis(50));
+            final var reevaluated = new SearchRecoveryTimeout(
+                TimeValue.timeValueMillis(200),
+                TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE,
+                2500.0
+            );
+            final var service = new FixedPlanCalculationService(threadPool, settings, reevaluated);
+
+            // 200ms waited: the 200ms extension is cut to the 100ms left of the 300ms cap
+            final var result = service.extendedTimeout(1_000L, 0L, extendablePlan(200), TimeValue.timeValueMillis(200));
+
+            assertThat(result.awaitWarming(), is(true));
+            assertThat(result.timeout(), equalTo(TimeValue.timeValueMillis(100)));
+            assertThat(result.timeoutContext(), equalTo(reevaluated.timeoutContext()));
+            assertThat(result.perShardShareMs(), equalTo(reevaluated.perShardShareMs()));
+        }
+    }
+
+    /// A capped extension below the abort threshold is not worth waiting for and ends the wait, one at the threshold still extends it.
+    /// Once the whole cap was used up, or when it is zero, nothing is left to extend by.
+    public void testExtendedTimeoutAbortsBelowThreshold() {
+        try (var threadPool = new TestThreadPool(getTestName())) {
+            final var abortThreshold = TimeValue.timeValueMillis(50);
+            final var settings = reevaluationSettings(true, TimeValue.timeValueMillis(300), abortThreshold);
+            final var service = new FixedPlanCalculationService(threadPool, settings, extendablePlan(200));
+
+            assertThat(
+                "exactly the threshold is left",
+                service.extendedTimeout(1_000L, 0L, extendablePlan(200), TimeValue.timeValueMillis(250)).timeout(),
+                equalTo(abortThreshold)
+            );
+            assertThat(
+                "just below the threshold is left",
+                service.extendedTimeout(1_000L, 0L, extendablePlan(200), TimeValue.timeValueMillis(251)).awaitWarming(),
+                is(false)
+            );
+            assertThat(
+                "the cap is used up",
+                service.extendedTimeout(1_000L, 0L, extendablePlan(200), TimeValue.timeValueMillis(300)).awaitWarming(),
+                is(false)
+            );
+            assertThat(
+                "waited longer than the cap",
+                service.extendedTimeout(1_000L, 0L, extendablePlan(200), TimeValue.timeValueMillis(500)).awaitWarming(),
+                is(false)
+            );
+
+            final var zeroCapService = new FixedPlanCalculationService(
+                threadPool,
+                reevaluationSettings(true, TimeValue.ZERO, abortThreshold),
+                extendablePlan(200)
+            );
+            assertThat(
+                "a zero cap disables extensions",
+                zeroCapService.extendedTimeout(1_000L, 0L, extendablePlan(200), TimeValue.ZERO).awaitWarming(),
+                is(false)
+            );
+        }
+    }
+
+    /// The re-evaluation is given the bytes still to warm: the total minus what was warmed so far, never below zero since the warmed
+    /// counter also covers reads that are not part of the total.
+    public void testExtendedTimeoutRecalculatesForTheBytesStillToWarm() {
+        try (var threadPool = new TestThreadPool(getTestName())) {
+            final var settings = reevaluationSettings(true, TimeValue.timeValueSeconds(10), TimeValue.timeValueMillis(50));
+            final var service = new FixedPlanCalculationService(threadPool, settings, extendablePlan(200));
+
+            service.extendedTimeout(1_000L, 0L, extendablePlan(200), TimeValue.ZERO);
+            service.extendedTimeout(1_000L, 400L, extendablePlan(200), TimeValue.ZERO);
+            service.extendedTimeout(1_000L, 1_000L, extendablePlan(200), TimeValue.ZERO);
+            service.extendedTimeout(1_000L, 10_000L, extendablePlan(200), TimeValue.ZERO);
+
+            assertThat(service.bytesToWarmSeen, equalTo(List.of(1_000L, 600L, 0L, 0L)));
         }
     }
 

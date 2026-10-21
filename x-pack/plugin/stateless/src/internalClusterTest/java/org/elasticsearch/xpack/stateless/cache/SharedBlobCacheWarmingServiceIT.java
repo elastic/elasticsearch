@@ -51,6 +51,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
@@ -749,11 +750,9 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         assertThat(evaluationsPerShard(warmingServiceOnTargetNode).values(), hasItem(greaterThan(2L)));
     }
 
-    /** How many times {@link SharedBlobCacheWarmingService#searchRecoveryTimeout} has been called for each shard recovering on a node. */
+    /** How many times {@link SearchRecoveryTimeoutCalculationService#searchRecoveryTimeout} has been called for each shard recovering on a node. */
     private static Map<ShardId, Long> evaluationsPerShard(ObservableSharedBlobCacheWarmingService warmingService) {
-        return warmingService.searchRecoveryTimeoutEvaluations()
-            .stream()
-            .collect(groupingBy(ObservableSharedBlobCacheWarmingService.TimeoutEvaluation::shardId, counting()));
+        return warmingService.searchRecoveryTimeoutEvaluations().stream().collect(groupingBy(TimeoutEvaluation::shardId, counting()));
     }
 
     private static void markNodeForSigtermShutdown(String nodeName) {
@@ -1705,13 +1704,19 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             WarmingRatioProvider warmingRatioProvider,
             SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
         ) {
+            // The base service is replaced by one that records every timeout calculation, since that is not observable otherwise.
             return new ObservableSharedBlobCacheWarmingService(
                 cacheService,
                 threadPool,
                 telemetryProvider,
                 clusterSettings,
                 warmingRatioProvider,
-                searchRecoveryTimeoutCalculationService
+                new RecordingSearchRecoveryTimeoutCalculationService(
+                    cacheService,
+                    threadPool,
+                    clusterSettings,
+                    JvmInfo.jvmInfo().getMem().getHeapMax()
+                )
             );
         }
 
@@ -1774,6 +1779,36 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         }
     }
 
+    /** A {@link TimeoutEvaluation} is recorded for every {@code searchRecoveryTimeout} call: the initial plan and each re-evaluation. */
+    private static class RecordingSearchRecoveryTimeoutCalculationService extends SearchRecoveryTimeoutCalculationService {
+
+        private final List<TimeoutEvaluation> evaluations = new CopyOnWriteArrayList<>();
+
+        RecordingSearchRecoveryTimeoutCalculationService(
+            StatelessSharedBlobCacheService cacheService,
+            ThreadPool threadPool,
+            ClusterSettings clusterSettings,
+            ByteSizeValue maxHeap
+        ) {
+            super(cacheService, threadPool, clusterSettings, maxHeap);
+        }
+
+        @Override
+        public SearchRecoveryTimeout searchRecoveryTimeout(
+            ClusterState state,
+            IndexShard indexShard,
+            long bytesToWarm,
+            @Nullable SearchRecoveryTimeout previous
+        ) {
+            final var plan = super.searchRecoveryTimeout(state, indexShard, bytesToWarm, previous);
+            evaluations.add(new TimeoutEvaluation(indexShard.shardId(), bytesToWarm, plan));
+            return plan;
+        }
+    }
+
+    /** A single {@link SearchRecoveryTimeoutCalculationService#searchRecoveryTimeout} call, tagged with the shard and data volume. */
+    private record TimeoutEvaluation(ShardId shardId, long totalBytesToWarm, SearchRecoveryTimeout plan) {}
+
     /**
      * The details of the warming that just completed
      */
@@ -1810,11 +1845,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         private volatile boolean awaitWarmingForSearchRecovery = false;
         private volatile boolean awaitWarmingForIndexingRecovery = false;
 
-        /** A single {@link #searchRecoveryTimeout} call, tagged with the shard and the data volume it was computed for. */
-        record TimeoutEvaluation(ShardId shardId, long totalBytesToWarm, SearchRecoveryTimeout plan) {}
-
-        /** Every {@link #searchRecoveryTimeout} call: the initial plan plus one entry per re-evaluation of an expired timeout slice. */
-        private final List<TimeoutEvaluation> searchRecoveryTimeoutEvaluations = new CopyOnWriteArrayList<>();
+        private final RecordingSearchRecoveryTimeoutCalculationService recordingTimeoutCalculationService;
 
         /** Non-null while the completion signal of search recovery warming is withheld from the timeout race. */
         private final AtomicReference<SubscribableListener<Void>> searchWarmingCompletionGate = new AtomicReference<>();
@@ -1839,7 +1870,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             TelemetryProvider telemetryProvider,
             ClusterSettings clusterSettings,
             WarmingRatioProvider warmingRatioProvider,
-            SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
+            RecordingSearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
         ) {
             super(
                 cacheService,
@@ -1850,6 +1881,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                 searchRecoveryTimeoutCalculationService
             );
             this.threadPool = threadPool;
+            this.recordingTimeoutCalculationService = searchRecoveryTimeoutCalculationService;
         }
 
         /** The blobs whose region 0 was prewarmed before reading BCC headers, one entry per prewarm. */
@@ -1877,7 +1909,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         }
 
         List<TimeoutEvaluation> searchRecoveryTimeoutEvaluations() {
-            return List.copyOf(searchRecoveryTimeoutEvaluations);
+            return List.copyOf(recordingTimeoutCalculationService.evaluations);
         }
 
         /**
@@ -1895,18 +1927,6 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             if (gate != null) {
                 gate.onResponse(null);
             }
-        }
-
-        @Override
-        public SearchRecoveryTimeout searchRecoveryTimeout(
-            ClusterState state,
-            IndexShard indexShard,
-            long totalBytesToWarm,
-            @Nullable SearchRecoveryTimeout previous
-        ) {
-            final var plan = super.searchRecoveryTimeout(state, indexShard, totalBytesToWarm, previous);
-            searchRecoveryTimeoutEvaluations.add(new TimeoutEvaluation(indexShard.shardId(), totalBytesToWarm, plan));
-            return plan;
         }
 
         @Override

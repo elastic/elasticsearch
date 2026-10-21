@@ -826,7 +826,7 @@ public class SharedBlobCacheWarmingService {
     ) {
         final long totalBytesToWarm = totalBytesToWarm(endTargetsToWarm);
         final SearchRecoveryTimeout plan = endTargetsToWarm != null
-            ? searchRecoveryTimeout(clusterStateSupplier.get(), indexShard, totalBytesToWarm, null)
+            ? searchRecoveryTimeoutCalculationService.searchRecoveryTimeout(clusterStateSupplier.get(), indexShard, totalBytesToWarm, null)
             : SearchRecoveryTimeout.skip();
         if (plan.awaitWarming()) {
             assert endTargetsToWarm != null;
@@ -847,16 +847,6 @@ public class SharedBlobCacheWarmingService {
             );
             resumeRecoveryListener.onResponse(null);
         }
-    }
-
-    // visible for testing
-    protected SearchRecoveryTimeout searchRecoveryTimeout(
-        ClusterState state,
-        IndexShard indexShard,
-        long totalBytesToWarm,
-        @Nullable SearchRecoveryTimeout previous
-    ) {
-        return searchRecoveryTimeoutCalculationService.searchRecoveryTimeout(state, indexShard, totalBytesToWarm, previous);
     }
 
     // this indirection is for test purposes (some tests check the listener type that's passed in to warmCache)
@@ -1177,53 +1167,43 @@ public class SharedBlobCacheWarmingService {
             if (race.isDone()) {
                 return;
             }
-            if (searchRecoveryTimeoutCalculationService.reevaluationEnabled() && latestPlan.extendable()) {
-                try {
-                    // Approximate: bytesWarmedSoFar also counts bytes that are not part of bytesToWarm (e.g. header/footer reads), and
-                    // regions that were already cached are never counted, so this can under- or overestimate the bytes still to warm.
-                    final long bytesRemaining = Math.max(0L, bytesToWarm - bytesWarmedSoFar.getAsLong());
-                    final var newPlan = searchRecoveryTimeout(clusterStateSupplier.get(), indexShard, bytesRemaining, latestPlan);
-                    if (newPlan.shouldExtendAfter(latestPlan)) {
-                        final var elapsed = TimeValue.timeValueMillis(threadPool.relativeTimeInMillis() - startedMillis);
-                        final var newTimeout = cappedToTotalBudget(newPlan.timeout(), elapsed);
-                        if (newTimeout.compareTo(searchRecoveryTimeoutCalculationService.reevaluationAbortThreshold()) >= 0) {
-                            final var previousPlan = latestPlan;
-                            latestPlan = newPlan;
-                            scheduledTask = threadPool.schedule(this, newTimeout, threadPool.generic());
-                            // The race may have completed while this run was in flight, in which case cancel() already ran and missed the
-                            // task scheduled just now. Cancel it here so it does not retain the shard and directory until it fires.
-                            // If the race is not done yet, it completes after this check and its cancel() sees the new task.
-                            if (race.isDone()) {
-                                scheduledTask.cancel();
-                                return;
-                            }
-                            logger.debug(
-                                "Search shard recovery cache warming timeout extended by [{}] ({} -> {}) for [{}]. Total timeout: [{}]",
-                                newTimeout,
-                                previousPlan.timeoutContext().description(),
-                                newPlan.timeoutContext().description(),
-                                indexShard.shardId(),
-                                TimeValue.timeValueMillis(elapsed.millis() + newTimeout.millis())
-                            );
-                            return;
-                        }
+            try {
+                final var elapsed = TimeValue.timeValueMillis(threadPool.relativeTimeInMillis() - startedMillis);
+                final var extendedPlan = searchRecoveryTimeoutCalculationService.extendedTimeout(
+                    clusterStateSupplier.get(),
+                    indexShard,
+                    bytesToWarm,
+                    bytesWarmedSoFar.getAsLong(),
+                    latestPlan,
+                    elapsed
+                );
+                if (extendedPlan.awaitWarming()) {
+                    final var previousPlan = latestPlan;
+                    final var newTimeout = extendedPlan.timeout();
+                    latestPlan = extendedPlan;
+                    scheduledTask = threadPool.schedule(this, newTimeout, threadPool.generic());
+                    // The race may have completed while this run was in flight, in which case cancel() already ran and missed the
+                    // task scheduled just now. Cancel it here so it does not retain the shard and directory until it fires.
+                    // If the race is not done yet, it completes after this check and its cancel() sees the new task.
+                    if (race.isDone()) {
+                        scheduledTask.cancel();
+                        return;
                     }
-                } catch (Exception e) {
-                    // offline warming should not fail the recovery, so ignore the exception
-                    logger.warn("Search shard recovery offline warming failed.", e);
+                    logger.debug(
+                        "Search shard recovery cache warming timeout extended by [{}] ({} -> {}) for [{}]. Total timeout: [{}]",
+                        newTimeout,
+                        previousPlan.timeoutContext().description(),
+                        extendedPlan.timeoutContext().description(),
+                        indexShard.shardId(),
+                        TimeValue.timeValueMillis(elapsed.millis() + newTimeout.millis())
+                    );
+                    return;
                 }
+            } catch (Exception e) {
+                // offline warming should not fail the recovery, so ignore the exception
+                logger.warn("Search shard recovery offline warming failed.", e);
             }
             race.onResponse(SearchRecoveryWaitOutcome.TIMEOUT);
-        }
-
-        /// Caps `timeout` so that the total wait does not exceed the total timeout cap. The same cap applies whichever context the plan
-        /// was computed for, so a wait cannot gain budget by switching contexts: when the relocation source starts shutting down, the
-        /// plan's timeout is already bounded by the grace deadline and the lower of the two wins.
-        private TimeValue cappedToTotalBudget(TimeValue timeout, TimeValue elapsed) {
-            final var budgetLeft = TimeValue.timeValueMillis(
-                Math.max(0L, searchRecoveryTimeoutCalculationService.totalTimeoutCap().millis() - elapsed.millis())
-            );
-            return TimeValue.min(budgetLeft, timeout);
         }
 
         private String latestTimeoutContextDescription() {

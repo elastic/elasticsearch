@@ -134,16 +134,41 @@ public class SearchRecoveryTimeoutCalculationService {
         );
     }
 
-    TimeValue totalTimeoutCap() {
-        return searchRecoveryWarmingTotalTimeoutCap;
+    /// Decides, on expiry of `latestPlan`, whether the wait continues and for how long: returns the re-evaluated plan with its timeout
+    /// capped to the total budget left after `elapsed`, or [SearchRecoveryTimeout#skip()] when the wait must end.
+    ///
+    /// `totalBytesToWarm` is the total the warming was asked to fetch and `bytesWarmedSoFar` what it fetched since it started. The
+    /// difference is approximate: `bytesWarmedSoFar` also counts bytes that are not part of `totalBytesToWarm` (e.g. header/footer
+    /// reads), and regions that were already cached are never counted, so this can under- or overestimate the bytes still to warm.
+    SearchRecoveryTimeout extendedTimeout(
+        ClusterState state,
+        IndexShard shard,
+        long totalBytesToWarm,
+        long bytesWarmedSoFar,
+        SearchRecoveryTimeout latestPlan,
+        TimeValue elapsed
+    ) {
+        if (searchRecoveryWarmingTimeoutReevaluationEnabled == false || latestPlan.extendable() == false) {
+            return SearchRecoveryTimeout.skip();
+        }
+        final var remainingBytesToWarm = Math.max(0L, totalBytesToWarm - bytesWarmedSoFar);
+        final var newPlan = searchRecoveryTimeout(state, shard, remainingBytesToWarm, latestPlan);
+        if (newPlan.shouldExtendAfter(latestPlan) == false) {
+            return SearchRecoveryTimeout.skip();
+        }
+        final var newTimeout = cappedToTotalBudget(newPlan.timeout(), elapsed);
+        if (newTimeout.compareTo(searchRecoveryReevaluationAbortThreshold) < 0) {
+            return SearchRecoveryTimeout.skip();
+        }
+        return new SearchRecoveryTimeout(newTimeout, newPlan.timeoutContext(), newPlan.perShardShareMs());
     }
 
-    boolean reevaluationEnabled() {
-        return searchRecoveryWarmingTimeoutReevaluationEnabled;
-    }
-
-    TimeValue reevaluationAbortThreshold() {
-        return searchRecoveryReevaluationAbortThreshold;
+    /// Caps `timeout` so that the total wait does not exceed the total timeout cap. The same cap applies whichever context the plan
+    /// was computed for, so a wait cannot gain budget by switching contexts: when the relocation source starts shutting down, the
+    /// plan's timeout is already bounded by the grace deadline and the lower of the two wins.
+    private TimeValue cappedToTotalBudget(TimeValue timeout, TimeValue elapsed) {
+        final var budgetLeft = TimeValue.timeValueMillis(Math.max(0L, searchRecoveryWarmingTotalTimeoutCap.millis() - elapsed.millis()));
+        return TimeValue.min(budgetLeft, timeout);
     }
 
     /// When to await search recovery warming (internal replicated-files path only). Relocation targets use relocation-specific timeouts or
@@ -275,7 +300,7 @@ public class SearchRecoveryTimeoutCalculationService {
 
         // Data-volume-proportional heuristic: scale remaining time by the fraction of the warming cache this shard occupies.
         final long warmingCacheBytes = Math.round(cacheService.getCacheSize() * searchRecoveryWarmingCacheRatio);
-        // Re-evaluations pass the bytes still to warm (an approximation, see SharedBlobCacheWarmingService.ReevaluatingTimeoutTask#run),
+        // Re-evaluations pass the bytes still to warm (an approximation, see #extendedTimeout),
         // the first calculation passes all of them. The baseline (the warming cache budget) is still fixed, since it's hard to do the
         // accounting of the bytes warmed for shards for all the relocations of a given node shutting down.
         final double dataVolumeMs = warmingCacheBytes > 0 ? ((double) totalBytesToWarm / warmingCacheBytes) * remaining : 0;

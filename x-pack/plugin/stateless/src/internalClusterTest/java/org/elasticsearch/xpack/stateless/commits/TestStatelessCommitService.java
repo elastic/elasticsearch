@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.telemetry.TelemetryProvider;
@@ -58,10 +59,10 @@ public class TestStatelessCommitService extends StatelessCommitService {
     }
 
     @Override
-    public void installUploadBoundListener(ShardId shardId, SubscribableListener<Long> uploadBoundListener) {
+    public void installUploadBoundListener(IndexShard shard, SubscribableListener<Long> uploadBoundListener) {
         getStrategy().installUploadBoundListener(
-            () -> super.installUploadBoundListener(shardId, uploadBoundListener),
-            shardId,
+            () -> super.installUploadBoundListener(shard, uploadBoundListener),
+            shard,
             uploadBoundListener
         );
     }
@@ -77,7 +78,11 @@ public class TestStatelessCommitService extends StatelessCommitService {
     }
 
     public static class Strategy {
-        public void installUploadBoundListener(Runnable originalRunnable, ShardId shardId, SubscribableListener<Long> uploadBoundListener) {
+        public void installUploadBoundListener(
+            Runnable originalRunnable,
+            IndexShard shard,
+            SubscribableListener<Long> uploadBoundListener
+        ) {
             originalRunnable.run();
         }
 

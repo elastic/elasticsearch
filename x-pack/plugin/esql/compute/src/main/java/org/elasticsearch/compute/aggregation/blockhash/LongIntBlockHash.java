@@ -616,6 +616,43 @@ public final class LongIntBlockHash extends PartitionedBlockHash {
     }
 
     @Override
+    protected ReleasableIterator<IntBlock> lookupInPartitions(
+        Page page,
+        ByteSizeValue targetBlockSize,
+        PartitionedBlockHash[] partitions,
+        int[] groupBase
+    ) {
+        LongBlock longBlock = page.getBlock(longChannel);
+        IntBlock intBlock = page.getBlock(intChannel);
+        int positions = page.getPositionCount();
+        // TODO honor targetBlockSize and chunk the pages if requested.
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                int longCount = longBlock.getValueCount(i);
+                int intCount = intBlock.getValueCount(i);
+                if (longCount > 1 || intCount > 1) {
+                    throw new IllegalArgumentException("partitioned lookups require single-valued keys");
+                }
+                // Encodes nulls like the add path does, so a key with a null finds the group of the same key.
+                long key1 = longCount == 0 ? 0 : longBlock.getLong(longBlock.getFirstValueIndex(i));
+                long key2 = intCount == 0 ? INT_NULL_MASK : intBlock.getInt(intBlock.getFirstValueIndex(i)) & WIDEN;
+                if (longCount == 0) {
+                    key2 |= LONG_NULL_MASK;
+                }
+                long hash64 = LongLongSwissHash.hash64(key1, key2);
+                int p = LongLongSwissHash.partition(hash64);
+                long found = ((LongLongSwissHash) ((LongIntBlockHash) partitions[p]).hash).find(key1, key2, hash64);
+                if (found < 0) {
+                    builder.appendNull();
+                } else {
+                    builder.appendInt(groupBase[p] + Math.toIntExact(found));
+                }
+            }
+            return ReleasableIterator.single(builder.build());
+        }
+    }
+
+    @Override
     public void close() {
         blockFactory.adjustBreaker(-batchUsedBytes);
         Releasables.close(hash);

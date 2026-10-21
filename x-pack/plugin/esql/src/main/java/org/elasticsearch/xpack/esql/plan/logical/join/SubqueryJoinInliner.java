@@ -178,8 +178,15 @@ public final class SubqueryJoinInliner {
             }
 
             resultBlocks = new Block[schema.size()];
+            boolean keepAll = keptPositionCount == sourcePage.getPositionCount();
             for (int column = 0; column < schema.size(); column++) {
-                Block filtered = sourcePage.getBlock(column).filter(false, keptPositions);
+                Block filtered;
+                if (keepAll) {
+                    filtered = sourcePage.getBlock(column);
+                    filtered.incRef();
+                } else {
+                    filtered = sourcePage.getBlock(column).filter(false, keptPositions);
+                }
                 ElementType targetType = castsByColumn.get(column);
                 if (targetType == null) {
                     resultBlocks[column] = filtered;

@@ -283,6 +283,41 @@ final class IntBlockHash extends PartitionedBlockHash {
     }
 
     @Override
+    protected ReleasableIterator<IntBlock> lookupInPartitions(
+        Page page,
+        ByteSizeValue targetBlockSize,
+        PartitionedBlockHash[] partitions,
+        int[] groupBase
+    ) {
+        var block = page.getBlock(channel);
+        int positions = block.getPositionCount();
+        if (block.areAllValuesNull()) {
+            return ReleasableIterator.single((IntBlock) blockFactory.newConstantNullBlock(positions));
+        }
+        IntBlock castBlock = (IntBlock) block;
+        // TODO honor targetBlockSize and chunk the pages if requested.
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                switch (castBlock.getValueCount(i)) {
+                    case 0 -> builder.appendNull();
+                    case 1 -> {
+                        long v = castBlock.getInt(castBlock.getFirstValueIndex(i));
+                        int p = LongSwissHash.partition(v);
+                        long found = ((IntBlockHash) partitions[p]).hash.find(v);
+                        if (found < 0) {
+                            builder.appendNull();
+                        } else {
+                            builder.appendInt(groupBase[p] + Math.toIntExact(hashOrdToGroupNullReserved(found)));
+                        }
+                    }
+                    default -> throw new IllegalArgumentException("partitioned lookups require single-valued keys");
+                }
+            }
+            return ReleasableIterator.single(builder.build());
+        }
+    }
+
+    @Override
     public void close() {
         hash.close();
     }

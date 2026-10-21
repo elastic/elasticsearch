@@ -580,9 +580,17 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
     }
 
     /**
-     * Verifies that large lookups are split into multiple blocks without changing their values or block factory.
+     * Verifies that lookups larger than the target size are split into multiple blocks without changing their values or block factory.
      */
     public final void testLookupChunking() {
+        assertThat(lookupChunks(ByteSizeValue.ofBytes(1)), greaterThan(1));
+    }
+
+    public final void testLookupSmallerThanTargetIsOneBlock() {
+        assertThat(lookupChunks(ByteSizeValue.ofMb(1)), equalTo(1));
+    }
+
+    private int lookupChunks(ByteSizeValue targetBlockSize) {
         assumeTrue("lookup unsupported", supportsLookup());
         int positionCount = Operator.MIN_TARGET_PAGE_SIZE * 3;
         List<List<V>> expected = denseExpectedValues(positionCount);
@@ -594,7 +602,7 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
             try (IntBlock positions = positionsBuilder.build()) {
                 int offset = 0;
                 int chunks = 0;
-                try (ReleasableIterator<? extends Block> lookup = block.lookup(positions, ByteSizeValue.ofMb(1))) {
+                try (ReleasableIterator<? extends Block> lookup = block.lookup(positions, targetBlockSize)) {
                     while (lookup.hasNext()) {
                         try (Block chunk = lookup.next()) {
                             assertThat(chunk.blockFactory(), sameInstance(positions.blockFactory()));
@@ -606,7 +614,7 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
                     }
                 }
                 assertThat(offset, equalTo(positionCount));
-                assertThat(chunks, greaterThan(1));
+                return chunks;
             }
         }
     }

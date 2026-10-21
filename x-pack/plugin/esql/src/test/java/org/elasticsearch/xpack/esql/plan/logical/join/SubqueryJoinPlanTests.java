@@ -415,7 +415,9 @@ public class SubqueryJoinPlanTests extends ESTestCase {
         );
         assertThat(rewritten.executesOn(), equalTo(ExecuteLocation.COORDINATOR));
         assertTrue(inputKeyBlock.isReleased());
-        assertTrue(inputPayloadBlock.isReleased());
+        // Every row is kept, so the payload block moves to the result page instead of being copied.
+        assertSame(inputPayloadBlock, pageHolder.get().getBlock(1));
+        assertFalse(inputPayloadBlock.isReleased());
         LocalRelation right = as(rewritten.right(), LocalRelation.class);
         Attribute widenedKey = right.output().get(0);
         assertThat(widenedKey, instanceOf(ReferenceAttribute.class));
@@ -428,6 +430,7 @@ public class SubqueryJoinPlanTests extends ESTestCase {
 
         Page normalizedPage = pageHolder.getAndSet(null);
         normalizedPage.releaseBlocks();
+        assertTrue(inputPayloadBlock.isReleased());
     }
 
     public void testInliningWidensLeftKeyAndProjectsAwaySyntheticKey() {

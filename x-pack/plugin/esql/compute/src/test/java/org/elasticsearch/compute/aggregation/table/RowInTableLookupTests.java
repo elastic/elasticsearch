@@ -18,7 +18,9 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -31,6 +33,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -99,7 +102,7 @@ public class RowInTableLookupTests extends ESTestCase {
             builder.appendInt(1);
             buildKeys = builder.build();
         }
-        RowInTableLookup lookup = RowInTableLookup.build(blockFactory, new Block[] { buildKeys }, true, Warnings.NOOP_WARNINGS);
+        RowInTableLookup lookup = RowInTableLookup.build(blockFactory, new Block[] { buildKeys }, true);
         buildKeys.close();
 
         Block probeKeys;
@@ -130,6 +133,68 @@ public class RowInTableLookupTests extends ESTestCase {
         }
     }
 
+    public void testRepeatedBooleanKeysSkipUnseenValues() {
+        Block buildKeys;
+        try (BooleanBlock.Builder builder = blockFactory.newBooleanBlockBuilder(2)) {
+            builder.appendBoolean(true);
+            builder.appendBoolean(true);
+            buildKeys = builder.build();
+        }
+        RowInTableLookup lookup = RowInTableLookup.build(blockFactory, new Block[] { buildKeys }, true);
+        buildKeys.close();
+
+        Block probeKeys;
+        try (BooleanBlock.Builder builder = blockFactory.newBooleanBlockBuilder(3)) {
+            builder.appendBoolean(false);
+            builder.appendNull();
+            builder.appendBoolean(true);
+            probeKeys = builder.build();
+        }
+        assertThat(lookupRows(lookup, new Page(probeKeys)), equalTo(List.of(List.of(), List.of(), List.of(0, 1))));
+    }
+
+    public void testRepeatedDoubleKeysReturnEveryMatchingBuildRow() {
+        Block buildKeys;
+        try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(3)) {
+            builder.appendDouble(1.5);
+            builder.appendDouble(-0.5);
+            builder.appendDouble(1.5);
+            buildKeys = builder.build();
+        }
+        RowInTableLookup lookup = RowInTableLookup.build(blockFactory, new Block[] { buildKeys }, true);
+        buildKeys.close();
+
+        Block probeKeys;
+        try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(3)) {
+            builder.appendDouble(-0.5);
+            builder.appendDouble(2.0);
+            builder.appendDouble(1.5);
+            probeKeys = builder.build();
+        }
+        assertThat(lookupRows(lookup, new Page(probeKeys)), equalTo(List.of(List.of(1), List.of(), List.of(0, 2))));
+    }
+
+    private static List<List<Integer>> lookupRows(RowInTableLookup lookup, Page probe) {
+        List<List<Integer>> rows = new ArrayList<>();
+        try (lookup; ReleasableIterator<IntBlock> matches = lookup.lookup(probe, ByteSizeValue.ofKb(1))) {
+            while (matches.hasNext()) {
+                try (IntBlock result = matches.next()) {
+                    for (int p = 0; p < result.getPositionCount(); p++) {
+                        List<Integer> positionRows = new ArrayList<>();
+                        int start = result.getFirstValueIndex(p);
+                        for (int i = start; i < start + result.getValueCount(p); i++) {
+                            positionRows.add(result.getInt(i));
+                        }
+                        rows.add(positionRows);
+                    }
+                }
+            }
+        } finally {
+            probe.releaseBlocks();
+        }
+        return rows;
+    }
+
     public void testRepeatedKeyHashIsReleasedWhenRowIndexAllocationFails() {
         int rowCount = 12345;
         CircuitBreakerService failingBreakerService = LimitedBreaker.service("lookup-test", ByteSizeValue.ofGb(1));
@@ -152,7 +217,7 @@ public class RowInTableLookupTests extends ESTestCase {
             try (Block keys = builder.build()) {
                 expectThrows(
                     CircuitBreakingException.class,
-                    () -> new RepeatedKeyBlockHashRowInTableLookup(failingBlockFactory, new Block[] { keys }, Warnings.NOOP_WARNINGS)
+                    () -> new RepeatedKeyBlockHashRowInTableLookup(failingBlockFactory, new Block[] { keys })
                 );
                 assertThat(failingBreaker.getUsed(), is(0L));
             }
@@ -166,7 +231,7 @@ public class RowInTableLookupTests extends ESTestCase {
             builder.appendInt(2);
             buildKeys = builder.build();
         }
-        RowInTableLookup lookup = RowInTableLookup.build(blockFactory, new Block[] { buildKeys }, true, Warnings.NOOP_WARNINGS);
+        RowInTableLookup lookup = RowInTableLookup.build(blockFactory, new Block[] { buildKeys }, true);
         buildKeys.close();
 
         Block probeKeys;
@@ -194,7 +259,7 @@ public class RowInTableLookupTests extends ESTestCase {
         }
         DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance(), null);
         Warnings warnings = driverContext.createWarnings(new TestWarningsSource("lookup"));
-        RowInTableLookup lookup = RowInTableLookup.build(blockFactory, new Block[] { buildKeys }, true, warnings);
+        RowInTableLookup lookup = RowInTableLookup.build(blockFactory, new Block[] { buildKeys }, true);
         buildKeys.close();
 
         Block probeKeys;
@@ -208,7 +273,7 @@ public class RowInTableLookupTests extends ESTestCase {
             probeKeys = builder.build();
         }
         Page probe = new Page(probeKeys);
-        try (lookup; ReleasableIterator<IntBlock> matches = lookup.lookup(probe, ByteSizeValue.ofKb(1))) {
+        try (lookup; ReleasableIterator<IntBlock> matches = lookup.lookup(probe, ByteSizeValue.ofKb(1), warnings)) {
             try (IntBlock result = matches.next()) {
                 assertThat(result.getValueCount(0), equalTo(0));
                 assertThat(result.getValueCount(1), equalTo(0));

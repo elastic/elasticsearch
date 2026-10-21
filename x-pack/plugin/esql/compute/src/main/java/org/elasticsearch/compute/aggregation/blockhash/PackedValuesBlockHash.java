@@ -276,26 +276,40 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
         }
     }
 
-    @Override
-    public ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize) {
-        return new LookupWork(page, targetBlockSize.getBytes(), DEFAULT_BATCH_SIZE, blockFactory, bytes, false);
-    }
-
     /**
-     * Looks up without touching any of this hash's mutable state: each call encodes its keys into its own
-     * scratch buffer and builds its results with {@code resultBlockFactory}. Once the hash is no longer
-     * being added to, several threads may call this concurrently.
+     * Encodes the probed keys into a scratch buffer of its own rather than {@link #bytes}, so it doesn't modify
+     * the hash and a hash that is no longer added to can be probed from several threads at once.
      */
     @Override
-    public ReleasableIterator<IntBlock> concurrentLookup(Page page, ByteSizeValue targetBlockSize, BlockFactory resultBlockFactory) {
+    public ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize) {
+        return lookup(page, targetBlockSize, bytesRefHash::find);
+    }
+
+    @Override
+    protected ReleasableIterator<IntBlock> lookupInPartitions(
+        Page page,
+        ByteSizeValue targetBlockSize,
+        PartitionedBlockHash[] partitions,
+        int[] groupBase
+    ) {
+        return lookup(page, targetBlockSize, key -> {
+            long hash64 = BytesRefSwissHash.hash64(key);
+            int p = BytesRefSwissHash.partition(hash64);
+            BytesRefSwissHash partition = (BytesRefSwissHash) ((PackedValuesBlockHash) partitions[p]).bytesRefHash;
+            long found = partition.find(key, hash64);
+            return found < 0 ? -1 : groupBase[p] + found;
+        });
+    }
+
+    private ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize, KeyFinder finder) {
         BreakingBytesRefBuilder scratch = new BreakingBytesRefBuilder(
-            resultBlockFactory.breaker(),
+            blockFactory.breaker(),
             "PackedValuesBlockHash.lookup",
             nullTrackingBytes
         );
         boolean success = false;
         try {
-            LookupWork work = new LookupWork(page, targetBlockSize.getBytes(), DEFAULT_BATCH_SIZE, resultBlockFactory, scratch, true);
+            LookupWork work = new LookupWork(page, targetBlockSize.getBytes(), DEFAULT_BATCH_SIZE, scratch, finder);
             success = true;
             return work;
         } finally {
@@ -305,29 +319,28 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
         }
     }
 
+    /**
+     * Finds the group id of a packed key, or returns a negative number if there isn't one.
+     */
+    @FunctionalInterface
+    private interface KeyFinder {
+        long find(BytesRef key);
+    }
+
     class LookupWork implements ReleasableIterator<IntBlock> {
         private final Group[] groups;
         private final long targetByteSize;
         private final int positionCount;
-        private final BlockFactory resultBlockFactory;
         private final BreakingBytesRefBuilder bytes;
-        private final boolean ownsBytes;
+        private final KeyFinder finder;
         private int position;
 
-        LookupWork(
-            Page page,
-            long targetByteSize,
-            int batchSize,
-            BlockFactory resultBlockFactory,
-            BreakingBytesRefBuilder bytes,
-            boolean ownsBytes
-        ) {
+        LookupWork(Page page, long targetByteSize, int batchSize, BreakingBytesRefBuilder bytes, KeyFinder finder) {
             this.groups = specs.stream().map(s -> new Group(s, page, batchSize)).toArray(Group[]::new);
             this.positionCount = page.getPositionCount();
             this.targetByteSize = targetByteSize;
-            this.resultBlockFactory = resultBlockFactory;
             this.bytes = bytes;
-            this.ownsBytes = ownsBytes;
+            this.finder = finder;
         }
 
         @Override
@@ -338,7 +351,7 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
         @Override
         public IntBlock next() {
             int size = Math.toIntExact(Math.min(positionCount - position, targetByteSize / Integer.BYTES / 2));
-            try (IntBlock.Builder ords = resultBlockFactory.newIntBlockBuilder(size)) {
+            try (IntBlock.Builder ords = blockFactory.newIntBlockBuilder(size)) {
                 if (ords.estimatedBytes() > targetByteSize) {
                     throw new IllegalStateException(
                         "initial builder overshot target [" + ords.estimatedBytes() + "] vs [" + targetByteSize + "]"
@@ -360,7 +373,7 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
 
         private void lookupSingleEntry(IntBlock.Builder ords) {
             fillBytesSv(groups, bytes);
-            long found = bytesRefHash.find(bytes.bytesRefView());
+            long found = finder.find(bytes.bytesRefView());
             if (found < 0) {
                 ords.appendNull();
             } else {
@@ -377,7 +390,7 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
                 fillBytesMv(groups, g, bytes);
 
                 // emit ords
-                long found = bytesRefHash.find(bytes.bytesRefView());
+                long found = finder.find(bytes.bytesRefView());
                 if (found >= 0) {
                     if (firstFound < 0) {
                         firstFound = found;
@@ -413,7 +426,7 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
 
         @Override
         public void close() {
-            Releasables.closeExpectNoException(Releasables.wrap(groups), ownsBytes ? bytes : () -> {});
+            Releasables.closeExpectNoException(Releasables.wrap(groups), bytes);
         }
     }
 

@@ -31,33 +31,33 @@ public abstract sealed class RowInTableLookup implements Releasable permits Empt
      *     The returned {@link ReleasableIterator} may retain a reference to {@link Block}s
      *     inside the {@link Page}. Close it to release those references.
      * </p>
+     * <p>
+     *     Lookups don't modify the table and build their results with the factory the table was
+     *     built with, so a table built with a thread-safe factory may be probed by several threads
+     *     at once.
+     * </p>
      */
     public abstract ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize);
 
     /**
-     * Like {@link #lookup(Page, ByteSizeValue)}, but builds the returned blocks with {@code resultBlockFactory}
-     * and reports warnings to {@code warnings} instead of using what the lookup was built with. It does not
-     * modify the lookup, so once built a single lookup may be shared by several drivers, each passing its own
-     * factory and warnings.
+     * Like {@link #lookup(Page, ByteSizeValue)}, but reports problems with the probed keys to {@code warnings}.
+     * Warnings are passed per call rather than held by the table because they are not thread-safe.
      */
-    public abstract ReleasableIterator<IntBlock> lookup(
-        Page page,
-        ByteSizeValue targetBlockSize,
-        BlockFactory resultBlockFactory,
-        Warnings warnings
-    );
+    public ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize, Warnings warnings) {
+        return lookup(page, targetBlockSize);
+    }
 
     @Override
     public abstract String toString();
 
     public static RowInTableLookup build(BlockFactory blockFactory, Block[] keys) {
-        return build(blockFactory, keys, false, Warnings.NOOP_WARNINGS);
+        return build(blockFactory, keys, false);
     }
 
     /**
      * Builds a lookup which can return every row sharing a key when {@code repeatedKeys} is true.
      */
-    public static RowInTableLookup build(BlockFactory blockFactory, Block[] keys, boolean repeatedKeys, Warnings warnings) {
+    public static RowInTableLookup build(BlockFactory blockFactory, Block[] keys, boolean repeatedKeys) {
         if (keys.length < 1) {
             throw new IllegalArgumentException("expected [keys] to be non-empty");
         }
@@ -77,7 +77,7 @@ public abstract sealed class RowInTableLookup implements Releasable permits Empt
             return new EmptyRowInTableLookup(blockFactory);
         }
         if (repeatedKeys) {
-            return new RepeatedKeyBlockHashRowInTableLookup(blockFactory, keys, warnings);
+            return new RepeatedKeyBlockHashRowInTableLookup(blockFactory, keys);
         }
         if (keys.length == 1) {
             RowInTableLookup lookup = single(blockFactory, keys[0]);

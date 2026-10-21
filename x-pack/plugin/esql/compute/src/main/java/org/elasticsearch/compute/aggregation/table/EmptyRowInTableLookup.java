@@ -11,7 +11,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.ReleasableIterator;
 
 /**
@@ -26,17 +25,7 @@ public final class EmptyRowInTableLookup extends RowInTableLookup {
 
     @Override
     public ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize) {
-        return lookup(page, targetBlockSize, blockFactory, Warnings.NOOP_WARNINGS);
-    }
-
-    @Override
-    public ReleasableIterator<IntBlock> lookup(
-        Page page,
-        ByteSizeValue targetBlockSize,
-        BlockFactory resultBlockFactory,
-        Warnings warnings
-    ) {
-        return ReleasableIterator.single((IntBlock) resultBlockFactory.newConstantNullBlock(page.getPositionCount()));
+        return ReleasableIterator.single((IntBlock) blockFactory.newConstantNullBlock(page.getPositionCount()));
     }
 
     @Override

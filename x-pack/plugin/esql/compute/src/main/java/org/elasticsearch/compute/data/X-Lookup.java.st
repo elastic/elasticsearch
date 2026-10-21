@@ -33,6 +33,12 @@ $endif$
 
     private $type$ first;
     private int valuesInPosition;
+    /**
+     * Bytes of values copied into the block being built. Tracked separately from
+     * {@link Block.Builder#estimatedBytes} because the builder is presized for all
+     * remaining positions, so its estimate reflects capacity, not content.
+     */
+    private long outputBytes;
 
     public $Type$Lookup($Type$Block values, IntBlock positions, ByteSizeValue targetBlockSize) {
         values.incRef();
@@ -51,6 +57,7 @@ $endif$
     public $Type$Block next() {
         try ($Type$Block.Builder builder = positions.blockFactory().new$Type$BlockBuilder(positions.getTotalValueCount())) {
             int count = 0;
+            outputBytes = 0;
             while (position < positions.getPositionCount()) {
                 int start = positions.getFirstValueIndex(position);
                 int end = start + positions.getValueCount(position);
@@ -65,7 +72,7 @@ $endif$
                 }
                 position++;
                 // TOOD what if the estimate is super huge? should we break even with less than MIN_TARGET?
-                if (++count > Operator.MIN_TARGET_PAGE_SIZE && builder.estimatedBytes() < targetByteSize) {
+                if (++count > Operator.MIN_TARGET_PAGE_SIZE && outputBytes >= targetByteSize) {
                     break;
                 }
             }
@@ -83,8 +90,10 @@ $endif$
             if (valuesInPosition == 0) {
 $if(BytesRef)$
                 first = values.get$Type$(i, firstScratch);
+                outputBytes += first.length;
 $else$
                 first = values.get$Type$(i);
+                outputBytes += $BYTES$;
 $endif$
                 valuesInPosition++;
                 continue;
@@ -98,9 +107,12 @@ $endif$
                 throw new IllegalArgumentException("Found a single entry with " + valuesInPosition + " entries");
             }
 $if(BytesRef)$
-            builder.append$Type$(values.get$Type$(i, valueScratch));
+            BytesRef value = values.get$Type$(i, valueScratch);
+            outputBytes += value.length;
+            builder.append$Type$(value);
 $else$
             builder.append$Type$(values.get$Type$(i));
+            outputBytes += $BYTES$;
 $endif$
             valuesInPosition++;
         }

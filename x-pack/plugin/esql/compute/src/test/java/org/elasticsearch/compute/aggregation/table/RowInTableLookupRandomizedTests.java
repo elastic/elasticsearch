@@ -20,7 +20,6 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeTests;
 import org.elasticsearch.compute.test.MockBlockFactory;
 import org.elasticsearch.core.Releasable;
@@ -143,32 +142,26 @@ public class RowInTableLookupRandomizedTests extends ESTestCase {
     }
 
     /**
-     * One built table probed from several threads at once, each building its results with its own
-     * {@link BlockFactory}, the way drivers share the table built by {@code RowInTableLookupOperator.Factory}.
-     * Every thread must get the same answers as a single-threaded lookup.
+     * One built table probed from several threads at once, the way drivers share the table built by
+     * {@code RowInTableLookupOperator.Factory}. Every thread must get the same answers as a single-threaded lookup.
      */
     public void testConcurrentLookups() {
         CircuitBreakerService breakerService = newLimitedBreakerService(ByteSizeValue.ofGb(1));
-        MockBlockFactory tableFactory = new MockBlockFactory(
+        MockBlockFactory blockFactory = new MockBlockFactory(
             BlockFactory.builder(new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breakerService))
         );
         int threads = between(2, 8);
         int triesPerThread = TRIES / 10;
-        try (Table table = randomTable(tableFactory); RowInTableLookup offsetInTable = RowInTableLookup.build(tableFactory, table.blocks)) {
+        try (Table table = randomTable(blockFactory); RowInTableLookup offsetInTable = RowInTableLookup.build(blockFactory, table.blocks)) {
             assertThat(offsetInTable, expectedImplementation);
             // Randomness is only available on the test thread, so every input is built up front.
-            List<MockBlockFactory> threadFactories = new ArrayList<>(threads);
             List<List<ToLookup>> inputs = new ArrayList<>(threads);
             List<List<ByteSizeValue>> targets = new ArrayList<>(threads);
             for (int t = 0; t < threads; t++) {
-                MockBlockFactory threadFactory = new MockBlockFactory(
-                    BlockFactory.builder(new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breakerService))
-                );
-                threadFactories.add(threadFactory);
                 List<ToLookup> threadInputs = new ArrayList<>(triesPerThread);
                 List<ByteSizeValue> threadTargets = new ArrayList<>(triesPerThread);
                 for (int i = 0; i < triesPerThread; i++) {
-                    threadInputs.add(toLookup(threadFactory, table));
+                    threadInputs.add(toLookup(blockFactory, table));
                     threadTargets.add(ByteSizeValue.ofKb(between(1, 100)));
                 }
                 inputs.add(threadInputs);
@@ -179,14 +172,7 @@ public class RowInTableLookupRandomizedTests extends ESTestCase {
                     for (int i = 0; i < triesPerThread; i++) {
                         ToLookup toLookup = inputs.get(t).get(i);
                         ByteSizeValue target = targets.get(t).get(i);
-                        try (
-                            ReleasableIterator<IntBlock> actual = offsetInTable.lookup(
-                                toLookup.rows,
-                                target,
-                                threadFactories.get(t),
-                                Warnings.NOOP_WARNINGS
-                            )
-                        ) {
+                        try (ReleasableIterator<IntBlock> actual = offsetInTable.lookup(toLookup.rows, target)) {
                             assertLookup(actual, toLookup, target);
                         }
                     }
@@ -194,10 +180,8 @@ public class RowInTableLookupRandomizedTests extends ESTestCase {
             } finally {
                 Releasables.close(inputs.stream().flatMap(List::stream).toList());
             }
-            for (MockBlockFactory threadFactory : threadFactories) {
-                threadFactory.ensureAllBlocksAreReleased();
-            }
         }
+        blockFactory.ensureAllBlocksAreReleased();
     }
 
     private void assertLookup(ReleasableIterator<IntBlock> actual, ToLookup toLookup, ByteSizeValue target) {

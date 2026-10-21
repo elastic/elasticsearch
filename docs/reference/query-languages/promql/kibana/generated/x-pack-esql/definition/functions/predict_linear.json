@@ -1,0 +1,30 @@
+{
+  "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
+  "type" : "within_series",
+  "name" : "predict_linear",
+  "description" : "Predicts the value of each time series t seconds after the evaluation time using simple linear regression. Requires at least two float samples and should be used with gauges. Native histogram samples are ignored. Negative and fractional prediction horizons are supported. Duration literals retain millisecond precision: `500ms` is equivalent to `0.5` seconds.",
+  "signatures" : [
+    {
+      "params" : [
+        {
+          "name" : "v",
+          "type" : "range_vector",
+          "optional" : false,
+          "description" : "Range vector input."
+        },
+        {
+          "name" : "t",
+          "type" : "scalar",
+          "optional" : false,
+          "description" : "Prediction horizon in seconds."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "instant_vector"
+    }
+  ],
+  "examples" : [
+    "predict_linear(node_filesystem_free_bytes[1h], 3600)"
+  ],
+  "snapshot_only" : false
+}

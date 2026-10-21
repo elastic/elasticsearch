@@ -1322,7 +1322,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             null
         );
         // Sequential: each child's terminate-after count is global (min(T, N)).
-        newSearcher(reader, true, true, false).search(Queries.ALL_DOCS_INSTANCE, wrapCollector(queryPhaseCollector));
+        newSearcher(reader, true, true, false).search(Queries.ALL_DOCS_INSTANCE, singleThreadedCollectorManager(queryPhaseCollector));
         assertEquals(expectedCount1, collector1.getTotalHits());
         assertEquals(expectedCount2, collector2.getTotalHits());
     }
@@ -1659,7 +1659,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             );
             newSearcher(reader, true, true, false).search(
                 new NonCountingTermQuery(new Term("field1", "value")),
-                wrapCollector(queryPhaseCollector)
+                singleThreadedCollectorManager(queryPhaseCollector)
             );
             assertEquals(1, topDocsMockCollector.leafCollectorsPulled);
         }
@@ -1675,7 +1675,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             );
             newSearcher(reader, true, true, false).search(
                 new NonCountingTermQuery(new Term("field1", "value")),
-                wrapCollector(queryPhaseCollector)
+                singleThreadedCollectorManager(queryPhaseCollector)
             );
             assertEquals(1, topDocsMockCollector.leafCollectorsPulled);
         }

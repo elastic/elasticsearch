@@ -68,7 +68,7 @@ public class BestDocsDeferringCollectorTests extends AggregatorTestCase {
         Set<Integer> deferredCollectedDocIds = new HashSet<>();
         collector.setDeferredCollector(Collections.singleton(testCollector(deferredCollectedDocIds)));
         collector.preCollection();
-        indexSearcher.search(termQuery, wrapCollector(collector.asCollector()));
+        indexSearcher.search(termQuery, singleThreadedCollectorManager(collector.asCollector()));
         collector.postCollection();
         collector.prepareSelectedBuckets(BigArrays.NON_RECYCLING_INSTANCE.newLongArray(1, true));
 

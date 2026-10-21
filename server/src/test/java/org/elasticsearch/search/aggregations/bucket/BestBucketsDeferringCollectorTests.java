@@ -87,7 +87,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
         Set<Integer> deferredCollectedDocIds = new HashSet<>();
         collector.setDeferredCollector(Collections.singleton(bla(deferredCollectedDocIds)));
         collector.preCollection();
-        indexSearcher.search(termQuery, wrapCollector(collector.asCollector()));
+        indexSearcher.search(termQuery, singleThreadedCollectorManager(collector.asCollector()));
         collector.postCollection();
         collector.prepareSelectedBuckets(BigArrays.NON_RECYCLING_INSTANCE.newLongArray(1, true));
 
@@ -101,7 +101,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
         deferredCollectedDocIds = new HashSet<>();
         collector.setDeferredCollector(Collections.singleton(bla(deferredCollectedDocIds)));
         collector.preCollection();
-        indexSearcher.search(Queries.ALL_DOCS_INSTANCE, wrapCollector(collector.asCollector()));
+        indexSearcher.search(Queries.ALL_DOCS_INSTANCE, singleThreadedCollectorManager(collector.asCollector()));
         collector.postCollection();
         collector.prepareSelectedBuckets(BigArrays.NON_RECYCLING_INSTANCE.newLongArray(1, true));
 
@@ -531,7 +531,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
 
     /** Wraps {@code dc} in a {@link Collector} that creates a leaf per segment using {@code factory}. */
     private static CollectorManager<Collector, Void> delegatingCollector(BestBucketsDeferringCollector dc, LeafFactory factory) {
-        return wrapCollector(new Collector() {
+        return singleThreadedCollectorManager(new Collector() {
             @Override
             public ScoreMode scoreMode() {
                 return ScoreMode.COMPLETE_NO_SCORES;
@@ -579,7 +579,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
                 CollectingBucketCollector finalCollector = new CollectingBucketCollector();
                 deferringCollector.setDeferredCollector(Collections.singleton(finalCollector));
                 deferringCollector.preCollection();
-                indexSearcher.search(query, wrapCollector(new Collector() {
+                indexSearcher.search(query, singleThreadedCollectorManager(new Collector() {
                     @Override
                     public ScoreMode scoreMode() {
                         return ScoreMode.COMPLETE_NO_SCORES;

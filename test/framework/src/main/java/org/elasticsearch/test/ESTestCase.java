@@ -3356,9 +3356,10 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /**
      * Wraps {@code collector} as a {@link CollectorManager} that reuses a single instance.
-     * Only safe with a single-threaded searcher (one slice).
+     * Only safe with a sequential searcher either created without an executor or always searching a single slice.
+     * Note that reduce returns null. Results need to be collected by the provided collector.
      */
-    public static <C extends Collector> CollectorManager<C, Void> wrapCollector(C collector) {
+    public static <C extends Collector> CollectorManager<C, Void> singleThreadedCollectorManager(C collector) {
         return new CollectorManager<>() {
             private boolean created;
 
@@ -3371,6 +3372,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
             @Override
             public Void reduce(Collection<C> collectors) {
+                assert collectors.size() == 1 : "Collectors must have only one collector";
                 return null;
             }
         };
@@ -3378,6 +3380,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /**
      * A {@link CollectorManager} that creates a fresh collector for each slice.
+     * Note that reduce returns null. Results need to be externally gathered during collection.
      */
     public static <C extends Collector> CollectorManager<C, Void> collectorManager(CheckedSupplier<C, IOException> factory) {
         return new CollectorManager<>() {

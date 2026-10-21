@@ -1866,10 +1866,13 @@ public abstract class Engine implements Closeable {
         }
 
         /**
-         * Not supported. Use {@link #search(Query, CollectorManager)} instead.
+         * Not supported.
+         *
+         * @deprecated Use {@link #search(Query, CollectorManager)} instead.
          */
+        @Deprecated
         @Override
-        public void search(Query query, Collector collector) {
+        public final void search(Query query, Collector collector) {
             throw new UnsupportedOperationException("use search(Query, CollectorManager) instead");
         }
 

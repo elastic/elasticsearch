@@ -165,14 +165,17 @@ public class MultiBucketCollectorTests extends ESTestCase {
                     final int numCollectors = randomIntBetween(1, 5);
                     for (int i = 0; i < numCollectors; ++i) {
                         final int terminateAfter = random().nextInt(numDocs + 10);
-                        final int expectedCount = terminateAfter > numDocs ? numDocs : terminateAfter;
+                        final int expectedCount = Math.min(terminateAfter, numDocs);
                         TotalHitCountBucketCollector collector = new TotalHitCountBucketCollector();
                         expectedCounts.put(collector, expectedCount);
                         collectors.add(new TerminateAfterBucketCollector(collector, terminateAfter));
                     }
                     // Sequential: terminate-after counts are global on one wrapper (min(T, N)).
                     IndexSearcher searcher = newSearcher(reader, true, true, false);
-                    searcher.search(Queries.ALL_DOCS_INSTANCE, wrapCollector(MultiBucketCollector.wrap(true, collectors).asCollector()));
+                    searcher.search(
+                        Queries.ALL_DOCS_INSTANCE,
+                        singleThreadedCollectorManager(MultiBucketCollector.wrap(true, collectors).asCollector())
+                    );
                     for (Map.Entry<TotalHitCountBucketCollector, Integer> expectedCount : expectedCounts.entrySet()) {
                         assertEquals(expectedCount.getValue().intValue(), expectedCount.getKey().getTotalHits());
                     }

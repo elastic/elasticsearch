@@ -112,7 +112,7 @@ public class SinglePassGroupingCollectorSearchAfterTests extends ESTestCase {
 
         TopFieldCollectorManager topFieldCollectorManager = new TopFieldCollectorManager(sort, totalHits, after, Integer.MAX_VALUE);
         Query query = Queries.ALL_DOCS_INSTANCE;
-        searcher.search(query, wrapCollector(collapsingCollector));
+        searcher.search(query, singleThreadedCollectorManager(collapsingCollector));
         TopFieldDocs topDocs = searcher.search(query, topFieldCollectorManager);
         TopFieldGroups collapseTopFieldDocs = collapsingCollector.getTopGroups(0);
         assertEquals(sortField.getField(), collapseTopFieldDocs.field);

@@ -154,7 +154,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
 
         TopFieldCollectorManager topFieldCollectorManager = new TopFieldCollectorManager(sort, totalHits, Integer.MAX_VALUE);
         Query query = Queries.ALL_DOCS_INSTANCE;
-        searcher.search(query, wrapCollector(collapsingCollector));
+        searcher.search(query, singleThreadedCollectorManager(collapsingCollector));
         TopFieldDocs topDocs = searcher.search(query, topFieldCollectorManager);
         TopFieldGroups collapseTopFieldDocs = collapsingCollector.getTopGroups(0);
         assertEquals(collapseField.getField(), collapseTopFieldDocs.field);
@@ -409,7 +409,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
             10,
             null
         );
-        searcher.search(Queries.ALL_DOCS_INSTANCE, wrapCollector(collapsingCollector));
+        searcher.search(Queries.ALL_DOCS_INSTANCE, singleThreadedCollectorManager(collapsingCollector));
         TopFieldGroups collapseTopFieldDocs = collapsingCollector.getTopGroups(0);
         assertEquals(4, collapseTopFieldDocs.scoreDocs.length);
         assertEquals(4, collapseTopFieldDocs.groupValues.length);
@@ -455,7 +455,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
             10,
             null
         );
-        searcher.search(Queries.ALL_DOCS_INSTANCE, wrapCollector(collapsingCollector));
+        searcher.search(Queries.ALL_DOCS_INSTANCE, singleThreadedCollectorManager(collapsingCollector));
         TopFieldGroups collapseTopFieldDocs = collapsingCollector.getTopGroups(0);
         assertEquals(4, collapseTopFieldDocs.scoreDocs.length);
         assertEquals(4, collapseTopFieldDocs.groupValues.length);
@@ -492,7 +492,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
             10,
             null
         );
-        searcher.search(Queries.ALL_DOCS_INSTANCE, wrapCollector(collapsingCollector));
+        searcher.search(Queries.ALL_DOCS_INSTANCE, singleThreadedCollectorManager(collapsingCollector));
         final TopFieldGroups collapseTopFieldDocs = collapsingCollector.getTopGroups(0);
         assertEquals(3, collapseTopFieldDocs.groupValues.length);
         assertEquals(new BytesRef("a"), collapseTopFieldDocs.groupValues[0]);
@@ -526,7 +526,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
         );
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> searcher.search(Queries.ALL_DOCS_INSTANCE, wrapCollector(collapsingCollector))
+            () -> searcher.search(Queries.ALL_DOCS_INSTANCE, singleThreadedCollectorManager(collapsingCollector))
         );
         assertEquals("failed to extract doc:0, the grouping field must be single valued", e.getMessage());
         w.close();
@@ -558,7 +558,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
             10,
             null
         );
-        searcher.search(Queries.ALL_DOCS_INSTANCE, wrapCollector(collapsingCollector));
+        searcher.search(Queries.ALL_DOCS_INSTANCE, singleThreadedCollectorManager(collapsingCollector));
         final TopFieldGroups collapseTopFieldDocs = collapsingCollector.getTopGroups(0);
         assertEquals(3, collapseTopFieldDocs.groupValues.length);
         assertEquals(new BytesRef("a"), collapseTopFieldDocs.groupValues[0]);
@@ -606,7 +606,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
             10,
             null
         );
-        searcher.search(Queries.ALL_DOCS_INSTANCE, wrapCollector(collapsingCollector));
+        searcher.search(Queries.ALL_DOCS_INSTANCE, singleThreadedCollectorManager(collapsingCollector));
         final TopFieldGroups collapseTopFieldDocs = collapsingCollector.getTopGroups(0);
         assertEquals(3, collapseTopFieldDocs.groupValues.length);
         assertEquals(new BytesRef("host-a"), collapseTopFieldDocs.groupValues[0]);
@@ -640,7 +640,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
         );
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> searcher.search(Queries.ALL_DOCS_INSTANCE, wrapCollector(collapsingCollector))
+            () -> searcher.search(Queries.ALL_DOCS_INSTANCE, singleThreadedCollectorManager(collapsingCollector))
         );
         assertEquals("field `group` has binary doc values but its mapping does not name their format", e.getMessage());
         w.close();
@@ -668,7 +668,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
                 final IndexSearcher searcher = newSearcher(reader, true, true, false);
                 final IllegalArgumentException e = expectThrows(
                     IllegalArgumentException.class,
-                    () -> searcher.search(Queries.ALL_DOCS_INSTANCE, wrapCollector(sortedSetCollector()))
+                    () -> searcher.search(Queries.ALL_DOCS_INSTANCE, singleThreadedCollectorManager(sortedSetCollector()))
                 );
                 assertThat(e.getMessage(), containsString("the grouping field must be single valued"));
             }
@@ -681,7 +681,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
             try (IndexReader reader = DirectoryReader.open(dir)) {
                 final IndexSearcher searcher = newSearcher(reader, true, true, false);
                 final SinglePassGroupingCollector<?> collector = sortedSetCollector();
-                searcher.search(SortedNumericDocValuesField.newSlowRangeQuery("sort", 0, 1), wrapCollector(collector));
+                searcher.search(SortedNumericDocValuesField.newSlowRangeQuery("sort", 0, 1), singleThreadedCollectorManager(collector));
                 final TopFieldGroups groups = collector.getTopGroups(0);
                 assertEquals(2, groups.groupValues.length);
                 assertEquals(new BytesRef("host-a"), groups.groupValues[0]);
@@ -744,7 +744,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
                     10,
                     null
                 );
-                searcher.search(Queries.ALL_DOCS_INSTANCE, wrapCollector(collapsingCollector));
+                searcher.search(Queries.ALL_DOCS_INSTANCE, singleThreadedCollectorManager(collapsingCollector));
                 assertEquals(groupField == null ? 1 : 2, collapsingCollector.getTopGroups(0).groupValues.length);
             }
         }

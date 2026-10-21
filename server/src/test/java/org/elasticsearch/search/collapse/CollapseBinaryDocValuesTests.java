@@ -128,7 +128,7 @@ public class CollapseBinaryDocValuesTests extends ESTestCase {
                     10,
                     null
                 );
-                searcher.search(Queries.ALL_DOCS_INSTANCE, wrapCollector(collector));
+                searcher.search(Queries.ALL_DOCS_INSTANCE, singleThreadedCollectorManager(collector));
                 return collector.getTopGroups(0);
             }
         }

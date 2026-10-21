@@ -59,19 +59,44 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
         }
     }
 
-    private final List<Column> columns;
+    private record IndexedColumn(Column column, int blockIndex) {}
+
+    private final List<IndexedColumn> columns;
     private Iterator<ResponseSegment> segments;
     private ResponseSegment currentSegment;
 
     public ArrowResponse(List<Column> columns, List<Page> pages) {
-        this.columns = columns;
+        this(columns, pages, new boolean[columns.size()]);
+    }
+
+    /**
+     * Builds an Arrow response, omitting columns marked in {@code dropColumns} while retaining their original page block indexes.
+     */
+    public ArrowResponse(List<Column> columns, List<Page> pages, boolean[] dropColumns) {
+        if (columns.size() != dropColumns.length) {
+            throw new IllegalArgumentException(
+                "Expected one drop-columns entry per column, but got ["
+                    + dropColumns.length
+                    + "] entries for ["
+                    + columns.size()
+                    + "] columns"
+            );
+        }
+        List<IndexedColumn> indexedColumns = new ArrayList<>(columns.size());
+        for (int column = 0; column < columns.size(); column++) {
+            if (dropColumns[column] == false) {
+                indexedColumns.add(new IndexedColumn(columns.get(column), column));
+            }
+        }
+        this.columns = List.copyOf(indexedColumns);
 
         // Find multivalued columns
-        int colSize = columns.size();
+        int colSize = this.columns.size();
         for (int col = 0; col < colSize; col++) {
+            IndexedColumn indexedColumn = this.columns.get(col);
             for (Page page : pages) {
-                if (page.getBlock(col).mayHaveMultivaluedFields()) {
-                    columns.get(col).multivalued = true;
+                if (page.getBlock(indexedColumn.blockIndex).mayHaveMultivaluedFields()) {
+                    indexedColumn.column.multivalued = true;
                     break;
                 }
             }
@@ -213,8 +238,8 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
 
         private Schema arrowSchema() {
             return new Schema(response.columns.stream().map(c -> {
-                var field = c.converter.arrowField(c.name);
-                if (c.multivalued) {
+                var field = c.column.converter.arrowField(c.column.name);
+                if (c.column.multivalued) {
                     // A variable-sized list is a vector of offsets and a child vector of values
                     // See https://arrow.apache.org/docs/format/Columnar.html#variable-size-list-layout
                     var fieldType = field.getFieldType();
@@ -227,7 +252,7 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
                     // Value vector is non-nullable (ES|QL multivalues cannot contain nulls).
                     var valueType = new FieldType(false, fieldType.getType(), fieldType.getDictionary(), fieldType.getMetadata());
                     // The nested vector is named "$data$", following what the Arrow/Java library does.
-                    return new Field(c.name, listType, List.of(new Field("$data$", valueType, field.getChildren())));
+                    return new Field(c.column.name, listType, List.of(new Field("$data$", valueType, field.getChildren())));
                 } else {
                     return field;
                 }
@@ -267,15 +292,15 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             // See https://arrow.apache.org/docs/format/Columnar.html#recordbatch-message
 
             // Field metadata
-            List<ArrowFieldNode> nodes = new ArrayList<>(page.getBlockCount());
+            List<ArrowFieldNode> nodes = new ArrayList<>(response.columns.size());
 
             // Buffers added to the record batch. They're used to track data size so that Arrow can compute offsets
             // but contain no data. Actual writing will be done by the bufWriters. This avoids having to deal with
             // Arrow's memory management, and in the future will allow direct write from ESQL block vectors.
-            List<ArrowBuf> bufs = new ArrayList<>(page.getBlockCount() * 2);
+            List<ArrowBuf> bufs = new ArrayList<>(response.columns.size() * 2);
 
             // Closures that will actually write a Block's data. Maps 1:1 to `bufs`.
-            List<BlockArrowFormatter.BufWriter> bufWriters = new ArrayList<>(page.getBlockCount() * 2);
+            List<BlockArrowFormatter.BufWriter> bufWriters = new ArrayList<>(response.columns.size() * 2);
 
             // Resources captured by deferred buffer writers.
             List<Releasable> releasables = new ArrayList<>();
@@ -314,11 +339,11 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
 
             try {
                 // Create Arrow buffers for each of the blocks in this page
-                for (int b = 0; b < page.getBlockCount(); b++) {
-                    var column = response.columns.get(b);
+                for (IndexedColumn indexedColumn : response.columns) {
+                    var column = indexedColumn.column;
                     var converter = column.converter;
 
-                    Block block = page.getBlock(b);
+                    Block block = page.getBlock(indexedColumn.blockIndex);
                     converter.addFieldNodes(block, column.multivalued, nodes);
                     converter.convert(block, column.multivalued, bufs, bufWriters, releasables);
                 }

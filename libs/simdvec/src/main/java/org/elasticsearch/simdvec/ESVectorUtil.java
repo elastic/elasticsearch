@@ -1239,11 +1239,12 @@ public class ESVectorUtil {
      * @param rows number of rows in A
      * @param cols number of columns in A, and length of v
      * @param v    input vector, length cols
+     * @param executor optional executor to parallelize over rows, or {@code null} to run on the calling thread
      * @return output vector, length rows
      */
-    public static float[] matrixVectorMultiply(float[] a, int rows, int cols, float[] v) {
+    public static float[] matrixVectorMultiply(float[] a, int rows, int cols, float[] v, TaskExecutor executor) {
         float[] result = new float[rows];
-        matrixVectorMultiply(a, rows, cols, v, result);
+        matrixVectorMultiply(a, rows, cols, v, result, executor);
         return result;
     }
 
@@ -1255,8 +1256,9 @@ public class ESVectorUtil {
      * @param cols   number of columns in A, and length of v
      * @param v      input vector, length cols
      * @param result output vector, length rows
+     * @param executor optional executor to parallelize over rows, or {@code null} to run on the calling thread
      */
-    public static void matrixVectorMultiply(float[] a, int rows, int cols, float[] v, float[] result) {
+    public static void matrixVectorMultiply(float[] a, int rows, int cols, float[] v, float[] result, TaskExecutor executor) {
         if (a.length != rows * cols) {
             throw new IllegalArgumentException("Invalid a array size [" + a.length + "] for matrix vector multiplication");
         }
@@ -1266,7 +1268,7 @@ public class ESVectorUtil {
         if (result.length != rows) {
             throw new IllegalArgumentException("Invalid result array size [" + result.length + "] for matrix vector multiplication");
         }
-        IMPL.matrixVectorMultiply(a, rows, cols, v, result);
+        IMPL.matrixVectorMultiply(a, rows, cols, v, result, executor);
     }
 
     /**

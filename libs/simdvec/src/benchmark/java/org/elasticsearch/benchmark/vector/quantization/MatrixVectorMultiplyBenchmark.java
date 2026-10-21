@@ -9,6 +9,7 @@
 
 package org.elasticsearch.benchmark.vector.quantization;
 
+import org.apache.lucene.search.TaskExecutor;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.benchmark.vector.VectorImplementation;
 import org.elasticsearch.benchmark.vector.VectorizationInfo;
@@ -26,14 +27,17 @@ import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
 import java.util.Random;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-@BenchmarkMode(Mode.Throughput)
-@OutputTimeUnit(TimeUnit.SECONDS)
+@BenchmarkMode(Mode.AverageTime)
+@OutputTimeUnit(TimeUnit.MILLISECONDS)
 @State(Scope.Benchmark)
 @Warmup(iterations = 3, time = 1)
 @Measurement(iterations = 5, time = 1)
@@ -44,6 +48,9 @@ public class MatrixVectorMultiplyBenchmark {
         BenchmarkLogging.configure();
         VectorizationInfo.printOnce();
     }
+
+    @Param({ "1", "16", "32" })
+    int threads;
 
     @Param({ "SCALAR", "PANAMA" })
     VectorImplementation implementation;
@@ -56,6 +63,8 @@ public class MatrixVectorMultiplyBenchmark {
     @Param({ "192", "481", "768", "1024" })
     int k;
 
+    private ExecutorService executor;
+    private TaskExecutor tasks;
     private ESVectorUtilSupport impl;
     /** A is (m x k) */
     private float[] a;
@@ -66,6 +75,8 @@ public class MatrixVectorMultiplyBenchmark {
 
     @Setup(Level.Trial)
     public void init() {
+        executor = threads == 1 ? null : Executors.newFixedThreadPool(threads);
+        tasks = executor == null ? null : new TaskExecutor(executor);
         impl = switch (implementation) {
             case SCALAR -> ESVectorizationProvider.lookup(false, false).getVectorUtilSupport();
             case PANAMA -> ESVectorizationProvider.lookup(true, false).getVectorUtilSupport();
@@ -80,7 +91,12 @@ public class MatrixVectorMultiplyBenchmark {
     /** C = A @ v, A is (m x k), v is (k), C is (m). */
     @Benchmark
     public void matrixVectorMultiply(Blackhole bh) {
-        impl.matrixVectorMultiply(a, m, k, vector, vectorResult);
+        impl.matrixVectorMultiply(a, m, k, vector, vectorResult, tasks);
         bh.consume(vectorResult);
+    }
+
+    @TearDown
+    public void close() {
+        if (executor != null) executor.close();
     }
 }

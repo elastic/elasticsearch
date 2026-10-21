@@ -114,9 +114,9 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
             }
 
             // Raw query projection: qt = wT @ query
-            float[] qt = ESVectorUtil.matrixVectorMultiply(w.wT(), nDims, dim, query);
+            float[] qt = ESVectorUtil.matrixVectorMultiply(w.wT(), nDims, dim, query, null);
             float queryDotCentroid = ESVectorUtil.dotProduct(query, centroid, dim);
-            AsymmetricHashingQuantizer.VectorAndNorm precomputed = AsymmetricHashingQuantizer.precomputeCentroid(centroid, w.wT());
+            AsymmetricHashingQuantizer.VectorAndNorm precomputed = quantizer.precomputeCentroid(centroid, w.wT());
 
             AsymmetricHashingQuantizer.BlockEncoder encoder = quantizer.newBlockEncoder(w.w(), dim, maxBlockSize);
             double sumSqErr = 0;
@@ -377,7 +377,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         // Pre-transform each query: qt = wT @ q
         float[][] qt = new float[nQueries][];
         for (int q = 0; q < nQueries; q++) {
-            qt[q] = ESVectorUtil.matrixVectorMultiply(w.wT(), nDims, dim, queries[q]);
+            qt[q] = ESVectorUtil.matrixVectorMultiply(w.wT(), nDims, dim, queries[q], null);
         }
 
         // Score matrices: approx[q][i] = ASH-approximated dot(q, v_i), exact[q][i] = true dot
@@ -385,7 +385,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         double[][] approx = new double[nQueries][nVectors];
         AsymmetricHashingQuantizer.VectorAndNorm[] precomputedPerCluster = new AsymmetricHashingQuantizer.VectorAndNorm[nClusters];
         for (int c = 0; c < nClusters; c++) {
-            precomputedPerCluster[c] = AsymmetricHashingQuantizer.precomputeCentroid(centroids[c], w.wT());
+            precomputedPerCluster[c] = ash.precomputeCentroid(centroids[c], w.wT());
         }
 
         // Group the vectors by cluster, so that a block of encodes shares a single centroid the way a
@@ -493,7 +493,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
             executor()
         );
         var w = train(quantizer, vectors, centroidGetter);
-        AsymmetricHashingQuantizer.VectorAndNorm precomputed = AsymmetricHashingQuantizer.precomputeCentroid(centroid, w.wT());
+        AsymmetricHashingQuantizer.VectorAndNorm precomputed = quantizer.precomputeCentroid(centroid, w.wT());
 
         AsymmetricHashingQuantizer.BlockEncoder encoder = quantizer.newBlockEncoder(w.w(), dim, maxBlockSize);
         Float[] validLevels = new Float[] { -1.5f, -0.5f, 0.5f, 1.5f };

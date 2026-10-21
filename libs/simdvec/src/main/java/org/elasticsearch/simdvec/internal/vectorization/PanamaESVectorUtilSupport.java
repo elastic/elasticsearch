@@ -3046,21 +3046,51 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         }
     }
 
+    /**
+     * Rows handled by one parallel task. Must be a multiple of the 8-row kernel so only the final task has a row tail.
+     */
+    private static final int MATRIX_VECTOR_TASK_ROWS = 64;
+
     @Override
-    public void matrixVectorMultiply(float[] a, int rows, int cols, float[] v, float[] result) {
-        int i = 0;
+    public void matrixVectorMultiply(float[] a, int rows, int cols, float[] v, float[] result, TaskExecutor executor) {
+        int numRequiredTasks = rows / MATRIX_VECTOR_TASK_ROWS;
+        if (executor == null || numRequiredTasks < MIN_PARALLEL_TASKS) {
+            matrixVectorMultiplyRows(a, 0, rows, cols, v, result);
+            return;
+        }
+
+        List<Callable<Void>> tasks = new ArrayList<>(numRequiredTasks + 1);
+        for (int r = 0; r < rows; r += MATRIX_VECTOR_TASK_ROWS) {
+            final int rowStart = r;
+            final int rowEnd = Math.min(r + MATRIX_VECTOR_TASK_ROWS, rows);
+            tasks.add(() -> {
+                matrixVectorMultiplyRows(a, rowStart, rowEnd, cols, v, result);
+                return null;
+            });
+        }
+
+        try {
+            executor.invokeAll(tasks);
+        } catch (IOException e) {
+            // can't happen
+            throw new AssertionError(e);
+        }
+    }
+
+    private void matrixVectorMultiplyRows(float[] a, int rowStart, int rowEnd, int cols, float[] v, float[] result) {
+        int i = rowStart;
         // split aligned so that most of the time it doesn't need to worry about masks at all
         if (FLOAT_SPECIES.loopBound(cols) == cols) {
-            for (; i + 8 <= rows; i += 8) {
+            for (; i + 8 <= rowEnd; i += 8) {
                 matrixVectorMultiply8Aligned(a, i * cols, cols, v, result, i);
             }
         } else {
-            for (; i + 8 <= rows; i += 8) {
+            for (; i + 8 <= rowEnd; i += 8) {
                 matrixVectorMultiply8Unaligned(a, i * cols, cols, v, result, i);
             }
         }
         // rows tail
-        for (; i < rows; i++) {
+        for (; i < rowEnd; i++) {
             result[i] = dotProduct(a, i * cols, v, 0, cols);
         }
     }

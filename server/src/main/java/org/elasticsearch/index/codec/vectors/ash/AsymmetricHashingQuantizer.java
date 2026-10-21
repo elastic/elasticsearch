@@ -299,10 +299,10 @@ public final class AsymmetricHashingQuantizer {
      * @param wT transposed projection matrix in row-major order, shape (nDims, originalDim)
      * @return precomputed values for this centroid
      */
-    public static VectorAndNorm precomputeCentroid(float[] centroid, float[] wT) {
+    public VectorAndNorm precomputeCentroid(float[] centroid, float[] wT) {
         int originalDim = centroid.length;
         int nDims = wT.length / originalDim;
-        float[] centroidProjected = ESVectorUtil.matrixVectorMultiply(wT, nDims, originalDim, centroid);
+        float[] centroidProjected = ESVectorUtil.matrixVectorMultiply(wT, nDims, originalDim, centroid, executor);
         float centroidNormSq = ESVectorUtil.dotProduct(centroid, centroid);
         return new VectorAndNorm(centroidProjected, centroidNormSq);
     }

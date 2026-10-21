@@ -50,7 +50,7 @@ public class MatrixMultiplyBenchmark {
         VectorizationInfo.printOnce();
     }
 
-    @Param({ "1", "12", "32" })
+    @Param({ "1", "16", "32" })
     int threads;
 
     @Param({ "SCALAR", "PANAMA" })

@@ -12,6 +12,7 @@ package org.elasticsearch.index.codec.vectors.ash;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.KnnCollector;
+import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.Bits;
@@ -153,7 +154,8 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
         Bits acceptDocs,
         int bitsPerDim,
         int queryBitsPerDim,
-        CheckedIntFunction<float[], IOException> centroidReader
+        CheckedIntFunction<float[], IOException> centroidReader,
+        TaskExecutor executor
     ) throws IOException {
         return createVisitor(
             wT,
@@ -164,7 +166,8 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
             acceptDocs,
             bitsPerDim,
             queryBitsPerDim,
-            centroidReader
+            centroidReader,
+            executor
         );
     }
 
@@ -199,7 +202,8 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
         CheckedIntFunction<float[], IOException> centroidReader,
         KnnVectorValues vectorValues,
         int startDoc,
-        int endDoc
+        int endDoc,
+        TaskExecutor executor
     ) throws IOException {
         AshPostingsVisitor<?> base = createVisitor(
             wT,
@@ -210,7 +214,8 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
             acceptDocs,
             bitsPerDim,
             queryBitsPerDim,
-            centroidReader
+            centroidReader,
+            executor
         );
         return new SlicedAshPostingsVisitor<>(base, vectorValues, startDoc, endDoc);
     }
@@ -224,12 +229,13 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
         Bits acceptDocs,
         int bitsPerDim,
         int queryBitsPerDim,
-        CheckedIntFunction<float[], IOException> centroidReader
+        CheckedIntFunction<float[], IOException> centroidReader,
+        TaskExecutor executor
     ) throws IOException {
         int nDims = wT.length / originalDim;
 
         // Precompute query projection: queryTransformed[j] = dot(query, wT[j*originalDim .. (j+1)*originalDim))
-        float[] queryTransformed = ESVectorUtil.matrixVectorMultiply(wT, nDims, originalDim, query);
+        float[] queryTransformed = ESVectorUtil.matrixVectorMultiply(wT, nDims, originalDim, query, executor);
 
         if (queryBitsPerDim > 0) {
             QuantizedQuery qq = quantizeQuery(queryTransformed, nDims, queryBitsPerDim, bitsPerDim);

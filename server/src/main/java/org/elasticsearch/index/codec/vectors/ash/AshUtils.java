@@ -51,7 +51,7 @@ final class AshUtils {
         assert r.length == len;
 
         // Scale M so that all singular values are in (0, sqrt(3)) for Newton-Schulz convergence.
-        float spectralNorm = estimateSpectralNorm(m, k, 50);
+        float spectralNorm = estimateSpectralNorm(m, k, 50, executor);
         float scale = 1f / Math.max(spectralNorm, 1e-10f);
 
         float[] x = new float[len];
@@ -100,7 +100,7 @@ final class AshUtils {
     /**
      * Estimates the spectral norm (largest singular value) of a k x k matrix using power iteration on M^T M.
      */
-    private static float estimateSpectralNorm(float[] m, int k, int iterations) {
+    private static float estimateSpectralNorm(float[] m, int k, int iterations, TaskExecutor executor) {
         // Power iteration on M^T M to find largest eigenvalue (= sigma_max^2)
         float[] v = new float[k];
         // Initialize with uniform vector
@@ -110,7 +110,7 @@ final class AshUtils {
 
         for (int iter = 0; iter < iterations; iter++) {
             // mv = M @ v
-            ESVectorUtil.matrixVectorMultiply(m, k, k, v, mv);
+            ESVectorUtil.matrixVectorMultiply(m, k, k, v, mv, executor);
             // mtmv = M^T @ mv: row-broadcast so M is read contiguously
             for (int i = 0; i < k; i++) {
                 ESVectorUtil.linearCombination(mv[i], m, i * k, mtmv, 0, k);
@@ -127,7 +127,7 @@ final class AshUtils {
         }
 
         // Compute ||M @ v|| which approximates sigma_max
-        ESVectorUtil.matrixVectorMultiply(m, k, k, v, mv);
+        ESVectorUtil.matrixVectorMultiply(m, k, k, v, mv, executor);
         return (float) Math.sqrt(ESVectorUtil.dotProduct(mv, mv, k));
     }
 

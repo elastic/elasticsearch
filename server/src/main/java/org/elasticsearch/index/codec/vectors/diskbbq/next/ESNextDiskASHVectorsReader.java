@@ -15,6 +15,7 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.AcceptDocs;
+import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
@@ -31,7 +32,6 @@ import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIndexFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIterator;
 import org.elasticsearch.index.codec.vectors.diskbbq.FlatCentroidIndex;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
-import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.index.codec.vectors.diskbbq.PrefetchingCentroidIterator;
 import org.elasticsearch.lucene.store.MemorySegmentAccessInputAccess;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
@@ -49,16 +49,13 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
     private final ConcurrentHashMap<String, AshProjectionMatrix> ashMatrixCache;
 
     private final int queryBitsPerDim;
-
-    public ESNextDiskASHVectorsReader(SegmentReadState state, GenericFlatVectorReaders.LoadFlatVectorsReader getFormatReader)
-        throws IOException {
-        this(state, getFormatReader, IvfSegmentConfig.AshConfig.DEFAULT_QUERY_BITS_PER_DIM);
-    }
+    private final TaskExecutor executor;
 
     public ESNextDiskASHVectorsReader(
         SegmentReadState state,
         GenericFlatVectorReaders.LoadFlatVectorsReader getFormatReader,
-        int queryBitsPerDim
+        int queryBitsPerDim,
+        TaskExecutor executor
     ) throws IOException {
         super(
             state,
@@ -75,12 +72,14 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
         );
         this.ashMatrixCache = new ConcurrentHashMap<>();
         this.queryBitsPerDim = queryBitsPerDim;
+        this.executor = executor;
     }
 
     private ESNextDiskASHVectorsReader(ESNextDiskASHVectorsReader other, GenericFlatVectorReaders genericReaders) {
         super(other, genericReaders);
         this.ashMatrixCache = other.ashMatrixCache;
         this.queryBitsPerDim = other.queryBitsPerDim;
+        this.executor = other.executor;
     }
 
     @Override
@@ -310,7 +309,8 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
                 centroidReader,
                 values,
                 startDoc,
-                endDoc
+                endDoc,
+                executor
             );
         }
         return AshPostingsVisitor.create(
@@ -322,7 +322,8 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
             needsScoring,
             entry.ashBitsPerDim(),
             queryBitsPerDim,
-            centroidReader
+            centroidReader,
+            executor
         );
     }
 

@@ -882,11 +882,41 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         }
     }
 
+    /**
+     * Rows handled by one parallel task. Must be a multiple of the 4-row unroll so only the final task has a row tail.
+     */
+    private static final int MATRIX_VECTOR_TASK_ROWS = 64;
+
     @Override
-    public void matrixVectorMultiply(float[] a, int rows, int cols, float[] v, float[] result) {
+    public void matrixVectorMultiply(float[] a, int rows, int cols, float[] v, float[] result, TaskExecutor executor) {
+        int numRequiredTasks = rows / MATRIX_VECTOR_TASK_ROWS;
+        if (executor == null || numRequiredTasks < MIN_PARALLEL_TASKS) {
+            matrixVectorMultiplyRows(a, 0, rows, cols, v, result);
+            return;
+        }
+
+        List<Callable<Void>> tasks = new ArrayList<>(numRequiredTasks + 1);
+        for (int r = 0; r < rows; r += MATRIX_VECTOR_TASK_ROWS) {
+            final int rowStart = r;
+            final int rowEnd = Math.min(r + MATRIX_VECTOR_TASK_ROWS, rows);
+            tasks.add(() -> {
+                matrixVectorMultiplyRows(a, rowStart, rowEnd, cols, v, result);
+                return null;
+            });
+        }
+
+        try {
+            executor.invokeAll(tasks);
+        } catch (IOException e) {
+            // can't happen
+            throw new AssertionError(e);
+        }
+    }
+
+    private void matrixVectorMultiplyRows(float[] a, int rowStart, int rowEnd, int cols, float[] v, float[] result) {
         // unroll x4
-        int i = 0;
-        for (; i + 4 <= rows; i += 4) {
+        int i = rowStart;
+        for (; i + 4 <= rowEnd; i += 4) {
             int a0 = i * cols;
             int a1 = a0 + cols;
             int a2 = a0 + cols * 2;
@@ -908,7 +938,7 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
             result[i + 3] = s3;
         }
         // tail
-        for (; i < rows; i++) {
+        for (; i < rowEnd; i++) {
             int ai = i * cols;
             float sum = 0;
             for (int j = 0; j < cols; j++) {

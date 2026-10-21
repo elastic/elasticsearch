@@ -212,7 +212,7 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
             var format = supportedFormats.get(f);
             if (format == null) return null;
             return format.fieldsReader(state, dio, odm);
-        }, ashConfig.queryBitsPerDim());
+        }, ashConfig.queryBitsPerDim(), quantizerExec);
     }
 
     @Override

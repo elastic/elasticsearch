@@ -874,6 +874,57 @@ public class PromqlVerifierTests extends ESTestCase {
         );
     }
 
+    public void testRelabelOverAggregateCollidingWithStepColumnRejected() {
+        // Over an aggregate the derived label becomes an output column of its own, so it must not reuse the name of the
+        // built-in step column, which would surface as a duplicate output attribute in the optimizer.
+        for (String query : List.of(
+            "PROMQL index=test step=5m label_replace(sum by (host) (network.bytes_in), \"step\", \"$1\", \"host\", \"(.+)\")",
+            "PROMQL index=test step=5m label_join(sum by (host) (network.bytes_in), \"step\", \"-\", \"host\")",
+            "PROMQL index=test step=5m topk(3, label_replace(sum by (host) (network.bytes_in), \"step\", \"$1\", \"host\", \"(.+)\"))"
+        )) {
+            tsdb.error(query, containsString("label [step] collides with the built-in [step] output column"));
+        }
+    }
+
+    public void testRelabelOverAggregateCollidingWithValueColumnRejected() {
+        // Same for the value column, whose name is whatever the user chose (or `value` for the Prometheus API).
+        for (String query : List.of(
+            "PROMQL index=test step=5m result=(label_replace(sum by (host) (network.bytes_in), \"result\", \"$1\", \"host\", \"(.+)\"))",
+            "PROMQL index=test step=5m result=(topk(3, label_join(sum by (host) (network.bytes_in), \"result\", \"-\", \"host\")))"
+        )) {
+            tsdb.error(query, containsString("label [result] collides with the built-in [result] output column"));
+        }
+    }
+
+    public void testGroupingCollidingWithValueColumnRejected() {
+        // A `by(...)` or reduction grouping named like the value column collides the same way the built-in step column
+        // already did. Before this check, grouping on a stored dimension named like the value column (`host` here) made
+        // it past verification and failed in the optimizer with a duplicate output attribute; a grouping on a label that
+        // does not exist in the index (`result`) only "worked" because the grouping was silently dropped.
+        for (String query : List.of(
+            "PROMQL index=test step=5m host=(sum by (host) (network.bytes_in))",
+            "PROMQL index=test step=5m host=(topk by (host) (3, network.bytes_in))",
+            "PROMQL index=test step=5m host=(sum by (host) (label_replace(network.bytes_in, \"host\", \"$1\", \"metricset\", \"(.+)\")))"
+        )) {
+            tsdb.error(query, containsString("label [host] collides with the built-in [host] output column"));
+        }
+        for (String query : List.of(
+            "PROMQL index=test step=5m result=(sum by (result) (network.bytes_in))",
+            "PROMQL index=test step=5m result=(sum by (result) (label_replace(network.bytes_in, \"result\", \"$1\", \"host\", \"(.+)\")))"
+        )) {
+            tsdb.error(query, containsString("label [result] collides with the built-in [result] output column"));
+        }
+    }
+
+    public void testRelabelUnderByGroupingMayUseBuiltInColumnName() {
+        // Under an enclosing `by(...)` that does not group on it, the derived label is dropped and never reaches the
+        // output, so a built-in column name as destination is harmless there.
+        assertTrue(
+            tsdb.query("PROMQL index=test step=5m sum by (host) (label_replace(network.bytes_in, \"step\", \"$1\", \"host\", \"(.+)\"))")
+                .resolved()
+        );
+    }
+
     public void testLabelReplaceDottedDestinationResolves() {
         // OpenTelemetry-style dimension names contain dots (for example `service.name`). Prometheus validates the
         // label_replace destination with the permissive UTF-8 scheme and accepts such names, and the ES|QL pipeline

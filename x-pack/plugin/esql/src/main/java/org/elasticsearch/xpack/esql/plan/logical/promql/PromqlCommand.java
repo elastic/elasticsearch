@@ -473,35 +473,15 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                     if (agg.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT && usesWithoutGrouping(agg.child())) {
                         failures.add(fail(agg, "nested WITHOUT over WITHOUT is not supported at this time [{}]", agg.sourceText()));
                     }
-                    // Reject labels whose name collides with the built-in step column.
+                    // Reject labels whose name collides with a built-in output column.
                     // If this proves too restrictive, we could add an option to rename the built-in step column.
                     for (Attribute grouping : agg.groupings()) {
-                        if (stepColumnName().equals(grouping.name())) {
-                            failures.add(
-                                fail(
-                                    agg,
-                                    "label [{}] collides with the built-in [{}] output column [{}]",
-                                    stepColumnName(),
-                                    stepColumnName(),
-                                    agg.sourceText()
-                                )
-                            );
-                        }
+                        checkBuiltInColumnCollision(agg, grouping.name(), failures);
                     }
                 }
                 case AcrossSeriesReduction reduction -> {
                     for (Attribute grouping : reduction.groupings()) {
-                        if (stepColumnName().equals(grouping.name())) {
-                            failures.add(
-                                fail(
-                                    reduction,
-                                    "label [{}] collides with the built-in [{}] output column [{}]",
-                                    stepColumnName(),
-                                    stepColumnName(),
-                                    reduction.sourceText()
-                                )
-                            );
-                        }
+                        checkBuiltInColumnCollision(reduction, grouping.name(), failures);
                     }
                 }
                 case HistogramFunctionCall histogram -> {
@@ -663,7 +643,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
      *
      * @param consumer the nearest enclosing identity consumer for a relabel at this position, or {@code null} at the root
      */
-    private static void verifyMetadataManipulationPlacement(LogicalPlan node, LogicalPlan consumer, Failures failures) {
+    private void verifyMetadataManipulationPlacement(LogicalPlan node, LogicalPlan consumer, Failures failures) {
         if (node instanceof MetadataManipulationFunction relabel) {
             checkRelabelConsumer(relabel, consumer, failures);
             // A relabel passes identity through unchanged, so a nested relabel is consumed by the same enclosing consumer.
@@ -678,7 +658,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         }
     }
 
-    private static void checkRelabelConsumer(MetadataManipulationFunction relabel, LogicalPlan consumer, Failures failures) {
+    private void checkRelabelConsumer(MetadataManipulationFunction relabel, LogicalPlan consumer, Failures failures) {
         String name = relabel.definition().name();
         if (consumer instanceof AcrossSeriesAggregate agg) {
             if (agg.grouping() == AcrossSeriesAggregate.Grouping.BY) {
@@ -701,6 +681,9 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         if ((consumer == null || consumer instanceof AcrossSeriesReduction) && addsNewLabelToAggregatedIdentity(relabel)) {
             // label modifications are allowed if they appear after an across series reduction
             // AND they only add a label (= no risk of series colliding)
+            // On this path the derived label is not consumed by a grouping but becomes an output column of its own, so
+            // it must be checked against the built-in output columns just like a `by(...)` label.
+            checkBuiltInColumnCollision(relabel, relabel.destination().name(), failures);
             return;
         }
         String context = switch (consumer) {
@@ -718,6 +701,21 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                 relabel.sourceText()
             )
         );
+    }
+
+    /**
+     * Rejects a label that would surface as an output column under the same name as one of the command's built-in output
+     * columns - the step column or the value column - since the two would end up as duplicate output attributes and fail
+     * in the optimizer rather than with a client error.
+     */
+    private void checkBuiltInColumnCollision(LogicalPlan node, String labelName, Failures failures) {
+        for (String builtIn : List.of(stepColumnName(), valueColumnName())) {
+            if (builtIn.equals(labelName)) {
+                failures.add(
+                    fail(node, "label [{}] collides with the built-in [{}] output column [{}]", labelName, builtIn, node.sourceText())
+                );
+            }
+        }
     }
 
     /**

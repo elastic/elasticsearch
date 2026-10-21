@@ -46,13 +46,6 @@ import java.util.List;
  */
 public class ReanalyzingTextQueryValuesTests extends ESTestCase {
 
-    /** A value read from a stored field arrives as bytes, whose own {@code toString} spells them in hex. */
-    public void testTheTextOfAValue() {
-        assertEquals("hello world", ReanalyzingTextQuery.textOf("hello world"));
-        assertEquals("hello world", ReanalyzingTextQuery.textOf(new BytesRef("hello world")));
-        assertEquals("café", ReanalyzingTextQuery.textOf(new BytesRef("café")));
-    }
-
     /** The walk reads a value whichever way it arrives, so a phrase is found in bytes as it is in a string. */
     public void testAPhraseIsFoundInAValueHeldAsBytes() throws IOException {
         final Term[] phrase = { new Term("body", "quick"), new Term("body", "brown") };

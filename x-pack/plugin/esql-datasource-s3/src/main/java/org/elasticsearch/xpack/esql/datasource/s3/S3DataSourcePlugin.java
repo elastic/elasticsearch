@@ -86,7 +86,8 @@ public class S3DataSourcePlugin extends Plugin implements DataSourcePlugin {
         StorageProviderFactory s3Factory = StorageProviderFactory.of(
             () -> new S3StorageProvider(null, provider, maxConnections),
             S3Configuration::fromQueryConfig,
-            cfg -> new S3StorageProvider(cfg, provider, maxConnections)
+            cfg -> new S3StorageProvider(cfg, provider, maxConnections),
+            services.credentialPolicy()
         );
         return Map.of("s3", s3Factory, "s3a", s3Factory, "s3n", s3Factory);
     }

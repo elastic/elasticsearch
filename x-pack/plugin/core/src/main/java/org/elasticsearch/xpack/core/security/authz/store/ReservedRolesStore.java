@@ -58,6 +58,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
     public static final String ALERTING_V2_ALERT_VIEWS = "$.alert*";
     public static final String ALERTING_V2_RULE_VIEWS = "$.rule*";
 
+    /** Nightshift source ES|QL views, named {@code $.nightshift.sources.<spaceId>.<slug>}; Kibana writes them as kibana_system */
+    public static final String NIGHTSHIFT_SOURCE_VIEWS = "$.nightshift.sources.*";
+
     /** Cases analytics indexes and aliases */
     public static final String CASES_ANALYTICS_INDEXES = ".internal.cases*";
     public static final String CASES_ANALYTICS_ALIASES = ".cases*";

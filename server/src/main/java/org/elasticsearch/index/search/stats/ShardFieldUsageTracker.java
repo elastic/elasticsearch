@@ -63,7 +63,8 @@ public class ShardFieldUsageTracker {
                     ifs.payloads.longValue(),
                     ifs.termVectors.longValue(),
                     ifs.points.longValue(),
-                    ifs.knnVectors.longValue()
+                    ifs.knnVectors.longValue(),
+                    ifs.docValuesSkipper.longValue()
                 );
                 stats.put(entry.getKey(), pf);
             }
@@ -86,6 +87,7 @@ public class ShardFieldUsageTracker {
         final LongAdder termVectors = new LongAdder();
         final LongAdder points = new LongAdder();
         final LongAdder knnVectors = new LongAdder();
+        final LongAdder docValuesSkipper = new LongAdder();
     }
 
     static class PerField {
@@ -102,6 +104,7 @@ public class ShardFieldUsageTracker {
         volatile boolean termVectors;
         volatile boolean points;
         volatile boolean knnVectors;
+        volatile boolean docValuesSkipper;
     }
 
     public class FieldUsageStatsTrackingSession implements FieldUsageNotifier, Releasable {
@@ -141,6 +144,10 @@ public class ShardFieldUsageTracker {
                 if (pf.docValues) {
                     any = true;
                     fieldStats.docValues.increment();
+                }
+                if (pf.docValuesSkipper) {
+                    any = true;
+                    fieldStats.docValuesSkipper.increment();
                 }
                 if (pf.storedFields) {
                     any = true;
@@ -209,6 +216,11 @@ public class ShardFieldUsageTracker {
         @Override
         public void onDocValuesUsed(String field) {
             getOrAdd(field).docValues = true;
+        }
+
+        @Override
+        public void onDocValuesSkipperUsed(String field) {
+            getOrAdd(field).docValuesSkipper = true;
         }
 
         @Override

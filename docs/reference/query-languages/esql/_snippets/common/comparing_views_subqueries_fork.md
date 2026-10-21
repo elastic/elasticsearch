@@ -27,18 +27,21 @@ when the nested branches can be flattened into one branch point.
 * **Maximum branch count.** The limits depend on the branching mechanism and
   version:
 
-  * {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` A single `FORK`
-    is capped at 8 branches by default (`esql.query.max_branch_count_per_merge`).
-  * {applies_to}`stack: experimental 9.6+` One dataset pattern expansion is
-    capped by `esql.query.max_branch_count_per_merge`, which defaults to 8.
-  * {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` View
-    [query compaction](/reference/query-languages/esql/esql-views.md#query-compaction)
-    flattens nested view unions only when the flat width is within
-    `esql.query.max_branch_count` (20 by default). The same setting caps nested
-    leaves across the whole query.
-  * {applies_to}`stack: preview 9.1-9.3, ga 9.4-9.5` `FORK` is capped at 8
-    branches.
-  * {applies_to}`stack: preview 9.4-9.5` Views are capped at 8 branches.
+::::{applies-switch}
+:::{applies-item} { "stack": "ga 9.6+", "serverless": "ga" }
+* A single `FORK` is capped at 8 branches by default
+  (`esql.query.max_branch_count_per_merge`).
+* View
+  [query compaction](/reference/query-languages/esql/esql-views.md#query-compaction)
+  flattens nested view unions only when the flat width is within
+  `esql.query.max_branch_count` (20 by default). The same setting caps nested
+  leaves across the whole query.
+:::
+:::{applies-item} stack: preview 9.1-9.3, ga 9.4-9.5
+* `FORK` is capped at 8 branches.
+* {applies_to}`stack: preview 9.4-9.5` Views are capped at 8 branches.
+:::
+::::
 
 ### How FORK differs
 
@@ -53,6 +56,9 @@ separate branches can contain their own `FORK` commands.
 :::
 :::{applies-item} stack: preview 9.1-9.3, ga 9.4-9.5
 Only one `FORK` command is allowed per query, so nested branches aren't possible.
+`FROM` subqueries and views have similar restrictions, but views can sometimes
+flatten nested branches through
+[query compaction](/reference/query-languages/esql/esql-views.md#query-compaction).
 :::
 ::::
 

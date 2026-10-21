@@ -97,7 +97,7 @@ public record SearchRecoveryTimeout(TimeValue timeout, TimeoutContext timeoutCon
             case RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME -> previous.timeoutContext.sourceShuttingDown() == false;
             case RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT ->
                 previous.timeoutContext != TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT;
-            // timed out
+            // timed out or not applicable
             case SKIP, RELOCATION_SOURCE_SHUTTING_DOWN_GRACE_ELAPSED, RESHARD_SPLIT_TARGET -> false;
             case NON_RELOCATION_ANOTHER_ACTIVE_COPY, RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN,
                 RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE -> true;

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
@@ -17,10 +18,14 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cache.Cache;
+import org.elasticsearch.common.cache.RemovalNotification;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.iterable.Iterables;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.core.esql.EsqlDatasetActionNames;
 import org.elasticsearch.xpack.core.esql.EsqlViewActionNames;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
@@ -35,6 +40,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -695,12 +701,115 @@ public class IndexPrivilegeTests extends ESTestCase {
         assertThat(IndexPrivilege.cacheStats().getMisses(), equalTo(1L));
         assertThat(IndexPrivilege.cacheStats().getEvictions(), equalTo(0L));
 
-        // rebuilding the cache is reflected without re-reading anything
         IndexPrivilege.updateConfiguration(Settings.EMPTY);
         assertThat(IndexPrivilege.cacheMaximumWeightBytes(), equalTo(IndexPrivilege.CACHE_SIZE_SETTING.get(Settings.EMPTY).getBytes()));
         assertThat(IndexPrivilege.cacheEntryCount(), equalTo(0));
         assertThat(IndexPrivilege.cacheWeightBytes(), equalTo(0L));
         assertThat(IndexPrivilege.cacheStats().getHits(), equalTo(0L));
+    }
+
+    /** Checks the listener with a controlled clock, since the real interval is ten minutes long. */
+    public void testEvictionWarningIsThrottled() {
+        final AtomicLong clock = new AtomicLong(randomLongBetween(0, 1_000_000_000L));
+        final TimeValue interval = TimeValue.timeValueMinutes(10);
+        final long entryWeight = randomLongBetween(1, 1 << 20);
+        final long maximumWeight = randomLongBetween(entryWeight, 1L << 40);
+        final IndexPrivilege.EvictionWarning warning = new IndexPrivilege.EvictionWarning(maximumWeight, interval, clock::get);
+
+        // removals for other reasons are ignored
+        assertEvictionWarning(null, () -> {
+            for (int i = 0; i < 10; i++) {
+                warning.onRemoval(
+                    notification(
+                        randomFrom(RemovalNotification.RemovalReason.REPLACED, RemovalNotification.RemovalReason.INVALIDATED),
+                        entryWeight
+                    )
+                );
+            }
+        });
+        // the first eviction warns
+        assertEvictionWarning(expectedEvictionWarning(1, entryWeight, maximumWeight), () -> evict(warning, entryWeight, 1));
+        // then nothing within the interval, however much is evicted
+        final int evicted = randomIntBetween(1, 1000);
+        assertEvictionWarning(null, () -> {
+            evict(warning, entryWeight, evicted);
+            clock.addAndGet(interval.nanos() - 1);
+            evict(warning, entryWeight, 1);
+        });
+        // the next warning reports everything evicted since the previous one
+        assertEvictionWarning(expectedEvictionWarning(evicted + 2, entryWeight, maximumWeight), () -> {
+            clock.addAndGet(1);
+            evict(warning, entryWeight, 1);
+        });
+        // a quiet period leaves nothing to report but the eviction that ends it
+        assertEvictionWarning(expectedEvictionWarning(1, entryWeight, maximumWeight), () -> {
+            clock.addAndGet(randomLongBetween(interval.nanos(), 10 * interval.nanos()));
+            evict(warning, entryWeight, 1);
+        });
+    }
+
+    /** The real cache reports its evictions to the listener. */
+    public void testCacheEvictionsAreReportedToTheWarning() {
+        // large enough to hold a few resolved privilege sets, small enough that 100 distinct sets do not fit
+        final ByteSizeValue maxSize = ByteSizeValue.ofKb(randomIntBetween(100, 500));
+        IndexPrivilege.updateConfiguration(Settings.builder().put(IndexPrivilege.CACHE_SIZE_SETTING.getKey(), maxSize).build());
+        assertEvictionWarning(
+            EVICTION_WARNING_PREFIX + "1] entries ([*]) because it reached its size limit of [" + maxSize + "]. *",
+            () -> {
+                final List<String> allNames = List.copyOf(IndexPrivilege.names());
+                final Set<Set<String>> distinctNames = new HashSet<>();
+                while (distinctNames.size() < 100 && IndexPrivilege.cacheStats().getEvictions() == 0) {
+                    final Set<String> names = Set.copyOf(randomSubsetOf(randomIntBetween(2, allNames.size()), allNames));
+                    if (distinctNames.add(names)) {
+                        IndexPrivilege.resolveBySelectorAccess(names);
+                    }
+                }
+                assertThat(IndexPrivilege.cacheStats().getEvictions(), greaterThan(0L));
+            }
+        );
+    }
+
+    private static final String EVICTION_WARNING_PREFIX = "The index privileges cache evicted [";
+
+    private static String expectedEvictionWarning(long entries, long entryWeight, long maximumWeight) {
+        return EVICTION_WARNING_PREFIX
+            + entries
+            + "] entries (["
+            + ByteSizeValue.ofBytes(entries * entryWeight)
+            + "]) because it reached its size limit of ["
+            + ByteSizeValue.ofBytes(maximumWeight)
+            + "]. Evicted entries are resolved again when they are next used, which is CPU intensive."
+            + " Consider increasing the value of [xpack.security.authz.index_privileges.cache.size]";
+    }
+
+    private static void evict(IndexPrivilege.EvictionWarning warning, long entryWeight, long times) {
+        for (long i = 0; i < times; i++) {
+            warning.onRemoval(notification(RemovalNotification.RemovalReason.EVICTED, entryWeight));
+        }
+    }
+
+    private static RemovalNotification<Set<String>, IndexPrivilege.CachedPrivileges> notification(
+        RemovalNotification.RemovalReason reason,
+        long entryWeight
+    ) {
+        return new RemovalNotification<>(Set.of("read", "write"), new IndexPrivilege.CachedPrivileges(Set.of(), entryWeight), reason);
+    }
+
+    private static void assertEvictionWarning(@Nullable String expectedMessage, Runnable removals) {
+        try (var mockLog = MockLog.capture(IndexPrivilege.class)) {
+            mockLog.addExpectation(
+                expectedMessage == null
+                    ? new MockLog.UnseenEventExpectation(
+                        "no warning",
+                        IndexPrivilege.class.getName(),
+                        Level.WARN,
+                        EVICTION_WARNING_PREFIX + "*"
+                    )
+                    : new MockLog.SeenEventExpectation("warning", IndexPrivilege.class.getName(), Level.WARN, expectedMessage)
+            );
+            removals.run();
+            mockLog.assertAllExpectationsMatched();
+        }
     }
 
     public void testCacheWeightIsEstimatedMemoryOfResolvedPrivileges() {

@@ -37,12 +37,15 @@ import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.common.cache.RemovalListener;
+import org.elasticsearch.common.cache.RemovalNotification;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.xpack.core.ccr.action.ForgetFollowerAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
@@ -65,6 +68,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.ExecutionException;
+import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -362,6 +366,9 @@ public final class IndexPrivilege extends Privilege {
         Setting.Property.NodeScope
     );
 
+    /** The least time between two warnings from {@link EvictionWarning}. */
+    private static final TimeValue EVICTION_WARNING_INTERVAL = TimeValue.timeValueMinutes(10);
+
     private static final Set<IndexPrivilege> NONE_SET = Set.of(NONE);
 
     private static volatile long cacheMaximumWeight = CACHE_SIZE_SETTING.get(Settings.EMPTY).getBytes();
@@ -448,6 +455,7 @@ public final class IndexPrivilege extends Privilege {
         return CacheBuilder.<Set<String>, CachedPrivileges>builder()
             .setMaximumWeight(maximumWeight)
             .weigher((names, cached) -> cached.weight())
+            .removalListener(new EvictionWarning(maximumWeight, EVICTION_WARNING_INTERVAL, System::nanoTime))
             .build();
     }
 
@@ -456,6 +464,56 @@ public final class IndexPrivilege extends Privilege {
      */
     record CachedPrivileges(Set<IndexPrivilege> privileges, long weight) {
         private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(CachedPrivileges.class);
+    }
+
+    /**
+     * Warns when the cache evicts an entry, which means the resolved privileges in use do not fit and the node resolves the evicted ones
+     * again. Every eviction is caused by the size limit because the cache has no expiry. Warnings are at least an interval apart, and
+     * each reports the entries and bytes evicted since the previous one.
+     * <p>
+     * The listener is synchronized because the counters are read and reset together. The cache already serializes the calls under its
+     * LRU lock, so the monitor is uncontended.
+     */
+    static final class EvictionWarning implements RemovalListener<Set<String>, CachedPrivileges> {
+
+        private final long maximumWeight;
+        private final long intervalNanos;
+        private final LongSupplier nanoTime;
+        private long lastWarningNanos;
+        private long evictions;
+        private long evictedWeight;
+
+        EvictionWarning(long maximumWeight, TimeValue interval, LongSupplier nanoTime) {
+            this.maximumWeight = maximumWeight;
+            this.intervalNanos = interval.nanos();
+            this.nanoTime = nanoTime;
+            this.lastWarningNanos = nanoTime.getAsLong() - intervalNanos;
+        }
+
+        @Override
+        public synchronized void onRemoval(RemovalNotification<Set<String>, CachedPrivileges> notification) {
+            if (notification.getRemovalReason() != RemovalNotification.RemovalReason.EVICTED) {
+                return;
+            }
+            logger.trace("evicted resolved index privileges for names {} from the cache", notification.getKey());
+            evictions++;
+            evictedWeight += notification.getValue().weight();
+            final long now = nanoTime.getAsLong();
+            if (now - lastWarningNanos >= intervalNanos) {
+                logger.warn(
+                    "The index privileges cache evicted [{}] entries ([{}]) because it reached its size limit of [{}]."
+                        + " Evicted entries are resolved again when they are next used, which is CPU intensive."
+                        + " Consider increasing the value of [{}]",
+                    evictions,
+                    ByteSizeValue.ofBytes(evictedWeight),
+                    ByteSizeValue.ofBytes(maximumWeight),
+                    CACHE_SIZE_SETTING.getKey()
+                );
+                lastWarningNanos = now;
+                evictions = 0;
+                evictedWeight = 0;
+            }
+        }
     }
 
     /**
@@ -485,10 +543,7 @@ public final class IndexPrivilege extends Privilege {
         return cache;
     }
 
-    /**
-     * Hit, miss and eviction counts of the cache of resolved privileges. This and the other cache accessors exist for metrics: the cache
-     * is static and {@link #updateConfiguration} replaces it, so they read the current instance on each call rather than exposing it.
-     */
+    /** Hit, miss and eviction counts of the current cache of resolved privileges. */
     public static Cache.Stats cacheStats() {
         return cache.stats();
     }

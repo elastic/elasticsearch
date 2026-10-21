@@ -35,6 +35,7 @@ import java.util.Collections;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.regex.Pattern;
 
 /**
@@ -42,8 +43,8 @@ import java.util.regex.Pattern;
  *
  * <p>Removing a root from the trust store distrusts every certificate that chains to it, however that certificate is
  * encoded, so this is the way to distrust a root whose subordinate CAs are compromised. Roots are identified by the
- * SHA-256 fingerprint of their certificate. A root that the JDK does not have, for example because a newer JDK
- * already removed it, is ignored.
+ * SHA-256 fingerprint of their certificate. The task fails if the JDK does not have one of them, for example because
+ * a newer JDK already removed it or the fingerprint is wrong, so that the list does not silently go stale.
  *
  * <p>The JDK ships {@code cacerts} as a PKCS12 key store without a password. The output is written the same way, so
  * it can still be read with any password, and its content only depends on the inputs.
@@ -89,6 +90,7 @@ public abstract class BundledJdkCacertsTask extends DefaultTask {
             trustStore.load(in, null);
         }
         MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
+        Set<String> notFound = new TreeSet<>(removedRoots);
         for (String alias : Collections.list(trustStore.aliases())) {
             if (trustStore.isCertificateEntry(alias) == false) {
                 throw new GradleException("Expected [" + source + "] to only hold trusted certificates but [" + alias + "] is not one");
@@ -98,7 +100,17 @@ public abstract class BundledJdkCacertsTask extends DefaultTask {
             if (removedRoots.contains(fingerprint)) {
                 getLogger().info("Removing [{}] from [{}]", alias, source);
                 trustStore.deleteEntry(alias);
+                notFound.remove(fingerprint);
             }
+        }
+        if (notFound.isEmpty() == false) {
+            throw new GradleException(
+                "Expected ["
+                    + source
+                    + "] to hold the roots to remove but it does not hold "
+                    + notFound
+                    + ". Drop them from the list if the JDK no longer has them."
+            );
         }
 
         // a null password writes a PKCS12 key store without a password, like the JDK's own cacerts

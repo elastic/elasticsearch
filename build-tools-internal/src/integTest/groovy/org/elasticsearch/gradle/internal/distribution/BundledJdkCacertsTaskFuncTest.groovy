@@ -76,13 +76,17 @@ class BundledJdkCacertsTaskFuncTest extends AbstractGradleFuncTest {
         load(file("build/cacerts"), "changeit".toCharArray()).size() == jdkRoots.size() - 1
     }
 
-    def "ignores roots the JDK does not have"() {
+    def "fails for roots the JDK does not have"() {
+        given:
+        String present = jdkRoots.keySet().sort().first()
+        String absent = '0' * 64
+
         when:
-        def result = gradleRunner("cacerts", "-Proots=${'0' * 64}").build()
+        def result = gradleRunner("cacerts", "-Proots=${present},${absent}").buildAndFail()
 
         then:
-        result.task(":cacerts").outcome == TaskOutcome.SUCCESS
-        fingerprints(file("build/cacerts")) == jdkRoots
+        result.output.contains("does not hold [${absent}]. Drop them from the list if the JDK no longer has them.")
+        file("build/cacerts").exists() == false
     }
 
     def "reruns when the removed roots change"() {

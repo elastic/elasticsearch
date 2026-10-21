@@ -1,0 +1,6 @@
+area: Inference
+issues: []
+pr: 162813
+summary: "[Inference API] Increase default max total connections and default max route\
+  \ connections"
+type: enhancement

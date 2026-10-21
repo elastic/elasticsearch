@@ -59,7 +59,9 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
             currentToken += 1;
             stack.add(token);
 
-            return addDependencyNode(query, token);
+            PB breakdown = addDependencyNode(query, token);
+            onNewRoot(breakdown);
+            return breakdown;
         }
 
         updateParent(token);
@@ -98,6 +100,11 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
     }
 
     protected abstract PB createProfileBreakdown();
+
+    /**
+     * Called with the breakdown of each new top-level root, so that subclasses can attach details that apply to the whole tree.
+     */
+    protected void onNewRoot(PB breakdown) {}
 
     /**
      * Removes the last (e.g. most recent) value on the stack

@@ -22,9 +22,11 @@ import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormat;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matcher;
 
@@ -37,33 +39,51 @@ import static org.hamcrest.Matchers.instanceOf;
 public class MappedIndexWriterTests extends MapperServiceTestCase {
 
     public void testBuilderWritesColumnarFormat() throws IOException {
-        assumeColumnarCodec();
-        assertWritesMappedFormat(columnar(true), this::mappedWriter, instanceOf(ColumNARDocValuesFormat.class));
+        assertWritesMappedFormat(columnarVersion(true), columnar(), this::mappedWriter, instanceOf(ColumNARDocValuesFormat.class));
     }
 
     public void testBuilderWritesEs819Format() throws IOException {
-        assertWritesMappedFormat(columnar(false), this::mappedWriter, instanceOf(ES819Version3TSDBDocValuesFormat.class));
+        assertWritesMappedFormat(
+            columnarVersion(false),
+            columnar(),
+            this::mappedWriter,
+            instanceOf(ES819Version3TSDBDocValuesFormat.class)
+        );
     }
 
     public void testBuilderWritesEs95Format() throws IOException {
-        assertWritesMappedFormat(timeSeriesEs95(), this::mappedWriter, instanceOf(ES95TSDBDocValuesFormat.class));
+        assertWritesMappedFormat(IndexVersion.current(), timeSeriesEs95(), this::mappedWriter, instanceOf(ES95TSDBDocValuesFormat.class));
     }
 
     public void testSyntheticSourceWriterWritesColumnarFormat() throws IOException {
-        assumeColumnarCodec();
-        assertWritesMappedFormat(columnar(true), this::indexWriterForSyntheticSource, instanceOf(ColumNARDocValuesFormat.class));
+        assertWritesMappedFormat(
+            columnarVersion(true),
+            columnar(),
+            this::indexWriterForSyntheticSource,
+            instanceOf(ColumNARDocValuesFormat.class)
+        );
     }
 
     public void testSyntheticSourceWriterWritesEs819Format() throws IOException {
-        assertWritesMappedFormat(columnar(false), this::indexWriterForSyntheticSource, instanceOf(ES819Version3TSDBDocValuesFormat.class));
+        assertWritesMappedFormat(
+            columnarVersion(false),
+            columnar(),
+            this::indexWriterForSyntheticSource,
+            instanceOf(ES819Version3TSDBDocValuesFormat.class)
+        );
     }
 
     public void testSyntheticSourceWriterWritesEs95Format() throws IOException {
-        assertWritesMappedFormat(timeSeriesEs95(), this::indexWriterForSyntheticSource, instanceOf(ES95TSDBDocValuesFormat.class));
+        assertWritesMappedFormat(
+            IndexVersion.current(),
+            timeSeriesEs95(),
+            this::indexWriterForSyntheticSource,
+            instanceOf(ES95TSDBDocValuesFormat.class)
+        );
     }
 
     public void testAssertDocValuesWrittenAsMappedRejectsUnmappedWriter() throws IOException {
-        final MapperService mapperService = createMapperService(columnar(false), keywordMapping(false));
+        final MapperService mapperService = createMapperService(columnarVersion(false), columnar(), keywordMapping(false));
         final String expected = productionDocValuesFormat(mapperService, "foo").getName();
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
@@ -84,15 +104,12 @@ public class MappedIndexWriterTests extends MapperServiceTestCase {
         return TestIndexWriterBuilder.mapped(mapperService).build(directory);
     }
 
-    private static void assumeColumnarCodec() {
-        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
+    private static Settings columnar() {
+        return Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
     }
 
-    private static Settings columnar(boolean columnarCodec) {
-        return Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), columnarCodec)
-            .build();
+    private static IndexVersion columnarVersion(boolean columnarCodec) {
+        return columnarCodec ? IndexVersion.current() : IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG);
     }
 
     private static Settings timeSeriesEs95() {
@@ -118,12 +135,13 @@ public class MappedIndexWriterTests extends MapperServiceTestCase {
     }
 
     private void assertWritesMappedFormat(
+        IndexVersion indexVersion,
         Settings settings,
         CheckedBiFunction<MapperService, Directory, RandomIndexWriter, IOException> writer,
         Matcher<? super DocValuesFormat> productionFormat
     ) throws IOException {
         final boolean timeSeries = IndexSettings.MODE.get(settings) == IndexMode.TIME_SERIES;
-        final MapperService mapperService = createMapperService(settings, keywordMapping(timeSeries));
+        final MapperService mapperService = createMapperService(indexVersion, settings, keywordMapping(timeSeries));
         final DocValuesFormat expected = productionDocValuesFormat(mapperService, "foo");
         assertThat("production picks a specialized format for [foo]", expected, productionFormat);
 

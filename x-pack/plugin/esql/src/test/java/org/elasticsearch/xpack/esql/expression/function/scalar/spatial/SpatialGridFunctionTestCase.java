@@ -77,6 +77,18 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
     }
 
     /**
+     * Tiling a random shape can produce up to {@link SpatialGridFunction#MAX_GRID_CELLS} cells per row, which takes tens of
+     * milliseconds, so the default iteration count can run past the suite timeout on a loaded CI agent.
+     */
+    @Override
+    protected int evaluateInManyThreadsCountMax() {
+        if (DataType.isSpatialShape(testCase.getData().getFirst().type())) {
+            return 200;
+        }
+        return super.evaluateInManyThreadsCountMax();
+    }
+
+    /**
      * Adds test case suppliers for a spatial grid function.
      *
      * <p>The {@code expectedValue} and {@code expectedValueWithBounds} functions accept a

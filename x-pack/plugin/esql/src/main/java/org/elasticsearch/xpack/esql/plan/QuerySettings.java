@@ -105,14 +105,21 @@ public final class QuerySettings {
         For a conceptual overview and use cases, including performance considerations, refer to
         [Unmapped fields](/reference/query-languages/esql/esql-unmapped-fields.md).
 
+        An unmapped field is present in documents but not defined in the index mapping. Across the queried indices, a field is:
+
+        - *fully unmapped* if none of the queried indices map it.
+        - *partially mapped* (also called *partially unmapped*) if some of the queried indices map it and others don't.
+          In the indices that don't map it, its values are `null` unless they are loaded with `LOAD`.
+
         Possible values are:
 
-        - `DEFAULT` : Standard ESQL queries fail when referencing unmapped fields.
+        - `DEFAULT` : Standard ESQL queries fail when referencing fully unmapped fields.
         - `NULLIFY` : Treats referenced unmapped fields as null values. Fully unmapped fields that are never mentioned do not
           appear in the output.
         - `LOAD` : Loads referenced fully unmapped fields from the stored
           [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) with type `keyword`. Or nullifies them if
-          absent from `_source`. Also loads partially mapped fields from `_source` where they are unmapped.
+          absent from `_source`. Also loads partially mapped fields from `_source` in the indices where they are unmapped,
+          even if the query doesn't reference them.
         {applies_to}`stack: preview =9.4, ga 9.5+`
 
         [`PROMQL`](/reference/query-languages/esql/commands/promql.md) queries have their own specific semantics for unmapped fields.
@@ -206,14 +213,14 @@ public final class QuerySettings {
     @Param(
         name = "wildcards_match_views",
         type = { "boolean" },
-        applies_to = "serverless: unavailable\nstack: experimental 9.6+",
+        applies_to = "serverless: preview\nstack: experimental 9.6+",
         description = "When enabled, a wildcard in `FROM` also matches registered views."
             + " Defaults to `false`, so a wildcard does not match a view and a view is reached by its"
             + " exact name. Other abstractions a wildcard matches are unaffected.\n\n"
             + "The default itself is configurable. If a query does not specify a value, the "
             + "`esql.query.settings.wildcards_match_views` cluster setting supplies it. If that cluster setting is not "
             + "configured either, the value is `false`. "
-            + "{applies_to}`{\"stack\": \"ga 9.6+\", \"serverless\": \"ga\"}`"
+            + "{applies_to}`{\"stack\": \"ga 9.6+\", \"serverless\": \"preview\"}`"
     )
     public static final QuerySettingDef<Boolean> WILDCARDS_MATCH_VIEWS = QuerySettingDef.bool("wildcards_match_views")
         .withDefault(Boolean.FALSE)

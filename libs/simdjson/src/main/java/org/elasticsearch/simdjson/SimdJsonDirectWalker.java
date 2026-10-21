@@ -181,12 +181,11 @@ public final class SimdJsonDirectWalker {
 
         try {
             while (true) {
+                // This is the start of a member: the first one, or the one after a ','. The caller
+                // already handled the empty object "{}", so the token must be a field name.
                 int keyIdx = bi.getAndAdvance();
-                if (buffer[keyIdx] == '}') {
-                    return;
-                }
                 if (buffer[keyIdx] != '"') {
-                    throw new JsonParsingException("Expected field name or '}' but got '" + (char) buffer[keyIdx] + "'");
+                    throw new JsonParsingException("Expected field name but got '" + (char) buffer[keyIdx] + "'");
                 }
 
                 String fieldName = resolveFieldName(buffer, keyIdx);
@@ -258,11 +257,15 @@ public final class SimdJsonDirectWalker {
     }
 
     private void walkArray(byte[] buffer, BitIndexes bi, JsonDocumentHandler handler) {
+        if (buffer[bi.peek()] == ']') {
+            bi.advance();
+            return;
+        }
         while (true) {
+            // The empty array was handled above, so a ']' here follows a comma and is a trailing
+            // comma, which is not valid JSON. It falls through to the default branch.
             int idx = bi.getAndAdvance();
             byte b = buffer[idx];
-
-            if (b == ']') return;
 
             switch (b) {
                 case '"' -> {
@@ -322,8 +325,8 @@ public final class SimdJsonDirectWalker {
      */
     private void walkObjectInArray(byte[] buffer, BitIndexes bi, JsonDocumentHandler handler) {
         while (true) {
+            // As in walkObject: the empty object was handled by the caller, so '}' here is a trailing comma.
             int keyIdx = bi.getAndAdvance();
-            if (buffer[keyIdx] == '}') return;
             if (buffer[keyIdx] != '"') {
                 throw new JsonParsingException("Expected field name in nested object");
             }

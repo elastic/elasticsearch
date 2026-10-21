@@ -274,7 +274,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
                 return null;
             }
 
-            if (localDepth > 0 && localSpanCount.incrementAndGet() > maxSpans) {
+            if (localDepth > 0 && (localSpanCount.get() > maxSpans || localSpanCount.incrementAndGet() > maxSpans)) {
                 logger.trace("Skipping span [{}] [{}] as the local root reached maxSpans={}", spanId, spanName, maxSpans);
                 return null;
             }

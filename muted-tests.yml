@@ -473,3 +473,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
   method: "testEvaluate {TestCase=field: <random mv DEDUPLICATED_AND_SORTED_ASCENDING doubles>, percentile: <positive int>}"
   issue: https://github.com/elastic/elasticsearch/issues/162867
+- class: org.elasticsearch.index.codec.tsdb.ES819DocValuesDuelTests
+  method: testDuel
+  issue: https://github.com/elastic/elasticsearch/issues/162874

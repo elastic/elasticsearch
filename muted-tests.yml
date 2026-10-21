@@ -721,3 +721,13 @@ tests:
 - class: org.elasticsearch.upgrades.CombineDynamicMappingUpdatesRollingUpgradeIT
   method: testTimeSeriesDataStreamDefault {upgradedNodes=1}
   issue: https://github.com/elastic/elasticsearch/issues/162839
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterExternalSourceIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#javaRestTest
+  issue: https://github.com/elastic/elasticsearch/issues/162817
+- class: org.elasticsearch.xpack.esql.ccq.MultiClustersIT
+  methods:
+  - testRemoteViewFailsQuery
+  tasks:
+  - :x-pack:plugin:esql:qa:server:multi-clusters:v9.6.0#newToOld
+  issue: https://github.com/elastic/elasticsearch/issues/162849

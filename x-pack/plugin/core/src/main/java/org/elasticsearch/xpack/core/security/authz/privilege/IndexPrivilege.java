@@ -610,7 +610,10 @@ public final class IndexPrivilege extends Privilege {
             names.addAll(actions);
             automata.add(patterns(actions.stream().map(Privilege::actionToPattern).toList()));
         }
-        return new IndexPrivilege(names, unionAndMinimize(automata), selectorPredicate);
+        // Built-in privilege automata and the result of patterns(...) are already minimal.
+        // Combining multiple automata requires minimization, but a single one can be reused.
+        final Automaton automaton = automata.size() == 1 ? automata.iterator().next() : unionAndMinimize(automata);
+        return new IndexPrivilege(names, automaton, selectorPredicate);
     }
 
     static Map<String, IndexPrivilege> values() {

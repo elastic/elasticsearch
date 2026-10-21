@@ -83,14 +83,16 @@ public final class Automatons {
     private Automatons() {}
 
     /**
-     * Builds and returns an automaton that will represent the union of all the given patterns.
+     * Builds and returns a minimal deterministic automaton representing the union of all the given patterns.
+     * Callers can reuse the result without minimizing it again.
      */
     public static Automaton patterns(String... patterns) {
         return patterns(Arrays.asList(patterns));
     }
 
     /**
-     * Builds and returns an automaton that will represent the union of all the given patterns.
+     * Builds and returns a minimal deterministic automaton representing the union of all the given patterns.
+     * Callers can reuse the result without minimizing it again.
      */
     @SuppressWarnings("unchecked")
     public static Automaton patterns(Collection<String> patterns) {

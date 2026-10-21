@@ -16,6 +16,11 @@ dependencies {
   javaRestTestImplementation project(':x-pack:plugin:core')
   javaRestTestImplementation project(':x-pack:plugin:security')
   javaRestTestImplementation project(':x-pack:plugin:ccr')
+  // builds real ES|QL lookup transport requests for RemoteClusterSecurityFcActionAuthorizationIT and ES|QL compute
+  // requests for RemoteClusterSecurityEsqlExternalSourceIT
+  javaRestTestImplementation project(':x-pack:plugin:esql')
+  javaRestTestImplementation project(':x-pack:plugin:esql:compute')
+  javaRestTestImplementation project(':x-pack:plugin:esql-core')
   clusterModules(project(":modules:analysis-common"))
   clusterModules project(':x-pack:plugin:ccr')
   clusterModules(project(":modules:reindex")) // need for deleting transform jobs

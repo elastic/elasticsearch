@@ -10,7 +10,9 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.stats.MappingVisitor;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
@@ -21,14 +23,19 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.ActionFilter;
+import org.elasticsearch.action.support.ActionFilterChain;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -58,7 +65,9 @@ import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.RestStatus;
@@ -80,6 +89,7 @@ import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
@@ -108,6 +118,7 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -117,6 +128,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -172,7 +184,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             AggregateMetricMapperPlugin.class,
             DataStreamsPlugin.class,
             IndexLifecycle.class,
-            TestTelemetryPlugin.class
+            TestTelemetryPlugin.class,
+            BulkInterceptorPlugin.class
         );
     }
 
@@ -1162,7 +1175,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         }
         int docsIndexed = docCount - duplicates;
         logger.info("Indexed [{}] documents. Dropped [{}] duplicates.", docsIndexed, duplicates);
-        assertHitCount(client().prepareSearch(indexName).setSize(0), docsIndexed);
+        assertHitCount(client().prepareSearch(indexName).setSize(0).setTrackTotalHits(true), docsIndexed);
     }
 
     private void prepareSourceIndex(final String sourceIndex, boolean blockWrite) {
@@ -1840,6 +1853,206 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         assertTrue(downsampleComplete.await(30, TimeUnit.SECONDS));
         assertFalse(firstFailed.get() ^ secondFailed.get());
         assertDownsampleIndex(sourceIndex, targetIndex, config);
+    }
+
+    /**
+     * Starts downsampling, removes the shard persistent task while the indexer is mid-flight, and then retriggers the
+     * downsample action, which recreates the persistent task. The recreated task must resume from the highest
+     * {@code _tsid} already present in the target index rather than downsample the whole shard again.
+     */
+    public void testDownsampleResumesAfterPersistentTaskRemoved() throws Exception {
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), randomSamplingMethod());
+        // One bucket per document, so the shard task has to send more than one bulk request.
+        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
+            .startObject()
+            .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
+            .field(FIELD_DIMENSION_1, randomAlphaOfLength(10))
+            .field(FIELD_NUMERIC_1, randomDouble())
+            .endObject();
+        bulkIndex(sourceIndex, sourceSupplier, 20_000);
+        prepareSourceIndex(sourceIndex, true);
+
+        BulkInterceptorPlugin.reset();
+        BulkInterceptorPlugin.interceptedIndex = downsampleIndex;
+        try {
+            // 1. Kick off downsampling. The tiny wait timeout makes this request fail right after it has created the
+            // target index and the shard task, so it cannot finalize the target once the persistent task is removed.
+            PlainActionFuture<AcknowledgedResponse> first = new PlainActionFuture<>();
+            client().execute(
+                DownsampleAction.INSTANCE,
+                new DownsampleAction.Request(TEST_REQUEST_TIMEOUT, sourceIndex, downsampleIndex, TimeValue.timeValueMillis(1), config),
+                first
+            );
+            expectThrows(Exception.class, () -> first.actionGet(TIMEOUT));
+
+            // 2. Wait until the first bulk has landed and the indexer is parked on the next one.
+            assertBusy(() -> {
+                assertThat(BulkInterceptorPlugin.parked, Matchers.not(Matchers.empty()));
+                indicesAdmin().prepareRefresh(downsampleIndex).get();
+                assertThat(
+                    SearchResponseUtils.getTotalHitsValue(client().prepareSearch(downsampleIndex).setSize(0)),
+                    Matchers.greaterThan(0L)
+                );
+            }, 30, TimeUnit.SECONDS);
+
+            // 3. Remove the persistent task(s) while the shard task is still running.
+            PersistentTasksService persistentTasksService = getInstanceFromNode(PersistentTasksService.class);
+            PersistentTasksCustomMetadata tasks = PersistentTasksCustomMetadata.get(
+                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().getProject(Metadata.DEFAULT_PROJECT_ID)
+            );
+            List<String> taskIds = tasks.tasks()
+                .stream()
+                .filter(t -> DownsampleShardTask.TASK_NAME.equals(t.getTaskName()))
+                .map(PersistentTasksCustomMetadata.PersistentTask::getId)
+                .toList();
+            assertThat(taskIds, Matchers.hasSize(numOfShards));
+            for (String taskId : taskIds) {
+                PlainActionFuture<PersistentTasksCustomMetadata.PersistentTask<?>> removed = new PlainActionFuture<>();
+                persistentTasksService.sendProjectRemoveRequest(Metadata.DEFAULT_PROJECT_ID, taskId, TIMEOUT, removed);
+                removed.actionGet(TIMEOUT);
+            }
+
+            // 4. Let the parked bulks fail so the orphaned indexer exits without writing anything else, then wait for it to go.
+            BulkInterceptorPlugin.failParked();
+            BulkInterceptorPlugin.interceptedIndex = null;
+            assertBusy(
+                () -> assertThat(
+                    clusterAdmin().prepareListTasks().setActions(DownsampleShardTask.TASK_NAME + "[c]").get().getTasks(),
+                    Matchers.empty()
+                )
+            );
+            assertEquals(
+                IndexMetadata.DownsampleTaskStatus.STARTED,
+                IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(
+                    indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, downsampleIndex).get().getIndexToSettings().get(downsampleIndex)
+                )
+            );
+            // Only the first bulk made it into the target index.
+            indicesAdmin().prepareRefresh(downsampleIndex).get();
+            long indexedByInterruptedRun = SearchResponseUtils.getTotalHitsValue(
+                client().prepareSearch(downsampleIndex).setSize(0).setTrackTotalHits(true)
+            );
+            assertThat(indexedByInterruptedRun, Matchers.greaterThan(0L));
+
+            // 5. Retrigger. The action finds the half-populated target, recreates the shard tasks, and they resume.
+            downsample(sourceIndex, downsampleIndex, config);
+
+            // 6. The resumed target must be identical to a downsample that ran uninterrupted.
+            assertEquals(
+                IndexMetadata.DownsampleTaskStatus.SUCCESS,
+                IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(
+                    indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, downsampleIndex).get().getIndexToSettings().get(downsampleIndex)
+                )
+            );
+            String referenceIndex = "reference-" + downsampleIndex;
+            downsample(sourceIndex, referenceIndex, config);
+            Map<String, DocSnapshot> resumed = fetchAllDocs(downsampleIndex);
+            Map<String, DocSnapshot> reference = fetchAllDocs(referenceIndex);
+            assertThat(resumed.size(), Matchers.greaterThan((int) indexedByInterruptedRun));
+            assertEquals(reference.keySet(), resumed.keySet());
+            for (var entry : reference.entrySet()) {
+                assertEquals("source of [" + entry.getKey() + "]", entry.getValue().source(), resumed.get(entry.getKey()).source());
+            }
+
+            // 7. The resumed task restarts from the last _tsid present in the target index, so only the buckets of that one
+            // time series are recomputed and written again, which bumps their version. Everything the interrupted run wrote
+            // for lower _tsids is left untouched.
+            List<String> rewritten = resumed.entrySet()
+                .stream()
+                .filter(entry -> entry.getValue().version() > 1)
+                .map(Map.Entry::getKey)
+                .sorted()
+                .toList();
+            assertThat(
+                "[" + rewritten.size() + "] documents rewritten on resume, e.g. " + rewritten.stream().limit(5).toList(),
+                (long) rewritten.size(),
+                Matchers.allOf(Matchers.greaterThan(0L), Matchers.lessThan(indexedByInterruptedRun))
+            );
+        } finally {
+            BulkInterceptorPlugin.failParked();
+            BulkInterceptorPlugin.reset();
+        }
+    }
+
+    private record DocSnapshot(long version, Map<String, Object> source) {}
+
+    /**
+     * Returns every document of the given index keyed by {@code _id}, with its version and source. The index is expected to
+     * hold a few tens of thousands of small documents at most, so a single search is used rather than an aggregation.
+     */
+    private Map<String, DocSnapshot> fetchAllDocs(String index) {
+        int maxDocs = 100_000;
+        assertAcked(
+            indicesAdmin().prepareUpdateSettings(index)
+                .setSettings(Settings.builder().put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), maxDocs))
+        );
+        var response = client().prepareSearch(index).setSize(maxDocs).setVersion(true).setTrackTotalHits(true).get();
+        try {
+            assertThat(response.getHits().getTotalHits().value(), Matchers.lessThan((long) maxDocs));
+            Map<String, DocSnapshot> docs = new HashMap<>();
+            for (SearchHit hit : response.getHits().getHits()) {
+                docs.put(hit.getId(), new DocSnapshot(hit.getVersion(), hit.getSourceAsMap()));
+            }
+            return docs;
+        } finally {
+            response.decRef();
+        }
+    }
+
+    /**
+     * Lets the first bulk request targeting {@link #interceptedIndex} through and parks every later one until the test
+     * releases them. This is needed because the downsample shard task would otherwise finish before the test gets a
+     * chance to remove its persistent task mid-flight.
+     */
+    public static class BulkInterceptorPlugin extends Plugin implements ActionPlugin {
+        static volatile String interceptedIndex;
+        static final AtomicInteger bulksPassed = new AtomicInteger();
+        static final List<ActionListener<ActionResponse>> parked = Collections.synchronizedList(new ArrayList<>());
+
+        static void reset() {
+            interceptedIndex = null;
+            bulksPassed.set(0);
+            parked.clear();
+        }
+
+        static void failParked() {
+            synchronized (parked) {
+                parked.forEach(l -> l.onFailure(new ElasticsearchException("simulated bulk failure")));
+                parked.clear();
+            }
+        }
+
+        @Override
+        public List<ActionFilter> getActionFilters() {
+            return List.of(new ActionFilter() {
+                @Override
+                public int order() {
+                    return 0;
+                }
+
+                @Override
+                @SuppressWarnings("unchecked")
+                public <Request extends ActionRequest, Response extends ActionResponse> void apply(
+                    Task task,
+                    String action,
+                    Request request,
+                    ActionListener<Response> listener,
+                    ActionFilterChain<Request, Response> chain
+                ) {
+                    String index = interceptedIndex;
+                    if (index != null
+                        && TransportBulkAction.NAME.equals(action)
+                        && request instanceof BulkRequest bulk
+                        && bulk.requests().stream().anyMatch(r -> index.equals(r.index()))) {
+                        if (bulksPassed.getAndIncrement() > 0) {
+                            parked.add((ActionListener<ActionResponse>) listener);
+                            return;
+                        }
+                    }
+                    chain.proceed(task, action, request, listener);
+                }
+            });
+        }
     }
 
     static DownsampleConfig.SamplingMethod randomSamplingMethod() {

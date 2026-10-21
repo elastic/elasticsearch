@@ -17,7 +17,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -298,7 +297,7 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         // One string value, one absent doc, and an empty string.
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "keyword");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -316,7 +315,7 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         // Present value, absent doc ({}), and explicit JSON null without null_value -> absent.
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "keyword");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -334,7 +333,7 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         // Explicit JSON null is substituted with null_value.
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "keyword").field("null_value", "NULL");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -352,7 +351,7 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         // index:false — only the binary DV column is emitted, no terms column.
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "keyword").field("index", false);
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }), columnarSettings(), batch("no-index dv-only multi_value=false", 1L, doc("d1", 1L, "{\"f\":\"only_dv\"}"), doc("d2", 2L, "{}")));
     }
@@ -361,7 +360,7 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         // Default index:true — both a terms column and a binary DV column are emitted.
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "keyword");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -379,7 +378,7 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         // Numeric and boolean scalars are stringified by utf8Cursor, matching the row path.
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "keyword");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -396,7 +395,7 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
     public void testIgnoreAboveIsNoOpMultiValueFalse() throws IOException {
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "keyword").field("ignore_above", 8);
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -410,7 +409,7 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         // because the source STRING column contains no null slots (explicit JSON nulls promote to UNION).
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "keyword").field("null_value", "NULL");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -429,7 +428,7 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         // the fast path.
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "keyword");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -448,7 +447,7 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         // length-validation scan across many rows.
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "keyword");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -472,7 +471,7 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         // zero-copy, matching the row path which extracts the sole element.
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "keyword");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -671,21 +670,15 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
     private static Settings columnarCodecSettings() {
         return Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), true)
             .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
             .build();
     }
 
-    private void assumeColumnarCodecEnabled() {
-        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
-    }
-
     public void testColumnarCodecSingleValue() throws IOException {
-        assumeColumnarCodecEnabled();
         final boolean multiValue = randomBoolean();
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "keyword");
-            b.startObject("doc_values").field("multi_value", multiValue).endObject();
+            b.field("multi_value", multiValue);
             b.endObject();
         }),
             columnarCodecSettings(),
@@ -701,12 +694,11 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
     }
 
     public void testColumnarCodecNoIndexDocValuesOnly() throws IOException {
-        assumeColumnarCodecEnabled();
         final boolean multiValue = randomBoolean();
         // index:false, so the doc-values column is the only output and cannot ride along with a terms column.
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "keyword").field("index", false);
-            b.startObject("doc_values").field("multi_value", multiValue).endObject();
+            b.field("multi_value", multiValue);
             b.endObject();
         }),
             columnarCodecSettings(),
@@ -720,12 +712,11 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
     }
 
     public void testColumnarCodecIgnoreAbove() throws IOException {
-        assumeColumnarCodecEnabled();
         final boolean multiValue = randomBoolean();
         // A value that trips ignore_above writes no doc value, and deoptimizes the shared terms column it would have ridden on.
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "keyword").field("ignore_above", 8);
-            b.startObject("doc_values").field("multi_value", multiValue).endObject();
+            b.field("multi_value", multiValue);
             b.endObject();
         }),
             columnarCodecSettings(),
@@ -740,11 +731,10 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
     }
 
     public void testColumnarCodecNullValueSubstitution() throws IOException {
-        assumeColumnarCodecEnabled();
         final boolean multiValue = randomBoolean();
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "keyword").field("null_value", "NULL");
-            b.startObject("doc_values").field("multi_value", multiValue).endObject();
+            b.field("multi_value", multiValue);
             b.endObject();
         }),
             columnarCodecSettings(),
@@ -759,12 +749,11 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
     }
 
     public void testColumnarCodecScalarCoercions() throws IOException {
-        assumeColumnarCodecEnabled();
         final boolean multiValue = randomBoolean();
         // A non-STRING source column is built through the shared builder, whichever framing the doc values take.
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "keyword");
-            b.startObject("doc_values").field("multi_value", multiValue).endObject();
+            b.field("multi_value", multiValue);
             b.endObject();
         }),
             columnarCodecSettings(),
@@ -779,7 +768,6 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
     }
 
     public void testColumnarCodecArrayOrder() throws IOException {
-        assumeColumnarCodecEnabled();
         // The multi-valued arm, where the payload replaces both the inline-null blob and its .counts companion.
         assertColumnarMatchesXContent(
             mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
@@ -887,7 +875,7 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "keyword");
             b.startObject("fields").startObject("raw").field("type", "keyword");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject().endObject();
             b.endObject();
         }),
@@ -921,7 +909,7 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         // on_failure=FAIL document-level error instead.
         final var mapperService = createMapperService(columnarSettings(), mapping(b -> {
             b.startObject(FIELD).field("type", "keyword");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }));
         expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":[\"a\",\"b\"]}"));
@@ -933,7 +921,7 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         // on_failure=FAIL document-level error instead.
         final var mapperService = createMapperService(columnarSettings(), mapping(b -> {
             b.startObject(FIELD).field("type", "keyword");
-            b.startObject("doc_values").field("nullability", false).endObject();
+            b.field("nullability", false);
             b.endObject();
         }));
         expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":\"value\"}", "{\"f\":null}"));
@@ -1142,7 +1130,7 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         final String longValue = "a".repeat(IndexWriter.MAX_TERM_LENGTH + 1);
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "keyword").field("index", false);
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),

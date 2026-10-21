@@ -135,6 +135,6 @@ public final class UnmappedSinkFieldMapper extends MetadataFieldMapper {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        return new SyntheticSourceSupport.Native(delegate::syntheticFieldLoader);
+        return new SyntheticSourceSupport.Native(delegate::unmappedSinkSyntheticFieldLoader);
     }
 }

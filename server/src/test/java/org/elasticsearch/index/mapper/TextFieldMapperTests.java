@@ -17,12 +17,10 @@ import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.column.BinaryColumn;
 import org.apache.lucene.document.column.Column;
 import org.apache.lucene.document.column.ColumnBatch;
 import org.apache.lucene.document.column.LongColumn;
-import org.apache.lucene.document.column.LongTupleCursor;
 import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
@@ -84,7 +82,6 @@ import org.elasticsearch.index.analysis.LowercaseNormalizer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.StandardTokenizerFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -207,6 +204,9 @@ public class TextFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", true));
+        checker.registerIgnoredParameter("multi_value");
+        checker.registerIgnoredParameter("nullability");
+        checker.registerIgnoredParameter("on_failure");
         checker.registerConflictCheck("index_phrases", b -> b.field("index_phrases", true));
         checker.registerConflictCheck("index_prefixes", b -> b.startObject("index_prefixes").endObject());
         checker.registerConflictCheck("index_options", b -> b.field("index_options", "docs"));
@@ -803,10 +803,7 @@ public class TextFieldMapperTests extends MapperTestCase {
 
     public void testColumnarSingleValueFormatViaColumnBatch() throws Exception {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
-        MapperService mapperService = createMapperService(
-            settings,
-            fieldMapping(b -> b.field("type", "text").startObject("doc_values").field("multi_value", false).endObject())
-        );
+        MapperService mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "text").field("multi_value", false)));
 
         withColumnBatch(mapperService, "{\"field\":\"hello\"}", batch -> {
             // Collect all columns emitted for "field" and "field.counts".
@@ -830,27 +827,11 @@ public class TextFieldMapperTests extends MapperTestCase {
 
             // Doc-values column assertions.
             assertNotNull("multi_value=false columnar text must write a binary DV column", dvColumn);
-            if (ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled()) {
-                assertThat(dvColumn.fieldType(), sameInstance(ColumnarBinaryDocValuesField.TYPE));
-            } else {
-                assertThat(
-                    "single-value DV field type must match BinaryDocValuesField.TYPE",
-                    dvColumn.fieldType(),
-                    sameInstance(BinaryDocValuesField.TYPE)
-                );
-            }
+            assertThat(dvColumn.fieldType(), sameInstance(ColumnarBinaryDocValuesField.TYPE));
             assertFalse("DV column must not be stored", dvColumn.fieldType().stored());
             ObjectTupleCursor<BytesRef> dvCursor = dvColumn.tuples();
             assertEquals(0, dvCursor.nextDoc());
-            if (ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled()) {
-                assertEquals(
-                    "columnar text must encode the value in a columnar payload",
-                    new BytesRef("\u0001\u0006hello"),
-                    dvCursor.value()
-                );
-            } else {
-                assertEquals("multi_value=false columnar text must store the raw bytes unchanged", new BytesRef("hello"), dvCursor.value());
-            }
+            assertEquals("columnar text must encode the value in a columnar payload", new BytesRef("\u0001\u0006hello"), dvCursor.value());
 
             assertEquals(DocIdSetIterator.NO_MORE_DOCS, dvCursor.nextDoc());
 
@@ -898,35 +879,15 @@ public class TextFieldMapperTests extends MapperTestCase {
             );
             ObjectTupleCursor<BytesRef> dvCursor = dvColumn.tuples();
             assertEquals(0, dvCursor.nextDoc());
-            if (ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled()) {
-                assertEquals(
-                    "columnar text array must encode the correct columnar payload",
-                    new BytesRef("\u0002\u0002a\u0002b"),
-                    dvCursor.value()
-                );
-            } else {
-                BytesRef expectedBlob = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.encode(
-                    List.of(new BytesRef("a"), new BytesRef("b"))
-                );
-                assertEquals("ArrayOrderInlineNull blob must encode [\"a\",\"b\"] correctly", expectedBlob, dvCursor.value());
-            }
+            assertEquals(
+                "columnar text array must encode the correct columnar payload",
+                new BytesRef("\u0002\u0002a\u0002b"),
+                dvCursor.value()
+            );
             assertEquals(DocIdSetIterator.NO_MORE_DOCS, dvCursor.nextDoc());
 
-            // .counts column: slot count of 2.
-            if (ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled()) {
-                assertNull("columnar payload must not write a .counts column", countsColumn);
-            } else {
-                assertNotNull("multi_value=true columnar text must write a .counts column", countsColumn);
-                assertThat(
-                    ".counts column field type must match SeparateCount.COUNT_FIELD_TYPE",
-                    countsColumn.fieldType(),
-                    sameInstance(MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_TYPE)
-                );
-                LongTupleCursor countsCursor = countsColumn.tuples();
-                assertEquals(0, countsCursor.nextDoc());
-                assertEquals(".counts companion must carry the slot count (2)", 2L, countsCursor.longValue());
-                assertEquals(DocIdSetIterator.NO_MORE_DOCS, countsCursor.nextDoc());
-            }
+            // No .counts column: the payload carries its own slot count.
+            assertNull("columnar payload must not write a .counts column", countsColumn);
 
             // Terms column: one entry per value in array order.
             assertNotNull("multi_value=true columnar text must write an indexed terms column", termsColumn);
@@ -3102,9 +3063,7 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     public void testSingleFallbackValueIsAcceptedWhenMultiValueFalse() throws IOException {
-        DocumentMapper mapper = createColumnarModeDocumentMapper(
-            fieldMapping(b -> b.field("type", "text").startObject("doc_values").field("multi_value", false).endObject())
-        );
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> b.field("type", "text").field("multi_value", false)));
         String longValue = randomAlphanumericOfLength(IndexWriter.MAX_TERM_LENGTH + 1);
         mapper.parse(source(b -> b.field("field", longValue)));
     }
@@ -3116,9 +3075,7 @@ public class TextFieldMapperTests extends MapperTestCase {
      * While these are technically two separate fields, single values are enforced on a document-level, so the second value is rejected.
      */
     public void testSecondValueInFallbackFieldIsRejectedWhenMultiValueFalseAndFirstValueInRegularField() throws IOException {
-        DocumentMapper mapper = createColumnarModeDocumentMapper(
-            fieldMapping(b -> b.field("type", "text").startObject("doc_values").field("multi_value", false).endObject())
-        );
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> b.field("type", "text").field("multi_value", false)));
         String shortValue = randomAlphanumericOfLength(5);
         String longValue = randomAlphanumericOfLength(IndexWriter.MAX_TERM_LENGTH + 1);
         DocumentParsingException e = expectThrows(
@@ -3135,9 +3092,7 @@ public class TextFieldMapperTests extends MapperTestCase {
      * Mirror of {@link #testSecondValueInFallbackFieldIsRejectedWhenMultiValueFalseAndFirstValueInRegularField} with the order reversed.
      */
     public void testSecondValueInRegularFieldIsRejectedWhenMultiValueFalseAndFirstValueInFallbackField() throws IOException {
-        DocumentMapper mapper = createColumnarModeDocumentMapper(
-            fieldMapping(b -> b.field("type", "text").startObject("doc_values").field("multi_value", false).endObject())
-        );
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> b.field("type", "text").field("multi_value", false)));
         String longValue = randomAlphanumericOfLength(IndexWriter.MAX_TERM_LENGTH + 1);
         String shortValue = randomAlphanumericOfLength(5);
         DocumentParsingException e = expectThrows(
@@ -3154,9 +3109,7 @@ public class TextFieldMapperTests extends MapperTestCase {
      * We have two values for a field, both of which exceed MAX_TERM_LENGTH and would route to the {@code ._original} fallback field.
      */
     public void testSecondValueInFallbackFieldIsRejectedWhenMultiValueFalse() throws IOException {
-        DocumentMapper mapper = createColumnarModeDocumentMapper(
-            fieldMapping(b -> b.field("type", "text").startObject("doc_values").field("multi_value", false).endObject())
-        );
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> b.field("type", "text").field("multi_value", false)));
         String longValue1 = randomAlphanumericOfLength(IndexWriter.MAX_TERM_LENGTH + 1);
         String longValue2 = randomAlphanumericOfLength(IndexWriter.MAX_TERM_LENGTH + 1);
         DocumentParsingException e = expectThrows(

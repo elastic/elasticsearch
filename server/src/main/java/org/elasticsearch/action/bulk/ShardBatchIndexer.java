@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineBatch;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
@@ -56,10 +57,11 @@ public final class ShardBatchIndexer {
     /**
      * Checks whether the batch indexing path can be used for this request.
      * Returns true if batch indexing is enabled, a source batch is present, synthetic source is active,
-     * and all operations are index/create (no deletes, no updates).
+     * the shard's index opted in via {@code index.batch_indexing}, and all operations are index/create
+     * (no deletes, no updates).
      */
-    public boolean canUseBatchIndexing(BulkShardRequest request) {
-        if (batchIndexingEnabled.isEnabled() == false) {
+    public boolean canUseBatchIndexing(BulkShardRequest request, IndexSettings indexSettings) {
+        if (batchIndexingEnabled.isEnabled() == false || indexSettings.isBatchIndexingEnabled() == false) {
             return false;
         }
         if (request.getBulkShardBatch() == null) {

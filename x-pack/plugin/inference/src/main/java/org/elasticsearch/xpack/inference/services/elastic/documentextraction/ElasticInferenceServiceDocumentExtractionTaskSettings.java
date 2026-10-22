@@ -34,8 +34,7 @@ import static org.elasticsearch.xpack.inference.services.SettingsScope.TASK_SETT
  * Task settings for the Elastic Inference Service {@code document_extraction} task type. They can be stored on the inference endpoint
  * and overridden per request through the {@code task_settings} field of the document extraction request body, where the request value
  * wins (see {@link #of(ElasticInferenceServiceDocumentExtractionTaskSettings, ElasticInferenceServiceDocumentExtractionTaskSettings)}).
- * The resolved settings are forwarded to the Elastic Inference Service as-is, which maps them onto the options of the underlying
- * provider (Jina Reader):
+ * The resolved settings are forwarded to the Elastic Inference Service as-is:
  * <pre>
  * {
  *   "output_format": "markdown",
@@ -45,9 +44,7 @@ import static org.elasticsearch.xpack.inference.services.SettingsScope.TASK_SETT
  *   }
  * }</pre>
  * {@code parameters} is a free-form object of extraction options. Elasticsearch only validates that it is an object: the Elastic
- * Inference Service owns the set of accepted parameters, so it can add, tune or remove them without a change here. The Elastic
- * Inference Service passes them through to Jina Reader, whose options are documented at
- * <a href="https://r.jina.ai/docs">https://r.jina.ai/docs</a>.
+ * Inference Service owns the set of accepted parameters, so it can add, tune or remove them without a change here.
  */
 public class ElasticInferenceServiceDocumentExtractionTaskSettings implements TaskSettings {
 
@@ -82,8 +79,8 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettings implements Ta
 
     /**
      * Parses task settings from a raw config map. Unknown fields are rejected for {@link ConfigurationParseContext#REQUEST} and ignored
-     * for {@link ConfigurationParseContext#PERSISTENT}, so settings persisted by a newer version, or the {@code css} settings persisted
-     * by an earlier one, can still be read. A null or empty map produces {@link #EMPTY_SETTINGS}.
+     * for {@link ConfigurationParseContext#PERSISTENT}, so settings persisted by a newer version can still be read. A null or empty map
+     * produces {@link #EMPTY_SETTINGS}.
      */
     public static ElasticInferenceServiceDocumentExtractionTaskSettings fromMap(
         @Nullable Map<String, Object> map,
@@ -122,14 +119,7 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettings implements Ta
 
     public ElasticInferenceServiceDocumentExtractionTaskSettings(StreamInput in) throws IOException {
         this.outputFormat = in.readOptionalString();
-        if (in.getTransportVersion().supports(INFERENCE_API_EIS_DOCUMENT_EXTRACTION_PARAMETERS)) {
-            this.parameters = in.readGenericMap();
-        } else {
-            // Earlier versions serialized the since removed css settings (extract_only and remove selectors), which are discarded
-            in.readOptionalStringCollectionAsList();
-            in.readOptionalStringCollectionAsList();
-            this.parameters = Map.of();
-        }
+        this.parameters = in.readGenericMap();
     }
 
     public ElasticInferenceServiceDocumentExtractionTaskSettings(@Nullable String outputFormat) {
@@ -170,19 +160,13 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettings implements Ta
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return INFERENCE_API_EIS_DOCUMENT_EXTRACTION_ADDED;
+        return INFERENCE_API_EIS_DOCUMENT_EXTRACTION_PARAMETERS;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(outputFormat);
-        if (out.getTransportVersion().supports(INFERENCE_API_EIS_DOCUMENT_EXTRACTION_PARAMETERS)) {
-            out.writeGenericMap(parameters);
-        } else {
-            // Earlier versions expect the since removed css settings, which are never set anymore
-            out.writeOptionalStringCollection(null);
-            out.writeOptionalStringCollection(null);
-        }
+        out.writeGenericMap(parameters);
     }
 
     @Override

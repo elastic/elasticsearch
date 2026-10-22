@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 156415
+pr: 162731
+summary: "If any input can be null, then allow it to fold null"
+type: bug

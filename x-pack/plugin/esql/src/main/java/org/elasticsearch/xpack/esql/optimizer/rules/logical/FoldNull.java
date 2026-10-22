@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -56,7 +57,7 @@ public class FoldNull extends OptimizerRules.OptimizerExpressionRule<Expression>
         if (e instanceof In in) {
             return isNullChild.test(in.value());
         }
-        return e instanceof Alias == false && e.nullable() == Nullability.TRUE
+        return e instanceof Alias == false && propagatesNull(e)
         // Non-evaluatable functions stay as a STATS grouping (It isn't moved to an early EVAL like other groupings),
         // so folding it to null would currently break the plan, as we don't create an attribute/channel for that null value.
             && e instanceof GroupingFunction.NonEvaluatableGroupingFunction == false
@@ -68,7 +69,16 @@ public class FoldNull extends OptimizerRules.OptimizerExpressionRule<Expression>
     }
 
     private static boolean isNull(Expression e) {
-        return Expressions.isGuaranteedNull(e) || e.nullable() == Nullability.TRUE && e.children().stream().anyMatch(FoldNull::isNull);
+        return Expressions.isGuaranteedNull(e) || propagatesNull(e) && e.children().stream().anyMatch(FoldNull::isNull);
+    }
+
+    /**
+     * Whether a {@code NULL} input makes {@code e} {@code NULL}. {@link AnyNullIsNull} declares this whatever the other
+     * inputs are; {@link Expression#nullable()} is derived from the children, so an input that treats null as data,
+     * like {@code COALESCE}, reports {@link Nullability#UNKNOWN} and would hide a null sibling.
+     */
+    private static boolean propagatesNull(Expression e) {
+        return e instanceof AnyNullIsNull || e.nullable() == Nullability.TRUE;
     }
 
 }

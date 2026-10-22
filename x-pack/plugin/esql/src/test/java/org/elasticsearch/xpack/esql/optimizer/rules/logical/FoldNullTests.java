@@ -11,6 +11,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -30,12 +31,14 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoShape;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateParse;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
@@ -276,6 +279,43 @@ public class FoldNullTests extends ESTestCase {
     public void testNullFoldingDoesNotApplyOnCase() {
         Case caseExpr = new Case(EMPTY, NULL, List.of(getFieldAttribute("a"), getFieldAttribute("b")));
         assertEquals(caseExpr, foldNull(caseExpr));
+    }
+
+    // A NULL-typed input, e.g. an unmapped field under nullify or a NULL column out of FORK, is not a literal but is always null.
+    // https://github.com/elastic/elasticsearch/issues/156415
+    public void testNullPropagatingParentOfNullTypedScalarGetsFolded() {
+        ReferenceAttribute nullTyped = new ReferenceAttribute(EMPTY, "x", DataType.NULL);
+        Coalesce coalesce = new Coalesce(EMPTY, nullTyped, List.of());
+        Case caseExpr = new Case(EMPTY, getFieldAttribute("c", DataType.BOOLEAN), List.of(nullTyped));
+        assertNullLiteral(foldNull(new ToGeoShape(EMPTY, coalesce)));
+        assertNullLiteral(foldNull(new ToString(EMPTY, caseExpr, TEST_CFG)));
+        assertNullLiteral(foldNull(new Abs(EMPTY, coalesce)));
+    }
+
+    // COALESCE and CASE still evaluate, e.g. CASE conditions can emit warnings, so only their null-propagating parents fold.
+    public void testNullTypedCoalesceAndCaseNotFolded() {
+        ReferenceAttribute nullTyped = new ReferenceAttribute(EMPTY, "x", DataType.NULL);
+        Coalesce coalesce = new Coalesce(EMPTY, nullTyped, List.of());
+        assertEquals(coalesce, foldNull(coalesce));
+        Case caseExpr = new Case(EMPTY, getFieldAttribute("c", DataType.BOOLEAN), List.of(nullTyped));
+        assertEquals(caseExpr, foldNull(caseExpr));
+    }
+
+    public void testParentTreatingNullTypedScalarAsDataNotFolded() {
+        Coalesce nullTyped = new Coalesce(EMPTY, new ReferenceAttribute(EMPTY, "x", DataType.NULL), List.of());
+        Coalesce outer = new Coalesce(EMPTY, nullTyped, List.of(getFieldAttribute("a", KEYWORD)));
+        assertEquals(outer, foldNull(outer));
+        MvUnion union = new MvUnion(EMPTY, nullTyped, getFieldAttribute("a"));
+        assertEquals(union, foldNull(union));
+    }
+
+    // A sibling that treats null as data (UNKNOWN) doesn't stop a null input from nulling a null-propagating parent.
+    public void testNullPropagatingParentWithUnknownSiblingGetsFolded() {
+        Coalesce unknown = new Coalesce(EMPTY, getFieldAttribute("a"), List.of());
+        Coalesce nullTyped = new Coalesce(EMPTY, new ReferenceAttribute(EMPTY, "x", DataType.NULL), List.of());
+        assertNullLiteral(foldNull(new Add(EMPTY, unknown, NULL, TEST_CFG)));
+        assertNullLiteral(foldNull(new Round(EMPTY, unknown, NULL)));
+        assertNullLiteral(foldNull(new Round(EMPTY, unknown, nullTyped)));
     }
 
     public void testMultivalueFunctionsWithDefaultNullabilityGetFolded() {

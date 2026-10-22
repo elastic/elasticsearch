@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -36,6 +37,7 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -50,6 +52,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.fail;
@@ -375,6 +378,83 @@ public class SplitTargetServiceTests extends ESTestCase {
         // The split target was shard 2 of a 4 shard index
         assertTrue(SplitTargetService.searchShardsOnlineOrNewPrimaryTerm(state, new ShardId(index, 2), 1L));
         assertTrue(SplitTargetService.searchShardsOnlineOrNewPrimaryTerm(state, new ShardId(index, 3), 1L));
+    }
+
+    /// A target shard's recovery can start while the shard is being closed (e.g. a restore replaces the index). Closing cancels the
+    /// splits of the shard, so if that has already happened by the time the recovery registers its state machine, nothing ever
+    /// cancels it, and it keeps the closed shard reachable (and keeps trying to make progress for it).
+    public void testSplitIsNotTrackedForShardThatIsAlreadyClosed() {
+        var threadPool = directThreadPool();
+        var clusterService = mock(ClusterService.class);
+        when(clusterService.threadPool()).thenReturn(threadPool);
+        when(clusterService.localNode()).thenReturn(dummyNode("node_target", 10001));
+        var reshardIndexService = mock(ReshardIndexService.class);
+        when(reshardIndexService.getReshardMetrics()).thenReturn(ReshardMetrics.NOOP);
+        var sts = new SplitTargetService(Settings.EMPTY, silentClient(threadPool), clusterService, reshardIndexService);
+
+        var indexShard = splitTargetShard(IndexShardState.CLOSED);
+        sts.startSplitTargetShardRecovery(indexShard, splitIndexMetadata(), ActionListener.noop());
+
+        assertThat(sts.getShardsWithOngoingSplits(), empty());
+    }
+
+    /// Closing a shard cancels its splits twice, before and after the shard itself is closed. A state machine that was registered in
+    /// between (the shard still looked open to the recovery that registered it) is only found by the second one.
+    public void testSplitRegisteredWhileShardIsClosingIsCancelledByTheLaterCancellation() {
+        var threadPool = directThreadPool();
+        var clusterService = mock(ClusterService.class);
+        when(clusterService.threadPool()).thenReturn(threadPool);
+        when(clusterService.localNode()).thenReturn(dummyNode("node_target", 10001));
+        var reshardIndexService = mock(ReshardIndexService.class);
+        when(reshardIndexService.getReshardMetrics()).thenReturn(ReshardMetrics.NOOP);
+        var sts = new SplitTargetService(Settings.EMPTY, silentClient(threadPool), clusterService, reshardIndexService);
+
+        var indexShard = splitTargetShard(IndexShardState.RECOVERING);
+        sts.cancelSplits(indexShard); // before the shard is closed: nothing registered yet
+        sts.startSplitTargetShardRecovery(indexShard, splitIndexMetadata(), ActionListener.noop());
+        assertThat(sts.getShardsWithOngoingSplits(), hasSize(1));
+
+        sts.cancelSplits(indexShard); // after the shard has been closed
+
+        assertThat(sts.getShardsWithOngoingSplits(), empty());
+        verify(reshardIndexService).failAndStopTrackingSplit(any(IndexShard.class), any(Exception.class));
+    }
+
+    /// A client that never answers, as if the start split request to the source shard were still waiting for the handoff
+    private static NoOpClient silentClient(ThreadPool threadPool) {
+        return new NoOpClient(threadPool) {
+            @Override
+            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {}
+        };
+    }
+
+    /// A mock of a split target shard (shard 1 of a 2 shard index that is being split from 1 shard)
+    private static IndexShard splitTargetShard(IndexShardState state) {
+        var indexShard = mock(IndexShard.class);
+        var shardId = new ShardId("index", "uuid", 1);
+        when(indexShard.shardId()).thenReturn(shardId);
+        when(indexShard.state()).thenReturn(state);
+        when(indexShard.getOperationPrimaryTerm()).thenReturn(2L);
+        var recoveryState = mock(RecoveryState.class);
+        when(recoveryState.getRecoverySource()).thenReturn(RecoverySource.ExistingStoreRecoverySource.INSTANCE);
+        when(recoveryState.getSourceNode()).thenReturn(dummyNode("node_source", 10000));
+        when(indexShard.recoveryState()).thenReturn(recoveryState);
+        return indexShard;
+    }
+
+    private static IndexMetadata splitIndexMetadata() {
+        return IndexMetadata.builder("index")
+            .settings(indexSettings(IndexVersion.current(), 2, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid"))
+            .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(1, 2))
+            .build();
+    }
+
+    private static DiscoveryNode dummyNode(String name, int port) {
+        return new DiscoveryNode(name, name, new TransportAddress(TransportAddress.META_ADDRESS, port), Map.of(), Set.of(), null);
     }
 
     /// A thread pool that runs everything immediately, on the calling thread

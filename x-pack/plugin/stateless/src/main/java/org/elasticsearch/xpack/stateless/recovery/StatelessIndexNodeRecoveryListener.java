@@ -274,6 +274,9 @@ public class StatelessIndexNodeRecoveryListener extends AbstractStatelessRecover
     @Override
     public void afterIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
         if (indexShard != null) {
+            // The target's splits were cancelled before the shard was closed. A recovery that was registering its state machine while
+            // that happened may have missed it, in which case this finds it.
+            splitTargetService.cancelSplits(indexShard);
             splitSourceService.cancelSplits(indexShard);
         }
     }

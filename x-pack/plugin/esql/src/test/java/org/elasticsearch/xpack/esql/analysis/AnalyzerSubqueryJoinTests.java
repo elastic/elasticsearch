@@ -74,11 +74,12 @@ public class AnalyzerSubqueryJoinTests extends AnalyzerTestCase {
         );
     }
 
-    public void testInnerJoinSubqueryExecutesOnCoordinator() {
+    public void testInnerJoinSubqueryCanExecuteOnDataNodes() {
         assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
-        LogicalPlan plan = analyzer().query("ROW key = 1 | INNER JOIN (ROW key = 1, value = 2) ON key | LIMIT 10");
+        LogicalPlan plan = analyzer().minimumTransportVersion(Analyzer.ESQL_JOIN_SUBQUERY)
+            .query("ROW key = 1 | INNER JOIN (ROW key = 1, value = 2) ON key | LIMIT 10");
 
-        assertThat(findSubqueryJoin(plan).executesOn(), equalTo(ExecuteLocation.COORDINATOR));
+        assertThat(findSubqueryJoin(plan).executesOn(), equalTo(ExecuteLocation.ANY));
     }
 
     public void testDateAndDateNanosJoinKeysAreIncompatible() {

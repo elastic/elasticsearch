@@ -2021,19 +2021,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             LogicalPlan right = addSubqueryJoinProjectionIfNeeded(join.source(), join.right(), rightFields, () -> join.right().output());
 
-            // Coordinator execution preserves mixed-version compatibility for the INNER join marker filter.
-            ExecuteLocation mode;
-            if (config.type() == JoinTypes.INNER) {
-                mode = ExecuteLocation.COORDINATOR;
-            } else {
-                mode = newSubqueryJoinMode(context.minimumVersion(), join.left());
-            }
             return new SubqueryJoin(
                 join.source(),
                 join.left(),
                 right,
                 new JoinConfig(config.type(), leftKeys, rightFields, config.joinOnConditions()),
-                mode
+                newSubqueryJoinMode(context.minimumVersion(), join.left())
             );
         }
 

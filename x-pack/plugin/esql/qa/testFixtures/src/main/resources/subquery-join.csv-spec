@@ -39,6 +39,32 @@ emp_no:integer | language_code:integer | match_count:long
 10092          | 2                     | 4
 ;
 
+leftOuterJoinStatsSubqueryWithNullRejectingFilter
+required_capability: join_on_subquery
+
+FROM employees
+| STATS cnt = COUNT(*) BY languages, gender
+| LEFT OUTER JOIN (
+    FROM employees
+    | STATS c = COUNT(*) BY languages
+    | SORT c DESC
+    | LIMIT 2
+    | KEEP c, languages
+  ) ON languages
+| WHERE c IS NOT NULL
+| SORT c DESC, cnt DESC
+| KEEP languages, gender, cnt, c
+;
+
+languages:integer | gender:keyword | cnt:long | c:long
+5                 | F              | 9        | 21
+5                 | M              | 8        | 21
+5                 | null           | 4        | 21
+2                 | M              | 11       | 19
+2                 | F              | 5        | 19
+2                 | null           | 3        | 19
+;
+
 leftOuterJoinWithSubqueriesOnBothSides
 required_capability: join_on_subquery
 required_capability: subquery_in_from_command

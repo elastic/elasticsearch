@@ -27,12 +27,14 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEvalFoldables;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneConstantSortKeysFromOrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoin;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -263,6 +265,30 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
         var localContext = new LocalLogicalOptimizerContext(TEST_CFG, FoldContext.small(), TEST_SEARCH_STATS);
         LogicalPlan localOptimized = new LocalLogicalPlanOptimizer(localContext).localOptimize(optimized);
         findSubqueryJoin(localOptimized);
+    }
+
+    public void testNullRejectingFilterTurnsLeftSubqueryJoinIntoInner() {
+        LogicalPlan analyzed = defaultAnalyzer().query("""
+            FROM test
+            | STATS cnt = COUNT(*) BY languages, gender
+            | LEFT OUTER JOIN (FROM test | STATS c = COUNT(*) BY languages | SORT c DESC | LIMIT 3 | KEEP c, languages) ON languages
+            | WHERE c IS NOT NULL
+            | SORT c DESC, cnt DESC
+            | LIMIT 10
+            """);
+
+        LogicalPlan optimized = new LogicalPlanOptimizer(logicalOptimizerCtx).optimize(analyzed);
+
+        SubqueryJoin join = findSubqueryJoin(optimized);
+        assertEquals(JoinTypes.INNER, join.config().type());
+        List<Filter> notNullFilters = new ArrayList<>();
+        optimized.forEachDown(Filter.class, f -> {
+            if (f.condition() instanceof IsNotNull) {
+                notNullFilters.add(f);
+            }
+        });
+        assertThat(notNullFilters, hasSize(1));
+        assertTrue(join.right().anyMatch(notNullFilters.get(0)::equals));
     }
 
     public void testTotalBranchCountAtOrBeyondLimit() {

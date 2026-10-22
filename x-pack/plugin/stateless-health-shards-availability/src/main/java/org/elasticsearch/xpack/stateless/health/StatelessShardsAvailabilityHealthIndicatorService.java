@@ -150,16 +150,16 @@ public class StatelessShardsAvailabilityHealthIndicatorService extends ShardsAva
 
         /// Like the base indicator, treats provisionally unavailable shards (within the primary and replica unassigned
         /// grace windows) as acceptable for [`GREEN`][HealthStatus#GREEN]. Otherwise, returns [`RED`][HealthStatus#RED] when
-        /// every replica of an index is unavailable in a non-provisional way and returns [`YELLOW`][HealthStatus#YELLOW]
-        /// when some replica copies are unavailable but not all.
+        /// some shard of an index has no active replica copy in a non-provisional way, and returns [`YELLOW`][HealthStatus#YELLOW]
+        /// when some replica copies are unavailable but every shard still has at least one active replica copy.
         @Override
         public HealthStatus getStatus() {
             if (primaries.areAllAvailableOrProvisionallyUnavailable() == false
                 || primaries.searchableSnapshotsState.getRedSearchableSnapshots().isEmpty() == false) {
                 return RED;
             } else if (replicas.areAllAvailableOrProvisionallyUnavailable() == false) {
-                if (replicas.doAnyIndicesHaveAllUnassigned()) {
-                    // Some index has all of its replica copies unassigned (non-provisionally)
+                if (replicas.doAnyIndicesHaveShardWithNoActiveCopy()) {
+                    // Some index has a shard with no active replica copy (non-provisionally)
                     return RED;
                 } else {
                     return YELLOW;
@@ -230,14 +230,14 @@ public class StatelessShardsAvailabilityHealthIndicatorService extends ShardsAva
         @Override
         public List<HealthIndicatorImpact> getImpacts() {
             List<HealthIndicatorImpact> impacts = new ArrayList<>(super.getImpacts());
-            if (replicas.doAnyIndicesHaveAllUnassigned()) {
+            if (replicas.doAnyIndicesHaveShardWithNoActiveCopy()) {
                 String impactDescription = String.format(
                     Locale.ROOT,
                     "Not all data is searchable. No searchable copies of the data exist on %d %s [%s].",
-                    replicas.indicesWithAllShardsUnassigned.size(),
-                    replicas.indicesWithAllShardsUnassigned.size() == 1 ? "index" : "indices",
+                    replicas.indicesWithAnyShardWithNoActiveCopy.size(),
+                    replicas.indicesWithAnyShardWithNoActiveCopy.size() == 1 ? "index" : "indices",
                     getTruncatedProjectIndices(
-                        replicas.indicesWithAllShardsUnassigned,
+                        replicas.indicesWithAnyShardWithNoActiveCopy,
                         clusterMetadata,
                         projectResolver.supportsMultipleProjects()
                     )
@@ -245,7 +245,7 @@ public class StatelessShardsAvailabilityHealthIndicatorService extends ShardsAva
                 impacts.add(
                     new HealthIndicatorImpact(NAME, ALL_REPLICAS_UNASSIGNED_IMPACT_ID, 1, impactDescription, List.of(ImpactArea.SEARCH))
                 );
-                if (replicas.indicesWithUnavailableShards.equals(replicas.indicesWithAllShardsUnassigned)) {
+                if (replicas.indicesWithUnavailableShards.equals(replicas.indicesWithAnyShardWithNoActiveCopy)) {
                     // Remove the other replica message, because all indices are already covered by the impact added above
                     impacts.removeIf(indicator -> indicator.id().equals(REPLICA_UNASSIGNED_IMPACT_ID));
                 }

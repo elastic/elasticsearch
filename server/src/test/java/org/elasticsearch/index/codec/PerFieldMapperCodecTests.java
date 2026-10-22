@@ -46,7 +46,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 
@@ -646,7 +645,6 @@ public class PerFieldMapperCodecTests extends ESTestCase {
      * columns around it are written in.
      */
     public void testVectorDbColumnarIdDocValuesFormat() throws IOException {
-        assumeTrue("vectordb_columnar must be enabled", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
         final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(
             IndexMode.VECTORDB_COLUMNAR,
             randomColumnarEligibleIndexVersion()
@@ -666,7 +664,6 @@ public class PerFieldMapperCodecTests extends ESTestCase {
      * policies: text still has no dictionary, keyword still has one.
      */
     public void testVectorDbColumnarStringColumnsUseSmallChunks() throws IOException {
-        assumeTrue("vectordb_columnar must be enabled", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
         final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(
             IndexMode.VECTORDB_COLUMNAR,
             randomColumnarEligibleIndexVersion()
@@ -689,10 +686,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     }
 
     public void testStringColumnOptionsKeepEachFieldsFramingInEveryColumnarMode() throws IOException {
-        final List<IndexMode> modes = new ArrayList<>(List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR));
-        if (IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled()) {
-            modes.add(IndexMode.VECTORDB_COLUMNAR);
-        }
+        final List<IndexMode> modes = List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR, IndexMode.VECTORDB_COLUMNAR);
         final String mapping = """
             {
                 "properties": {

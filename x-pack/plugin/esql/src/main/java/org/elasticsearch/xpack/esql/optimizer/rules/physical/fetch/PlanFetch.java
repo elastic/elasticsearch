@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.HighlightExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -147,8 +148,8 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
      * The plans the fetch phase supports, checked in this order:
      * <ol>
      *     <li>one cluster exchange, over a fragment, without aggregation and without {@code FORK} or {@code UNION},</li>
-     *     <li>only {@code KEEP}, {@code DROP}, {@code RENAME}, {@code EVAL}, {@code WHERE} and {@code LIMIT} between the
-     *     coordinator cut and the root,</li>
+     *     <li>only {@code KEEP}, {@code DROP}, {@code RENAME}, {@code EVAL}, {@code WHERE}, {@code LIMIT} and
+     *     {@code HIGHLIGHT} between the coordinator cut and the root,</li>
      *     <li>the coordinator cut reads the exchange and mirrors the cut that ends the fragment, a {@code TopN} or a
      *     {@code LIMIT},</li>
      *     <li>only {@code WHERE}, {@code EVAL}, projections and local copies of the cut between the fragment cut and the
@@ -320,9 +321,17 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
      * The fetch runs right above the coordinator cut, so everything after it sees the fetched columns. A {@code LIMIT}
      * after the cut only drops more rows. It shows up above a {@code WHERE} that follows the cut, because the implicit
      * limit of the query cannot move below a {@code WHERE}.
+     * <p>
+     * {@code HIGHLIGHT} appends one column per field it highlights, computed from the values of the row alone, so it
+     * highlights the fetched text of the winners. The optimizer moves a sort and a limit below it unless the sort reads
+     * a generated highlight column, so it usually follows the cut.
      */
     private static boolean isSupportedAfterCut(PhysicalPlan node) {
-        return node instanceof ProjectExec || node instanceof EvalExec || node instanceof FilterExec || node instanceof LimitExec;
+        return node instanceof ProjectExec
+            || node instanceof EvalExec
+            || node instanceof FilterExec
+            || node instanceof LimitExec
+            || node instanceof HighlightExec;
     }
 
     private static boolean isSupportedBeforeCut(LogicalPlan step) {

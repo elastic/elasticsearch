@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
+import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
@@ -115,6 +116,21 @@ public class FetchPhaseGoldenTests extends GoldenTestCase {
             """, EsqlTestUtils.TEST_SEARCH_STATS);
     }
 
+    /** {@code HIGHLIGHT} after the cut reads the fetched text on the coordinator, so the fetch sits right below it. */
+    public void testHighlightAfterTheCut() {
+        String query = """
+            FROM books
+            | WHERE MATCH(description, "ring")
+            | SORT book_no
+            | LIMIT 5
+            | HIGHLIGHT ON description
+            | KEEP book_no, title, highlight_description
+            """;
+        withFetchPhase(query, EsqlTestUtils.TEST_SEARCH_STATS).run();
+        // older nodes can't plan a HIGHLIGHT that takes its query from the WHERE
+        withoutFetchPhase(query, EsqlTestUtils.TEST_SEARCH_STATS).since(Highlight.ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS).run();
+    }
+
     /** {@code _source} is the column the fetch phase saves the most on. */
     public void testSource() {
         runBoth("""
@@ -137,13 +153,20 @@ public class FetchPhaseGoldenTests extends GoldenTestCase {
     }
 
     private void runBoth(String query, SearchStats searchStats) {
-        builder(query).stages(STAGES)
+        withFetchPhase(query, searchStats).run();
+        withoutFetchPhase(query, searchStats).run();
+    }
+
+    private TestBuilder withFetchPhase(String query, SearchStats searchStats) {
+        return builder(query).stages(STAGES)
             .searchStats(searchStats)
             .flags(EsqlFlags.withFetchPhase(true))
             .since(FetchPhasePolicy.PLANNER_MINIMUM)
-            .nestedPath("fetch")
-            .run();
-        builder(query).stages(STAGES).searchStats(searchStats).flags(EsqlFlags.withFetchPhase(false)).nestedPath("eager").run();
+            .nestedPath("fetch");
+    }
+
+    private TestBuilder withoutFetchPhase(String query, SearchStats searchStats) {
+        return builder(query).stages(STAGES).searchStats(searchStats).flags(EsqlFlags.withFetchPhase(false)).nestedPath("eager");
     }
 
     // Prevents TopN pushdown.

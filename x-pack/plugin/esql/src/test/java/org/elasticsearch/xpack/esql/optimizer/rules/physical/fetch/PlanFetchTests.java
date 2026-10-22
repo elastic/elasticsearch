@@ -16,7 +16,9 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.analysis.Analyzer;
+import org.elasticsearch.xpack.esql.TestAnalyzer;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerTests;
+import org.elasticsearch.xpack.esql.analysis.rules.ResolveHighlightIndexKey;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -24,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
@@ -40,6 +43,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.HighlightExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
@@ -174,6 +178,60 @@ public class PlanFetchTests extends ESTestCase {
         ).plan();
         FetchExec fetch = single(plan, FetchExec.class);
         assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("first_name", "salary")));
+    }
+
+    /**
+     * {@code HIGHLIGHT} after the cut runs on the coordinator over the fetched text of the winners, so the fields it
+     * highlights are fetched instead of crossing the exchange.
+     */
+    public void testHighlightAfterTheCutFetchesTheFieldsItHighlights() {
+        PhysicalPlan plan = plan(books(), "FROM books | SORT year | LIMIT 10 | HIGHLIGHT \"ring\" ON title | KEEP book_no, highlight_title")
+            .plan();
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("book_no", "title")));
+        assertThat(names(fetch.child().output()), equalTo(List.of("_doc", "year")));
+        assertThat("the highlight reads the fetched text", single(plan, HighlightExec.class).child(), sameInstance(fetch));
+    }
+
+    /**
+     * The optimizer moves the sort and the limit below a {@code HIGHLIGHT}, so a {@code HIGHLIGHT} written before them
+     * still follows the cut and the plan gets the fetch phase.
+     */
+    public void testHighlightWrittenBeforeTheSortFollowsTheCut() {
+        PhysicalPlan plan = plan(books(), "FROM books | HIGHLIGHT \"ring\" ON title | SORT year | LIMIT 10 | KEEP book_no, highlight_title")
+            .plan();
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("book_no", "title")));
+        assertThat(single(plan, HighlightExec.class).child(), sameInstance(fetch));
+    }
+
+    /**
+     * A sort on a generated highlight column keeps {@code HIGHLIGHT} before the cut, so the plan stays eager.
+     */
+    public void testSortOnAHighlightKeepsThePlanEager() {
+        Planned planned = plan(
+            books(),
+            "FROM books | HIGHLIGHT \"ring\" ON title | SORT highlight_title | LIMIT 10 | KEEP book_no, highlight_title"
+        );
+        assertDeclined(planned, Outcome.INELIGIBLE_SHAPE);
+        assertThat(planned.decisions().getFirst().reason(), containsString("[Highlight] runs before the cut"));
+    }
+
+    /**
+     * When the indices disagree on the analyzer of a highlighted field, {@code HIGHLIGHT} also reads the index of each row.
+     * The optimizer copies {@code _index} into the key after the cut, so {@code _index} is fetched with the text, and only
+     * the documents and the sort key cross the exchange.
+     */
+    public void testHighlightFetchesTheIndexOfEachRowWithTheText() {
+        TestAnalyzer books = AnalyzerTests.booksWithConflictingTitleAnalyzer().minimumTransportVersion(TransportVersion.current());
+        PhysicalPlan plan = plan(
+            books,
+            "FROM books* | SORT book_no | LIMIT 10 | HIGHLIGHT \"ring\" ON title | KEEP book_no, highlight_title"
+        ).plan();
+        assertThat(single(plan, HighlightExec.class).indexKey().name(), equalTo(ResolveHighlightIndexKey.INDEX_KEY_NAME));
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("title", "_index")));
+        assertThat(names(fetch.child().output()), equalTo(List.of("_doc", "book_no")));
     }
 
     /** {@code _score} comes from the query, not from the document, so it crosses the exchange. The rest is fetched. */
@@ -360,13 +418,47 @@ public class PlanFetchTests extends ESTestCase {
     }
 
     private static Planned plan(String query, EsqlFlags flags, Configuration configuration, TransportVersion minimumVersion) {
-        Analyzer analyzer = EsqlTestUtils.analyzer()
+        TestAnalyzer employees = EsqlTestUtils.analyzer()
             .addIndex(EsIndexGenerator.esIndex("employees", mapping(), Map.of("employees", IndexMode.STANDARD)))
-            .minimumTransportVersion(minimumVersion)
-            .buildAnalyzer();
-        TestPlannerOptimizer optimizer = new TestPlannerOptimizer(configuration, analyzer, flags);
+            .minimumTransportVersion(minimumVersion);
+        return plan(employees, query, flags, configuration);
+    }
+
+    private static Planned plan(TestAnalyzer analyzer, String query) {
+        return plan(analyzer, query, EsqlFlags.withFetchPhase(true), configuration(Settings.EMPTY));
+    }
+
+    private static Planned plan(TestAnalyzer analyzer, String query, EsqlFlags flags, Configuration configuration) {
+        TestPlannerOptimizer optimizer = new TestPlannerOptimizer(configuration, analyzer.buildAnalyzer(), flags);
         PhysicalPlan plan = optimizer.distributedPlan(query);
         return new Planned(plan, optimizer.fetchPhaseOutcomes().all());
+    }
+
+    /**
+     * {@code books}, with a {@code title} text field analyzed with {@code standard}.
+     */
+    private static TestAnalyzer books() {
+        Map<String, EsField> mapping = Map.of(
+            "book_no",
+            new KeywordEsField("book_no", Map.of(), true, 32766, false, false, EsField.TimeSeriesFieldType.NONE),
+            "title",
+            new TextEsField(
+                "title",
+                Map.of(),
+                false,
+                false,
+                EsField.TimeSeriesFieldType.NONE,
+                "standard",
+                TextEsField.DEFAULT_POSITION_INCREMENT_GAP,
+                TextEsField.UnknownAnalyzer.NONE,
+                null
+            ),
+            "year",
+            new EsField("year", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        return EsqlTestUtils.analyzer()
+            .addIndex(EsIndexGenerator.esIndex("books", mapping, Map.of("books", IndexMode.STANDARD)))
+            .minimumTransportVersion(TransportVersion.current());
     }
 
     private static Map<String, EsField> mapping() {

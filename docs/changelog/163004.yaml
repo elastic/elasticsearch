@@ -2,5 +2,5 @@ area: ES|QL
 issues:
  - 162643
 pr: 163004
-summary: "Fix `QSTR` rejecting its documented `fields` option, which now accepts a list of fields or a single field, with `^` boosts and wildcards"
+summary: "`QSTR` now accepts the `fields` option to search specific fields"
 type: bug

@@ -71,7 +71,7 @@ public class GeoPointFieldBlockLoaderTests extends BlockLoaderTestCase {
         // Once the mapping has the index.mapping.synthetic_source_keep to "arrays" and the field ancestor is an array
         // we have to mime what DocumentParser does, which means grab the original value from _ignored_source.
         // Multi fields are not affected since they are indexed in their own doc values.
-        if (isMappingKeepingOriginalSourceForArrays(getSettingsForParams().build())
+        if (indexKeepsArray(getSettingsForParams().build())
             && testContext.isMultifield() == false
             && hasArrayAncestor(runner.mapDoc(), runner.fieldName())) {
             return exactValuesFromSource(values, nullValue, false);

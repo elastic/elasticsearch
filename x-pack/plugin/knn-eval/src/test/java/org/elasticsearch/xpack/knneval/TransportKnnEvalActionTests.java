@@ -903,7 +903,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
             calibratedSpec,
             false,
             calibratedSpec.getQueries(),
-            new KnnEvalRescore(KnnEvalRescore.IndexType.BBQ_DISK, 3.0f, true)
+            new KnnEvalRescore(KnnEvalRescore.IndexType.BBQ_DISK, 3.0f, true, null)
         ).buildResponse();
         assertFalse(calibratedResponse.getBaseline().rescoreWindowCapped());
         assertFalse(calibratedResponse.getResults().get(0).knnSettings().rescoreWindowCapped());
@@ -920,7 +920,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
             explicitSpec,
             false,
             explicitSpec.getQueries(),
-            new KnnEvalRescore(KnnEvalRescore.IndexType.BBQ_DISK, 3.0f, true)
+            new KnnEvalRescore(KnnEvalRescore.IndexType.BBQ_DISK, 3.0f, true, null)
         ).buildResponse().getResults().get(0).knnSettings();
         assertTrue(explicit.rescoreWindowCapped());
     }

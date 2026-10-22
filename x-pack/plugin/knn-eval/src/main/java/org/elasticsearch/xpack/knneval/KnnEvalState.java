@@ -126,7 +126,8 @@ final class KnnEvalState {
             baselineVectorOps,
             spec.getBaseline().isExact() ? KnnEvalResponse.FULL_PRECISION_SCAN : KnnEvalResponse.QUANTIZED_VISIT_PLUS_RESCORE,
             results,
-            failures
+            failures,
+            rescore.hnswEarlyTermination()
         );
     }
 

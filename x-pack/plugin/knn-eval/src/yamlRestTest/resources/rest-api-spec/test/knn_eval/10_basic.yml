@@ -135,6 +135,8 @@ teardown:
   - match: { results.0.recall: 1.0 }
   - match: { results.0.included_queries: 10 }
   - match: { baseline_vector_ops_kind: "quantized_visit_plus_rescore" }
+  # only HNSW-family fields report it
+  - is_false: hnsw_early_termination
   - length: { failures: 0 }
   - gte: { baseline_took_ms: 0 }
   - gte: { results.0.took_ms: 0 }

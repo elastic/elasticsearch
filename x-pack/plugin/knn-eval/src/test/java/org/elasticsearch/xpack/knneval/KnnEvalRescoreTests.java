@@ -27,16 +27,17 @@ public class KnnEvalRescoreTests extends ESTestCase {
         for (String indexType : List.of("bbq_disk", "hnsw", "int8_hnsw", "int4_hnsw", "bbq_hnsw")) {
             assertNotNull(rescoreFor(indexType));
         }
-        for (String indexType : List.of("flat", "int8_flat", "int4_flat", "bbq_flat")) {
+        // flat types scan every vector, so there is no search effort to evaluate; unknown types are reported alike
+        for (String indexType : List.of("flat", "int8_flat", "int4_flat", "bbq_flat", "made_up")) {
             assertThat(
                 expectThrows(
                     IllegalArgumentException.class,
                     () -> KnnEvalRescore.fromFieldMapping("emb", Map.of("type", "dense_vector", "index_options", Map.of("type", indexType)))
                 ).getMessage(),
                 containsString(
-                    "field [emb] must use [index_options.type] of one of [bbq_disk, hnsw, int8_hnsw, int4_hnsw, bbq_hnsw], found ["
+                    "field [emb] has unsupported [index_options.type="
                         + indexType
-                        + "]"
+                        + "]; supported types are: [bbq_disk, hnsw, int8_hnsw, int4_hnsw, bbq_hnsw]"
                 )
             );
         }
@@ -46,11 +47,11 @@ public class KnnEvalRescoreTests extends ESTestCase {
         assertThat(
             expectThrows(IllegalArgumentException.class, () -> KnnEvalRescore.fromFieldMapping("emb", Map.of("type", "dense_vector")))
                 .getMessage(),
-            containsString("found no [index_options] in mapping [{type=dense_vector}]")
+            containsString("field [emb] has no [index_options] in mapping [{type=dense_vector}]; supported types are: [bbq_disk")
         );
         assertThat(
             expectThrows(IllegalArgumentException.class, () -> KnnEvalRescore.fromFieldMapping("emb", null)).getMessage(),
-            containsString("found no [index_options] in mapping [null]")
+            containsString("field [emb] has no [index_options] in mapping [null]; supported types are: [bbq_disk")
         );
     }
 

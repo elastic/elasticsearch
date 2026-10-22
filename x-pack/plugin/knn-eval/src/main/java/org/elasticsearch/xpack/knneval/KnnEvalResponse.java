@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.knneval;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -40,6 +41,9 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
     static final ParseField BASELINE_VECTOR_OPS_KIND_FIELD = new ParseField("baseline_vector_ops_kind");
     static final ParseField RESULTS_FIELD = new ParseField("results");
     static final ParseField FAILURES_FIELD = new ParseField("failures");
+    static final ParseField HNSW_EARLY_TERMINATION_FIELD = new ParseField("hnsw_early_termination");
+
+    static final TransportVersion KNN_EVAL_HNSW_EARLY_TERMINATION = TransportVersion.fromName("knn_eval_hnsw_early_termination");
 
     private final String queryFrom;
     private final ReportedSettings baseline;
@@ -48,6 +52,8 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
     private final String baselineVectorOpsKind;
     private final List<KnnSettingsResult> results;
     private final Map<String, Exception> failures;
+    @Nullable
+    private final Boolean hnswEarlyTermination;
 
     KnnEvalResponse(
         String queryFrom,
@@ -56,7 +62,8 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
         long baselineVectorOps,
         String baselineVectorOpsKind,
         List<KnnSettingsResult> results,
-        Map<String, Exception> failures
+        Map<String, Exception> failures,
+        @Nullable Boolean hnswEarlyTermination
     ) {
         this.queryFrom = Objects.requireNonNull(queryFrom);
         this.baseline = Objects.requireNonNull(baseline);
@@ -65,6 +72,7 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
         this.baselineVectorOpsKind = Objects.requireNonNull(baselineVectorOpsKind);
         this.results = List.copyOf(results);
         this.failures = Map.copyOf(failures);
+        this.hnswEarlyTermination = hnswEarlyTermination;
     }
 
     KnnEvalResponse(StreamInput in) throws IOException {
@@ -75,6 +83,7 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
         this.baselineVectorOpsKind = in.readString();
         this.results = in.readCollectionAsList(KnnSettingsResult::new);
         this.failures = in.readMap(StreamInput::readException);
+        this.hnswEarlyTermination = in.getTransportVersion().supports(KNN_EVAL_HNSW_EARLY_TERMINATION) ? in.readOptionalBoolean() : null;
     }
 
     public String getQueryFrom() {
@@ -105,6 +114,12 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
         return failures;
     }
 
+    /** The indices' early-termination setting, or {@code null} when the field isn't an HNSW-family type. */
+    @Nullable
+    public Boolean getHnswEarlyTermination() {
+        return hnswEarlyTermination;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(queryFrom);
@@ -114,6 +129,9 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
         out.writeString(baselineVectorOpsKind);
         out.writeCollection(results);
         out.writeMap(failures, StreamOutput::writeException);
+        if (out.getTransportVersion().supports(KNN_EVAL_HNSW_EARLY_TERMINATION)) {
+            out.writeOptionalBoolean(hnswEarlyTermination);
+        }
     }
 
     @Override
@@ -127,6 +145,9 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
         builder.field(BASELINE_TOOK_MS_FIELD.getPreferredName(), baselineTookMs);
         builder.field(BASELINE_VECTOR_OPS_FIELD.getPreferredName(), baselineVectorOps);
         builder.field(BASELINE_VECTOR_OPS_KIND_FIELD.getPreferredName(), baselineVectorOpsKind);
+        if (hnswEarlyTermination != null) {
+            builder.field(HNSW_EARLY_TERMINATION_FIELD.getPreferredName(), hnswEarlyTermination);
+        }
         builder.startArray(RESULTS_FIELD.getPreferredName());
         for (KnnSettingsResult result : results) {
             result.toXContent(builder, params);
@@ -154,12 +175,22 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
             && baseline.equals(that.baseline)
             && baselineVectorOpsKind.equals(that.baselineVectorOpsKind)
             && results.equals(that.results)
+            && Objects.equals(hnswEarlyTermination, that.hnswEarlyTermination)
             && failureMessages().equals(that.failureMessages());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(queryFrom, baseline, baselineTookMs, baselineVectorOps, baselineVectorOpsKind, results, failureMessages());
+        return Objects.hash(
+            queryFrom,
+            baseline,
+            baselineTookMs,
+            baselineVectorOps,
+            baselineVectorOpsKind,
+            results,
+            failureMessages(),
+            hnswEarlyTermination
+        );
     }
 
     // exceptions lack equality; compare by message

@@ -53,6 +53,7 @@ import org.elasticsearch.common.util.concurrent.ThrottledIterator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -66,6 +67,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -202,7 +204,8 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         setParentTask(task, mappingsRequest);
         client.execute(GetFieldMappingsAction.INSTANCE, mappingsRequest, listener.<GetFieldMappingsResponse>map(response -> {
             rejectUnreadMappings(field, indices, response.mappings().keySet());
-            return rescoreOf(spec, response);
+            KnnEvalRescore rescore = rescoreOf(spec, response);
+            return rescore.withHnswEarlyTermination(hnswEarlyTermination(rescore, field, indices));
         }).delegateResponse((delegate, e) -> delegate.onFailure(mappingLookupFailure(field, e))));
     }
 
@@ -250,6 +253,35 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
             }
         }
         return null;
+    }
+
+    /**
+     * Early termination can stop a graph search short of the requested beam, so it bounds what any baseline can reach. It is an index
+     * setting the evaluation can't vary, so it is reported, and indices that disagree can't share one baseline.
+     */
+    @Nullable
+    private Boolean hnswEarlyTermination(KnnEvalRescore rescore, String field, Set<String> indices) {
+        if (rescore.indexType().isGraph() == false) {
+            return null;
+        }
+        ProjectMetadata project = projectResolver.getProjectMetadata(clusterService.state());
+        Set<Boolean> values = new HashSet<>();
+        for (String index : indices) {
+            IndexMetadata metadata = project.index(index);
+            if (metadata != null) {
+                values.add(DenseVectorFieldMapper.HNSW_EARLY_TERMINATION.get(metadata.getSettings()));
+            }
+        }
+        if (values.size() > 1) {
+            throw new IllegalArgumentException(
+                "["
+                    + field
+                    + "] is searched with different ["
+                    + DenseVectorFieldMapper.HNSW_EARLY_TERMINATION.getKey()
+                    + "] values across indices; evaluate one at a time"
+            );
+        }
+        return values.isEmpty() ? null : values.iterator().next();
     }
 
     private static void rejectDisabledIndices(ProjectMetadata project, Set<String> indices) {

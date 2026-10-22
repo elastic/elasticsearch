@@ -17,7 +17,12 @@ import java.util.List;
 import java.util.Map;
 
 /** Validates a DiskBBQ or HNSW-family mapping, picks the matching baseline, and detects capped rescore windows. */
-record KnnEvalRescore(IndexType indexType, @Nullable Float mappingOversample, boolean autoCalibrate) {
+record KnnEvalRescore(
+    IndexType indexType,
+    @Nullable Float mappingOversample,
+    boolean autoCalibrate,
+    @Nullable Boolean hnswEarlyTermination
+) {
 
     /** Index types whose search knobs differ, so each needs its own validation and default baseline. */
     enum IndexType {
@@ -71,13 +76,7 @@ record KnnEvalRescore(IndexType indexType, @Nullable Float mappingOversample, bo
         Object indexOptionsValue = fieldMapping == null ? null : fieldMapping.get(INDEX_OPTIONS_FIELD);
         if (indexOptionsValue instanceof Map<?, ?> == false) {
             throw new IllegalArgumentException(
-                "field ["
-                    + field
-                    + "] must use [index_options.type] of one of "
-                    + SUPPORTED
-                    + ", found no [index_options] in mapping ["
-                    + fieldMapping
-                    + "]"
+                "field [" + field + "] has no [index_options] in mapping [" + fieldMapping + "]; supported types are: " + SUPPORTED
             );
         }
         Map<?, ?> indexOptions = (Map<?, ?>) indexOptionsValue;
@@ -86,11 +85,10 @@ record KnnEvalRescore(IndexType indexType, @Nullable Float mappingOversample, bo
             throw new IllegalArgumentException(
                 "field ["
                     + field
-                    + "] must use [index_options.type] of one of "
-                    + SUPPORTED
-                    + ", found ["
+                    + "] has unsupported [index_options.type="
                     + indexOptions.get(TYPE_FIELD)
-                    + "]"
+                    + "]; supported types are: "
+                    + SUPPORTED
             );
         }
         Float mappingOversample = null;
@@ -101,8 +99,14 @@ record KnnEvalRescore(IndexType indexType, @Nullable Float mappingOversample, bo
         return new KnnEvalRescore(
             indexType,
             mappingOversample,
-            indexType == IndexType.BBQ_DISK && Boolean.TRUE.equals(indexOptions.get(AUTO_CALIBRATE_FIELD))
+            indexType == IndexType.BBQ_DISK && Boolean.TRUE.equals(indexOptions.get(AUTO_CALIBRATE_FIELD)),
+            null
         );
+    }
+
+    /** A mapping doesn't carry this index setting, so it is attached once the indices' settings are read. */
+    KnnEvalRescore withHnswEarlyTermination(@Nullable Boolean earlyTermination) {
+        return new KnnEvalRescore(indexType, mappingOversample, autoCalibrate, earlyTermination);
     }
 
     /**

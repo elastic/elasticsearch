@@ -95,7 +95,7 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
                         System.out.println("Build Finished Action: Skipping archive collection (build was preempted)");
                         return List.<File>of();
                     }
-                    if (result.getFailures().isEmpty()) {
+                    if (result.getFailure().isEmpty()) {
                         System.out.println("Build Finished Action: Build succeeded, skipping archive collection");
                         return List.<File>of();
                     }

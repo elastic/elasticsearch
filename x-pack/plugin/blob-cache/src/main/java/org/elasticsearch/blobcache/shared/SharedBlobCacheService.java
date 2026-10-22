@@ -1317,6 +1317,11 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             return timestampMillis;
         }
 
+        @Override
+        public long startOffset() {
+            return blobCacheService.getRegionStart(regionKey.region());
+        }
+
         /**
          * Backfills the region timestamp, transitioning it only from {@link #BACKFILL_IN_PROGRESS_TIMESTAMP} to a real
          * (non-sentinel) value.
@@ -3076,7 +3081,6 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             public void onRejection(Exception e) {
                 assert false : e;
                 logger.error("unexpected rejection", e);
-                epoch.incrementAndGet();
             }
 
             @Override

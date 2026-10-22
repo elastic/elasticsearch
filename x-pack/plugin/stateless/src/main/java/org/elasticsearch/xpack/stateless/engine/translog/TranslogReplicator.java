@@ -522,6 +522,12 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             }
         }
 
+        // Checked before we are about to upload a translog file. If another parallel upload has already uploaded while waiting
+        // queued behind other translog uploads, then we see that the translog is uploaded and do not upload the same translog again.
+        private boolean alreadyUploaded() {
+            return firstUploadWasHedge.get() != null;
+        }
+
         // A translog-upload might be slow or might even hang, so once the first try of an `UploadTranslogTask` actually starts its blob
         // write (see `tryAction`), we schedule a hedge upload that will be fired after `UPLOAD_HEDGE_DELAY_SETTING` seconds.
         // - If the hedge upload completes first, then `isDone` is set, and we'll stop retrying this `UploadTranslogTask`. Note this is
@@ -533,13 +539,13 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             if (firstUploadWasHedge.get() != null || uploadRefs.tryIncRef() == false) {
                 return;
             }
-            translogUploadHedgesCounter.increment();
-
             uploadTryNumber.incrementAndGet();
             objectStoreService.uploadTranslogFile(
                 translog.metadata().name(),
                 translog.bytes().data(),
-                () -> {},
+                // only count the hedge if we are actually about to start uploading
+                translogUploadHedgesCounter::increment,
+                this::alreadyUploaded,
                 ActionListener.releaseAfter(
                     ActionListener.wrap(
                         unused -> uploaded(true, listener),
@@ -576,6 +582,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                     translog.metadata().name(),
                     translog.bytes().data(),
                     onBeforeUpload,
+                    this::alreadyUploaded,
                     ActionListener.releaseAfter(ActionListener.wrap(unused -> {
                         logger.debug(() -> format("uploaded translog file [%s]", translog.metadata().name()));
                         uploaded(false, listener);

@@ -683,13 +683,13 @@ public class TranslogReplicatorTests extends ESTestCase {
         when(objectStoreService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
         doAnswer(invocation -> {
             if (attempt.incrementAndGet() < 3) {
-                invocation.<ActionListener<Void>>getArgument(3).onFailure(new IOException("test"));
+                invocation.<ActionListener<Void>>getArgument(4).onFailure(new IOException("test"));
             } else {
                 compoundFiles.add(getBytes(invocation.getArgument(1)));
-                invocation.<ActionListener<Void>>getArgument(3).onResponse(null);
+                invocation.<ActionListener<Void>>getArgument(4).onResponse(null);
             }
             return null;
-        }).when(objectStoreService).uploadTranslogFile(any(), any(), any(), any());
+        }).when(objectStoreService).uploadTranslogFile(any(), any(), any(), any(), any());
 
         BlobContainer blobContainer = mock(BlobContainer.class);
         doAnswer(invocation -> {
@@ -773,12 +773,12 @@ public class TranslogReplicatorTests extends ESTestCase {
         doAnswer(invocation -> {
             time.addAndGet(attemptMillis);
             if (attempt.incrementAndGet() <= failedAttempts) {
-                invocation.<ActionListener<Void>>getArgument(3).onFailure(new IOException("test"));
+                invocation.<ActionListener<Void>>getArgument(4).onFailure(new IOException("test"));
             } else {
-                invocation.<ActionListener<Void>>getArgument(3).onResponse(null);
+                invocation.<ActionListener<Void>>getArgument(4).onResponse(null);
             }
             return null;
-        }).when(objectStoreService).uploadTranslogFile(any(), any(), any(), any());
+        }).when(objectStoreService).uploadTranslogFile(any(), any(), any(), any(), any());
 
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         TranslogReplicator translogReplicator = new TranslogReplicator(
@@ -876,9 +876,9 @@ public class TranslogReplicatorTests extends ESTestCase {
         when(objectStoreService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
         doAnswer(invocation -> {
             syncStartedFuture.onResponse(null);
-            invocation.<ActionListener<Void>>getArgument(3).onResponse(null);
+            invocation.<ActionListener<Void>>getArgument(4).onResponse(null);
             return null;
-        }).when(objectStoreService).uploadTranslogFile(any(), any(), any(), any());
+        }).when(objectStoreService).uploadTranslogFile(any(), any(), any(), any(), any());
         StatelessClusterConsistencyService consistencyService = mockConsistencyService();
 
         TranslogReplicator translogReplicator = new TranslogReplicator(
@@ -926,16 +926,16 @@ public class TranslogReplicatorTests extends ESTestCase {
         doAnswer(invocation -> {
             var metadata = CompoundTranslogHeader.readFromStore("test", invocation.<BytesReference>getArgument(1).streamInput()).metadata();
             if (metadata.get(shardId).operations().maxSeqNo() == 1L) {
-                firstSyncCompleter.set(invocation.getArgument(3));
+                firstSyncCompleter.set(invocation.getArgument(4));
                 intermediateStartedLatch.countDown();
                 return null;
             }
             if (metadata.get(shardId).operations().maxSeqNo() == 3L) {
                 finalSyncStartedLatch.countDown();
             }
-            invocation.<ActionListener<Void>>getArgument(3).onResponse(null);
+            invocation.<ActionListener<Void>>getArgument(4).onResponse(null);
             return null;
-        }).when(objectStoreService).uploadTranslogFile(any(), any(), any(), any());
+        }).when(objectStoreService).uploadTranslogFile(any(), any(), any(), any(), any());
         StatelessClusterConsistencyService consistencyService = mockConsistencyService();
 
         TranslogReplicator translogReplicator = new TranslogReplicator(
@@ -1210,9 +1210,9 @@ public class TranslogReplicatorTests extends ESTestCase {
         when(objectStoreService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
         doAnswer(invocation -> {
             safeAwait(latch);
-            invocation.<ActionListener<Void>>getArgument(3).onResponse(null);
+            invocation.<ActionListener<Void>>getArgument(4).onResponse(null);
             return null;
-        }).when(objectStoreService).uploadTranslogFile(any(), any(), any(), any());
+        }).when(objectStoreService).uploadTranslogFile(any(), any(), any(), any(), any());
         StatelessClusterConsistencyService consistencyService = mockConsistencyService();
 
         TranslogReplicator translogReplicator = new TranslogReplicator(
@@ -1528,9 +1528,9 @@ public class TranslogReplicatorTests extends ESTestCase {
             if (uploads.incrementAndGet() == 1) {
                 safeAwait(firstUploadHangs); // hang the first upload so that the hedge completes the upload
             }
-            invocation.<ActionListener<Void>>getArgument(3).onResponse(null);
+            invocation.<ActionListener<Void>>getArgument(4).onResponse(null);
             return null;
-        }).when(objectStoreService).uploadTranslogFile(any(), any(), any(), any());
+        }).when(objectStoreService).uploadTranslogFile(any(), any(), any(), any(), any());
 
         long hedgeDelayMillis = TranslogReplicator.UPLOAD_HEDGE_DELAY_SETTING.get(Settings.EMPTY).millis();
         // capture the hedge instead of scheduling it at an arbitrary point in time, so we can fire the hedge when we want it to
@@ -1601,9 +1601,9 @@ public class TranslogReplicatorTests extends ESTestCase {
         doAnswer(invocation -> {
             invocation.<Runnable>getArgument(2).run(); // as in ObjectStoreService, signal that the upload is about to start
             uploads.incrementAndGet();
-            invocation.<ActionListener<Void>>getArgument(3).onResponse(null);
+            invocation.<ActionListener<Void>>getArgument(4).onResponse(null);
             return null;
-        }).when(objectStoreService).uploadTranslogFile(any(), any(), any(), any());
+        }).when(objectStoreService).uploadTranslogFile(any(), any(), any(), any(), any());
 
         long hedgeDelayMillis = TranslogReplicator.UPLOAD_HEDGE_DELAY_SETTING.get(Settings.EMPTY).millis();
         // capture the hedge instead of scheduling it, so we can fire the hedge when we want it to
@@ -1780,9 +1780,9 @@ public class TranslogReplicatorTests extends ESTestCase {
         doAnswer(invocation -> {
             uploadBlocker.get().await();
             compoundFiles.add(getBytes(invocation.getArgument(1)));
-            invocation.<ActionListener<Void>>getArgument(3).onResponse(null);
+            invocation.<ActionListener<Void>>getArgument(4).onResponse(null);
             return null;
-        }).when(objectStoreService).uploadTranslogFile(any(), any(), any(), any());
+        }).when(objectStoreService).uploadTranslogFile(any(), any(), any(), any(), any());
 
         BlobContainer blobContainer = mock(BlobContainer.class);
         doAnswer(invocation -> {

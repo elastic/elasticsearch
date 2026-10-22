@@ -797,15 +797,30 @@ public final class MappingLookup {
 
     /**
      * Whether the mapping guarantees that no document holds more than one value for {@code field}. {@code false} means "not
-     * guaranteed", including for unknown fields, aliases and fields whose mapper cannot enforce it.
+     * guaranteed", including for unknown fields and fields whose mapper cannot enforce it.
+     * <p>
+     * An alias, explicit or from a passthrough object, has the guarantee of its target.
+     */
+    public boolean isStaticallySingleValued(String field) {
+        MappedFieldType fieldType = fieldTypeLookup.get(field);
+        return fieldType != null && isStaticallySingleValued(fieldType);
+    }
+
+    /**
+     * Whether the mapping guarantees that no document holds more than one value for the field that {@code fieldType} describes. The
+     * field type of an alias is the one of its target, so an alias has the guarantee of its target. A runtime field, for example from
+     * the request, replaces the field type of the mapped field it shadows. Its values do not come from the mapper, so it has no
+     * guarantee: the field type must be the one of the mapper.
      * <p>
      * {@code copy_to} targets are never guaranteed. Today {@code multi_value=false} and {@code copy_to} cannot be combined (see
      * {@code MapperServiceTests#testSingleValueGuaranteeExcludesCopyTo}), but the values a {@code copy_to} adds are not described by the
      * target's own mapper parameters, so this method does not rely on that.
      */
-    public boolean isStaticallySingleValued(String field) {
-        return copyToTargets.contains(field) == false
-            && fieldMappers.get(field) instanceof FieldMapper fieldMapper
+    public boolean isStaticallySingleValued(MappedFieldType fieldType) {
+        String target = fieldType.name();
+        return copyToTargets.contains(target) == false
+            && fieldMappers.get(target) instanceof FieldMapper fieldMapper
+            && fieldMapper.fieldType() == fieldType
             && fieldMapper.guaranteesSingleValue();
     }
 

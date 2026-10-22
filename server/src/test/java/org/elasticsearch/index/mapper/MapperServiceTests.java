@@ -188,6 +188,41 @@ public class MapperServiceTests extends MapperServiceTestCase {
     }
 
     /**
+     * An alias has the guarantee of its target, whether that is present or not.
+     */
+    public void testStaticallySingleValuedThroughAlias() throws IOException {
+        Settings columnar = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService mapperService = createMapperService(columnar, mapping(b -> {
+            b.startObject("single").field("type", "keyword").field("multi_value", false).endObject();
+            b.startObject("multi").field("type", "keyword").endObject();
+            b.startObject("single_alias").field("type", "alias").field("path", "single").endObject();
+            b.startObject("multi_alias").field("type", "alias").field("path", "multi").endObject();
+        }));
+        MappingLookup lookup = mapperService.mappingLookup();
+        assertTrue(lookup.isStaticallySingleValued("single_alias"));
+        assertFalse(lookup.isStaticallySingleValued("multi_alias"));
+    }
+
+    /**
+     * A runtime field in a field caps request replaces the field type of the mapped field with the same name. Its values do not
+     * come from the mapper, so a field type that is not the mapper's own is not guaranteed, even under the same name.
+     */
+    public void testFieldTypeOfShadowingRuntimeFieldIsNotStaticallySingleValued() throws IOException {
+        Settings columnar = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService mapperService = createMapperService(
+            columnar,
+            mapping(b -> b.startObject("field").field("type", "keyword").field("multi_value", false).endObject())
+        );
+        MappingLookup lookup = mapperService.mappingLookup();
+        MappedFieldType mapped = lookup.getFieldType("field");
+        assertTrue(lookup.isStaticallySingleValued(mapped));
+
+        MappedFieldType shadowing = new KeywordFieldMapper.KeywordFieldType("field");
+        assertNotSame(mapped, shadowing);
+        assertFalse(lookup.isStaticallySingleValued(shadowing));
+    }
+
+    /**
      * A multi-field reads its own {@code multi_value} parameter, so a single-valued parent does not make its sub-field single-valued.
      */
     public void testSingleValueGuaranteeOfMultiField() throws IOException {

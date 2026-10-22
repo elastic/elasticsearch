@@ -253,8 +253,8 @@ class FieldCapabilitiesFetcher {
                     reported == null ? null : reported.name(),
                     reported == null ? TextFieldMapper.Defaults.POSITION_INCREMENT_GAP : reported.getPositionIncrementGap(ft.name()),
                     indexLocalAnalyzer,
-                    // By the field caps key, like passthrough above, so an alias is not reported through its target's mapper.
-                    context.getMappingLookup().isStaticallySingleValued(field)
+                    // An alias has the guarantee of its target, and a runtime field shadowing a mapped field has none.
+                    context.getMappingLookup().isStaticallySingleValued(ft)
                 );
                 responseMap.put(field, fieldCap);
             } else {

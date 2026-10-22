@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
@@ -96,8 +97,7 @@ public class BulkRequest extends UntypedActionRequest
     private Boolean globalRequireDatsStream;
     private boolean includeSourceOnError = true;
     private Set<String> paramsUsed = emptySet();
-    @Nullable
-    private Map<String, SourceBatch> preBuiltBatches;
+    private Map<String, SourceBatch> preBuiltBatches = Map.of();
 
     private long sizeInBytes = 0;
 
@@ -473,20 +473,41 @@ public class BulkRequest extends UntypedActionRequest
 
     /**
      * Attaches pre-built ESCF batches to this request, keyed by the name its items target — index, alias, or
-     * data stream.
+     * data stream. The request owns the batches from here on until the bulk action takes them via
+     * {@link #takePreBuiltBatches()}; while it still owns them, {@link #releasePreBuiltBatches()} lets the
+     * action and the submitter release them if the request is rejected before that point. A {@link #shallowClone()}
+     * shares the batches with its original, so a request must not be cloned while it still owns them.
      *
      * <p>TODO: implement serialization for ingest-node forwarding.
      */
     public void setPreBuiltBatches(Map<String, SourceBatch> batches) {
-        this.preBuiltBatches = batches;
+        this.preBuiltBatches = Objects.requireNonNull(batches);
+    }
+
+    public boolean hasPreBuiltBatches() {
+        return preBuiltBatches.isEmpty() == false;
     }
 
     /**
-     * Returns the pre-built ESCF batches set via {@link #setPreBuiltBatches}, or {@code null} if none were set.
+     * Transfers ownership of the pre-built batches to the caller, which must release them. Afterwards the request
+     * holds none, so {@link #releasePreBuiltBatches()} releases nothing. Throws if there is nothing to take.
      */
-    @Nullable
-    public Map<String, SourceBatch> getPreBuiltBatches() {
-        return preBuiltBatches;
+    public Map<String, SourceBatch> takePreBuiltBatches() {
+        if (preBuiltBatches.isEmpty()) {
+            throw new IllegalStateException("no pre-built batches to take: none attached, already taken, or already released");
+        }
+        Map<String, SourceBatch> taken = preBuiltBatches;
+        preBuiltBatches = Map.of();
+        return taken;
+    }
+
+    /**
+     * Releases the pre-built batches this request still owns. Safe to call more than once; a no-op once the batches
+     * were taken or when none are attached.
+     */
+    public void releasePreBuiltBatches() {
+        Releasables.close(preBuiltBatches.values());
+        preBuiltBatches = Map.of();
     }
 
     @Override
@@ -620,7 +641,7 @@ public class BulkRequest extends UntypedActionRequest
         bulkRequest.requireAlias(requireAlias());
         bulkRequest.requireDataStream(requireDataStream());
         bulkRequest.requestParamsUsed(requestParamsUsed());
-        bulkRequest.setPreBuiltBatches(getPreBuiltBatches());
+        bulkRequest.preBuiltBatches = preBuiltBatches;
         return bulkRequest;
     }
 

@@ -43,6 +43,7 @@ import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.FeatureFlag;
@@ -115,7 +116,6 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -1941,7 +1941,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
 
         final BytesRef nullValueBytes = builder.nullValue.get() != null ? new BytesRef(builder.nullValue.get()) : null;
 
-        try (EscfColumnBuilder keyed = mergeStringColumn(); EscfColumnBuilder counts = mergeLongColumn()) {
+        try (EscfColumnBuilder keyed = mergeStringColumn(ctx.recycler()); EscfColumnBuilder counts = mergeLongColumn(ctx.recycler())) {
             final BytesRefBuilder docBlob = new BytesRefBuilder();
             int seedEstimate = 0;
             for (int k = 0; k < columnCount; k++) {
@@ -2020,15 +2020,14 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         }
     }
 
-    // TODO: make the batch supply a recycler to wire up recycling instead of NON_RECYCLING_INSTANCE.
-    private static EscfColumnBuilder mergeStringColumn() {
-        EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+    private static EscfColumnBuilder mergeStringColumn(Recycler<BytesRef> recycler) {
+        EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, recycler);
         b.lockScalar(EscfColumnKind.STRING);
         return b;
     }
 
-    private static EscfColumnBuilder mergeLongColumn() {
-        EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+    private static EscfColumnBuilder mergeLongColumn(Recycler<BytesRef> recycler) {
+        EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, recycler);
         b.lockScalar(EscfColumnKind.LONG);
         return b;
     }
@@ -2107,5 +2106,20 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         }
 
         return super.syntheticSourceSupport();
+    }
+
+    /**
+     * The synthetic source loader of the {@code _unmapped} sink that wraps this mapper. It reads the doc values with exactly the
+     * configuration this mapper wrote them with.
+     */
+    UnmappedSinkSyntheticFieldLoader unmappedSinkSyntheticFieldLoader() {
+        return new UnmappedSinkSyntheticFieldLoader(
+            fullPath(),
+            fieldType().ignoreAbove.valuesPotentiallyIgnored() ? fullPath() + KEYED_IGNORED_VALUES_FIELD_SUFFIX : null,
+            builder.usesBinaryDocValues,
+            builder.storeIgnoredFieldsInBinaryDocValues,
+            preserveLeafArrays,
+            fieldType().usesArrayOrderBinaryDocValues()
+        );
     }
 }

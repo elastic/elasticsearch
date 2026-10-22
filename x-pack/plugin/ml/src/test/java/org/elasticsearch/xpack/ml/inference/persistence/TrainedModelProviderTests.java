@@ -630,6 +630,18 @@ public class TrainedModelProviderTests extends ESTestCase {
      * NoShardAvailableActionException.
      */
     public void testGetInferenceStatsRetriesOnNoShardAvailableActionException() {
+        assertGetInferenceStatsRetriesOn(new NoShardAvailableActionException(null, "no shard available"));
+    }
+
+    /**
+     * Verifies that getInferenceStats retries when a per-item MultiSearchResponse failure is a 403 because a shard is being
+     * restored: restores are expected to be short.
+     */
+    public void testGetInferenceStatsRetriesOnShardRestoringException() {
+        assertGetInferenceStatsRetriesOn(new ShardRestoringException("stats-index", randomUUID()));
+    }
+
+    private void assertGetInferenceStatsRetriesOn(Exception firstFailure) {
         try (
             var threadPool = createThreadPool(
                 new ScalingExecutorBuilder(MachineLearning.UTILITY_THREAD_POOL_NAME, 0, 1, TimeValue.timeValueMinutes(10), false)
@@ -648,8 +660,7 @@ public class TrainedModelProviderTests extends ESTestCase {
                         listener.onResponse((Response) new ClusterHealthResponse());
                     } else if (request instanceof MultiSearchRequest multiSearchRequest) {
                         if (multiSearchCallCount.incrementAndGet() == 1) {
-                            var items = new MultiSearchResponse.Item[] {
-                                new MultiSearchResponse.Item(null, new NoShardAvailableActionException(null, "no shard available")) };
+                            var items = new MultiSearchResponse.Item[] { new MultiSearchResponse.Item(null, firstFailure) };
                             var msResponse = new MultiSearchResponse(items, 0L);
                             try {
                                 listener.onResponse((Response) msResponse);
@@ -709,50 +720,6 @@ public class TrainedModelProviderTests extends ESTestCase {
                         multiSearchCallCount.incrementAndGet();
                         var items = new MultiSearchResponse.Item[] {
                             new MultiSearchResponse.Item(null, new IllegalArgumentException("bad request")) };
-                        var msResponse = new MultiSearchResponse(items, 0L);
-                        try {
-                            listener.onResponse((Response) msResponse);
-                        } finally {
-                            msResponse.decRef();
-                        }
-                    }
-                }
-            };
-
-            var provider = new TrainedModelProvider(client, mock(TrainedModelCacheMetadataService.class), xContentRegistry());
-            var future = new PlainActionFuture<List<InferenceStats>>();
-            provider.getInferenceStats(new String[] { "model-1" }, null, future);
-
-            expectThrows(Exception.class, () -> future.actionGet(10, TimeUnit.SECONDS));
-            assertThat(multiSearchCallCount.get(), equalTo(1));
-        }
-    }
-
-    /**
-     * A search that fails with a 403 because a shard is being restored is not in the retry list, so getInferenceStats fails at once
-     * without retrying.
-     */
-    public void testGetInferenceStatsDoesNotRetryOnShardRestoringException() {
-        try (
-            var threadPool = createThreadPool(
-                new ScalingExecutorBuilder(MachineLearning.UTILITY_THREAD_POOL_NAME, 0, 1, TimeValue.timeValueMinutes(10), false)
-            )
-        ) {
-            var multiSearchCallCount = new AtomicInteger(0);
-            var client = new NoOpClient(threadPool) {
-                @Override
-                @SuppressWarnings("unchecked")
-                protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
-                    ActionType<Response> action,
-                    Request request,
-                    ActionListener<Response> listener
-                ) {
-                    if (request instanceof ClusterHealthRequest) {
-                        listener.onResponse((Response) new ClusterHealthResponse());
-                    } else if (request instanceof MultiSearchRequest) {
-                        multiSearchCallCount.incrementAndGet();
-                        var items = new MultiSearchResponse.Item[] {
-                            new MultiSearchResponse.Item(null, new ShardRestoringException("stats-index", randomUUID())) };
                         var msResponse = new MultiSearchResponse(items, 0L);
                         try {
                             listener.onResponse((Response) msResponse);

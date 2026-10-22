@@ -82,13 +82,42 @@ public class MlRecoverableErrorClassifierTests extends ESTestCase {
     }
 
     /**
-     * {@link ShardRestoringException} has {@link RestStatus#FORBIDDEN} status, so ML treats it like any other 403 and does not retry.
-     * This is deliberate: a restore can outlast the ML retry budgets, so ML fails fast and leaves recovery to the user.
+     * {@link ShardRestoringException} has {@link RestStatus#FORBIDDEN} status, but unlike other 403s it is recoverable: restores are
+     * expected to be short, so ML retries within its existing retry budgets.
      */
-    public void testShardRestoringException_isNotRecoverable() {
+    public void testShardRestoringException_isRecoverable() {
         var e = new ShardRestoringException("my-index", randomUUID());
         assertEquals(RestStatus.FORBIDDEN, e.status());
-        assertFalse(MlRecoverableErrorClassifier.isRecoverable(e));
+        assertTrue(MlRecoverableErrorClassifier.isRecoverable(e));
+    }
+
+    /**
+     * A search that disallows partial results and finds every missing shard being restored fails with a 403
+     * {@link SearchPhaseExecutionException} whose cause is the {@link ShardRestoringException}. ML retries it.
+     */
+    public void testSearchPhaseExecutionExceptionCausedByShardRestoring_isRecoverable() {
+        var e = new SearchPhaseExecutionException(
+            "query",
+            "Search rejected due to missing shards",
+            new ShardRestoringException("my-index", randomUUID()),
+            ShardSearchFailure.EMPTY_ARRAY
+        );
+        assertEquals(RestStatus.FORBIDDEN, e.status());
+        assertTrue(MlRecoverableErrorClassifier.isRecoverable(e));
+    }
+
+    /**
+     * A search where every shard failed because it is being restored fails with a 403 {@link SearchPhaseExecutionException} that
+     * carries the {@link ShardRestoringException} as shard failures. ML retries it.
+     */
+    public void testSearchPhaseExecutionExceptionWithShardRestoringFailures_isRecoverable() {
+        var e = new SearchPhaseExecutionException(
+            "query",
+            "all shards failed",
+            new ShardSearchFailure[] { new ShardSearchFailure(new ShardRestoringException("my-index", randomUUID())) }
+        );
+        assertEquals(RestStatus.FORBIDDEN, e.status());
+        assertTrue(MlRecoverableErrorClassifier.isRecoverable(e));
     }
 
     public void testIllegalIndexShardStateException_isRecoverable() {

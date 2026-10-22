@@ -202,22 +202,22 @@ public class ResultsPersisterServiceTests extends ESTestCase {
     }
 
     /**
-     * A search that fails with a 403 because a shard is being restored is not retried: ML treats a 403 as irrecoverable, so the search
-     * fails at once.
+     * A search that fails with a 403 because a shard is being restored is retried like a 503: restores are expected to be short.
      */
-    public void testSearchWithRetries_FailureOnShardRestoring() {
-        resultsPersisterService.setMaxFailureRetries(5);
-
-        doAnswer(withFailure(new ShardRestoringException("my-index", randomUUID()))).when(client)
+    public void testSearchWithRetries_SuccessAfterRetryDueToShardRestoring() {
+        doAnswer(withFailure(new ShardRestoringException("my-index", randomUUID()))).doAnswer(withResponse(searchResponseSuccess))
+            .when(client)
             .execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
 
-        ElasticsearchException e = expectThrows(
-            ElasticsearchException.class,
-            () -> resultsPersisterService.searchWithRetry(SEARCH_REQUEST, JOB_ID, () -> true, (s) -> {})
-        );
-        assertThat(e.getMessage(), containsString("being restored"));
-
-        verify(client, times(1)).execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
+        List<String> messages = new ArrayList<>();
+        SearchResponse searchResponse = resultsPersisterService.searchWithRetry(SEARCH_REQUEST, JOB_ID, () -> true, messages::add);
+        try {
+            assertThat(searchResponse, is(searchResponseSuccess));
+            assertThat(messages, hasSize(1));
+            verify(client, times(2)).execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
+        } finally {
+            searchResponse.decRef();
+        }
     }
 
     private void testSearchWithRetries_FailureAfterTooManyRetries(int maxFailureRetries) {
@@ -375,14 +375,13 @@ public class ResultsPersisterServiceTests extends ESTestCase {
         verify(client, times(2)).execute(eq(TransportBulkAction.TYPE), captor.capture(), any());
         assertThat(captor.getAllValues().get(0).numberOfActions(), equalTo(2));
         assertThat(captor.getAllValues().get(1).numberOfActions(), equalTo(1));
+        assertThat(captor.getAllValues().get(1).requests().get(0).id(), equalTo(INDEX_REQUEST_FAILURE.id()));
     }
 
     /**
-     * A bulk item that fails with a 403 because its shard is being restored is not retried: ML treats a 403 as irrecoverable, so the
-     * write fails at once.
+     * A bulk item that fails with a 403 because its shard is being restored is retried like a 503, and only the failed item is resent.
      */
-    public void testBulkRequestFailsImmediatelyOnItemFailingWithShardRestoring() {
-        resultsPersisterService.setMaxFailureRetries(10);
+    public void testBulkRequestRetriesItemFailingWithShardRestoring() {
         BulkItemResponse restoring = BulkItemResponse.failure(
             2,
             DocWriteRequest.OpType.INDEX,
@@ -397,13 +396,13 @@ public class ResultsPersisterServiceTests extends ESTestCase {
         bulkRequest.add(INDEX_REQUEST_FAILURE);
         bulkRequest.add(INDEX_REQUEST_SUCCESS);
 
-        ElasticsearchException ex = expectThrows(
-            ElasticsearchException.class,
-            () -> resultsPersisterService.bulkIndexWithRetry(bulkRequest, JOB_ID, () -> true, (s) -> {})
-        );
+        resultsPersisterService.bulkIndexWithRetry(bulkRequest, JOB_ID, () -> true, (s) -> {});
 
-        verify(client).execute(eq(TransportBulkAction.TYPE), any(), any());
-        assertThat(ex.getMessage(), containsString("experienced failure that cannot be automatically retried."));
+        ArgumentCaptor<BulkRequest> captor = ArgumentCaptor.forClass(BulkRequest.class);
+        verify(client, times(2)).execute(eq(TransportBulkAction.TYPE), captor.capture(), any());
+        assertThat(captor.getAllValues().get(0).numberOfActions(), equalTo(2));
+        assertThat(captor.getAllValues().get(1).numberOfActions(), equalTo(1));
+        assertThat(captor.getAllValues().get(1).requests().get(0).id(), equalTo(INDEX_REQUEST_FAILURE.id()));
     }
 
     public void testBulkRequestChangeOnIrrecoverableFailures() {

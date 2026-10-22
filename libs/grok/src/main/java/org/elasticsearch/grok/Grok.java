@@ -255,10 +255,6 @@ public final class Grok {
         return captureConfig;
     }
 
-    public Regex getCompiledExpression() {
-        return compiledExpression;
-    }
-
     /**
      * Creates a matcher over the given text that is subject to this grok's watchdog. For callers that need their own search loop
      * rather than {@link #match}. Must be closed once finished with.

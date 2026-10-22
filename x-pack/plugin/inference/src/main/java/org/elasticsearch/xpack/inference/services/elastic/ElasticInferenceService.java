@@ -14,6 +14,8 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.DecisionQuestions;
+import org.elasticsearch.inference.DecisionRequest;
 import org.elasticsearch.inference.DocumentExtractionRequest;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
@@ -21,6 +23,7 @@ import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
@@ -35,6 +38,7 @@ import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.common.InferencePreferencesCache;
 import org.elasticsearch.xpack.inference.external.http.sender.CompletionInput;
+import org.elasticsearch.xpack.inference.external.http.sender.DecisionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
@@ -50,6 +54,9 @@ import org.elasticsearch.xpack.inference.services.elastic.compatibility.Completi
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModelCreator;
+import org.elasticsearch.xpack.inference.services.elastic.decision.ElasticInferenceServiceDecisionModel;
+import org.elasticsearch.xpack.inference.services.elastic.decision.ElasticInferenceServiceDecisionModelCreator;
+import org.elasticsearch.xpack.inference.services.elastic.decision.ElasticInferenceServiceDecisionTaskSettings;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsServiceSettings;
@@ -73,6 +80,7 @@ import java.util.Set;
 
 import static org.elasticsearch.inference.TaskType.CHAT_COMPLETION;
 import static org.elasticsearch.inference.TaskType.COMPLETION;
+import static org.elasticsearch.inference.TaskType.DECISION;
 import static org.elasticsearch.inference.TaskType.DOCUMENT_EXTRACTION;
 import static org.elasticsearch.inference.TaskType.EMBEDDING;
 import static org.elasticsearch.inference.TaskType.RERANK;
@@ -103,7 +111,8 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
         RERANK,
         TEXT_EMBEDDING,
         EMBEDDING,
-        DOCUMENT_EXTRACTION
+        DOCUMENT_EXTRACTION,
+        DECISION
     );
     private static final String SERVICE_NAME = "Elastic";
 
@@ -185,7 +194,9 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
             TaskType.RERANK,
             new ElasticInferenceServiceRerankModelCreator(elasticInferenceServiceComponents),
             TaskType.DOCUMENT_EXTRACTION,
-            new ElasticInferenceServiceDocumentExtractionModelCreator(elasticInferenceServiceComponents)
+            new ElasticInferenceServiceDocumentExtractionModelCreator(elasticInferenceServiceComponents),
+            TaskType.DECISION,
+            new ElasticInferenceServiceDecisionModelCreator(elasticInferenceServiceComponents)
         );
     }
 
@@ -392,6 +403,47 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
     }
 
     @Override
+    protected void doDecisionInfer(
+        Model model,
+        DecisionRequest request,
+        TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        if (model instanceof ElasticInferenceServiceDecisionModel == false) {
+            listener.onFailure(createInvalidModelException(model));
+            return;
+        }
+
+        var decisionModel = (ElasticInferenceServiceDecisionModel) model;
+        // Questions in the request replace the questions stored on the endpoint
+        var taskSettings = (ElasticInferenceServiceDecisionTaskSettings) decisionModel.getTaskSettings()
+            .updatedTaskSettings(request.taskSettings());
+
+        var validationException = new ValidationException();
+        if (taskSettings.questions().isEmpty()) {
+            validationException.addValidationError(
+                Strings.format(
+                    "No questions to answer, specify [%s] in the [%s] of the inference endpoint or the request",
+                    DecisionQuestions.QUESTIONS_FIELD,
+                    ModelConfigurations.TASK_SETTINGS
+                )
+            );
+        }
+        if (validationException.validationErrors().isEmpty() == false) {
+            listener.onFailure(validationException);
+            return;
+        }
+
+        actionCreator.create(
+            decisionModel,
+            getCurrentTraceInfo(),
+            listener.delegateFailureAndWrap(
+                (delegate, action) -> action.execute(new DecisionInput(request.input(), taskSettings.questions()), timeout, delegate)
+            )
+        );
+    }
+
+    @Override
     protected void doDocumentExtractionInfer(
         Model model,
         DocumentExtractionRequest request,
@@ -553,7 +605,7 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
         configurationMap.put(
             MODEL_ID,
             new SettingsConfiguration.Builder(
-                EnumSet.of(SPARSE_EMBEDDING, CHAT_COMPLETION, RERANK, TEXT_EMBEDDING, EMBEDDING, DOCUMENT_EXTRACTION)
+                EnumSet.of(SPARSE_EMBEDDING, CHAT_COMPLETION, RERANK, TEXT_EMBEDDING, EMBEDDING, DOCUMENT_EXTRACTION, DECISION)
             ).setDescription("The name of the model to use for the inference task.")
                 .setLabel("Model ID")
                 .setRequired(true)

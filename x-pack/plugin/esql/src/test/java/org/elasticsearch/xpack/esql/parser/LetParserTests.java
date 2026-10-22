@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.util.List;
 
@@ -264,7 +265,8 @@ public class LetParserTests extends AbstractStatementParserTests {
             "LET x = (FROM a | LIMIT 1); FROM x",
             new QueryParams(),
             new org.elasticsearch.xpack.esql.inference.InferenceSettings(org.elasticsearch.common.settings.Settings.EMPTY),
-            "my_view"
+            "my_view",
+            ViewResolver.DEFAULT_MAX_PLAN_NODES_COUNT
         );
         assertThat(stmt.letBindings().size(), is(1));
         assertThat(stmt.letBindings().get(0).name(), is("x"));

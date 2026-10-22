@@ -123,16 +123,25 @@ public abstract class SearchHeapPressureTestCase extends HeapPressureTestCase {
      * Creates {@code index} with the given mapping properties and documents, unless an earlier case of the class already did.
      */
     protected void indexDocuments(String index, int shards, String properties, int docs, IntFunction<String> doc) throws IOException {
+        indexDocuments(index, shards, "", properties, docs, doc);
+    }
+
+    /**
+     * Like {@link #indexDocuments(String, int, String, int, IntFunction)}, with {@code extraSettings}, JSON members such as
+     * {@code "index.mode": "logsdb"} added to the index settings, or empty for none.
+     */
+    protected void indexDocuments(String index, int shards, String extraSettings, String properties, int docs, IntFunction<String> doc)
+        throws IOException {
         if (indexExists(index)) {
             return;
         }
         Request create = new Request("PUT", "/" + index);
         create.setJsonEntity(Strings.format("""
             {
-              "settings": {"number_of_shards": %d, "number_of_replicas": 0},
+              "settings": {"number_of_shards": %d, "number_of_replicas": 0%s},
               "mappings": {"properties": %s}
             }
-            """, shards, properties));
+            """, shards, extraSettings.isEmpty() ? "" : ", " + extraSettings, properties));
         client().performRequest(create);
 
         StringBuilder bulk = new StringBuilder();

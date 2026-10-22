@@ -79,6 +79,8 @@ The third step sets the dataset's schema. To learn how declared and inferred col
 If your files have no date column, turn off **Enable time-based filtering**. Otherwise, you can't move to the next step without entering a **Field name**.
 :::
 
+#### Example
+
 The following example maps two columns and infers the rest:
 
 - The `timestamp` column is mapped to `@timestamp`.

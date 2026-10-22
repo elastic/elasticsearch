@@ -147,6 +147,7 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
@@ -842,7 +843,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final IndexShard shard = getShard(request);
         rewriteAndFetchShardRequest(shard, request, task, listener.delegateFailure((l, rewritten) -> {
             // fork the execution in the search thread pool
-            ensureAfterSeqNoRefreshed(shard, request, () -> executeDfsPhase(request, task), l);
+            ensureAfterSeqNoRefreshed(shard, request, task, () -> executeDfsPhase(request, task), l);
         }));
     }
 
@@ -947,7 +948,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         // failure before the supplier runs is still forwarded. Once the supplier sets it to the wrapped version,
         // the ActionListener.wrap callbacks will invoke the one that handles readerContext cleanup on failure.
         final var completionListenerRef = new AtomicReference<>(listener);
-        ensureAfterSeqNoRefreshed(shard, request, () -> {
+        ensureAfterSeqNoRefreshed(shard, request, task, () -> {
             final ReaderContext readerContext = createOrGetReaderContext(request, task);
             final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(request));
             completionListenerRef.set(wrapFailureListener(listener, readerContext, markAsUsed));
@@ -958,6 +959,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private <T extends RefCounted> void ensureAfterSeqNoRefreshed(
         IndexShard shard,
         ShardSearchRequest request,
+        Task task,
         CheckedSupplier<T, Exception> executable,
         ActionListener<T> listener
     ) {
@@ -965,7 +967,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final Executor executor = getExecutor(shard);
         try {
             if (waitForCheckpoint <= UNASSIGNED_SEQ_NO) {
-                runAsync(executor, executable, listener);
+                runAsync(shard, task, executable, listener);
                 // we successfully submitted the async task to the search pool so let's prewarm the shard
                 if (isExecutorQueuedBeyondPrewarmingFactor(executor, prewarmingMaxPoolFactorThreshold) == false) {
                     onlinePrewarmingService.prewarm(shard);
@@ -1045,7 +1047,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         if (timeoutTask != null) {
                             timeoutTask.cancel();
                         }
-                        runAsync(executor, executable, listener);
+                        runAsync(shard, task, executable, listener);
                         // we successfully submitted the async task to the search pool so let's prewarm the shard
                         if (isExecutorQueuedBeyondPrewarmingFactor(executor, prewarmingMaxPoolFactorThreshold) == false) {
                             onlinePrewarmingService.prewarm(shard);
@@ -1091,12 +1093,30 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
     }
 
-    private static <T extends RefCounted> void runAsync(
-        Executor executor,
+    private <T extends RefCounted> void runAsync(
+        IndexShard shard,
+        Task task,
         CheckedSupplier<T, Exception> executable,
         ActionListener<T> listener
     ) {
-        executor.execute(ActionRunnable.supplyAndDecRef(listener, executable));
+        executeOnShard(shard, task, ActionRunnable.supplyAndDecRef(listener, executable));
+    }
+
+    /**
+     * Runs a phase of {@code task} on the pool of {@code shard}, through the {@link QueryScheduler}.
+     */
+    private void executeOnShard(IndexShard shard, Task task, Runnable runnable) {
+        try (var executor = queryScheduler.executor(queryId(task), getExecutor(shard), List.of(QueryScheduler.SearchedShard.of(shard)))) {
+            executor.execute(runnable);
+        }
+    }
+
+    /**
+     * The query of a shard task: its parent, the coordinator's task, or the task itself if it has no parent.
+     */
+    private TaskId queryId(Task task) {
+        TaskId parent = task.getParentTaskId();
+        return parent != null && parent.isSet() ? parent : new TaskId(clusterService.localNode().getId(), task.getId());
     }
 
     /**
@@ -1200,7 +1220,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             lifecycle
         );
         final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
-        runAsync(getExecutor(readerContext.indexShard()), () -> {
+        runAsync(readerContext.indexShard(), task, () -> {
             final Supplier<DirectoryMetrics> metricsDelta = directoryMetricsDelta();
             try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.RANK_FEATURE, false)) {
                 int[] docIds = request.getDocIds();
@@ -1307,7 +1327,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ActionListener<FetchSearchResult> listener
     ) {
         final Executor searchExecutor = getExecutor(readerContext.indexShard());
-        searchExecutor.execute(new AbstractRunnable() {
+        executeOnShard(readerContext.indexShard(), task, new AbstractRunnable() {
             private volatile SearchContext searchContext;
 
             private final Releasable closeOnce = Releasables.releaseOnce(Releasables.wrap(() -> {
@@ -1420,8 +1440,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             freeReaderContext(readerContext.id(), "scroll query phase keep-alive markAsUsed failed: " + e.getClass().getSimpleName());
             throw e;
         }
-        Executor executor = getExecutor(readerContext.indexShard());
-        runAsync(executor, () -> {
+        runAsync(readerContext.indexShard(), task, () -> {
             final Supplier<DirectoryMetrics> metricsDelta = directoryMetricsDelta();
             final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(null);
             try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.QUERY, false);) {
@@ -1451,7 +1470,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         }, wrapFailureListener(listener, markAsUsed, e -> processScrollContinuationFailure(readerContext, e)));
         // we successfully submitted the async task to the search pool so let's prewarm the shard
-        if (isExecutorQueuedBeyondPrewarmingFactor(executor, prewarmingMaxPoolFactorThreshold) == false) {
+        if (isExecutorQueuedBeyondPrewarmingFactor(getExecutor(readerContext.indexShard()), prewarmingMaxPoolFactorThreshold) == false) {
             onlinePrewarmingService.prewarm(readerContext.indexShard());
         }
     }
@@ -1486,8 +1505,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
         rewriteAndFetchShardRequest(readerContext.indexShard(), shardSearchRequest, task, listener.delegateFailure((l, rewritten) -> {
             // fork the execution in the search thread pool
-            Executor executor = getExecutor(readerContext.indexShard());
-            runAsync(executor, () -> {
+            runAsync(readerContext.indexShard(), task, () -> {
                 final Supplier<DirectoryMetrics> metricsDelta = directoryMetricsDelta();
                 readerContext.setAggregatedDfs(request.dfs());
                 try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.QUERY, true);) {
@@ -1528,7 +1546,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 }
             }, wrapFailureListener(l, readerContext, markAsUsed));
             // we successfully submitted the async task to the search pool so let's prewarm the shard
-            if (isExecutorQueuedBeyondPrewarmingFactor(executor, prewarmingMaxPoolFactorThreshold) == false) {
+            if (isExecutorQueuedBeyondPrewarmingFactor(
+                getExecutor(readerContext.indexShard()),
+                prewarmingMaxPoolFactorThreshold
+            ) == false) {
                 onlinePrewarmingService.prewarm(readerContext.indexShard());
             }
         }));
@@ -1560,7 +1581,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             throw e;
         }
 
-        runAsync(getExecutor(readerContext.indexShard()), () -> {
+        runAsync(readerContext.indexShard(), task, () -> {
             final Supplier<DirectoryMetrics> metricsDelta = directoryMetricsDelta();
             final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(null);
             try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.FETCH, false);) {
@@ -3017,7 +3038,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     /**
-     * Tracks the tasks of the search queries running on this node.
+     * The {@link QueryScheduler} of this node.
      */
     public QueryScheduler queryScheduler() {
         return queryScheduler;

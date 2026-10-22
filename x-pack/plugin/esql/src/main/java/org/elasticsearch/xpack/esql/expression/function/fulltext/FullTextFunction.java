@@ -48,7 +48,9 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -70,6 +72,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
@@ -483,6 +486,12 @@ public abstract class FullTextFunction extends Function
         } else if (lp instanceof Dissect dissect) {
             commandName = "DISSECT";
             introducedNames = dissect.extractedFields().stream().map(Attribute::name).toList();
+        } else if (lp instanceof CompoundOutputEval<?> || lp instanceof InferencePlan<?>) {
+            // URI_PARTS, USER_AGENT, IP_LOCATION, REGISTERED_DOMAIN and COMPLETION, RERANK add their output columns the same
+            // way EVAL does, and PushDownAndCombineFilters pushes a reference-free filter past them too. Their keywords are
+            // one word, so the first token of the source text names the command.
+            commandName = lp.sourceText().split(" ")[0].toUpperCase(Locale.ROOT);
+            introducedNames = ((GeneratingPlan<?>) lp).generatedAttributes().stream().map(Attribute::name).toList();
         } else if (lp instanceof Project project) {
             // KEEP/DROP projections are plain Attribute references and introduce nothing; only a renaming
             // Alias (RENAME x AS y) introduces a name that can shadow an indexed field.

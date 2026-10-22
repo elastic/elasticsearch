@@ -2533,6 +2533,53 @@ public class VerifierTests extends AnalyzerTestCase {
             );
     }
 
+    public void testNonFieldBasedFullTextFunctionsRejectedWhenInferenceCommandShadowsIndexedField() throws Exception {
+        for (String fn : List.of("qstr", "kql")) {
+            String function = fn.toUpperCase(Locale.ROOT);
+            fullText().addAnalysisTestsInferenceResolution()
+                .error(
+                    "from test | completion title = concat(\"x\", body) with { \"inference_id\" : \"completion-inference-id\" }"
+                        + " | where "
+                        + fn
+                        + "(\"title: Meditation\")",
+                    allOf(containsString("[" + function + "] function cannot be used after COMPLETION"), containsString("[title]"))
+                );
+            fullText().addAnalysisTestsInferenceResolution()
+                .query(
+                    "from test | completion answer = concat(\"x\", body) with { \"inference_id\" : \"completion-inference-id\" }"
+                        + " | where "
+                        + fn
+                        + "(\"title: Meditation\")"
+                );
+        }
+    }
+
+    /**
+     * URI_PARTS (like USER_AGENT, IP_LOCATION and REGISTERED_DOMAIN) names its output columns {@code <prefix>.<part>}, which
+     * collide with an indexed field of that name, as with ECS {@code url.domain}.
+     */
+    public void testNonFieldBasedFullTextFunctionsRejectedWhenCompoundOutputCommandShadowsIndexedField() throws Exception {
+        assumeTrue("requires uri_parts command capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
+        Map<String, EsField> mapping = Map.of(
+            "uri",
+            new EsField("uri", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "url.domain",
+            new EsField("url.domain", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        for (String fn : List.of("qstr", "kql")) {
+            TestAnalyzer analyzer = analyzer().addIndex("logs", IndexResolution.valid(EsIndexGenerator.esIndex("logs", mapping)))
+                .stripErrorPrefix(true);
+            analyzer.error(
+                "from logs | uri_parts url = uri | where " + fn + "(\"url.domain: example.com\")",
+                allOf(
+                    containsString("[" + fn.toUpperCase(Locale.ROOT) + "] function cannot be used after URI_PARTS"),
+                    containsString("[url.domain]")
+                )
+            );
+            analyzer.query("from logs | uri_parts other = uri | where " + fn + "(\"url.domain: example.com\")");
+        }
+    }
+
     /**
      * A LOOKUP JOIN target for {@link #testNonFieldBasedFullTextFunctionsAllowedAfterNonShadowingCommands}: its
      * fields don't collide with any field in {@code mapping-full_text_search.json} (id, title, body, tags,

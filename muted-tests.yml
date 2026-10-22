@@ -412,6 +412,8 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/139398
 - class: org.elasticsearch.painless.heappressure.PainlessFieldAllocationIT
   issue: https://github.com/elastic/elasticsearch/issues/162575
+- class: org.elasticsearch.search.heappressure.LargeTermsFilterHeapPressureIT
+  issue: https://github.com/elastic/elasticsearch/issues/162788
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=cluster.state/20_filtering/Filtering the cluster state by indices should work in routing table and metadata}
   issue: https://github.com/elastic/elasticsearch/issues/162277
@@ -518,5 +520,3 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testSearchRecoveryWarmingTimeoutReevaluationWhenSourceStartsShuttingDown
   issue: https://github.com/elastic/elasticsearch/issues/163048
-- class: org.elasticsearch.search.heappressure.LargeTermsFilterHeapPressureIT
-  issue: https://github.com/elastic/elasticsearch/issues/162788

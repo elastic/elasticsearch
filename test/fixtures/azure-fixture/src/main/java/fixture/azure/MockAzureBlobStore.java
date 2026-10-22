@@ -10,6 +10,7 @@
 package fixture.azure;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.util.Maps;
@@ -36,6 +37,7 @@ public class MockAzureBlobStore {
 
     private final LeaseExpiryPredicate leaseExpiryPredicate;
     private final Map<String, AzureBlockBlob> blobs;
+    private volatile boolean copiesStayPending = false;
 
     /**
      * Provide the means of triggering lease expiration
@@ -45,6 +47,10 @@ public class MockAzureBlobStore {
     public MockAzureBlobStore(LeaseExpiryPredicate leaseExpiryPredicate) {
         this.blobs = new ConcurrentHashMap<>();
         this.leaseExpiryPredicate = Objects.requireNonNull(leaseExpiryPredicate);
+    }
+
+    public void setCopiesStayPending(boolean copiesStayPending) {
+        this.copiesStayPending = copiesStayPending;
     }
 
     public void setAccessTier(String path, String accessTier) {
@@ -101,10 +107,11 @@ public class MockAzureBlobStore {
 
     public CopyInfo copyBlob(String path, String sourcePath, String sourceUrl, @Nullable String accessTierOverride) {
         AzureBlockBlob sourceBlob = getBlob(sourcePath, null);
-        final var copyInfo = new CopyInfo(UUID.randomUUID().toString(), sourceUrl);
+        final boolean pending = copiesStayPending;
+        final var copyInfo = new CopyInfo(UUID.randomUUID().toString(), sourceUrl, pending);
         putBlob(
             path,
-            sourceBlob.getContents(),
+            pending ? BytesArray.EMPTY : sourceBlob.getContents(),
             sourceBlob.type(),
             null,
             null,
@@ -274,6 +281,11 @@ public class MockAzureBlobStore {
                 this.lastModified = Instant.now();
                 this.version++;
             }
+        }
+
+        public String copyStatus() {
+            final var info = copyInfo;
+            return info != null && info.pending() ? "pending" : "success";
         }
 
         public void setContents(
@@ -504,7 +516,7 @@ public class MockAzureBlobStore {
     /**
      * Copy info is retained for copied blobs
      */
-    public record CopyInfo(String copyId, String sourceUrl) {};
+    public record CopyInfo(String copyId, String sourceUrl, boolean pending) {};
 
     public static class AzureBlobStoreError extends RuntimeException {
         private final RestStatus restStatus;

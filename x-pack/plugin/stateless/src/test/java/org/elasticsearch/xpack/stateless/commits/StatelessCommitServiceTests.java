@@ -542,13 +542,14 @@ public class StatelessCommitServiceTests extends ESTestCase {
                         String sourceBlobName,
                         String blobName,
                         long blobSize,
-                        @Nullable Executor executor
+                        @Nullable Executor executor,
+                        Runnable cancellationCheck
                     ) throws IOException {
                         int attempt = copyAttempts.incrementAndGet();
                         if (attempt <= failuresBeforeSuccess) {
                             throw new IOException("simulated copy failure (attempt " + attempt + ")");
                         }
-                        super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize, executor);
+                        super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize, executor, cancellationCheck);
                     }
                 }
                 return new WrappedContainer(innerContainer);
@@ -603,11 +604,12 @@ public class StatelessCommitServiceTests extends ESTestCase {
                         String sourceBlobName,
                         String blobName,
                         long blobSize,
-                        @Nullable Executor executor
+                        @Nullable Executor executor,
+                        Runnable cancellationCheck
                     ) throws IOException {
                         copyRunning.countDown();
                         safeAwait(copyCanProceed);
-                        super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize, executor);
+                        super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize, executor, cancellationCheck);
                         copySucceeded.set(true);
                     }
                 }
@@ -4256,18 +4258,19 @@ public class StatelessCommitServiceTests extends ESTestCase {
                     String sourceBlobName,
                     String blobName,
                     long blobSize,
-                    @Nullable Executor executor
+                    @Nullable Executor executor,
+                    Runnable cancellationCheck
                 ) throws IOException {
                     if (blobName.equals(copyBlockedNameRef.get())) {
                         copyStartedLatch.countDown();
                         try {
                             safeAwait(copyBlocker);
-                            super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize, executor);
+                            super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize, executor, cancellationCheck);
                         } finally {
                             copyFinishedLatch.countDown();
                         }
                     } else {
-                        super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize, executor);
+                        super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize, executor, cancellationCheck);
                     }
                 }
             }

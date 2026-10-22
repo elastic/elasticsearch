@@ -794,8 +794,13 @@ public class AzureBlobStore implements BlobStore {
         return service.getClientsManager().getClientSettings(projectId, clientName);
     }
 
-    public void copyBlob(OperationPurpose purpose, String sourceBlobName, AzureBlobStore sourceBlobStore, String blobName)
-        throws IOException {
+    public void copyBlob(
+        OperationPurpose purpose,
+        String sourceBlobName,
+        AzureBlobStore sourceBlobStore,
+        String blobName,
+        Runnable cancellationCheck
+    ) throws IOException {
 
         try (var sourceClient = sourceBlobStore.getAzureBlobServiceClientClient(purpose)) {
             final BlobServiceClient sourceSyncClient = sourceClient.getSyncClient();
@@ -829,7 +834,27 @@ public class AzureBlobStore implements BlobStore {
                         Duration.ofMillis(copyPollInterval.millis())
                     );
                     resolveAccessTier(purpose).ifPresent(copyOptions::setTier);
-                    PollResponse<BlobCopyInfo> response = blobSyncClient.beginCopy(copyOptions).waitForCompletion();
+                    final var poller = blobSyncClient.beginCopy(copyOptions);
+                    // waitUntil abandons any poll that outlasts the timeout
+                    final var timeout = Duration.ofMillis(2 * copyPollInterval.millis());
+                    PollResponse<BlobCopyInfo> response;
+                    do {
+                        try {
+                            cancellationCheck.run();
+                        } catch (RuntimeException e) {
+                            try {
+                                poller.cancelOperation();
+                            } catch (Exception abortFailure) {
+                                e.addSuppressed(abortFailure);
+                            }
+                            throw e;
+                        }
+                        response = poller.waitUntil(timeout, LongRunningOperationStatus.SUCCESSFULLY_COMPLETED);
+                        if (response == null || response.getStatus().isComplete() == false) {
+                            // poll one more time here so the loop doesn't get stuck in case the poll in waitUntil keeps getting abandoned
+                            response = poller.poll();
+                        }
+                    } while (response.getStatus().isComplete() == false);
                     LongRunningOperationStatus status = response.getStatus();
                     if (status != LongRunningOperationStatus.SUCCESSFULLY_COMPLETED) {
                         throw new IOException("Copy from " + sourceBlobName + " to " + blobName + " failed: " + response.getStatus());

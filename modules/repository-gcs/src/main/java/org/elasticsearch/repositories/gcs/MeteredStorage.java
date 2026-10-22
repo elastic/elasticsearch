@@ -374,7 +374,13 @@ public class MeteredStorage {
         return statsCollector.collectSupplier(purpose, DELETE, () -> multipartUploadClient.abortMultipartUpload(request));
     }
 
-    public void copy(OperationPurpose purpose, BlobId sourceBlobId, BlobInfo targetBlobInfo, long megabytesCopiedPerChunk) {
+    public void copy(
+        OperationPurpose purpose,
+        BlobId sourceBlobId,
+        BlobInfo targetBlobInfo,
+        long megabytesCopiedPerChunk,
+        Runnable cancellationCheck
+    ) {
         var stats = new OperationStats(purpose, COPY);
         var copyRequest = Storage.CopyRequest.newBuilder()
             .setSource(sourceBlobId)
@@ -383,6 +389,7 @@ public class MeteredStorage {
             .build();
         CopyWriter copyWriter = statsCollector.continueWithSupplier(stats, () -> storage.copy(copyRequest));
         while (!copyWriter.isDone()) {
+            cancellationCheck.run();
             statsCollector.continueWithRunnable(stats, copyWriter::copyChunk);
         }
         statsCollector.collect(stats);

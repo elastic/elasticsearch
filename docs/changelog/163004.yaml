@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 162643
+pr: 163004
+summary: Accept the fields option in QSTR
+type: bug

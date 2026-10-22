@@ -116,6 +116,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
     private final ProjectRoutingUsageHolder projectRoutingUsageHolder;
     @Nullable
     private final ClusterStatsTagsProvider tagsProvider;
+    private final SearchTierStatsProvider searchTierStatsProvider;
 
     private final Executor clusterStateStatsExecutor;
     private final MetadataStatsCache<MappingStats> mappingStatsCache;
@@ -153,6 +154,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         this.esqlUsageHolder = usageService.getEsqlUsageHolder();
         this.projectRoutingUsageHolder = usageService.getProjectRoutingUsageHolder();
         this.tagsProvider = usageService.getTagsProvider();
+        this.searchTierStatsProvider = usageService.getSearchTierStatsProvider();
         this.clusterStateStatsExecutor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
         this.mappingStatsCache = new MetadataStatsCache<>(threadPool.getThreadContext(), MappingStats::of);
         this.analysisStatsCache = new MetadataStatsCache<>(threadPool.getThreadContext(), AnalysisStats::of);
@@ -195,7 +197,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
 
         additionalStatsListener.andThenApply(additionalStats -> {
             if (request.isRemoteStats()) {
-                // Return stripped down stats for remote clusters — no tags block needed
+                // Return stripped down stats for remote clusters — no tags or search_tier blocks needed
                 return new ClusterStatsResponse(
                     System.currentTimeMillis(),
                     clusterService.state().metadata().clusterUUID(),
@@ -208,10 +210,14 @@ public class TransportClusterStatsAction extends TransportNodesAction<
                     null,
                     Map.of(),
                     false,
+                    null,
                     null
                 );
             }
             TagsConfigSnapshot tagsConfig = (tagsProvider != null) ? tagsProvider.getTagsConfig(clusterService.state()) : null;
+            SearchTierStats searchTierStats = (searchTierStatsProvider != null)
+                ? searchTierStatsProvider.getSearchTierStats(clusterService.state())
+                : null;
             return new ClusterStatsResponse(
                 System.currentTimeMillis(),
                 additionalStats.clusterUUID(),
@@ -224,7 +230,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<
                 additionalStats.clusterSnapshotStats(),
                 additionalStats.getRemoteStats(),
                 request.isCPS(),
-                tagsConfig
+                tagsConfig,
+                searchTierStats
             );
         }).addListener(listener);
     }

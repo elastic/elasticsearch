@@ -99,11 +99,16 @@ import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.Connector;
+import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.TableCatalog;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
@@ -482,6 +487,147 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         );
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(e.getMessage(), equalTo("external data sources are not available"));
+    }
+
+    /**
+     * The credential backstop: a source with no registered dataset behind it cannot be bound to this node's definitions,
+     * and on a release build nothing honest plans one, so the operator build refuses it. The same exec passes on a
+     * snapshot build, where the inline {@code EXTERNAL} command legitimately has no dataset.
+     */
+    public void testExternalSourceWithoutDatasetRefusedOnReleaseBuild() throws IOException {
+        AtomicReference<SourceOperatorContext> captured = new AtomicReference<>();
+        OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(
+            Map.of(),
+            Map.of("file", capturingProvider(captured)),
+            Runnable::run
+        );
+        List<Attribute> attrs = List.of(
+            new FieldAttribute(Source.EMPTY, "a", new EsField("a", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
+        );
+        ExternalSourceExec exec = new ExternalSourceExec(
+            Source.EMPTY,
+            "s3://bucket/data.ndjson",
+            "file",
+            attrs,
+            Map.of("auth", "federated_identity", "role_arn", "arn:aws:iam::123456789012:role/attacker"),
+            Map.of(),
+            null,
+            10
+        );
+
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> planner(operatorFactoryRegistry, true, null, false).plan(
+                "test",
+                FoldContext.small(),
+                PlannerSettings.DEFAULTS,
+                exec,
+                EmptyIndexedByShardId.instance(),
+                randomBoolean()
+            )
+        );
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), equalTo("external dataset [] is not registered on this node"));
+        assertNull("no operator must be built for a refused source", captured.get());
+
+        planner(operatorFactoryRegistry, true, null, true).plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            exec,
+            EmptyIndexedByShardId.instance(),
+            randomBoolean()
+        );
+        assertNotNull("a snapshot build plans the inline-EXTERNAL shape", captured.get());
+    }
+
+    /**
+     * A plan-carried source type must not dispatch a registered dataset's file settings through another source factory.
+     */
+    public void testRegisteredDatasetRefusedThroughConnectorSourceType() throws IOException {
+        AtomicReference<Map<String, Object>> opened = new AtomicReference<>();
+        ConnectorFactory connector = new ConnectorFactory() {
+            @Override
+            public String type() {
+                return "flight";
+            }
+
+            @Override
+            public boolean canHandle(String location) {
+                return true;
+            }
+
+            @Override
+            public SourceMetadata resolveMetadata(String location, Map<String, Object> config) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void validateConfig(String location, Map<String, Object> config) {
+                ConfigKeyValidator.check(config, List.of());
+            }
+
+            @Override
+            public Connector open(Map<String, Object> config) {
+                opened.set(config);
+                throw new AssertionError("a registered dataset must never reach a connector");
+            }
+        };
+        OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(Map.of("flight", connector), Map.of(), Runnable::run);
+        assertRegisteredDatasetRefusedForNonFileSourceType(operatorFactoryRegistry, "flight");
+        assertNull(opened.get());
+    }
+
+    public void testRegisteredDatasetRefusedThroughTableCatalogSourceType() throws IOException {
+        AtomicReference<SourceOperatorContext> captured = new AtomicReference<>();
+        TableCatalog catalog = new TableCatalog() {
+            @Override
+            public String catalogType() {
+                return "catalog";
+            }
+
+            @Override
+            public boolean canHandle(String path) {
+                return true;
+            }
+
+            @Override
+            public void validateConfig(String location, Map<String, Object> config) {
+                ConfigKeyValidator.check(config, List.of());
+            }
+
+            @Override
+            public SourceMetadata metadata(String tablePath, Map<String, Object> config) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public List<TableCatalog.DataFile> planScan(String tablePath, Map<String, Object> config, List<Object> predicates) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void close() {}
+
+            @Override
+            public SourceOperatorFactoryProvider operatorFactory() {
+                return capturingProvider(captured);
+            }
+        };
+        OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(Map.of("catalog", catalog), Map.of(), Runnable::run);
+        assertRegisteredDatasetRefusedForNonFileSourceType(operatorFactoryRegistry, "catalog");
+        assertNull(captured.get());
+    }
+
+    public void testRegisteredDatasetRefusedThroughLegacyPluginFactory() throws IOException {
+        AtomicReference<SourceOperatorContext> captured = new AtomicReference<>();
+        OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(
+            Map.of(),
+            Map.of("legacy", capturingProvider(captured)),
+            Runnable::run
+        );
+        assertRegisteredDatasetRefusedForNonFileSourceType(operatorFactoryRegistry, "legacy");
+        assertNull(captured.get());
     }
 
     /**
@@ -1590,6 +1736,36 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         return new InferenceService(mock(Client.class), clusterService);
     }
 
+    private void assertRegisteredDatasetRefusedForNonFileSourceType(OperatorFactoryRegistry operatorFactoryRegistry, String sourceType)
+        throws IOException {
+        List<Attribute> attrs = List.of(
+            new FieldAttribute(Source.EMPTY, "a", new EsField("a", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
+        );
+        ExternalSourceExec exec = new ExternalSourceExec(
+            Source.EMPTY,
+            "s3://bucket/data/*.parquet",
+            sourceType,
+            attrs,
+            Map.of("endpoint", "https://s3.example"),
+            Map.of(),
+            null,
+            10
+        ).withDatasetName("logs");
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> planner(operatorFactoryRegistry, true, null, randomBoolean()).plan(
+                "test",
+                FoldContext.small(),
+                PlannerSettings.DEFAULTS,
+                exec,
+                EmptyIndexedByShardId.instance(),
+                randomBoolean()
+            )
+        );
+        assertThat(e.getMessage(), equalTo("external dataset [logs] cannot be read through non-file source type [" + sourceType + "]"));
+    }
+
     private LocalExecutionPlanner planner() throws IOException {
         return planner(null);
     }
@@ -1606,6 +1782,16 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         OperatorFactoryRegistry operatorFactoryRegistry,
         boolean federationEnabled,
         InferenceService inferenceService
+    ) throws IOException {
+        // Most tests here plan a bare ExternalSourceExec with no dataset behind it, which only a snapshot build allows.
+        return planner(operatorFactoryRegistry, federationEnabled, inferenceService, true);
+    }
+
+    private LocalExecutionPlanner planner(
+        OperatorFactoryRegistry operatorFactoryRegistry,
+        boolean federationEnabled,
+        InferenceService inferenceService,
+        boolean snapshotBuild
     ) throws IOException {
         List<EsPhysicalOperationProviders.ShardContext> shardContexts = createShardContexts();
         return new LocalExecutionPlanner(
@@ -1632,6 +1818,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             ProjectMetadata.builder(randomProjectIdOrDefault()).build(),
             esPhysicalOperationProviders(shardContexts),
             operatorFactoryRegistry,
+            snapshotBuild,
             null, // parallelWorkerExecutor - not needed for these tests
             0,    // esqlWorkerPoolSize - not needed for these tests
             MatcherWatchdog.noop(),

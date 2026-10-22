@@ -1503,6 +1503,9 @@ public class StatelessPlugin extends Plugin
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RESHARD_TARGET_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING,
+            SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TOTAL_TIMEOUT_CAP_SETTING,
+            SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING,
+            SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_CACHE_RATIO_SETTING,
             AutoCreateAction.AUTO_CREATE_INDEX_PRIORITY_SETTING,
             AutoCreateAction.AUTO_CREATE_INDEX_MAX_TIMEOUT_SETTING,
@@ -1930,7 +1933,7 @@ public class StatelessPlugin extends Plugin
         } else if (warmingRatioProviderFactories.size() == 1) {
             warmingRatioProviderFactoryRef.set(warmingRatioProviderFactories.get(0));
         } else {
-            warmingRatioProviderFactoryRef.set(new DefaultWarmingRatioProviderFactory());
+            warmingRatioProviderFactoryRef.set(new DefaultWarmingRatioProviderFactory(() -> getClusterService().getClusterSettings()));
         }
 
         var evictionPolicyFactories = loader.loadExtensions(EvictionPolicyFactory.class);

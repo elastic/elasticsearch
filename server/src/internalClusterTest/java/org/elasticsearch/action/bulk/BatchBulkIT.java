@@ -12,6 +12,7 @@ package org.elasticsearch.action.bulk;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.DocWriteRequest;
@@ -30,16 +31,18 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -84,6 +87,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -599,9 +603,8 @@ public class BatchBulkIT extends ESIntegTestCase {
     }
 
     private long requestBreakerDeltaWhileShardRequestsHeld(String coordinatingNode, String index, int numDocs) throws Exception {
-        CircuitBreaker requestBreaker = internalCluster().getInstance(CircuitBreakerService.class, coordinatingNode)
-            .getBreaker(CircuitBreaker.REQUEST);
-        long baseline = requestBreaker.getUsed();
+        CircuitBreaker requestBreaker = awaitRequestBreakerIdle(coordinatingNode);
+        long baseline = 0L;
 
         CountDownLatch shardRequestArrived = new CountDownLatch(1);
         CountDownLatch releaseShardRequests = new CountDownLatch(1);
@@ -636,6 +639,93 @@ public class BatchBulkIT extends ESIntegTestCase {
                 MockTransportService.getInstance(node).clearAllRules();
             }
         }
+    }
+
+    public void testPreBuiltBatchPagesReleasedOnSuccess() throws Exception {
+        String index = randomIndexName();
+        createBatchIndex(index, randomIntBetween(1, 3), 0);
+        String coordinatingNode = findCoordinatingNode();
+        CircuitBreaker requestBreaker = awaitRequestBreakerIdle(coordinatingNode);
+        int numDocs = randomIntBetween(10, 40);
+
+        BulkRequest bulkRequest = preBuiltBatchBulkRequestFromNodeRecycler(coordinatingNode, index, numDocs, null);
+        assertThat(requestBreaker.getUsed(), greaterThan(0L));
+
+        assertNoFailures(safeGet(client(coordinatingNode).bulk(bulkRequest)));
+        assertBusy(() -> assertThat(requestBreaker.getUsed(), equalTo(0L)));
+
+        refresh(index);
+        assertResponse(prepareSearch(index).setTrackTotalHits(true), response -> {
+            assertNoFailures(response);
+            assertThat(response.getHits().getTotalHits().value(), equalTo((long) numDocs));
+        });
+    }
+
+    public void testPreBuiltBatchPagesReleasedWhenRejectedBeforeRouting() throws Exception {
+        String index = randomIndexName();
+        createBatchIndex(index, randomIntBetween(1, 3), 0);
+        String pipeline = "prebuilt-batch-noop-pipeline";
+        putJsonPipeline(pipeline, "{\"processors\": []}");
+        String coordinatingNode = findCoordinatingNode();
+        CircuitBreaker requestBreaker = awaitRequestBreakerIdle(coordinatingNode);
+        int numDocs = randomIntBetween(10, 40);
+
+        BulkRequest withPipeline = preBuiltBatchBulkRequestFromNodeRecycler(coordinatingNode, index, numDocs, pipeline);
+        assertThat(requestBreaker.getUsed(), greaterThan(0L));
+        var pipelineRejection = safeAwaitFailure(
+            IllegalArgumentException.class,
+            BulkResponse.class,
+            l -> client(coordinatingNode).bulk(withPipeline, l)
+        );
+        assertThat(pipelineRejection.getMessage(), containsString("cannot run ingest pipelines"));
+        assertBusy(() -> assertThat(requestBreaker.getUsed(), equalTo(0L)));
+
+        BulkRequest batchIndexingOff = preBuiltBatchBulkRequestFromNodeRecycler(coordinatingNode, index, numDocs, null);
+        assertThat(requestBreaker.getUsed(), greaterThan(0L));
+        updateClusterSettings(Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), false));
+        try {
+            var routerRejection = safeAwaitFailure(
+                IllegalStateException.class,
+                BulkResponse.class,
+                l -> client(coordinatingNode).bulk(batchIndexingOff, l)
+            );
+            assertThat(routerRejection.getMessage(), containsString("batch indexing is not supported"));
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(BatchIndexingEnabled.BATCH_INDEXING.getKey()));
+        }
+        assertBusy(() -> assertThat(requestBreaker.getUsed(), equalTo(0L)));
+    }
+
+    private CircuitBreaker awaitRequestBreakerIdle(String node) throws Exception {
+        CircuitBreaker requestBreaker = internalCluster().getInstance(CircuitBreakerService.class, node).getBreaker(CircuitBreaker.REQUEST);
+        assertBusy(() -> assertThat(requestBreaker.getUsed(), equalTo(0L)));
+        return requestBreaker;
+    }
+
+    private BulkRequest preBuiltBatchBulkRequestFromNodeRecycler(String node, String index, int numDocs, @Nullable String pipeline)
+        throws IOException {
+        Recycler<BytesRef> recycler = internalCluster().getInstance(BigArrays.class, node).bytesRefRecycler();
+        SourceBatch batch;
+        try (EscfEncoder encoder = new EscfEncoder(recycler)) {
+            for (int i = 0; i < numDocs; i++) {
+                XContentBuilder doc = JsonXContent.contentBuilder();
+                doc.startObject();
+                doc.field("name", "name-" + i);
+                doc.field("value", (long) i);
+                doc.endObject();
+                encoder.parseToScratch(BytesReference.bytes(doc), XContentType.JSON);
+                encoder.commitScratchTo(0);
+            }
+            batch = encoder.buildPartition(0);
+        }
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            IndexRequest ir = new IndexRequest(index).id("doc-" + i).opType(DocWriteRequest.OpType.INDEX).setPipeline(pipeline);
+            ir.indexSource().setSourceRow(batch, i, XContentType.JSON);
+            bulkRequest.add(ir);
+        }
+        bulkRequest.setPreBuiltBatches(Map.of(index, batch));
+        return bulkRequest;
     }
 
     public void testBatchModeWithVersionConflicts() throws IOException {
@@ -2374,10 +2464,11 @@ public class BatchBulkIT extends ESIntegTestCase {
             assertTrue("batch path lost document [" + id + "]", fromBatch[i].getResponse().isExists());
             final Map<String, Object> batchSource = fromBatch[i].getResponse().getSourceAsMap();
             assertThat("source of [" + id + "]", batchSource, equalTo(fromRow[i].getResponse().getSourceAsMap()));
-            // Synthetic source renders absorbed leaves under _unmapped. env is in every document, so two empty sinks cannot pass as equal.
+            // Synthetic source renders absorbed leaves under their own paths. env is in every document, so two empty sinks cannot pass as
+            // equal.
             assertThat(
                 "unmapped leaf of [" + id + "]",
-                XContentMapValues.extractValue(FlattenedFieldMapper.UNMAPPED_SINK_NAME + ".env", batchSource),
+                XContentMapValues.extractValue("env", batchSource),
                 equalTo(sources.get(id).get("env"))
             );
         }
@@ -2426,12 +2517,8 @@ public class BatchBulkIT extends ESIntegTestCase {
                     mapping.startObject("field");
                     {
                         mapping.field("type", "keyword");
-                        mapping.startObject("doc_values");
-                        {
-                            mapping.field("multi_value", false);
-                            mapping.field("on_failure", "ignore");
-                        }
-                        mapping.endObject();
+                        mapping.field("multi_value", false);
+                        mapping.field("on_failure", "ignore");
                     }
                     mapping.endObject();
                 }
@@ -2960,7 +3047,6 @@ public class BatchBulkIT extends ESIntegTestCase {
      * seen once, so the column is written over the shapes its layout is chosen from rather than one of them.
      */
     public void testColumnarCodecBatchMatchesRowPath() throws IOException {
-        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
         final String batched = "test-columnar-codec-batched";
         final String sequential = "test-columnar-codec-sequential";
 
@@ -3118,15 +3204,10 @@ public class BatchBulkIT extends ESIntegTestCase {
                         .put("index.number_of_shards", 1)
                         .put("index.number_of_replicas", 0)
                         .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-                        .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), true)
                 )
                 .setMapping(mapping)
         );
         ensureGreen(index);
-        // The cluster kill switch overrules the request setting, and an index that came back without the codec
-        // would read back the same on both paths while saying nothing about the format this test is here for.
-        final Settings created = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, index).get().getIndexToSettings().get(index);
-        assumeTrue("columnar codec is disabled for [" + index + "]", IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.get(created));
     }
 
     /**

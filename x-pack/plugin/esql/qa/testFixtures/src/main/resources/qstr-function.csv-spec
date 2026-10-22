@@ -261,13 +261,19 @@ qstrWithMultipleFieldsOption
 required_capability: qstr_function
 required_capability: fn_qstr_fields_option
 
+// Without the fields option the query would also match the books where Dostoevsky is only the author
 FROM books
-| WHERE QSTR("Dostoevsky", {"fields": ["title", "author^2"]})
-| STATS count = COUNT(*)
+| WHERE QSTR("Dostoevsky", {"fields": ["title", "description^2"]})
+| KEEP book_no
+| SORT book_no
 ;
 
-count:long
-11
+book_no:keyword
+1211
+1937
+2924
+5948
+8615
 ;
 
 testQstrInStatsNonPushable

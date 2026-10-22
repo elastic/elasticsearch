@@ -1044,10 +1044,13 @@ public class SplitSourceService {
                     }
 
                     IndexReshardingState.Split split = getSplit(state, indexShard.shardId().getIndex());
-                    // This shouldn't be possible.
-                    // If there is a new instance of the shard that already completed the split,
-                    // current instance of the shard should be removed and we would hit one of the branches above.
-                    assert split != null;
+                    if (split == null) {
+                        // The split is over. If a new instance of the shard completed it, this instance would have been removed and we
+                        // would have hit one of the branches above. But it can also have been completed by this instance, whose
+                        // workflow starts over when it fails after the last source shard has moved to DONE without hearing about it. It
+                        // can also have been discarded, e.g. by a restore over the index. Stop waiting, and let the listener below decide.
+                        return true;
+                    }
 
                     return split.targetsDone(indexShard.shardId().getId());
                 }
@@ -1060,6 +1063,12 @@ public class SplitSourceService {
                     @Override
                     public void onNewClusterState(ClusterState state) {
                         if (cancelled.get() || indexShard.state() == IndexShardState.CLOSED) {
+                            return;
+                        }
+
+                        if (getSplit(state, indexShard.shardId().getIndex()) == null) {
+                            logger.info("Split of source shard {} no longer exists, nothing left for it to do", indexShard.shardId());
+                            onCompleted.run();
                             return;
                         }
 

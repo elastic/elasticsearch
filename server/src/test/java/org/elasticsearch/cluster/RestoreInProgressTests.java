@@ -49,9 +49,6 @@ public class RestoreInProgressTests extends ESTestCase {
     /**
      * The cluster state API shows restores through {@code toXContentChunked}. The flag is internal, so a restore renders identically
      * whether or not its caller asked for its shards to be reported.
-     *
-     * <p>This test is temporary. It pins the behaviour while the flag is only held in memory by the master, and it should be revisited
-     * when the flag becomes part of the wire format.
      */
     public void testReportShardRestoringIsNotExposedInXContent() throws IOException {
         final RestorePair restore = randomRestorePair();

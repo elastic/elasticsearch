@@ -1532,17 +1532,21 @@ public class TranslogReplicatorTests extends ESTestCase {
             return null;
         }).when(objectStoreService).uploadTranslogFile(any(), any(), any(), any(), any());
 
-        long hedgeDelayMillis = TranslogReplicator.UPLOAD_HEDGE_DELAY_SETTING.get(Settings.EMPTY).millis();
+        // hedge uploads are disabled by default, so enable them explicitly
+        TimeValue hedgeDelay = TimeValue.timeValueSeconds(2);
         // capture the hedge instead of scheduling it at an arbitrary point in time, so we can fire the hedge when we want it to
         AtomicReference<Runnable> hedge = new AtomicReference<>();
 
         // we build a new thread pool so we terminate the previously-constructed one
         ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS);
-        Settings nodeSettings = Settings.builder().put("node.name", TranslogReplicatorTests.class.getSimpleName()).build();
+        Settings nodeSettings = Settings.builder()
+            .put("node.name", TranslogReplicatorTests.class.getSimpleName())
+            .put(TranslogReplicator.UPLOAD_HEDGE_DELAY_SETTING.getKey(), hedgeDelay)
+            .build();
         threadPool = new ThreadPool(nodeSettings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders()) {
             @Override
             public Scheduler.ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
-                if (delay.millis() == hedgeDelayMillis) {
+                if (delay.millis() == hedgeDelay.millis()) {
                     assertTrue("only one hedge upload per translog upload", hedge.compareAndSet(null, command));
                     return mock(Scheduler.ScheduledCancellable.class);
                 }
@@ -1605,17 +1609,21 @@ public class TranslogReplicatorTests extends ESTestCase {
             return null;
         }).when(objectStoreService).uploadTranslogFile(any(), any(), any(), any(), any());
 
-        long hedgeDelayMillis = TranslogReplicator.UPLOAD_HEDGE_DELAY_SETTING.get(Settings.EMPTY).millis();
+        // hedge uploads are disabled by default, so enable them explicitly
+        TimeValue hedgeDelay = TimeValue.timeValueSeconds(2);
         // capture the hedge instead of scheduling it, so we can fire the hedge when we want it to
         AtomicReference<Runnable> hedge = new AtomicReference<>();
 
         // we build a new thread pool so we terminate the previously-constructed one
         ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS);
-        Settings nodeSettings = Settings.builder().put("node.name", TranslogReplicatorTests.class.getSimpleName()).build();
+        Settings nodeSettings = Settings.builder()
+            .put("node.name", TranslogReplicatorTests.class.getSimpleName())
+            .put(TranslogReplicator.UPLOAD_HEDGE_DELAY_SETTING.getKey(), hedgeDelay)
+            .build();
         threadPool = new ThreadPool(nodeSettings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders()) {
             @Override
             public Scheduler.ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
-                if (delay.millis() == hedgeDelayMillis) {
+                if (delay.millis() == hedgeDelay.millis()) {
                     assertTrue("only one hedge upload per translog upload", hedge.compareAndSet(null, command));
                     return mock(Scheduler.ScheduledCancellable.class);
                 }

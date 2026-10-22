@@ -72,7 +72,6 @@ import java.util.function.ToLongFunction;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
-import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 
 public class TranslogReplicator extends AbstractLifecycleComponent {
 
@@ -105,15 +104,16 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         Setting.Property.NodeScope
     );
 
-    /// Time to wait for the first translog-upload try to complete before firing the exact same translog upload request in parallel to the
-    /// first. The delay is measured from the moment the first upload's blob write actually starts (i.e., after any time the upload spent
-    /// queued behind other translog uploads in the object store service) so that the hedge covers a slow object store write rather than
-    /// local queueing. For a specific translog upload, we only fire at most one hedge upload (irrespectively of the total tries needed for
-    /// the translog to be uploaded).
+    /// Time to wait for the first translog-upload try to complete before firing the exact same translog upload (i.e., hedge upload)
+    /// request in parallel to the first. The delay is measured from the moment the first upload's blob write actually starts (i.e., after
+    /// any time the upload spent queued behind other translog uploads in the object store service) so that the hedge covers a slow object
+    /// store write rather than queueing. For a specific translog upload, we only fire at most one hedge upload (irrespectively of the
+    /// total tries needed for the translog to be uploaded).
+    /// If it is set to a negative value, hedge uploads are disabled.
     public static final Setting<TimeValue> UPLOAD_HEDGE_DELAY_SETTING = Setting.timeSetting(
         "stateless.translog.upload.hedge_delay",
-        timeValueSeconds(2),
-        timeValueMillis(100),
+        TimeValue.MINUS_ONE,
+        TimeValue.MINUS_ONE,
         Setting.Property.NodeScope
     );
 
@@ -562,6 +562,9 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             Runnable onBeforeUpload = () -> {};
             if (firstTry) {
                 firstAttemptStartMillis = threadPool.relativeTimeInMillis();
+            }
+
+            if (firstTry && uploadHedgeDelay.getMillis() >= 0L) {
                 // Only the first try starts a hedge upload, and this happens only when this first try is about to actually start the
                 // translog upload (i.e., after any time the upload spent queued behind other translog uploads in the object store service).
                 // By doing this we start the hedge only when the other upload is indeed slow and not just waiting in a queue, something

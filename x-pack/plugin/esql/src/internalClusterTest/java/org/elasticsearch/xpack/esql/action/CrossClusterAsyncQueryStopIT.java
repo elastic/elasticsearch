@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -18,6 +20,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.async.AsyncStopRequest;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction;
 
 import java.util.Iterator;
 import java.util.List;
@@ -83,6 +86,20 @@ public class CrossClusterAsyncQueryStopIT extends AbstractCrossClusterTestCase {
                     .filter(t -> t.description().contains("_LuceneSourceOperator") == false)
                     .toList();
                 assertThat(reduceTasks, empty());
+                // The reduce driver goes away before its close request reaches the data driver's exchange sink. Also wait until the
+                // sinks on remote-b are finished, otherwise the data driver may evaluate more documents once released, before it sees
+                // the stop.
+                for (String node : cluster(REMOTE_CLUSTER_2).getNodeNames()) {
+                    ExchangeService exchangeService = cluster(REMOTE_CLUSTER_2).getInstance(TransportEsqlQueryAction.class, node)
+                        .exchangeService();
+                    for (String id : exchangeService.sinkKeys()) {
+                        try {
+                            assertTrue("sink " + id + " on " + node + " not finished", exchangeService.getSinkHandler(id).isFinished());
+                        } catch (ResourceNotFoundException e) {
+                            // sink already removed
+                        }
+                    }
+                }
             });
             // allow remoteB query to proceed
             CountingPauseFieldPlugin.allowEmitting.countDown();

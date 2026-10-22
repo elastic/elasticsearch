@@ -586,10 +586,17 @@ tasks.register("validateBuildGradleScripts", ValidateBuildGradleScriptsTask).con
       'x-pack/plugin/security/build.gradle',
       'x-pack/plugin/sql/qa/server/build.gradle',
       'x-pack/plugin/sql/sql-cli/build.gradle',
-      'x-pack/qa/rolling-upgrade-legacy/build.gradle',
       'x-pack/qa/smoke-test-plugins/build.gradle',
       'x-pack/qa/smoke-test-plugins-ssl/build.gradle',
       'x-pack/qa/xpack-prefix-rest-compat/build.gradle',
+    ],
+    'distribution-closure-assignment': [
+      'distribution/build.gradle::7',
+      'distribution/docker/build.gradle::1',
+    ],
+    'distribution-ext-closure-api': [
+      'distribution/build.gradle::2',
+      'distribution/docker/build.gradle::2',
     ],
   ])
 }

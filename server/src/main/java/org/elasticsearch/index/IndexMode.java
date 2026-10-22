@@ -45,6 +45,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -610,6 +611,13 @@ public enum IndexMode {
      * Currently, only the lookup index mode provides non-empty additional settings.
      */
     public static final class IndexModeSettingsProvider implements IndexSettingProvider {
+        private static final Set<String> AFFECTED_SETTINGS = Set.of(IndexMetadata.SETTING_NUMBER_OF_SHARDS);
+
+        @Override
+        public Set<String> affectedSettings() {
+            return AFFECTED_SETTINGS;
+        }
+
         @Override
         public Settings getAdditionalIndexSettings(
             String indexName,

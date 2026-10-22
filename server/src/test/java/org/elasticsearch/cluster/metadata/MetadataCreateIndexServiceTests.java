@@ -724,6 +724,11 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 }
 
                 @Override
+                public Set<String> affectedSettings() {
+                    return Set.of("request_setting", "other_setting");
+                }
+
+                @Override
                 public boolean overrulesTemplateAndRequestSettings() {
                     return true;
                 }
@@ -764,6 +769,11 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     List<CompressedXContent> combinedTemplateMappings
                 ) {
                     return Settings.builder().put("request_setting", "overrule_value").put("other_setting", "other_value").build();
+                }
+
+                @Override
+                public Set<String> affectedSettings() {
+                    return Set.of("request_setting", "other_setting");
                 }
 
                 @Override
@@ -810,6 +820,11 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 }
 
                 @Override
+                public Set<String> affectedSettings() {
+                    return Set.of("template_setting", "other_setting");
+                }
+
+                @Override
                 public boolean overrulesTemplateAndRequestSettings() {
                     return true;
                 }
@@ -853,6 +868,11 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 }
 
                 @Override
+                public Set<String> affectedSettings() {
+                    return Set.of("template_setting", "other_setting");
+                }
+
+                @Override
                 public boolean overrulesTemplateAndRequestSettings() {
                     return true;
                 }
@@ -862,6 +882,64 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         assertThat(aggregatedIndexSettings.get("template_setting"), equalTo("overrule_value"));
         assertThat(aggregatedIndexSettings.get("request_setting"), equalTo("value2"));
         assertThat(aggregatedIndexSettings.get("other_setting"), equalTo("other_value"));
+    }
+
+    /**
+     * A {@code null} in the request cancels the value of a non-overruling provider and also takes precedence over a value from the
+     * template, so the setting is resolved to its default value.
+     */
+    public void testAggregateSettingsRequestNullCancelsProviderAndTemplateValue() {
+        IndexTemplateMetadata templateMetadata = addMatchingTemplate(builder -> {
+            builder.settings(Settings.builder().put("nullified_setting", "template_value").put("other_template_setting", "value"));
+        });
+        Metadata metadata = Metadata.builder().templates(Map.of("template_1", templateMetadata)).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
+        request.settings(Settings.builder().putNull("nullified_setting").build());
+
+        Settings aggregatedIndexSettings = aggregateIndexSettings(
+            clusterState,
+            request,
+            templateMetadata.settings(),
+            null,
+            null,
+            Settings.EMPTY,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            IndexSettingProviders.of(
+                Set.of("nullified_setting", "other_provided_setting"),
+                () -> Settings.builder().put("nullified_setting", "provided_value").put("other_provided_setting", "value").build()
+            ).getIndexSettingProviders()
+        );
+
+        assertThat(aggregatedIndexSettings.get("nullified_setting"), nullValue());
+        assertThat(aggregatedIndexSettings.get("other_template_setting"), equalTo("value"));
+        assertThat(aggregatedIndexSettings.get("other_provided_setting"), equalTo("value"));
+    }
+
+    public void testAggregateSettingsTemplateNullCancelsProviderValue() {
+        IndexTemplateMetadata templateMetadata = addMatchingTemplate(builder -> {
+            builder.settings(Settings.builder().putNull("nullified_setting"));
+        });
+        Metadata metadata = Metadata.builder().templates(Map.of("template_1", templateMetadata)).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
+
+        Settings aggregatedIndexSettings = aggregateIndexSettings(
+            clusterState,
+            request,
+            templateMetadata.settings(),
+            null,
+            null,
+            Settings.EMPTY,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            IndexSettingProviders.of(
+                Set.of("nullified_setting", "other_provided_setting"),
+                () -> Settings.builder().put("nullified_setting", "provided_value").put("other_provided_setting", "value").build()
+            ).getIndexSettingProviders()
+        );
+
+        assertThat(aggregatedIndexSettings.get("nullified_setting"), nullValue());
+        assertThat(aggregatedIndexSettings.get("other_provided_setting"), equalTo("value"));
     }
 
     public void testInvalidAliasName() {

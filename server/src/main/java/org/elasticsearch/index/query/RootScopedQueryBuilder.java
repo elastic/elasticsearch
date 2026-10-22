@@ -1,20 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.xpack.inference.queries;
+package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.index.query.MatchNoneQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -24,15 +22,15 @@ import java.util.Objects;
 /**
  * Builds the wrapped query at the root nested scope, regardless of the nested scope it is used in. Unwrapped on serialization.
  */
-class RootScopedQueryBuilder implements QueryBuilder {
+public class RootScopedQueryBuilder implements QueryBuilder {
 
     private final QueryBuilder query;
 
-    RootScopedQueryBuilder(QueryBuilder query) {
+    public RootScopedQueryBuilder(QueryBuilder query) {
         this.query = Objects.requireNonNull(query);
     }
 
-    QueryBuilder query() {
+    public QueryBuilder query() {
         return query;
     }
 

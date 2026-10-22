@@ -59,6 +59,8 @@ public final class SearchCapabilities {
     private static final String DENSE_VECTOR_UPDATABLE_BBQ = "dense_vector_updatable_bbq";
     private static final String FIELD_EXISTS_QUERY_FOR_TEXT_FIELDS_NO_INDEX_OR_DV = "field_exists_query_for_text_fields_no_index_or_dv";
     private static final String KNN_FILTER_ON_NESTED_FIELDS_CAPABILITY = "knn_filter_on_nested_fields";
+    /** knn filters are evaluated at the nested level of the fields they read, for any query type and any mix of levels. */
+    private static final String KNN_FILTER_NESTED_LEVELS = "knn_filter_nested_levels";
     private static final String BUCKET_SCRIPT_PARENT_MULTI_BUCKET_ERROR = "bucket_script_parent_multi_bucket_error";
     private static final String PIPELINE_AGGS_PARENT_MULTI_BUCKET_ERROR = "pipeline_aggs_parent_multi_bucket_error";
     /** Treat unresolvable bucket_sort paths as missing values controlled by gap_policy instead of NPE'ing. */
@@ -123,6 +125,7 @@ public final class SearchCapabilities {
         capabilities.add(POSITIONAL_QUERIES_ON_TEXT_WITHOUT_POSITIONS);
         capabilities.add(RANGE_FIELD_DV_QUERY_DESCRIPTION_HAS_FIELD);
         capabilities.add(KNN_REQUIRES_SLICE_SELECTION);
+        capabilities.add(KNN_FILTER_NESTED_LEVELS);
         CAPABILITIES = Set.copyOf(capabilities);
     }
 }

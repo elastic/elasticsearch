@@ -10,21 +10,22 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ToChildBlockJoinQuery;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
+import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
 /**
- * A query returns child documents whose parent matches the provided query.
- * This query is used only for internal purposes and is not exposed to a user.
+ * Returns the documents of the current nested level whose ancestor matches the provided query, the ancestor being at the
+ * level of the fields the query reads (see {@link NestedHelper#joinToNestedLevel}). Used internally by the inner hits of knn
+ * queries and not exposed to users.
  */
 public class ToChildBlockJoinQueryBuilder extends LeafQueryBuilder<ToChildBlockJoinQueryBuilder> {
     public static final String NAME = "to_child_block_join";
@@ -70,27 +71,17 @@ public class ToChildBlockJoinQueryBuilder extends LeafQueryBuilder<ToChildBlockJ
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        final Query parentFilter;
-        NestedObjectMapper originalObjectMapper = context.nestedScope().getObjectMapper();
-        if (originalObjectMapper != null) {
-            try {
-                // we are in a nested context, to get the parent filter we need to go up one level
-                context.nestedScope().previousLevel();
-                NestedObjectMapper objectMapper = context.nestedScope().getObjectMapper();
-                parentFilter = objectMapper == null
-                    ? Queries.newNonNestedFilter(context.indexVersionCreated())
-                    : objectMapper.nestedTypeFilter();
-            } finally {
-                context.nestedScope().nextLevel(originalObjectMapper);
-            }
-        } else {
+        NestedObjectMapper currentLevel = context.nestedScope().getObjectMapper();
+        if (currentLevel == null) {
             // we are NOT in a nested context, coming from the top level knn search
-            parentFilter = Queries.newNonNestedFilter(context.indexVersionCreated());
+            Query parentFilter = Queries.newNonNestedFilter(context.indexVersionCreated());
+            Query parentQuery = parentQueryBuilder.toQuery(context);
+            // ensure that parentQuery only applies to parent docs by adding parentFilter
+            return new ToChildBlockJoinQuery(Queries.filtered(parentQuery, parentFilter), context.bitsetFilter(parentFilter));
         }
-        final BitSetProducer parentBitSet = context.bitsetFilter(parentFilter);
-        Query parentQuery = parentQueryBuilder.toQuery(context);
-        // ensure that parentQuery only applies to parent docs by adding parentFilter
-        return new ToChildBlockJoinQuery(Queries.filtered(parentQuery, parentFilter), parentBitSet);
+        NestedObjectMapper parentLevel = context.nestedScope().parentLevel();
+        String parentPath = parentLevel == null ? null : parentLevel.fullPath();
+        return NestedHelper.joinToNestedLevel(parentQueryBuilder.toQuery(context), currentLevel.fullPath(), parentPath, context);
     }
 
     @Override

@@ -25,6 +25,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
@@ -37,6 +38,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.common.parser.StatefulValue.applyUpdate;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
 
@@ -91,9 +93,10 @@ public class CohereCommonServiceSettings extends FilteredXContentObject implemen
         if (context == ConfigurationParseContext.PERSISTENT) {
             parser.declareString(Builder::setApiVersion, new ParseField(API_VERSION));
         }
-        parser.declareObject(
+        parser.declareObjectOrNull(
             Builder::setRateLimitSettings,
             (p, c) -> RateLimitSettings.createParser(c == ConfigurationParseContext.PERSISTENT, DEFAULT_RATE_LIMIT_SETTINGS).apply(p, null),
+            DEFAULT_RATE_LIMIT_SETTINGS,
             new ParseField(RateLimitSettings.FIELD_NAME)
         );
         // api_key appears in the same JSON block as service settings in REST requests; DefaultSecretSettings extracts it separately.
@@ -166,7 +169,7 @@ public class CohereCommonServiceSettings extends FilteredXContentObject implemen
     }
 
     public CohereCommonServiceSettings update(CommonUpdate update) {
-        RateLimitSettings updatedRateLimitSettings = Objects.requireNonNullElse(update.rateLimitSettings, this.rateLimitSettings);
+        var updatedRateLimitSettings = applyUpdate(update.rateLimitSettings, this.rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
         return new CohereCommonServiceSettings(this.uri, this.modelId, updatedRateLimitSettings, this.apiVersion);
     }
 
@@ -293,10 +296,12 @@ public class CohereCommonServiceSettings extends FilteredXContentObject implemen
     }
 
     public static void declareCommonUpdatableFields(AbstractObjectParser<? extends CommonUpdate, Void> parser) {
-        parser.declareObject(
+        StatefulValue.declareNullable(
+            parser,
             CommonUpdate::setRateLimitSettings,
-            (p, c) -> RateLimitSettings.createParser(false, null).apply(p, null),
-            new ParseField(RateLimitSettings.FIELD_NAME)
+            p -> RateLimitSettings.createParser(false, null).apply(p, null),
+            new ParseField(RateLimitSettings.FIELD_NAME),
+            ObjectParser.ValueType.OBJECT_OR_NULL
         );
         // api_key appears in the same JSON block as service settings in update requests; DefaultSecretSettings extracts it separately.
         // Declare it here as a no-op so the strict update parser does not reject it as an unknown field.
@@ -305,9 +310,9 @@ public class CohereCommonServiceSettings extends FilteredXContentObject implemen
 
     public static class CommonUpdate {
 
-        protected RateLimitSettings rateLimitSettings;
+        protected StatefulValue<RateLimitSettings> rateLimitSettings = StatefulValue.undefined();
 
-        private void setRateLimitSettings(RateLimitSettings rateLimitSettings) {
+        private void setRateLimitSettings(StatefulValue<RateLimitSettings> rateLimitSettings) {
             this.rateLimitSettings = rateLimitSettings;
         }
     }

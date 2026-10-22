@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 162521
+summary: Bind ES|QL lookup requests to their target shard
+type: bug

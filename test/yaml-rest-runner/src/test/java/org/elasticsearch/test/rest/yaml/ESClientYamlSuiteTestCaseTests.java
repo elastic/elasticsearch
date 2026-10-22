@@ -8,6 +8,8 @@
  */
 package org.elasticsearch.test.rest.yaml;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
 
@@ -242,6 +244,75 @@ public class ESClientYamlSuiteTestCaseTests extends ESTestCase {
             candidates.add((ClientYamlTestCandidate) parameter[0]);
         }
         return candidates;
+    }
+
+    public void testSuiteWithYamlNameIsAccepted() {
+        new NamedSuite(null);
+        new NamedSuiteWithLeadingParameter(0, null);
+    }
+
+    public void testSuiteWithoutNameIsRejected() {
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> new UnnamedSuite(null));
+        assertThat(e.getMessage(), containsString("Suite [" + UnnamedSuite.class.getName() + "]"));
+        assertThat(e.getMessage(), containsString("@Name(\"yaml\")"));
+    }
+
+    public void testSuiteWithWrongNameIsRejected() {
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> new WronglyNamedSuite(null));
+        assertThat(e.getMessage(), containsString(WronglyNamedSuite.class.getName()));
+    }
+
+    public void testNameOnOtherParameterDoesNotSatisfyGuard() {
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> new UnnamedSuiteWithLeadingParameter(0, null));
+        assertThat(e.getMessage(), containsString(UnnamedSuiteWithLeadingParameter.class.getName()));
+    }
+
+    /**
+     * A compliant suite. Tests pass a null candidate: the constructor only stores it and the suite never actually runs, so no real
+     * {@link ClientYamlTestCandidate} is needed.
+     */
+    public static class NamedSuite extends ESClientYamlSuiteTestCase {
+        public NamedSuite(@Name("yaml") ClientYamlTestCandidate candidate) {
+            super(candidate);
+        }
+    }
+
+    /**
+     * A compliant suite with the candidate after another parameter, like {@code UpgradeClusterClientYamlTestSuiteIT}. As with
+     * {@link NamedSuite}, tests pass a null candidate.
+     */
+    public static class NamedSuiteWithLeadingParameter extends ESClientYamlSuiteTestCase {
+        public NamedSuiteWithLeadingParameter(@Name("other") int other, @Name("yaml") ClientYamlTestCandidate candidate) {
+            super(candidate);
+        }
+    }
+
+    /**
+     * Has no {@code @Name} on the candidate parameter. The guard throws before the (null) candidate is stored.
+     */
+    public static class UnnamedSuite extends ESClientYamlSuiteTestCase {
+        public UnnamedSuite(ClientYamlTestCandidate candidate) {
+            super(candidate);
+        }
+    }
+
+    /**
+     * Names the candidate parameter something other than {@code yaml}. The guard throws before the (null) candidate is stored.
+     */
+    public static class WronglyNamedSuite extends ESClientYamlSuiteTestCase {
+        public WronglyNamedSuite(@Name("candidate") ClientYamlTestCandidate candidate) {
+            super(candidate);
+        }
+    }
+
+    /**
+     * Puts {@code @Name("yaml")} on the wrong parameter, leaving the candidate unnamed. The guard throws before the (null) candidate is
+     * stored.
+     */
+    public static class UnnamedSuiteWithLeadingParameter extends ESClientYamlSuiteTestCase {
+        public UnnamedSuiteWithLeadingParameter(@Name("yaml") int other, ClientYamlTestCandidate candidate) {
+            super(candidate);
+        }
     }
 
     private static Set<String> apis(List<ClientYamlTestCandidate> candidates) {

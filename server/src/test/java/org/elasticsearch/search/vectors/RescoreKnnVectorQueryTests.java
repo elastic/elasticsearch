@@ -38,6 +38,7 @@ import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswScalarQuantizedVectorsFormat;
@@ -200,7 +201,9 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                 i++;
             }
             if (i >= realScoreDocs.length) {
-                fail("Rescored doc not found in real score docs");
+                fail(
+                    Strings.format("Rescored doc [%s] not found in real score docs. %ndocs: %s", rescoreDoc, Arrays.toString(realScoreDocs))
+                );
             }
             assertThat("Real score is not the same as rescored score", (double) rescoreDoc.score, closeTo(realScoreDocs[i].score, DELTA));
         }

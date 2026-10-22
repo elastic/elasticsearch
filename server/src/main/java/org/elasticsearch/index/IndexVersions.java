@@ -276,6 +276,7 @@ public class IndexVersions {
         9_111_0_01,
         Version.LUCENE_10_5_1
     );
+    public static final IndexVersion UPGRADE_TO_LUCENE_10_5_2_BACKPORT_9_5 = def(9_111_0_02, Version.LUCENE_10_5_2);
 
     /*
      * STOP! READ THIS FIRST! No, really,

@@ -164,7 +164,8 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
             model.getConfigurations().getService(),
             newServiceSettings,
             model.getTaskSettings(),
-            model.getSecretSettings()
+            model.getSecretSettings(),
+            model.authHeaderDecorator()
         );
     }
 

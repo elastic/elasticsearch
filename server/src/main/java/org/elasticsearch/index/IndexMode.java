@@ -48,6 +48,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -1067,6 +1068,20 @@ public enum IndexMode {
      * Currently, only the lookup index mode provides non-empty additional settings.
      */
     public static final class IndexModeSettingsProvider implements IndexSettingProvider {
+        private static final Set<String> AFFECTED_SETTINGS = Set.of(
+            IndexMetadata.SETTING_NUMBER_OF_SHARDS,
+            IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(),
+            IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(),
+            IndexModule.INDEX_STORE_PRE_LOAD_SETTING.getKey(),
+            IndexSettings.INTRA_MERGE_PARALLELISM_ENABLED_SETTING.getKey(),
+            MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey()
+        );
+
+        @Override
+        public Set<String> affectedSettings() {
+            return AFFECTED_SETTINGS;
+        }
+
         @Override
         public void provideAdditionalSettings(
             String indexName,

@@ -9,6 +9,11 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
+import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
@@ -19,6 +24,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -40,7 +46,7 @@ public final class IgnoreNullMetrics extends OptimizerRules.OptimizerRule<TimeSe
                 metrics.add(attr);
             }
         });
-        if (metrics.isEmpty()) {
+        if (metrics.isEmpty() || hasNonMetricInput(agg)) {
             return agg;
         }
         Expression conditional = null;
@@ -54,6 +60,33 @@ public final class IgnoreNullMetrics extends OptimizerRules.OptimizerRule<TimeSe
             }
         }
         return agg.replaceChild(new Filter(agg.source(), agg.child(), conditional));
+    }
+
+    /**
+     * Whether an aggregation reads an input that isn't a metric field, such as a converted metric ({@code metric::double}) or a value
+     * computed in an {@code EVAL}. A filter on the metrics alone would drop the rows that only have values for that input.
+     * <p>
+     * In that case, we skip the filter entirely rather than also filtering on the non-metric inputs. Nulls of non-metric fields have
+     * never been filtered out, and aggregations rely on seeing them, like {@code absent_over_time} or buckets reporting {@code null}.
+     * </p>
+     */
+    private static boolean hasNonMetricInput(TimeSeriesAggregate agg) {
+        Holder<Boolean> found = new Holder<>(false);
+        agg.forEachExpression(AggregateFunction.class, af -> {
+            // VALUES and DIMENSION_VALUES only carry the grouping keys from the per time series aggregation to the final one
+            if (af instanceof Values || af instanceof DimensionValues) {
+                return;
+            }
+            // On this branch, parameters also contain per-row inputs such as WEIGHTED_AVG's weight.
+            for (Expression field : CollectionUtils.combine(List.of(af.field()), af.parameters())) {
+                for (Attribute attr : field.references()) {
+                    if (attr.isMetric() == false && attr.isDimension() == false && attr.semanticEquals(agg.timestamp()) == false) {
+                        found.set(true);
+                    }
+                }
+            }
+        });
+        return found.get();
     }
 
     /**

@@ -631,5 +631,10 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                 additionalSettings.put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), false);
             }
         }
+
+        @Override
+        public Set<String> affectedSettings() {
+            return Set.of(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey());
+        }
     }
 }

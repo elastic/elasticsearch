@@ -24,7 +24,8 @@ public enum DataType {
     IMAGE(DataFormat.BASE64, EnumSet.of(DataFormat.BASE64, DataFormat.URL)),
     AUDIO(DataFormat.BASE64, EnumSet.of(DataFormat.BASE64, DataFormat.URL)),
     VIDEO(DataFormat.BASE64, EnumSet.of(DataFormat.BASE64, DataFormat.URL)),
-    PDF(DataFormat.BASE64, EnumSet.of(DataFormat.BASE64, DataFormat.URL));
+    PDF(DataFormat.BASE64, EnumSet.of(DataFormat.BASE64, DataFormat.URL)),
+    HTML(DataFormat.URL, EnumSet.of(DataFormat.URL));
 
     private final DataFormat defaultFormat;
     private final EnumSet<DataFormat> supportedFormats;

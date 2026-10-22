@@ -1061,7 +1061,6 @@ public class SharedBlobCacheWarmingService {
         final SubscribableListener<SearchRecoveryWaitOutcome> race = new SubscribableListener<>();
 
         final var timeoutTask = new ReevaluatingTimeoutTask(
-            initialPlan,
             clusterStateSupplier,
             indexShard,
             bytesToWarm,
@@ -1069,7 +1068,7 @@ public class SharedBlobCacheWarmingService {
             startedMillis,
             race
         );
-        timeoutTask.schedule();
+        timeoutTask.scheduleNextTimeoutReevaluation(initialPlan);
 
         final ActionListener<Void> resumeRecoveryByForkingToGeneric = new ThreadedActionListener<>(
             threadPool.generic(),
@@ -1125,7 +1124,6 @@ public class SharedBlobCacheWarmingService {
 
     private class ReevaluatingTimeoutTask implements Runnable {
 
-        private final SearchRecoveryTimeout initialPlan;
         private final Supplier<ClusterState> clusterStateSupplier;
         private final IndexShard indexShard;
         private final long bytesToWarm;
@@ -1137,7 +1135,6 @@ public class SharedBlobCacheWarmingService {
         private volatile Scheduler.ScheduledCancellable scheduledTask;
 
         ReevaluatingTimeoutTask(
-            SearchRecoveryTimeout initialPlan,
             Supplier<ClusterState> clusterStateSupplier,
             IndexShard indexShard,
             long bytesToWarm,
@@ -1145,24 +1142,28 @@ public class SharedBlobCacheWarmingService {
             long startedMillis,
             SubscribableListener<SearchRecoveryWaitOutcome> race
         ) {
-            this.initialPlan = initialPlan;
             this.clusterStateSupplier = clusterStateSupplier;
             this.indexShard = indexShard;
             this.bytesToWarm = bytesToWarm;
             this.bytesWarmedSoFar = bytesWarmedSoFar;
             this.startedMillis = startedMillis;
             this.race = race;
-            this.latestPlan = initialPlan;
         }
 
-        void schedule() {
-            scheduledTask = threadPool.schedule(this, initialPlan.timeout(), threadPool.generic());
+        void scheduleNextTimeoutReevaluation(SearchRecoveryTimeout plan) {
+            latestPlan = plan;
+            scheduledTask = threadPool.schedule(this, plan.timeout(), threadPool.generic());
+            // If the race completed meanwhile, its cancel() missed this task. Checking only after assigning scheduledTask
+            // guarantees that either this check or that cancel() sees it.
+            if (race.isDone()) {
+                scheduledTask.cancel();
+            }
         }
 
         @Override
         public void run() {
             // cancel() on the scheduled task is best-effort: if this command was already dequeued when cancel() ran, it
-            // executes anyway. Without this guard it would reschedule a new task that cancel() never sees.
+            // executes anyway. Skip the work in that case avoids a pointless re-evaluation and a second completion of race.
             if (race.isDone()) {
                 return;
             }
@@ -1177,25 +1178,8 @@ public class SharedBlobCacheWarmingService {
                     elapsed
                 );
                 if (extendedPlan.awaitWarming()) {
-                    final var previousPlan = latestPlan;
-                    final var newTimeout = extendedPlan.timeout();
-                    latestPlan = extendedPlan;
-                    scheduledTask = threadPool.schedule(this, newTimeout, threadPool.generic());
-                    // The race may have completed while this run was in flight, in which case cancel() already ran and missed the
-                    // task scheduled just now. Cancel it here so it does not retain the shard and directory until it fires.
-                    // If the race is not done yet, it completes after this check and its cancel() sees the new task.
-                    if (race.isDone()) {
-                        scheduledTask.cancel();
-                        return;
-                    }
-                    logger.debug(
-                        "Search shard recovery cache warming timeout extended by [{}] ({} -> {}) for [{}]. Total timeout: [{}]",
-                        newTimeout,
-                        previousPlan.timeoutContext().description(),
-                        extendedPlan.timeoutContext().description(),
-                        indexShard.shardId(),
-                        TimeValue.timeValueMillis(elapsed.millis() + newTimeout.millis())
-                    );
+                    logTimeoutExtension(latestPlan, extendedPlan, elapsed);
+                    scheduleNextTimeoutReevaluation(extendedPlan);
                     return;
                 }
             } catch (Exception e) {
@@ -1203,6 +1187,17 @@ public class SharedBlobCacheWarmingService {
                 logger.warn("Search shard recovery offline warming failed.", e);
             }
             race.onResponse(SearchRecoveryWaitOutcome.TIMEOUT);
+        }
+
+        private void logTimeoutExtension(SearchRecoveryTimeout previousPlan, final SearchRecoveryTimeout plan, final TimeValue elapsed) {
+            logger.debug(
+                "Search shard recovery cache warming timeout extended by [{}] ({} -> {}) for [{}]. Total timeout: [{}]",
+                plan.timeout(),
+                previousPlan.timeoutContext().description(),
+                plan.timeoutContext().description(),
+                indexShard.shardId(),
+                TimeValue.timeValueMillis(elapsed.millis() + plan.timeout().millis())
+            );
         }
 
         private String latestTimeoutContextDescription() {

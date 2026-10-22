@@ -15,7 +15,7 @@ products:
 
 In the {{kib}} UI, you create and manage datasets from the **Datasets** tab under **Data management** > **{{esql}} Data Federation**.
 
-To use the UI, [enable it in {{kib}}](esql-data-federation.md#enable-the-feature) first. Every dataset reads through a [data source](esql-data-federation-sources.md). If you haven't connected one yet, you can connect it from the **Add dataset** wizard: select **Connect new data source** in the **Data source** menu.
+To use the UI, [enable it in {{kib}}](esql-data-federation.md#enable-the-feature) first. Every dataset reads from a [data source](esql-data-federation-sources.md). If you haven't connected one yet, you can connect it from the **Add dataset** wizard: select **Connect new data source** in the **Data source** menu.
 
 ## View datasets
 
@@ -24,7 +24,7 @@ The **Datasets** tab lists each dataset with its data source, data source type, 
 - **Open in Discover** ({icon}`product_discover`): Opens **Discover** with a `FROM <dataset>` query.
 - **Edit** and **Delete**: Click **More actions** ({icon}`ellipsis`) at the end of the row, then select an action.
 
-The following example shows two datasets that read through the same data source:
+The following example shows two datasets that read from the same data source:
 
 ![The Datasets tab listing two datasets that read from the ookla_speedtest data source](images/data-federation/datasets-tab.png)
 
@@ -40,7 +40,7 @@ After you complete a step, you can return to it by clicking it in the progress b
 
 The first step sets what the dataset reads:
 
-- **Data source**: The connected data source to read through. To connect a new one without leaving the wizard, select **Connect new data source**.
+- **Data source**: The connected data source to read from. To connect a new one without leaving the wizard, select **Connect new data source**.
 - **Dataset name**: A unique name for use in queries. Names must be lowercase and cannot begin with `-`, `_`, or `+`. A dataset cannot share a name with any existing index, data stream, alias, or view.
 - **Description (optional)**: Up to 1,000 characters.
 - **Resource**: The URI and glob pattern that selects the files to read. Refer to [resource patterns](esql-data-federation-patterns.md) for the pattern language.

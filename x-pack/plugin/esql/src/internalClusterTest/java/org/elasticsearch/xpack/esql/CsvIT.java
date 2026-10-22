@@ -434,6 +434,10 @@ public class CsvIT extends ESTestCase {
         if (randomBoolean()) {
             pragmaSettings.put("max_concurrent_shards_per_node", randomBoolean() ? 1 : between(2, 10));
         }
+        // off by default, so the specs only run through the fetch phase when the pragma turns it on
+        if (EsqlCapabilities.Cap.FETCH_PHASE.isEnabled() && randomBoolean()) {
+            pragmaSettings.put(QueryPragmas.FETCH_PHASE.getKey(), true);
+        }
         pragmaSettings.put(transformed.extraPragmas());
         testCase.pragmas.forEach(pragmaSettings::put);
         if (pragmaSettings.build().isEmpty() == false) {

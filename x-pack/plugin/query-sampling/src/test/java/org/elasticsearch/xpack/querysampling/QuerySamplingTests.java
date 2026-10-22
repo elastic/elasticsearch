@@ -81,8 +81,12 @@ public class QuerySamplingTests extends ESTestCase {
         assertThat(sampled.size(), equalTo(3));
         assertTrue(sampled.stream().allMatch(SampledQuery::isEvent));
         assertThat("two events of the same query", sampled.get(0).eventId().equals(sampled.get(1).eventId()), equalTo(false));
-        assertThat("captured with 0.5 and kept with 0.25", sampled.get(0).tracked().inclusionProbability(), closeTo(0.125, 1e-12));
-        assertThat("each is one search, standing for two", sampled.get(0).tracked().weightedMultiplicity(), closeTo(2.0, 1e-12));
+        assertThat(
+            "captured with 0.5 and kept with 0.25",
+            sampled.get(0).tracked().weights().inclusionProbability(),
+            closeTo(0.125, 1e-12)
+        );
+        assertThat("each is one search, standing for two", sampled.get(0).tracked().weights().weightedMultiplicity(), closeTo(2.0, 1e-12));
     }
 
     private static QuerySampler sampler(double scale, double draw) {

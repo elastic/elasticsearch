@@ -33,6 +33,7 @@ import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 
 import java.util.List;
@@ -41,6 +42,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.LockSupport;
 
 /**
  * What the capture filter of the query sampling framework adds to a search, which is the one part of the framework that
@@ -63,14 +65,18 @@ import java.util.concurrent.TimeUnit;
  * measurement iterations of 1 s, with an idle Elasticsearch node running beside it):
  * <pre>
  * scenario            1 thread          8 threads
- * disabled              0.6 ± 0.03        0.6 ± 0.02
- * not_a_knn_search      1.2 ± 0.02        1.2 ± 0.06
- * knn_not_captured      6.2 ± 0.19        7.2 ± 0.08
- * knn_captured         68.6 ± 3.09      218.3 ± 4.53
+ * disabled              0.6 ± 0.00        0.6 ± 0.02
+ * not_a_knn_search      1.1 ± 0.03        1.2 ± 0.09
+ * knn_not_captured      7.4 ± 0.06        8.8 ± 0.63
+ * knn_captured         68.0 ± 0.55      217.4 ± 4.13
  * </pre>
  * A search that is not captured pays a few nanoseconds, against search times in milliseconds. A captured one copies its
  * query and wraps its listener, which costs about 70 ns alone and about 220 ns with eight threads at once, as they
  * contend on the shared counters and the handoff.
+ * <p>
+ * The filter reads a clock on every kNN search, to bring its capture rate up to date once in a while. With
+ * {@code System.nanoTime()} that read alone made {@code knn_not_captured} cost about 395 ns with eight threads on this
+ * machine, so the filter is given a cached clock, like the cached time of the thread pool, which the benchmark mimics.
  */
 @Fork(1)
 @Warmup(iterations = 3, time = 1)
@@ -85,6 +91,10 @@ public class QueryCaptureFilterBenchmark {
     @Param({ "disabled", "not_a_knn_search", "knn_not_captured", "knn_captured" })
     public String scenario;
 
+    // like the cached time of the thread pool, which is what the filter is given: one thread updates it, the searches read it
+    private volatile long cachedMillis;
+    private Thread clockThread;
+
     private QueryCaptureFilter filter;
     private SearchRequest request;
     private Task task;
@@ -93,6 +103,15 @@ public class QueryCaptureFilterBenchmark {
     @Setup
     public void setUp() {
         BenchmarkLogging.configure(); // the filter logs, so it needs a logger factory
+        cachedMillis = System.nanoTime() / 1_000_000;
+        clockThread = new Thread(() -> {
+            while (Thread.currentThread().isInterrupted() == false) {
+                cachedMillis = System.nanoTime() / 1_000_000;
+                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(200));
+            }
+        }, "cached-clock");
+        clockThread.setDaemon(true);
+        clockThread.start();
         boolean enabled = scenario.equals("disabled") == false;
         double captureRate = scenario.equals("knn_captured") ? 1.0 : 0.0;
         Settings settings = Settings.builder()
@@ -105,6 +124,7 @@ public class QueryCaptureFilterBenchmark {
                 Set.of(QuerySamplingSettings.ENABLED, QuerySamplingSettings.CAPTURE_RATE, QuerySamplingSettings.MIN_CAPTURES_PER_HOUR)
             ),
             captured -> {},
+            () -> cachedMillis,
             ThreadLocalRandom::current // Randomness.get() fails in this JVM, which has the test framework but no test
         );
 
@@ -122,6 +142,11 @@ public class QueryCaptureFilterBenchmark {
             request = new SearchRequest("index").source(new SearchSourceBuilder().knnSearch(List.of(knn)));
         }
         task = new Task(1, "transport", TransportSearchAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of());
+    }
+
+    @TearDown
+    public void tearDown() {
+        clockThread.interrupt();
     }
 
     @Benchmark

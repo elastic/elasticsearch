@@ -24,6 +24,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.RescoreVectorBuilder;
 import org.elasticsearch.tasks.Task;
@@ -36,10 +37,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
@@ -73,9 +77,13 @@ public class CaptureTests extends ESTestCase {
         List<SearchRequest> notComparable = new ArrayList<>();
         notComparable.add(knnSearch(randomVector(8)).routing("a"));
         notComparable.add(knnSearch(randomVector(8)).preference("_shards:0"));
+        notComparable.add(knnSearch(randomVector(8)).preference("_local"));
+        notComparable.add(knnSearch(randomVector(8)).preference("_only_local"));
+        notComparable.add(knnSearch(randomVector(8)).preference("session-7"));
         notComparable.add(knnSearch(randomVector(8)).scroll(TimeValue.timeValueMinutes(1)));
         notComparable.add(knnSearch(randomVector(8)).source(knnSource().from(5)));
         notComparable.add(knnSearch(randomVector(8)).source(knnSource().minScore(0.5f)));
+        notComparable.add(knnSearch(randomVector(8)).source(knnSource().sort("category"))); // its hits have no score
         notComparable.add(knnSearch(randomVector(8)).source(knnSource().postFilter(QueryBuilders.termQuery("category", 1))));
         for (SearchRequest request : notComparable) {
             assertTrue(queryCaptureFilterApply(filter, request, TaskId.EMPTY_TASK_ID));
@@ -83,19 +91,58 @@ public class CaptureTests extends ESTestCase {
 
         assertTrue(captured.isEmpty());
         assertThat(filter.knnSearches(), equalTo(0L));
-        // a shard preference that does not leave shards out is still a search of everything
-        assertTrue(queryCaptureFilterApply(filter, knnSearch(randomVector(8)).preference("_local"), TaskId.EMPTY_TASK_ID));
-        assertThat(filter.knnSearches(), equalTo(1L));
+    }
+
+    public void testASearchSortedByItsScoreIsTheDefaultOrderAndIsCaptured() {
+        QueryCaptureFilter filter = filter(true, 1.0, captured::add);
+
+        assertTrue(
+            queryCaptureFilterApply(
+                filter,
+                knnSearch(randomVector(8)).source(knnSource().sort(SortBuilders.scoreSort())),
+                TaskId.EMPTY_TASK_ID
+            )
+        );
+
+        assertThat(captured.size(), equalTo(1));
+    }
+
+    public void testTheCaptureRateFollowsTheTrafficWhenSearchesComeInWithoutAScheduledTask() {
+        AtomicLong millis = new AtomicLong();
+        QueryCaptureFilter filter = new QueryCaptureFilter(clusterSettings(true, 0.0, 3600), captured::add, millis::get);
+        assertThat("no traffic known yet, and none configured", filter.effectiveCaptureRate(), equalTo(0.0));
+
+        for (int i = 0; i < 20; i++) {
+            assertTrue(queryCaptureFilterApply(filter, knnSearch(randomVector(8)), TaskId.EMPTY_TASK_ID));
+        }
+        assertThat("an interval has not passed", filter.effectiveCaptureRate(), equalTo(0.0));
+
+        millis.addAndGet(TimeUnit.SECONDS.toMillis(10));
+        assertTrue(queryCaptureFilterApply(filter, knnSearch(randomVector(8)), TaskId.EMPTY_TASK_ID));
+        assertThat("21 searches in 10 s, and 3600 captures an hour are wanted", filter.effectiveCaptureRate(), closeTo(1 / 2.1, 1e-9));
+
+        millis.addAndGet(TimeUnit.SECONDS.toMillis(60));
+        assertTrue(queryCaptureFilterApply(filter, knnSearch(randomVector(8)), TaskId.EMPTY_TASK_ID));
+        assertThat(
+            "after a quiet spell what came before is forgotten, and whatever arrives is wanted",
+            filter.effectiveCaptureRate(),
+            equalTo(1.0)
+        );
     }
 
     private static QueryCaptureFilter filter(boolean enabled, double rate, Consumer<CapturedSearch> consumer) {
-        return new QueryCaptureFilter(clusterSettings(enabled, rate), consumer);
+        return new QueryCaptureFilter(clusterSettings(enabled, rate), consumer, () -> 0L);
     }
 
     private static ClusterSettings clusterSettings(boolean enabled, double rate) {
+        return clusterSettings(enabled, rate, 0);
+    }
+
+    private static ClusterSettings clusterSettings(boolean enabled, double rate, long minCapturesPerHour) {
         Settings settings = Settings.builder()
             .put(QuerySamplingSettings.ENABLED.getKey(), enabled)
             .put(QuerySamplingSettings.CAPTURE_RATE.getKey(), rate)
+            .put(QuerySamplingSettings.MIN_CAPTURES_PER_HOUR.getKey(), minCapturesPerHour)
             .build();
         return new ClusterSettings(
             settings,

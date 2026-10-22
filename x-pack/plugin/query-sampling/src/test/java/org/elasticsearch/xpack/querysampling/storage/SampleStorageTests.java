@@ -77,7 +77,10 @@ public class SampleStorageTests extends ESTestCase {
         assertThat(document.get("capture_rate"), equalTo(0.25));
         assertThat(document.get("weighted_multiplicity"), equalTo(4.0));
         assertThat(document.get("multiplicity"), equalTo(1));
-        assertThat(((Number) document.get("inclusion_probability")).doubleValue(), closeTo(tracked.inclusionProbability(), 1e-12));
+        assertThat(
+            ((Number) document.get("inclusion_probability")).doubleValue(),
+            closeTo(tracked.weights().inclusionProbability(), 1e-12)
+        );
 
         Map<String, Object> storedQuery = (Map<String, Object>) document.get("query");
         assertThat(storedQuery.get("query_vector"), equalTo(List.of(1.0, 2.0)));

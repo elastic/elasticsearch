@@ -17,9 +17,10 @@ public final class CaptureRate {
     private static final double SECONDS_PER_HOUR = 3600;
     private static final double UNKNOWN = -1;
 
-    private volatile double configured;
-    private volatile long minPerHour;
-    private double smoothedPerSecond = UNKNOWN; // guarded by this
+    // everything but the result is guarded by this; the result is read by every search, without the lock
+    private double configured;
+    private long minPerHour;
+    private double smoothedPerSecond = UNKNOWN;
     private volatile double effective;
 
     public CaptureRate(double configured, long minPerHour) {
@@ -28,12 +29,12 @@ public final class CaptureRate {
         this.effective = configured;
     }
 
-    public void configured(double configured) {
+    public synchronized void configured(double configured) {
         this.configured = configured;
         recompute();
     }
 
-    public void minPerHour(long minPerHour) {
+    public synchronized void minPerHour(long minPerHour) {
         this.minPerHour = minPerHour;
         recompute();
     }
@@ -53,7 +54,8 @@ public final class CaptureRate {
         return effective;
     }
 
-    private synchronized void recompute() {
+    // the caller holds the lock
+    private void recompute() {
         double floorRate = 0;
         if (minPerHour > 0 && smoothedPerSecond != UNKNOWN) {
             // with no traffic at all, whatever arrives is wanted

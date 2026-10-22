@@ -9,16 +9,14 @@ package org.elasticsearch.xpack.querysampling.dedup;
 
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
 
-import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class DedupTests extends ESTestCase {
+public class MultiplicityTrackerTests extends ESTestCase {
 
     public void testCountsRepeatsOfTheSameQuery() {
         MultiplicityTracker tracker = new MultiplicityTracker(10);
@@ -26,11 +24,11 @@ public class DedupTests extends ESTestCase {
         QueryFingerprint b = new QueryFingerprint(2, 2);
 
         TrackedQuery first = tracker.record(a);
-        assertThat(first.multiplicity(), equalTo(1L));
+        assertThat(first.weights().multiplicity(), equalTo(1L));
         assertThat(tracker.record(a), sameInstance(first));
-        assertThat(first.multiplicity(), equalTo(2L));
-        assertThat(tracker.record(b).multiplicity(), equalTo(1L));
-        assertThat(tracker.record(a).multiplicity(), equalTo(3L));
+        assertThat(first.weights().multiplicity(), equalTo(2L));
+        assertThat(tracker.record(b).weights().multiplicity(), equalTo(1L));
+        assertThat(tracker.record(a).weights().multiplicity(), equalTo(3L));
 
         assertThat(tracker.distinct(), equalTo(2));
         assertThat(tracker.untracked(), equalTo(0L));
@@ -56,48 +54,11 @@ public class DedupTests extends ESTestCase {
         assertThat(tracker.distinct(), equalTo(1));
         TrackedQuery secondA = tracker.record(a);
         assertThat("its next arrival starts a new count", secondA, not(sameInstance(firstA)));
-        assertThat(secondA.multiplicity(), equalTo(1L));
+        assertThat(secondA.weights().multiplicity(), equalTo(1L));
 
         nanos.addAndGet(5 * window.nanos());
         tracker.record(c);
         assertThat("after a long quiet spell nothing else is known", tracker.distinct(), equalTo(1));
         assertFalse(tracker.isTracking(b, firstB));
-    }
-
-    public void testParametersThatDecideTheQualityAreInTheIdentityAndTheLabelIsNot() {
-        float[] vector = randomVector(16);
-        CapturedQuery base = new CapturedQuery(new String[] { "a" }, "vec", vector, 10, 100, null, null, List.of(), "x");
-
-        assertThat("only a label", QueryFingerprint.of(base), equalTo(QueryFingerprint.of(withLabel(base, "y"))));
-        for (CapturedQuery other : List.of(
-            new CapturedQuery(new String[] { "a" }, "vec", vector, 50, 100, null, null, List.of(), "x"),
-            new CapturedQuery(new String[] { "a" }, "vec", vector, 10, 500, null, null, List.of(), "x"),
-            new CapturedQuery(new String[] { "a" }, "vec", vector, 10, 100, 0.1f, null, List.of(), "x"),
-            new CapturedQuery(new String[] { "a" }, "vec", vector, 10, 100, null, 3f, List.of(), "x")
-        )) {
-            assertThat(QueryFingerprint.of(other), not(equalTo(QueryFingerprint.of(base))));
-        }
-    }
-
-    private static CapturedQuery withLabel(CapturedQuery query, String label) {
-        return new CapturedQuery(
-            query.indices(),
-            query.field(),
-            query.queryVector(),
-            query.k(),
-            query.numCandidates(),
-            query.visitPercentage(),
-            query.oversample(),
-            query.filters(),
-            label
-        );
-    }
-
-    private static float[] randomVector(int dims) {
-        float[] vector = new float[dims];
-        for (int i = 0; i < dims; i++) {
-            vector[i] = randomFloat();
-        }
-        return vector;
     }
 }

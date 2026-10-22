@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.querysampling.sampling;
 
+import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.Nullable;
@@ -28,6 +29,10 @@ import java.util.function.Supplier;
  * embeddings), and a cluster with fewer distinct queries than average is picked more by {@code (average / count)^β}.
  * The factor is computed at arrival and recorded in the draw probability, so estimates stay unbiased. Use β mildly:
  * unequal weights cost precision. Queries arriving before the fit have no cluster.
+ * <p>
+ * One instance lives as long as the node and keeps the clusters of a space (a field and its dimensions) for each one it
+ * meets, at most {@link #MAX_SPACES}: the fields that are searched are not known in advance, and queries of a space
+ * beyond the limit are not grouped, which gives them a factor of 1.
  */
 public final class SpatialStrata {
 
@@ -78,7 +83,7 @@ public final class SpatialStrata {
             }
         }
         String name = field + "/" + vector.length;
-        synchronized (spaces) {
+        synchronized (spaces) { // reading a space and updating it is one step, which a concurrent map would not make
             Space space = spaces.get(name);
             if (space == null) {
                 if (spaces.size() >= MAX_SPACES) {
@@ -160,7 +165,7 @@ public final class SpatialStrata {
                 System.arraycopy(waitingVectors.get(chosen), 0, centroids[c], 0, centroids[c].length);
                 double sum = 0;
                 for (int q = 0; q < queries; q++) {
-                    distance[q] = Math.min(distance[q], squaredDistance(waitingVectors.get(q), centroids[c]));
+                    distance[q] = Math.min(distance[q], VectorUtil.squareDistance(waitingVectors.get(q), centroids[c]));
                     sum += distance[q];
                 }
                 if (c + 1 < centroids.length) {
@@ -211,22 +216,13 @@ public final class SpatialStrata {
             int best = 0;
             double bestDistance = Double.MAX_VALUE;
             for (int c = 0; c < centroids.length; c++) {
-                double distance = squaredDistance(vector, centroids[c]);
+                double distance = VectorUtil.squareDistance(vector, centroids[c]);
                 if (distance < bestDistance) {
                     bestDistance = distance;
                     best = c;
                 }
             }
             return best;
-        }
-
-        private static double squaredDistance(float[] a, float[] b) {
-            double distance = 0;
-            for (int i = 0; i < a.length; i++) {
-                double diff = a[i] - b[i];
-                distance += diff * diff;
-            }
-            return distance;
         }
     }
 }

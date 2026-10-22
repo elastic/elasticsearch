@@ -179,11 +179,8 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
             sampler.startRegulation(services.threadPool(), services.threadPool().generic());
         }
         CaptureHandoff handoff = new CaptureHandoff(services.threadPool().executor(THREAD_POOL_NAME), pipeline);
-        QueryCaptureFilter filter = new QueryCaptureFilter(clusterSettings, handoff);
+        QueryCaptureFilter filter = new QueryCaptureFilter(clusterSettings, handoff, services.threadPool()::relativeTimeInMillis);
         captureFilter.set(filter);
-        if (QUERY_SAMPLING_FEATURE_FLAG.isEnabled()) {
-            filter.startRateUpdates(services.threadPool(), services.threadPool().generic());
-        }
         return List.of();
     }
 

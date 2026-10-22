@@ -22,6 +22,10 @@ import java.util.Map;
  * score (not local intrinsic dimensionality: scores depend on the field similarity), so queries are put in terciles
  * by z-score against earlier queries of the same field and dimensions. The tilt factor is recorded in the draw
  * probability, so estimates stay unbiased whatever the measure.
+ * <p>
+ * One instance lives as long as the node and keeps the statistics of a space (a field and its dimensions) for each one
+ * it meets, at most {@link #MAX_SPACES}: the fields that are searched are not known in advance, and queries of a space
+ * beyond the limit have no hardness, which counts as medium.
  */
 public final class HardnessStrata {
 
@@ -43,7 +47,7 @@ public final class HardnessStrata {
     }
 
     /**
-     * @return the mean score over the best, in (0, 1], or NaN if there are too few hits or a score is not positive and finite
+     * @return the mean score over the best, in (0, 1], or NaN if there are too few hits or a score is not positive
      */
     static double contrast(List<CapturedSearch.Hit> hits) {
         if (hits.size() < MIN_HITS) {
@@ -53,8 +57,10 @@ public final class HardnessStrata {
         double sum = 0;
         for (CapturedSearch.Hit hit : hits) {
             double score = hit.score();
-            if (Double.isFinite(score) == false || score <= 0) {
-                return Double.NaN;
+            // a search sorted by a field has hits without a score, so it is not captured
+            assert Double.isFinite(score) : "the hits of a captured kNN search have scores";
+            if (score <= 0) {
+                return Double.NaN; // a zero score (the opposite vector) says nothing about how close the others are
             }
             best = Math.max(best, score);
             sum += score;
@@ -72,7 +78,7 @@ public final class HardnessStrata {
             return null;
         }
         String name = field + "/" + dims;
-        synchronized (spaces) {
+        synchronized (spaces) { // reading a space and updating it is one step, which a concurrent map would not make
             Moments moments = spaces.get(name);
             if (moments == null) {
                 if (spaces.size() >= MAX_SPACES) {

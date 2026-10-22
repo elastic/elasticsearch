@@ -49,22 +49,8 @@ public final class TrackedQuery {
      * Estimated probability that the query was captured at least once. Never-captured queries are unknown to the
      * tracker, so this says how much of the population the known ones stand for.
      */
-    public synchronized double seenProbability() {
+    private double seenProbability() {
         return -Math.expm1(logUnseen);
-    }
-
-    // captures only; use weightedMultiplicity() for estimated arrivals
-    public synchronized long multiplicity() {
-        return multiplicity;
-    }
-
-    // estimated arrivals; unbiased when the capture rate changes over time
-    public synchronized double weightedMultiplicity() {
-        return weightedMultiplicity;
-    }
-
-    public synchronized double lastArrivalWeight() {
-        return lastArrivalWeight;
     }
 
     // called for every arrival, also after the query was picked, so the inclusion probability reflects all draws
@@ -72,11 +58,15 @@ public final class TrackedQuery {
         logSurvival += Math.log1p(-acceptProbability);
     }
 
-    public synchronized double inclusionProbability() {
+    private double inclusionProbability() {
         return 0.0 - Math.expm1(logSurvival); // not negated, so that no chance is 0.0 and not -0.0
     }
 
-    /** The counters read together so that they are consistent. */
+    /**
+     * The counters read together so that they are consistent; the only way to read them, as they are updated by the
+     * pipeline thread and read by others. {@code multiplicity} counts captures, {@code weightedMultiplicity} estimates
+     * arrivals and is unbiased when the capture rate changes over time.
+     */
     public record Weights(
         long multiplicity,
         double weightedMultiplicity,

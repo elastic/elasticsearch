@@ -101,12 +101,13 @@ public final class QuerySampler {
      * @return whether this arrival picked the query, which happens at most once per query
      */
     public boolean offer(TrackedQuery query) {
-        double multiplicity = query.weightedMultiplicity();
+        TrackedQuery.Weights weights = query.weights();
+        double multiplicity = weights.weightedMultiplicity();
         boolean head = multiplicity >= headThreshold;
         double probability = 1.0;
         if (head == false) {
             double strata = spatial.factor(query.stratum()) * hardness.factor(query.hardness());
-            probability = Math.min(1.0, uncappedAcceptance(multiplicity, query.lastArrivalWeight()) * strata);
+            probability = Math.min(1.0, uncappedAcceptance(multiplicity, 1.0 / weights.captureRate()) * strata);
         }
         if (head == false && budget.available() == false) {
             // limit reached: record probability 0 like any other draw so estimates stay unbiased; head queries are exempt

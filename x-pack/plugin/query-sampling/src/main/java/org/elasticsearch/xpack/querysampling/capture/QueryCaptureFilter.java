@@ -17,24 +17,25 @@ import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.Scheduler;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.querysampling.QuerySamplingSettings;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
-import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -56,40 +57,60 @@ public final class QueryCaptureFilter implements MappedActionFilter {
     private final Supplier<Random> random;
     private volatile boolean enabled;
     private final CaptureRate captureRate = new CaptureRate(0, 0);
-    private long knnSearchesAtLastUpdate;
+    private final LongSupplier millis;
+    private final AtomicReference<Mark> lastUpdate;
+
+    // how often the capture rate is brought up to date with the traffic, by the searches themselves
+    private static final long UPDATE_INTERVAL_MILLIS = TimeUnit.SECONDS.toMillis(10);
+
+    /** The number of kNN searches there had been when the capture rate was last brought up to date, and when. */
+    private record Mark(long knnSearches, long millis) {}
+
     private final LongAdder knnSearches = new LongAdder();
     private final LongAdder captured = new LongAdder();
 
-    public QueryCaptureFilter(ClusterSettings clusterSettings, Consumer<CapturedSearch> consumer) {
-        this(clusterSettings, consumer, Randomness::get);
+    /**
+     * @param millis a clock in milliseconds that is cheap to read: it is read by every kNN search, and a call to the system
+     *               clock costs far more than the rest of the filter when many threads make it at once, so the cached time of
+     *               the thread pool is the one to give
+     */
+    public QueryCaptureFilter(ClusterSettings clusterSettings, Consumer<CapturedSearch> consumer, LongSupplier millis) {
+        this(clusterSettings, consumer, millis, Randomness::get);
     }
 
     /** {@code random} is for the benchmark: {@link Randomness#get()} does not work in a JVM that has the test framework but no test. */
-    public QueryCaptureFilter(ClusterSettings clusterSettings, Consumer<CapturedSearch> consumer, Supplier<Random> random) {
+    public QueryCaptureFilter(
+        ClusterSettings clusterSettings,
+        Consumer<CapturedSearch> consumer,
+        LongSupplier millis,
+        Supplier<Random> random
+    ) {
         this.consumer = consumer;
         this.random = random;
+        this.millis = millis;
+        this.lastUpdate = new AtomicReference<>(new Mark(0, millis.getAsLong()));
         clusterSettings.initializeAndWatch(QuerySamplingSettings.ENABLED, value -> this.enabled = value);
         clusterSettings.initializeAndWatch(QuerySamplingSettings.CAPTURE_RATE, captureRate::configured);
         clusterSettings.initializeAndWatch(QuerySamplingSettings.MIN_CAPTURES_PER_HOUR, captureRate::minPerHour);
     }
 
-    public Scheduler.Cancellable startRateUpdates(ThreadPool threadPool, Executor executor) {
-        long[] last = { System.nanoTime() };
-        return threadPool.scheduleWithFixedDelay(() -> {
-            long now = System.nanoTime();
-            updateRate((now - last[0]) / 1_000_000_000.0);
-            last[0] = now;
-        }, TimeValue.timeValueSeconds(1), executor);
-    }
-
-    public synchronized void updateRate(double seconds) {
+    /**
+     * Brings the capture rate up to date with the traffic once an interval has passed. The searches do it, so a node
+     * without kNN searches does nothing, and the one that finds it due does it for all: the others go on.
+     */
+    private void updateRateIfDue() {
+        Mark last = lastUpdate.get();
+        long now = millis.getAsLong();
+        if (now - last.millis() < UPDATE_INTERVAL_MILLIS) {
+            return;
+        }
         long total = knnSearches.sum();
-        long arrivals = total - knnSearchesAtLastUpdate;
-        knnSearchesAtLastUpdate = total;
-        if (enabled) {
-            captureRate.observe(arrivals, seconds);
-        } else {
-            captureRate.forgetTraffic(); // nothing is counted while off, and what was seen before is out of date
+        if (lastUpdate.compareAndSet(last, new Mark(total, now))) {
+            long elapsed = now - last.millis();
+            if (elapsed >= 2 * UPDATE_INTERVAL_MILLIS) {
+                captureRate.forgetTraffic(); // after a quiet spell, or while sampling was off, the traffic before it says nothing
+            }
+            captureRate.observe(total - last.knnSearches(), elapsed / 1000.0);
         }
     }
 
@@ -115,6 +136,7 @@ public final class QueryCaptureFilter implements MappedActionFilter {
             KnnSearchBuilder knn = eligibleKnn(searchRequest);
             if (knn != null) {
                 knnSearches.increment();
+                updateRateIfDue();
             }
             // read once: the draw and the rate recorded with the search must be the same value
             double rate = captureRate.effective();
@@ -172,7 +194,9 @@ public final class QueryCaptureFilter implements MappedActionFilter {
         if (source == null || source.knnSearch().size() != 1 || source.query() != null) {
             return null;
         }
-        if (searchesOtherDocumentsThanTheIndicesHold(request) || returnsOtherHitsThanTheNearestK(source)) {
+        if (searchesOtherDocumentsThanTheIndicesHold(request)
+            || returnsOtherHitsThanTheNearestK(source)
+            || returnsHitsWithoutScores(source)) {
             return null;
         }
         KnnSearchBuilder knn = source.knnSearch().get(0);
@@ -187,13 +211,18 @@ public final class QueryCaptureFilter implements MappedActionFilter {
         return knn;
     }
 
-    // ground truth scans the request's indices, so searches over other documents (routing, shard preference, PIT, scroll)
-    // have nothing comparable
+    // ground truth scans the request's indices, so searches over other documents (routing, any preference, which can
+    // pick the shards or the copies of them, PIT, scroll) have nothing comparable
     private static boolean searchesOtherDocumentsThanTheIndicesHold(SearchRequest request) {
         return request.routing() != null
-            || (request.preference() != null && request.preference().startsWith("_shards:"))
+            || request.preference() != null
             || request.pointInTimeBuilder() != null
             || request.scroll() != null;
+    }
+
+    // sorted by a field, the hits have no score, which the stored samples and the hardness of a query are made of
+    private static boolean returnsHitsWithoutScores(SearchSourceBuilder source) {
+        return source.sorts() != null && source.sorts().stream().anyMatch(sort -> sort instanceof ScoreSortBuilder == false);
     }
 
     // recall compares the returned hits with the exact nearest ones, so hits that are offset, cut, collapsed or rescored are out

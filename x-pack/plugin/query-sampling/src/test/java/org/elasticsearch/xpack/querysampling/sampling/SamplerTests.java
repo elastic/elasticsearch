@@ -40,9 +40,9 @@ public class SamplerTests extends ESTestCase {
         assertTrue("the pick there is", sampler.offer(first));
         assertFalse(sampler.offer(second));
         assertFalse(sampler.offer(third));
-        assertThat("no chance, which is what the probability of the query says", second.inclusionProbability(), equalTo(0.0));
+        assertThat("no chance, which is what the probability of the query says", second.weights().inclusionProbability(), equalTo(0.0));
         assertThat("both were turned away by the limit", sampler.starved(), equalTo(2L));
-        assertThat(first.inclusionProbability(), greaterThan(0.0));
+        assertThat(first.weights().inclusionProbability(), greaterThan(0.0));
 
         clock.addAndGet(TimeUnit.MINUTES.toNanos(2));
         assertTrue("a pick is back", sampler.offer(tracker.record(new QueryFingerprint(4, 4))));
@@ -62,7 +62,7 @@ public class SamplerTests extends ESTestCase {
                 sampler.offer(query);
             }
             sampled += query.isSampled() ? 1 : 0;
-            inclusionProbability = query.inclusionProbability();
+            inclusionProbability = query.weights().inclusionProbability();
         }
         double fiveSigma = 5 * Math.sqrt(inclusionProbability * (1 - inclusionProbability) / trials);
         assertThat((double) sampled / trials, closeTo(inclusionProbability, fiveSigma));

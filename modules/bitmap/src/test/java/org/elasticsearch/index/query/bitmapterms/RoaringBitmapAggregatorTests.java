@@ -368,7 +368,7 @@ public class RoaringBitmapAggregatorTests extends AggregatorTestCase {
                 aggregator.preCollection();
                 expectThrows(
                     CircuitBreakingException.class,
-                    () -> context.searcher().search(context.query(), collectorManager(aggregator::asCollector))
+                    () -> context.searcher().search(context.query(), singleThreadedCollectorManager(aggregator.asCollector()))
                 );
             }
         }
@@ -411,7 +411,7 @@ public class RoaringBitmapAggregatorTests extends AggregatorTestCase {
             ) {
                 Aggregator aggregator = createAggregator(new RoaringBitmapAggregationBuilder("ids").field(FIELD), context);
                 aggregator.preCollection();
-                context.searcher().search(context.query(), collectorManager(aggregator::asCollector));
+                context.searcher().search(context.query(), singleThreadedCollectorManager(aggregator.asCollector()));
                 aggregator.postCollection();
                 InternalRoaringBitmap result = (InternalRoaringBitmap) aggregator.buildTopLevel();
                 assertThat(drain(LongBitmap.deserializePortable(result.bitmap())), equalTo(List.of(value)));
@@ -451,7 +451,7 @@ public class RoaringBitmapAggregatorTests extends AggregatorTestCase {
                 aggregator.preCollection();
                 expectThrows(
                     TaskCancelledException.class,
-                    () -> context.searcher().search(context.query(), collectorManager(aggregator::asCollector))
+                    () -> context.searcher().search(context.query(), singleThreadedCollectorManager(aggregator.asCollector()))
                 );
             }
         }

@@ -3365,7 +3365,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
             @Override
             public C newCollector() {
-                assert created == false : "wrapCollector does not support concurrent search";
+                assert created == false : "singleThreadedCollectorManager does not support concurrent search";
                 created = true;
                 return collector;
             }

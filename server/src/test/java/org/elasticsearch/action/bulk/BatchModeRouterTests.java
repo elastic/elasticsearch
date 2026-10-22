@@ -441,6 +441,7 @@ public class BatchModeRouterTests extends ESTestCase {
      * {@code BulkOperationTests}), and a silent empty result would hide a caller that does.
      */
     public void testSecondShardBatchesCallFailsForInlineEncoders() {
+        assumeTrue("batch indexing requires the batch_indexing feature flag", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
         int numDocs = randomIntBetween(3, 20);
         BulkRequest bulkRequest = new BulkRequest();
         for (int i = 0; i < numDocs; i++) {
@@ -469,6 +470,7 @@ public class BatchModeRouterTests extends ESTestCase {
      * the same bulk keep their inline source and no batch is created for their shards.
      */
     public void testInlineEncodersOnlyBatchEnabledIndices() {
+        assumeTrue("batch indexing requires the batch_indexing feature flag", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
         ProjectMetadata project = project(plainMetadata("enabled", 2, true), plainMetadata("disabled", 2, false));
         int numDocs = randomIntBetween(4, 20);
         BulkRequest bulkRequest = new BulkRequest();

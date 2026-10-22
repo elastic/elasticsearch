@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.qa.rest.generative;
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
@@ -351,6 +352,15 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
 
     private static final Set<String> UNMAPPED_NAMES = Set.of(UNMAPPED_FIELD_NAMES);
 
+    /**
+     * Capabilities added after the syntax they describe had already shipped, mapped to the first version with that syntax.
+     * A release branch cut in between has the syntax but never advertises the capability, so the node version stands in.
+     */
+    private static final Map<String, Version> CAPABILITIES_ADDED_AFTER_THEIR_FEATURE = Map.of(
+        EsqlCapabilities.Cap.LOOKUP_JOIN_ON_COORDINATOR.capabilityName(),
+        Version.V_9_6_0
+    );
+
     @Before
     public void setup() throws IOException {
         for (GenerativeFeature feature : enabledFeatures()) {
@@ -365,7 +375,22 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     }
 
     private boolean clusterSupports(String capability) {
-        return RestEsqlTestCase.hasCapabilities(client(), List.of(capability));
+        return RestEsqlTestCase.hasCapabilities(client(), List.of(capability))
+            || featureShippedBeforeItsCapability(capability, getCachedNodesVersions());
+    }
+
+    /**
+     * Whether {@code capability} is one of the {@link #CAPABILITIES_ADDED_AFTER_THEIR_FEATURE} and every node runs a version
+     * that has its syntax. A node whose version isn't semantic, like a serverless one, doesn't count.
+     */
+    static boolean featureShippedBeforeItsCapability(String capability, Set<String> nodeVersions) {
+        Version shippedIn = CAPABILITIES_ADDED_AFTER_THEIR_FEATURE.get(capability);
+        if (shippedIn == null || nodeVersions.isEmpty()) {
+            return false;
+        }
+        return nodeVersions.stream()
+            .map(ESRestTestCase::parseLegacyVersion)
+            .allMatch(version -> version.isPresent() && version.get().onOrAfter(shippedIn));
     }
 
     /**

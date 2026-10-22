@@ -1,3 +1,4 @@
+import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 import org.elasticsearch.gradle.util.GradleUtils
@@ -135,10 +136,11 @@ tasks.register('generativeTests', StandaloneRestIntegTestTask) {
   generativeTestsConfig(it)
 }
 
-// This branch's generator against the head of each maintained release branch of the current major, so generator fixes
-// never need a backport. GenerativeRestTest skips what the older cluster doesn't support.
+// This branch's generator against the head of each maintained release branch, so generator fixes never need a backport.
+// GenerativeRestTest skips what the older cluster doesn't support. 9.4 is the first version to advertise the fn_<name>
+// capabilities GenerativeFunctionCatalog is restricted to; an older cluster would leave the generator with no functions.
 buildParams.bwcVersions.unreleasedWireCompatible
-  .findAll { it.major == VersionProperties.elasticsearchVersion.major && it != VersionProperties.elasticsearchVersion }
+  .findAll { it.onOrAfter(Version.fromString("9.4.0")) && it != VersionProperties.elasticsearchVersion }
   .each { bwcVersion ->
     tasks.register("v${bwcVersion}#generativeTests", StandaloneRestIntegTestTask) {
       usesBwcDistribution(bwcVersion)

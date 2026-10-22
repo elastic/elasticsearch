@@ -8,8 +8,14 @@ parser grammar Join;
 
 joinCommand
     : type=JOIN_LOOKUP JOIN lookupJoinTarget joinCondition
-    | type=DEV_JOIN_LEFT outer=UNQUOTED_SOURCE JOIN subquery joinCondition
-    | type=DEV_JOIN_INNER JOIN subquery joinCondition
+    | type=DEV_JOIN_LEFT outer=UNQUOTED_SOURCE JOIN subqueryJoinTarget joinCondition
+    | type=DEV_JOIN_INNER JOIN subqueryJoinTarget joinCondition
+    ;
+
+// A bare index pattern is shorthand for a subquery that only reads it: `JOIN x` is the same as `JOIN (FROM x)`.
+subqueryJoinTarget
+    : subquery
+    | indexPattern
     ;
 
 lookupJoinTarget

@@ -13,6 +13,7 @@ import org.antlr.v4.runtime.CommonTokenStream;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
+import org.elasticsearch.xpack.esql.plan.logical.SourceCommand;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
@@ -42,10 +43,40 @@ public class SubqueryJoinParserTests extends AbstractStatementParserTests {
             assertGrammarAccepts("FROM left | LEFT OUTER JOIN (" + subquery + ") ON key", config);
             assertGrammarAccepts("FROM left | INNER JOIN (" + subquery + ") ON key", config);
         }
+        for (String target : List.of("right", "right*", "\"right\"", "remote:right")) {
+            assertGrammarAccepts("FROM left | LEFT OUTER JOIN " + target + " ON key", config);
+            assertGrammarAccepts("FROM left | INNER JOIN " + target + " ON key", config);
+        }
+    }
+
+    public void testIndexPatternTargetIsShorthandForFromSubquery() {
+        assumeTrue("requires JOIN subquery capability", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
+
+        for (String joinType : List.of("LEFT OUTER JOIN", "INNER JOIN")) {
+            for (String target : List.of("sub", "sub*", "remote:sub", "\"sub\"")) {
+                var join = as(query("FROM main | " + joinType + " " + target + " ON key"), SubqueryJoin.class);
+                assertThat(join, instanceOf(IndependentSubqueryJoin.class));
+                assertThat(join.config().type().joinName(), equalTo(joinType.replace(" JOIN", "")));
+                var right = as(join.right(), UnresolvedRelation.class);
+                var fromSubquery = as(
+                    as(query("FROM main | " + joinType + " (FROM " + target + ") ON key"), SubqueryJoin.class).right(),
+                    UnresolvedRelation.class
+                );
+                assertThat(right.indexPattern().indexPattern(), equalTo(target.replace("\"", "")));
+                assertThat(right.indexPattern().indexPattern(), equalTo(fromSubquery.indexPattern().indexPattern()));
+                assertThat(right.indexMode(), equalTo(fromSubquery.indexMode()));
+                assertThat(right.metadataFields(), equalTo(fromSubquery.metadataFields()));
+                assertThat(right.telemetryLabel(), equalTo(SourceCommand.FROM.name()));
+            }
+        }
     }
 
     public void testSubqueryJoinRejectsLookupSyntax() {
         expectError("FROM main | LOOKUP JOIN (FROM sub) ON key", "mismatched input '('");
+    }
+
+    public void testIndexPatternTargetRejectsExpressionOn() {
+        expectError("FROM main | INNER JOIN sub ON left_key == right_key", "JOIN on a subquery only supports a list of fields in ON");
     }
 
     public void testSubqueryTargetBuildsIndependentJoin() {
@@ -60,6 +91,19 @@ public class SubqueryJoinParserTests extends AbstractStatementParserTests {
         assertThat(((UnresolvedAttribute) join.config().leftFields().getFirst()).name(), equalTo("key"));
         assertThat(join.config().rightFields(), equalTo(join.config().leftFields()));
         assertNull(join.config().joinOnConditions());
+    }
+
+    public void testMultipleJoinKeys() {
+        assumeTrue("requires JOIN subquery capability", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
+
+        for (String target : List.of("(FROM sub | KEEP a, b, value)", "sub")) {
+            for (String joinType : List.of("LEFT OUTER JOIN", "INNER JOIN")) {
+                var join = as(query("FROM main | " + joinType + " " + target + " ON a, b"), SubqueryJoin.class);
+                List<String> keys = join.config().leftFields().stream().map(f -> ((UnresolvedAttribute) f).name()).toList();
+                assertThat(keys, equalTo(List.of("a", "b")));
+                assertThat(join.config().rightFields(), equalTo(join.config().leftFields()));
+            }
+        }
     }
 
     public void testInnerSubqueryJoinBuildsInnerJoin() {

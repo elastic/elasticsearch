@@ -3753,3 +3753,38 @@ null                           | Disconnected    | fork2
 2023-10-23T13:33:34.937Z       | Disconnected    | fork1
 2023-10-23T13:33:34.937123456Z | Disconnected    | fork1
 ;
+
+leftOuterJoinViewTarget
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: join_on_subquery
+
+ROW country = ["Atlantis", "France", "Germany"]
+| MV_EXPAND country
+| LEFT OUTER JOIN country_languages ON country
+| KEEP country, count
+| SORT country
+;
+
+country:keyword | count:long
+Atlantis        | 1
+France          | null
+Germany         | 2
+;
+
+innerJoinViewTarget
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: join_on_subquery
+
+ROW country = ["Atlantis", "France", "Germany"]
+| MV_EXPAND country
+| INNER JOIN country_languages ON country
+| KEEP country, count
+| SORT country
+;
+
+country:keyword | count:long
+Atlantis        | 1
+Germany         | 2
+;

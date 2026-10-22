@@ -159,6 +159,21 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
         );
     }
 
+    public void testIndexPatternJoinTargetResolvesView() {
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
+        addView("dept_view", "FROM departments | KEEP dept_id");
+        for (String joinType : List.of("LEFT OUTER JOIN", "INNER JOIN")) {
+            ViewResolver.ViewResolutionResult result = resolve("FROM employees | " + joinType + " dept_view ON dept_id");
+
+            assertEquals(Set.of("dept_view"), result.viewQueries().keySet());
+            SubqueryJoin subqueryJoin = as(result.plan(), SubqueryJoin.class);
+            assertUnresolvedRelation(subqueryJoin.left(), "employees");
+            NamedSubquery namedSubquery = as(subqueryJoin.right(), NamedSubquery.class);
+            Keep keep = as(namedSubquery.child(), Keep.class);
+            assertUnresolvedRelation(keep.child(), "departments");
+        }
+    }
+
     /*
      * AntiJoin[[?dept_id],[]]
      * |_UnresolvedRelation[employees]

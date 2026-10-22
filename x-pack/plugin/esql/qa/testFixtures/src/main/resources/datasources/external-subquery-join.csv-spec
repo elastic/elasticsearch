@@ -48,3 +48,39 @@ language_code:integer | language_name:keyword | right_emp_no:integer | right_fir
 4                  | German                  | 10003        | Parto
 4                  | German                  | 10007        | Tzvetan
 ;
+
+leftOuterJoinExternalDatasetTarget
+required_capability: dataset_in_from_command
+required_capability: join_on_subquery
+dataset: subquery_join_employees: "{{employees_no_mv}}"
+
+FROM languages
+| EVAL languages = language_code * 2
+| LEFT OUTER JOIN subquery_join_employees ON languages
+| STATS employees = COUNT(emp_no) BY language_code
+| SORT language_code
+;
+
+employees:long | language_code:integer
+19             | 1
+18             | 2
+0              | 3
+0              | 4
+;
+
+innerJoinExternalDatasetTarget
+required_capability: dataset_in_from_command
+required_capability: join_on_subquery
+dataset: subquery_join_employees: "{{employees_no_mv}}"
+
+FROM languages
+| EVAL languages = language_code * 2
+| INNER JOIN subquery_join_employees ON languages
+| STATS employees = COUNT(emp_no) BY language_code
+| SORT language_code
+;
+
+employees:long | language_code:integer
+19             | 1
+18             | 2
+;

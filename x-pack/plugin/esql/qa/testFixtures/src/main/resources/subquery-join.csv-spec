@@ -236,3 +236,141 @@ FROM (
 id:integer | t1:keyword | t2:keyword | t3:keyword | t4:keyword | t5:keyword | t6:keyword | t7:keyword | t8:keyword
 10001      | table1     | table2     | table3     | table4     | table5     | table6     | table7     | table8
 ;
+
+leftOuterJoinIndexTarget
+required_capability: join_on_subquery
+
+FROM employees
+| WHERE emp_no <= 10005
+| EVAL language_code = languages
+| LEFT OUTER JOIN languages ON language_code
+| KEEP emp_no, language_code, language_name
+| SORT emp_no
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10001          | 2                     | French
+10002          | 5                     | null
+10003          | 4                     | German
+10004          | 5                     | null
+10005          | 1                     | English
+;
+
+innerJoinIndexTarget
+required_capability: join_on_subquery
+
+FROM employees
+| WHERE emp_no <= 10005
+| EVAL language_code = languages
+| INNER JOIN languages ON language_code
+| KEEP emp_no, language_code, language_name
+| SORT emp_no
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10001          | 2                     | French
+10003          | 4                     | German
+10005          | 1                     | English
+;
+
+leftOuterJoinSubqueryOnTwoKeys
+required_capability: join_on_subquery
+
+FROM employees
+| WHERE emp_no <= 10010
+| LEFT OUTER JOIN (
+    FROM employees
+    | STATS c = COUNT(*) BY gender, languages
+  ) ON gender, languages
+| KEEP emp_no, gender, languages, c
+| SORT emp_no
+;
+
+emp_no:integer | gender:keyword | languages:integer | c:long
+10001          | M              | 2                 | 11
+10002          | F              | 5                 | 9
+10003          | M              | 4                 | 11
+10004          | M              | 5                 | 8
+10005          | M              | 1                 | 9
+10006          | F              | 3                 | 6
+10007          | F              | 4                 | 6
+10008          | M              | 2                 | 11
+10009          | F              | 1                 | 4
+10010          | null           | 4                 | null
+;
+
+innerJoinSubqueryOnTwoKeys
+required_capability: join_on_subquery
+
+FROM employees
+| WHERE emp_no <= 10010
+| INNER JOIN (
+    FROM employees
+    | STATS c = COUNT(*) BY gender, languages
+  ) ON gender, languages
+| KEEP emp_no, gender, languages, c
+| SORT emp_no
+;
+
+emp_no:integer | gender:keyword | languages:integer | c:long
+10001          | M              | 2                 | 11
+10002          | F              | 5                 | 9
+10003          | M              | 4                 | 11
+10004          | M              | 5                 | 8
+10005          | M              | 1                 | 9
+10006          | F              | 3                 | 6
+10007          | F              | 4                 | 6
+10008          | M              | 2                 | 11
+10009          | F              | 1                 | 4
+;
+
+leftOuterJoinIndexTargetOnTwoKeys
+required_capability: join_on_subquery
+
+FROM employees
+| WHERE emp_no <= 10005
+| EVAL language_code = languages, language_name = CASE(languages == 2 OR languages == 4, "German", "English")
+| LEFT OUTER JOIN languages_lookup_non_unique_key ON language_code, language_name
+| EVAL countries = MV_COUNT(country)
+| KEEP emp_no, language_code, language_name, countries
+| SORT emp_no, countries
+;
+warning:Line 4:3: evaluation of [LEFT OUTER JOIN languages_lookup_non_unique_key ON language_code, language_name] failed, treating result as null. Only first 20 failures recorded
+warning:Line 4:3: java.lang.IllegalArgumentException: JOIN subquery encountered multi-value
+
+emp_no:integer | language_code:integer | language_name:keyword | countries:integer
+10001          | 2                     | German                | 1
+10001          | 2                     | German                | 2
+10001          | 2                     | German                | 2
+10001          | 2                     | German                | null
+10002          | 5                     | English               | null
+10003          | 4                     | German                | null
+10004          | 5                     | English               | null
+10005          | 1                     | English               | 1
+10005          | 1                     | English               | 1
+10005          | 1                     | English               | null
+;
+
+innerJoinIndexTargetOnTwoKeys
+required_capability: join_on_subquery
+
+FROM employees
+| WHERE emp_no <= 10005
+| EVAL language_code = languages, language_name = CASE(languages == 2 OR languages == 4, "German", "English")
+| INNER JOIN languages_lookup_non_unique_key ON language_code, language_name
+| EVAL countries = MV_COUNT(country)
+| KEEP emp_no, language_code, language_name, countries
+| SORT emp_no, countries
+;
+warning:Line 4:3: evaluation of [INNER JOIN languages_lookup_non_unique_key ON language_code, language_name] failed, treating result as null. Only first 20 failures recorded
+warning:Line 4:3: java.lang.IllegalArgumentException: JOIN subquery encountered multi-value
+
+emp_no:integer | language_code:integer | language_name:keyword | countries:integer
+10001          | 2                     | German                | 1
+10001          | 2                     | German                | 2
+10001          | 2                     | German                | 2
+10001          | 2                     | German                | null
+10005          | 1                     | English               | 1
+10005          | 1                     | English               | 1
+10005          | 1                     | English               | null
+;

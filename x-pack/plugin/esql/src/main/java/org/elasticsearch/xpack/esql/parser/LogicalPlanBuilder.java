@@ -1281,10 +1281,30 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         var condition = ctx.joinCondition();
         rejectExpressionBasedOn(condition, "JOIN on a subquery only supports a list of fields in ON");
-        LogicalPlan subquery = visitSubquery(ctx.subquery());
+        LogicalPlan subquery = visitSubqueryJoinTarget(ctx.subqueryJoinTarget());
         var joinInfo = typedParsing(this, condition, JoinInfo.class);
         var joinType = ctx.type.getType() == EsqlBaseParser.DEV_JOIN_LEFT ? JoinTypes.LEFT : JoinTypes.INNER;
         return p -> new SubqueryJoin(source, p, subquery, joinType, joinInfo.joinFields());
+    }
+
+    /**
+     * Builds the right side of a subquery join. A bare index pattern yields the same plan as {@code (FROM pattern)},
+     * so indices, views and datasets resolve exactly as they do in a {@code FROM} subquery.
+     */
+    @Override
+    public LogicalPlan visitSubqueryJoinTarget(EsqlBaseParser.SubqueryJoinTargetContext ctx) {
+        if (ctx.subquery() != null) {
+            return visitSubquery(ctx.subquery());
+        }
+        var indexPattern = ctx.indexPattern();
+        return new UnresolvedRelation(
+            source(ctx),
+            new IndexPattern(source(indexPattern), visitIndexPattern(List.of(indexPattern))),
+            false,
+            emptyList(),
+            null,
+            SourceCommand.FROM
+        );
     }
 
     private void rejectExpressionBasedOn(EsqlBaseParser.JoinConditionContext condition, String errorMessage) {

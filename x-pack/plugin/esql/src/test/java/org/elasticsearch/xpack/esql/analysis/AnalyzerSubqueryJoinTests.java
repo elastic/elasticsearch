@@ -66,6 +66,38 @@ public class AnalyzerSubqueryJoinTests extends AnalyzerTestCase {
         assertThat(join.config().rightFields().getFirst().dataType(), equalTo(DataType.DOUBLE));
     }
 
+    public void testResolvesMultipleKeysPairwise() {
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
+        LogicalPlan plan = analyzer().query("""
+            ROW a = 1, b = "x"
+            | INNER JOIN (ROW b = "x", a = 1.0, v = 2) ON a, b
+            | LIMIT 10
+            """);
+        SubqueryJoin join = findSubqueryJoin(plan);
+
+        assertThat(join.config().leftFields().stream().map(Attribute::name).toList(), equalTo(List.of("a", "b")));
+        assertThat(join.config().rightFields().stream().map(Attribute::name).toList(), equalTo(List.of("a", "b")));
+        assertThat(
+            join.config().leftFields().stream().map(Attribute::dataType).toList(),
+            equalTo(List.of(DataType.INTEGER, DataType.KEYWORD))
+        );
+        assertThat(
+            join.config().rightFields().stream().map(Attribute::dataType).toList(),
+            equalTo(List.of(DataType.DOUBLE, DataType.KEYWORD))
+        );
+        for (Attribute rightField : join.config().rightFields()) {
+            assertTrue(join.right().outputSet().contains(rightField));
+        }
+    }
+
+    public void testIncompatibleSecondJoinKeyIsRejected() {
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
+        analyzer().error(
+            "ROW a = 1, b = \"x\" | LEFT OUTER JOIN (ROW a = 1, b = 2) ON a, b | LIMIT 10",
+            containsString("JOIN subquery left field [b] of type [KEYWORD] is incompatible with right field [b] of type [INTEGER]")
+        );
+    }
+
     public void testUnsignedLongAndDoubleJoinKeysAreIncompatible() {
         assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
         analyzer().error(

@@ -332,11 +332,20 @@ public class ReshardIndexService {
     }
 
     public void deleteUnownedDocuments(ShardId shardId, ActionListener<Void> listener) {
-        logger.debug("deleting unowned documents from shard {}", shardId);
         // may throw if the index is deleted
         var indexService = indicesService.indexServiceSafe(shardId.getIndex());
         // may throw if the shard id is invalid
-        var indexShard = indexService.getShard(shardId.id());
+        deleteUnownedDocuments(indexService.getShard(shardId.id()), listener);
+    }
+
+    /**
+     * Deletes the documents that {@code indexShard} no longer owns after a split, from that very shard instance. Unlike the overload
+     * that takes a shard id, this never resolves to a different instance of the shard. A caller whose shard has been closed, for
+     * example because a restore replaced the index, fails instead of working on the shard that replaced it.
+     */
+    public void deleteUnownedDocuments(IndexShard indexShard, ActionListener<Void> listener) {
+        final var shardId = indexShard.shardId();
+        logger.debug("deleting unowned documents from shard {}", shardId);
         // should validate that shard state is one prior to DONE
         var unownedQuery = new ShardSplittingQuery(
             indexShard.indexSettings().getIndexMetadata(),

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.stateless.reshard;
 
 import org.apache.logging.log4j.Level;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.TransportRestoreSnapshotAction;
 import org.elasticsearch.action.support.master.MasterNodeRequestHelper;
@@ -34,7 +35,9 @@ import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
@@ -45,6 +48,7 @@ import org.elasticsearch.xpack.stateless.engine.IndexEngineDynamicSettings;
 import org.elasticsearch.xpack.stateless.engine.RefreshManagerService;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -746,6 +750,122 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
     }
 
     /**
+     * A split source's state machine asks for its state to become READY_FOR_CLEANUP and then waits to observe that. Here the answer to that
+     * request is held back while a restore replaces the index and drops its resharding metadata. The source's old shard is also kept
+     * from finishing its close, so its state machine has not been cancelled when it finally looks at the (restored) cluster state. It
+     * must not carry on with the cleanup of a split that no longer exists, in particular not on the shard that replaced the old one.
+     */
+    public void testRestoreOverOpenIndexWhileSourceObservesReadyForCleanup() throws Exception {
+        var masterNode = startMasterOnlyNode();
+        var indexNode = startIndexNode();
+        startSearchNode();
+        ensureStableCluster(3);
+
+        createRepository("test-repo", "fs");
+
+        final int shards = 1;
+        var indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, shards, 1);
+        ensureGreen();
+        final int numDocs = randomIntBetween(10, 100);
+        indexDocs(indexName, numDocs);
+
+        var preSplitSnapshotName = indexName + "-pre-split-snap";
+        var preSplitSnapshot = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", preSplitSnapshotName)
+            .setWaitForCompletion(true)
+            .setIndices(indexName)
+            .get();
+        assertEquals(SnapshotState.SUCCESS, preSplitSnapshot.getSnapshotInfo().state());
+
+        var index = resolveIndex(indexName);
+        var plugin = findPlugin(indexNode, CustomSnapshotCommitSupplierPlugin.class);
+        var releaseResponse = new CountDownLatch(1);
+        var heldResponses = new AtomicInteger();
+        var releaseClose = new CountDownLatch(1);
+        plugin.holdEngineClose.set(releaseClose);
+
+        // The master applies the source's move to READY_FOR_CLEANUP, but the source only hears about it once released
+        var masterTransport = MockTransportService.getInstance(masterNode);
+        masterTransport.addRequestHandlingBehavior(
+            TransportUpdateSplitSourceShardStateAction.TYPE.name(),
+            (handler, request, channel, task) -> {
+                var actualRequest = MasterNodeRequestHelper.unwrapTermOverride(request);
+                if (actualRequest instanceof TransportUpdateSplitSourceShardStateAction.Request sourceStateRequest
+                    && sourceStateRequest.getState() == IndexReshardingState.Split.SourceShardState.READY_FOR_CLEANUP) {
+                    handler.messageReceived(request, new TransportChannel() {
+                        @Override
+                        public String getProfileName() {
+                            return channel.getProfileName();
+                        }
+
+                        @Override
+                        public void sendResponse(TransportResponse response) {
+                            heldResponses.incrementAndGet();
+                            masterTransport.getThreadPool().generic().execute(() -> {
+                                ESTestCase.safeAwait(releaseResponse);
+                                channel.sendResponse(response);
+                            });
+                        }
+
+                        @Override
+                        public void sendResponse(Exception exception) {
+                            channel.sendResponse(exception);
+                        }
+
+                        @Override
+                        public TransportVersion getVersion() {
+                            return channel.getVersion();
+                        }
+                    }, task);
+                } else {
+                    handler.messageReceived(request, channel, task);
+                }
+            }
+        );
+
+        try (var mockLog = MockLog.capture(SplitSourceService.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "cleanup continued for a split that no longer exists",
+                    SplitSourceService.class.getCanonicalName(),
+                    Level.INFO,
+                    "Advancing split source shard state machine for shard * to ReadyForCleanup*"
+                )
+            );
+
+            client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+            // Every target is done and the source has asked for READY_FOR_CLEANUP, but has not been told about it yet
+            assertBusy(() -> assertEquals(shards, heldResponses.get()));
+
+            var restoreRequest = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, "test-repo", preSplitSnapshotName).indices(indexName)
+                .restoreOverExisting(true)
+                .waitForCompletion(true);
+            var restore = client().execute(TransportRestoreSnapshotAction.TYPE, restoreRequest);
+            awaitClusterState(indexNode, state -> {
+                var metadata = state.metadata().projectFor(index).index(indexName);
+                return metadata.getReshardingMetadata() == null && metadata.getNumberOfShards() == shards;
+            });
+            // The old source shard is closed but cannot finish closing, so its state machine has not been cancelled
+            assertBusy(() -> assertThat(plugin.heldCloses.get(), greaterThan(0)));
+
+            // Now let the state machine find out, and look at the cluster state, which is the restored one
+            releaseResponse.countDown();
+            // There is no event to wait for if the state machine does the right thing, so allow the wrong one some time to show itself
+            safeSleep(TimeValue.timeValueSeconds(2));
+
+            releaseClose.countDown();
+            restore.actionGet();
+            assertRestoredAndAbandonedSplitCleanedUp(indexName, shards, numDocs, indexNode);
+            mockLog.assertAllExpectationsMatched();
+        } finally {
+            releaseResponse.countDown();
+            releaseClose.countDown();
+        }
+    }
+
+    /**
      * Verifies that the index was restored to {@code shards} shards without any resharding metadata, still has all its documents, and
      * that the abandoned split left no state behind in the split services of any of {@code indexNodes}.
      */
@@ -966,6 +1086,10 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
         final AtomicReference<CountDownLatch> holdFlushWhileOperationsAreBlocked = new AtomicReference<>();
         final AtomicInteger heldFlushes = new AtomicInteger();
 
+        /** When set, closing an engine is held until the latch is released, which keeps the shard from finishing its close. */
+        final AtomicReference<CountDownLatch> holdEngineClose = new AtomicReference<>();
+        final AtomicInteger heldCloses = new AtomicInteger();
+
         public CustomSnapshotCommitSupplierPlugin(Settings settings) {
             super(settings);
         }
@@ -1003,6 +1127,16 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
                 },
                 statelessCommitService.getShardLocalCommitsTracker(engineConfig.getShardId()).shardLocalReadersTracker()
             ) {
+                @Override
+                public void flushAndClose() throws IOException {
+                    final var release = holdEngineClose.get();
+                    if (release != null) {
+                        heldCloses.incrementAndGet();
+                        ESTestCase.safeAwait(release);
+                    }
+                    super.flushAndClose();
+                }
+
                 @Override
                 protected void flushHoldingLock(boolean force, boolean waitIfOngoing, FlushResultListener listener) throws EngineException {
                     final var release = holdFlushWhileOperationsAreBlocked.get();

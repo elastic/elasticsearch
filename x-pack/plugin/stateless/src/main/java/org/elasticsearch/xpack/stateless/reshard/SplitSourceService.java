@@ -1110,7 +1110,9 @@ public class SplitSourceService {
                         new ClusterStateObserver.Listener() {
                             @Override
                             public void onNewClusterState(ClusterState state) {
-                                if (cancelled.get()) {
+                                // The shard is closed before the state machine is cancelled (that happens once the close has completed),
+                                // so check both. This runs on the applier thread, after the shard has been closed for a restore.
+                                if (cancelled.get() || indexShard.state() == IndexShardState.CLOSED) {
                                     return;
                                 }
 
@@ -1132,8 +1134,9 @@ public class SplitSourceService {
                                 return true;
                             }
 
-                            // If the index is deleted or this split has completed concurrently
-                            // (maybe we've received a batch of cluster state updates) we need to exit.
+                            // If the index is deleted, this split has completed concurrently (maybe we've received a batch of cluster
+                            // state updates) or has been discarded (a restore over the index drops its resharding metadata but keeps
+                            // the index) we need to stop waiting. The next step checks which of these it is.
                             IndexReshardingState.Split split = getSplit(state, indexShard.shardId().getIndex());
                             return split == null
                                 || split.getSourceShardState(indexShard.shardId().id())
@@ -1153,6 +1156,12 @@ public class SplitSourceService {
                     clusterService.threadPool().getThreadContext(),
                     (stepListener, clusterState) -> {
                         Index index = indexShard.shardId().getIndex();
+                        if (getSplit(clusterState, index) == null) {
+                            // There is no split to clean up after. It was completed by another instance of this shard, or discarded,
+                            // e.g. by a restore over the index. Cleaning up would delete documents based on a split that is gone.
+                            // Eventually this shard will be closed and all split-related state will be cleaned up.
+                            return;
+                        }
                         var indexRoutingTable = clusterState.metadata()
                             .lookupProject(index)
                             .flatMap(pm -> Optional.ofNullable(clusterState.routingTable(pm.id()).index(index)));
@@ -1203,7 +1212,14 @@ public class SplitSourceService {
         }
 
         private void deleteUnownedData() {
-            reshardIndexService.deleteUnownedDocuments(indexShard.shardId(), new StateAdvancingListener<>(new State.CleanupComplete()));
+            // Operates on this state machine's own shard instance. If the shard has been replaced (e.g. by a restore) the shard with the
+            // same id must not be touched.
+            try {
+                reshardIndexService.deleteUnownedDocuments(indexShard, new StateAdvancingListener<>(new State.CleanupComplete()));
+            } catch (Exception e) {
+                // This runs in a task whose exceptions nobody sees, which would leave the state machine stuck silently
+                advance(new State.Failed(e));
+            }
         }
 
         private void changeStateToDone() {

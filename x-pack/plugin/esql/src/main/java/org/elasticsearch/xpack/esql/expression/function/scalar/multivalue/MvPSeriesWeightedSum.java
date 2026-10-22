@@ -18,6 +18,7 @@ import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -48,7 +49,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 /**
  * Reduce a multivalued field to a single valued field containing the weighted sum of all element applying the P series function.
  */
-public class MvPSeriesWeightedSum extends EsqlScalarFunction implements EvaluatorMapper {
+public class MvPSeriesWeightedSum extends EsqlScalarFunction implements AnyNullIsNull, EvaluatorMapper {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "MvPSeriesWeightedSum",

@@ -913,6 +913,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
 
         @Override
+        public String handlerName() {
+            return delegate.handlerName();
+        }
+
+        @Override
         public XContentBuilder newBuilder() throws IOException {
             return delegate.newBuilder();
         }
@@ -978,6 +983,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
             super(delegate);
             this.requestsCounter = requestCounter;
             this.restHandler = restHandler;
+        }
+
+        @Override
+        public String handlerName() {
+            return restHandler.getName();
         }
 
         @Override

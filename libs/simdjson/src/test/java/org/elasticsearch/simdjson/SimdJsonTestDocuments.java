@@ -223,10 +223,8 @@ public final class SimdJsonTestDocuments {
                 {"a":Infinity}""", """
                 {"a":+1}""", """
                 {"a":0x1A}""",
-            // Bytes between '9' and 'A' (':' to '?') are not digits. They have a zero high nibble once
-            // 0x30 is subtracted, so the SWAR digit check must test every byte against 0..9: after one
-            // digit (short fast path), after seven (all but the last byte of the first word), after
-            // eight (first byte of the next word), and in array elements.
+            // ':' to '?' have a zero high nibble after subtracting 0x30, so the SWAR check must
+            // test every byte against 0..9: after 1, 7 and 8 digits (word edges), and in arrays.
             """
                 {"n":1;}""", """
                 {"n":1;,"m":2}""", """

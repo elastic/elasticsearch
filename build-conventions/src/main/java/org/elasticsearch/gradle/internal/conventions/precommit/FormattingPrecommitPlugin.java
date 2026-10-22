@@ -53,23 +53,6 @@ public class FormattingPrecommitPlugin implements Plugin<Project> {
             // Spotless resolves required dependencies from project repositories, so we need maven central
             project.getRepositories().mavenCentral();
 
-            // we cannot update to a newer spotless plugin version yet but we want to use the latest eclipse formatter to be compatible
-            // with latest java versions
-            project.getConfigurations().matching(it -> it.getName().startsWith("spotless")).configureEach(conf -> {
-                project.getDependencies().constraints(constraints -> {
-                    constraints.add(conf.getName(), "org.eclipse.jdt:org.eclipse.jdt.core:3.42.0", dependencyConstraint -> {
-                        dependencyConstraint.because(
-                            "We want to use a recent version of the Eclipse formatter libraries to support latest Java"
-                        );
-                    });
-                    constraints.add(conf.getName(), "org.eclipse.jdt:ecj:3.42.0", dependencyConstraint -> {
-                        dependencyConstraint.because(
-                            "We want to use a recent version of the Eclipse formatter libraries to support latest Java"
-                        );
-                    });
-                });
-            });
-
             project.getExtensions().getByType(SpotlessExtension.class).java(java -> {
                 File elasticsearchWorkspace = Util.locateElasticsearchWorkspace(project.getGradle());
                 String importOrderPath = "build-conventions/elastic.importorder";
@@ -87,8 +70,8 @@ public class FormattingPrecommitPlugin implements Plugin<Project> {
                 // We enforce a standard order for imports
                 java.importOrderFile(new File(elasticsearchWorkspace, importOrderPath));
 
-                // Most formatting is done through the Eclipse formatter
-                java.eclipse().configFile(new File(elasticsearchWorkspace, formatterConfigPath));
+                // Most formatting is done through the Eclipse formatter. Pin its version so Spotless upgrades do not reformat the repository.
+                java.eclipse("4.36").configFile(new File(elasticsearchWorkspace, formatterConfigPath));
 
                 // Ensure blank lines are actually empty. Since formatters are applied in
                 // order, apply this one last, otherwise non-empty blank lines can creep

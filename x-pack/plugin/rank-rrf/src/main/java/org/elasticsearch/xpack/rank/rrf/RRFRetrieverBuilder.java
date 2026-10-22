@@ -131,6 +131,18 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
         int rankConstant,
         float[] weights
     ) {
+        this(childRetrievers, fields, query, rankWindowSize, rankConstant, weights, null);
+    }
+
+    public RRFRetrieverBuilder(
+        List<RetrieverSource> childRetrievers,
+        List<String> fields,
+        String query,
+        int rankWindowSize,
+        int rankConstant,
+        float[] weights,
+        Float minScore
+    ) {
         // Use a mutable list for childRetrievers so that we can use addChild
         super(childRetrievers == null ? new ArrayList<>() : new ArrayList<>(childRetrievers), rankWindowSize);
         this.fields = fields == null ? null : List.copyOf(fields);
@@ -143,6 +155,17 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
             );
         }
         this.weights = weights;
+        this.minScore = minScore;
+    }
+
+    @Override
+    public RetrieverBuilder minScore(Float minScore) {
+        // The parser builds the retriever first and then applies min_score through this setter, so the
+        // check has to live here as well to reject a negative value like the linear retriever does.
+        if (minScore != null && minScore < 0) {
+            throw new IllegalArgumentException("[min_score] must be greater than or equal to 0, was: [" + minScore + "]");
+        }
+        return super.minScore(minScore);
     }
 
     public int rankConstant() {
@@ -187,10 +210,11 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
             this.query,
             this.rankWindowSize,
             this.rankConstant,
-            this.weights
+            this.weights,
+            this.minScore
         );
         clone.preFilterQueryBuilders = newPreFilterQueryBuilders;
-        clone.retrieverName = retrieverName;
+        clone.retrieverName(retrieverName);
         return clone;
     }
 
@@ -275,11 +299,21 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
             ).stream().map(RetrieverSource::from).toList();
 
             if (fieldsInnerRetrievers.isEmpty() == false) {
-                // TODO: This is a incomplete solution as it does not address other incomplete copy issues
-                // (such as dropping the retriever name and min score)
+                // This rewriting path replaces the retriever with a freshly built one, so it has to
+                // carry over what clone() carries: otherwise the field-based syntax silently drops
+                // min_score and the retriever name.
                 float[] weights = createDefaultWeights(fieldsInnerRetrievers);
-                rewritten = new RRFRetrieverBuilder(fieldsInnerRetrievers, null, null, rankWindowSize, rankConstant, weights);
+                rewritten = new RRFRetrieverBuilder(
+                    fieldsInnerRetrievers,
+                    null,
+                    null,
+                    rankWindowSize,
+                    rankConstant,
+                    weights,
+                    minScore
+                );
                 rewritten.getPreFilterQueryBuilders().addAll(preFilterQueryBuilders);
+                rewritten.retrieverName(retrieverName);
             } else {
                 // Inner retriever list can be empty when using an index wildcard pattern that doesn't match any indices
                 rewritten = new StandardRetrieverBuilder(new MatchNoneQueryBuilder());

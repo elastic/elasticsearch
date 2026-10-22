@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.stateless.utils.SearchShardSizeCollector;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.TreeSet;
 
 public class TransportNewCommitNotificationAction extends TransportBroadcastUnpromotableAction<
     NewCommitNotificationRequest,
@@ -171,7 +172,18 @@ public class TransportNewCommitNotificationAction extends TransportBroadcastUnpr
                 shard.updateGlobalCheckpointOnReplica(searchEngine.getLastSyncedGlobalCheckpoint(), "new commit notification");
                 // Since new data has been written, update the shard size tracking.
                 searchShardSizeCollector.collectShardSize(shard.shardId());
-                l.onResponse(new NewCommitNotificationResponse(searchEngine.getAcquiredPrimaryTermAndGenerations()));
+                final var acquiredPrimaryTermAndGenerations = searchEngine.getAcquiredPrimaryTermAndGenerations();
+                if (logger.isDebugEnabled()) {
+                    logger.debug(
+                        "{} responding to new commit notification [bcc={}, cc={}] with BCCs in use {} ({})",
+                        request.shardId(),
+                        request.getBatchedCompoundCommitGeneration(),
+                        request.getCompoundCommit().primaryTermAndGeneration(),
+                        new TreeSet<>(acquiredPrimaryTermAndGenerations),
+                        searchEngine.describeAcquiredPrimaryTermAndGenerations()
+                    );
+                }
+                l.onResponse(new NewCommitNotificationResponse(acquiredPrimaryTermAndGenerations));
             })
 
             // Step 5: send the response back to the primary

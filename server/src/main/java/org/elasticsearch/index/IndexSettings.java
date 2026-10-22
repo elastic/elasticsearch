@@ -1137,6 +1137,16 @@ public final class IndexSettings {
         return Boolean.toString(IndexSettings.MODE.get(settings).isStrictColumnar());
     }, Property.Final, Property.IndexScope);
 
+    /**
+     * Whether an index with the given settings is eligible for batch indexing: the feature flag is on and
+     * {@link #BATCH_INDEXING} resolves to {@code true}. Coordinators use this to decide whether to build a batch, so that their
+     * decision matches {@link #isBatchIndexingEnabled()} on the shard. The cluster-level kill switch is not included because it
+     * is node-local and dynamic; callers check it via {@link BatchIndexingEnabled}.
+     */
+    public static boolean isBatchIndexingEnabled(Settings indexSettings) {
+        return BatchIndexingEnabled.FEATURE_FLAG.isEnabled() && BATCH_INDEXING.get(indexSettings);
+    }
+
     public static final Setting<Boolean> INDEX_DISABLED_BY_DEFAULT = Setting.boolSetting(
         "index.mapping.index_disabled_by_default",
         settings -> Boolean.toString(IndexSettings.MODE.get(settings).isStrictColumnar()),

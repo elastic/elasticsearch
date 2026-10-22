@@ -17,6 +17,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.recycler.Recycler;
@@ -417,10 +418,11 @@ final class BatchModeRouter implements Releasable {
      * the decision is cached for the lifetime of this router.
      */
     private boolean isBatchEnabledFor(Index concreteIndex, ProjectMetadata project) {
-        return batchEnabledByIndex.computeIfAbsent(
-            concreteIndex,
-            idx -> IndexSettings.BATCH_INDEXING.get(project.getIndexSafe(idx).getSettings())
-        );
+        return batchEnabledByIndex.computeIfAbsent(concreteIndex, idx -> {
+            // An index missing from the project is not batchable; leave it on the inline-source path instead of failing the bulk.
+            IndexMetadata indexMetadata = project.index(idx);
+            return indexMetadata != null && IndexSettings.isBatchIndexingEnabled(indexMetadata.getSettings());
+        });
     }
 
     /**

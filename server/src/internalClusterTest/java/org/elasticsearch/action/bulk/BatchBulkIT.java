@@ -584,12 +584,6 @@ public class BatchBulkIT extends ESIntegTestCase {
     }
 
     /**
-     * Batch pages come from the coordinating node's recycler. The mock recycler installed by {@link NodeMocksPlugin} charges each page
-     * to the request breaker, so the breaker rises while the shard requests are held and drops back once the bulk completes. The
-     * production recycler does not charge a breaker. The same bulk is first sent with batch indexing off as a control, so anything
-     * else that charges the request breaker during the held window cancels out instead of satisfying the assertion on its own.
-     */
-    /**
      * Per-index opt-in: in one bulk, only the index with {@code index.batch_indexing} enabled gets a batch on its shard requests, while
      * the disabled index is indexed from inline source. Both must be fully indexed, with replicas, and no pages may leak.
      */
@@ -643,6 +637,12 @@ public class BatchBulkIT extends ESIntegTestCase {
         }
     }
 
+    /**
+     * Batch pages come from the coordinating node's recycler. The mock recycler installed by {@link NodeMocksPlugin} charges each page
+     * to the request breaker, so the breaker rises while the shard requests are held and drops back once the bulk completes. The
+     * production recycler does not charge a breaker. The same bulk is first sent with batch indexing off as a control, so anything
+     * else that charges the request breaker during the held window cancels out instead of satisfying the assertion on its own.
+     */
     public void testBatchPagesComeFromTheNodeRecycler() throws Exception {
         String index = randomIndexName();
         createBatchIndex(index, 2, 0);

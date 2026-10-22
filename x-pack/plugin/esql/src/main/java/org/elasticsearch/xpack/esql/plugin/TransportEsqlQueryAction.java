@@ -41,6 +41,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -427,6 +428,10 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             externalSourceConcurrency(),
             ((CancellableTask) task)::isCancelled,
             ActionListener.wrap(result -> {
+                if (task instanceof CancellableTask cancellableTask && cancellableTask.isCancelled()) {
+                    // whatever the data nodes managed to return, a cancelled query is not a (partial) success
+                    throw new TaskCancelledException(cancellableTask.getReasonCancelled());
+                }
                 recordCCSTelemetry(task, executionInfo, request, null);
                 planExecutor.metrics().recordTook(executionInfo.overallTook().millis());
                 collectMetrics(result.inner());

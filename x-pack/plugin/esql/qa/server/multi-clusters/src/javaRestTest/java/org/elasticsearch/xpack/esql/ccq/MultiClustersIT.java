@@ -783,7 +783,7 @@ public class MultiClustersIT extends ESRestTestCase {
         }
         try {
             // not available when using concrete expression: the remote is skip_unavailable=true here, so the unknown index
-            // skips the cluster instead of failing the query (CrossClusterQueryIT covers both settings side by side)
+            // skips the cluster instead of failing the query; MultiClusterEsqlViewRestIT asserts the 400 with skip_unavailable=false
             {
                 var response = runEsql(
                     new RestEsqlTestCase.RequestObjectBuilder().query("FROM remote_cluster:test-remote-view")

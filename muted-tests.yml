@@ -165,6 +165,11 @@ tests:
 - class: org.elasticsearch.xpack.transform.integration.TransformDestIndexIT
   method: testUnattendedTransformDestIndexCreatedDuringUpdate_DeferValidation
   issue: https://github.com/elastic/elasticsearch/issues/162888
+- class: org.elasticsearch.xpack.downsample.DownsampleActionSingleNodeTests
+  tasks:
+  - :x-pack:plugin:downsample:test
+  method: testDownsampleResumesAfterPersistentTaskRemoved
+  issue: https://github.com/elastic/elasticsearch/issues/162858
 
 # Examples:
 #

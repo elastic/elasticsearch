@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 161773
+pr: 161846
+summary: Stop HTTP cancel test thread leak
+type: bug

@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.util.Base64;
 import java.util.Map;
 
-import static org.elasticsearch.inference.DataFormat.URL_INPUT_FORMAT_FEATURE_FLAG;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -93,7 +92,6 @@ public class SemanticOriginalValueEncoderTests extends ESTestCase {
     }
 
     public void testUrlRoundTrip() throws IOException {
-        assumeTrue("URL input format feature flag is not enabled", URL_INPUT_FORMAT_FEATURE_FLAG.isEnabled());
         InferenceString value = randomUrlInferenceString();
 
         XContentBuilder expected = JsonXContent.contentBuilder().startObject().field("f");
@@ -104,7 +102,6 @@ public class SemanticOriginalValueEncoderTests extends ESTestCase {
     }
 
     public void testUrlDecodeReturnsSourceValue() throws IOException {
-        assumeTrue("URL input format feature flag is not enabled", URL_INPUT_FORMAT_FEATURE_FLAG.isEnabled());
         InferenceString value = randomUrlInferenceString();
         Object decoded = SemanticOriginalValueEncoder.decode(SemanticOriginalValueEncoder.encode(value));
         assertThat(

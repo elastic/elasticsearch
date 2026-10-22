@@ -40,12 +40,15 @@ public final class StdDevLongAggregatorFunction implements AggregatorFunction {
 
   private final boolean stdDev;
 
-  StdDevLongAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      boolean stdDev) {
+  private final boolean allowNonFinite;
+
+  StdDevLongAggregatorFunction(DriverContext driverContext, List<Integer> channels, boolean stdDev,
+      boolean allowNonFinite) {
     this.stdDev = stdDev;
+    this.allowNonFinite = allowNonFinite;
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = StdDevLongAggregator.initSingle(stdDev);
+    this.state = StdDevLongAggregator.initSingle(stdDev, allowNonFinite);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

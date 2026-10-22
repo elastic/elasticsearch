@@ -702,7 +702,7 @@ public class IndexModuleTests extends ESTestCase {
         RecoveryState recoveryState = mock(RecoveryState.class);
         final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories = singletonMap(
             "test_recovery",
-            (shardRouting, targetNode, sourceNode) -> recoveryState
+            (shardRouting, targetNode, sourceNode, localRetries) -> recoveryState
         );
 
         final IndexModule module = new IndexModule(
@@ -727,7 +727,7 @@ public class IndexModuleTests extends ESTestCase {
         ShardRouting shard = createInitializedShardRouting();
 
         assertThat(
-            indexService.getRecoveryStateFactory().newRecoveryState(shard, mock(DiscoveryNode.class), mock(DiscoveryNode.class)),
+            indexService.getRecoveryStateFactory().newRecoveryState(shard, mock(DiscoveryNode.class), mock(DiscoveryNode.class), 0),
             is(recoveryState)
         );
 

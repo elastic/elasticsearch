@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -43,7 +45,8 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
             randomBoolean() ? null : randomBoolean(),
             // don't set retries if unattended is set to true
             randomBoolean() ? null : Boolean.TRUE.equals(unattended) ? null : randomIntBetween(-1, 100),
-            unattended
+            unattended,
+            randomBoolean() ? null : TimeValue.timeValueSeconds(randomIntBetween(1, 12 * 3600))
         );
     }
 
@@ -57,7 +60,8 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
             randomBoolean(),
             randomBoolean(),
             Boolean.TRUE.equals(unattended) ? -1 : randomIntBetween(-1, 100),
-            unattended
+            unattended,
+            TimeValue.timeValueSeconds(randomIntBetween(1, 12 * 3600))
         );
     }
 
@@ -84,6 +88,28 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
     @Override
     protected SettingsConfig mutateInstance(SettingsConfig instance) {
         return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
+    protected SettingsConfig mutateInstanceForVersion(SettingsConfig instance, TransportVersion version) {
+        return mutateForVersion(instance, version);
+    }
+
+    public static SettingsConfig mutateForVersion(SettingsConfig instance, TransportVersion version) {
+        if (instance == null || version.supports(SettingsConfig.TRANSFORM_INDEXER_REQUEST_TIMEOUT)) {
+            return instance;
+        }
+        return new SettingsConfig(
+            instance.getMaxPageSearchSize(),
+            instance.getDocsPerSecond(),
+            instance.getDatesAsEpochMillis(),
+            instance.getAlignCheckpoints(),
+            instance.getUsePit(),
+            instance.getDeduceMappings(),
+            instance.getNumFailureRetries(),
+            instance.getUnattended(),
+            null
+        );
     }
 
     @Override
@@ -121,6 +147,12 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
         assertThat(fromString("{\"unattended\" : null}").getUnattendedForUpdate(), equalTo(-1));
         assertNull(fromString("{}").getUnattended());
         assertNull(fromString("{}").getUnattendedForUpdate());
+
+        assertNull(fromString("{\"indexer_request_timeout\" : null}").getIndexerRequestTimeout());
+        assertThat(fromString("{\"indexer_request_timeout\" : null}").getIndexerRequestTimeoutForUpdate(), equalTo(TimeValue.MINUS_ONE));
+        assertNull(fromString("{}").getIndexerRequestTimeout());
+        assertNull(fromString("{}").getIndexerRequestTimeoutForUpdate());
+        assertThat(fromString("{\"indexer_request_timeout\" : \"12h\"}").getIndexerRequestTimeout(), equalTo(TimeValue.timeValueHours(12)));
     }
 
     public void testUpdateMaxPageSearchSizeUsingBuilder() throws IOException {
@@ -200,6 +232,21 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
         assertThat(builder.build(), is(equalTo(new SettingsConfig(10000, 42F, true, false, false, false, 55, null))));
     }
 
+    public void testUpdateIndexerRequestTimeoutUsingBuilder() throws IOException {
+        SettingsConfig config = fromString("{\"indexer_request_timeout\": \"5m\", \"docs_per_second\": 42}");
+        SettingsConfig.Builder builder = new SettingsConfig.Builder(config);
+        assertThat(builder.build().getIndexerRequestTimeout(), equalTo(TimeValue.timeValueMinutes(5)));
+        assertThat(builder.build().getDocsPerSecond(), equalTo(42F));
+
+        builder.update(fromString("{\"indexer_request_timeout\": \"12h\"}"));
+        assertThat(builder.build().getIndexerRequestTimeout(), equalTo(TimeValue.timeValueHours(12)));
+        assertThat(builder.build().getDocsPerSecond(), equalTo(42F));
+
+        builder.update(fromString("{\"indexer_request_timeout\": null}"));
+        assertNull(builder.build().getIndexerRequestTimeout());
+        assertThat(builder.build().getDocsPerSecond(), equalTo(42F));
+    }
+
     public void testOmmitDefaultsOnWriteParser() throws IOException {
         // test that an explicit null is handled differently than not set
         SettingsConfig config = fromString("{\"max_page_search_size\" : null}");
@@ -253,6 +300,12 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
 
         config = fromString("{\"unattended\" : null}");
         assertThat(config.getUnattendedForUpdate(), equalTo(-1));
+
+        settingsAsMap = xContentToMap(config);
+        assertTrue(settingsAsMap.isEmpty());
+
+        config = fromString("{\"indexer_request_timeout\" : null}");
+        assertThat(config.getIndexerRequestTimeoutForUpdate(), equalTo(TimeValue.MINUS_ONE));
 
         settingsAsMap = xContentToMap(config);
         assertTrue(settingsAsMap.isEmpty());
@@ -311,6 +364,12 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
 
         config = new SettingsConfig.Builder().setUnattended(null).build();
         assertThat(config.getUnattendedForUpdate(), equalTo(-1));
+
+        settingsAsMap = xContentToMap(config);
+        assertTrue(settingsAsMap.isEmpty());
+
+        config = new SettingsConfig.Builder().setIndexerRequestTimeout(null).build();
+        assertThat(config.getIndexerRequestTimeoutForUpdate(), equalTo(TimeValue.MINUS_ONE));
 
         settingsAsMap = xContentToMap(config);
         assertTrue(settingsAsMap.isEmpty());
@@ -407,6 +466,32 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
 
         config = new SettingsConfig.Builder().setUnattended(false).setNumFailureRetries(10).build();
         assertThat(config.validate(null), is(nullValue()));
+    }
+
+    public void testValidateIndexerRequestTimeout() {
+        SettingsConfig config = new SettingsConfig.Builder().build();
+        assertThat(config.validate(null), is(nullValue()));
+
+        config = new SettingsConfig.Builder().setIndexerRequestTimeout(null).build();
+        assertThat(config.validate(null), is(nullValue()));
+
+        config = new SettingsConfig.Builder().setIndexerRequestTimeout(TimeValue.timeValueSeconds(30)).build();
+        assertThat(config.validate(null), is(nullValue()));
+
+        config = new SettingsConfig.Builder().setIndexerRequestTimeout(TimeValue.timeValueHours(12)).build();
+        assertThat(config.validate(null), is(nullValue()));
+
+        config = new SettingsConfig.Builder().setIndexerRequestTimeout(TimeValue.ZERO).build();
+        assertThat(
+            config.validate(null).validationErrors(),
+            contains("settings.indexer_request_timeout [0ms] is out of range. The minimum value is 1ms and the maximum is 12h")
+        );
+
+        config = new SettingsConfig.Builder().setIndexerRequestTimeout(TimeValue.timeValueHours(13)).build();
+        assertThat(
+            config.validate(null).validationErrors(),
+            contains("settings.indexer_request_timeout [13h] is out of range. The minimum value is 1ms and the maximum is 12h")
+        );
     }
 
     public void testUnattendedVariants() {

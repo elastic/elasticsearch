@@ -26,7 +26,7 @@ import java.util.List;
 public class SurveyingDocsTests extends ColumnarStringTestCase {
 
     private static final DictionaryPolicy ROOMY = new DictionaryPolicy(512 * 1024, 0.0, 0.0);
-    private static final SummaryPolicy ROOMY_SUMMARY = new SummaryPolicy(512 * 1024);
+    private static final SummaryPolicy ROOMY_SUMMARY = SummaryPolicy.sized(512 * 1024);
 
     /**
      * A single-valued sparse column: the terms the combined pass finds must equal the terms a standalone survey finds.

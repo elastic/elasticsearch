@@ -9,7 +9,9 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -31,7 +33,6 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
-import org.elasticsearch.cluster.desirednodes.VersionConflictException;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
@@ -46,18 +47,26 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.escf.EscfBatch;
+import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.shard.ShardId;
@@ -67,16 +76,23 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.RandomObjects;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -84,15 +100,21 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.sameInstance;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.emptyArray;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -228,6 +250,15 @@ public class BulkOperationTests extends ESTestCase {
         )
         .build();
 
+    private final AtomicInteger obtainedBatchPages = new AtomicInteger();
+    private final MockBytesRefRecycler recycler = new MockBytesRefRecycler() {
+        @Override
+        public V<BytesRef> obtain() {
+            obtainedBatchPages.incrementAndGet();
+            return super.obtain();
+        }
+    };
+
     private TestThreadPool threadPool;
 
     @Before
@@ -239,6 +270,12 @@ public class BulkOperationTests extends ESTestCase {
     @After
     public void tearDownThreadpool() {
         terminate(threadPool);
+    }
+
+    /** Fails the test if a batch page is still held after it. */
+    @After
+    public void assertBatchPagesReleased() {
+        recycler.close();
     }
 
     /**
@@ -337,6 +374,7 @@ public class BulkOperationTests extends ESTestCase {
             .build();
 
         ClusterState tsdbState = ClusterState.builder(ClusterName.DEFAULT)
+            .putCompatibilityVersions("node", TransportVersion.current(), Map.of())
             .putProjectMetadata(
                 ProjectMetadata.builder(projectId)
                     .indices(
@@ -382,6 +420,128 @@ public class BulkOperationTests extends ESTestCase {
             .findFirst()
             .orElseThrow(() -> new AssertionError("Could not find item redirected to the failure store"));
         assertThat(redirectedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.USED));
+    }
+
+    /** An inline JSON bulk encodes a batch per shard and releases all of them once every shard accepts. */
+    public void testInlineBatchesReleasedWhenAllShardsAccept() throws IOException {
+        assumeTrue("batch indexing requires the batch_indexing feature flag", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
+        BatchScenario scenario = batchScenario(false, indexName, ShardOutcome.ACCEPT, ShardOutcome.ACCEPT);
+        BatchResult result = runBatchBulk(scenario, clusterState);
+        assertThat(scenario.toString(), result.batchShards(), equalTo(dispatchedShards(scenario)));
+        assertExpectedBatchItems(scenario, result.response());
+    }
+
+    /** A pre-built batch is scattered into per-shard batches, and both it and the shard batches are released. */
+    public void testPreBuiltBatchReleasedWhenAllShardsAccept() throws IOException {
+        assumeTrue("batch indexing requires the batch_indexing feature flag", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
+        BatchScenario scenario = batchScenario(true, indexName, ShardOutcome.ACCEPT, ShardOutcome.ACCEPT);
+        BatchResult result = runBatchBulk(scenario, clusterState);
+        assertThat(scenario.toString(), result.batchShards(), equalTo(dispatchedShards(scenario)));
+        assertExpectedBatchItems(scenario, result.response());
+    }
+
+    /** A failed shard request releases its batch, and its items fail. */
+    public void testBatchReleasedWhenShardFails() throws IOException {
+        assumeTrue("batch indexing requires the batch_indexing feature flag", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
+        BatchScenario scenario = batchScenario(false, indexName, ShardOutcome.FAIL, ShardOutcome.ACCEPT);
+        BatchResult result = runBatchBulk(scenario, clusterState);
+        assertThat(scenario.toString(), result.batchShards(), equalTo(dispatchedShards(scenario)));
+        assertExpectedBatchItems(scenario, result.response());
+    }
+
+    /** Items of a failed shard are redirected to the failure store in a second pass, which carries no batches. */
+    public void testBatchReleasedBeforeFailureStoreRedirect() throws IOException {
+        assumeTrue("batch indexing requires the batch_indexing feature flag", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
+        BatchScenario scenario = batchScenario(false, fsDataStreamName, ShardOutcome.FAIL, ShardOutcome.ACCEPT);
+        BatchResult result = runBatchBulk(scenario, clusterState);
+        assertThat(scenario.toString(), result.batchShards(), equalTo(dispatchedShards(scenario)));
+        assertExpectedBatchItems(scenario, result.response());
+    }
+
+    /** A short-circuited shard never receives its batch, which is released without being dispatched. */
+    public void testUndispatchedBatchReleasedOnShortCircuit() throws IOException {
+        assumeTrue("batch indexing requires the batch_indexing feature flag", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
+        BatchScenario scenario = batchScenario(false, indexName, ShardOutcome.SHORT_CIRCUIT, ShardOutcome.ACCEPT);
+        BatchResult result = runBatchBulk(scenario, clusterState);
+        assertThat(scenario.toString(), result.batchShards(), equalTo(dispatchedShards(scenario)));
+        assertExpectedBatchItems(scenario, result.response());
+    }
+
+    /** With every shard short-circuited nothing is dispatched, and the redirect pass starts from inside the first pass. */
+    public void testBatchesReleasedWhenAllShardsShortCircuit() throws IOException {
+        assumeTrue("batch indexing requires the batch_indexing feature flag", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
+        BatchScenario scenario = batchScenario(false, fsDataStreamName, ShardOutcome.SHORT_CIRCUIT, ShardOutcome.SHORT_CIRCUIT);
+        BatchResult result = runBatchBulk(scenario, clusterState);
+        assertThat(scenario.toString(), result.batchShards(), empty());
+        assertExpectedBatchItems(scenario, result.response());
+    }
+
+    /** A blocked cluster fails the bulk before dispatch and releases the pre-built batch. */
+    public void testPreBuiltBatchReleasedOnBlockedCluster() throws IOException {
+        assumeTrue("batch indexing requires the batch_indexing feature flag", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
+        BatchScenario scenario = batchScenario(true, indexName, ShardOutcome.ACCEPT, ShardOutcome.ACCEPT);
+        ClusterState blocked = ClusterState.builder(clusterState)
+            .blocks(ClusterBlocks.builder().addGlobalBlock(Metadata.CLUSTER_READ_ONLY_BLOCK))
+            .build();
+        BatchResult result = runBatchBulk(scenario, blocked);
+        assertThat(scenario.toString(), result.failure(), instanceOf(ClusterBlockException.class));
+        assertThat(scenario.toString(), result.batchShards(), empty());
+    }
+
+    /**
+     * With the batch path active, every shard request of the initial pass fails synchronously (as it does for a write-blocked
+     * backing index), so the failure-store redirect pass starts before the batch encoders are closed. The redirect pass must not
+     * try to build batches again: its items are new requests carrying inline source.
+     */
+    public void testSynchronousShardFailureRedirectsToFailureStoreBatchMode() throws Exception {
+        assumeTrue("batch indexing requires the batch_indexing feature flag", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(new IndexRequest(fsDataStreamName).id("1").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
+        bulkRequest.add(new IndexRequest(fsDataStreamName).id("3").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
+
+        // A state without nodes reports the minimum compatible transport version, which predates batch support and silently turns the
+        // batch path off, so advertise a node at the current version.
+        ClusterState batchCapableState = ClusterState.builder(clusterState)
+            .putCompatibilityVersions("node", TransportVersion.current(), Map.of())
+            .build();
+
+        // Completes the listener on the calling thread, so the shard requests are done before the bulk operation finishes issuing them.
+        AtomicBoolean initialPassWasBatched = new AtomicBoolean();
+        BiConsumer<BulkShardRequest, ActionListener<BulkShardResponse>> failBackingIndexSynchronously = (request, listener) -> {
+            if (request.shardId().getIndex().equals(ds2BackingIndex1.getIndex())) {
+                initialPassWasBatched.set(request.getBulkShardBatch() != null);
+                listener.onFailure(new MapperException("test"));
+            } else {
+                acceptAllShardWrites().accept(request, listener);
+            }
+        };
+        BatchIndexingEnabled batchEnabled = new BatchIndexingEnabled(
+            ClusterSettings.createBuiltInClusterSettings(Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true).build())
+        );
+        NodeClient client = getNodeClient(failBackingIndexSynchronously);
+
+        BulkResponse response = safeAwait(
+            l -> newBulkOperation(
+                batchCapableState,
+                client,
+                bulkRequest,
+                new AtomicArray<>(bulkRequest.numberOfActions()),
+                mockObserver(batchCapableState),
+                l,
+                new FailureStoreDocumentConverter(),
+                DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings()),
+                true,
+                batchEnabled
+            ).run()
+        );
+
+        assertTrue("the initial pass should have sent its documents as a batch", initialPassWasBatched.get());
+        assertThat(response.hasFailures(), is(false));
+        assertThat(response.getItems().length, equalTo(2));
+        for (BulkItemResponse item : response.getItems()) {
+            assertThat(item.getIndex(), equalTo(ds2FailureStore1.getIndex().getName()));
+            assertThat(item.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.USED));
+        }
     }
 
     /**
@@ -653,10 +813,11 @@ public class BulkOperationTests extends ESTestCase {
         bulkRequest.add(new IndexRequest(fsDataStreamName).id("3").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
 
         final Exception expectedException = randomFrom(
-            new VersionConflictException("test"),
+            new VersionConflictEngineException(new ShardId(ds2BackingIndex1.getIndex(), 0), "3", "test"),
             new EsRejectedExecutionException("test"),
             new CircuitBreakingException("test", randomFrom(CircuitBreaker.Durability.values())),
-            new ClusterBlockException(Set.of(MetadataIndexStateService.createIndexClosingBlock())),
+            new ClusterBlockException(Set.of(NoMasterBlockService.NO_MASTER_BLOCK_WRITES)),
+            new ClusterBlockException(Set.of(IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)),
             new BulkOperation429Exception("test")
         );
 
@@ -664,26 +825,47 @@ public class BulkOperationTests extends ESTestCase {
             thatFailsDocuments(Map.of(new IndexAndId(ds2BackingIndex1.getIndex().getName(), "3"), () -> expectedException))
         );
 
-        BulkResponse bulkItemResponses = safeAwait(
-            l -> newBulkOperation(
-                clusterState,
-                client,
-                bulkRequest,
-                new AtomicArray<>(bulkRequest.numberOfActions()),
-                mockObserver(clusterState),
-                l,
-                new FailureStoreDocumentConverter(),
-                DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings()),
-                false
-            ).run()
-        );
+        BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, l).run());
         assertThat(bulkItemResponses.hasFailures(), is(true));
         BulkItemResponse failedItem = Arrays.stream(bulkItemResponses.getItems())
             .filter(BulkItemResponse::isFailed)
             .findFirst()
-            .orElseThrow(() -> new AssertionError("Could not find redirected item"));
+            .orElseThrow(() -> new AssertionError("Could not find failed item"));
         assertThat(failedItem.getFailure().getCause(), is(equalTo(expectedException)));
         assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN));
+    }
+
+    /**
+     * Non-retryable cluster blocks such as an index write block are a permanent condition of the target index and not backpressure, so
+     * the affected documents must be redirected to the failure store. This also holds when the exception mixes a permanent block with a
+     * backpressure block, because retrying cannot succeed while the permanent block remains.
+     */
+    public void testFailingDocumentRedirectsToFailureStoreOnNonRetryableClusterBlock() throws Exception {
+        // Requests that go to two separate shards
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(new IndexRequest(fsDataStreamName).id("1").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
+        bulkRequest.add(new IndexRequest(fsDataStreamName).id("3").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
+
+        final ClusterBlockException blockException = randomFrom(
+            new ClusterBlockException(Set.of(IndexMetadata.INDEX_WRITE_BLOCK)),
+            new ClusterBlockException(Set.of(IndexMetadata.INDEX_READ_ONLY_BLOCK)),
+            new ClusterBlockException(Set.of(MetadataIndexStateService.INDEX_CLOSED_BLOCK)),
+            new ClusterBlockException(Set.of(MetadataIndexStateService.createIndexClosingBlock())),
+            new ClusterBlockException(Set.of(IndexMetadata.INDEX_WRITE_BLOCK, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)),
+            new ClusterBlockException(Set.of(IndexMetadata.INDEX_WRITE_BLOCK, NoMasterBlockService.NO_MASTER_BLOCK_WRITES))
+        );
+
+        NodeClient client = getNodeClient(
+            thatFailsDocuments(Map.of(new IndexAndId(ds2BackingIndex1.getIndex().getName(), "3"), () -> blockException))
+        );
+
+        BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, l).run());
+        assertThat(bulkItemResponses.hasFailures(), is(false));
+        BulkItemResponse redirectedItem = Arrays.stream(bulkItemResponses.getItems())
+            .filter(item -> item.getIndex().equals(ds2FailureStore1.getIndex().getName()))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("Could not find redirected item"));
+        assertThat(redirectedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.USED));
     }
 
     public void testFailingDocumentRedirectsToFailureStoreWhenEnabledByClusterSetting() {
@@ -768,10 +950,43 @@ public class BulkOperationTests extends ESTestCase {
             .orElseThrow(() -> new AssertionError("Could not find redirected item"));
         assertThat(failedItem.getFailure().getCause(), is(instanceOf(MapperException.class)));
         assertThat(failedItem.getFailure().getCause().getMessage(), is(equalTo("root cause")));
-        assertThat(failedItem.getFailure().getCause().getSuppressed().length, is(not(equalTo(0))));
-        assertThat(failedItem.getFailure().getCause().getSuppressed()[0], is(instanceOf(MapperException.class)));
-        assertThat(failedItem.getFailure().getCause().getSuppressed()[0].getMessage(), is(equalTo("failure store test failure")));
+        assertThat(failedItem.getFailure().getCause().getSuppressed(), emptyArray());
+        assertThat(failedItem.getFailure().getFailureStoreCause(), is(instanceOf(MapperException.class)));
+        assertThat(failedItem.getFailure().getFailureStoreCause().getMessage(), is(equalTo("failure store test failure")));
         assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.FAILED));
+    }
+
+    /**
+     * When a whole shard bulk fails, every item shares the same cause. Each item's failure store failure must be recorded on that item
+     * alone rather than on the shared cause, otherwise the response grows quadratically with the number of items.
+     */
+    public void testFailureStoreFailuresAreNotAddedToSharedShardFailure() throws Exception {
+        int itemCount = between(2, 20);
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < itemCount; i++) {
+            bulkRequest.add(new IndexRequest(fsDataStreamName).id("3").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
+        }
+        NodeClient client = getNodeClient(
+            shardSpecificResponse(
+                Map.of(
+                    new ShardId(ds2BackingIndex1.getIndex(), 0),
+                    failWithException(() -> new MapperException("root cause")),
+                    new ShardId(ds2FailureStore1.getIndex(), 0),
+                    failWithException(() -> new MapperException("failure store test failure"))
+                )
+            )
+        );
+
+        BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, l).run());
+        BulkItemResponse[] items = bulkItemResponses.getItems();
+        assertThat(items.length, equalTo(itemCount));
+        Exception sharedCause = items[0].getFailure().getCause();
+        for (BulkItemResponse item : items) {
+            assertThat(item.getFailure().getCause(), is(sameInstance(sharedCause)));
+            assertThat(item.getFailure().getFailureStoreCause().getMessage(), is(equalTo("failure store test failure")));
+            assertThat(item.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.FAILED));
+        }
+        assertThat(sharedCause.getSuppressed(), emptyArray());
     }
 
     /**
@@ -837,15 +1052,15 @@ public class BulkOperationTests extends ESTestCase {
             .orElseThrow(() -> new AssertionError("Could not find redirected item"));
         assertThat(failedItem.getFailure().getCause(), is(instanceOf(MapperException.class)));
         assertThat(failedItem.getFailure().getCause().getMessage(), is(equalTo("root cause")));
-        assertThat(failedItem.getFailure().getCause().getSuppressed().length, is(not(equalTo(0))));
-        assertThat(failedItem.getFailure().getCause().getSuppressed()[0], is(sameInstance(dispatchFailure)));
+        assertThat(failedItem.getFailure().getCause().getSuppressed(), emptyArray());
+        assertThat(failedItem.getFailure().getFailureStoreCause(), is(sameInstance(dispatchFailure)));
         assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.FAILED));
     }
 
     /**
      * A document that fails at the shard level will be converted into a failure document if an applicable failure store is present.
      * In the unlikely case that the failure document cannot be created, the document will not be redirected to the failure store and
-     * instead will simply report its original failure in the response, with the conversion failure present as a suppressed exception.
+     * instead will simply report its original failure in the response, with the conversion failure present as its failure store cause.
      */
     public void testFailedDocumentCanNotBeConvertedFails() throws Exception {
         // Requests that go to two separate shards
@@ -875,9 +1090,9 @@ public class BulkOperationTests extends ESTestCase {
                 .orElseThrow(() -> new AssertionError("Could not find redirected item"));
             assertThat(failedItem.getFailure().getCause(), is(instanceOf(MapperException.class)));
             assertThat(failedItem.getFailure().getCause().getMessage(), is(equalTo("root cause")));
-            assertThat(failedItem.getFailure().getCause().getSuppressed().length, is(not(equalTo(0))));
-            assertThat(failedItem.getFailure().getCause().getSuppressed()[0], is(instanceOf(transformFailure.getClass())));
-            assertThat(failedItem.getFailure().getCause().getSuppressed()[0].getMessage(), is(equalTo(transformFailure.getMessage())));
+            assertThat(failedItem.getFailure().getCause().getSuppressed(), emptyArray());
+            assertThat(failedItem.getFailure().getFailureStoreCause(), is(instanceOf(transformFailure.getClass())));
+            assertThat(failedItem.getFailure().getFailureStoreCause().getMessage(), is(equalTo(transformFailure.getMessage())));
             assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.FAILED));
         }
     }
@@ -1013,10 +1228,10 @@ public class BulkOperationTests extends ESTestCase {
             .orElseThrow(() -> new AssertionError("Could not find redirected item"));
         assertThat(failedItem.getFailure().getCause(), is(instanceOf(MapperException.class)));
         assertThat(failedItem.getFailure().getCause().getMessage(), is(equalTo("root cause")));
-        assertThat(failedItem.getFailure().getCause().getSuppressed().length, is(not(equalTo(0))));
-        assertThat(failedItem.getFailure().getCause().getSuppressed()[0], is(instanceOf(ClusterBlockException.class)));
+        assertThat(failedItem.getFailure().getCause().getSuppressed(), emptyArray());
+        assertThat(failedItem.getFailure().getFailureStoreCause(), is(instanceOf(ClusterBlockException.class)));
         assertThat(
-            failedItem.getFailure().getCause().getSuppressed()[0].getMessage(),
+            failedItem.getFailure().getFailureStoreCause().getMessage(),
             is(equalTo("blocked by: [FORBIDDEN/5/index read-only (api)];"))
         );
         assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.FAILED));
@@ -1072,10 +1287,10 @@ public class BulkOperationTests extends ESTestCase {
             .orElseThrow(() -> new AssertionError("Could not find redirected item"));
         assertThat(failedItem.getFailure().getCause(), is(instanceOf(MapperException.class)));
         assertThat(failedItem.getFailure().getCause().getMessage(), is(equalTo("root cause")));
-        assertThat(failedItem.getFailure().getCause().getSuppressed().length, is(not(equalTo(0))));
-        assertThat(failedItem.getFailure().getCause().getSuppressed()[0], is(instanceOf(ClusterBlockException.class)));
+        assertThat(failedItem.getFailure().getCause().getSuppressed(), emptyArray());
+        assertThat(failedItem.getFailure().getFailureStoreCause(), is(instanceOf(ClusterBlockException.class)));
         assertThat(
-            failedItem.getFailure().getCause().getSuppressed()[0].getMessage(),
+            failedItem.getFailure().getFailureStoreCause().getMessage(),
             is(equalTo("blocked by: [SERVICE_UNAVAILABLE/2/no master];"))
         );
         assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.FAILED));
@@ -1227,9 +1442,9 @@ public class BulkOperationTests extends ESTestCase {
             .orElseThrow(() -> new AssertionError("Could not find redirected item"));
         assertThat(failedItem.getFailure().getCause(), is(instanceOf(MapperException.class)));
         assertThat(failedItem.getFailure().getCause().getMessage(), is(equalTo("test")));
-        assertThat(failedItem.getFailure().getCause().getSuppressed().length, is(not(equalTo(0))));
-        assertThat(failedItem.getFailure().getCause().getSuppressed()[0], is(instanceOf(Exception.class)));
-        assertThat(failedItem.getFailure().getCause().getSuppressed()[0].getMessage(), is(equalTo("rollover failed")));
+        assertThat(failedItem.getFailure().getCause().getSuppressed(), emptyArray());
+        assertThat(failedItem.getFailure().getFailureStoreCause(), is(instanceOf(Exception.class)));
+        assertThat(failedItem.getFailure().getFailureStoreCause().getMessage(), is(equalTo("rollover failed")));
         assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.FAILED));
     }
 
@@ -1238,6 +1453,211 @@ public class BulkOperationTests extends ESTestCase {
      */
     private static BiConsumer<BulkShardRequest, ActionListener<BulkShardResponse>> assertNoClientInteraction() {
         return (r, l) -> fail("Should not have executed shard action on blocked cluster");
+    }
+
+    /** What the mock shard action does with a shard request. */
+    private enum ShardOutcome {
+        ACCEPT,
+        FAIL,
+        SHORT_CIRCUIT
+    }
+
+    /** One batch bulk: its batch mode, target, size, the outcome of each write shard, and the longest {@code message} value. */
+    private record BatchScenario(
+        boolean providedBatch,
+        String target,
+        int docCount,
+        Map<ShardId, ShardOutcome> outcomes,
+        int maxMessageLength
+    ) {}
+
+    /** How a batch bulk completed, and which shards received a batch. */
+    private record BatchResult(BulkResponse response, Exception failure, Set<ShardId> batchShards) {}
+
+    /** A scenario with random documents whose ids route to both write shards of {@code target}. */
+    private BatchScenario batchScenario(boolean providedBatch, String target, ShardOutcome shard0, ShardOutcome shard1) {
+        IndexMetadata writeIndex = batchWriteIndex(target);
+        int docCount = randomIntBetween(10, 40);
+        IndexRouting routing = IndexRouting.fromIndexMetadata(writeIndex);
+        Set<Integer> routedShards = new HashSet<>();
+        for (int i = 0; i < docCount; i++) {
+            routedShards.add(routing.indexShard(new IndexRequest(target).id(Integer.toString(i))));
+        }
+        assertThat("documents route to both shards", routedShards, equalTo(Set.of(0, 1)));
+        return new BatchScenario(
+            providedBatch,
+            target,
+            docCount,
+            Map.of(new ShardId(writeIndex.getIndex(), 0), shard0, new ShardId(writeIndex.getIndex(), 1), shard1),
+            randomFrom(64, PageCacheRecycler.BYTE_PAGE_SIZE)
+        );
+    }
+
+    /**
+     * Runs the scenario's bulk against shards that behave as its outcomes say, and checks that the listener completes once, the bulk
+     * took batch pages and released all of them, and every dispatched write shard received a batch.
+     */
+    private BatchResult runBatchBulk(BatchScenario scenario, ClusterState state) throws IOException {
+        BulkRequest bulkRequest = scenario.providedBatch() ? providedBatchRequest(scenario) : xContentBatchRequest(scenario);
+        Map<ShardId, Exception> shortCircuited = new HashMap<>();
+        scenario.outcomes().forEach((shardId, outcome) -> {
+            if (outcome == ShardOutcome.SHORT_CIRCUIT) {
+                shortCircuited.put(shardId, new MapperException("short-circuited " + shardId));
+            }
+        });
+        bulkRequest.incrementalState(new BulkRequest.IncrementalState(shortCircuited, false));
+        Set<ShardId> batchShards = ConcurrentCollections.newConcurrentSet();
+        NodeClient client = getNodeClient((request, listener) -> {
+            if (request.getBulkShardBatch() != null) {
+                batchShards.add(request.shardId());
+            }
+            if (scenario.outcomes().get(request.shardId()) == ShardOutcome.FAIL) {
+                listener.onFailure(new MapperException("failed " + request.shardId()));
+            } else {
+                acceptAllShardWrites().accept(request, listener);
+            }
+        });
+
+        AtomicInteger completions = new AtomicInteger();
+        AtomicReference<BulkResponse> response = new AtomicReference<>();
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        CountDownLatch completed = new CountDownLatch(1);
+        newBatchBulkOperation(state, client, bulkRequest, ActionListener.runAfter(ActionListener.wrap(r -> {
+            completions.incrementAndGet();
+            response.set(r);
+        }, e -> {
+            completions.incrementAndGet();
+            failure.set(e);
+        }), completed::countDown)).run();
+
+        safeAwait(completed);
+        assertThat(scenario.toString(), completions.get(), equalTo(1));
+        assertThat(scenario + " took no batch pages", obtainedBatchPages.get(), greaterThan(0));
+        assertThat(scenario + " still holds batch pages", recycler.activePageCount(), equalTo(0));
+        return new BatchResult(response.get(), failure.get(), batchShards);
+    }
+
+    /** The write shards that the scenario lets the bulk dispatch to. */
+    private static Set<ShardId> dispatchedShards(BatchScenario scenario) {
+        return scenario.outcomes()
+            .entrySet()
+            .stream()
+            .filter(e -> e.getValue() != ShardOutcome.SHORT_CIRCUIT)
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toSet());
+    }
+
+    /** The index that receives writes for {@code target}. */
+    private IndexMetadata batchWriteIndex(String target) {
+        return target.equals(indexName) ? indexMetadata : ds2BackingIndex1;
+    }
+
+    /**
+     * JSON sources for the scenario: a shared {@code message} column that spans several pages when {@code maxMessageLength} is a page,
+     * and a random nested payload that adds sparse columns.
+     */
+    private static List<BytesReference> batchDocs(BatchScenario scenario) throws IOException {
+        List<BytesReference> docs = new ArrayList<>(scenario.docCount());
+        for (int i = 0; i < scenario.docCount(); i++) {
+            BytesReference payload = RandomObjects.randomSource(random(), XContentType.JSON);
+            try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+                builder.startObject();
+                builder.field("message", randomAlphaOfLength(randomIntBetween(0, scenario.maxMessageLength())));
+                builder.rawField("payload", payload.streamInput(), XContentType.JSON);
+                builder.endObject();
+                docs.add(BytesReference.bytes(builder));
+            }
+        }
+        return docs;
+    }
+
+    /** A bulk of inline JSON documents, which the coordinating node encodes into batches. */
+    private static BulkRequest xContentBatchRequest(BatchScenario scenario) throws IOException {
+        List<BytesReference> docs = batchDocs(scenario);
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < scenario.docCount(); i++) {
+            bulkRequest.add(
+                new IndexRequest(scenario.target()).id(Integer.toString(i))
+                    .opType(DocWriteRequest.OpType.CREATE)
+                    .source(docs.get(i), XContentType.JSON)
+            );
+        }
+        return bulkRequest;
+    }
+
+    /** A bulk whose items reference rows of a pre-built batch on the test recycler. */
+    private BulkRequest providedBatchRequest(BatchScenario scenario) throws IOException {
+        List<BytesReference> docs = batchDocs(scenario);
+        EscfBatch batch;
+        try (EscfEncoder encoder = new EscfEncoder(recycler)) {
+            for (BytesReference doc : docs) {
+                encoder.parseToScratch(doc, XContentType.JSON);
+                encoder.commitScratchTo(0);
+            }
+            batch = encoder.buildPartition(0);
+        }
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < scenario.docCount(); i++) {
+            IndexRequest request = new IndexRequest(scenario.target()).id(Integer.toString(i)).opType(DocWriteRequest.OpType.CREATE);
+            request.indexSource().setSourceRow(batch, i, XContentType.JSON);
+            bulkRequest.add(request);
+        }
+        bulkRequest.setPreBuiltBatches(Map.of(scenario.target(), batch));
+        return bulkRequest;
+    }
+
+    /** Checks each item against its shard's outcome: indexed, redirected to the failure store, or failed. */
+    private void assertExpectedBatchItems(BatchScenario scenario, BulkResponse response) {
+        IndexMetadata writeIndex = batchWriteIndex(scenario.target());
+        IndexRouting routing = IndexRouting.fromIndexMetadata(writeIndex);
+        assertThat(scenario.toString(), response.getItems().length, equalTo(scenario.docCount()));
+        for (int i = 0; i < scenario.docCount(); i++) {
+            BulkItemResponse item = response.getItems()[i];
+            ShardId shardId = new ShardId(
+                writeIndex.getIndex(),
+                routing.indexShard(new IndexRequest(scenario.target()).id(Integer.toString(i)))
+            );
+            ShardOutcome outcome = scenario.outcomes().get(shardId);
+            String message = scenario + " item " + i + " on " + shardId + " (" + outcome + ")";
+            if (outcome == ShardOutcome.ACCEPT) {
+                assertFalse(message, item.isFailed());
+                assertThat(message, item.getIndex(), equalTo(writeIndex.getIndex().getName()));
+            } else if (scenario.target().equals(fsDataStreamName)) {
+                assertFalse(message, item.isFailed());
+                assertThat(message, item.getIndex(), equalTo(ds2FailureStore1.getIndex().getName()));
+                assertThat(message, item.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.USED));
+            } else {
+                assertTrue(message, item.isFailed());
+            }
+        }
+    }
+
+    /** A bulk operation with batch indexing enabled on a cluster state whose nodes support batch shard requests. */
+    private BulkOperation newBatchBulkOperation(
+        ClusterState state,
+        NodeClient client,
+        BulkRequest request,
+        ActionListener<BulkResponse> listener
+    ) {
+        ClusterState batchCapableState = ClusterState.builder(state)
+            .putCompatibilityVersions("node", TransportVersion.current(), Map.of())
+            .build();
+        return newBulkOperation(
+            batchCapableState,
+            client,
+            request,
+            new AtomicArray<>(request.numberOfActions()),
+            mockObserver(batchCapableState),
+            listener,
+            new FailureStoreDocumentConverter(),
+            DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings()),
+            true,
+            new BatchIndexingEnabled(
+                ClusterSettings.createBuiltInClusterSettings(
+                    Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true).build()
+                )
+            )
+        );
     }
 
     /**
@@ -1547,7 +1967,8 @@ public class BulkOperationTests extends ESTestCase {
             FailureStoreMetrics.NOOP,
             dataStreamFailureStoreSettings,
             failureStoreNodeFeatureEnabled,
-            batchIndexingEnabled
+            batchIndexingEnabled,
+            recycler
         );
     }
 

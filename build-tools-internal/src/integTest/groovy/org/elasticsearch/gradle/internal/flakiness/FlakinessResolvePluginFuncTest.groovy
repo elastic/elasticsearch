@@ -222,7 +222,8 @@ class FlakinessResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTes
         def bwcishTarget = projectTargets("bwcish").resolved[0].target
         bwcishTarget.runnableTasks == [":bwcish:v9.6.0#altTest", ":bwcish:v9.5.1#altTest"]
         bwcishTarget.runnableTasks.every { it != ":bwcish:test" }
-        bwcishTarget.candidateTasks == 3
+        bwcishTarget.candidateTaskPaths == [":bwcish:v9.6.0#altTest", ":bwcish:v9.5.1#altTest", ":bwcish:v9.4.0#altTest"]
+        bwcishTarget.candidateTaskPaths.size() == 3
         bwcishTarget.skipReason == null
 
         and: "the class-dir union spans EVERY project, not just the three that own a ref"

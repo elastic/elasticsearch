@@ -395,7 +395,12 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         }
     }
 
-    private int evaluateInManyThreadsCountMax() {
+    /**
+     * Upper bound on the number of times each thread in {@link #testEvaluateInManyThreads} evaluates the test case.
+     * Override to lower it for functions whose single evaluation is expensive, so the test stays within the suite timeout.
+     * Must be at least 100.
+     */
+    protected int evaluateInManyThreadsCountMax() {
         for (TestCaseSupplier.TypedData dt : testCase.getData()) {
             if (dt.type() == DataType.EXPONENTIAL_HISTOGRAM) {
                 return 500;

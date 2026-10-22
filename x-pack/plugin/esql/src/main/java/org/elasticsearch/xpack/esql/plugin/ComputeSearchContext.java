@@ -9,15 +9,19 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.common.util.CachedSupplier;
+import org.elasticsearch.compute.data.DocOrigin;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.xpack.esql.fetch.DocOriginResolver;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.DefaultShardContext;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 
 import java.util.Objects;
+import java.util.function.Supplier;
 
 /**
  * Search and shard context used as entries in {@link org.elasticsearch.compute.lucene.IndexedByShardId}. These are shared by both the data
@@ -32,16 +36,32 @@ class ComputeSearchContext implements Releasable {
     private final int index;
     @Nullable
     private final SearchContext searchContext;
+    /**
+     * The origin of the documents read through this context, {@code null} for a tombstone. Cached, because every page
+     * that leaves the node asks for the origins of its shards.
+     */
+    @Nullable
+    private final Supplier<DocOrigin> origin;
     private final SetOnce<ShardContext> shardContext = new SetOnce<>();
 
     ComputeSearchContext(int index, SearchContext searchContext) {
+        this(index, searchContext, DocOriginResolver.NONE);
+    }
+
+    /**
+     * @param originResolver names the reader of this shard for the documents of rows that leave the node
+     */
+    ComputeSearchContext(int index, SearchContext searchContext, DocOriginResolver originResolver) {
         this.index = index;
         this.searchContext = Objects.requireNonNull(searchContext);
+        Objects.requireNonNull(originResolver);
+        this.origin = CachedSupplier.wrap(() -> originResolver.originOf(searchContext));
     }
 
     private ComputeSearchContext(int index) {
         this.index = index;
         this.searchContext = null;
+        this.origin = null;
     }
 
     /** Tombstone with no {@link SearchContext}, so the closed search context can be GC'd. */
@@ -70,6 +90,15 @@ class ComputeSearchContext implements Releasable {
     public SearchContext searchContext() {
         ensureNotTombstone();
         return searchContext;
+    }
+
+    /**
+     * The origin of the documents read through this context, for the rows that leave the node. Asking means some of
+     * those rows survived the node cut.
+     */
+    DocOrigin origin() {
+        ensureNotTombstone();
+        return origin.get();
     }
 
     private ShardContext createShardContext(QueryWarnings queryWarnings) {

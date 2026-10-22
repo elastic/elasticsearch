@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.data.DocOriginTable;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.SideChannel;
@@ -272,14 +273,21 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
      *     throws an {@link IllegalStateException}. But before the type is released we need to support
      *     the type.
      * </p>
+     *
+     * @param docOrigins the origin table of the query when its {@code _doc} rows left their nodes, {@code null} on the
+     *                   node that read them
      */
-    public static TopNEncoder encoder(DataType type, IndexedByShardId<? extends RefCounted> shardContexts) {
+    public static TopNEncoder encoder(
+        DataType type,
+        IndexedByShardId<? extends RefCounted> shardContexts,
+        @Nullable DocOriginTable docOrigins
+    ) {
         TopNEncoder encoder = switch (type) {
             // HEY! If you see a compilation failure on this switch read the method javadoc.
             case IP -> TopNEncoder.IP;
             case TEXT, KEYWORD -> TopNEncoder.UTF8;
             case VERSION -> TopNEncoder.VERSION;
-            case DOC_DATA_TYPE -> new DocVectorEncoder(shardContexts);
+            case DOC_DATA_TYPE -> new DocVectorEncoder(shardContexts, docOrigins);
             case BOOLEAN, NULL, BYTE, SHORT, INTEGER, LONG, DOUBLE, FLOAT, HALF_FLOAT, DATETIME, DATE_NANOS, DATE_PERIOD, TIME_DURATION,
                 OBJECT, SCALED_FLOAT, UNSIGNED_LONG -> TopNEncoder.DEFAULT_SORTABLE;
             case GEO_POINT, CARTESIAN_POINT, GEO_SHAPE, CARTESIAN_SHAPE, COUNTER_LONG, COUNTER_INTEGER, COUNTER_DOUBLE, SOURCE,

@@ -230,6 +230,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         private ExternalSourceResolution externalSourceResolution = ExternalSourceResolution.EMPTY;
         private QueryBuilder requestFilter;
         private Map<String, String> views = Map.of();
+        private EsqlFlags flags = EsqlFlags.withFetchPhase(false);
 
         private TestBuilder(
             String esqlQuery,
@@ -263,6 +264,11 @@ public abstract class GoldenTestCase extends ESTestCase {
 
         public EnumSet<Stage> stages() {
             return stages;
+        }
+
+        public TestBuilder flags(EsqlFlags flags) {
+            this.flags = flags;
+            return this;
         }
 
         public TestBuilder searchStats(SearchStats searchStats) {
@@ -593,7 +599,8 @@ public abstract class GoldenTestCase extends ESTestCase {
                 datasetMetadata,
                 externalSourceResolution,
                 requestFilter,
-                views
+                views,
+                flags
             );
         }
 
@@ -741,7 +748,8 @@ public abstract class GoldenTestCase extends ESTestCase {
         ProjectMetadata datasetMetadata,
         ExternalSourceResolution externalSourceResolution,
         QueryBuilder requestFilter,
-        Map<String, String> views
+        Map<String, String> views,
+        EsqlFlags flags
     ) {
 
         private List<Tuple<Stage, TestResult>> doTests() throws IOException {
@@ -845,7 +853,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                 // optimization. Since subplan execution is not done in the golden tests,
                 // manually replace the placeholders instead by a fixed value.
                 logicallyOptimized = ApproximationPlan.substituteSampleProbability(logicallyOptimized, SAMPLE_PROBABILITY);
-                var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration, transportVersion));
+                var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration, transportVersion, flags));
                 PhysicalPlan physicalPlan = physicalPlanOptimizer.optimize(
                     new Mapper().map(new Versioned<>(logicallyOptimized, transportVersion))
                 );

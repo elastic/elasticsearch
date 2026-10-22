@@ -59,6 +59,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
     );
 
     private static final TransportVersion SINGLE_NODE_OPTIMIZATION = TransportVersion.fromName("esql_single_node_optimization");
+    static final TransportVersion ESQL_FETCH_CONTEXTS = TransportVersion.fromName("esql_fetch_phase_plan");
 
     private static final Logger logger = LogManager.getLogger(DataNodeRequest.class);
 
@@ -74,9 +75,46 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
     private final boolean reductionLateMaterialization;
     private final boolean singleNodeOptimizations;
     private final List<ExternalSplit> externalSplits;
+    private final boolean keepFetchContexts;
 
     /**
-     * Constructor with all parameters including externalSplits.
+     * Constructor with all parameters.
+     *
+     * @param keepFetchContexts whether the data node opens a single-session reader context per shard and keeps the ones
+     *                          whose rows survive its node cut open for the fetch phase
+     */
+    DataNodeRequest(
+        String sessionId,
+        Configuration configuration,
+        String clusterAlias,
+        List<Shard> shards,
+        Map<Index, AliasFilter> aliasFilters,
+        PhysicalPlan plan,
+        String[] indices,
+        IndicesOptions indicesOptions,
+        boolean runNodeLevelReduction,
+        boolean reductionLateMaterialization,
+        boolean singleNodeOptimizations,
+        List<ExternalSplit> externalSplits,
+        boolean keepFetchContexts
+    ) {
+        this.sessionId = sessionId;
+        this.configuration = configuration;
+        this.clusterAlias = clusterAlias;
+        this.shards = shards;
+        this.aliasFilters = aliasFilters;
+        this.plan = plan;
+        this.indices = indices;
+        this.indicesOptions = indicesOptions;
+        this.runNodeLevelReduction = runNodeLevelReduction;
+        this.reductionLateMaterialization = reductionLateMaterialization;
+        this.singleNodeOptimizations = singleNodeOptimizations;
+        this.externalSplits = externalSplits != null ? List.copyOf(externalSplits) : List.of();
+        this.keepFetchContexts = keepFetchContexts;
+    }
+
+    /**
+     * Constructor without fetch contexts.
      */
     DataNodeRequest(
         String sessionId,
@@ -92,18 +130,21 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         boolean singleNodeOptimizations,
         List<ExternalSplit> externalSplits
     ) {
-        this.sessionId = sessionId;
-        this.configuration = configuration;
-        this.clusterAlias = clusterAlias;
-        this.shards = shards;
-        this.aliasFilters = aliasFilters;
-        this.plan = plan;
-        this.indices = indices;
-        this.indicesOptions = indicesOptions;
-        this.runNodeLevelReduction = runNodeLevelReduction;
-        this.reductionLateMaterialization = reductionLateMaterialization;
-        this.singleNodeOptimizations = singleNodeOptimizations;
-        this.externalSplits = externalSplits != null ? List.copyOf(externalSplits) : List.of();
+        this(
+            sessionId,
+            configuration,
+            clusterAlias,
+            shards,
+            aliasFilters,
+            plan,
+            indices,
+            indicesOptions,
+            runNodeLevelReduction,
+            reductionLateMaterialization,
+            singleNodeOptimizations,
+            externalSplits,
+            false
+        );
     }
 
     /**
@@ -186,6 +227,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         } else {
             this.externalSplits = List.of();
         }
+        this.keepFetchContexts = in.getTransportVersion().supports(ESQL_FETCH_CONTEXTS) && in.readBoolean();
     }
 
     @Override
@@ -215,6 +257,12 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         }
         if (out.getTransportVersion().supports(EXTERNAL_SPLITS_IN_DATA_NODE_REQUEST)) {
             out.writeNamedWriteableCollection(externalSplits);
+        }
+        if (out.getTransportVersion().supports(ESQL_FETCH_CONTEXTS)) {
+            out.writeBoolean(keepFetchContexts);
+        } else if (keepFetchContexts) {
+            // the plan sends documents off the node, which only fetch contexts can serve
+            throw new IllegalStateException("can't ask a node on [" + out.getTransportVersion() + "] for fetch contexts");
         }
     }
 
@@ -304,6 +352,13 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         return externalSplits;
     }
 
+    /**
+     * Whether the data node keeps the reader contexts whose rows survive its node cut open for the fetch phase.
+     */
+    boolean keepFetchContexts() {
+        return keepFetchContexts;
+    }
+
     @Override
     public String getDescription() {
         String desc = "shards=" + shards + " plan=" + plan;
@@ -312,6 +367,9 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         }
         if (singleNodeOptimizations) {
             desc += " singleNodeOptimizations=true";
+        }
+        if (keepFetchContexts) {
+            desc += " keepFetchContexts=true";
         }
         return desc;
     }
@@ -338,7 +396,8 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             && runNodeLevelReduction == request.runNodeLevelReduction
             && reductionLateMaterialization == request.reductionLateMaterialization
             && singleNodeOptimizations == request.singleNodeOptimizations
-            && externalSplits.equals(request.externalSplits);
+            && externalSplits.equals(request.externalSplits)
+            && keepFetchContexts == request.keepFetchContexts;
     }
 
     @Override
@@ -355,7 +414,8 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             runNodeLevelReduction,
             reductionLateMaterialization,
             singleNodeOptimizations,
-            externalSplits
+            externalSplits,
+            keepFetchContexts
         );
     }
 
@@ -372,7 +432,8 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             runNodeLevelReduction,
             reductionLateMaterialization,
             singleNodeOptimizations,
-            externalSplits
+            externalSplits,
+            keepFetchContexts
         );
     }
 

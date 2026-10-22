@@ -20,6 +20,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -52,6 +53,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DataNodeRequestSerializationTests extends AbstractWireSerializingTestCase<DataNodeRequest> {
@@ -108,9 +110,54 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()),
             randomBoolean(),
             randomBoolean(),
+            randomBoolean(),
+            List.of(),
             randomBoolean()
         );
         request.setParentTask(randomAlphaOfLength(10), randomNonNegativeLong());
+        return request;
+    }
+
+    public void testKeepFetchContextsRoundTrips() throws IOException {
+        DataNodeRequest request = withKeepFetchContexts(createTestInstance(), true);
+
+        DataNodeRequest copy = copyInstance(request, TransportVersion.current());
+
+        assertTrue(copy.keepFetchContexts());
+        assertThat(copy.getDescription(), containsString("keepFetchContexts=true"));
+    }
+
+    /**
+     * The plan of a request that asks for fetch contexts sends documents off the node, which only fetch contexts serve.
+     * An older node can't open them, so the request must not reach it as if it had asked for none.
+     */
+    public void testFetchContextsNeverReachAnOlderNode() throws IOException {
+        TransportVersion older = TransportVersionUtils.getPreviousVersion(DataNodeRequest.ESQL_FETCH_CONTEXTS);
+        DataNodeRequest withoutContexts = withKeepFetchContexts(createTestInstance(), false);
+        assertFalse(copyInstance(withoutContexts, older).keepFetchContexts());
+
+        DataNodeRequest withContexts = withKeepFetchContexts(withoutContexts, true);
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> copyInstance(withContexts, older));
+        assertThat(e.getMessage(), containsString("for fetch contexts"));
+    }
+
+    private static DataNodeRequest withKeepFetchContexts(DataNodeRequest in, boolean keepFetchContexts) {
+        DataNodeRequest request = new DataNodeRequest(
+            in.sessionId(),
+            in.configuration(),
+            in.clusterAlias(),
+            in.shards(),
+            in.aliasFilters(),
+            in.plan(),
+            in.indices(),
+            in.indicesOptions(),
+            in.runNodeLevelReduction(),
+            in.reductionLateMaterialization(),
+            in.singleNodeOptimizations(),
+            in.externalSplits(),
+            keepFetchContexts
+        );
+        request.setParentTask(in.getParentTask());
         return request;
     }
 
@@ -175,9 +222,10 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
         var runNodeLevelReduction = in.runNodeLevelReduction();
         var reductionLateMaterialization = in.reductionLateMaterialization();
         var singleNodeOptimizations = in.singleNodeOptimizations();
+        var keepFetchContexts = in.keepFetchContexts();
         TaskId parentTask = in.getParentTask();
 
-        switch (between(0, 10)) {
+        switch (between(0, 11)) {
             case 0 -> sessionId = randomValueOtherThan(sessionId, () -> randomAlphaOfLength(20));
             case 1 -> configuration = randomValueOtherThan(configuration, () -> randomConfiguration());
             case 2 -> shards = randomValueOtherThan(
@@ -226,6 +274,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                 reductionLateMaterialization = reductionLateMaterialization == false;
             }
             case 10 -> singleNodeOptimizations = singleNodeOptimizations == false;
+            case 11 -> keepFetchContexts = keepFetchContexts == false;
             default -> throw new AssertionError("invalid value");
         }
 
@@ -240,7 +289,9 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             indicesOptions,
             runNodeLevelReduction,
             reductionLateMaterialization,
-            singleNodeOptimizations
+            singleNodeOptimizations,
+            in.externalSplits(),
+            keepFetchContexts
         );
         request.setParentTask(parentTask);
         return request;

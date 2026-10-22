@@ -362,7 +362,6 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         final var index = indexMetadata.getIndex();
         final var shardId = new ShardId(index, 0);
 
-        // Don't cancel the relocation from the shutting down source node-2, even if node-1 is also shutting down.
         final var relocatingSource = TestShardRouting.shardRoutingBuilder(shardId, "node-2", false, RELOCATING)
             .withRelocatingNodeId("node-1")
             .withRole(ShardRouting.Role.SEARCH_ONLY)
@@ -439,7 +438,6 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         final var index = indexMetadata.getIndex();
         final var shardId = new ShardId(index, 0);
 
-        // Don't cancel the relocation from the shutting down source node-0, even if node-1 is also shutting down.
         final Map<String, SingleNodeShutdownMetadata> shutdowns = new HashMap<>();
         shutdowns.put(
             "node-0",

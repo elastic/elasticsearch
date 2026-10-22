@@ -430,7 +430,7 @@ public final class SimdJsonDirectWalker {
         // path above adds no extra cost for them.
         long word = (long) LONG_LE.get(buffer, pos);
         long t = word - 0x3030303030303030L;
-        long mask = t & 0xF0F0F0F0F0F0F0F0L;
+        long mask = nonDigitBytes(t);
 
         if ((mask & 0xFFL) == 0) { // byte 0 (c0) is a digit, as it must be for a valid number
             if ((mask & 0xFF00L) != 0) { // byte 1 (c1) is not a digit
@@ -469,7 +469,7 @@ public final class SimdJsonDirectWalker {
             while (pos <= loopBound) {
                 long word2 = (long) LONG_LE.get(buffer, pos);
                 long t2 = word2 - 0x3030303030303030L;
-                if ((t2 & 0xF0F0F0F0F0F0F0F0L) != 0) {
+                if (nonDigitBytes(t2) != 0) {
                     break;
                 }
                 digits = digits * 100_000_000L + parse8Digits(t2);
@@ -591,7 +591,7 @@ public final class SimdJsonDirectWalker {
         while (pos <= loopBound) {
             long word = (long) LONG_LE.get(buffer, pos);
             long t = word - 0x3030303030303030L;
-            if ((t & 0xF0F0F0F0F0F0F0F0L) != 0) {
+            if (nonDigitBytes(t) != 0) {
                 // Not all 8 bytes are digits — parse the leading digits from this word scalar
                 break;
             }
@@ -653,6 +653,21 @@ public final class SimdJsonDirectWalker {
         long val = negative ? -digits : digits;
         boolean fitsInt = val >= Integer.MIN_VALUE && val <= Integer.MAX_VALUE;
         handler.longField(fieldName, val, fitsInt, buffer, idx, len);
+    }
+
+    /**
+     * Given {@code t}, a word of 8 input bytes with {@code 0x30} subtracted from each, returns a value whose
+     * byte {@code i} has its high bit set exactly when input byte {@code i} is not an ASCII digit, for the
+     * lowest such byte. Bytes above the lowest non-digit are unspecified because a borrow or carry from it may
+     * flow into them, so callers must only trust the lowest set byte.
+     *
+     * <p>Testing only the high nibble ({@code t & 0xF0F0...}) is not enough: it accepts {@code ':'} through
+     * {@code '?'} ({@code 0x3A}..{@code 0x3F}), whose {@code t} bytes are {@code 0x0A}..{@code 0x0F}. Adding
+     * {@code 0x76} pushes any byte in {@code 0x0A}..{@code 0x7F} into the high bit, and bytes of {@code 0x80}
+     * or more (including those that underflowed below {@code '0'}) already have it set.
+     */
+    private static long nonDigitBytes(long t) {
+        return ((t + 0x7676767676767676L) | t) & 0x8080808080808080L;
     }
 
     /**
@@ -752,7 +767,7 @@ public final class SimdJsonDirectWalker {
         // load; see the comment there.
         long word = (long) LONG_LE.get(buffer, pos);
         long t = word - 0x3030303030303030L;
-        long mask = t & 0xF0F0F0F0F0F0F0F0L;
+        long mask = nonDigitBytes(t);
 
         if ((mask & 0xFFL) == 0) { // byte 0 (c0) is a digit, as it must be for a valid number
             if ((mask & 0xFF00L) != 0) { // byte 1 (c1) is not a digit
@@ -790,7 +805,7 @@ public final class SimdJsonDirectWalker {
             while (pos <= loopBound) {
                 long word2 = (long) LONG_LE.get(buffer, pos);
                 long t2 = word2 - 0x3030303030303030L;
-                if ((t2 & 0xF0F0F0F0F0F0F0F0L) != 0) {
+                if (nonDigitBytes(t2) != 0) {
                     break;
                 }
                 digits = digits * 100_000_000L + parse8Digits(t2);
@@ -831,7 +846,7 @@ public final class SimdJsonDirectWalker {
         while (pos <= loopBound) {
             long word = (long) LONG_LE.get(buffer, pos);
             long t = word - 0x3030303030303030L;
-            if ((t & 0xF0F0F0F0F0F0F0F0L) != 0) {
+            if (nonDigitBytes(t) != 0) {
                 break;
             }
             digits = digits * 100_000_000L + parse8Digits(t);

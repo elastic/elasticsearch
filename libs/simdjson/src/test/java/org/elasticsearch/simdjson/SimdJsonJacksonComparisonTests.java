@@ -427,6 +427,21 @@ public class SimdJsonJacksonComparisonTests extends SimdJsonTestCase {
         }
     }
 
+    // A byte between '9' and 'A' (':' to '?') directly after the digits is trailing garbage, wherever
+    // it falls relative to the 8-byte word the SWAR digit loop reads; both parsers must reject it
+    // (':' is structural, so it is rejected one step later, at the separator).
+    public void testNonDigitAfterDigitsRejectedByBothParsers() {
+        for (char junk : new char[] { ':', ';', '<', '=', '>', '?' }) {
+            for (int digits = 1; digits <= 9; digits++) {
+                String number = "1234567890".substring(0, digits) + junk;
+                for (String json : List.of("{\"n\":" + number + "}", "{\"n\":-" + number + ",\"m\":1}", "{\"a\":[1," + number + "]}")) {
+                    expectThrows(XContentParseException.class, () -> walkWithJackson(json));
+                    expectThrows(JsonParsingException.class, () -> walkJson(json));
+                }
+            }
+        }
+    }
+
     // Both parsers prefix leading-zero messages with a "[line:column]" location (see
     // SimdJsonDirectWalker#computeLineAndColumn).
     public void testLineNumberMatchesBothParsers() {

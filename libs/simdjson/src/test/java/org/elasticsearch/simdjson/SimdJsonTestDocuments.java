@@ -223,6 +223,21 @@ public final class SimdJsonTestDocuments {
                 {"a":Infinity}""", """
                 {"a":+1}""", """
                 {"a":0x1A}""",
+            // Bytes between '9' and 'A' (':' to '?') are not digits. They have a zero high nibble once
+            // 0x30 is subtracted, so the SWAR digit check must test every byte against 0..9: after one
+            // digit (short fast path), after seven (all but the last byte of the first word), after
+            // eight (first byte of the next word), and in array elements.
+            """
+                {"n":1;}""", """
+                {"n":1;,"m":2}""", """
+                {"n":12<}""", """
+                {"n":1234567;}""", """
+                {"n":1234567=,"m":2}""", """
+                {"n":12345678>}""", """
+                {"n":-1234567?}""", """
+                {"n":1234567:}""", """
+                {"a":[1234567;]}""", """
+                {"a":[1,12345678<]}""",
             // Truncated documents: input ends where the grammar still requires more tokens. These
             // leave the structural index window exhausted mid-walk (see BitIndexes#getAndAdvance).
             "{",

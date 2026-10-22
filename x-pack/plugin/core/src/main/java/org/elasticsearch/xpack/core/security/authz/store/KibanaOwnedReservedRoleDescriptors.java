@@ -952,6 +952,10 @@ class KibanaOwnedReservedRoleDescriptors {
                 .privileges("index", "maintenance")
                 .build(),
             RoleDescriptor.IndicesPrivileges.builder()
+                .indices("ai-index-idx-security-attack-fingerprints")
+                .privileges("read", "view_index_metadata", "index", "auto_configure")
+                .build(),
+            RoleDescriptor.IndicesPrivileges.builder()
                 .indices(".kibana-elastic-ai-assistant-anonymization-fields-*")
                 .privileges("read")
                 .build(),

@@ -907,7 +907,13 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
         }
 
         FixedPlanCalculationService(ThreadPool threadPool, ClusterSettings clusterSettings, SearchRecoveryTimeout plan) {
-            super(Mockito.mock(StatelessSharedBlobCacheService.class), threadPool, clusterSettings, ByteSizeValue.ZERO);
+            super(
+                Mockito.mock(StatelessSharedBlobCacheService.class),
+                threadPool,
+                clusterSettings,
+                onlyRole(DiscoveryNodeRole.SEARCH_ROLE),
+                ByteSizeValue.ZERO
+            );
             this.plan = plan;
         }
 

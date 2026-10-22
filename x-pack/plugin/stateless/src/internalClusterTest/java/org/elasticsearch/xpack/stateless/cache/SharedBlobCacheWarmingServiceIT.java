@@ -1684,8 +1684,11 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
     public static class TestStatelessPlugin extends TestUtils.StatelessPluginWithTrialLicense {
 
+        private final Settings nodeSettings;
+
         public TestStatelessPlugin(Settings settings) {
             super(settings);
+            this.nodeSettings = settings;
         }
 
         @Override
@@ -1715,6 +1718,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                     cacheService,
                     threadPool,
                     clusterSettings,
+                    nodeSettings,
                     JvmInfo.jvmInfo().getMem().getHeapMax()
                 )
             );
@@ -1788,9 +1792,10 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             StatelessSharedBlobCacheService cacheService,
             ThreadPool threadPool,
             ClusterSettings clusterSettings,
+            Settings nodeSettings,
             ByteSizeValue maxHeap
         ) {
-            super(cacheService, threadPool, clusterSettings, maxHeap);
+            super(cacheService, threadPool, clusterSettings, nodeSettings, maxHeap);
         }
 
         @Override

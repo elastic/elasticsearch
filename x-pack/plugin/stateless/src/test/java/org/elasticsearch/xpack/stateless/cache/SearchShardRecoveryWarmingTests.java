@@ -728,7 +728,13 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             threadPool,
             TelemetryProvider.NOOP,
             clusterSettings,
-            new SearchRecoveryTimeoutCalculationService(cacheService, threadPool, clusterSettings, ByteSizeValue.ZERO) {
+            new SearchRecoveryTimeoutCalculationService(
+                cacheService,
+                threadPool,
+                clusterSettings,
+                onlyRole(DiscoveryNodeRole.SEARCH_ROLE),
+                ByteSizeValue.ZERO
+            ) {
                 @Override
                 public SearchRecoveryTimeout searchRecoveryTimeout(
                     ClusterState state,

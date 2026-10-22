@@ -373,6 +373,55 @@ public class SimdJsonDirectWalkerNumberTests extends SimdJsonTestCase {
         );
     }
 
+    // ---- Explicit exponents larger than a long ----
+
+    // Accumulating the exponent in a long wrapped for 20+ digit exponents: 2^64 + 1 became 1, so
+    // 1e18446744073709551617 parsed as 10.0 instead of overflowing to infinity.
+    public void testExponentLargerThanLongDoesNotWrap() {
+        for (int padding : new int[] { 0, 32, 64, 128 }) {
+            for (String huge : new String[] {
+                "18446744073709551616", // 2^64, wrapped to 0
+                "18446744073709551617", // 2^64 + 1, wrapped to 1
+                "18446744073709551626", // 2^64 + 10, wrapped to 10
+                "99999999999999999999",
+                "100000000000000000000000000000" }) {
+                assertAcceptedAtPadding(padding, "{\"n\":1e" + huge + "}", "double(n=Infinity,");
+                assertAcceptedAtPadding(padding, "{\"n\":1e+" + huge + "}", "double(n=Infinity,");
+                assertAcceptedAtPadding(padding, "{\"n\":1.5E" + huge + "}", "double(n=Infinity,");
+                assertAcceptedAtPadding(padding, "{\"n\":-1e" + huge + "}", "double(n=-Infinity,");
+                assertAcceptedAtPadding(padding, "{\"n\":1e-" + huge + "}", "double(n=0.0,");
+                assertAcceptedAtPadding(padding, "{\"n\":-1e-" + huge + "}", "double(n=-0.0,");
+                assertAcceptedAtPadding(padding, "{\"n\":0e" + huge + "}", "double(n=0.0,");
+                assertAcceptedAtPadding(
+                    padding,
+                    "{\"a\":[1e" + huge + ",1e-" + huge + "]}",
+                    "startArray(a)",
+                    "arrayElemDouble(Infinity,",
+                    "arrayElemDouble(0.0,",
+                    "endArray()"
+                );
+            }
+        }
+    }
+
+    // Leading zeros in a long exponent do not count towards its magnitude.
+    public void testExponentWithManyLeadingZerosAccepted() {
+        assertAcceptedAtAllPaddings("{\"n\":1e000000000000000000000000005}", "double(n=100000.0,");
+        assertAcceptedAtAllPaddings("{\"n\":1e-000000000000000000000000005}", "double(n=1.0E-5,");
+    }
+
+    // Like assertAcceptedAtAllPaddings, for a single padding.
+    private void assertAcceptedAtPadding(int padding, String json, String... expectedEventPrefixes) {
+        List<String> events = walkAndRecord(json, padding).events;
+        assertEquals("padding=" + padding + " json=" + json + " events: " + events, expectedEventPrefixes.length, events.size());
+        for (int i = 0; i < expectedEventPrefixes.length; i++) {
+            assertTrue(
+                "padding=" + padding + " json=" + json + " event [" + i + "]: " + events.get(i),
+                events.get(i).startsWith(expectedEventPrefixes[i])
+            );
+        }
+    }
+
     // ---- Other malformed-number shapes are rejected, not silently mis-parsed ----
 
     // Verifies json is rejected with a message containing expectedReason, not some other error .

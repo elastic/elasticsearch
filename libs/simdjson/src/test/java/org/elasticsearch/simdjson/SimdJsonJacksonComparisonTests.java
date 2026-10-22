@@ -588,6 +588,36 @@ public class SimdJsonJacksonComparisonTests extends SimdJsonTestCase {
         assertParsersAgree("{\"n\":1.5e10}");
     }
 
+    // Doubles outside the range of binary64 are not errors in either parser: Jackson (and so
+    // XContentParser) rounds them to infinity or zero, and simdjson-java must do the same, however
+    // large the exponent. Exponents of 20 or more digits exceed a long (2^64 + 1 must not wrap to 1).
+    public void testOutOfRangeDoublesAgreeWithJackson() throws IOException {
+        List<String> numbers = List.of(
+            "1e309",
+            "1.5e309",
+            "1e400",
+            "-1e400",
+            "1e-400",
+            "-1e-400",
+            "4.9e-325",
+            "1e999999999",
+            "1e-999999999",
+            "1e99999999999999999999",
+            "1e-99999999999999999999",
+            "1e18446744073709551616",
+            "1e18446744073709551617",
+            "1e-18446744073709551617",
+            "1E+18446744073709551626",
+            "0e99999999999999999999",
+            "-0e99999999999999999999",
+            "1e000000000000000000000000005"
+        );
+        for (String number : numbers) {
+            assertParsersAgree("{\"n\":" + number + "}");
+            assertParsersAgree("{\"a\":[" + number + "," + number + "]}");
+        }
+    }
+
     public void testZero() throws IOException {
         assertParsersAgree("{\"z\":0}");
     }

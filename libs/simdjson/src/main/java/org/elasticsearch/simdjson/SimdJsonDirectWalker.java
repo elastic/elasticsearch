@@ -61,6 +61,13 @@ public final class SimdJsonDirectWalker {
 
     private final FieldNameLookup nameCache;
     private final StringParser stringParser = new StringParser();
+    /**
+     * Once the explicit exponent has this many or more accumulated, further digits are ignored: any exponent of
+     * this magnitude overflows or underflows binary64 whatever the mantissa is, and stopping here keeps the
+     * accumulator from wrapping {@code long}, which would turn {@code 1e18446744073709551617} into {@code 10.0}.
+     */
+    private static final long MAX_EXPONENT_ACCUMULATOR = 1_000_000_000_000_000L;
+
     private final DoubleParser doubleParser = new DoubleParser();
     private final int maxDepth;
     private byte[] stringBuf = new byte[4096];
@@ -719,7 +726,9 @@ public final class SimdJsonDirectWalker {
             long exp = 0;
             byte ch = buffer[pos];
             while (ch >= '0' && ch <= '9') {
-                exp = exp * 10 + (ch - '0');
+                if (exp < MAX_EXPONENT_ACCUMULATOR) {
+                    exp = exp * 10 + (ch - '0');
+                }
                 ch = buffer[++pos];
             }
             if (pos == expStart) {
@@ -904,7 +913,9 @@ public final class SimdJsonDirectWalker {
             long exp = 0;
             byte ch = buffer[pos];
             while (ch >= '0' && ch <= '9') {
-                exp = exp * 10 + (ch - '0');
+                if (exp < MAX_EXPONENT_ACCUMULATOR) {
+                    exp = exp * 10 + (ch - '0');
+                }
                 ch = buffer[++pos];
             }
             if (pos == expStart) {

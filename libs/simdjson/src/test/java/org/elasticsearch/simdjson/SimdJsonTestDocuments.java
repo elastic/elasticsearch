@@ -126,13 +126,21 @@ public final class SimdJsonTestDocuments {
                 {"a":[9223372036854775807,-9223372036854775808,9223372036854775808,-9223372036854775809,99999999999999999999]}""",
                 // DoubleParser code paths (see that class's own comments): fast path,
                 // Eisel-Lemire (main, round-to-even, underflow, overflow, subnormal), and the
-                // slow path (>19 significant digits).
+                // slow path (>19 significant digits). Explicit exponents of 20+ digits (past 2^64) must
+                // saturate to infinity or zero like Jackson, not wrap.
                 """
                 {"d":1e22}""", """
                 {"d":1e23}""", """
                 {"d":9007199254740993e0}""", """
                 {"d":1e-400}""", """
                 {"d":-1e400}""", """
+                {"d":1e18446744073709551616}""", """
+                {"d":1e18446744073709551617}""", """
+                {"d":-1E+18446744073709551626}""", """
+                {"d":1e-18446744073709551617}""", """
+                {"d":1e99999999999999999999}""", """
+                {"d":0e99999999999999999999}""", """
+                {"a":[1e18446744073709551617,1e-18446744073709551617,0e99999999999999999999]}""", """
                 {"d":5e-324}""", """
                 {"d":2.2250738585072013e-308}""", """
                 {"d":100000000000000000000.000000}""",

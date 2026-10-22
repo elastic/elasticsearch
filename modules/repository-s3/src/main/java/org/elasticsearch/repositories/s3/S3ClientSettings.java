@@ -176,7 +176,7 @@ final class S3ClientSettings {
     static final Setting.AffixSetting<Boolean> LEGACY_CONTENT_MD5 = Setting.affixKeySetting(
         PREFIX,
         "legacy_content_md5",
-        key -> Setting.boolSetting(key, false, Property.NodeScope, Property.DeprecatedWarning)
+        key -> Setting.boolSetting(key, false, Property.NodeScope, Property.Deprecated)
     );
 
     /** An override for the s3 region to use for signing requests. */

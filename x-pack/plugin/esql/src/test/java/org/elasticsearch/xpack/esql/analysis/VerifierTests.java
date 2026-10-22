@@ -2437,12 +2437,12 @@ public class VerifierTests extends AnalyzerTestCase {
             "from test | limit 10 | mv_expand body | where " + functionInvocation,
             containsString("[" + functionName + "] function cannot be used after MV_EXPAND")
         );
-        // KEEP no longer blocks the function, but the MV_EXPAND earlier in the pipeline still does.
+        // KEEP doesn't block the function, but the earlier MV_EXPAND still does.
         fullText().error(
             "from test | mv_expand body | keep body | where " + functionInvocation,
             containsString("[" + functionName + "] function cannot be used after MV_EXPAND")
         );
-        // RENAME no longer blocks the function (new, non-shadowing name), but the preceding STATS still does.
+        // RENAME to a name that shadows nothing doesn't block the function, but the earlier STATS still does.
         fullText().error(
             "from test | STATS c = COUNT(id) BY category | rename c as total_categories | where " + functionInvocation,
             containsString("[" + functionName + "] function cannot be used after STATS")
@@ -2533,6 +2533,10 @@ public class VerifierTests extends AnalyzerTestCase {
             );
     }
 
+    /**
+     * COMPLETION (like RERANK) appends its output as a column named by the user, which collides with an indexed field of
+     * that name.
+     */
     public void testNonFieldBasedFullTextFunctionsRejectedWhenInferenceCommandShadowsIndexedField() throws Exception {
         for (String fn : List.of("qstr", "kql")) {
             String function = fn.toUpperCase(Locale.ROOT);

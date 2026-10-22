@@ -411,20 +411,21 @@ public abstract class FullTextFunction extends Function
     /**
      * Returns the command name and indexed field it redefines if {@code lp} introduces a new attribute whose name
      * collides with {@code indexedNames}, or {@code null} otherwise. Deliberately checks only the names a node
-     * actually *introduces*, never its full output - most of a node's output is just indexed fields passed through
+     * actually <em>introduces</em>, never its full output - most of a node's output is just indexed fields passed through
      * unchanged from its child, which would otherwise always spuriously "match".
      * <p>
-     * Names the command directly per type rather than reusing {@code checkCommandsBeforeExpression}'s
-     * {@code sourceText().split(" ")[0]} trick: that breaks for the multi-word {@code LOOKUP JOIN} (it would yield
-     * just {@code "LOOKUP"}) - the same reason {@code TopN} already needs a hardcoded override there.
+     * Most commands are named by the first word of their source text, as {@code checkCommandsBeforeExpression} does.
+     * {@code Project} and {@code Join} are named explicitly instead: a {@code Project} is the lowered form of
+     * {@code RENAME}, and the first word of {@code LOOKUP JOIN} would be just {@code "LOOKUP"} - the same reason
+     * {@code TopN} needs a hardcoded override there.
      */
     private static ShadowingCommand asShadowingCommand(LogicalPlan lp, Set<String> indexedNames) {
         String commandName;
         List<String> introducedNames;
         if (lp instanceof GeneratingPlan<?> generating) {
-            // EVAL, ENRICH, GROK, DISSECT, URI_PARTS, USER_AGENT, IP_LOCATION, REGISTERED_DOMAIN, COMPLETION and RERANK all
-            // append their output columns, and PushDownAndCombineFilters pushes a reference-free filter past each of them.
-            // Their keywords are one word, so the first token of the source text names the command.
+            // EVAL, ENRICH, GROK, DISSECT, URI_PARTS, USER_AGENT, IP_LOCATION, REGISTERED_DOMAIN, COMPLETION, RERANK and
+            // HIGHLIGHT all append their output columns, and PushDownAndCombineFilters pushes a reference-free filter past each
+            // of them. Their keywords are one word, so the first token of the source text names the command.
             commandName = lp.sourceText().split(" ")[0].toUpperCase(Locale.ROOT);
             introducedNames = generating.generatedAttributes().stream().map(Attribute::name).toList();
         } else if (lp instanceof Project project) {
@@ -447,7 +448,7 @@ public abstract class FullTextFunction extends Function
                 .map(Attribute::name)
                 .toList();
         } else {
-            // Filter, OrderBy, EsRelation, Sample, ParameterizedQuery, MvExpand introduce no new name.
+            // Other commands either introduce no name (Filter, OrderBy, Sample, ...) or are rejected by the position check.
             return null;
         }
         String fieldName = introducedNames.stream().filter(indexedNames::contains).findFirst().orElse(null);
@@ -477,10 +478,13 @@ public abstract class FullTextFunction extends Function
     }
 
     /**
-     * Like the overload above, and additionally rejects a command that {@code shadowCheck} says introduces a name
-     * colliding with a field of the index. QSTR/KQL name their fields inside an opaque string, so the optimizer can push
-     * them below such a command, where the string would silently resolve against the raw indexed field instead of the
-     * redefined column. A command that fails {@code commandCheck} is reported once, without also being checked for shadowing.
+     * Checks that every command before the function satisfies {@code commandCheck}, and that none of them introduces a name
+     * that {@code shadowCheck} reports as colliding with a field of the index. QSTR/KQL name their fields inside an opaque
+     * string, so the optimizer can push them below such a command, where the string would silently resolve against the raw
+     * indexed field instead of the redefined column. A command that fails {@code commandCheck} is reported once, without
+     * also being checked for shadowing.
+     * <p>
+     * The parameters are the same as for the overload without {@code shadowCheck}, which never reports shadowing.
      *
      * @param shadowCheck returns the shadowing command and field for a plan node, or {@code null} if it shadows nothing
      */
@@ -546,7 +550,7 @@ public abstract class FullTextFunction extends Function
                     // An alignment node the analyzer inserted into a UnionAll branch has no command of its own, e.g.
                     // `TOLONG(counter) AS counter`, added because counter metrics can't flow through a UnionAll. It inherits
                     // the whole FROM clause as its source text. Naming it "EVAL" would point the user at a command they never
-                    // wrote and a field they never mentioned, so report the FROM clause instead, as the old allow-list did.
+                    // wrote and a field they never mentioned, so report the FROM clause instead, like the other positional rejections.
                     failures.add(
                         fail(plan, "{} cannot be used after {}", typeErrorMsgProvider.apply(exp), abbreviateSource(lp.sourceText()))
                     );

@@ -955,7 +955,8 @@ public enum IndexMode {
     }
 
     /**
-     * Returns all available index modes.
+     * Returns the index modes that are available in the current build. Every mode is available today, but callers use this
+     * rather than {@link #values()} so that a future mode gated behind a feature flag can be filtered out in one place.
      */
     public static IndexMode[] availableModes() {
         return values();

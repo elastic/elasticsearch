@@ -185,7 +185,7 @@ A successful request returns `{"acknowledged": true}`.
 
    **Format** is detected as **Parquet** from the file extension.
 5. Click **Next**, then click **Next** again to keep the default **Optional settings**.
-6. On the **Schema mappings** step, turn off **Enable time-based filtering**, then click **Next**. The Ookla files have no date column to map to `@timestamp`, so the step can't continue while this setting is on. With the setting off, the step leaves **Infer unmapped fields** selected, so {{es}} infers every column from the Parquet files:
+6. On the **Schema mappings** step, turn off **Enable time-based filtering**, then click **Next**. The Ookla files have no date column to map to `@timestamp`, so you can't move to the next step while this setting is on. With the setting off, the step leaves **Infer unmapped fields** selected, so {{es}} infers every column from the Parquet files:
 
    ![The Schema mappings step with Enable time-based filtering turned off and Infer unmapped fields selected](images/data-federation/add-dataset-schema-mappings-time-filter-off.png)
 7. On the **Review** step, click **Add dataset**.

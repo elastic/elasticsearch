@@ -28,6 +28,7 @@ import org.apache.arrow.vector.complex.impl.UnionListWriter;
 import org.apache.arrow.vector.ipc.ArrowStreamReader;
 import org.apache.arrow.vector.ipc.ArrowStreamWriter;
 import org.apache.arrow.vector.types.Types;
+import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.util.VectorSchemaRootAppender;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
@@ -377,6 +378,82 @@ public class ArrowResponseTests extends ESTestCase {
         compareEsqlAndArrow(testCase);
     }
 
+    public void testDropMiddleColumn() throws IOException {
+        List<TestColumn> columns = List.of(
+            TestColumn.create("first", DataType.INTEGER, false),
+            TestColumn.create("dropped", DataType.LONG, false),
+            TestColumn.create("last", DataType.TEXT, false)
+        );
+        TestCase testCase = new TestCase(
+            columns,
+            List.of(new TestPage(columns.stream().map(c -> TestBlock.create(blockFactory, c, Density.Dense, 5)).toList()))
+        );
+
+        try (testCase; VectorSchemaRoot root = toArrowVectors(testCase, new boolean[] { false, true, false })) {
+            assertEquals(List.of("first", "last"), root.getSchema().getFields().stream().map(Field::getName).toList());
+            compareEsqlAndArrow(testCase, 0, root, 0);
+            compareEsqlAndArrow(testCase, 2, root, 1);
+        }
+    }
+
+    public void testDroppedUnsupportedColumnIsNotValidated() throws IOException {
+        assertFalse(ArrowResponse.ESQL_FORMATTERS.containsKey(DataType.DENSE_VECTOR));
+        List<TestColumn> columns = List.of(
+            new TestColumn("unsupported", DataType.DENSE_VECTOR, NULL_VALUES, false),
+            TestColumn.create("retained", DataType.INTEGER, false)
+        );
+        TestCase testCase = new TestCase(
+            columns,
+            List.of(
+                new TestPage(
+                    List.of(
+                        TestBlock.create(blockFactory, columns.get(0), Density.Empty, 5),
+                        TestBlock.create(blockFactory, columns.get(1), Density.Dense, 5)
+                    )
+                )
+            )
+        );
+
+        try (testCase; VectorSchemaRoot root = toArrowVectors(testCase, new boolean[] { true, false })) {
+            assertEquals(List.of("retained"), root.getSchema().getFields().stream().map(Field::getName).toList());
+            compareEsqlAndArrow(testCase, 1, root, 0);
+        }
+    }
+
+    public void testDropAllColumns() throws IOException {
+        List<TestColumn> columns = List.of(
+            TestColumn.create("first", DataType.INTEGER, false),
+            TestColumn.create("second", DataType.TEXT, false)
+        );
+        TestCase testCase = new TestCase(
+            columns,
+            List.of(new TestPage(columns.stream().map(c -> TestBlock.create(blockFactory, c, Density.Empty, 5)).toList()))
+        );
+
+        try (testCase; VectorSchemaRoot root = toArrowVectors(testCase, new boolean[] { true, true })) {
+            assertTrue(root.getSchema().getFields().isEmpty());
+            assertEquals(5, root.getRowCount());
+        }
+    }
+
+    public void testZeroPages() throws IOException {
+        TestColumn column = TestColumn.create("only", DataType.INTEGER, false);
+        TestCase testCase = new TestCase(List.of(column), List.of());
+
+        try (testCase; VectorSchemaRoot root = toArrowVectors(testCase)) {
+            assertEquals(List.of("only"), root.getSchema().getFields().stream().map(Field::getName).toList());
+            assertEquals(0, root.getRowCount());
+        }
+    }
+
+    public void testDropColumnsRequiresOneEntryPerColumn() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new ArrowResponse(List.of(new ArrowResponse.Column(DataType.INTEGER, "only")), List.of(), new boolean[0])
+        );
+        assertEquals("Expected one drop-columns entry per column, but got [0] entries for [1] columns", e.getMessage());
+    }
+
     /**
      * Test a multivalued field with fixed size values.
      */
@@ -471,6 +548,37 @@ public class ArrowResponseTests extends ESTestCase {
         try (testCase; VectorSchemaRoot root = toArrowVectors(testCase)) {
             compareEsqlAndArrow(testCase, root);
             assertListLayout((ListVector) root.getVector("some-field"), 0, 2, 2, 2);
+        }
+    }
+
+    public void testMultivaluedColumnDetectedOnLaterPage() throws IOException {
+        IntBlock singleValueBlock;
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(1)) {
+            singleValueBlock = builder.appendInt(1).build();
+        }
+        IntBlock multivaluedBlock;
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(1)) {
+            builder.beginPositionEntry();
+            builder.appendInt(2);
+            builder.appendInt(3);
+            builder.endPositionEntry();
+            multivaluedBlock = builder.build();
+        }
+        assertFalse(singleValueBlock.mayHaveMultivaluedFields());
+        assertTrue(multivaluedBlock.mayHaveMultivaluedFields());
+
+        TestColumn column = TestColumn.create("some-field", DataType.INTEGER, true);
+        TestCase testCase = new TestCase(
+            List.of(column),
+            List.of(
+                new TestPage(List.of(TestBlock.create(column, singleValueBlock))),
+                new TestPage(List.of(TestBlock.create(column, multivaluedBlock)))
+            )
+        );
+
+        try (testCase; VectorSchemaRoot root = toArrowVectors(testCase)) {
+            compareEsqlAndArrow(testCase, root);
+            assertListLayout((ListVector) root.getVector("some-field"), 0, 1, 3);
         }
     }
 
@@ -715,34 +823,42 @@ public class ArrowResponseTests extends ESTestCase {
 
     private void compareEsqlAndArrow(TestCase testCase, VectorSchemaRoot root) {
         for (int i = 0; i < testCase.columns.size(); i++) {
-
-            // Check esql type in the metadata
-            var metadata = root.getSchema().getFields().get(i).getMetadata();
-            assertEquals(testCase.columns.get(i).type.outputType(), metadata.get(BlockArrowFormatter.ESQL_TYPE_METADATA));
-
-            // Check values
-            var esqlValuesIterator = new EsqlValuesIterator(testCase, i);
-            var arrowValuesIterator = new ArrowValuesIterator(testCase, root, i);
-
-            int line = 0;
-
-            while (esqlValuesIterator.hasNext() && arrowValuesIterator.hasNext()) {
-                Object esqlValue = esqlValuesIterator.next();
-                Object arrowValue = arrowValuesIterator.next();
-                assertEquals(("line " + line), esqlValue, arrowValue);
-                line++;
-            }
-
-            // Make sure we entirely consumed both sides.
-            assertFalse(esqlValuesIterator.hasNext());
-            assertFalse(arrowValuesIterator.hasNext());
+            compareEsqlAndArrow(testCase, i, root, i);
         }
     }
 
+    private void compareEsqlAndArrow(TestCase testCase, int esqlColumn, VectorSchemaRoot root, int arrowColumn) {
+        // Check esql type in the metadata
+        var metadata = root.getSchema().getFields().get(arrowColumn).getMetadata();
+        assertEquals(testCase.columns.get(esqlColumn).type.outputType(), metadata.get(BlockArrowFormatter.ESQL_TYPE_METADATA));
+
+        // Check values
+        var esqlValuesIterator = new EsqlValuesIterator(testCase, esqlColumn);
+        var arrowValuesIterator = new ArrowValuesIterator(root.getVector(arrowColumn), testCase.columns.get(esqlColumn).valueType);
+
+        int line = 0;
+
+        while (esqlValuesIterator.hasNext() && arrowValuesIterator.hasNext()) {
+            Object esqlValue = esqlValuesIterator.next();
+            Object arrowValue = arrowValuesIterator.next();
+            assertEquals(("line " + line), esqlValue, arrowValue);
+            line++;
+        }
+
+        // Make sure we entirely consumed both sides.
+        assertFalse(esqlValuesIterator.hasNext());
+        assertFalse(arrowValuesIterator.hasNext());
+    }
+
     private VectorSchemaRoot toArrowVectors(TestCase testCase) throws IOException {
+        return toArrowVectors(testCase, new boolean[testCase.columns.size()]);
+    }
+
+    private VectorSchemaRoot toArrowVectors(TestCase testCase, boolean[] dropColumns) throws IOException {
         ArrowResponse response = new ArrowResponse(
             testCase.columns.stream().map(c -> new ArrowResponse.Column(c.type, c.name)).toList(),
-            testCase.pages.stream().map(p -> new Page(p.blocks.stream().map(b -> b.block).toArray(Block[]::new))).toList()
+            testCase.pages.stream().map(p -> new Page(p.blocks.stream().map(b -> b.block).toArray(Block[]::new))).toList(),
+            dropColumns
         );
 
         assertEquals("application/vnd.apache.arrow.stream", response.getResponseContentTypeString());

@@ -291,6 +291,22 @@ public class KqlFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testWhereKqlOnColumnDroppedByProjection() {
+        var query = """
+            FROM test
+            | DROP content
+            | WHERE KQL("content: fox")
+            | KEEP id
+            | SORT id
+            """;
+
+        // KQL searches the index, so it still matches on the dropped column
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertValues(resp.values(), List.of(List.of(2), List.of(3), List.of(4), List.of(5)));
+        }
+    }
+
     public void testKqlBeforeSample() {
         var query = """
             FROM test

@@ -199,6 +199,31 @@ and the `:` operator. Other search functions, such as
 still not supported after `INLINE STATS`. A `STATS` command before the search function still
 causes the query to fail, even if an `INLINE STATS` comes after it.
 
+#### `KQL` and `QSTR` after other commands
+
+`KQL` and `QSTR` can also follow [`EVAL`](/reference/query-languages/esql/commands/eval.md),
+[`ENRICH`](/reference/query-languages/esql/commands/enrich.md),
+[`GROK`](/reference/query-languages/esql/commands/grok.md),
+[`DISSECT`](/reference/query-languages/esql/commands/dissect.md),
+[`KEEP`](/reference/query-languages/esql/commands/keep.md),
+[`DROP`](/reference/query-languages/esql/commands/drop.md),
+[`RENAME`](/reference/query-languages/esql/commands/rename.md), and
+[`LOOKUP JOIN`](/reference/query-languages/esql/commands/lookup-join.md), as long as the command
+does not create a column with the same name as a field in the index. In that case the query fails,
+because the query string names its fields inside the string and {{esql}} can't tell which of the
+two it refers to.
+
+```esql
+FROM books
+| EVAL year_text = TO_STRING(year)
+| WHERE QSTR("author: Faulkner")
+```
+
+`KQL` and `QSTR` always search the fields of the index. They never search columns that other commands
+created, such as a column from `EVAL` or a column that comes from the lookup index of a `LOOKUP JOIN`.
+A query string that names such a column matches no rows. They also still search a field that `KEEP`
+or `DROP` removed from the results, because those commands only change the columns that are returned.
+
 ### Runtime search on expressions [esql-limitations-full-text-search-expressions]
 
 {applies_to}`stack: preview =9.5, ga 9.6+` {applies_to}`serverless: ga`

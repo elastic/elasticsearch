@@ -298,6 +298,22 @@ public class QueryStringIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testWhereQstrOnColumnDroppedByProjection() {
+        var query = """
+            FROM test
+            | DROP content
+            | WHERE QSTR("content: fox")
+            | KEEP id
+            | SORT id
+            """;
+
+        // QSTR searches the index, so it still matches on the dropped column
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertValues(resp.values(), List.of(List.of(2), List.of(3), List.of(4), List.of(5)));
+        }
+    }
+
     public void testQstrAfterInlineStats() {
         assumeTrue(
             "requires full-text functions after INLINE STATS support",

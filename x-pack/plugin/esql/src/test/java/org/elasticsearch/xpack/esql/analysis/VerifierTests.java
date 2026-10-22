@@ -2478,6 +2478,18 @@ public class VerifierTests extends AnalyzerTestCase {
     }
 
     /**
+     * QSTR/KQL read the index mapping, not ES|QL columns, so dropping a column does not stop the query string from
+     * searching that field. This is accepted on purpose, the same as the query string right after {@code FROM}.
+     */
+    public void testNonFieldBasedFullTextFunctionsMaySearchColumnsRemovedByProjection() throws Exception {
+        for (String fn : List.of("qstr", "kql")) {
+            fullText().query("from test | drop title | where " + fn + "(\"title: Meditation\")");
+            fullText().query("from test | keep category | where " + fn + "(\"title: Meditation\")");
+            fullText().query("from test | rename title as name | where " + fn + "(\"title: Meditation\")");
+        }
+    }
+
+    /**
      * Mirror image of {@link #testNonFieldBasedFullTextFunctionsAllowedAfterNonShadowingCommands}: the same
      * commands are rejected again when they introduce an attribute whose name collides with a real indexed field,
      * because QSTR/KQL's query-string field reference is opaque text the optimizer can't track - unlike MATCH,

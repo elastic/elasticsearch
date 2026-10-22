@@ -517,3 +517,6 @@ tests:
 - class: org.elasticsearch.xpack.wildcard.search.WildcardAutomatonBreakerIT
   method: testAutomatonStaysChargedUntilSearchContextReleased
   issue: https://github.com/elastic/elasticsearch/issues/162754
+- class: org.elasticsearch.columnar.string.StringColumnMetadataTests
+  method: testRoundTrip
+  issue: https://github.com/elastic/elasticsearch/issues/162976

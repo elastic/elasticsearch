@@ -1,0 +1,13 @@
+area: "Mapping, Mapping"
+breaking:
+  area: "Mapping, Mapping"
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false
+  title: Make norms non-updatable
+issues:
+ - 161534
+pr: 161601
+summary: Make norms non-updatable
+type: "breaking, bug"

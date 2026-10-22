@@ -10,7 +10,7 @@ products:
 
 # Dataset settings reference for {{esql}} Data Federation
 
-Dataset settings control how the files in a dataset are discovered, parsed, and reconciled. Add settings to the `settings` object when you [create or update a dataset](esql-data-federation-manage-datasets.md#create-or-update-a-dataset).
+Dataset settings control how the files in a dataset are discovered, parsed, and reconciled. Add settings to the `settings` object when you [create or update a dataset](esql-data-federation-manage-datasets-api.md#create-or-update-a-dataset).
 
 :::{include} _snippets/data-federation/experimental-warning.md
 :::

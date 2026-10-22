@@ -155,9 +155,9 @@ Files without a modification time sort as the oldest. Equal modification times u
 
 ## Declare a schema explicitly
 
-By default, a dataset's schema is inferred from its files. To control column names and types, add an optional `mappings` block to the [create or update request](esql-data-federation-manage-datasets.md#create-or-update-a-dataset).
+By default, a dataset's schema is inferred from its files. To control column names and types, add an optional `mappings` block to the [create or update request](esql-data-federation-manage-datasets-api.md#create-or-update-a-dataset).
 
-{applies_to}`stack: experimental 9.6+` You can also declare columns in the **Schema mappings** step when you [add a dataset in {{kib}}](esql-data-federation-manage-datasets.md#schema-mappings). The step's controls set the same properties:
+{applies_to}`stack: experimental 9.6+` You can also declare columns in the **Schema mappings** step when you [add a dataset in {{kib}}](esql-data-federation-manage-datasets-ui.md#schema-mappings). The step's controls set the same properties:
 
 - **Use mapped fields only** sets `dynamic` to `false`.
 - **Original field name** sets `path`.

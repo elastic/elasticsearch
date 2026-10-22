@@ -11,7 +11,7 @@ applies_to:
 * Stop {{es}} from starting merges when the node is low on disk space, using the `indices.merge.disk.*` settings.
 * Lower peak memory usage during merging, for example on nodes that run out of memory while merging large HNSW vector graphs, using `indices.merge.thread_pool.max_size_factor`.
 
-These settings apply to all shards on a node, and aren't index settings. You set them in `elasticsearch.yml` or, for the dynamic settings, with the [update cluster settings](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings) API. You can't set them with the update index settings API.
+These settings apply to all shards on a node.
 
 ## How node-level and index-level merge settings work together [merge-settings-interaction]
 
@@ -37,7 +37,7 @@ Merging needs temporary disk space for the new segment, in addition to the space
 
 By default, the merge watermark uses the same value as the [flood stage disk watermark](/reference/elasticsearch/configuration-reference/cluster-level-shard-allocation-routing-settings.md#cluster-routing-flood-stage) (`cluster.routing.allocation.disk.watermark.flood_stage`), and the max headroom uses the value of `cluster.routing.allocation.disk.watermark.flood_stage.max_headroom`. As a result, merging stops at the same point where {{es}} would make indices on the node read-only. To keep more free disk space on the node, set `indices.merge.disk.watermark.high` to a lower value.
 
-The merge scheduler supports the following *dynamic* settings:
+The merge scheduler supports the following settings:
 
 `indices.merge.disk.check_interval`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), [time value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) The time interval for checking the available disk space. Defaults to `5s`.
@@ -57,9 +57,9 @@ This caps the amount of free disk space before merge scheduling is blocked.
 
 Merges run on the dedicated [`merge` thread pool](/reference/elasticsearch/configuration-reference/thread-pool-settings.md#merge-threadpool), which is shared by **all** the shards on the node.
 
-The merge scheduler also supports the following *static* node-level setting, which takes effect only on node restart:
+The merge scheduler supports the following node-level setting:
 
 `indices.merge.thread_pool.max_size_factor` {applies_to}`stack: ga 9.6`
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) A factor in the range `(0, 1]` that reduces the maximum size of the [`merge` thread pool](/reference/elasticsearch/configuration-reference/thread-pool-settings.md#merge-threadpool), which runs merges for **all** the shards on the node. The result is rounded to the nearest integer and never lower than `1`. Lowering the factor, for example, to `0.5`, reduces how many merges can run concurrently across **all** the shards on the node, which lowers peak merge memory usage at the cost of merge throughput. Defaults to `1`.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) A factor in the range `(0, 1]` that reduces the maximum size of the [`merge` thread pool](/reference/elasticsearch/configuration-reference/thread-pool-settings.md#merge-threadpool), which runs merges for all the shards on the node. The result is rounded to the nearest integer and never lower than `1`. Lowering the factor, for example, to `0.5`, reduces how many merges can run concurrently across all the shards on the node, which lowers peak merge memory usage at the cost of merge throughput. Defaults to `1`.
 
     If `thread_pool.merge.max` is explicitly configured, that value is used regardless of this factor. When neither is set, the pool maximum is the number of [allocated processors](/reference/elasticsearch/configuration-reference/thread-pool-settings.md#node.processors).

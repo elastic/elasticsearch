@@ -51,14 +51,14 @@ $$$cluster-routing-allocation-total-shards-per-node$$$
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Maximum number of primary and replica shards 
 allocated to each node. Defaults to `-1` (unlimited).
 
-{{es}} checks this setting during shard allocation. For example, a cluster has a `cluster.routing.allocation.total_shards_per_node` 
+    {{es}} checks this setting during shard allocation. For example, a cluster has a `cluster.routing.allocation.total_shards_per_node` 
 setting of `100` and three nodes with the following shard allocations:
 
-* Node A: 100 shards
-* Node B: 98 shards
-* Node C: 1 shard
+    * Node A: 100 shards
+    * Node B: 98 shards
+    * Node C: 1 shard
 
-If node C fails, {{es}} reallocates its shard to node B. Reallocating the shard to node A would exceed node A’s shard limit.
+    If node C fails, {{es}} reallocates its shard to node B. Reallocating the shard to node A would exceed node A’s shard limit.
 
 
 `cluster.routing.allocation.node_concurrent_incoming_recoveries`

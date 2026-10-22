@@ -24,7 +24,7 @@ $$$total-shards-per-node$$$
 $$$cluster-total-shards-per-node$$$
 
 ::::{note}
-To also limit the number of shards a node can have regardless of the index, use the node-level [`cluster.routing.allocation.total_shards_per_node`](/reference/elasticsearch/configuration-reference/cluster-level-shard-allocation-routing-settings.md#cluster-routing-allocation-total-shards-per-node) cluster setting. It applies across all indices on a node and can't be set with the update index settings API.
+To also limit the number of shards a node can have regardless of the index, use the node-level [`cluster.routing.allocation.total_shards_per_node`](/reference/elasticsearch/configuration-reference/cluster-level-shard-allocation-routing-settings.md#cluster-routing-allocation-total-shards-per-node) cluster setting. It applies across all indices on a node.
 ::::
 
 ::::{warning}

@@ -81,7 +81,7 @@ public class InnerJoinMapperTests extends ESTestCase {
         assertThat(join.addedFields(), hasItem(sameInstance(ordinal)));
     }
 
-    public void testOnlyMaterializedSubqueryJoinEnablesRepeatedKeyMode() {
+    public void testOnlyMaterializedSubqueryJoinUsesSubqueryJoinMode() {
         var blockFactory = TestBlockFactory.getNonBreakingInstance();
         ReferenceAttribute leftKey = new ReferenceAttribute(Source.EMPTY, "k", DataType.LONG);
         ReferenceAttribute rightKey = new ReferenceAttribute(Source.EMPTY, "k", DataType.LONG);
@@ -101,25 +101,32 @@ public class InnerJoinMapperTests extends ESTestCase {
                 )
             )
         );
-        MaterializedSubqueryJoin materialized = new MaterializedSubqueryJoin(
-            Source.EMPTY,
-            left,
-            right,
-            JoinTypes.LEFT,
-            List.of(leftKey),
-            List.of(rightKey),
-            null,
-            ExecuteLocation.ANY
-        );
+        for (var type : List.of(JoinTypes.LEFT, JoinTypes.INNER)) {
+            MaterializedSubqueryJoin materialized = new MaterializedSubqueryJoin(
+                Source.EMPTY,
+                left,
+                right,
+                type,
+                List.of(leftKey),
+                List.of(rightKey),
+                null,
+                ExecuteLocation.ANY
+            );
+            HashJoinExec.Mode expectedMode = type == JoinTypes.INNER ? HashJoinExec.Mode.INNER : HashJoinExec.Mode.LEFT_OUTER;
 
-        HashJoinExec mapped = as(new Mapper().map(new Versioned<>(materialized, TransportVersion.current())), HashJoinExec.class);
-        HashJoinExec localMapped = as(LocalMapper.INSTANCE.map(materialized), HashJoinExec.class);
-        assertTrue(mapped.repeatedKeys());
-        assertTrue(localMapped.repeatedKeys());
+            HashJoinExec mapped = as(new Mapper().map(new Versioned<>(materialized, TransportVersion.current())), HashJoinExec.class);
+            HashJoinExec localMapped = as(LocalMapper.INSTANCE.map(materialized), HashJoinExec.class);
+            assertThat(mapped.mode(), equalTo(expectedMode));
+            assertThat(localMapped.mode(), equalTo(expectedMode));
+            assertThat(mapped.output(), equalTo(materialized.output()));
+            assertThat(localMapped.output(), equalTo(materialized.output()));
+        }
 
         Join ordinary = new Join(Source.EMPTY, left, right, JoinTypes.LEFT, List.of(leftKey), List.of(rightKey), null, ExecuteLocation.ANY);
-        assertFalse(as(new Mapper().map(new Versioned<>(ordinary, TransportVersion.current())), HashJoinExec.class).repeatedKeys());
-        assertFalse(as(LocalMapper.INSTANCE.map(ordinary), HashJoinExec.class).repeatedKeys());
+        HashJoinExec.Mode ordinaryMode = as(new Mapper().map(new Versioned<>(ordinary, TransportVersion.current())), HashJoinExec.class)
+            .mode();
+        assertThat(ordinaryMode, equalTo(HashJoinExec.Mode.INLINE_STATS));
+        assertThat(as(LocalMapper.INSTANCE.map(ordinary), HashJoinExec.class).mode(), equalTo(HashJoinExec.Mode.INLINE_STATS));
     }
 
     private static InnerJoin innerJoin(boolean unique) {

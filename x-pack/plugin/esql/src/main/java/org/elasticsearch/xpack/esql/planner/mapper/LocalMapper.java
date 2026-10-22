@@ -170,8 +170,7 @@ public class LocalMapper {
                         localData,
                         config.leftFields(),
                         config.rightFields(),
-                        join.rightOutputFields(),
-                        false
+                        join.rightOutputFields()
                     );
                 } else {
                     throw new EsqlIllegalArgumentException("Unsupported right plan for join [" + binary.right().nodeName() + "]");

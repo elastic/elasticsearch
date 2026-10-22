@@ -273,6 +273,55 @@ emp_no:integer | language_code:integer | language_name:keyword
 10005          | 1                     | English
 ;
 
+leftOuterJoinIndexTargetWithShadowing
+required_capability: join_on_subquery
+
+ROW left = "left", message = "Connected to 10.1.0.1", type = "unknown", right = "right"
+| LEFT OUTER JOIN message_types_lookup ON message
+;
+
+left:keyword | message:keyword       | right:keyword | type:keyword
+left         | Connected to 10.1.0.1 | right         | Success
+;
+
+innerJoinIndexTargetWithShadowing
+required_capability: join_on_subquery
+
+ROW left = "left", message = "Connected to 10.1.0.1", type = "unknown", right = "right"
+| INNER JOIN message_types_lookup ON message
+;
+
+left:keyword | message:keyword       | right:keyword | type:keyword
+left         | Connected to 10.1.0.1 | right         | Success
+;
+
+leftOuterJoinSubqueryWithShadowing
+required_capability: join_on_subquery
+
+ROW left = "left", language_code = [1, 99], language_name = "unknown", right = "right"
+| MV_EXPAND language_code
+| LEFT OUTER JOIN (FROM languages_lookup | WHERE language_code < 3) ON language_code
+| SORT language_code
+;
+
+left:keyword | language_code:integer | right:keyword | language_name:keyword
+left         | 1                     | right         | English
+left         | 99                    | right         | null
+;
+
+innerJoinSubqueryWithShadowing
+required_capability: join_on_subquery
+
+ROW left = "left", language_code = [1, 99], language_name = "unknown", right = "right"
+| MV_EXPAND language_code
+| INNER JOIN (FROM languages_lookup | WHERE language_code < 3) ON language_code
+| SORT language_code
+;
+
+left:keyword | language_code:integer | right:keyword | language_name:keyword
+left         | 1                     | right         | English
+;
+
 leftOuterJoinSubqueryOnTwoKeys
 required_capability: join_on_subquery
 

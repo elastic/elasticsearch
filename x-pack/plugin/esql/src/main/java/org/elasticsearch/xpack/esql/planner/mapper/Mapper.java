@@ -96,35 +96,23 @@ public class Mapper {
     }
 
     static PhysicalPlan mapMaterializedSubqueryJoin(Join join, PhysicalPlan left, LocalSourceExec localData) {
-        List<Attribute> rightOutputFields = join.rightOutputFields();
+        HashJoinExec.Mode mode;
         if (join.config().type() == JoinTypes.INNER) {
-            var marker = newJoinMarker(join.source());
-            List<Attribute> addedFields = new ArrayList<>(rightOutputFields);
-            addedFields.add(marker);
-            PhysicalPlan mapped = new HashJoinExec(
-                join.source(),
-                left,
-                localData,
-                join.config().leftFields(),
-                join.config().rightFields(),
-                addedFields,
-                true
-            );
-            mapped = new FilterExec(join.source(), mapped, new IsNotNull(join.source(), marker));
-            return new ProjectExec(join.source(), mapped, join.output());
+            mode = HashJoinExec.Mode.INNER;
+        } else if (join.config().type() == JoinTypes.LEFT) {
+            mode = HashJoinExec.Mode.LEFT_OUTER;
+        } else {
+            throw new EsqlIllegalArgumentException("unsupported join type [" + join.config().type() + "]");
         }
-        if (join.config().type() == JoinTypes.LEFT) {
-            return new HashJoinExec(
-                join.source(),
-                left,
-                localData,
-                join.config().leftFields(),
-                join.config().rightFields(),
-                rightOutputFields,
-                true
-            );
-        }
-        throw new EsqlIllegalArgumentException("unsupported join type [" + join.config().type() + "]");
+        return new HashJoinExec(
+            join.source(),
+            left,
+            localData,
+            join.config().leftFields(),
+            join.config().rightFields(),
+            join.rightOutputFields(),
+            mode
+        );
     }
 
     public PhysicalPlan map(Versioned<LogicalPlan> versionedPlan) {
@@ -334,8 +322,7 @@ public class Mapper {
                     localData,
                     config.leftFields(),
                     config.rightFields(),
-                    join.rightOutputFields(),
-                    false
+                    join.rightOutputFields()
                 );
             }
             if (right instanceof FragmentExec fragment) {

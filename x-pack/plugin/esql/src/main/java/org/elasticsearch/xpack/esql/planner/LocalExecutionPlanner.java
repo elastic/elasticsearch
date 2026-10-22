@@ -1733,8 +1733,10 @@ public class LocalExecutionPlanner {
         }
 
         // Load the "positions" of each match
-        source = source.with(new RowInTableLookupOperator.Factory(keys, blockMapping, join.repeatedKeys(), join.source()), layout);
-        if (join.repeatedKeys()) {
+        boolean repeatedKeys = join.mode() != HashJoinExec.Mode.INLINE_STATS;
+        boolean dropUnmatched = join.mode() == HashJoinExec.Mode.INNER;
+        source = source.with(new RowInTableLookupOperator.Factory(keys, blockMapping, repeatedKeys, dropUnmatched, join.source()), layout);
+        if (repeatedKeys) {
             source = source.with(new MvExpandOperator.Factory(positionsChannel, MV_EXPAND_BLOCK_SIZE), layout);
         }
 

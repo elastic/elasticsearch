@@ -111,7 +111,8 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
         return matchesRegex(
-            "RowInTableLookup\\[keys=\\[\\{name=foo, type=LONG, positions=4, size=\\d+b}], mapping=\\[0], repeatedKeys=false]"
+            "RowInTableLookup\\[keys=\\[\\{name=foo, type=LONG, positions=4, size=\\d+b}], mapping=\\[0], "
+                + "repeatedKeys=false, dropUnmatched=false]"
         );
     }
 
@@ -139,6 +140,52 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
             )
         );
         assertSimpleOutput(runner.deepCopy(), results, 1, 2);
+    }
+
+    public void testDropUnmatched() {
+        var runner = new TestDriverRunner().builder(driverContext());
+        BlockFactory blockFactory = runner.blockFactory();
+        runner.input(
+            new Page(blockFactory.newLongArrayVector(new long[] { 1, 3, 7, 1 }, 4).asBlock()),
+            new Page(blockFactory.newLongArrayVector(new long[] { 3, 4 }, 2).asBlock()),
+            new Page(blockFactory.newLongArrayVector(new long[] { 7 }, 1).asBlock())
+        );
+        boolean repeatedKeys = randomBoolean();
+        long[] buildKeys = repeatedKeys ? new long[] { 1, 7, 1 } : new long[] { 1, 7 };
+        List<Page> results = runner.run(
+            new RowInTableLookupOperator.Factory(
+                new RowInTableLookupOperator.Key[] {
+                    new RowInTableLookupOperator.Key(
+                        "foo",
+                        TestBlockFactory.getNonBreakingInstance().newLongArrayVector(buildKeys, buildKeys.length).asBlock()
+                    ) },
+                new int[] { 0 },
+                repeatedKeys,
+                true,
+                TEST_SOURCE
+            )
+        );
+        List<Long> keys = new ArrayList<>();
+        List<List<Integer>> rows = new ArrayList<>();
+        try {
+            for (Page page : results) {
+                LongBlock key = page.getBlock(0);
+                IntBlock row = page.getBlock(1);
+                for (int p = 0; p < page.getPositionCount(); p++) {
+                    keys.add(key.getLong(key.getFirstValueIndex(p)));
+                    List<Integer> matched = new ArrayList<>();
+                    for (int v = 0; v < row.getValueCount(p); v++) {
+                        matched.add(row.getInt(row.getFirstValueIndex(p) + v));
+                    }
+                    rows.add(matched);
+                }
+            }
+        } finally {
+            results.forEach(Page::releaseBlocks);
+        }
+        assertThat(keys, equalTo(List.of(1L, 7L, 1L, 7L)));
+        List<Integer> matchesOfOne = repeatedKeys ? List.of(0, 2) : List.of(0);
+        assertThat(rows, equalTo(List.of(matchesOfOne, List.of(1), matchesOfOne, List.of(1))));
     }
 
     /**
@@ -336,8 +383,10 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
                                 actual.add(matches.getInt(matches.getFirstValueIndex(i) + v));
                             }
                             List<Integer> expected = new ArrayList<>();
-                            for (long r = probe[p]; r >= 0 && r < rows; r += distinct) {
-                                expected.add((int) r);
+                            if (probe[p] >= 0 && probe[p] < distinct) {
+                                for (long r = probe[p]; r < rows; r += distinct) {
+                                    expected.add((int) r);
+                                }
                             }
                             assertThat(actual, equalTo(expected));
                         }

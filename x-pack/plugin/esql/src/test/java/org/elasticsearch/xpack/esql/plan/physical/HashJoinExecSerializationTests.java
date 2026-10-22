@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class HashJoinExecSerializationTests extends AbstractPhysicalPlanSerializationTests<HashJoinExec> {
     public static HashJoinExec randomHashJoinExec(int depth) {
@@ -27,7 +28,7 @@ public class HashJoinExecSerializationTests extends AbstractPhysicalPlanSerializ
         List<Attribute> leftFields = randomFields();
         List<Attribute> rightFields = randomFields();
         List<Attribute> output = randomFields();
-        return new HashJoinExec(source, child, joinData, leftFields, rightFields, output, randomBoolean());
+        return new HashJoinExec(source, child, joinData, leftFields, rightFields, output, randomFrom(HashJoinExec.Mode.values()));
     }
 
     private static List<Attribute> randomFields() {
@@ -46,20 +47,21 @@ public class HashJoinExecSerializationTests extends AbstractPhysicalPlanSerializ
         List<Attribute> leftFields = randomFieldAttributes(1, 5, false);
         List<Attribute> rightFields = randomFieldAttributes(1, 5, false);
         List<Attribute> output = randomFieldAttributes(1, 5, false);
-        boolean repeatedKeys = instance.repeatedKeys();
+        HashJoinExec.Mode mode = instance.mode();
         switch (between(0, 5)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> joinData = randomValueOtherThan(joinData, LocalSourceExecSerializationTests::randomLocalSourceExec);
             case 2 -> leftFields = randomValueOtherThan(leftFields, HashJoinExecSerializationTests::randomFields);
             case 3 -> rightFields = randomValueOtherThan(rightFields, HashJoinExecSerializationTests::randomFields);
             case 4 -> output = randomValueOtherThan(output, HashJoinExecSerializationTests::randomFields);
-            case 5 -> repeatedKeys = repeatedKeys == false;
+            case 5 -> mode = randomValueOtherThan(mode, () -> randomFrom(HashJoinExec.Mode.values()));
             default -> throw new UnsupportedOperationException();
         }
-        return new HashJoinExec(instance.source(), child, joinData, leftFields, rightFields, output, repeatedKeys);
+        return new HashJoinExec(instance.source(), child, joinData, leftFields, rightFields, output, mode);
     }
 
-    public void testRepeatedKeyModeRoundTripsAndSurvivesChildReplacement() throws IOException {
+    public void testSubqueryJoinModeRoundTripsAndSurvivesChildReplacement() throws IOException {
+        HashJoinExec.Mode mode = randomFrom(HashJoinExec.Mode.LEFT_OUTER, HashJoinExec.Mode.INNER);
         HashJoinExec randomJoin = randomHashJoinExec(0);
         HashJoinExec join = new HashJoinExec(
             randomJoin.source(),
@@ -68,13 +70,13 @@ public class HashJoinExecSerializationTests extends AbstractPhysicalPlanSerializ
             randomJoin.leftFields(),
             randomJoin.rightFields(),
             List.copyOf(randomJoin.addedFields()),
-            true
+            mode
         );
-        assertTrue(copyInstance(join, TransportVersion.current()).repeatedKeys());
-        assertTrue(join.replaceChildren(join.left(), join.right()).repeatedKeys());
+        assertThat(copyInstance(join, TransportVersion.current()).mode(), equalTo(mode));
+        assertThat(join.replaceChildren(join.left(), join.right()).mode(), equalTo(mode));
     }
 
-    public void testRepeatedKeyModeCannotBeSerializedToUnsupportedVersion() throws IOException {
+    public void testSubqueryJoinModeCannotBeSerializedToUnsupportedVersion() throws IOException {
         HashJoinExec randomJoin = randomHashJoinExec(0);
         HashJoinExec join = new HashJoinExec(
             randomJoin.source(),
@@ -83,7 +85,7 @@ public class HashJoinExecSerializationTests extends AbstractPhysicalPlanSerializ
             randomJoin.leftFields(),
             randomJoin.rightFields(),
             List.copyOf(randomJoin.addedFields()),
-            true
+            randomFrom(HashJoinExec.Mode.LEFT_OUTER, HashJoinExec.Mode.INNER)
         );
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setTransportVersion(TransportVersionUtils.getPreviousVersion(Analyzer.ESQL_JOIN_SUBQUERY));

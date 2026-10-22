@@ -1283,7 +1283,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
 
     public void testRepeatedKeyJoinExpandsEveryBuildMatch() throws IOException {
         HashJoinExec join = lookupSubqueryJoinExec(
-            true,
+            HashJoinExec.Mode.LEFT_OUTER,
             new long[] { 1, 2, 9 },
             new long[] { 100, 200, 900 },
             new long[] { 1, 1, 2 },
@@ -1319,6 +1319,41 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         }
     }
 
+    public void testInnerRepeatedKeyJoinDropsUnmatchedRowsInTheLookup() throws IOException {
+        HashJoinExec join = lookupSubqueryJoinExec(
+            HashJoinExec.Mode.INNER,
+            new long[] { 9, 1, 8, 2, 7 },
+            new long[] { 900, 100, 800, 200, 700 },
+            new long[] { 1, 1, 2 },
+            new long[] { 10, 11, 20 },
+            "left_value",
+            "right_value"
+        );
+        LocalExecutionPlanner.PhysicalOperation operation = planLookupSubqueryJoin(join);
+        List<Class<?>> factories = operation.intermediateOperatorFactories.stream().map(Object::getClass).toList();
+        assertThat(
+            factories,
+            contains(
+                RowInTableLookupOperator.Factory.class,
+                MvExpandOperator.Factory.class,
+                ColumnLoadOperator.Factory.class,
+                ProjectOperatorFactory.class
+            )
+        );
+
+        List<Page> results = runPlanned(operation);
+        try {
+            assertThat(longColumn(results, operation.layout().get(join.left().output().get(0).id()).channel()), contains(1L, 1L, 2L));
+            assertThat(longColumn(results, operation.layout().get(join.left().output().get(1).id()).channel()), contains(100L, 100L, 200L));
+            assertThat(
+                longColumn(results, operation.layout().get(join.joinData().output().get(1).id()).channel()),
+                contains(10L, 11L, 20L)
+            );
+        } finally {
+            results.forEach(Page::releaseBlocks);
+        }
+    }
+
     public void testMaterializedSubqueryLeftJoinExpandsMatchesAndPreservesUnmatchedRows() throws IOException {
         List<Long> expectedKeys = List.of(1L, 1L, 2L, 1L, 1L, 3L);
         List<Long> expectedLeftValues = List.of(10L, 10L, 20L, 11L, 11L, 30L);
@@ -1339,7 +1374,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
 
     public void testRepeatedKeyJoinWithoutPayloadStillExpandsMatches() throws IOException {
         HashJoinExec join = lookupSubqueryJoinExec(
-            true,
+            HashJoinExec.Mode.LEFT_OUTER,
             new long[] { 1, 9 },
             new long[] { 100, 900 },
             new long[] { 1, 1 },
@@ -1365,7 +1400,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
 
     public void testRepeatedKeyJoinLoadsPayloadThatShadowsALeftFieldName() throws IOException {
         HashJoinExec join = lookupSubqueryJoinExec(
-            true,
+            HashJoinExec.Mode.LEFT_OUTER,
             new long[] { 1, 1 },
             new long[] { 100, 200 },
             new long[] { 1 },
@@ -1583,7 +1618,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     private static HashJoinExec lookupSubqueryJoinExec(
-        boolean repeatedKeys,
+        HashJoinExec.Mode mode,
         long[] probeKeys,
         long[] probeValues,
         long[] buildKeys,
@@ -1619,7 +1654,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             buildOutput,
             LocalSupplier.of(new Page(buildBlocks.toArray(new Block[0])))
         );
-        return new HashJoinExec(Source.EMPTY, probe, build, List.of(leftKey), List.of(rightKey), addedFields, repeatedKeys);
+        return new HashJoinExec(Source.EMPTY, probe, build, List.of(leftKey), List.of(rightKey), addedFields, mode);
     }
 
     /**

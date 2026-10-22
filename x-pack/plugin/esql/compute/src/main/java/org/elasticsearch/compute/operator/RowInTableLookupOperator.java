@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Deque;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -89,6 +90,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *     input, so their drivers keep scanning and loading keys during the build
  *     instead of idling, and then block until the table is ready.
  * </p>
+ * <p>
+ *     With {@code dropUnmatched}, rows without a match are removed instead of getting a {@code null} row index.
+ *     An inner join uses this to discard its unmatched rows before any downstream operator loads values for them.
+ * </p>
  */
 public class RowInTableLookupOperator implements Operator {
     /**
@@ -129,6 +134,7 @@ public class RowInTableLookupOperator implements Operator {
         private final Key[] keys;
         private final int[] blockMapping;
         private final boolean repeatedKeys;
+        private final boolean dropUnmatched;
         @Nullable
         private final WarningSourceLocation warningSource;
         /**
@@ -138,6 +144,16 @@ public class RowInTableLookupOperator implements Operator {
         private SharedLookup shared;
 
         public Factory(Key[] keys, int[] blockMapping, boolean repeatedKeys, @Nullable WarningSourceLocation warningSource) {
+            this(keys, blockMapping, repeatedKeys, false, warningSource);
+        }
+
+        public Factory(
+            Key[] keys,
+            int[] blockMapping,
+            boolean repeatedKeys,
+            boolean dropUnmatched,
+            @Nullable WarningSourceLocation warningSource
+        ) {
             if (keys.length < 1) {
                 throw new IllegalArgumentException("expected [keys] to be non-empty");
             }
@@ -147,6 +163,7 @@ public class RowInTableLookupOperator implements Operator {
             this.keys = keys;
             this.blockMapping = blockMapping;
             this.repeatedKeys = repeatedKeys;
+            this.dropUnmatched = dropUnmatched;
             this.warningSource = warningSource;
         }
 
@@ -163,7 +180,7 @@ public class RowInTableLookupOperator implements Operator {
              * driver-local breaker.
              */
             SharedLookup shared = acquire(driverContext.blockFactory().parent());
-            return new RowInTableLookupOperator(keyNames(keys), shared, blockMapping, warnings);
+            return new RowInTableLookupOperator(keyNames(keys), shared, blockMapping, dropUnmatched, warnings);
         }
 
         /**
@@ -184,6 +201,8 @@ public class RowInTableLookupOperator implements Operator {
                 + Arrays.toString(blockMapping)
                 + ", repeatedKeys="
                 + repeatedKeys
+                + ", dropUnmatched="
+                + dropUnmatched
                 + "]";
         }
     }
@@ -367,6 +386,7 @@ public class RowInTableLookupOperator implements Operator {
     private final Releasable releaseShared;
     private final Warnings warnings;
     private final int[] blockMapping;
+    private final boolean dropUnmatched;
     private final Mapping mapping = new Mapping();
     /**
      * Input received before the table was built, in arrival order.
@@ -379,7 +399,7 @@ public class RowInTableLookupOperator implements Operator {
      * Builds a table used by this operator alone.
      */
     public RowInTableLookupOperator(BlockFactory blockFactory, Key[] keys, int[] blockMapping) {
-        this(keyNames(keys), buildNow(blockFactory, keys), blockMapping, Warnings.NOOP_WARNINGS);
+        this(keyNames(keys), buildNow(blockFactory, keys), blockMapping, false, Warnings.NOOP_WARNINGS);
     }
 
     private static SharedLookup buildNow(BlockFactory blockFactory, Key[] keys) {
@@ -391,11 +411,12 @@ public class RowInTableLookupOperator implements Operator {
     /**
      * Takes ownership of one reference to {@code shared}.
      */
-    private RowInTableLookupOperator(List<String> keys, SharedLookup shared, int[] blockMapping, Warnings warnings) {
+    private RowInTableLookupOperator(List<String> keys, SharedLookup shared, int[] blockMapping, boolean dropUnmatched, Warnings warnings) {
         this.keys = keys;
         this.shared = shared;
         this.releaseShared = Releasables.releaseOnce(shared::decRef);
         this.blockMapping = blockMapping;
+        this.dropUnmatched = dropUnmatched;
         this.warnings = warnings;
     }
 
@@ -495,7 +516,14 @@ public class RowInTableLookupOperator implements Operator {
 
     @Override
     public String toString() {
-        return "RowInTableLookup[" + shared + ", keys=" + keys + ", mapping=" + Arrays.toString(blockMapping) + "]";
+        return "RowInTableLookup["
+            + shared
+            + ", keys="
+            + keys
+            + ", mapping="
+            + Arrays.toString(blockMapping)
+            + (dropUnmatched ? ", dropUnmatched" : "")
+            + "]";
     }
 
     @Override
@@ -520,7 +548,11 @@ public class RowInTableLookupOperator implements Operator {
             Page mapped = page.projectBlocks(blockMapping);
             try {
                 // lookup increments any references we need to keep for the iterator
-                return appendBlocks(page, shared.table().lookup(mapped, BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE, warnings));
+                ReleasableIterator<Page> pages = appendBlocks(
+                    page,
+                    shared.table().lookup(mapped, BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE, warnings)
+                );
+                return dropUnmatched ? new DropUnmatched(pages) : pages;
             } finally {
                 mapped.releaseBlocks();
             }
@@ -529,6 +561,68 @@ public class RowInTableLookupOperator implements Operator {
         @Override
         public String toString() {
             return RowInTableLookupOperator.this.toString();
+        }
+    }
+
+    /**
+     * Removes the rows whose row index is {@code null} and skips pages left empty.
+     */
+    private static final class DropUnmatched implements ReleasableIterator<Page> {
+        private final ReleasableIterator<Page> pages;
+        private Page next;
+
+        private DropUnmatched(ReleasableIterator<Page> pages) {
+            this.pages = pages;
+        }
+
+        @Override
+        public boolean hasNext() {
+            while (next == null && pages.hasNext()) {
+                next = dropUnmatched(pages.next());
+            }
+            return next != null;
+        }
+
+        @Override
+        public Page next() {
+            if (hasNext() == false) {
+                throw new NoSuchElementException();
+            }
+            Page result = next;
+            next = null;
+            return result;
+        }
+
+        @Override
+        public void close() {
+            Releasables.closeExpectNoException(pages, next == null ? null : next::releaseBlocks);
+            next = null;
+        }
+
+        /**
+         * Returns the matched rows of {@code page}, whose last block holds the row indices, or {@code null} if none matched.
+         * Takes ownership of {@code page}.
+         */
+        private static Page dropUnmatched(Page page) {
+            IntBlock positions = page.getBlock(page.getBlockCount() - 1);
+            if (positions.mayHaveNulls() == false) {
+                return page;
+            }
+            int[] matched = new int[page.getPositionCount()];
+            int matchedCount = 0;
+            for (int p = 0; p < page.getPositionCount(); p++) {
+                if (positions.isNull(p) == false) {
+                    matched[matchedCount++] = p;
+                }
+            }
+            if (matchedCount == page.getPositionCount()) {
+                return page;
+            }
+            try {
+                return matchedCount == 0 ? null : page.filter(false, matched, 0, matchedCount);
+            } finally {
+                page.releaseBlocks();
+            }
         }
     }
 }

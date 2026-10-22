@@ -175,12 +175,12 @@ public class ArrowFormatIT extends ESRestTestCase {
     public void testDropNullColumns() throws Exception {
         try (VectorSchemaRoot root = esql("""
             {
-                "query": "FROM arrow-test | SORT value | LIMIT 100 | EVAL empty = null::keyword | KEEP empty, value"
+                "query": "FROM arrow-test | SORT value | LIMIT 100 | EVAL empty = null::keyword | KEEP empty, description, value"
             }""", true)) {
             List<Field> fields = root.getSchema().getFields();
-            assertEquals(1, fields.size());
-            assertEquals("value", fields.getFirst().getName());
+            assertEquals(List.of("description", "value"), fields.stream().map(Field::getName).toList());
 
+            assertDescription(root);
             assertValues(root);
         }
     }

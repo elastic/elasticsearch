@@ -386,15 +386,10 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
      */
     private static LogicalPlan withoutMergeAlignment(LogicalPlan branch) {
         LogicalPlan plan = branch;
-        while (isMergeAlignmentLayer(plan)) {
+        while ((plan.getClass() == Project.class || plan instanceof Eval) && plan.source().equals(((UnaryPlan) plan).child().source())) {
             plan = ((UnaryPlan) plan).child();
         }
         return plan;
-    }
-
-    /** Whether {@code plan} is one of the layers {@link #withoutMergeAlignment} peels off a view branch. */
-    private static boolean isMergeAlignmentLayer(LogicalPlan plan) {
-        return (plan.getClass() == Project.class || plan instanceof Eval) && plan.source().equals(((UnaryPlan) plan).child().source());
     }
 
     /**
@@ -458,8 +453,9 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
     // being aligned after applying the changes.
     /**
      * Update the merge's top Projects in the subplans, and correspondingly, its output, to account for newly introduced aliases.
-     * On a view branch only the alignment layers stacked atop the view body are patched: the body is analysed without the
-     * caller's setting, so its own KEEP/DROP/RENAME are plain Projects that must keep hiding (or renaming) what they do.
+     * A view branch is left alone: this rule adds nothing inside one, only a fill atop it ({@link #nullFillViewOutput}), which
+     * widens the branch's output by itself. Its top Project may also be the view body's own KEEP/DROP/RENAME, analysed without
+     * this scope's setting, which must keep hiding (or renaming) what it does.
      */
     private static MergePlan patchMergePlan(MergePlan mergePlan) {
         List<LogicalPlan> children = mergePlan.children();
@@ -467,27 +463,11 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
         boolean changed = false;
         for (int i = 0; i < children.size(); i++) {
             LogicalPlan child = children.get(i);
-            LogicalPlan newChild = ViewUtils.isViewBody(mergePlan, i) ? patchViewBranchAlignment(child) : patchBranchTopProject(child);
+            LogicalPlan newChild = ViewUtils.isViewBody(mergePlan, i) ? child : patchBranchTopProject(child);
             changed |= newChild != child;
             newChildren.add(newChild);
         }
         return changed ? ((MergePlan) mergePlan.replaceChildren(newChildren)).refreshOutput() : mergePlan;
-    }
-
-    /**
-     * Patches the topmost alignment Project of a view branch, if any, without descending into the view body below the
-     * alignment layers.
-     */
-    private static LogicalPlan patchViewBranchAlignment(LogicalPlan plan) {
-        if (isMergeAlignmentLayer(plan) == false) {
-            return plan;
-        }
-        if (plan instanceof Project project) {
-            return patchMergeProject(project);
-        }
-        UnaryPlan unary = (UnaryPlan) plan;
-        LogicalPlan newChild = patchViewBranchAlignment(unary.child());
-        return newChild == unary.child() ? plan : unary.replaceChild(newChild);
     }
 
     private static LogicalPlan patchBranchTopProject(LogicalPlan branch) {

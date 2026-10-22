@@ -78,6 +78,7 @@ public class SearchRecoveryTimeoutCalculationService {
     private volatile TimeValue searchRecoveryReevaluationAbortThreshold;
     private volatile double searchRecoveryWarmingSourceShutdownShareFactor;
     private volatile double searchRecoveryWarmingCacheRatio;
+    private volatile boolean searchRecoveryWarmingFilterSourceShardsByTarget;
 
     public SearchRecoveryTimeoutCalculationService(
         StatelessSharedBlobCacheService cacheService,
@@ -131,6 +132,10 @@ public class SearchRecoveryTimeoutCalculationService {
         clusterSettings.initializeAndWatch(
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_CACHE_RATIO_SETTING,
             value -> this.searchRecoveryWarmingCacheRatio = value
+        );
+        clusterSettings.initializeAndWatch(
+            SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_FILTER_SOURCE_SHARDS_BY_TARGET_SETTING,
+            value -> this.searchRecoveryWarmingFilterSourceShardsByTarget = value
         );
     }
 
@@ -237,6 +242,20 @@ public class SearchRecoveryTimeoutCalculationService {
         return node == null ? 0 : node.size();
     }
 
+    private static int countShardsPotentiallyRelocatingToTarget(ClusterState clusterState, String sourceNodeId, String targetNodeId) {
+        final var sourceNode = clusterState.getRoutingNodes().node(sourceNodeId);
+        if (sourceNode == null) {
+            return 0;
+        }
+        int relocatingElsewhere = 0;
+        for (ShardRouting shard : sourceNode.relocating()) {
+            if (targetNodeId.equals(shard.relocatingNodeId()) == false) {
+                relocatingElsewhere++;
+            }
+        }
+        return sourceNode.size() - relocatingElsewhere;
+    }
+
     /// Counts shards in [ShardRoutingState#STARTED] state on `nodeId`: those that have not begun relocating yet, and are therefore
     /// still waiting for their turn to get a slice of the grace period.
     private static int countPendingShardsOnNode(ClusterState clusterState, String nodeId) {
@@ -295,7 +314,12 @@ public class SearchRecoveryTimeoutCalculationService {
         if (remaining <= 0) {
             return new SearchRecoveryTimeout(TimeValue.ZERO, TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_GRACE_ELAPSED);
         }
-        final int shardsOnSource = Math.max(1, countShardsOnNode(state, sourceNodeId));
+        final int shardsOnSource = Math.max(
+            1,
+            searchRecoveryWarmingFilterSourceShardsByTarget
+                ? countShardsPotentiallyRelocatingToTarget(state, sourceNodeId, targetNodeId)
+                : countShardsOnNode(state, sourceNodeId)
+        );
         final double equalShareMs = (remaining / (double) shardsOnSource) * searchRecoveryWarmingSourceShutdownShareFactor;
 
         // Data-volume-proportional heuristic: scale remaining time by the fraction of the warming cache this shard occupies.

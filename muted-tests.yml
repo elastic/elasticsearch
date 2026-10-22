@@ -451,9 +451,6 @@ tests:
 - class: org.elasticsearch.xpack.ccr.index.engine.FollowingEngineTests
   method: testOptimizeMultipleVersions
   issue: https://github.com/elastic/elasticsearch/issues/162517
-- class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
-  method: testUnpromotableRegisterCommitForRecoveryTracksAllBlobsPessimisticallyAndWaitsUntilShardStarts
-  issue: https://github.com/elastic/elasticsearch/issues/162175
 - class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRelocationSourceThrottleIT
   method: testSourceNodeShutdown
   issue: https://github.com/elastic/elasticsearch/issues/162540
@@ -481,9 +478,6 @@ tests:
 - class: org.elasticsearch.xpack.analytics.topmetrics.TopMetricsColumnarIT
   method: testKeywordMissingMetricOnTopDocumentOnColumnarIndex
   issue: https://github.com/elastic/elasticsearch/issues/162510
-- class: org.elasticsearch.xpack.esql.plugin.DataNodeRequestDatasetRebindIT
-  method: testShardRequestCarryingAnExternalSourceIsReboundToTheRegisteredDataset
-  issue: https://github.com/elastic/elasticsearch/issues/162689
 - class: org.elasticsearch.xpack.esql.plugin.EsqlQueryMetricsCollectorIT
   method: testCsvReadNanosIsolatedBetweenQueries
   issue: https://github.com/elastic/elasticsearch/issues/162715
@@ -520,3 +514,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/162945
+- class: org.elasticsearch.xpack.downsample.DownsampleActionSingleNodeTests
+  method: testDownsampleResumesAfterPersistentTaskRemoved
+  issue: https://github.com/elastic/elasticsearch/issues/162858

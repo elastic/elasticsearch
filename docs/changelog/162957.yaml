@@ -1,0 +1,5 @@
+area: "Performance, Vector Search"
+issues: []
+pr: 162957
+summary: Introduce `RawAddress` annotation and apply it to document/dataset segments
+type: enhancement

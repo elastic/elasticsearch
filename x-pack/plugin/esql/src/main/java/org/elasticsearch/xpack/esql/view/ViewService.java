@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.esql.view;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.action.support.ListenerTimeouts;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -26,14 +29,17 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
@@ -52,7 +58,19 @@ import java.util.function.Predicate;
 
 public class ViewService {
 
+    private static final TimeValue VIEW_VERIFICATION_TIMEOUT = TimeValue.timeValueSeconds(10);
+
+    /**
+     * Analyzes a view query against the current cluster state without running it.
+     * It fails the listener with the error that running the query would hit, for example an unknown index or column.
+     */
+    @FunctionalInterface
+    public interface QueryAnalyzer {
+        void analyze(EsqlStatement statement, String viewName, ActionListener<Void> listener);
+    }
+
     private final EsqlParser parser;
+    private final QueryAnalyzer queryAnalyzer;
     protected final ClusterService clusterService;
     private final MasterServiceTaskQueue<AckedClusterStateUpdateTask> taskQueue;
 
@@ -83,8 +101,13 @@ public class ViewService {
     private volatile int maxCommandCount;
 
     public ViewService(ClusterService clusterService, EsqlParser parser) {
+        this(clusterService, parser, (statement, viewName, listener) -> listener.onResponse(null));
+    }
+
+    public ViewService(ClusterService clusterService, EsqlParser parser, QueryAnalyzer queryAnalyzer) {
         this.clusterService = clusterService;
         this.parser = parser;
+        this.queryAnalyzer = queryAnalyzer;
         this.taskQueue = clusterService.createTaskQueue(
             "update-esql-view-metadata",
             Priority.NORMAL,
@@ -112,12 +135,49 @@ public class ViewService {
      */
     public void putView(ProjectId projectId, PutViewAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         final View view = request.view();
+        final EsqlStatement statement;
         try {
-            validatePutView(clusterService.state().metadata().getProject(projectId), view);
+            statement = validatePutView(clusterService.state().metadata().getProject(projectId), view);
         } catch (Exception e) {
             listener.onFailure(e);
             return;
         }
+        if (request.validateQuery()) {
+            analyzeQuery(view, statement, () -> submitPutView(projectId, request, listener));
+        } else {
+            submitPutView(projectId, request, listener);
+        }
+    }
+
+    /**
+     * Runs {@code next} once the analysis has a verdict. A failure caused by the query becomes a warning on the response.
+     * Any other failure, such as a rejection, a breaker trip, missing privileges or a timeout, says nothing about the query and is ignored.
+     */
+    private void analyzeQuery(View view, EsqlStatement statement, Runnable next) {
+        final var threadPool = clusterService.threadPool();
+        // The analysis completes on another thread. Go back to the request context, so that the warning ends up on the response
+        // and the warnings of the analysis itself do not.
+        final ActionListener<Void> analyzed = ListenerTimeouts.wrapWithTimeout(
+            threadPool,
+            new ContextPreservingActionListener<>(
+                threadPool.getThreadContext().newRestorableContext(false),
+                ActionListener.<Void>running(next).delegateResponse((l, e) -> {
+                    final Throwable cause = ExceptionsHelper.unwrapCause(e);
+                    if (ExceptionsHelper.status(cause) == RestStatus.BAD_REQUEST) {
+                        HeaderWarning.addWarning("view [{}] query is not valid: {}", view.name(), cause.getMessage());
+                    }
+                    l.onFailure(e);
+                })
+            ),
+            VIEW_VERIFICATION_TIMEOUT,
+            threadPool.generic(),
+            "view [" + view.name() + "] verification"
+        );
+        ActionListener.run(analyzed, l -> queryAnalyzer.analyze(statement, view.name(), l));
+    }
+
+    private void submitPutView(ProjectId projectId, PutViewAction.Request request, ActionListener<AcknowledgedResponse> listener) {
+        final View view = request.view();
         final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(request, listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -192,7 +252,7 @@ public class ViewService {
     /**
      * Validates that a view may be inserted into the cluster state
      */
-    void validatePutView(ProjectMetadata metadata, View view) {
+    EsqlStatement validatePutView(ProjectMetadata metadata, View view) {
         if (view.query().length() > this.maxViewLength) {
             throw new IllegalArgumentException(
                 "view query is too large: " + view.query().length() + " characters, the maximum allowed is " + this.maxViewLength
@@ -241,6 +301,7 @@ public class ViewService {
             maxCommandCount
         );
         validateTsView(view.name(), statement.plan());
+        return statement;
     }
 
     /**
@@ -380,7 +441,8 @@ public class ViewService {
                                     new PutViewAction.Request(
                                         MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
                                         MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
-                                        view
+                                        view,
+                                        false // no need to validate reserved view
                                     ),
                                     listener
                                 )

@@ -584,8 +584,18 @@ setup:
 
 ---
 "cyclic-view-self-reference":
+  - requires:
+      capabilities:
+        - method: PUT
+          path: /_query/view/{name}
+          parameters: [validate]
+          capabilities: [views_put_validate]
+      test_runner_features: capabilities
+      reason: "the view is invalid on purpose, so its validation is skipped"
+
   - do:
       esql.put_view:
+        validate: false
         name: cyclic_view
         body:
           query: 'FROM cyclic_view'
@@ -598,14 +608,25 @@ setup:
 
 ---
 "cyclic-view-mutual-reference":
+  - requires:
+      capabilities:
+        - method: PUT
+          path: /_query/view/{name}
+          parameters: [validate]
+          capabilities: [views_put_validate]
+      test_runner_features: capabilities
+      reason: "the view is invalid on purpose, so its validation is skipped"
+
   - do:
       esql.put_view:
+        validate: false
         name: view_a
         body:
           query: 'FROM view_b'
 
   - do:
       esql.put_view:
+        validate: false
         name: view_b
         body:
           query: 'FROM view_a'
@@ -618,20 +639,32 @@ setup:
 
 ---
 "cyclic-view-chain":
+  - requires:
+      capabilities:
+        - method: PUT
+          path: /_query/view/{name}
+          parameters: [validate]
+          capabilities: [views_put_validate]
+      test_runner_features: capabilities
+      reason: "the view is invalid on purpose, so its validation is skipped"
+
   - do:
       esql.put_view:
+        validate: false
         name: chain_a
         body:
           query: 'FROM chain_b'
 
   - do:
       esql.put_view:
+        validate: false
         name: chain_b
         body:
           query: 'FROM chain_c'
 
   - do:
       esql.put_view:
+        validate: false
         name: chain_c
         body:
           query: 'FROM chain_a'
@@ -644,8 +677,18 @@ setup:
 
 ---
 "view-refers-to-nonexistent-index":
+  - requires:
+      capabilities:
+        - method: PUT
+          path: /_query/view/{name}
+          parameters: [validate]
+          capabilities: [views_put_validate]
+      test_runner_features: capabilities
+      reason: "the view is invalid on purpose, so its validation is skipped"
+
   - do:
       esql.put_view:
+        validate: false
         name: bad_view
         body:
           query: 'FROM nonexistent_index'

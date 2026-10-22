@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 162878
+summary: Return warnings for unknown indices or columns when creating or updating an ES|QL view
+type: enhancement

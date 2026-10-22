@@ -378,6 +378,10 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     private void innerExecuteWithLogging(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
+        if (request.analyzeOnly()) {
+            ActionListener.run(EsqlFailureBounds.wrap(listener, request.query()), bounded -> innerExecute(task, request, bounded));
+            return;
+        }
         activityLogger.wrapAndRun(
             listener,
             new EsqlLogContextBuilder(task, request),
@@ -427,9 +431,11 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             externalSourceConcurrency(),
             ((CancellableTask) task)::isCancelled,
             ActionListener.wrap(result -> {
-                recordCCSTelemetry(task, executionInfo, request, null);
-                planExecutor.metrics().recordTook(executionInfo.overallTook().millis());
-                collectMetrics(result.inner());
+                if (request.analyzeOnly() == false) {
+                    recordCCSTelemetry(task, executionInfo, request, null);
+                    planExecutor.metrics().recordTook(executionInfo.overallTook().millis());
+                    collectMetrics(result.inner());
+                }
                 var response = toResponse(task, request, request.profile(), result);
                 assert response.isAsync() == request.async() : "The response must be async if the request was async";
 
@@ -445,7 +451,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
                 listener.onResponse(response);
             }, ex -> {
-                recordCCSTelemetry(task, executionInfo, request, ex);
+                if (request.analyzeOnly() == false) {
+                    recordCCSTelemetry(task, executionInfo, request, ex);
+                }
                 listener.onFailure(ex);
             })
         );

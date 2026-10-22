@@ -25,7 +25,7 @@ public class PromqlQueryRequest extends PreparedEsqlQueryRequest {
     private final QueryParams params;
 
     public PromqlQueryRequest(String index, EsqlStatement statement, String queryDescription, Object... params) {
-        super(false, statement, queryDescription);
+        super(false, statement, queryDescription, false);
         this.index = index;
         if (params != null && params.length > 0) {
             this.params = new QueryParams(getParams(params));

@@ -32,6 +32,7 @@ public class RestPutViewAction extends BaseRestHandler {
     // return supported=false for any cluster where any node predates the annotation.
     public static final String VIEWS_PUT_SERVERLESS_SCOPE = "views_put_serverless_scope";
     public static final String VIEW_DESCRIPTION = "view_description";
+    public static final String VIEWS_PUT_VALIDATE = "views_put_validate";
 
     @Override
     public List<Route> routes() {
@@ -51,7 +52,8 @@ public class RestPutViewAction extends BaseRestHandler {
             PutViewAction.Request req = new PutViewAction.Request(
                 RestUtils.getMasterNodeTimeout(request),
                 RestUtils.getAckTimeout(request),
-                view
+                view,
+                request.paramAsBoolean("validate", true)
             );
             return channel -> client.execute(PutViewAction.INSTANCE, req, new RestToXContentListener<>(channel));
         }
@@ -59,6 +61,6 @@ public class RestPutViewAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        return Set.of(VIEW_INDEX_ABSTRACTION, VIEWS_PUT_SERVERLESS_SCOPE, VIEW_DESCRIPTION);
+        return Set.of(VIEW_INDEX_ABSTRACTION, VIEWS_PUT_SERVERLESS_SCOPE, VIEW_DESCRIPTION, VIEWS_PUT_VALIDATE);
     }
 }

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.view;
 
+import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -18,14 +20,19 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.junit.After;
@@ -285,6 +292,56 @@ public class ViewServiceTests extends ESTestCase {
         clusterService.getClusterSettings()
             .applySettings(Settings.builder().put(EsqlFlags.ESQL_MAX_COMMAND_COUNT.getKey(), defaultLimit + 100).build());
         viewService.validatePutView(project, view);
+    }
+
+    public void testPutViewWarnsWhenQueryIsNotValid() {
+        var service = viewServiceFailingAnalysisWith(new VerificationException("Found 1 problem\nline 1:6: Unknown index [missing]"));
+
+        putView(service, new View("v", "FROM missing", null, false), true);
+
+        assertWarnings("view [v] query is not valid: Found 1 problem\nline 1:6: Unknown index [missing]");
+        assertThat(service.get(ProjectId.DEFAULT, "v"), notNullValue());
+    }
+
+    /**
+     * These failures say nothing about the query, so they must not look like a problem with it.
+     */
+    public void testPutViewDoesNotWarnWhenAnalysisFailsForOtherReasons() {
+        Exception failure = randomFrom(
+            new EsRejectedExecutionException("rejected"),
+            new CircuitBreakingException("too big", CircuitBreaker.Durability.TRANSIENT),
+            new ElasticsearchSecurityException("not allowed", RestStatus.FORBIDDEN),
+            new ElasticsearchStatusException("something broke", RestStatus.INTERNAL_SERVER_ERROR)
+        );
+        var service = viewServiceFailingAnalysisWith(failure);
+
+        putView(service, new View("v", "FROM missing", null, false), true);
+        ensureNoWarnings();
+        assertThat(service.get(ProjectId.DEFAULT, "v"), notNullValue());
+    }
+
+    public void testPutViewDoesNotWarnWhenQueryIsValid() {
+        putView(viewService, new View("v", "FROM some-index", null, false), true);
+        ensureNoWarnings();
+        assertThat(viewService.get(ProjectId.DEFAULT, "v"), notNullValue());
+    }
+
+    public void testPutViewDoesNotAnalyzeWhenValidationIsOff() {
+        var service = new ViewService(clusterService, TEST_PARSER, (statement, viewName, listener) -> fail("must not analyze"));
+
+        putView(service, new View("v", "FROM missing", null, false), false);
+
+        assertThat(service.get(ProjectId.DEFAULT, "v"), notNullValue());
+    }
+
+    private ViewService viewServiceFailingAnalysisWith(Exception failure) {
+        return new ViewService(clusterService, TEST_PARSER, (statement, viewName, listener) -> listener.onFailure(failure));
+    }
+
+    private void putView(ViewService service, View view, boolean validate) {
+        var future = new PlainActionFuture<AcknowledgedResponse>();
+        service.putView(ProjectId.DEFAULT, new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, view, validate), future);
+        future.actionGet(10, TimeUnit.SECONDS);
     }
 
     private PlainActionFuture<AcknowledgedResponse> ensureReservedViewExists(String name, String query, String description) {

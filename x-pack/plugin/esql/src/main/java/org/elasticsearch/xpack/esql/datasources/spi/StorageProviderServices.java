@@ -31,10 +31,26 @@ import java.util.concurrent.ExecutorService;
  *                              semaphore in {@code StorageProviderRegistry}
  * @param environment           node {@link Environment}; {@code null} in tests that do not supply one
  * @param resourceWatcherService node {@link ResourceWatcherService}; {@code null} in tests that do not supply one
+ * @param credentialPolicy      which credential mechanisms a provider built by this plugin may use; plugins hand it to
+ *                              {@link StorageProviderFactory#of(java.util.function.Supplier, java.util.function.Function,
+ *                              java.util.function.Function, CredentialPolicy)} so a refused mode is caught before any
+ *                              client is constructed
  */
 public record StorageProviderServices(
     Settings settings,
     ExecutorService executor,
     @Nullable Environment environment,
-    @Nullable ResourceWatcherService resourceWatcherService
-) {}
+    @Nullable ResourceWatcherService resourceWatcherService,
+    CredentialPolicy credentialPolicy
+) {
+
+    /** Test convenience: every credential mechanism allowed. Production wiring always passes the node's policy. */
+    public StorageProviderServices(
+        Settings settings,
+        ExecutorService executor,
+        @Nullable Environment environment,
+        @Nullable ResourceWatcherService resourceWatcherService
+    ) {
+        this(settings, executor, environment, resourceWatcherService, CredentialPolicy.ALL_ENABLED);
+    }
+}

@@ -5,9 +5,11 @@ config:
   # main: nothing is ahead of it, so there is nothing to test.
   # 8.19: maintenance branch. It has three branches ahead of it and backports to this branch are
   # limited in scope making the problem of later-branch breakages exceedingly rare
+  # patch/serverless-fix: emergency serverless patches skip stateful bwc tests
   skip-target-branches:
     - "main"
     - "8.19"
+    - "patch/serverless-fix"
   skip-labels:
     - ">test-mute"
 steps:

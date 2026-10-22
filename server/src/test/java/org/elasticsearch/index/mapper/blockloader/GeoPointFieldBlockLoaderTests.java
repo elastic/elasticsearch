@@ -11,12 +11,10 @@ package org.elasticsearch.index.mapper.blockloader;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.index.mapper.BlockLoaderTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 
 import java.nio.ByteOrder;
 import java.util.Comparator;
@@ -86,10 +84,6 @@ public class GeoPointFieldBlockLoaderTests extends BlockLoaderTestCase {
 
         // synthetic source is enabled, but no doc_values are present, so fallback to ignored source
         return exactValuesFromSource(values, nullValue, false);
-    }
-
-    private boolean isMappingKeepingOriginalSourceForArrays(Settings settings) {
-        return Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING.get(settings) == Mapper.SourceKeepMode.ARRAYS;
     }
 
     /**

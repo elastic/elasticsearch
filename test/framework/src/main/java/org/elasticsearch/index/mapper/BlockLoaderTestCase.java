@@ -86,6 +86,15 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         return args;
     }
 
+    protected static boolean isMappingKeepingOriginalSourceForArrays(Params params) {
+        var settings = getSettingsForParams(params).build();
+        return isMappingKeepingOriginalSourceForArrays(settings);
+    }
+
+    protected static boolean isMappingKeepingOriginalSourceForArrays(Settings settings) {
+        return Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING.get(settings) == Mapper.SourceKeepMode.ARRAYS;
+    }
+
     public record Params(IndexMode indexMode, SourceFieldMapper.Mode sourceMode, MappedFieldType.FieldExtractPreference preference) {
         public boolean syntheticSource() {
             return sourceMode == SourceFieldMapper.Mode.SYNTHETIC;

@@ -64,7 +64,11 @@ import static org.elasticsearch.xpack.kql.query.KqlQueryBuilder.TIME_ZONE_FIELD;
  */
 public class Kql extends FullTextFunction implements OptionalArgument, ConfigurationFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Kql", Kql::readFrom);
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Kql.class).binaryConfig(Kql::new).name("kql");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Kql.class)
+        .binaryConfig(Kql::new)
+        // Allowed after EVAL, LOOKUP JOIN and similar commands, unless they redefine an indexed field.
+        .capabilities("relaxed_position_check")
+        .name("kql");
 
     private final Configuration configuration;
 

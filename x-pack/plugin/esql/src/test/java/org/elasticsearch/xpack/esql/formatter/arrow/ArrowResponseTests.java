@@ -396,6 +396,29 @@ public class ArrowResponseTests extends ESTestCase {
         }
     }
 
+    public void testDroppedUnsupportedColumnIsNotValidated() throws IOException {
+        List<TestColumn> columns = List.of(
+            new TestColumn("unsupported", DataType.DENSE_VECTOR, NULL_VALUES, false),
+            TestColumn.create("retained", DataType.INTEGER, false)
+        );
+        TestCase testCase = new TestCase(
+            columns,
+            List.of(
+                new TestPage(
+                    List.of(
+                        TestBlock.create(blockFactory, columns.get(0), Density.Empty, 5),
+                        TestBlock.create(blockFactory, columns.get(1), Density.Dense, 5)
+                    )
+                )
+            )
+        );
+
+        try (testCase; VectorSchemaRoot root = toArrowVectors(testCase, new boolean[] { true, false })) {
+            assertEquals(List.of("retained"), root.getSchema().getFields().stream().map(Field::getName).toList());
+            compareEsqlAndArrow(testCase, 1, root, 0);
+        }
+    }
+
     public void testDropAllColumns() throws IOException {
         List<TestColumn> columns = List.of(
             TestColumn.create("first", DataType.INTEGER, false),
@@ -409,6 +432,16 @@ public class ArrowResponseTests extends ESTestCase {
         try (testCase; VectorSchemaRoot root = toArrowVectors(testCase, new boolean[] { true, true })) {
             assertTrue(root.getSchema().getFields().isEmpty());
             assertEquals(5, root.getRowCount());
+        }
+    }
+
+    public void testZeroPages() throws IOException {
+        TestColumn column = TestColumn.create("only", DataType.INTEGER, false);
+        TestCase testCase = new TestCase(List.of(column), List.of());
+
+        try (testCase; VectorSchemaRoot root = toArrowVectors(testCase)) {
+            assertEquals(List.of("only"), root.getSchema().getFields().stream().map(Field::getName).toList());
+            assertEquals(0, root.getRowCount());
         }
     }
 
@@ -514,6 +547,35 @@ public class ArrowResponseTests extends ESTestCase {
         try (testCase; VectorSchemaRoot root = toArrowVectors(testCase)) {
             compareEsqlAndArrow(testCase, root);
             assertListLayout((ListVector) root.getVector("some-field"), 0, 2, 2, 2);
+        }
+    }
+
+    public void testMultivaluedColumnDetectedOnLaterPage() throws IOException {
+        IntBlock singleValueBlock;
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(1)) {
+            singleValueBlock = builder.appendInt(1).build();
+        }
+        IntBlock multivaluedBlock;
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(1)) {
+            builder.beginPositionEntry();
+            builder.appendInt(2);
+            builder.appendInt(3);
+            builder.endPositionEntry();
+            multivaluedBlock = builder.build();
+        }
+
+        TestColumn column = TestColumn.create("some-field", DataType.INTEGER, true);
+        TestCase testCase = new TestCase(
+            List.of(column),
+            List.of(
+                new TestPage(List.of(TestBlock.create(column, singleValueBlock))),
+                new TestPage(List.of(TestBlock.create(column, multivaluedBlock)))
+            )
+        );
+
+        try (testCase; VectorSchemaRoot root = toArrowVectors(testCase)) {
+            compareEsqlAndArrow(testCase, root);
+            assertListLayout((ListVector) root.getVector("some-field"), 0, 1, 3);
         }
     }
 

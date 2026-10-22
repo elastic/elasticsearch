@@ -46,20 +46,16 @@ import java.util.Map;
 public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
 
     public static class Column {
-        private final BlockArrowFormatter converter;
+        private final DataType esqlType;
         private final String name;
-        private boolean multivalued;
 
         public Column(DataType esqlType, String name) {
-            this.converter = ESQL_FORMATTERS.get(esqlType);
-            if (converter == null) {
-                throw new IllegalArgumentException("ES|QL type [" + esqlType.outputType() + "] is not supported by the Arrow format");
-            }
+            this.esqlType = esqlType;
             this.name = name;
         }
     }
 
-    private record IndexedColumn(Column column, int blockIndex) {}
+    private record IndexedColumn(Column column, BlockArrowFormatter converter, int blockIndex, boolean multivalued) {}
 
     private final List<IndexedColumn> columns;
     private Iterator<ResponseSegment> segments;
@@ -83,24 +79,26 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             );
         }
         List<IndexedColumn> indexedColumns = new ArrayList<>(columns.size());
-        for (int column = 0; column < columns.size(); column++) {
-            if (dropColumns[column] == false) {
-                indexedColumns.add(new IndexedColumn(columns.get(column), column));
+        for (int blockIndex = 0; blockIndex < columns.size(); blockIndex++) {
+            if (dropColumns[blockIndex] == false) {
+                Column column = columns.get(blockIndex);
+                BlockArrowFormatter converter = ESQL_FORMATTERS.get(column.esqlType);
+                if (converter == null) {
+                    throw new IllegalArgumentException(
+                        "ES|QL type [" + column.esqlType.outputType() + "] is not supported by the Arrow format"
+                    );
+                }
+                boolean multivalued = false;
+                for (Page page : pages) {
+                    if (page.getBlock(blockIndex).mayHaveMultivaluedFields()) {
+                        multivalued = true;
+                        break;
+                    }
+                }
+                indexedColumns.add(new IndexedColumn(column, converter, blockIndex, multivalued));
             }
         }
         this.columns = List.copyOf(indexedColumns);
-
-        // Find multivalued columns
-        int colSize = this.columns.size();
-        for (int col = 0; col < colSize; col++) {
-            IndexedColumn indexedColumn = this.columns.get(col);
-            for (Page page : pages) {
-                if (page.getBlock(indexedColumn.blockIndex).mayHaveMultivaluedFields()) {
-                    indexedColumn.column.multivalued = true;
-                    break;
-                }
-            }
-        }
 
         currentSegment = new SchemaResponse(this);
         List<ResponseSegment> rest = new ArrayList<>(pages.size());
@@ -238,8 +236,8 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
 
         private Schema arrowSchema() {
             return new Schema(response.columns.stream().map(c -> {
-                var field = c.column.converter.arrowField(c.column.name);
-                if (c.column.multivalued) {
+                var field = c.converter().arrowField(c.column().name);
+                if (c.multivalued()) {
                     // A variable-sized list is a vector of offsets and a child vector of values
                     // See https://arrow.apache.org/docs/format/Columnar.html#variable-size-list-layout
                     var fieldType = field.getFieldType();
@@ -252,7 +250,7 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
                     // Value vector is non-nullable (ES|QL multivalues cannot contain nulls).
                     var valueType = new FieldType(false, fieldType.getType(), fieldType.getDictionary(), fieldType.getMetadata());
                     // The nested vector is named "$data$", following what the Arrow/Java library does.
-                    return new Field(c.column.name, listType, List.of(new Field("$data$", valueType, field.getChildren())));
+                    return new Field(c.column().name, listType, List.of(new Field("$data$", valueType, field.getChildren())));
                 } else {
                     return field;
                 }
@@ -340,12 +338,11 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             try {
                 // Create Arrow buffers for each of the blocks in this page
                 for (IndexedColumn indexedColumn : response.columns) {
-                    var column = indexedColumn.column;
-                    var converter = column.converter;
+                    var converter = indexedColumn.converter();
 
-                    Block block = page.getBlock(indexedColumn.blockIndex);
-                    converter.addFieldNodes(block, column.multivalued, nodes);
-                    converter.convert(block, column.multivalued, bufs, bufWriters, releasables);
+                    Block block = page.getBlock(indexedColumn.blockIndex());
+                    converter.addFieldNodes(block, indexedColumn.multivalued(), nodes);
+                    converter.convert(block, indexedColumn.multivalued(), bufs, bufWriters, releasables);
                 }
 
                 // Consistency check

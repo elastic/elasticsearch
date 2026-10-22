@@ -1410,6 +1410,76 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
         }
     }
 
+    /// When the first plan of a shutting-down source expires and nothing changed since, which means no shard left the source, the wait is
+    /// not extended, whichever heuristic produced that first plan: an equal-share plan has no saved time to hand out, and a data-volume
+    /// plan is never extended.
+    public void testExtendedTimeoutDoesNotExtendWhenNothingChangedSinceTheFirstPlan() {
+        try (
+            var threadPool = new FakeTimeThreadPool(
+                getTestName(),
+                randomNonNegativeLong() / 2,
+                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
+            )
+        ) {
+            final long graceMs = 10_000;
+            final int relocatingShards = 3;
+            final int relocatingShardsToTarget = 1;
+            final int pendingShards = 1;
+            final long cacheSize = 1_000L;
+            final Settings settings = Settings.builder()
+                .put(
+                    SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(),
+                    TimeValue.timeValueMillis(graceMs)
+                )
+                .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_CACHE_RATIO_SETTING.getKey(), 1.0)
+                .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true)
+                .build();
+            final var service = newCalculationService(threadPool, settings, cacheSize);
+
+            final long shutdownCurrentTimeMs = randomLongBetween(1, 100_000);
+            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs);
+            final var index = new Index("idx", randomUUID());
+            final ClusterState state = clusterStateSearchShardsRelocatingFromShuttingDownSource(
+                relocatingShards,
+                relocatingShardsToTarget,
+                index,
+                "source-node",
+                "target-node",
+                threadPool.absoluteTimeInMillis(),
+                pendingShards
+            );
+            final ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID)
+                .shardRoutingTable(new ShardId(index, 0))
+                .shardsWithState(RELOCATING)
+                .getFirst()
+                .getTargetRelocatingShard();
+
+            // an empty shard makes the equal share win, one that fills the whole warming cache makes the data volume win
+            final boolean dataVolumeWins = randomBoolean();
+            final long totalBytesToWarm = dataVolumeWins ? cacheSize : 0L;
+            final var firstPlan = service.searchRecoveryTimeout(state, mockIndexShard(self), totalBytesToWarm, null);
+            assertThat(
+                firstPlan.timeoutContext(),
+                equalTo(
+                    dataVolumeWins
+                        ? TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME
+                        : TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE
+                )
+            );
+
+            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + firstPlan.timeout().millis());
+            final var extended = service.extendedTimeout(
+                state,
+                mockIndexShard(self),
+                totalBytesToWarm,
+                randomLongBetween(0, totalBytesToWarm),
+                firstPlan,
+                firstPlan.timeout()
+            );
+            assertThat(extended.awaitWarming(), is(false));
+        }
+    }
+
     /// With no shard pending on the source nobody waits for a slice behind the relocating shards, which wait concurrently, so a
     /// re-evaluation extends by all the remaining grace even when nothing was saved. With a pending shard, nothing saved means no
     /// extension: 10s grace, 4 shards on the source gives each 2500ms; 2000ms later the fresh share is 2000ms, below what was budgeted.

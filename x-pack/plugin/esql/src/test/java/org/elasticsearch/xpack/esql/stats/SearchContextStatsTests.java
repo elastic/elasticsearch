@@ -1242,6 +1242,60 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
         }
     }
 
+    public void testKeywordTerms() throws IOException {
+        FieldAttribute.FieldName kw = new FieldAttribute.FieldName("kw");
+        try (MapperService mapperService = createMapperService("""
+            { "doc": { "properties": { "kw": { "type": "keyword" } } } }""")) {
+            withLuceneIndex(mapperService, writer -> {
+                writer.addDocuments(mapperService.documentMapper().parse(source("{\"kw\":\"b\"}")).docs());
+                writer.addDocuments(mapperService.documentMapper().parse(source("{\"kw\":[\"c\",\"a\"]}")).docs());
+                writer.addDocuments(mapperService.documentMapper().parse(source("{}")).docs());
+            }, reader -> {
+                SearchStats stats = SearchContextStats.from(List.of(createSearchExecutionContext(mapperService, newSearcher(reader))));
+                assertEquals(List.of(new BytesRef("a"), new BytesRef("b"), new BytesRef("c")), stats.keywordTerms(kw, 3));
+                assertNull(stats.keywordTerms(kw, 2));
+            });
+        }
+    }
+
+    public void testKeywordTermsWithIgnoredValue() throws IOException {
+        FieldAttribute.FieldName kw = new FieldAttribute.FieldName("kw");
+        try (MapperService mapperService = createMapperService("""
+            { "doc": { "properties": { "kw": { "type": "keyword", "ignore_above": 3 } } } }""")) {
+            withLuceneIndex(
+                mapperService,
+                writer -> writer.addDocuments(mapperService.documentMapper().parse(source("{\"kw\":\"ab\"}")).docs()),
+                reader -> {
+                    SearchStats stats = SearchContextStats.from(List.of(createSearchExecutionContext(mapperService, newSearcher(reader))));
+                    assertEquals(List.of(new BytesRef("ab")), stats.keywordTerms(kw, 10));
+                }
+            );
+            // The value above ignore_above is in no term, but may be loaded from _source.
+            withLuceneIndex(mapperService, writer -> {
+                writer.addDocuments(mapperService.documentMapper().parse(source("{\"kw\":\"ab\"}")).docs());
+                writer.addDocuments(mapperService.documentMapper().parse(source("{\"kw\":\"abcdef\"}")).docs());
+            }, reader -> {
+                SearchStats stats = SearchContextStats.from(List.of(createSearchExecutionContext(mapperService, newSearcher(reader))));
+                assertNull(stats.keywordTerms(kw, 10));
+            });
+        }
+    }
+
+    public void testKeywordTermsWithoutIndex() throws IOException {
+        FieldAttribute.FieldName kw = new FieldAttribute.FieldName("kw");
+        try (MapperService mapperService = createMapperService("""
+            { "doc": { "properties": { "kw": { "type": "keyword", "index": false } } } }""")) {
+            withLuceneIndex(
+                mapperService,
+                writer -> writer.addDocuments(mapperService.documentMapper().parse(source("{\"kw\":\"a\"}")).docs()),
+                reader -> {
+                    SearchStats stats = SearchContextStats.from(List.of(createSearchExecutionContext(mapperService, newSearcher(reader))));
+                    assertNull(stats.keywordTerms(kw, 10));
+                }
+            );
+        }
+    }
+
     @After
     public void cleanup() throws IOException {
         IOUtils.close(readers);

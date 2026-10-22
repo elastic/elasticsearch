@@ -14,6 +14,7 @@ import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute.FieldName;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -98,6 +99,16 @@ public interface SearchStats {
      * Returns the mapped field type for the given field name, or null if the field is not found.
      */
     default MappedFieldType fieldType(FieldName name) {
+        return null;
+    }
+
+    /**
+     * The distinct values the index holds for a {@code keyword} field, in sorted order, or {@code null} if there are more
+     * than {@code maxTerms} of them or the index may not hold exactly the values ES|QL loads for the field. A term query
+     * per returned value, plus a query for the documents without a value, then partitions the documents the same way
+     * grouping by the loaded values does.
+     */
+    default List<BytesRef> keywordTerms(FieldName field, int maxTerms) {
         return null;
     }
 

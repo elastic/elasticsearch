@@ -18,6 +18,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -26,6 +27,7 @@ import org.elasticsearch.index.codec.tsdb.PartitionedDocValues;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.DocCountFieldMapper.DocCountFieldType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
@@ -41,9 +43,11 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute.FieldName;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeSet;
 
 import static org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper.TimestampFieldType;
 import static org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
@@ -535,6 +539,62 @@ public class SearchContextStats implements SearchStats {
     @Override
     public MappedFieldType fieldType(FieldName field) {
         return cache.computeIfAbsent(field.string(), this::makeFieldStats).config.fieldType;
+    }
+
+    @Override
+    public List<BytesRef> keywordTerms(FieldName field, int maxTerms) {
+        String name = field.string();
+        Term ignoredTerm = new Term(IgnoredFieldMapper.NAME, name);
+        TreeSet<BytesRef> terms = new TreeSet<>();
+        try {
+            for (SearchExecutionContext context : contexts) {
+                if (isExtractableMappedField(context, name) == false) {
+                    // A shard that does not map the field loads null for it, unless it may load the value from _source.
+                    if (context.unmappedFields().mayExist(name)) {
+                        return null;
+                    }
+                    continue;
+                }
+                if ((context.getFieldType(name) instanceof KeywordFieldType keyword && termsMatchLoadedValues(keyword)) == false) {
+                    return null;
+                }
+                for (LeafReaderContext leafContext : context.searcher().getLeafContexts()) {
+                    LeafReader reader = leafContext.reader();
+                    // A value longer than ignore_above is neither indexed nor in doc values, but may still be loaded from _source.
+                    if (reader.docFreq(ignoredTerm) > 0) {
+                        return null;
+                    }
+                    Terms leafTerms = reader.terms(name);
+                    if (leafTerms == null) {
+                        continue;
+                    }
+                    TermsEnum termsEnum = leafTerms.iterator();
+                    for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.next()) {
+                        if (terms.contains(term) == false) {
+                            terms.add(BytesRef.deepCopyOf(term));
+                            if (terms.size() > maxTerms) {
+                                return null;
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (IOException ex) {
+            throw new EsqlIllegalArgumentException("Cannot access data storage", ex);
+        }
+        return new ArrayList<>(terms);
+    }
+
+    /**
+     * Whether the terms the field indexes are the values ES|QL loads from its doc values, and a term query for one of
+     * them matches exactly the documents holding it. A normalizer would re-normalize the value searched for, and a
+     * script computes the values instead of reading them from the document.
+     */
+    private static boolean termsMatchLoadedValues(KeywordFieldType keyword) {
+        return keyword.indexType().hasTerms()
+            && keyword.hasDocValues()
+            && keyword.hasNormalizer() == false
+            && keyword.hasScriptValues() == false;
     }
 
     //

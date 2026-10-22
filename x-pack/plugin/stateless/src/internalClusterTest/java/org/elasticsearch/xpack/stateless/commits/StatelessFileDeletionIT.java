@@ -73,6 +73,7 @@ import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -1770,8 +1771,8 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         flush(indexName);
     }
 
-    @TestLogging(
-        reason = "diagnosing BCCs that are retained after all PITs are closed (#162175)",
+    @TestIssueLogging(
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/162175",
         value = "org.elasticsearch.xpack.stateless.commits.StatelessCommitService:DEBUG,"
             + "org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction:DEBUG,"
             + "org.elasticsearch.xpack.stateless.action.TransportFetchShardCommitsInUseAction:DEBUG"

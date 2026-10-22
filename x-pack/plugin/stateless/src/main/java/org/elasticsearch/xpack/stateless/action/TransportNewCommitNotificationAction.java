@@ -33,11 +33,13 @@ import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.stateless.engine.NewCommitNotification;
+import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.engine.SearchEngine;
 import org.elasticsearch.xpack.stateless.utils.SearchShardSizeCollector;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 import java.util.TreeSet;
 
 public class TransportNewCommitNotificationAction extends TransportBroadcastUnpromotableAction<
@@ -172,7 +174,7 @@ public class TransportNewCommitNotificationAction extends TransportBroadcastUnpr
                 shard.updateGlobalCheckpointOnReplica(searchEngine.getLastSyncedGlobalCheckpoint(), "new commit notification");
                 // Since new data has been written, update the shard size tracking.
                 searchShardSizeCollector.collectShardSize(shard.shardId());
-                final var acquiredPrimaryTermAndGenerations = searchEngine.getAcquiredPrimaryTermAndGenerations();
+                final Set<PrimaryTermAndGeneration> acquiredPrimaryTermAndGenerations = searchEngine.getAcquiredPrimaryTermAndGenerations();
                 if (logger.isDebugEnabled()) {
                     logger.debug(
                         "{} responding to new commit notification [bcc={}, cc={}] with BCCs in use {} ({})",

@@ -101,7 +101,7 @@ public class TransportFetchShardCommitsInUseAction extends TransportNodesAction<
         ShardId shardId
     ) {
         ActionListener.completeWith(listener, () -> {
-            final var fromClosedShardService = getPrimaryTermAndGenerationsFromClosedShardService(shardId);
+            final Set<PrimaryTermAndGeneration> fromClosedShardService = getPrimaryTermAndGenerationsFromClosedShardService(shardId);
             logger.debug(
                 () -> format(
                     "%s fetch-shard-commits-in-use answered from ClosedShardService (no live SearchEngine): %s",
@@ -166,7 +166,7 @@ public class TransportFetchShardCommitsInUseAction extends TransportNodesAction<
                         // remain active and its list of `openReaders` will remain valid. Search operations retain a reference to the
                         // SearchEngine and only remove active reader tracking when done. The ClosedShardService acts as a concurrent
                         // intermediary only in cases where the SearchEngine becomes inaccessible after the IndexShard destructs.
-                        final var acquired = searchEngine.getAcquiredPrimaryTermAndGenerations();
+                        final Set<PrimaryTermAndGeneration> acquired = searchEngine.getAcquiredPrimaryTermAndGenerations();
                         logger.debug(
                             () -> format(
                                 "%s fetch-shard-commits-in-use answered from live SearchEngine: %s (%s)",

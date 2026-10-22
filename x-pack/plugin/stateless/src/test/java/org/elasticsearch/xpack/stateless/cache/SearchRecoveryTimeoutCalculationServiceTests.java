@@ -895,7 +895,11 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
         private final List<SearchRecoveryTimeout> previousPlansSeen = new ArrayList<>();
 
         FixedPlanCalculationService(ThreadPool threadPool, Settings settings, SearchRecoveryTimeout plan) {
-            super(Mockito.mock(StatelessSharedBlobCacheService.class), threadPool, newClusterSettings(settings), ByteSizeValue.ZERO);
+            this(threadPool, newClusterSettings(settings), plan);
+        }
+
+        FixedPlanCalculationService(ThreadPool threadPool, ClusterSettings clusterSettings, SearchRecoveryTimeout plan) {
+            super(Mockito.mock(StatelessSharedBlobCacheService.class), threadPool, clusterSettings, ByteSizeValue.ZERO);
             this.plan = plan;
         }
 
@@ -1076,6 +1080,38 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                 zeroCapService.extendedTimeout(1_000L, 0L, extendablePlan(200), TimeValue.ZERO).awaitWarming(),
                 is(false)
             );
+        }
+    }
+
+    public void testExtendedTimeoutFollowsReevaluationSettingsUpdates() {
+        try (var threadPool = new TestThreadPool(getTestName())) {
+            final var disabled = reevaluationSettings(false, TimeValue.timeValueSeconds(10), TimeValue.timeValueMillis(50));
+            final var clusterSettings = newClusterSettings(disabled);
+            final var service = new FixedPlanCalculationService(threadPool, clusterSettings, extendablePlan(200));
+            final var elapsed = TimeValue.timeValueMillis(200);
+
+            assertThat(service.extendedTimeout(1_000L, 0L, extendablePlan(200), elapsed).awaitWarming(), is(false));
+
+            // Every update restates all the settings, since the ones left out go back to their defaults.
+            clusterSettings.applySettings(reevaluationSettings(true, TimeValue.timeValueSeconds(10), TimeValue.timeValueMillis(50)));
+            assertThat(
+                service.extendedTimeout(1_000L, 0L, extendablePlan(200), elapsed).timeout(),
+                equalTo(TimeValue.timeValueMillis(200))
+            );
+
+            // 100ms are left of the lowered cap
+            clusterSettings.applySettings(reevaluationSettings(true, TimeValue.timeValueMillis(300), TimeValue.timeValueMillis(50)));
+            assertThat(
+                service.extendedTimeout(1_000L, 0L, extendablePlan(200), elapsed).timeout(),
+                equalTo(TimeValue.timeValueMillis(100))
+            );
+
+            // the 100ms left are no longer worth waiting for
+            clusterSettings.applySettings(reevaluationSettings(true, TimeValue.timeValueMillis(300), TimeValue.timeValueMillis(150)));
+            assertThat(service.extendedTimeout(1_000L, 0L, extendablePlan(200), elapsed).awaitWarming(), is(false));
+
+            clusterSettings.applySettings(reevaluationSettings(false, TimeValue.timeValueSeconds(10), TimeValue.timeValueMillis(50)));
+            assertThat(service.extendedTimeout(1_000L, 0L, extendablePlan(200), elapsed).awaitWarming(), is(false));
         }
     }
 

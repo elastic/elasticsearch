@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.gcs;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 
 import java.util.HashMap;
@@ -396,5 +397,27 @@ public class GcsConfigurationTests extends ESTestCase {
         assertEquals("managed_identity", config.auth());
         assertTrue(config.isManagedIdentity());
         assertWarnings("auth value [workload_identity] is deprecated; the canonical value is [managed_identity]");
+    }
+
+    public void testDataSourceAuditSettings() {
+        var configuration = GcsConfiguration.fromMap(Map.of("auth", "anonymous"));
+        var secretFields = GcsConfiguration.secretFieldNames();
+
+        for (var field : configuration.fieldNames()) {
+            var request = new PutDataSourceAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                "datasource",
+                "gcs",
+                null,
+                Map.of(field, "test-value")
+            );
+
+            assertEquals(
+                "Unexpected audit value for setting [" + field + "]",
+                secretFields.contains(field) ? "::es_redacted::" : "test-value",
+                request.auditFields().get("settings." + field)
+            );
+        }
     }
 }

@@ -11,6 +11,7 @@ package org.elasticsearch.test.apmintegration;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
@@ -264,9 +265,10 @@ public class OtelSdkTracesIT extends AbstractTelemetryIT {
 
     /**
      * Verifies that only the root (entry-point) span is exported and no child spans leak through,
-     * which ES enforces through the default {@code telemetry.tracing.max_depth=0}.
+     * which ES enforces through the default {@code telemetry.tracing.max_depth=0}. Then verifies that with a depth
+     * allowing children, {@code telemetry.tracing.max_spans} caps a search over 8 shards to the root plus {@code max_spans} spans.
      */
-    public void testOnlyRootSpansExported() throws Exception {
+    public void testSpanLimits() throws Exception {
         final String traceIdValue = "1234567890abcdef1234567890abcdef";
         final String traceParentValue = "00-" + traceIdValue + "-abcdef1234567890-01";
 
@@ -297,5 +299,36 @@ public class OtelSdkTracesIT extends AbstractTelemetryIT {
         // CopyOnWriteArrayList.add() does a volatile write and size() does a volatile read, so child spans
         // that arrive during the grace period above are guaranteed to be visible here.
         assertEquals("Only the root span should be exported; received: " + receivedSpans, 1, receivedSpans.size());
+
+        createIndex("max-spans", Settings.builder().put("index.number_of_shards", 8).put("index.number_of_replicas", 0).build());
+        try {
+            updateClusterSettings(Settings.builder().put("telemetry.tracing.max_depth", 10).put("telemetry.tracing.max_spans", 3).build());
+            final String searchTraceId = "22222222222222222222222222222222";
+            CountDownLatch searchRootReceived = new CountDownLatch(1);
+            List<ReceivedTelemetry.ReceivedSpan> searchSpans = new CopyOnWriteArrayList<>();
+            apmServer().addMessageConsumer(msg -> {
+                if (msg instanceof ReceivedTelemetry.ReceivedSpan s && searchTraceId.equals(s.traceId())) {
+                    searchSpans.add(s);
+                    if ("GET /{index}/_search".equals(s.name())) {
+                        searchRootReceived.countDown();
+                    }
+                }
+            });
+
+            Request search = new Request("GET", "/max-spans/_search");
+            search.setOptions(
+                RequestOptions.DEFAULT.toBuilder()
+                    .addHeader(Task.TRACE_PARENT_HTTP_HEADER, "00-" + searchTraceId + "-abcdef1234567890-01")
+                    .build()
+            );
+            client().performRequest(search);
+            client().performRequest(new Request("GET", "/_flush_telemetry"));
+
+            assertTrue("Root span should be received within timeout", searchRootReceived.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS));
+            Thread.sleep(CHILD_SPAN_GRACE_PERIOD_MS);
+            assertEquals("The root plus max_spans spans should be exported; received: " + searchSpans, 4, searchSpans.size());
+        } finally {
+            updateClusterSettings(Settings.builder().putNull("telemetry.tracing.max_depth").putNull("telemetry.tracing.max_spans").build());
+        }
     }
 }

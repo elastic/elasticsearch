@@ -102,6 +102,7 @@ import org.elasticsearch.xpack.stateless.utils.TransferableCloseables;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -1458,6 +1459,159 @@ public class ObjectStoreServiceTests extends ESTestCase {
                     .toList(),
                 equalTo(List.of(ByteSizeUnit.BYTES.toKB(bytes.length())))
             );
+        }
+    }
+
+    public void testTranslogUploadCallsOnBeforeUploadOnlyWhenItStarts() throws Exception {
+        final var firstUploadStarted = new CountDownLatch(1);
+        final var releaseFirstUpload = new CountDownLatch(1);
+        final List<String> events = Collections.synchronizedList(new ArrayList<>());
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
+            @Override
+            protected Settings nodeSettings() {
+                // a single translog-upload slot
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    .put(StatelessPlugin.TRANSLOG_THREAD_POOL_SETTING + ".core", 1)
+                    .put(StatelessPlugin.TRANSLOG_THREAD_POOL_SETTING + ".max", 1)
+                    .build();
+            }
+
+            @Override
+            protected ThreadPool createThreadPool(Settings nodeSettings) {
+                return new TestThreadPool("test", nodeSettings, StatelessPlugin.statelessExecutorBuilders(nodeSettings, true));
+            }
+
+            @Override
+            public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
+                return new FilterBlobContainer(innerContainer) {
+                    @Override
+                    protected BlobContainer wrapChild(BlobContainer child) {
+                        return child;
+                    }
+
+                    @Override
+                    public void writeBlob(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
+                        throws IOException {
+                        if (purpose == OperationPurpose.TRANSLOG) {
+                            if (blobName.equals("translog-1")) {
+                                firstUploadStarted.countDown();
+                                safeAwait(releaseFirstUpload);
+                            }
+                            events.add("write " + blobName);
+                        }
+                        super.writeBlob(purpose, blobName, bytes, failIfAlreadyExists);
+                    }
+                };
+            }
+        }) {
+            final var objectStoreService = testHarness.objectStoreService;
+            final var firstFuture = new PlainActionFuture<Void>();
+            objectStoreService.uploadTranslogFile(
+                "translog-1",
+                new BytesArray(new byte[] { 1 }),
+                () -> events.add("before translog-1"),
+                () -> false,
+                firstFuture
+            );
+            safeAwait(firstUploadStarted);
+
+            // the first upload holds the single slot, so the second upload waits in the task runner's queue
+            // but does NOT call onBeforeUpload yet because it has not yet started running
+            final var secondFuture = new PlainActionFuture<Void>();
+            objectStoreService.uploadTranslogFile(
+                "translog-2",
+                new BytesArray(new byte[] { 2 }),
+                () -> events.add("before translog-2"),
+                () -> false,
+                secondFuture
+            );
+            assertFalse(secondFuture.isDone());
+            // the second queued upload has not been notified because the first upload is holding the lock
+            assertThat(events, equalTo(List.of("before translog-1")));
+
+            releaseFirstUpload.countDown();
+            safeGet(firstFuture);
+            safeGet(secondFuture);
+            assertThat(events, equalTo(List.of("before translog-1", "write translog-1", "before translog-2", "write translog-2")));
+        }
+    }
+
+    // test that a translog upload waiting in the task runner's queue is skipped if, when it is time to upload its translog was
+    // already uploaded by some other upload
+    public void testTranslogUploadIsSkippedWhenAlreadyUploadedWhileQueued() throws Exception {
+        final var firstUploadStarted = new CountDownLatch(1);
+        final var releaseFirstUpload = new CountDownLatch(1);
+        final List<String> events = Collections.synchronizedList(new ArrayList<>());
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
+            @Override
+            protected Settings nodeSettings() {
+                // a single translog-upload slot
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    .put(StatelessPlugin.TRANSLOG_THREAD_POOL_SETTING + ".core", 1)
+                    .put(StatelessPlugin.TRANSLOG_THREAD_POOL_SETTING + ".max", 1)
+                    .build();
+            }
+
+            @Override
+            protected ThreadPool createThreadPool(Settings nodeSettings) {
+                return new TestThreadPool("test", nodeSettings, StatelessPlugin.statelessExecutorBuilders(nodeSettings, true));
+            }
+
+            @Override
+            public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
+                return new FilterBlobContainer(innerContainer) {
+                    @Override
+                    protected BlobContainer wrapChild(BlobContainer child) {
+                        return child;
+                    }
+
+                    @Override
+                    public void writeBlob(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
+                        throws IOException {
+                        if (purpose == OperationPurpose.TRANSLOG) {
+                            if (blobName.equals("translog-1")) {
+                                firstUploadStarted.countDown();
+                                safeAwait(releaseFirstUpload);
+                            }
+                            events.add("write " + blobName);
+                        }
+                        super.writeBlob(purpose, blobName, bytes, failIfAlreadyExists);
+                    }
+                };
+            }
+        }) {
+            final var objectStoreService = testHarness.objectStoreService;
+            final var firstFuture = new PlainActionFuture<Void>();
+            objectStoreService.uploadTranslogFile(
+                "translog-1",
+                new BytesArray(new byte[] { 1 }),
+                () -> events.add("before translog-1"),
+                () -> false,
+                firstFuture
+            );
+            safeAwait(firstUploadStarted);
+
+            // the first upload holds the single slot, so the second upload waits in the task runner's queue
+            final var translogAlreadyUploaded = new AtomicBoolean(false);
+            final var secondFuture = new PlainActionFuture<Void>();
+            objectStoreService.uploadTranslogFile(
+                "translog-2",
+                new BytesArray(new byte[] { 2 }),
+                () -> events.add("before translog-2"),
+                translogAlreadyUploaded::get,
+                secondFuture
+            );
+            assertFalse(secondFuture.isDone());
+            // while the second upload waits in the queue, its translog gets uploaded by some other upload
+            translogAlreadyUploaded.set(true);
+
+            releaseFirstUpload.countDown();
+            safeGet(firstFuture);
+            safeGet(secondFuture);
+            // the second upload was not notified
+            assertThat(events, equalTo(List.of("before translog-1", "write translog-1")));
         }
     }
 

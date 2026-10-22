@@ -204,6 +204,50 @@ public class S3DataSourcePluginTests extends ESTestCase {
     }
 
     /**
+     * The factory that serves reads applies the same endpoint rule as registration, against the node's current
+     * allowlist: a stored endpoint the list no longer admits is refused before any client is built.
+     */
+    public void testReadFactoryRefusesAnEndpointTheAllowlistNoLongerAdmits() throws IOException {
+        Map<String, Object> stored = Map.of("auth", "anonymous", "endpoint", "http://127.0.0.1:9000");
+        Settings admitted = Settings.builder().putList(ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS_KEY, "127.0.0.1:9000").build();
+        try (S3DataSourcePlugin plugin = new S3DataSourcePlugin()) {
+            // Registration admits it while the list names the host.
+            plugin.datasourceValidators(admitted).get("s3").validateDatasource(stored);
+            // The read factory is built from node settings whose list no longer names the host.
+            StorageProviderFactory factory = plugin.storageProviders(services()).get("s3");
+            var e = expectThrows(ValidationException.class, () -> factory.create(Settings.EMPTY, stored));
+            assertThat(e.getMessage(), containsString("endpoint [http://127.0.0.1:9000] must use https"));
+            assertThat(e.getMessage(), containsString(ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS_KEY));
+        }
+    }
+
+    /**
+     * A query-time configuration never passes the PUT validator, so the read factory is the only place that can hold
+     * its {@code sts_endpoint} to the rule. The STS client would be built with anonymous credentials and sent the
+     * node's OIDC token, so a foreign host is refused before that client exists.
+     */
+    public void testReadFactoryRefusesAForeignStsEndpointFromAQueryConfig() throws IOException {
+        Map<String, Object> queryConfig = Map.of(
+            "auth",
+            "federated_identity",
+            "role_arn",
+            "arn:aws:iam::123456789012:role/reader",
+            "region",
+            "us-east-1",
+            "sts_endpoint",
+            "https://sts.attacker.example"
+        );
+        try (S3DataSourcePlugin plugin = new S3DataSourcePlugin()) {
+            StorageProviderFactory factory = plugin.storageProviders(services()).get("s3");
+            var e = expectThrows(ValidationException.class, () -> factory.create(Settings.EMPTY, queryConfig));
+            assertThat(
+                e.getMessage(),
+                containsString("sts_endpoint [https://sts.attacker.example] names a host that is not a supported AWS STS endpoint")
+            );
+        }
+    }
+
+    /**
      * The credential policy the node threads through {@link StorageProviderServices} is what refuses a federated
      * configuration at provider build; the plugin has to hand it to the factory for that to happen. With federated
      * identity off, a config naming a role is refused with the validator's message and no S3 client is built.

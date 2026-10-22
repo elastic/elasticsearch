@@ -1568,6 +1568,16 @@ public class TranslogReplicatorTests extends ESTestCase {
             // `markUploadFinished` after the task has completed, we can indirectly deduce that we have NO more retries
             assertTrue(uploadTranslogTask.get().isUploaded());
 
+            // hedge was fired
+            assertThat(
+                meterRegistry.getRecorder()
+                    .getMeasurements(InstrumentType.LONG_COUNTER, TranslogReplicator.TRANSLOG_UPLOAD_HEDGES_TOTAL)
+                    .stream()
+                    .map(Measurement::getLong)
+                    .reduce(0L, Long::sum),
+                equalTo(1L)
+            );
+
             // hedge won
             assertThat(
                 meterRegistry.getRecorder()
@@ -1578,15 +1588,6 @@ public class TranslogReplicatorTests extends ESTestCase {
                 equalTo(1L)
             );
 
-            // hedge was fired
-            assertThat(
-                meterRegistry.getRecorder()
-                    .getMeasurements(InstrumentType.LONG_COUNTER, TranslogReplicator.TRANSLOG_UPLOAD_HEDGES_TOTAL)
-                    .stream()
-                    .map(Measurement::getLong)
-                    .reduce(0L, Long::sum),
-                equalTo(1L)
-            );
         } finally {
             firstUploadHangs.countDown();
         }
@@ -1637,14 +1638,14 @@ public class TranslogReplicatorTests extends ESTestCase {
             equalTo(0L)
         );
 
-        // hedge was still fired
+        // hedge did not issue an upload
         assertThat(
             meterRegistry.getRecorder()
                 .getMeasurements(InstrumentType.LONG_COUNTER, TranslogReplicator.TRANSLOG_UPLOAD_HEDGES_TOTAL)
                 .stream()
                 .map(Measurement::getLong)
                 .reduce(0L, Long::sum),
-            equalTo(1L)
+            equalTo(0L)
         );
 
         assertThat(uploads.get(), equalTo(1));

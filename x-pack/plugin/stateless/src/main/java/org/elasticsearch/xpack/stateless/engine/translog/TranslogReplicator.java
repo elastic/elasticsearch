@@ -485,7 +485,6 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         private static final long UNSET = -1L;
         private long firstAttemptStartMillis = UNSET;
         private volatile boolean isUploaded = false;
-        private volatile boolean hedged = false;
         private final AtomicReference<Boolean> firstUploadWasHedge = new AtomicReference<>(); // null if not yet uploaded
         private volatile Scheduler.ScheduledCancellable hedgeTimer;
 
@@ -529,12 +528,12 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         // - If the normal (i.e., non-hedge) upload completes first (e.g., in less than `UPLOAD_HEDGE_DELAY_SETTING` seconds),
         // then `onFinished` is called, `hedgeTimer` is canceled and hence the hedge upload is never fired.
         private void hedge(ActionListener<UploadTranslogTask> listener) {
-            translogUploadHedgesCounter.increment();
             if (firstUploadWasHedge.get() != null || uploadRefs.tryIncRef() == false) {
                 return;
             }
+            translogUploadHedgesCounter.increment();
 
-            hedged = true;
+            uploadTryNumber.incrementAndGet();
             objectStoreService.uploadTranslogFile(
                 translog.metadata().name(),
                 translog.bytes().data(),
@@ -550,7 +549,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
         @Override
         public void tryAction(ActionListener<UploadTranslogTask> listener) {
-            if (uploadTryNumber.incrementAndGet() == 1) {
+            if (uploadTryNumber.get() == 0) {
                 firstAttemptStartMillis = threadPool.relativeTimeInMillis();
                 // Only in the first try we schedule another parallel upload, only if after `uploadHedgeDelay` seconds
                 // we have not yet uploaded the translog.
@@ -560,6 +559,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                 hedgeTimer = threadPool.schedule(() -> hedge(listener), uploadHedgeDelay, EsExecutors.DIRECT_EXECUTOR_SERVICE);
             }
             if (uploadRefs.tryIncRef()) {
+                uploadTryNumber.incrementAndGet();
                 logger.trace(() -> format("attempt [%s] to upload translog file [%s]", uploadTryNumber, translog.metadata().name()));
                 objectStoreService.uploadTranslogFile(
                     translog.metadata().name(),
@@ -631,7 +631,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             public void onResponse(UploadTranslogTask task) {
                 // just have an assert in case of a bug
                 assert task.uploadTryNumber.get() >= 1 && task.firstAttemptStartMillis != UploadTranslogTask.UNSET;
-                translogUploadAttemptsHistogram.record(task.uploadTryNumber.get() + (task.hedged ? 1 : 0));
+                translogUploadAttemptsHistogram.record(task.uploadTryNumber.get());
                 translogUploadTotalDurationHistogram.record(threadPool.relativeTimeInMillis() - task.firstAttemptStartMillis);
                 if (task.firstUploadWasHedge.get()) {
                     translogUploadHedgesWonCounter.increment();

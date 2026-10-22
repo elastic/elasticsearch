@@ -29,6 +29,10 @@ import java.util.function.UnaryOperator;
 import static java.util.Map.entry;
 
 class JavaDateFormatter implements DateFormatter {
+
+    /** Maximum length of the input kept in a parse error. */
+    static final int MAX_INPUT_LENGTH_IN_ERROR = 1024;
+
     @SuppressWarnings("unchecked")
     private static <T extends DateTimeParser> T defaultRoundUp(T parser) {
         if (parser instanceof JavaTimeDateTimeParser jtp) {
@@ -214,7 +218,10 @@ class JavaDateFormatter implements DateFormatter {
         try {
             return doParse(input, roundupParsers);
         } catch (Exception e) {
-            throw new IllegalArgumentException("failed to parse date field [" + input + "] with format [" + format + "]", e);
+            throw new IllegalArgumentException(
+                "failed to parse date field [" + Strings.cleanTruncate(input, MAX_INPUT_LENGTH_IN_ERROR) + "] with format [" + format + "]",
+                e
+            );
         }
     }
 
@@ -227,7 +234,10 @@ class JavaDateFormatter implements DateFormatter {
         try {
             return doParse(input, parsers);
         } catch (Exception e) {
-            throw new IllegalArgumentException("failed to parse date field [" + input + "] with format [" + format + "]", e);
+            throw new IllegalArgumentException(
+                "failed to parse date field [" + Strings.cleanTruncate(input, MAX_INPUT_LENGTH_IN_ERROR) + "] with format [" + format + "]",
+                e
+            );
         }
     }
 

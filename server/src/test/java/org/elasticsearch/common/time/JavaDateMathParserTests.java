@@ -423,6 +423,37 @@ public class JavaDateMathParserTests extends ESTestCase {
         assertParseException("Expected bad date format exception", "123bogus", "failed to parse date field [123bogus]");
     }
 
+    public void testLongIllegalDateIsTruncatedInError() {
+        String date = "123bogus" + "x".repeat(randomIntBetween(10_000, 100_000));
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> parser.parse(date, () -> 0));
+        String kept = date.substring(0, JavaDateFormatter.MAX_INPUT_LENGTH_IN_ERROR);
+        String causeMessage = "failed to parse date field [" + kept + "] with format [date_optional_time||epoch_millis]";
+        assertEquals(causeMessage, e.getCause().getMessage());
+        assertEquals(
+            "failed to parse date field [" + kept + "] with format [date_optional_time||epoch_millis]: [" + causeMessage + "]",
+            e.getMessage()
+        );
+    }
+
+    public void testLongDateMathNumberIsTruncatedInError() {
+        String math = "+" + "1".repeat(randomIntBetween(10_000, 100_000)) + "d";
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> parser.parse("now" + math, () -> 0));
+        assertEquals(
+            "invalid number in date math [" + math.substring(0, JavaDateFormatter.MAX_INPUT_LENGTH_IN_ERROR) + "]",
+            e.getMessage()
+        );
+        assertNull(e.getCause());
+    }
+
+    public void testLongIllegalDateMathIsTruncatedInError() {
+        String math = "+1" + "a".repeat(randomIntBetween(10_000, 100_000));
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> parser.parse("now" + math, () -> 0));
+        assertEquals(
+            "unit [a] not supported for date math [" + math.substring(0, JavaDateFormatter.MAX_INPUT_LENGTH_IN_ERROR) + "]",
+            e.getMessage()
+        );
+    }
+
     public void testOnlyCallsNowIfNecessary() {
         final AtomicBoolean called = new AtomicBoolean();
         final LongSupplier now = () -> {

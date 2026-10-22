@@ -90,12 +90,12 @@ public class JavaDateMathParser implements DateMathParser {
                 } else if (c == '-') {
                     sign = -1;
                 } else {
-                    throw new ElasticsearchParseException("operator not supported for date math [{}]", mathString);
+                    throw new ElasticsearchParseException("operator not supported for date math [{}]", truncate(mathString));
                 }
             }
 
             if (i >= mathString.length()) {
-                throw new ElasticsearchParseException("truncated date math [{}]", mathString);
+                throw new ElasticsearchParseException("truncated date math [{}]", truncate(mathString));
             }
 
             final int num;
@@ -107,13 +107,18 @@ public class JavaDateMathParser implements DateMathParser {
                     i++;
                 }
                 if (i >= mathString.length()) {
-                    throw new ElasticsearchParseException("truncated date math [{}]", mathString);
+                    throw new ElasticsearchParseException("truncated date math [{}]", truncate(mathString));
                 }
-                num = Integer.parseInt(mathString.substring(numFrom, i));
+                try {
+                    num = Integer.parseInt(mathString.substring(numFrom, i));
+                } catch (NumberFormatException e) {
+                    // The cause is not kept: its message repeats all the digits
+                    throw new ElasticsearchParseException("invalid number in date math [{}]", truncate(mathString));
+                }
             }
             if (round) {
                 if (num != 1) {
-                    throw new ElasticsearchParseException("rounding `/` can only be used on single unit types [{}]", mathString);
+                    throw new ElasticsearchParseException("rounding `/` can only be used on single unit types [{}]", truncate(mathString));
                 }
             }
             char unit = mathString.charAt(i++);
@@ -190,7 +195,7 @@ public class JavaDateMathParser implements DateMathParser {
                     }
                     break;
                 default:
-                    throw new ElasticsearchParseException("unit [{}] not supported for date math [{}]", unit, mathString);
+                    throw new ElasticsearchParseException("unit [{}] not supported for date math [{}]", unit, truncate(mathString));
             }
             if (round && roundUpProperty) {
                 // subtract 1 millisecond to get the largest inclusive value
@@ -228,10 +233,14 @@ public class JavaDateMathParser implements DateMathParser {
             throw new ElasticsearchParseException(
                 "failed to parse date field [{}] with format [{}]: [{}]",
                 e,
-                value,
+                truncate(value),
                 format,
                 e.getMessage()
             );
         }
+    }
+
+    private static String truncate(String input) {
+        return Strings.cleanTruncate(input, JavaDateFormatter.MAX_INPUT_LENGTH_IN_ERROR);
     }
 }

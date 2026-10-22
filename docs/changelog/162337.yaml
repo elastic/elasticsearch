@@ -1,0 +1,5 @@
+area: Mapping
+issues: []
+pr: 162337
+summary: "[8.19] Avoid allocations during type checking in put mapping request"
+type: enhancement

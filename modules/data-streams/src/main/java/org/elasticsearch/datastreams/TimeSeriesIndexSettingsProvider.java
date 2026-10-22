@@ -37,6 +37,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_PATH;
 
@@ -45,14 +46,25 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_PAT
  * index.time_series.end_time and index.routing_path index settings to backing indices of
  * data streams in time series index mode.
  */
-public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
+public class TimeSeriesIndexSettingsProvider implements IndexSettingProvider {
 
     static final DateFormatter FORMATTER = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 
+    private static final Set<String> AFFECTED_SETTINGS = Set.of(
+        IndexSettings.TIME_SERIES_START_TIME.getKey(),
+        IndexSettings.TIME_SERIES_END_TIME.getKey(),
+        INDEX_ROUTING_PATH.getKey()
+    );
+
     private final CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory;
 
-    DataStreamIndexSettingsProvider(CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory) {
+    TimeSeriesIndexSettingsProvider(CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory) {
         this.mapperServiceFactory = mapperServiceFactory;
+    }
+
+    @Override
+    public Set<String> affectedSettings() {
+        return AFFECTED_SETTINGS;
     }
 
     @Override
@@ -65,75 +77,59 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
         Settings indexTemplateAndCreateRequestSettings,
         List<CompressedXContent> combinedTemplateMappings
     ) {
-        if (dataStreamName != null) {
-            DataStream dataStream = metadata.dataStreams().get(dataStreamName);
-            // First backing index is created and then data stream is rolled over (in a single cluster state update).
-            // So at this point we can't check index_mode==time_series,
-            // so checking that index_mode==null|standard and templateIndexMode == TIME_SERIES
-            boolean isMigratingToTimeSeries = templateIndexMode == IndexMode.TIME_SERIES;
-            boolean migrating = dataStream != null
-                && (dataStream.getIndexMode() == null || dataStream.getIndexMode() == IndexMode.STANDARD)
-                && isMigratingToTimeSeries;
-            IndexMode indexMode;
-            if (migrating) {
-                indexMode = IndexMode.TIME_SERIES;
-            } else if (dataStream != null) {
-                indexMode = isMigratingToTimeSeries ? dataStream.getIndexMode() : null;
-            } else if (isMigratingToTimeSeries) {
-                indexMode = IndexMode.TIME_SERIES;
-            } else {
-                indexMode = null;
+        // If this is not a data stream or the index mode is not going to be time_series, we skip
+        if (dataStreamName == null || templateIndexMode != IndexMode.TIME_SERIES) {
+            return Settings.EMPTY;
+        }
+        DataStream dataStream = metadata.dataStreams().get(dataStreamName);
+        IndexMode dataStreamIndexMode = dataStream == null ? null : dataStream.getIndexMode();
+        // If this is the first time series index for this data stream, either because the data stream was
+        // just created or because the data stream was not a time series data stream before.
+        boolean validFirstTimeSeriesIndex = dataStreamIndexMode == null || dataStreamIndexMode == IndexMode.STANDARD;
+        if (validFirstTimeSeriesIndex == false && dataStreamIndexMode != IndexMode.TIME_SERIES) {
+            // This is an invalid migration to TSDB, we do not fail here, but we rely on the rollover to reject this.
+            return Settings.EMPTY;
+        }
+        Settings.Builder builder = Settings.builder();
+        TimeValue lookAheadTime = DataStreamsPlugin.getLookAheadTime(indexTemplateAndCreateRequestSettings);
+        TimeValue lookBackTime = DataStreamsPlugin.LOOK_BACK_TIME.get(indexTemplateAndCreateRequestSettings);
+        final Instant start;
+        final Instant end;
+        // Determine the start and end time either based on resolvedAt or the previous time series backing index.
+        if (validFirstTimeSeriesIndex) {
+            start = DataStream.getCanonicalTimestampBound(resolvedAt.minusMillis(lookBackTime.getMillis()));
+            end = DataStream.getCanonicalTimestampBound(resolvedAt.plusMillis(lookAheadTime.getMillis()));
+        } else {
+            IndexMetadata currentLatestBackingIndex = metadata.index(dataStream.getWriteIndex());
+            if (currentLatestBackingIndex.getSettings().hasValue(IndexSettings.TIME_SERIES_END_TIME.getKey()) == false) {
+                throw new IllegalStateException(
+                    String.format(
+                        Locale.ROOT,
+                        "backing index [%s] in tsdb mode doesn't have the [%s] index setting",
+                        currentLatestBackingIndex.getIndex().getName(),
+                        IndexSettings.TIME_SERIES_END_TIME.getKey()
+                    )
+                );
             }
-            if (indexMode != null) {
-                if (indexMode == IndexMode.TIME_SERIES) {
-                    Settings.Builder builder = Settings.builder();
-                    TimeValue lookAheadTime = DataStreamsPlugin.getLookAheadTime(indexTemplateAndCreateRequestSettings);
-                    TimeValue lookBackTime = DataStreamsPlugin.LOOK_BACK_TIME.get(indexTemplateAndCreateRequestSettings);
-                    final Instant start;
-                    final Instant end;
-                    if (dataStream == null || migrating) {
-                        start = DataStream.getCanonicalTimestampBound(resolvedAt.minusMillis(lookBackTime.getMillis()));
-                        end = DataStream.getCanonicalTimestampBound(resolvedAt.plusMillis(lookAheadTime.getMillis()));
-                    } else {
-                        IndexMetadata currentLatestBackingIndex = metadata.index(dataStream.getWriteIndex());
-                        if (currentLatestBackingIndex.getSettings().hasValue(IndexSettings.TIME_SERIES_END_TIME.getKey()) == false) {
-                            throw new IllegalStateException(
-                                String.format(
-                                    Locale.ROOT,
-                                    "backing index [%s] in tsdb mode doesn't have the [%s] index setting",
-                                    currentLatestBackingIndex.getIndex().getName(),
-                                    IndexSettings.TIME_SERIES_END_TIME.getKey()
-                                )
-                            );
-                        }
-                        start = IndexSettings.TIME_SERIES_END_TIME.get(currentLatestBackingIndex.getSettings());
-                        if (start.isAfter(resolvedAt)) {
-                            end = DataStream.getCanonicalTimestampBound(start.plusMillis(lookAheadTime.getMillis()));
-                        } else {
-                            end = DataStream.getCanonicalTimestampBound(resolvedAt.plusMillis(lookAheadTime.getMillis()));
-                        }
-                    }
-                    assert start.isBefore(end) : "data stream backing index's start time is not before end time";
-                    builder.put(IndexSettings.TIME_SERIES_START_TIME.getKey(), FORMATTER.format(start));
-                    builder.put(IndexSettings.TIME_SERIES_END_TIME.getKey(), FORMATTER.format(end));
-
-                    if (indexTemplateAndCreateRequestSettings.hasValue(IndexMetadata.INDEX_ROUTING_PATH.getKey()) == false
-                        && combinedTemplateMappings.isEmpty() == false) {
-                        List<String> routingPaths = findRoutingPaths(
-                            indexName,
-                            indexTemplateAndCreateRequestSettings,
-                            combinedTemplateMappings
-                        );
-                        if (routingPaths.isEmpty() == false) {
-                            builder.putList(INDEX_ROUTING_PATH.getKey(), routingPaths);
-                        }
-                    }
-                    return builder.build();
-                }
+            start = IndexSettings.TIME_SERIES_END_TIME.get(currentLatestBackingIndex.getSettings());
+            if (start.isAfter(resolvedAt)) {
+                end = DataStream.getCanonicalTimestampBound(start.plusMillis(lookAheadTime.getMillis()));
+            } else {
+                end = DataStream.getCanonicalTimestampBound(resolvedAt.plusMillis(lookAheadTime.getMillis()));
             }
         }
+        assert start.isBefore(end) : "data stream backing index's start time is not before end time";
+        builder.put(IndexSettings.TIME_SERIES_START_TIME.getKey(), FORMATTER.format(start));
+        builder.put(IndexSettings.TIME_SERIES_END_TIME.getKey(), FORMATTER.format(end));
 
-        return Settings.EMPTY;
+        if (indexTemplateAndCreateRequestSettings.hasValue(IndexMetadata.INDEX_ROUTING_PATH.getKey()) == false
+            && combinedTemplateMappings.isEmpty() == false) {
+            List<String> routingPaths = findRoutingPaths(indexName, indexTemplateAndCreateRequestSettings, combinedTemplateMappings);
+            if (routingPaths.isEmpty() == false) {
+                builder.putList(INDEX_ROUTING_PATH.getKey(), routingPaths);
+            }
+        }
+        return builder.build();
     }
 
     /**

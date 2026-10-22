@@ -108,7 +108,7 @@ final class QueryFetchClient implements FetchOperator.Client {
                 try {
                     listener.onFailure(e);
                 } finally {
-                    // the failure fails the fetch operator, and so the query
+                    // the fetch operator decides whether the failure fails the query, so the drivers complete without counters
                     drivers.onResponse(DriverCompletionInfo.EMPTY);
                 }
             }

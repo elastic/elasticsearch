@@ -101,6 +101,7 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.fetch.FetchContextLease;
 import org.elasticsearch.xpack.esql.fetch.FetchContextService;
+import org.elasticsearch.xpack.esql.fetch.FetchFailures;
 import org.elasticsearch.xpack.esql.fetch.FetchPhaseServices;
 import org.elasticsearch.xpack.esql.fetch.FetchService;
 import org.elasticsearch.xpack.esql.fetch.QueryFetchScope;
@@ -1531,6 +1532,8 @@ public class ComputeService {
             try (Releasable ignored = exchangeSource.addEmptySink()) {
                 // run compute on the coordinator
                 final AtomicBoolean localClusterWasInterrupted = new AtomicBoolean();
+                // the fetches of the query record the shards they went on without, which the local cluster reports as failed
+                final FetchFailures fetchFailures = new FetchFailures(configuration.allowPartialResults());
                 try (
                     var localListener = new ComputeListener(
                         cancelQueryOnFailure,
@@ -1539,12 +1542,15 @@ public class ComputeService {
                                 execInfo.swapCluster(LOCAL_CLUSTER, (k, v) -> {
                                     var tookTime = execInfo.queryProfile().total().timeSinceStarted();
                                     var builder = new EsqlExecutionInfo.Cluster.Builder(v).setTook(tookTime);
+                                    // only now: the data nodes assign the shard counts, which would replace the fetch failures
+                                    boolean fetchFailed = fetchFailures.applyTo(builder, v);
                                     if (execInfo.isMainPlan()) {
                                         // Later merge branches can add failures after an earlier leaf set SUCCESSFUL; promote to PARTIAL
                                         // and never demote PARTIAL. receivedResults is false: this is coordinator finalization, not a
                                         // data-node/remote compute report. Passing true would promote a planning-time SKIPPED (no local
                                         // indices to search) to PARTIAL.
                                         boolean failed = localClusterWasInterrupted.get()
+                                            || fetchFailed
                                             || (v.getFailedShards() != null && v.getFailedShards() > 0)
                                             || v.getFailures().isEmpty() == false;
                                         applyClusterStatusAfterBranch(builder, v, failed, false);
@@ -1561,7 +1567,7 @@ public class ComputeService {
                     if (coordinatorPlan.anyMatch(FetchExec.class::isInstance)) {
                         // the fetches of the query send their requests as children of its task, and count their drivers as its own
                         fetchOperators = fetchPhaseServices.operatorProvider(
-                            new QueryFetchScope(rootTask, sessionId, configuration, localListener::acquireCompute)
+                            new QueryFetchScope(rootTask, sessionId, configuration, localListener::acquireCompute, fetchFailures)
                         );
                     }
                     runCompute(

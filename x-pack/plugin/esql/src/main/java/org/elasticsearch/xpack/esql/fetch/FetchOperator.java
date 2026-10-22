@@ -29,6 +29,7 @@ import org.elasticsearch.compute.operator.fetch.FetchGather;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.logging.LogManager;
@@ -52,6 +53,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
+import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
@@ -62,8 +64,10 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  * threads, which only store them. The driver thread then puts the fetched columns next to the rows, with the block factory
  * of the driver. A fetch frees no reader context: the query frees them all once it ends.
  * <p>
- * For now every failure of a fetch fails the query: a shard whose context is gone, a node that left, a request a data
- * node rejected.
+ * A fetch can fail for some shards: a shard whose context is gone, a request a node rejected, a node that left. When the
+ * query allows partial results, the page goes on without the rows of those shards, in the order of the cut, and the query
+ * reports the shards as failed ({@link FetchFailures}). Otherwise, and for failures such as a cancellation or a response
+ * that doesn't match its request, the fetch fails the query.
  */
 public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
     private static final Logger logger = LogManager.getLogger(FetchOperator.class);
@@ -107,15 +111,22 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
      * @param fetchedTypes        the element type of each fetched column
      * @param fetchPlan           the plan each node runs to load the fetched columns
      * @param maxOutstandingPages the pages of the cut that fetch at the same time
+     * @param failures            decides whether the query goes on without the rows of a failed fetch, and records the shards
+     *                            it went on without
      */
-    public record Factory(int docChannel, List<ElementType> fetchedTypes, PhysicalPlan fetchPlan, int maxOutstandingPages, Client client)
-        implements
-            OperatorFactory {
+    public record Factory(
+        int docChannel,
+        List<ElementType> fetchedTypes,
+        PhysicalPlan fetchPlan,
+        int maxOutstandingPages,
+        Client client,
+        FetchFailures failures
+    ) implements OperatorFactory {
         /**
          * The operator of {@code exec}. The nodes that own the documents load the fetched columns with a plan built here,
          * without an extraction preference, so each column gets the element type of its data type.
          */
-        static Factory forExec(FetchExec exec, int docChannel, Client client) {
+        static Factory forExec(FetchExec exec, int docChannel, Client client, FetchFailures failures) {
             List<Attribute> fetched = exec.fetchedAttributes();
             Attribute doc = new FieldAttribute(Source.EMPTY, null, null, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
             PhysicalPlan load = new FieldExtractExec(
@@ -128,12 +139,12 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
             List<ElementType> fetchedTypes = fetched.stream()
                 .map(a -> PlannerUtils.toElementType(a.dataType(), MappedFieldType.FieldExtractPreference.NONE))
                 .toList();
-            return new Factory(docChannel, fetchedTypes, fetchPlan, MAX_OUTSTANDING_PAGES, client);
+            return new Factory(docChannel, fetchedTypes, fetchPlan, MAX_OUTSTANDING_PAGES, client, failures);
         }
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new FetchOperator(driverContext, docChannel, fetchedTypes, fetchPlan, maxOutstandingPages, client);
+            return new FetchOperator(driverContext, docChannel, fetchedTypes, fetchPlan, maxOutstandingPages, client, failures);
         }
 
         @Override
@@ -145,13 +156,17 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
     /**
      * One page of the cut and the fetched columns of its documents: the pages of every node, one node after the other in
      * the order of the batch.
+     *
+     * @param responseRows for each row of the cut, the row of {@code fetched} that holds its values, or {@code -1} to drop
+     *                     the row because the fetch of its shard failed
      */
-    record Fetched(Page cut, FetchBatchPlanner.Batch batch, List<Page> fetched) {}
+    record Fetched(Page cut, FetchBatchPlanner.Batch batch, List<Page> fetched, int[] responseRows) {}
 
     private final int docChannel;
     private final List<ElementType> fetchedTypes;
     private final PhysicalPlan fetchPlan;
     private final Client client;
+    private final FetchFailures fetchFailures;
     /**
      * The response headers of every node. The completion of a page only sees the ones of the node that answered last.
      */
@@ -174,13 +189,15 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
         List<ElementType> fetchedTypes,
         PhysicalPlan fetchPlan,
         int maxOutstandingPages,
-        Client client
+        Client client,
+        FetchFailures fetchFailures
     ) {
         super(driverContext, client.threadContext(), maxOutstandingPages);
         this.docChannel = docChannel;
         this.fetchedTypes = fetchedTypes;
         this.fetchPlan = fetchPlan;
         this.client = client;
+        this.fetchFailures = fetchFailures;
         this.nodeHeaders = new ResponseHeadersCollector(client.threadContext());
     }
 
@@ -199,7 +216,7 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
         int pageDocuments = batch.nodes().stream().mapToInt(FetchBatchPlanner.NodeBatch::docCount).sum();
         documents += pageDocuments;
         if (batch.nodes().isEmpty()) {
-            listener.onResponse(new Fetched(cut, batch, List.of()));
+            listener.onResponse(new Fetched(cut, batch, List.of(), batch.responseRows()));
             return;
         }
         logger.debug("fetching [{}] documents for [{}] rows from [{}] nodes", pageDocuments, cut.getPositionCount(), batch.nodes().size());
@@ -208,23 +225,41 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
 
     /**
      * The requests of one page of the cut. Completes the listener of the page once every node answered or failed: with the
-     * pages of every node, or with the failure.
+     * pages of every node whose fetch didn't fail and the rows to drop, or with the failure that fails the query.
      */
     private final class PageFetch {
         private final Page cut;
         private final FetchBatchPlanner.Batch batch;
         private final ActionListener<Fetched> listener;
+        /**
+         * The failures that fail the query.
+         */
         private final FailureCollector failures = new FailureCollector();
         /**
-         * The fetched pages of each node, set by the thread that receives its response.
+         * The fetched pages of each node, set by the thread that receives its response. Empty for a node whose fetch failed.
          */
         private final AtomicReferenceArray<List<Page>> fetchedByNode;
+        /**
+         * The position of the first shard of each node among the shards of the batch.
+         */
+        private final int[] firstShardOfNode;
+        /**
+         * For each shard of the batch, {@code 1} once its fetch failed and the page goes on without its rows.
+         */
+        private final AtomicIntegerArray failedShards;
 
         PageFetch(Page cut, FetchBatchPlanner.Batch batch, ActionListener<Fetched> listener) {
             this.cut = cut;
             this.batch = batch;
             this.listener = listener;
             this.fetchedByNode = new AtomicReferenceArray<>(batch.nodes().size());
+            this.firstShardOfNode = new int[batch.nodes().size()];
+            int shards = 0;
+            for (int n = 0; n < batch.nodes().size(); n++) {
+                firstShardOfNode[n] = shards;
+                shards += batch.nodes().get(n).shards().size();
+            }
+            this.failedShards = new AtomicIntegerArray(shards);
         }
 
         void send() {
@@ -237,8 +272,8 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
                     FetchBatchPlanner.NodeBatch node = batch.nodes().get(n);
                     DiscoveryNode target = client.node(node.clusterAlias(), node.nodeId());
                     if (target == null) {
-                        failures.unwrapAndCollect(new NoNodeAvailableException("node [" + node.nodeId() + "] left the cluster"));
-                        break;
+                        nodeFailed(n, new NoNodeAvailableException("node [" + node.nodeId() + "] left the cluster"));
+                        continue;
                     }
                     // a second completion would release the reference of the node twice and complete the page too early
                     ActionListener<FetchResponse> nodeListener = ActionListener.notifyOnce(
@@ -273,7 +308,54 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
                 listener.onFailure(failure);
                 return;
             }
-            listener.onResponse(new Fetched(cut, batch, fetched));
+            listener.onResponse(new Fetched(cut, batch, fetched, responseRows()));
+        }
+
+        /**
+         * The response row of each row of the cut, {@code -1} for the rows of the shards whose fetch failed.
+         */
+        private int[] responseRows() {
+            boolean[] failed = new boolean[failedShards.length()];
+            boolean anyFailed = false;
+            for (int s = 0; s < failed.length; s++) {
+                failed[s] = failedShards.get(s) != 0;
+                anyFailed |= failed[s];
+            }
+            return anyFailed ? batch.responseRowsWithout(failed) : batch.responseRows();
+        }
+
+        /**
+         * The fetch from node {@code n} failed as a whole. The page goes on without the rows of its shards, or the failure
+         * fails the query.
+         */
+        private void nodeFailed(int n, Exception e) {
+            Exception failure = FetchFailures.unwrap(e);
+            if (fetchFailures.tolerates(failure) == false) {
+                failures.unwrapAndCollect(e);
+                return;
+            }
+            FetchBatchPlanner.NodeBatch node = batch.nodes().get(n);
+            logger.debug(
+                () -> Strings.format(
+                    "fetching from node [%s] failed, going on without the rows of its [%s] shards",
+                    node.nodeId(),
+                    node.shards().size()
+                ),
+                failure
+            );
+            for (int s = 0; s < node.shards().size(); s++) {
+                shardFailed(n, s, failure);
+            }
+            fetchedByNode.set(n, List.of());
+        }
+
+        /**
+         * The page goes on without the rows of shard {@code s} of node {@code n}, and the query reports the shard as failed.
+         */
+        private void shardFailed(int n, int s, Exception failure) {
+            FetchBatchPlanner.NodeBatch node = batch.nodes().get(n);
+            fetchFailures.shardFailed(node.clusterAlias(), node.nodeId(), node.shards().get(s).shardId(), failure);
+            failedShards.set(firstShardOfNode[n] + s, 1);
         }
 
         /**
@@ -312,9 +394,7 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
                     );
                     List<Page> pages = response.takePages();
                     unclaimed = pages;
-                    Exception failure = failureOf(response);
-                    if (failure != null) {
-                        failures.unwrapAndCollect(failure);
+                    if (keepShardsThatAnswered(response, pages) == false) {
                         return;
                     }
                     for (Page page : pages) {
@@ -335,27 +415,76 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
             }
 
             /**
-             * The failure of the first shard that failed, or a response that doesn't hold a row for each document.
+             * Checks that the response answers the request shard by shard, and lets the page go on without the shards whose
+             * fetch failed. Returns {@code false} when a failure fails the query. A response that doesn't match its request
+             * always fails it, because its rows can't be put next to the right documents.
              */
-            @Nullable
-            private Exception failureOf(FetchResponse response) {
-                for (FetchResponse.ShardResult result : response.shardResults()) {
-                    if (result.failure() != null) {
-                        return result.failure();
+            private boolean keepShardsThatAnswered(FetchResponse response, List<Page> pages) {
+                List<FetchResponse.ShardResult> results = response.shardResults();
+                if (results.size() != node.shards().size()) {
+                    return mismatch("answered for [" + results.size() + "] shards out of [" + node.shards().size() + "]");
+                }
+                int expectedRows = 0;
+                boolean anyFailed = false;
+                for (int s = 0; s < results.size(); s++) {
+                    FetchResponse.ShardResult result = results.get(s);
+                    FetchRequest.ShardDocs shard = node.shards().get(s);
+                    if (result.shardId().equals(shard.shardId()) == false) {
+                        return mismatch("answered for " + result.shardId() + " instead of " + shard.shardId());
+                    }
+                    if (result.failure() == null) {
+                        expectedRows += shard.docCount();
+                    } else if (fetchFailures.tolerates(result.failure())) {
+                        anyFailed = true;
+                    } else {
+                        failures.unwrapAndCollect(result.failure());
+                        return false;
                     }
                 }
-                if (response.rows() != node.docCount()) {
-                    return new IllegalStateException(
-                        "node [" + node.nodeId() + "] returned [" + response.rows() + "] rows for [" + node.docCount() + "] documents"
-                    );
+                if (response.rows() != expectedRows) {
+                    return mismatch("returned [" + response.rows() + "] rows for [" + expectedRows + "] documents");
                 }
-                return null;
+                int pageRows = 0;
+                for (Page page : pages) {
+                    pageRows += page.getPositionCount();
+                }
+                if (pageRows != expectedRows) {
+                    return mismatch("sent pages of [" + pageRows + "] rows for [" + expectedRows + "] documents");
+                }
+                for (int s = 0; s < results.size(); s++) {
+                    FetchResponse.ShardResult result = results.get(s);
+                    int docs = node.shards().get(s).docCount();
+                    if (result.failure() == null && result.rows() != docs) {
+                        return mismatch("returned [" + result.rows() + "] rows for the [" + docs + "] documents of " + result.shardId());
+                    }
+                }
+                if (anyFailed) {
+                    for (int s = 0; s < results.size(); s++) {
+                        Exception failure = results.get(s).failure();
+                        if (failure != null) {
+                            logger.debug(
+                                () -> Strings.format(
+                                    "fetching from node [%s] failed for a shard, going on without its rows",
+                                    node.nodeId()
+                                ),
+                                failure
+                            );
+                            shardFailed(index, s, failure);
+                        }
+                    }
+                }
+                return true;
+            }
+
+            private boolean mismatch(String problem) {
+                failures.unwrapAndCollect(new IllegalStateException("node [" + node.nodeId() + "] " + problem));
+                return false;
             }
 
             @Override
             public void onFailure(Exception e) {
                 try {
-                    failures.unwrapAndCollect(e);
+                    nodeFailed(index, e);
                 } finally {
                     ref.close();
                 }
@@ -380,7 +509,7 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
             List.of(result.cut()),
             result.fetched(),
             fetchedTypes,
-            result.batch().responseRows(),
+            result.responseRows(),
             result.batch().deduplicated()
         );
         gatherNanos += System.nanoTime() - gatherStart;

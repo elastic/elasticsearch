@@ -48,7 +48,8 @@ public interface FetchPhaseServices {
                                 () -> clusterService.state().nodes(),
                                 scope,
                                 exec.originalIndices()
-                            )
+                            ),
+                            scope.fetchFailures()
                         );
                     }
 

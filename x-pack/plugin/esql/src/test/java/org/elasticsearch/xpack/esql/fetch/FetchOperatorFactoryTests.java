@@ -47,7 +47,7 @@ public class FetchOperatorFactoryTests extends ESTestCase {
             null
         );
 
-        FetchOperator.Factory factory = FetchOperator.Factory.forExec(exec, 0, null);
+        FetchOperator.Factory factory = FetchOperator.Factory.forExec(exec, 0, null, new FetchFailures(false));
         assertThat(factory.fetchedTypes(), equalTo(List.of(ElementType.BYTES_REF, ElementType.BYTES_REF)));
         assertThat(factory.fetchPlan(), instanceOf(ProjectExec.class));
         ProjectExec project = (ProjectExec) factory.fetchPlan();

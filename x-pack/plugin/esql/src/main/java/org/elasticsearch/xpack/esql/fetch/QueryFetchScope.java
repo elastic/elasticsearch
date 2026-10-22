@@ -21,15 +21,18 @@ import java.util.function.Supplier;
  * @param rootTask       the task of the query. Every fetch request is its child, so cancelling the query cancels them.
  * @param completionInfo acquires a listener for the drivers of one fetch request. The query adds them to its own
  *                       counters and profile.
+ * @param fetchFailures  the shards whose fetch failed, which the query reports once its computes are done
  */
 public record QueryFetchScope(
     CancellableTask rootTask,
     String sessionId,
     Configuration configuration,
-    Supplier<ActionListener<DriverCompletionInfo>> completionInfo
+    Supplier<ActionListener<DriverCompletionInfo>> completionInfo,
+    FetchFailures fetchFailures
 ) {
     public QueryFetchScope {
         Objects.requireNonNull(rootTask, "rootTask");
         Objects.requireNonNull(completionInfo, "completionInfo");
+        Objects.requireNonNull(fetchFailures, "fetchFailures");
     }
 }

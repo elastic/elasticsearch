@@ -207,7 +207,7 @@ public class QueryFetchClientTests extends ComputeTestCase {
     }
 
     private QueryFetchScope scope() {
-        return new QueryFetchScope(rootTask, "query-session", EsqlTestUtils.TEST_CFG, drivers);
+        return new QueryFetchScope(rootTask, "query-session", EsqlTestUtils.TEST_CFG, drivers, new FetchFailures(false));
     }
 
     private DiscoveryNodes nodes() {

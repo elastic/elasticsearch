@@ -23,8 +23,8 @@ In the {{kib}} UI, you create and manage datasets from the **Datasets** tab unde
 
 The **Datasets** tab lists each dataset with its data source, data source type, resource, and description. You can search your datasets, filter them by data source, and add new ones. Each row has the following actions:
 
-- **Open in Discover**: Opens **Discover** with a `FROM <dataset>` query.
-- **Edit** and **Delete**: Available from the row's **More actions** menu.
+- **Open in Discover** ({icon}`product_discover`): Opens **Discover** with a `FROM <dataset>` query.
+- **Edit** and **Delete**: Click **More actions** ({icon}`ellipsis`) at the end of the row, then select an action.
 
 The following example shows two datasets that read through the same data source:
 
@@ -32,7 +32,11 @@ The following example shows two datasets that read through the same data source:
 
 ### Add a new dataset
 
-Click **Add dataset** to open a four-step wizard. After you complete a step, you can return to it from the progress bar at the top of the page.
+Click **Add dataset** to open a four-step wizard. A progress bar at the top of the page shows each step:
+
+![The progress bar of the Add dataset wizard, showing the Define dataset, Optional settings, Schema mappings, and Review steps, with Define dataset active](images/data-federation/add-dataset-steps.png)
+
+After you complete a step, you can return to it by clicking it in the progress bar.
 
 #### Define dataset
 
@@ -44,7 +48,9 @@ The first step sets what the dataset reads:
 - **Resource**: The URI and glob pattern that selects the files to read. Refer to [resource patterns](esql-data-federation-patterns.md) for the pattern language.
 - **Format**: Detected from the file extension in **Resource**. Select a format yourself when the pattern has no extension or matches more than one format. Detection never replaces a format you select. Refer to [supported file formats](esql-data-federation-file-formats.md).
 
-After you select a data source, a callout reminds you to check its permissions. Creating a dataset doesn't test whether the data source can read the files, so make sure you [grant read access](esql-data-federation-sources.md#grant-read-access) in your cloud provider.
+:::{note}
+Creating a dataset doesn't test whether the data source can read the files. Before you query the dataset, [grant read access](esql-data-federation-sources.md#grant-read-access) in your cloud provider.
+:::
 
 #### Optional settings
 
@@ -93,7 +99,7 @@ Click **Add dataset** to create the dataset.
 
 ### Edit a dataset
 
-To change a dataset, open the row's **More actions** menu and select **Edit**. The wizard opens with the dataset's current configuration. Click **Save** on the **Review** step to apply your changes.
+To change a dataset, click **More actions** ({icon}`ellipsis`) at the end of its row, then select **Edit**. The wizard opens with the dataset's current configuration. Click **Save** on the **Review** step to apply your changes.
 
 :::{warning}
 Changing the **Dataset name** saves the dataset under the new name and then deletes the dataset with the old name. Queries that use the old name stop working.

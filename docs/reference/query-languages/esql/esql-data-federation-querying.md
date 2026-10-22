@@ -18,7 +18,7 @@ FROM my_dataset
 
 :::{tip}
 :applies_to: stack: experimental 9.6+
-To query a dataset from the {{kib}} UI, click **Open in Discover** in the dataset's row on the [**Datasets** tab](esql-data-federation-manage-datasets.md#manage-datasets-in-the-ui). **Discover** opens with a `FROM <dataset>` query.
+To query a dataset from the {{kib}} UI, click **Open in Discover** ({icon}`product_discover`) in the dataset's row on the [**Datasets** tab](esql-data-federation-manage-datasets.md#manage-datasets-in-the-ui). **Discover** opens with a `FROM <dataset>` query.
 :::
 
 For a hands-on example, refer to [get started with {{esql}} Data Federation](esql-data-federation-quickstart.md).

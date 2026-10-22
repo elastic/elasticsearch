@@ -192,7 +192,7 @@ public class ColumnarTermsAggregationTests extends ESSingleNodeTestCase {
         assertThat(buckets(COLUMNAR, terms, false, false), equalTo(buckets(PLAIN, terms, false, false)));
     }
 
-    /** A field with several values a document does not use ordinals, and counts the same. */
+    /** A field with several values a document counts the same, whichever way each document is read. */
     public void testAMultiValuedFieldCountsTheSame() {
         final String columnar = "columnar-multi";
         final String plain = "plain-multi";

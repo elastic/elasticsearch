@@ -41,6 +41,7 @@ import org.elasticsearch.columnar.string.DictionaryStringColumnReader;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.fielddata.ColumnarPayloadSortableBinaryDocValues;
+import org.elasticsearch.index.fielddata.ValueDeduplicator;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.terms.MapStringTermsAggregator.BucketCollectConsumer;
@@ -52,6 +53,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -135,19 +137,26 @@ public class ColumnarOrdinalTermsCollectorTests extends ESTestCase {
         private final ColumnarPayloadSortableBinaryDocValues values;
         private final IncludeExclude.StringFilter filter;
         private final CountingConsumer consumer;
+        private final ValueDeduplicator duplicates;
 
         PerDocumentCollector(ColumnarPayloadSortableBinaryDocValues values, IncludeExclude.StringFilter filter, CountingConsumer consumer) {
             this.values = values;
             this.filter = filter;
             this.consumer = consumer;
+            this.duplicates = new ValueDeduplicator(values);
         }
 
         @Override
         public void collect(int doc, long owningBucketOrd) throws IOException {
             if (values.advanceExact(doc)) {
-                for (int i = 0, count = values.docValueCount(); i < count; i++) {
+                final int count = values.docValueCount();
+                duplicates.reset(count);
+                for (int i = 0; i < count; i++) {
                     final BytesRef value = values.nextValue();
-                    if (filter == null || filter.accept(value)) {
+                    if (filter != null && filter.accept(value) == false) {
+                        continue;
+                    }
+                    if (duplicates.seen(value) == false) {
                         consumer.accept(NO_OP_COLLECTOR, doc, owningBucketOrd, value);
                     }
                 }
@@ -194,7 +203,8 @@ public class ColumnarOrdinalTermsCollectorTests extends ESTestCase {
     public void testEachSegmentHashesItsTermsAgain() throws IOException {
         final List<String[]> segments = new ArrayList<>();
         int hashed = 0;
-        for (int segment = 0; segment < randomIntBetween(2, 5); segment++) {
+        final int segmentCount = randomIntBetween(2, 5);
+        for (int segment = 0; segment < segmentCount; segment++) {
             // Overlapping vocabularies, so a term has a different ordinal from one segment to the next.
             final String[] docs = new String[randomIntBetween(500, 2000)];
             final int from = randomIntBetween(0, 3);
@@ -256,7 +266,7 @@ public class ColumnarOrdinalTermsCollectorTests extends ESTestCase {
         }
     }
 
-    /** With deleted documents Lucene delivers the live ones in windows, and the deleted are left out. */
+    /** Deleted documents are left out. */
     public void testDeletedDocumentsAreLeftOut() throws IOException {
         final String[] docs = randomDocs(5000, 6, 0.05, 0.05);
         final Set<Integer> deleted = new HashSet<>();
@@ -297,6 +307,36 @@ public class ColumnarOrdinalTermsCollectorTests extends ESTestCase {
         final Outcome outcome = search(search);
         assertThat("the segment is still read from its ordinals", outcome.ordinalLeaves, equalTo(1));
         assertThat(outcome.counts(0), equalTo(expected(search, null)));
+        assertThat("the documents of one value used the cache", outcome.knownBucket, greaterThan(0));
+    }
+
+    /**
+     * A value a document holds more than once counts once. Such a document holds several non-null slots, so it goes to the
+     * per-document collector, which drops the repeats.
+     */
+    public void testAValueRepeatedInADocumentCountsOnce() throws IOException {
+        final String[] docs = new String[3000];
+        for (int i = 0; i < docs.length; i++) {
+            final String value = COMMON[i % COMMON.length];
+            final String other = COMMON[(i + 1) % COMMON.length];
+            docs[i] = switch (i % 5) {
+                case 0 -> value + "|" + value;
+                case 1 -> value + "|" + other + "|" + value;
+                case 2 -> NULL_SLOT + "|" + value + "|" + value;
+                case 3, 4 -> value;
+                default -> throw new IllegalStateException();
+            };
+        }
+        final Search search = new Search(docs);
+        final Outcome outcome = search(search);
+        assertThat("the segment is still read from its ordinals", outcome.ordinalLeaves, equalTo(1));
+        final Map<String, Long> expected = expected(search, null);
+        assertThat(outcome.counts(0), equalTo(expected));
+        final long slots = Arrays.stream(docs)
+            .flatMap(doc -> Arrays.stream(doc.split("\\|")))
+            .filter(term -> term.equals(NULL_SLOT) == false)
+            .count();
+        assertThat("the documents do hold repeats", slots, greaterThan(expected.values().stream().mapToLong(count -> count).sum()));
         assertThat("the documents of one value used the cache", outcome.knownBucket, greaterThan(0));
     }
 
@@ -417,7 +457,8 @@ public class ColumnarOrdinalTermsCollectorTests extends ESTestCase {
             if (live == false || docs[doc] == null || docs[doc].equals(NULL_SLOT) || (search.alternateOwners && doc % 2 != owner)) {
                 continue;
             }
-            for (String term : docs[doc].split("\\|")) {
+            // A value a document holds twice counts once, as it does in the aggregator.
+            for (String term : new LinkedHashSet<>(Arrays.asList(docs[doc].split("\\|")))) {
                 if (term.equals(NULL_SLOT) == false && accepts(filter, term)) {
                     counts.merge(term, 1L, Long::sum);
                 }

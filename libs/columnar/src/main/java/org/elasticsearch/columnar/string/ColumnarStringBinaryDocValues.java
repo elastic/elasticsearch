@@ -110,7 +110,10 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
         return singleValued;
     }
 
-    /** The address of the slot {@link #denseTermOrdinal} last answered for, which {@link #escapedValue} reads. */
+    /**
+     * The address of the slot {@link #denseTermOrdinal} last answered for, which {@link #escapedValue} reads. It is -1
+     * after an answer of {@link #NO_VALUE} or {@link #MULTI_VALUED}, so a stale slot is never read.
+     */
     private long valueSlot = -1;
 
     @Override
@@ -118,6 +121,7 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
         if (dictionary == null) {
             throw new IllegalStateException("the column has no dictionary");
         }
+        valueSlot = -1;
         final int rank = iterator.rank();
         if (reader.hasValueAddresses() == false) {
             // One slot a document, whose address is the rank: read its ordinal once and decide.
@@ -137,6 +141,7 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
                 continue;
             }
             if (found != NO_VALUE) {
+                valueSlot = -1;
                 return MULTI_VALUED;
             }
             found = denseOrdinal(ordinal);

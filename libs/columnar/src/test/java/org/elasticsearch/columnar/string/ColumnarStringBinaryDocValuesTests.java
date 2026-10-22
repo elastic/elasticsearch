@@ -270,6 +270,42 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
         });
     }
 
+    /**
+     * The escaped value is only for the call straight after an {@link StringColumnSource#ESCAPED} answer. After a document
+     * that holds no value, or several, there is no slot to read, and an earlier document's value must not come back.
+     */
+    public void testEscapedValueIsNotLeftOverFromAnEarlierDocument() throws IOException {
+        final String[] terms = { "alpha", "bravo", "charlie" };
+        final BytesRef[][] docSlots = new BytesRef[between(400, 1200)][];
+        for (int d = 0; d < docSlots.length; d++) {
+            // Terms that repeat a lot, so the column has a dictionary, and values that appear once, which escape it.
+            final BytesRef term = new BytesRef(terms[d % terms.length]);
+            docSlots[d] = switch (d % 7) {
+                case 0 -> new BytesRef[] { new BytesRef("escaped-" + d) };
+                case 1 -> new BytesRef[] { null };
+                case 2 -> new BytesRef[] { term, new BytesRef(terms[(d + 1) % terms.length]) };
+                case 3, 4, 5 -> new BytesRef[] { term };
+                case 6 -> new BytesRef[] { new BytesRef("escaped-" + d), term };
+                default -> throw new IllegalStateException();
+            };
+        }
+        withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), ROOMY, (metadata, reader) -> {
+            final ColumnarStringBinaryDocValues dv = new ColumnarStringBinaryDocValues(reader, reader.iterator(), false);
+            boolean escapedBefore = false;
+            int checked = 0;
+            for (int doc = dv.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = dv.nextDoc()) {
+                final int answer = dv.denseTermOrdinal();
+                if (answer == StringColumnSource.ESCAPED) {
+                    escapedBefore = true;
+                } else if ((answer == StringColumnSource.NO_VALUE || answer == StringColumnSource.MULTI_VALUED) && escapedBefore) {
+                    expectThrows(AssertionError.class, () -> dv.escapedValue(new BytesRef()));
+                    checked++;
+                }
+            }
+            assertThat("some document answered with no value or several after an escaped one", checked, greaterThan(0));
+        });
+    }
+
     /** A term is looked up by ordinal at any time, not only for the document just visited. */
     public void testTermAtLooksUpAnyOrdinal() throws IOException {
         final BytesRef[] docValues = new BytesRef[between(100, 400)];

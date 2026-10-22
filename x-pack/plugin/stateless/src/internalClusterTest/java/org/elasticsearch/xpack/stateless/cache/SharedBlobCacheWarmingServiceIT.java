@@ -135,6 +135,7 @@ import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrima
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationPrewarmAction.PREWARM_RELOCATION_ACTION_NAME;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -740,6 +741,88 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
         // Several shards do get re-evaluated repeatedly inside the window rather than being handed one slice and timing out.
         assertThat(evaluationsPerShard(warmingServiceOnTargetNode).values(), hasItem(greaterThan(2L)));
+    }
+
+    @TestLogging(
+        value = "org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService:DEBUG",
+        reason = "the timeout extension is logged at DEBUG"
+    )
+    public void testSearchRecoveryWarmingTimeoutIsNotReevaluatedWhenDisabled() {
+        final var relocationTimeoutSlice = TimeValue.timeValueMillis(200);
+        final int numberOfShards = randomIntBetween(1, 3);
+
+        final var nodeSettings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            .put(STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
+            .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), true)
+            .put(DefaultWarmingRatioProviderFactory.SEARCH_RECOVERY_WARMING_RATIO_SETTING.getKey(), 1.0d)
+            .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_SETTING.getKey(), relocationTimeoutSlice)
+            .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), false)
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            .build();
+        startMasterAndIndexNode(nodeSettings);
+
+        // A single search node to begin with, so every search copy has nowhere to go but sourceSearchNode.
+        final var sourceSearchNode = startSearchNode(nodeSettings);
+        ensureStableCluster(2);
+
+        final String indexName = randomIdentifier();
+        assertAcked(
+            prepareCreate(
+                indexName,
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put(EngineConfig.USE_COMPOUND_FILE, randomBoolean())
+            )
+        );
+        indexDocs(indexName, randomIntBetween(100, 1_000));
+        flushAndRefresh(indexName);
+        ensureGreen(indexName);
+
+        final var targetSearchNode = startSearchNode(nodeSettings);
+        ensureStableCluster(3);
+
+        final var warmingServiceOnTargetNode = getSharedBlobCacheWarmingService(targetSearchNode);
+        warmingServiceOnTargetNode.holdSearchWarmingCompletion();
+        try (var mockLog = MockLog.capture(SharedBlobCacheWarmingService.class)) {
+            mockLog.addExpectation(
+                new MockLog.PatternSeenEventExpectation(
+                    "timed out after the initial slice",
+                    SharedBlobCacheWarmingService.class.getCanonicalName(),
+                    Level.WARN,
+                    ".*cache warming timed out after \\[[^]]+\\] \\(relocation source not shutting down, no cluster shutdown\\).*"
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "timeout never extended",
+                    SharedBlobCacheWarmingService.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "*cache warming timeout extended*"
+                )
+            );
+
+            updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", sourceSearchNode), indexName);
+
+            ensureGreen(indexName);
+            mockLog.awaitAllExpectationsMatched();
+        } finally {
+            warmingServiceOnTargetNode.releaseSearchWarmingCompletion();
+        }
+
+        final String targetNodeId = getNodeId(targetSearchNode);
+        for (int shardIndex = 0; shardIndex < numberOfShards; shardIndex++) {
+            final String nodeId = findSearchShard(resolveIndex(indexName), shardIndex).routingEntry().currentNodeId();
+            assertThat("shard " + shardIndex + " should have relocated to the target node", nodeId, equalTo(targetNodeId));
+        }
+
+        // Only the initial plan is computed for each recovering shard, expiry of its slice ends the wait without another calculation.
+        final var evaluationsPerShard = evaluationsPerShard(warmingServiceOnTargetNode).values();
+        assertThat(evaluationsPerShard, hasSize(greaterThan(0)));
+        assertThat(evaluationsPerShard, everyItem(equalTo(1L)));
     }
 
     /// How many times [SearchRecoveryTimeoutCalculationService#searchRecoveryTimeout] has been called for each shard recovering on a node.

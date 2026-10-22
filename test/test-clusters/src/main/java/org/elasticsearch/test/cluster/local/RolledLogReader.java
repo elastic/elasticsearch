@@ -60,8 +60,8 @@ final class RolledLogReader {
     }
 
     /**
-     * @param beforeReadingLive runs after the rolled files are read and before the live file is, so tests can roll the
-     *                          log over at the point where it is easiest to lose lines
+     * @param afterListingRolled runs right after the rolled files are listed, so tests can roll the log over at the point
+     *                           where it is easiest to lose lines
      */
     static List<String> readAllLines(
         Path logsDir,
@@ -69,7 +69,7 @@ final class RolledLogReader {
         LogType logType,
         int attempts,
         Duration retryDelay,
-        Runnable beforeReadingLive
+        Runnable afterListingRolled
     ) {
         Path live = logsDir.resolve(logType.resolveFilename(clusterName));
         IOException lastFailure = null;
@@ -78,8 +78,10 @@ final class RolledLogReader {
                 sleep(retryDelay);
             }
             SortedMap<RolledFile, Path> rolled = listRolledFiles(logsDir, clusterName, logType);
+            afterListingRolled.run();
             if (Files.exists(live) == false) {
-                if (rolled.isEmpty()) {
+                // The live file may have been renamed by its first rollover after the rolled files were listed.
+                if (listRolledFiles(logsDir, clusterName, logType).isEmpty()) {
                     throw new IllegalArgumentException("Log file " + live + " does not exist.");
                 }
                 continue;
@@ -89,7 +91,6 @@ final class RolledLogReader {
                 for (Path file : rolled.values()) {
                     lines.addAll(readLines(file));
                 }
-                beforeReadingLive.run();
                 lines.addAll(readLines(live));
                 if (listRolledFiles(logsDir, clusterName, logType).keySet().equals(rolled.keySet())) {
                     return lines;

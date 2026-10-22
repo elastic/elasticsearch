@@ -25,6 +25,7 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import java.util.zip.GZIPOutputStream;
@@ -135,6 +136,31 @@ public class RolledLogReaderTests {
         } finally {
             creator.join();
         }
+    }
+
+    @Test
+    public void testRetriesWhenFirstRolloverRenamesLiveFileAfterListing() throws IOException {
+        Path logs = tmp.getRoot().toPath();
+        Path live = logs.resolve("test-cluster_audit.json");
+        write(live, "before midnight");
+        AtomicInteger listings = new AtomicInteger();
+
+        // The first listing finds no rolled file, then log4j renames the live file before the reader checks for it and
+        // only recreates it before the next attempt.
+        List<String> lines = RolledLogReader.readAllLines(logs, CLUSTER, LogType.AUDIT, 3, NO_WAIT, () -> {
+            try {
+                int listing = listings.incrementAndGet();
+                if (listing == 1) {
+                    Files.move(live, logs.resolve("test-cluster_audit-2026-10-18-1.json"));
+                } else if (listing == 2) {
+                    write(live, "after midnight");
+                }
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        });
+
+        assertThat(lines, is(List.of("before midnight", "after midnight")));
     }
 
     @Test

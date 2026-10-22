@@ -18,6 +18,7 @@ import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -170,6 +171,21 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         assertEquals(ScriptSortType.LONG, ScriptSortType.fromString("long"));
         assertEquals(ScriptSortType.LONG, ScriptSortType.fromString("Long"));
         assertEquals(ScriptSortType.LONG, ScriptSortType.fromString("LONG"));
+    }
+
+    /**
+     * Nodes that predate {@link ScriptSortType#LONG} can't read it, so it is sent to them as {@link ScriptSortType#NUMBER}.
+     */
+    public void testLongTypeSerialization() throws IOException {
+        ScriptSortBuilder original = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.LONG);
+        assertEquals(
+            ScriptSortType.LONG,
+            copyWriteable(original, namedWriteableRegistry, ScriptSortBuilder::new, TransportVersion.current()).type()
+        );
+        assertEquals(
+            ScriptSortType.NUMBER,
+            copyWriteable(original, namedWriteableRegistry, ScriptSortBuilder::new, TransportVersion.minimumCompatible()).type()
+        );
     }
 
     public void testScriptSortTypeNull() {

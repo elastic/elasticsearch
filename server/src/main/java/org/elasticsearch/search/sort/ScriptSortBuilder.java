@@ -69,6 +69,8 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  */
 public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
+    private static final TransportVersion LONG_SCRIPT_SORT_TYPE = TransportVersion.fromName("long_script_sort_type");
+
     public static final String NAME = "_script";
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField SCRIPT_FIELD = new ParseField("script");
@@ -122,7 +124,12 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         script.writeTo(out);
-        type.writeTo(out);
+        if (type == ScriptSortType.LONG && out.getTransportVersion().supports(LONG_SCRIPT_SORT_TYPE) == false) {
+            // older nodes can't read LONG; NUMBER keeps the sort working at the cost of the original double precision
+            ScriptSortType.NUMBER.writeTo(out);
+        } else {
+            type.writeTo(out);
+        }
         order.writeTo(out);
         out.writeOptionalWriteable(sortMode);
         out.writeOptionalWriteable(nestedSort);
@@ -378,11 +385,18 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                 // searchLookup is unnecessary here, as it's just used for expressions
                 final LongSortScript.LeafFactory longSortScript = longSortFactory.newFactory(script.getParams(), searchLookup);
                 return new LongValuesComparatorSource(null, Long.MAX_VALUE, valueMode, nested, IndexNumericFieldData.NumericType.LONG) {
-                    LongSortScript leafScript;
+                    final Map<Object, LongSortScript> leafScripts = longSortScript.needs_score()
+                        ? ConcurrentCollections.newConcurrentMap()
+                        : null;
 
                     @Override
                     protected SortedNumericLongValues getValues(LeafReaderContext context) throws IOException {
-                        leafScript = longSortScript.newInstance(new DocValuesDocReader(searchLookup, context));
+                        // the comparator source is shared across slices, so the script must not be kept in a field
+                        final LongSortScript leafScript = longSortScript.newInstance(new DocValuesDocReader(searchLookup, context));
+                        leafScript._setCancellationCheck(cancellationCheck);
+                        if (longSortScript.needs_score()) {
+                            leafScripts.put(context.id(), leafScript);
+                        }
                         final LongValues values = new LongValues() {
                             @Override
                             public boolean advanceExact(int doc) throws IOException {
@@ -397,6 +411,13 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                         };
                         // no doc-values iterator backs a script
                         return SortedNumericLongValues.singleton(values, null);
+                    }
+
+                    @Override
+                    protected void setScorer(LeafReaderContext context, Scorable scorer) {
+                        if (longSortScript.needs_score()) {
+                            leafScripts.get(context.id()).setScorer(scorer);
+                        }
                     }
                 };
             }

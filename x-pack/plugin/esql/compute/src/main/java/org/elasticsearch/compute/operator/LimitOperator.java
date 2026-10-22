@@ -82,6 +82,14 @@ public class LimitOperator implements Operator {
             this.limiter = new Limiter(limit);
         }
 
+        /**
+         * The limiter shared by every {@link LimitOperator} this factory creates. External sources
+         * may observe {@link Limiter#remaining()} to stop producing once the limit is filled.
+         */
+        public Limiter limiter() {
+            return limiter;
+        }
+
         @Override
         public LimitOperator get(DriverContext driverContext) {
             return new LimitOperator(limiter);

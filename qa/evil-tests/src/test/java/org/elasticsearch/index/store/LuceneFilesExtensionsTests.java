@@ -63,7 +63,7 @@ public class LuceneFilesExtensionsTests extends ESTestCase {
     }
 
     public void testColumnarExtensionsAreRegistered() {
-        for (final String extension : List.of("cnd", "cnm", "cns")) {
+        for (final String extension : List.of("cnd", "cna", "cnl", "cnn", "cnm", "cns")) {
             assertNotNull(extension, LuceneFilesExtensions.fromExtension(extension));
         }
     }
@@ -72,5 +72,10 @@ public class LuceneFilesExtensionsTests extends ESTestCase {
         assertTrue(LuceneFilesExtensions.CNM.isMetadata());
         assertTrue(LuceneFilesExtensions.CNS.isMetadata());
         assertFalse(LuceneFilesExtensions.CND.isMetadata());
+        assertFalse(LuceneFilesExtensions.CNA.isMetadata());
+        assertFalse(LuceneFilesExtensions.CNL.isMetadata());
+        // Read up front and by every read of a column, so it is fetched whole and memory-mapped.
+        assertTrue(LuceneFilesExtensions.CNN.isMetadata());
+        assertTrue(LuceneFilesExtensions.CNN.shouldMmap());
     }
 }

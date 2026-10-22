@@ -16,8 +16,10 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.ChunkedBroadcastResponse;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.codec.vectors.diskbbq.SegmentCalibrationParameters;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
@@ -131,6 +133,36 @@ public class IndicesSegmentResponse extends ChunkedBroadcastResponse {
                                             ChunkedToXContentHelper.chunk((builder, p) -> {
                                                 if (segment.attributes != null && segment.attributes.isEmpty() == false) {
                                                     builder.field("attributes", segment.attributes);
+                                                }
+                                                if (segment.autoCalibrationParams != null
+                                                    && segment.autoCalibrationParams.isEmpty() == false) {
+                                                    builder.startObject("auto_calibration");
+                                                    for (Map.Entry<
+                                                        String,
+                                                        SegmentCalibrationParameters> entry : segment.autoCalibrationParams.entrySet()) {
+                                                        builder.startObject(entry.getKey());
+                                                        builder.field("calibrated", entry.getValue().calibrated());
+                                                        builder.field("type", entry.getValue().type());
+                                                        long count = segment.autoCalibrationVectorCounts != null
+                                                            ? segment.autoCalibrationVectorCounts.getOrDefault(entry.getKey(), 0L)
+                                                            : 0L;
+                                                        builder.field("number_of_vectors", count);
+                                                        long sizeBytes = segment.autoCalibrationSizeBytes != null
+                                                            ? segment.autoCalibrationSizeBytes.getOrDefault(entry.getKey(), 0L)
+                                                            : 0L;
+                                                        builder.humanReadableField(
+                                                            "size_in_bytes",
+                                                            "size",
+                                                            ByteSizeValue.ofBytes(sizeBytes)
+                                                        );
+                                                        if (entry.getValue().calibrated()) {
+                                                            builder.startObject("parameters");
+                                                            entry.getValue().toXContent(builder);
+                                                            builder.endObject();
+                                                        }
+                                                        builder.endObject();
+                                                    }
+                                                    builder.endObject();
                                                 }
                                                 builder.endObject();
                                                 return builder;

@@ -53,3 +53,61 @@
           rest_total_hits_as_int: true
           index: test_index
           body: {"query" : {"terms" : {"user" : {"index" : "test_index", "id" : "u2", "path" : "followers"}}}}
+
+---
+"Terms lookup repeated across many bool clauses is bounded by max_terms_count":
+  - do:
+      indices.create:
+          index: lookup_test_index
+          body:
+              settings:
+                  number_of_shards: 1
+                  index.max_terms_count: 2
+              mappings:
+                  properties:
+                      user:
+                          type: keyword
+                      followers:
+                          type: keyword
+  - do:
+      bulk:
+          refresh: true
+          body:
+              - '{"index": {"_index": "lookup_test_index", "_id": "within_limit"}}'
+              - '{"user": "within_limit", "followers": ["u2", "u3"]}'
+              - '{"index": {"_index": "lookup_test_index", "_id": "over_limit"}}'
+              - '{"user": "over_limit", "followers": ["u1", "u3", "u4"]}'
+              - '{"index": {"_index": "lookup_test_index", "_id": "u2"}}'
+              - '{"user": "u2", "followers": ["u1"]}'
+              - '{"index": {"_index": "lookup_test_index", "_id": "u3"}}'
+              - '{"user": "u3", "followers": ["u1"]}'
+
+  # Several identical lookup clauses that resolve within the limit return the same result as a single clause.
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: lookup_test_index
+          body:
+            query:
+              bool:
+                should:
+                  - terms: { user: { index: lookup_test_index, id: within_limit, path: followers } }
+                  - terms: { user: { index: lookup_test_index, id: within_limit, path: followers } }
+                  - terms: { user: { index: lookup_test_index, id: within_limit, path: followers } }
+                  - terms: { user: { index: lookup_test_index, id: within_limit, path: followers } }
+  - match: { hits.total: 2 }
+
+  # The same lookup repeated across many clauses, resolving above the limit, is rejected rather than expanded per clause.
+  - do:
+      catch: bad_request
+      search:
+          rest_total_hits_as_int: true
+          index: lookup_test_index
+          body:
+            query:
+              bool:
+                should:
+                  - terms: { user: { index: lookup_test_index, id: over_limit, path: followers } }
+                  - terms: { user: { index: lookup_test_index, id: over_limit, path: followers } }
+                  - terms: { user: { index: lookup_test_index, id: over_limit, path: followers } }
+                  - terms: { user: { index: lookup_test_index, id: over_limit, path: followers } }

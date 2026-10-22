@@ -47,7 +47,12 @@ import static java.util.Collections.emptySet;
  */
 public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocation, MutableRoutingAllocation {
 
+    private static final LabelledDecisionCache LABELLED_DECISION_CACHE = new LabelledDecisionCache();
+
     protected final AllocationDeciders deciders;
+
+    /// Fixed for the lifetime of this instance so that all decisions within a single allocation run are consistent.
+    protected final boolean preserveDecisionLabels;
 
     protected final ClusterState clusterState;
 
@@ -81,15 +86,18 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
     /// @param clusterInfo information about node disk usage and shard disk usage
     /// @param shardSizeInfo information about snapshot shard sizes
     /// @param currentNanoTime the nano time to use for all delay allocation calculation (typically `System#nanoTime()`)
+    /// @param preserveDecisionLabels whether decisions returned by [#decision] retain their decider label when not in debug mode
     ///
     RoutingAllocation(
         AllocationDeciders deciders,
         ClusterState clusterState,
         ClusterInfo clusterInfo,
         SnapshotShardSizeInfo shardSizeInfo,
-        long currentNanoTime
+        long currentNanoTime,
+        boolean preserveDecisionLabels
     ) {
         this.deciders = deciders;
+        this.preserveDecisionLabels = preserveDecisionLabels;
         this.clusterState = clusterState;
         this.clusterInfo = clusterInfo;
         this.shardSizeInfo = shardSizeInfo;
@@ -353,6 +361,8 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
     public Decision decision(Decision decision, String deciderLabel, String reason, Object... params) {
         if (debugDecision()) {
             return Decision.single(decision.type(), deciderLabel, reason, params);
+        } else if (preserveDecisionLabels) {
+            return LABELLED_DECISION_CACHE.get(decision, deciderLabel);
         } else {
             return decision;
         }
@@ -409,7 +419,8 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
                 : clusterState,
             clusterInfo,
             shardSizeInfo,
-            currentNanoTime
+            currentNanoTime,
+            preserveDecisionLabels
         );
     }
 
@@ -422,7 +433,8 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
             shardSizeInfo,
             currentNanoTime,
             true,
-            RoutingChangesObserver.NOOP
+            RoutingChangesObserver.NOOP,
+            preserveDecisionLabels
         );
     }
 
@@ -439,7 +451,7 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
         SnapshotShardSizeInfo shardSizeInfo,
         long currentNanoTime
     ) {
-        return new ImmutableRoutingAllocation(deciders, clusterState, clusterInfo, shardSizeInfo, currentNanoTime);
+        return new ImmutableRoutingAllocation(deciders, clusterState, clusterInfo, shardSizeInfo, currentNanoTime, false);
     }
 
     public enum DebugMode {

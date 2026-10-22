@@ -16,6 +16,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -333,7 +334,7 @@ public class Replace extends EsqlScalarFunction implements AnyNullIsNull {
         return prefix.toString().getBytes(StandardCharsets.UTF_8);
     }
 
-    private static boolean isEscapedLiteral(char c) {
+    static boolean isEscapedLiteral(char c) {
         // Characters that, when preceded by `\`, denote themselves as a literal in Java regex syntax.
         // We deliberately exclude letters/digits because those introduce special meaning
         // (\d, \w, \s, \b, \A, \z, \Z, \n, \t, \r, \1, etc.).
@@ -344,7 +345,7 @@ public class Replace extends EsqlScalarFunction implements AnyNullIsNull {
         };
     }
 
-    private static boolean isRegexMeta(char c) {
+    static boolean isRegexMeta(char c) {
         return switch (c) {
             case '.', '(', ')', '[', ']', '{', '}', '|', '$', '^', '?', '*', '+', '\\' -> true;
             default -> false;
@@ -361,7 +362,7 @@ public class Replace extends EsqlScalarFunction implements AnyNullIsNull {
      * Hex / unicode / control / octal escapes in Java regex always produce a literal character (never an
      * unescaped meta), so they cannot smuggle in a hidden alternation.
      */
-    private static boolean containsUnquotedAlternation(String regex, int from) {
+    static boolean containsUnquotedAlternation(String regex, int from) {
         int n = regex.length();
         for (int i = from; i < n; i++) {
             char c = regex.charAt(i);
@@ -387,10 +388,11 @@ public class Replace extends EsqlScalarFunction implements AnyNullIsNull {
     /**
      * Executes a Replace without surpassing the memory limit.
      */
-    private static BytesRef safeReplace(BytesRef strBytesRef, Pattern regex, BytesRef newStrBytesRef) {
+    @SuppressForbidden(reason = "TODO: replace with manual depth tracking before the overflow occurs")
+    static BytesRef safeReplace(BytesRef strBytesRef, Pattern regex, BytesRef newStrBytesRef) {
         try {
             return doReplace(strBytesRef, regex, newStrBytesRef);
-        } catch (StackOverflowError e) {
+        } catch (StackOverflowError e) { // TODO: unsafe - replace with manual depth tracking
             throw new IllegalArgumentException("Pattern nesting is too deep to evaluate", e);
         }
     }
@@ -443,6 +445,7 @@ public class Replace extends EsqlScalarFunction implements AnyNullIsNull {
     }
 
     @Override
+    @SuppressForbidden(reason = "TODO: replace with manual depth tracking before the overflow occurs")
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var strEval = toEvaluator.apply(str);
         var newStrEval = toEvaluator.apply(newStr);
@@ -453,7 +456,7 @@ public class Replace extends EsqlScalarFunction implements AnyNullIsNull {
                 Pattern regexPattern;
                 try {
                     regexPattern = Pattern.compile(regexString);
-                } catch (PatternSyntaxException | StackOverflowError e) {
+                } catch (PatternSyntaxException | StackOverflowError e) { // TODO: unsafe - replace with manual depth tracking
                     // warnExceptions only wraps process(), so throwing here would fail the query.
                     // Fall through to the per-row evaluator, which turns these into a warning and null.
                     regexPattern = null;
@@ -465,12 +468,18 @@ public class Replace extends EsqlScalarFunction implements AnyNullIsNull {
                         // REPLACE once per dictionary entry on OrdinalBytesRefBlock inputs.
                         BytesRef constantNewStr = BytesRefs.toBytesRef(newStr.fold(toEvaluator.foldCtx()));
                         if (constantNewStr != null) {
+                            // Shape detected: the dictionary-aware evaluator replaces the regex engine with a
+                            // hand-written byte scan (no UTF-8 decode, no codepoint counting) for every entry it
+                            // processes -- see ReplaceCaptureUntilDelimiter. idiom is null when the shape doesn't
+                            // match, in which case the evaluator falls back to the real regex engine.
+                            var idiom = ReplaceCaptureUntilDelimiter.extract(regexPattern, constantNewStr);
                             return new ReplaceConstantOrdinalEvaluator.Factory(
                                 source(),
                                 strEval,
                                 regexPattern,
                                 literalPrefix,
-                                constantNewStr
+                                constantNewStr,
+                                idiom
                             );
                         }
                     }

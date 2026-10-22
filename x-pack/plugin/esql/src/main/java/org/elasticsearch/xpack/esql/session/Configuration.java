@@ -139,9 +139,8 @@ public class Configuration implements Writeable {
     }
 
     /**
-     * Canonical constructor — every field is a parameter (the {@code explainOnly} flag is the only difference
-     * from the 16-arg constructor above). {@link ConfigurationBuilder#build()} calls this directly, so any new
-     * field added here must also be added to {@link ConfigurationBuilder}.
+     * Canonical constructor — every field is a parameter. {@link ConfigurationBuilder#build()} calls this
+     * directly, so any new field added here must also be added to {@link ConfigurationBuilder}.
      */
     public Configuration(
         Instant now,

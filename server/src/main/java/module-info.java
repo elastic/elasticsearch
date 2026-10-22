@@ -375,6 +375,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.search.profile.aggregation;
     exports org.elasticsearch.search.profile.dfs;
     exports org.elasticsearch.search.profile.query;
+    exports org.elasticsearch.search.profile.rescore;
     exports org.elasticsearch.search.query;
     exports org.elasticsearch.search.rank;
     exports org.elasticsearch.search.rank.context;
@@ -421,7 +422,8 @@ module org.elasticsearch.server {
             org.elasticsearch.xpack.core,
             org.elasticsearch.xpack.gpu,
             org.elasticsearch.xpack.diskbbq,
-            org.elasticsearch.xpack.stateless;
+            org.elasticsearch.xpack.stateless,
+            co.elastic.elasticsearch.serverless.datarecovery;
 
     exports org.elasticsearch.telemetry.instrumentation;
     exports org.elasticsearch.telemetry.tracing;
@@ -443,6 +445,7 @@ module org.elasticsearch.server {
     uses org.elasticsearch.internal.BuildExtension;
     uses org.elasticsearch.features.FeatureSpecification;
     uses org.elasticsearch.plugins.internal.LoggingDataProvider;
+    uses org.elasticsearch.common.UUIDSource;
 
     provides org.elasticsearch.features.FeatureSpecification
         with

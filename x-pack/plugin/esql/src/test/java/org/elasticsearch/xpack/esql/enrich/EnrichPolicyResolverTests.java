@@ -641,7 +641,7 @@ public class EnrichPolicyResolverTests extends ESTestCase {
                     var f = new IndexFieldCapabilitiesBuilder(e.getKey(), e.getValue()).isSearchable(false).isAggregatable(false).build();
                     fieldCaps.put(e.getKey(), f);
                 }
-                var indexResponse = new FieldCapabilitiesIndexResponse(alias, null, fieldCaps, true, IndexMode.STANDARD);
+                var indexResponse = new FieldCapabilitiesIndexResponse(alias, null, fieldCaps, true, IndexMode.STANDARD, 0, 0, 0);
                 response = FieldCapabilitiesResponse.builder().withIndexResponses(List.of(indexResponse)).build();
             } else {
                 response = FieldCapabilitiesResponse.empty();

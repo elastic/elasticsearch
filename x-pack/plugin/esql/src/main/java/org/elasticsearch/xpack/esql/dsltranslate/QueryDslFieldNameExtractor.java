@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.dsltranslate;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -67,7 +68,12 @@ public final class QueryDslFieldNameExtractor {
             // Bind to NULL: only the requested names matter here, not the expression that comes out. This mirrors what
             // the rewriter does for a field absent from the output, so translation stays on a supported path.
             return Literal.NULL;
-        }, fieldList, configuration);
+        },
+            fieldList,
+            configuration,
+            // The expression is discarded here — only the names are kept — so nothing built reaches another node.
+            TransportVersion.current()
+        );
 
         QueryDslTranslator.TranslationResult result;
         try {

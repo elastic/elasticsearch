@@ -41,6 +41,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -91,6 +92,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
+import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -176,6 +178,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final SearchStatsSettings searchStatsSettings;
     private final MergeMetrics mergeMetrics;
     private final PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder;
+    private final Function<String, FieldPredicate> fieldFilter;
 
     @SuppressWarnings("this-escape")
     public IndexService(
@@ -193,6 +196,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
         ScriptService scriptService,
         ClusterService clusterService,
+        FeatureService featureService,
         Client client,
         QueryCache queryCache,
         IndexStorePlugin.DirectoryFactory directoryFactory,
@@ -231,11 +235,13 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.valuesSourceRegistry = valuesSourceRegistry;
         this.snapshotCommitSupplier = snapshotCommitSupplier;
         this.indexAnalyzers = indexAnalyzers;
+        this.fieldFilter = mapperRegistry.getFieldFilter();
         if (needsMapperService(indexSettings, indexCreationContext)) {
             assert indexAnalyzers != null;
             this.bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetCacheListener(this));
             this.mapperService = new MapperService(
                 clusterService,
+                featureService,
                 indexSettings,
                 indexAnalyzers,
                 parserConfiguration,
@@ -797,7 +803,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             expressionResolver
         );
         var mapperService = mapperService();
-        return new SearchExecutionContext(
+        var context = new SearchExecutionContext(
             shardId,
             shardRequestIndex,
             indexSettings,
@@ -821,6 +827,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             mapperMetrics,
             shardSearchStats
         );
+        context.setFieldVisibilityPredicate(fieldFilter.apply(index().getName()));
+        return context;
     }
 
     /**
@@ -842,7 +850,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         );
         final MapperService mapperService = mapperService();
         final MappingLookup mappingLookup = mapperService.mappingLookup();
-        return new QueryRewriteContext(
+        var context = new QueryRewriteContext(
             parserConfiguration,
             client,
             nowInMillis,
@@ -868,6 +876,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             false,
             false
         );
+        context.setFieldVisibilityPredicate(fieldFilter.apply(index().getName()));
+        return context;
     }
 
     /**

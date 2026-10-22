@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
@@ -17,7 +18,8 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
-import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -25,35 +27,25 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
+import static org.elasticsearch.xpack.esql.core.expression.Expressions.keepExistingUnsupportedAttributes;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferenceAttributesPreservingIds;
 
 /**
  * N-ary logical plan whose children are independently planned branches and whose output is the
  * name-union of those branches. {@link Fork} (the {@code FORK} command), {@link UnionAll} (subquery
- * unions), and {@link ViewUnionAll} (view-produced unions) are the concrete forms. All of them map
+ * unions), and {@link BranchPlan} (view-produced unions) are the concrete forms. All of them map
  * to {@code MergeExec} at the physical layer.
  */
 public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanVerificationAware, ExecutesOn.Coordinator {
 
-    public static final int MAX_BRANCHES = 8;
     private final List<Attribute> output;
 
     protected MergePlan(Source source, List<LogicalPlan> children, List<Attribute> output) {
         super(source, children);
         this.output = output;
-    }
-
-    /**
-     * Branch-count predicate shared by every {@link MergePlan} and any caller that wants to fail
-     * earlier with a more user-facing message. Returns {@code true} if {@code count} would exceed the
-     * branch cap. Centralizes the comparison so the cap can move in one place.
-     */
-    public static boolean exceedsMaxBranches(int count) {
-        return count > MAX_BRANCHES;
     }
 
     @Override
@@ -102,7 +94,7 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
      * <p>
      * Deliberately {@code final} and expressed in terms of {@link #replaceSubPlansAndOutput}: a per-subclass
      * implementation only has to construct the node itself, and any such implementation that names a concrete
-     * constructor silently downgrades a further subclass. {@link ViewUnionAll} is the case in point — it carries a
+     * constructor silently downgrades a further subclass. {@link BranchPlan} is the case in point — it carries a
      * named-subqueries map and view-branch keys that a {@code new UnionAll(...)} here would drop, turning its view
      * boundaries back into anonymous union branches. Subclasses only need {@link #replaceSubPlansAndOutput} to be
      * faithful, which they already need for every other rewrite.
@@ -114,7 +106,7 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
     /**
      * Drop branches whose root the {@code isEmpty} predicate considers empty. Each
      * {@link MergePlan} subclass with structural invariants beyond the positional children list
-     * (notably {@link ViewUnionAll}, which carries a named-subqueries map) overrides this method
+     * (notably {@link BranchPlan}, which carries a named-subqueries map) overrides this method
      * to preserve those invariants.
      * <p>
      * Behaviour:
@@ -127,7 +119,7 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
      *       a {@code LocalRelation} when every branch reduces to empty) or to let the
      *       analyzer's verifier surface the empty-merge state via {@link #checkBranchCount}.</li>
      * </ul>
-     * Single-survivor collapse semantics — a {@link UnionAll}/{@link ViewUnionAll} with one
+     * Single-survivor collapse semantics — a {@link UnionAll}/{@link BranchPlan} with one
      * branch left is equivalent to that branch — are not part of this primitive; callers that
      * want that collapse do it explicitly (see {@code ViewCompaction.stripViewShadowRelations}).
      * A {@link Fork} with a single branch is still a {@link Fork} per FORK syntax.
@@ -146,7 +138,12 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
     }
 
     protected List<Attribute> refreshedOutput() {
-        return withUnmappedFieldsAttributeFromChildren(toReferenceAttributesPreservingIds(outputUnion(children()), this.output()));
+        List<Attribute> converted = toReferenceAttributesPreservingIds(outputUnion(children()), this.output());
+        // LOAD_ALL stamps _unmapped_fields; preserve type-conflict UnsupportedAttributes that alignment Eval-null'd in children.
+        if (unmappedFieldsAttributeFromChildren() != null) {
+            converted = keepExistingUnsupportedAttributes(converted, this.output());
+        }
+        return withUnmappedFieldsAttributeFromChildren(converted);
     }
 
     private List<Attribute> withUnmappedFieldsAttributeFromChildren(List<Attribute> converted) {
@@ -156,7 +153,7 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
         }
         for (int i = 0; i < converted.size(); i++) {
             if (converted.get(i).name().equals(UnmappedFieldsAttribute.ATTRIBUTE_NAME)) {
-                // Keep the subtype so coordinator expansion can find $$unmapped_fields after the merge.
+                // Keep the subtype so that _unmapped_fields is found after the merge and returned.
                 converted.set(i, ufa.withId(converted.get(i).id()));
                 break;
             }
@@ -245,49 +242,23 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
     }
 
     @Override
-    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
-        return MergePlan::checkBranchCount;
-    }
-
-    /**
-     * Branch-count bounds shared by all {@link MergePlan} subclasses (Fork, UnionAll, ViewUnionAll).
-     * Lives at post-analysis verification rather than the constructor so that compaction
-     * passes (e.g. ViewCompaction) get a chance to reduce the count first. Called from both
-     * {@code Fork::checkFork} and {@code UnionAll::checkUnionAll} since each subclass dispatches
-     * to its own {@link #postAnalysisPlanVerification()} override.
-     * <p>
-     * The lower bound (≥ 1 branch) catches invalid plans where {@link #pruneEmptyBranches}
-     * removed every branch — e.g. a CCS subquery whose {@code IndexResolution} came back
-     * {@code EMPTY_SUBQUERY} for every sibling. The {@code PruneEmptyMergeBranches} optimizer
-     * rule short-circuits this case to a {@code LocalRelation}; rules that don't (the analyzer's
-     * {@code PruneEmptyUnionAllBranch}, {@code ViewCompaction.stripViewShadowRelations}) rely on
-     * this check to surface the bad state with a clear message rather than letting an empty
-     * {@code MergePlan} propagate silently.
-     */
-    static void checkBranchCount(LogicalPlan plan, Failures failures) {
-        if (plan instanceof MergePlan merge) {
-            int size = merge.children().size();
-            if (exceedsMaxBranches(size)) {
-                failures.add(Failure.fail(merge, "FORK supports up to {} branches, got: {}", MAX_BRANCHES, size));
-            } else if (size == 0) {
-                failures.add(Failure.fail(merge, "{} requires at least one branch", merge.getClass().getSimpleName()));
+    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification(
+        AnalysisRegistry analysisRegistry,
+        QueryPragmas pragmas,
+        EsqlFlags flags
+    ) {
+        return (plan, failures) -> {
+            if (plan != this) {
+                return;
             }
-        }
+            checkBranchCount(plan, failures, pragmas, flags);
+            postAnalysisPlanVerification().accept(plan, failures);
+        };
     }
 
-    /**
-     * Traverses the plan tree downward, invoking {@code action} for each {@link MergePlan} encountered,
-     * but does not descend into the right-hand side (subquery plan) of an {@link AbstractSubqueryJoin}.
-     * The right side is a separate query scope; a FORK or merge inside it is independent of any FORK
-     * or merge in the enclosing query.
-     */
-    static void forEachMergePlanSkippingSubqueries(LogicalPlan plan, Consumer<MergePlan> action) {
-        if (plan instanceof MergePlan merge) {
-            action.accept(merge);
-        }
-        List<LogicalPlan> children = plan instanceof AbstractSubqueryJoin join ? List.of(join.left()) : plan.children();
-        for (LogicalPlan child : children) {
-            forEachMergePlanSkippingSubqueries(child, action);
+    void checkBranchCount(LogicalPlan plan, Failures failures, QueryPragmas pragmas, EsqlFlags flags) {
+        if (plan.children().isEmpty()) {
+            failures.add(Failure.fail(plan, "{} requires at least one branch", plan.getClass().getSimpleName()));
         }
     }
 }

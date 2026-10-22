@@ -11,9 +11,9 @@ package org.elasticsearch.simdjson.internal;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.foreign.testing.GuardPageAllocator;
 import org.elasticsearch.simdjson.SimdJsonTestCase;
 import org.elasticsearch.simdjson.internal.parsers.BitIndexes;
-import org.elasticsearch.simdvec.GuardPageAllocator;
 import org.junit.Before;
 
 import java.lang.foreign.Arena;
@@ -95,8 +95,8 @@ public class SimdJsonLibraryTests extends SimdJsonTestCase {
 
     // Passing Java null (not MemorySegment.NULL) should throw.
     public void testDestroyJavaNullThrows() {
-        // The generated $Impl has an assertion on the parameter; with -ea the AssertionError
-        // fires before the NullPointerException from the actual downcall.
+        // The generated $Impl wraps any Throwable from the downcall in an AssertionError, so the
+        // NullPointerException arrives wrapped, with or without -ea.
         expectThrows(AssertionError.class, () -> lib.destroy(null));
     }
 

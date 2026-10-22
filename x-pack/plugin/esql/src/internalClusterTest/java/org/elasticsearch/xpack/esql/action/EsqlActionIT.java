@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
@@ -111,6 +112,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_V7;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXPLAIN;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FILLNULL;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_IN_CLUSTER_STATE;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.WHERE_IN_SUBQUERY;
@@ -2176,6 +2178,13 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testQueryEmptyWithEval() {
+        try (EsqlQueryResponse resp = run("FROM none* | EVAL f1 = 1")) {
+            assertThat(resp.columns(), equalTo(List.of(new ColumnInfoImpl("f1", "integer", null))));
+            assertFalse(resp.values().hasNext());
+        }
+    }
+
     public void testGroupingStatsOnMissingFields() {
         assumeTrue("Pragmas are only allowed in snapshots", Build.current().isSnapshot());
         assertAcked(client().admin().indices().prepareCreate("missing_field_index").setMapping("data", "type=long"));
@@ -2408,6 +2417,61 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             assertEquals(10, getValuesList(results).size());
         } finally {
             clearPersistentSettings(AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE);
+        }
+    }
+
+    public void testMaxFillNullFieldsSetting() {
+        assumeTrue("requires FILLNULL capability", FILLNULL.isEnabled());
+        updateClusterSettings(Settings.builder().put(EsqlFlags.ESQL_MAX_FILLNULL_FIELDS.getKey(), 1));
+        try {
+            var e = expectThrows(VerificationException.class, () -> run("from test | fillnull 0 on *"));
+            assertThat(
+                e.getMessage(),
+                containsString("exceeding the limit of 1 set by the [esql.query.max_fillnull_fields] cluster setting")
+            );
+            try (EsqlQueryResponse results = run("from test | fillnull 0 on count | keep count | limit 1")) {
+                assertThat(results.columns(), hasSize(1));
+            }
+        } finally {
+            clearPersistentSettings(EsqlFlags.ESQL_MAX_FILLNULL_FIELDS);
+        }
+    }
+
+    public void testMaxFillNullFieldsSettingWithView() {
+        assumeTrue("requires FILLNULL capability", FILLNULL.isEnabled());
+        assumeTrue("Views require the capability to be enabled", VIEWS_IN_CLUSTER_STATE.isEnabled());
+        String viewName = "fillnull_view";
+        String query = "FROM " + viewName + " | FILLNULL 0 ON count, data";
+        assertAcked(
+            client().execute(
+                PutViewAction.INSTANCE,
+                new PutViewAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT,
+                    new View(viewName, "FROM test | FILLNULL 0 ON count, data")
+                )
+            )
+        );
+        try {
+            updateClusterSettings(Settings.builder().put(EsqlFlags.ESQL_MAX_FILLNULL_FIELDS.getKey(), 3));
+            var e = expectThrows(VerificationException.class, () -> run(query));
+            assertThat(e.getMessage(), allOf(containsString("FILLNULL would fill 4 columns"), containsString("exceeding the limit of 3")));
+
+            updateClusterSettings(Settings.builder().put(EsqlFlags.ESQL_MAX_FILLNULL_FIELDS.getKey(), 4));
+            try (EsqlQueryResponse results = run(query + " | KEEP count, data | LIMIT 1")) {
+                assertThat(results.columns(), hasSize(2));
+            }
+        } finally {
+            try {
+                clearPersistentSettings(EsqlFlags.ESQL_MAX_FILLNULL_FIELDS);
+            } finally {
+                assertAcked(
+                    client().execute(
+                        DeleteViewAction.INSTANCE,
+                        new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { viewName })
+                    )
+                );
+            }
         }
     }
 
@@ -2656,55 +2720,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 .findFirst()
                 .get();
             assertThat(status.rowsEmitted(), equalTo((long) counts.size()));
-        }
-    }
-
-    public void testLimitPushdownToAggregate() {
-        int numGroups = between(20, 100);
-        int limit = between(1, 5);
-        StringBuilder tags = new StringBuilder();
-        for (int i = 0; i < numGroups; i++) {
-            if (i > 0) tags.append(",");
-            tags.append("\"tag-").append(i).append("\"");
-        }
-        int pageSize = randomIntBetween(1, 5);
-        Settings pragma = Settings.builder().put(QueryPragmas.PAGE_SIZE.getKey(), pageSize).build();
-        var request = syncEsqlQueryRequest(
-            "ROW tag = [" + tags + "], num = 1::long | MV_EXPAND tag | STATS c = COUNT(*) BY tag, num | LIMIT " + limit
-        ).profile(true).pragmas(new QueryPragmas(pragma)).acceptedPragmaRisks(true);
-        try (var result = run(request)) {
-            List<List<Object>> rows = getValuesList(result);
-            assertThat(rows, hasSize(limit));
-            for (List<Object> row : rows) {
-                long c = ((Number) row.get(0)).longValue();
-                assertThat(c, equalTo(1L));
-            }
-            EsqlQueryResponse.Profile profile = result.profile();
-            assertNotNull(profile);
-            HashAggregationOperator.Status status = profile.drivers()
-                .stream()
-                .flatMap(d -> d.operators().stream())
-                .filter(o -> o.status() instanceof HashAggregationOperator.Status)
-                .map(o -> (HashAggregationOperator.Status) o.status())
-                .findFirst()
-                .get();
-            assertThat(status.rowsEmitted(), lessThanOrEqualTo((long) limit + pageSize));
-        }
-        // When a filter sits between STATS and LIMIT the limit is not pushed down
-        request = syncEsqlQueryRequest(
-            "ROW tag = [" + tags + "], num = 1::long | MV_EXPAND tag | STATS c = COUNT(*) BY tag, num | WHERE c >= 10 | LIMIT " + limit
-        ).profile(true).pragmas(new QueryPragmas(pragma)).acceptedPragmaRisks(true);
-        try (var result = run(request)) {
-            EsqlQueryResponse.Profile profile = result.profile();
-            assertNotNull(profile);
-            HashAggregationOperator.Status status = profile.drivers()
-                .stream()
-                .flatMap(d -> d.operators().stream())
-                .filter(o -> o.status() instanceof HashAggregationOperator.Status)
-                .map(o -> (HashAggregationOperator.Status) o.status())
-                .findFirst()
-                .get();
-            assertThat(status.rowsEmitted(), equalTo((long) numGroups));
         }
     }
 
@@ -3140,11 +3155,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                     anyOf(containsString("EsQueryExec"), containsString("EsSourceExec"), containsString("LocalSourceExec"))
                 );
 
-                // === Node Reduce Plan Assertions ===
-                assertNotNull("Should have node_reduce plan", nodeReducePlan);
-                // node_reduce plan should contain ExchangeSinkExec for sending results to coordinator
-                assertThat("Node reduce plan should contain ExchangeSinkExec", nodeReducePlan, containsString("ExchangeSinkExec"));
-
                 // === Final Plan Assertions ===
                 assertNotNull("Should have final coordinator plan", finalPlan);
                 // Final plan should contain OutputExec for final result output
@@ -3283,11 +3293,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                     localPhysicalPlan,
                     anyOf(containsString("AggregateExec"), containsString("HashAggregation"))
                 );
-
-                // === Node Reduce Plan Assertions ===
-                assertNotNull("Should have node_reduce plan", nodeReducePlan);
-                // node_reduce plan should contain ExchangeSinkExec for sending results to coordinator
-                assertThat("Node reduce plan should contain ExchangeSinkExec", nodeReducePlan, containsString("ExchangeSinkExec"));
 
                 // === Final Plan Assertions ===
                 assertNotNull("Should have final coordinator plan", finalPlan);

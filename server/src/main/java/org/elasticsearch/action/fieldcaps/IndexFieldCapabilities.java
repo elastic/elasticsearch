@@ -39,7 +39,7 @@ import java.util.Map;
  * @param indexLocalAnalyzer {@code true} when a text field's analyzer name was withheld because it is defined under
  *                       {@code index.analysis}. Never set together with {@code indexAnalyzer}.
  * @param isStaticallySingleValued {@code true} when the mapping guarantees that no document holds more than one value for this field
- *                       ({@code doc_values.multi_value=false}). {@code false} only means "not guaranteed", which is also what
+ *                       ({@code multi_value=false}). {@code false} only means "not guaranteed", which is also what
  *                       nodes that do not report this flag look like. It is not part of the merged field caps response.
  */
 

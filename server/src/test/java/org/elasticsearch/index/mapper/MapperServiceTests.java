@@ -130,24 +130,18 @@ public class MapperServiceTests extends MapperServiceTestCase {
 
     /**
      * Only a field that rejects a second value at parse time is reported as single-valued, so a reader can rely on it. The
-     * guarantee comes from the field's own {@code doc_values.multi_value=false} or from the index-level default, but not from
+     * guarantee comes from the field's own {@code multi_value=false} or from the index-level default, but not from
      * {@code on_failure=ignore}, which keeps the extra value out of doc values and is therefore not a rejection.
      */
     public void testIsSingleValueGuaranteed() throws IOException {
         Settings columnar = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         MapperService mapperService = createMapperService(columnar, mapping(b -> {
             for (String type : List.of("keyword", "long", "double", "ip", "date", "boolean")) {
-                b.startObject(type + "_single").field("type", type).startObject("doc_values").field("multi_value", false).endObject();
+                b.startObject(type + "_single").field("type", type).field("multi_value", false);
                 b.endObject();
                 b.startObject(type + "_multi").field("type", type).endObject();
             }
-            b.startObject("keyword_ignore")
-                .field("type", "keyword")
-                .startObject("doc_values")
-                .field("multi_value", false)
-                .field("on_failure", "ignore")
-                .endObject()
-                .endObject();
+            b.startObject("keyword_ignore").field("type", "keyword").field("multi_value", false).field("on_failure", "ignore").endObject();
         }));
         MappingLookup lookup = mapperService.mappingLookup();
         for (String type : List.of("keyword", "long", "double", "ip", "date", "boolean")) {
@@ -168,7 +162,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
             .build();
         MapperService mapperService = createMapperService(columnarSingleValue, mapping(b -> {
             b.startObject("plain").field("type", "keyword").endObject();
-            b.startObject("override").field("type", "keyword").startObject("doc_values").field("multi_value", true).endObject().endObject();
+            b.startObject("override").field("type", "keyword").field("multi_value", true).endObject();
         }));
         assertTrue(mapperService.mappingLookup().isStaticallySingleValued("plain"));
         assertFalse(mapperService.mappingLookup().isStaticallySingleValued("override"));
@@ -176,33 +170,33 @@ public class MapperServiceTests extends MapperServiceTestCase {
 
     /**
      * The single-value guarantee assumes no {@code copy_to} can feed a field with {@code multi_value=false}. That holds because the
-     * {@code doc_values} object form is only accepted in strict columnar index modes, and those modes reject {@code copy_to}. If either
+     * {@code multi_value} parameter is only accepted in strict columnar index modes, and those modes reject {@code copy_to}. If either
      * rule changes, {@code copy_to} targets must be excluded from {@link MappingLookup#isStaticallySingleValued} or enforced at parse time.
      */
     public void testSingleValueGuaranteeExcludesCopyTo() {
         Settings columnar = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(columnar, mapping(b -> {
             b.startObject("src").field("type", "keyword").field("copy_to", "target").endObject();
-            b.startObject("target").field("type", "keyword").startObject("doc_values").field("multi_value", false).endObject().endObject();
+            b.startObject("target").field("type", "keyword").field("multi_value", false).endObject();
         })));
         assertThat(e.getMessage(), containsString("[copy_to] is not allowed on field [src]"));
 
         e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping(b -> {
-            b.startObject("target").field("type", "keyword").startObject("doc_values").field("multi_value", false).endObject().endObject();
+            b.startObject("target").field("type", "keyword").field("multi_value", false).endObject();
         })));
-        assertThat(e.getMessage(), containsString("unsupported doc_values configuration for field [target] in non-columnar index"));
+        assertThat(e.getMessage(), containsString("parameter [multi_value] can only be used in columnar index modes"));
     }
 
     /**
-     * A multi-field reads its own {@code doc_values} parameters, so a single-valued parent does not make its sub-field single-valued.
+     * A multi-field reads its own {@code multi_value} parameter, so a single-valued parent does not make its sub-field single-valued.
      */
     public void testSingleValueGuaranteeOfMultiField() throws IOException {
         Settings columnar = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         MapperService mapperService = createMapperService(columnar, mapping(b -> {
-            b.startObject("parent").field("type", "keyword").startObject("doc_values").field("multi_value", false).endObject();
+            b.startObject("parent").field("type", "keyword").field("multi_value", false);
             b.startObject("fields");
             b.startObject("plain").field("type", "keyword").endObject();
-            b.startObject("single").field("type", "keyword").startObject("doc_values").field("multi_value", false).endObject().endObject();
+            b.startObject("single").field("type", "keyword").field("multi_value", false).endObject();
             b.endObject().endObject();
         }));
         MappingLookup lookup = mapperService.mappingLookup();

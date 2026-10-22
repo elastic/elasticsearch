@@ -53,7 +53,7 @@ import java.util.List;
  * </ul>
  * {@code SINGLE} means <em>statically</em> single-valued: it follows from the query and the mapping alone, without reading data, so it
  * holds on every shard. A field of {@code FROM index} is {@code SINGLE} only if the mapping of every resolved index guarantees it
- * ({@code doc_values.multi_value=false}), as recorded in {@link org.elasticsearch.xpack.esql.core.type.EsField#isStaticallySingleValued()}.
+ * ({@code multi_value=false}), as recorded in {@link org.elasticsearch.xpack.esql.core.type.EsField#isStaticallySingleValued()}.
  * The segment statistics of {@code SearchStats} are not used: they describe one shard and exist only in local planning. External
  * sources answer {@code MAYBE_MULTI}; a hook can be added where their schema guarantees it.
  */

@@ -65,15 +65,7 @@ public record HealthInfo(
         FileSettingsHealthInfo fileSettingsHealthInfo,
         @Nullable DlmFrozenTransitionsHealthInfo dlmFrozenTransitionsHealthInfo
     ) {
-        this(
-            diskInfoByNode,
-            dslHealthInfo,
-            repositoriesInfoByNode,
-            fileSettingsHealthInfo,
-            dlmFrozenTransitionsHealthInfo,
-            null,
-            Map.of()
-        );
+        this(diskInfoByNode, dslHealthInfo, repositoriesInfoByNode, fileSettingsHealthInfo, dlmFrozenTransitionsHealthInfo, null, Map.of());
     }
 
     public HealthInfo(

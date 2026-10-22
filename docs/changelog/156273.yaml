@@ -1,0 +1,5 @@
+area: Authorization
+issues: []
+pr: 156273
+summary: Grant `kibana_system` access to Context Engine signals indices
+type: enhancement

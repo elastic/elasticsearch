@@ -15,6 +15,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleRangeBlock;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
@@ -86,6 +88,15 @@ public class GroupKeyEncoder implements Accountable, Releasable {
                 DoubleBlock b = (DoubleBlock) block;
                 for (int v = 0; v < valueCount; v++) {
                     row.append(Double.doubleToRawLongBits(b.getDouble(firstValueIndex + v)));
+                }
+            }
+            case DOUBLE_RANGE -> {
+                DoubleRangeBlock b = (DoubleRangeBlock) block;
+                DoubleRangeBlockBuilder.DoubleRange scratch = new DoubleRangeBlockBuilder.DoubleRange();
+                for (int v = 0; v < valueCount; v++) {
+                    DoubleRangeBlockBuilder.DoubleRange range = b.getDoubleRange(firstValueIndex + v, scratch);
+                    row.append(Double.doubleToRawLongBits(range.from()));
+                    row.append(Double.doubleToRawLongBits(range.to()));
                 }
             }
             case FLOAT -> {

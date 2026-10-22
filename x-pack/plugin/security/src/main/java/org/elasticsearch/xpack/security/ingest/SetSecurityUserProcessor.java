@@ -10,12 +10,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
@@ -42,6 +44,10 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
     public static final String TYPE = "set_security_user";
 
     private static final Logger logger = LogManager.getLogger(SetSecurityUserProcessor.class);
+    private static final String API_KEY = "api_key";
+    private static final String REALM_KEY = "realm";
+    // a 'not found' sentinel value for use in getOrDefault calls below
+    private static final Object NOT_FOUND = new Object();
 
     private final SecurityContext securityContext;
     private final Settings settings;
@@ -75,15 +81,9 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
     }
 
     @Override
-    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-        Authentication authentication = null;
-        User user = null;
-        if (this.securityContext != null) {
-            authentication = securityContext.getAuthentication();
-            if (authentication != null) {
-                user = authentication.getEffectiveSubject().getUser();
-            }
-        }
+    public IngestDocument execute(IngestDocument document) throws Exception {
+        final Authentication authentication = this.securityContext != null ? securityContext.getAuthentication() : null;
+        final User user = authentication != null ? authentication.getEffectiveSubject().getUser() : null;
 
         if (user == null) {
             logger.debug(
@@ -108,74 +108,65 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
             }
         }
 
-        Object fieldValue = ingestDocument.getFieldValue(field, Object.class, true);
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> userObject = fieldValue instanceof Map ? (Map<String, Object>) fieldValue : new HashMap<>();
+        final Map<String, Object> userObject = valueOrMapOfSize(document.getFieldValue(field, Object.class, true), properties.size());
 
         for (Property property : properties) {
             switch (property) {
                 case USERNAME:
-                    if (user.principal() != null) {
-                        userObject.put("username", user.principal());
+                    final String principal = user.principal();
+                    if (principal != null) {
+                        userObject.put("username", principal);
                     }
                     break;
                 case FULL_NAME:
-                    if (user.fullName() != null) {
-                        userObject.put("full_name", user.fullName());
+                    final String fullName = user.fullName();
+                    if (fullName != null) {
+                        userObject.put("full_name", fullName);
                     }
                     break;
                 case EMAIL:
-                    if (user.email() != null) {
-                        userObject.put("email", user.email());
+                    final String email = user.email();
+                    if (email != null) {
+                        userObject.put("email", email);
                     }
                     break;
                 case ROLES:
-                    if (user.roles() != null && user.roles().length != 0) {
-                        userObject.put("roles", Arrays.asList(user.roles()));
+                    final String[] roles = user.roles();
+                    if (roles != null && roles.length != 0) {
+                        userObject.put("roles", Arrays.asList(roles));
                     }
                     break;
                 case METADATA:
-                    if (user.metadata() != null && user.metadata().isEmpty() == false) {
-                        userObject.put("metadata", user.metadata());
+                    final Map<String, Object> metadata = user.metadata();
+                    if (metadata != null && metadata.isEmpty() == false) {
+                        userObject.put("metadata", metadata);
                     }
                     break;
                 case API_KEY:
                     if (authentication.isApiKey()) {
-                        final String apiKey = "api_key";
-                        final Object existingApiKeyField = userObject.get(apiKey);
-                        @SuppressWarnings("unchecked")
-                        final Map<String, Object> apiKeyField = existingApiKeyField instanceof Map
-                            ? (Map<String, Object>) existingApiKeyField
-                            : new HashMap<>();
-                        if (authentication.getAuthenticatingSubject().getMetadata().containsKey(AuthenticationField.API_KEY_NAME_KEY)) {
-                            apiKeyField.put(
-                                "name",
-                                authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_NAME_KEY)
-                            );
+                        final Map<String, Object> apiKeyField = valueOrMapOfSize(userObject.get(API_KEY), 3); // name, id, metadata
+
+                        final Map<String, Object> subjectMetadata = authentication.getAuthenticatingSubject().getMetadata();
+                        final Object apiKeyName = subjectMetadata.getOrDefault(AuthenticationField.API_KEY_NAME_KEY, NOT_FOUND);
+                        if (apiKeyName != NOT_FOUND) {
+                            apiKeyField.put("name", apiKeyName);
                         }
-                        if (authentication.getAuthenticatingSubject().getMetadata().containsKey(AuthenticationField.API_KEY_ID_KEY)) {
-                            apiKeyField.put(
-                                "id",
-                                authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY)
-                            );
+                        final Object apiKeyId = subjectMetadata.getOrDefault(AuthenticationField.API_KEY_ID_KEY, NOT_FOUND);
+                        if (apiKeyId != NOT_FOUND) {
+                            apiKeyField.put("id", apiKeyId);
                         }
                         final Map<String, Object> apiKeyMetadata = ApiKeyService.getApiKeyMetadata(authentication);
                         if (false == apiKeyMetadata.isEmpty()) {
                             apiKeyField.put("metadata", apiKeyMetadata);
                         }
+
                         if (false == apiKeyField.isEmpty()) {
-                            userObject.put(apiKey, apiKeyField);
+                            userObject.put(API_KEY, apiKeyField);
                         }
                     }
                     break;
                 case REALM:
-                    final String realmKey = "realm";
-                    final Object existingRealmField = userObject.get(realmKey);
-                    @SuppressWarnings("unchecked")
-                    final Map<String, Object> realmField = existingRealmField instanceof Map
-                        ? (Map<String, Object>) existingRealmField
-                        : new HashMap<>();
+                    final Map<String, Object> realmField = valueOrMapOfSize(userObject.get(REALM_KEY), 2); // name, type
 
                     final Object realmName = ApiKeyService.getCreatorRealmName(authentication);
                     if (realmName != null) {
@@ -185,21 +176,28 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
                     if (realmType != null) {
                         realmField.put("type", realmType);
                     }
+
                     if (false == realmField.isEmpty()) {
-                        userObject.put(realmKey, realmField);
+                        userObject.put(REALM_KEY, realmField);
                     }
                     break;
                 case AUTHENTICATION_TYPE:
-                    if (authentication.getAuthenticationType() != null) {
-                        userObject.put("authentication_type", authentication.getAuthenticationType().toString());
+                    final AuthenticationType authenticationType = authentication.getAuthenticationType();
+                    if (authenticationType != null) {
+                        userObject.put("authentication_type", authenticationType.toString());
                     }
                     break;
                 default:
                     throw new UnsupportedOperationException("unsupported property [" + property + "]");
             }
         }
-        ingestDocument.setFieldValue(field, userObject);
-        return ingestDocument;
+        document.setFieldValue(field, userObject);
+        return document;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> valueOrMapOfSize(@Nullable final Object value, final int size) {
+        return value instanceof Map ? (Map<String, Object>) value : HashMap.newHashMap(size);
     }
 
     @Override

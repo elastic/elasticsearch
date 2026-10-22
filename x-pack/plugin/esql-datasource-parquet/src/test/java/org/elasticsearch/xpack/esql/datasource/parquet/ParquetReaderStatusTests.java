@@ -46,7 +46,6 @@ public class ParquetReaderStatusTests extends AbstractWireSerializingTestCase<Pa
             randomBoolean(),
             randomBoolean(),
             randomList(0, 4, () -> randomAlphaOfLength(6)).stream().sorted().toList(),
-            randomNonNegativeLong(),
             randomColumns()
         );
     }
@@ -78,7 +77,7 @@ public class ParquetReaderStatusTests extends AbstractWireSerializingTestCase<Pa
         return new ParquetReaderStatus(
             instance.rowsEmitted(),
             instance.predicatePushdownUsed(),
-            instance.footerReadNanos(),
+            randomValueOtherThan(instance.footerReadNanos(), () -> randomNonNegativeLong()),
             instance.footerSizeBytes(),
             instance.footerCacheHits(),
             instance.footerCacheMisses(),
@@ -91,7 +90,6 @@ public class ParquetReaderStatusTests extends AbstractWireSerializingTestCase<Pa
             instance.lateMaterializationEnabled(),
             instance.lateMaterializationUsed(),
             instance.predicateColumns(),
-            randomValueOtherThan(instance.readNanos(), () -> randomNonNegativeLong()),
             instance.columns()
         );
     }
@@ -114,7 +112,6 @@ public class ParquetReaderStatusTests extends AbstractWireSerializingTestCase<Pa
             false,
             false,
             List.of("host"),
-            150L,
             Map.of("host", new PerColumnStatus(PerColumnStatus.MATERIALIZATION_LATE))
         );
         assertThat(
@@ -125,7 +122,7 @@ public class ParquetReaderStatusTests extends AbstractWireSerializingTestCase<Pa
                     + "\"row_groups_in_file\":3,\"row_groups_total\":4,\"row_groups_kept\":2,"
                     + "\"page_index_used\":false,\"rows_in_kept_row_groups\":10,\"rows_after_page_index\":8,"
                     + "\"late_materialization_enabled\":false,\"late_materialization_used\":false,"
-                    + "\"predicate_columns\":[\"host\"],\"read_nanos\":150,"
+                    + "\"predicate_columns\":[\"host\"],"
                     + "\"columns\":{\"host\":{\"materialization\":\"late\"}}}"
             )
         );

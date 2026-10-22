@@ -11,14 +11,17 @@ package org.elasticsearch.nativeaccess.lib;
 
 import org.elasticsearch.foreign.Addressable;
 import org.elasticsearch.foreign.ArrayField;
-import org.elasticsearch.foreign.CaptureErrno;
+import org.elasticsearch.foreign.CaptureSystemError;
 import org.elasticsearch.foreign.Function;
 import org.elasticsearch.foreign.LibrarySpecification;
+import org.elasticsearch.foreign.Platform;
 import org.elasticsearch.foreign.StructFactory;
 import org.elasticsearch.foreign.StructSpecification;
 import org.elasticsearch.foreign.Variadic;
 
-@LibrarySpecification
+// prctl/seccomp/fallocate are Linux-only syscalls; marking Windows unavailable also lets
+// @CaptureSystemError resolve unambiguously to errno (a library reachable on both Windows and POSIX cannot).
+@LibrarySpecification(unavailableOn = { Platform.WINDOWS_X64 })
 public interface LinuxCLibrary {
 
     /**
@@ -46,7 +49,7 @@ public interface LinuxCLibrary {
     /**
      * maps to prctl(2)
      */
-    @CaptureErrno
+    @CaptureSystemError
     @Function("prctl")
     int prctl(int option, long arg2, long arg3, long arg4, long arg5);
 
@@ -54,12 +57,12 @@ public interface LinuxCLibrary {
      * used to call seccomp(2), its too new...
      * this is the only way, DON'T use it on some other architecture unless you know wtf you are doing
      */
-    @CaptureErrno
+    @CaptureSystemError
     @Variadic(firstArg = 1)
     @Function("syscall")
     long syscall(long number, int operation, int flags, Addressable address);
 
-    @CaptureErrno
+    @CaptureSystemError
     @Function("fallocate")
     int fallocate(int fd, int mode, long offset, long length);
 }

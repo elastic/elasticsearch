@@ -29,6 +29,8 @@ import org.apache.logging.log4j.core.config.Property;
 import org.apache.logging.log4j.core.time.Instant;
 import org.apache.logging.log4j.message.MapMessage;
 import org.apache.logging.log4j.message.Message;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.telemetry.TelemetryLogEventFilter;
 
 import java.lang.reflect.Array;
 import java.util.Arrays;
@@ -57,7 +59,12 @@ public class ElasticsearchOtelAppender extends AbstractAppender {
     private static final String MESSAGE_KEY = "message";
     private static final String TRACE_ID_KEY = "trace.id";
 
-    private volatile OpenTelemetry openTelemetry;
+    private final OpenTelemetry openTelemetry;
+    /**
+     * Optional message filter which can modify or discard log events.
+     */
+    @Nullable
+    private final TelemetryLogEventFilter filter;
 
     private static final int KEY_CACHE_MAX_SIZE = 100;
 
@@ -82,21 +89,15 @@ public class ElasticsearchOtelAppender extends AbstractAppender {
     }
 
     /**
-     * @param name         appender name used by the log4j configuration graph
-     * @param openTelemetry initial OTel instance; may be updated atomically via {@link #setOpenTelemetry}
+     * @param name          appender name used by the log4j configuration graph
+     * @param openTelemetry OTel instance to emit to
+     * @param filter        optional filter applied before emitting each event; {@code null} means no filtering
      */
-    public ElasticsearchOtelAppender(String name, OpenTelemetry openTelemetry) {
+    public ElasticsearchOtelAppender(String name, OpenTelemetry openTelemetry, @Nullable TelemetryLogEventFilter filter) {
         super(name, null, null, true, Property.EMPTY_ARRAY);
         Objects.requireNonNull(openTelemetry, "openTelemetry is null");
         this.openTelemetry = openTelemetry;
-    }
-
-    /**
-     * Hot-swap the OTel instance. Safe to call concurrently with {@link #append}.
-     */
-    public void setOpenTelemetry(OpenTelemetry openTelemetry) {
-        Objects.requireNonNull(openTelemetry, "openTelemetry is null");
-        this.openTelemetry = openTelemetry;
+        this.filter = filter;
     }
 
     @Override
@@ -128,7 +129,9 @@ public class ElasticsearchOtelAppender extends AbstractAppender {
             if (ctx == Context.root()) {
                 ctx = traceContextFromMapMessage(mapMessage, ctx);
             }
-            captureMapMessage(builder, mapMessage);
+            if (captureMapMessage(builder, mapMessage) == false) {
+                return;
+            }
         } else if (message != null) {
             builder.setBody(message.getFormattedMessage());
         }
@@ -143,25 +146,23 @@ public class ElasticsearchOtelAppender extends AbstractAppender {
     }
 
     private static Context traceContextFromMapMessage(MapMessage<?, ?> mapMessage, Context fallback) {
-        Object val = mapMessage.getData().get(TRACE_ID_KEY);
-        if (val != null) {
-            String traceId = val.toString();
-            if (traceId.isEmpty() == false) {
-                SpanContext spanCtx = ImmutableSpanContext.create(
-                    traceId,
-                    SpanId.getInvalid(),
-                    TraceFlags.getSampled(),
-                    TraceState.getDefault(),
-                    true,
-                    true
-                );
-                return fallback.with(Span.wrap(spanCtx));
-            }
+        String traceId = mapMessage.get(TRACE_ID_KEY);
+        if (traceId != null && traceId.isEmpty() == false) {
+            SpanContext spanCtx = ImmutableSpanContext.create(
+                traceId,
+                SpanId.getInvalid(),
+                TraceFlags.getSampled(),
+                TraceState.getDefault(),
+                true,
+                true
+            );
+            return fallback.with(Span.wrap(spanCtx));
         }
         return fallback;
     }
 
-    private static void captureMapMessage(LogRecordBuilder builder, MapMessage<?, ?> mapMessage) {
+    @SuppressWarnings("unchecked")
+    private boolean captureMapMessage(LogRecordBuilder builder, MapMessage<?, ?> mapMessage) {
         String body = mapMessage.getFormat();
         boolean useMessageKey = (body == null || body.isEmpty());
         if (useMessageKey) {
@@ -171,11 +172,18 @@ public class ElasticsearchOtelAppender extends AbstractAppender {
             builder.setBody(body);
         }
 
-        mapMessage.getData().forEach((key, value) -> {
+        Map<String, Object> data = (Map<String, Object>) mapMessage.getData();
+        if (filter != null) {
+            data = filter.filter(data);
+            if (data == null) return false;
+        }
+
+        data.forEach((key, value) -> {
             if (value != null && shouldEmitAsAttribute(key, useMessageKey)) {
                 setTypedAttribute(builder, key, value);
             }
         });
+        return true;
     }
 
     private static boolean shouldEmitAsAttribute(String key, boolean useMessageKey) {

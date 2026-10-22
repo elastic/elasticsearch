@@ -9,11 +9,14 @@
 
 package org.elasticsearch.index.mapper.flattened;
 
+import org.apache.lucene.index.IndexWriter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.AbstractColumnarMapperCompatibilityTestCase;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
 
@@ -266,15 +269,34 @@ public class FlattenedFieldMapperColumnarCompatibilityTests extends AbstractColu
     }
 
     /**
-     * Values over {@code ignore_above} belong in the {@code _keyed._ignored} channel, which the columnar path does not yet write, so
-     * it bails to make the production driver fall back to the row path.
+     * {@code ignore_above} is a no-op in strictly columnar index modes for indices created at or after
+     * {@link org.elasticsearch.index.IndexVersions#IGNORE_ABOVE_NO_OP_IN_COLUMNAR}: values are stored
+     * as doc values only, so nothing may be dropped. A value exceeding the configured limit is indexed
+     * normally and the batch-columnar path succeeds without falling back to the row path.
+     * <p>
+     * The old behaviour (throwing {@link UnsupportedOperationException} to trigger row-path fallback) is
+     * retained for pre-gate columnar indices where the {@code _keyed._ignored} channel may already contain data.
      */
-    public void testIgnoreAboveIsRejected() {
+    public void testIgnoreAboveIsNoOpInColumnar() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "flattened").field("ignore_above", 4).endObject()),
+            columnarSettings(),
+            batch("ignore_above is no-op", 1L, doc("d1", 1L, "{\"flat\":{\"k\":\"too long\"}}"))
+        );
+    }
+
+    /**
+     * Pre-gate: a value exceeding {@code ignore_above} must throw {@link UnsupportedOperationException}
+     * so {@code ShardBatchMapper} falls back to the row path for {@code _keyed._ignored} handling.
+     */
+    public void testIgnoreAboveIsRejectedPreGate() {
+        Settings preGateSettings = columnarSettings();
         UnsupportedOperationException e = expectThrows(
             UnsupportedOperationException.class,
             () -> assertColumnarMatchesXContent(
+                IndexVersionUtils.getPreviousVersion(IndexVersions.IGNORE_ABOVE_NO_OP_IN_COLUMNAR),
                 mapping(b -> b.startObject(FIELD).field("type", "flattened").field("ignore_above", 4).endObject()),
-                columnarSettings(),
+                preGateSettings,
                 batch("ignore_above exceeded", 1L, doc("d1", 1L, "{\"flat\":{\"k\":\"too long\"}}"))
             )
         );
@@ -306,5 +328,122 @@ public class FlattenedFieldMapperColumnarCompatibilityTests extends AbstractColu
             )
         );
         assertThat(e.getMessage(), containsString("cannot contain the reserved character"));
+    }
+
+    /**
+     * A relative key whose nesting depth exceeds {@code depth_limit} throws {@link IllegalArgumentException}
+     * on the columnar path, mirroring the row path's {@code FlattenedFieldParser.validateDepthLimit}.
+     *
+     * <p>The mapping uses {@code depth_limit: 2}, so a key like {@code a.b.c} (dot-count = 2,
+     * effective depth = 3) should be rejected while {@code a.b} (dot-count = 1, effective depth = 2)
+     * is accepted.
+     */
+    public void testDepthLimitExceededThrowsIllegalArgument() {
+        // "a.b.c" has dot-count 2, effective depth 3 > depth_limit 2 → rejected.
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> assertColumnarMatchesXContent(
+                mapping(b -> b.startObject(FIELD).field("type", "flattened").field("depth_limit", 2).endObject()),
+                columnarSettings(),
+                batch("depth_limit exceeded", 1L, doc("d1", 1L, "{\"flat\":{\"a\":{\"b\":{\"c\":\"deep\"}}}}"))
+            )
+        );
+        assertThat(e.getMessage(), containsString("exceeds the maximum depth limit"));
+        assertThat(e.getMessage(), containsString("[2]"));
+    }
+
+    /**
+     * A key exactly at {@code depth_limit} (dot-count = depth_limit - 1) must pass on both paths.
+     * Guards against an off-by-one in the check.
+     */
+    public void testDepthLimitAtBoundaryPasses() throws IOException {
+        // depth_limit = 2 → keys with dot-count ≤ 1 (effective depth ≤ 2) are accepted.
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "flattened").field("depth_limit", 2).endObject()),
+            columnarSettings(),
+            batch(
+                "depth at boundary",
+                1L,
+                doc("d1", 1L, "{\"flat\":{\"a\":{\"b\":\"ok\"}}}"), // dot-count 1, depth 2 = limit → accepted
+                doc("d2", 2L, "{\"flat\":{\"top\":\"v\"}}") // dot-count 0, depth 1 < limit → accepted
+            )
+        );
+    }
+
+    /**
+     * A literal dotted key inside the flattened value ({@code {"flat":{"a.b":"v"}}}) produces the same
+     * field set as the equivalent nested object ({@code {"flat":{"a":{"b":"v"}}}}), on both paths.
+     */
+    public void testLiteralDottedKeyMatchesNestedObject() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "flattened").endObject()),
+            columnarSettings(),
+            batch(
+                "literal dotted key vs nested object",
+                1L,
+                doc("d1", 1L, "{\"flat\":{\"a.b\":\"v\"}}"),
+                doc("d2", 2L, "{\"flat\":{\"a\":{\"b\":\"v\"}}}")
+            )
+        );
+    }
+
+    /**
+     * Both spellings of the same key inside a <em>single</em> document produce two group columns with the identical
+     * relative key {@code a.b}, both present on that document. This is the case that breaks a per-leaf mapper — it
+     * would emit two independent outputs — but a group mapper receives every column in one
+     * {@link FlattenedFieldMapper#mapColumnGroupBatch} call and merges both slots into the same per-document blob.
+     */
+    public void testBothSpellingsOfOneKeyInASingleDocument() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "flattened").endObject()),
+            columnarSettings(),
+            batch(
+                "both spellings in one doc",
+                1L,
+                doc("d1", 1L, "{\"flat\":{\"a.b\":\"one\",\"a\":{\"b\":\"two\"}}}"),
+                doc("d2", 2L, "{\"flat\":{\"a.b\":\"only\"}}")
+            )
+        );
+    }
+
+    public void testKeyedValueLongerThanMaxTermLengthMatchesRowPath() throws IOException {
+        // Strict columnar mode does not index the field by default, so only binary doc values are written.
+        String longValue = "v".repeat(IndexWriter.MAX_TERM_LENGTH);
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "flattened").endObject()),
+            columnarSettings(),
+            batch(
+                "keyed value longer than max term length",
+                1L,
+                doc("d1", 1L, "{\"flat\":{\"k\":\"" + longValue + "\"}}"),
+                doc("d2", 2L, "{\"flat\":{\"k\":\"short\"}}")
+            )
+        );
+    }
+
+    public void testKeyedValueLongerThanNonIndexedFieldLimitIsRejectedOnBatchPath() throws IOException {
+        Settings settings = Settings.builder()
+            .put(columnarSettings())
+            .put(IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.getKey(), "64kb")
+            .build();
+        // The keyed encoding "k\0" + value adds 2 bytes to the value.
+        String valueAtLimit = "v".repeat(64 * 1024 - 2);
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "flattened").endObject()),
+            settings,
+            batch("keyed value at the limit", 1L, doc("d1", 1L, "{\"flat\":{\"k\":\"" + valueAtLimit + "\"}}"))
+        );
+
+        String immenseValue = valueAtLimit + "v";
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> assertColumnarMatchesXContent(
+                mapping(b -> b.startObject(FIELD).field("type", "flattened").endObject()),
+                settings,
+                batch("immense keyed value", 1L, doc("d1", 1L, "{\"flat\":{\"k\":\"" + immenseValue + "\"}}"))
+            )
+        );
+        assertThat(e.getMessage(), containsString("whose keyed encoding is longer than the allowed max length"));
+        assertThat(e.getMessage(), containsString("allowed max length of 65536 bytes"));
     }
 }

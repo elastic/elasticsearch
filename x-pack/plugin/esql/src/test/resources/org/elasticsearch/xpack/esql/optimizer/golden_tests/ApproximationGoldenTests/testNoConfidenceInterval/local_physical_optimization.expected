@@ -7,7 +7,7 @@ ProjectExec[[SUM(mv){r}#0, COUNT(mv){r}#1]]
           \_EvalExec[[$$SUM(mv)$not_rounded$value$uncorrected{r$}#16 / 0.0123456789[DOUBLE] AS $$SUM(mv)$not_rounded$value#11, $$SUM(mv)$not_rounded$delta$uncorrected{r$}#17 / 0.0123456789[DOUBLE] AS $$SUM(mv)$not_rounded$delta#12, $$COUNT(mv)$not_rounded$count$uncorrected{r$}#18 / 0.0123456789[DOUBLE] AS $$COUNT(mv)$not_rounded$count#14]]
             \_AggregateExec[[],[SUM($$SUM(mv)$todouble{r$}#4,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],long_overflow_throw[KEYWORD]) AS $$SUM(mv)$not_rounded#2, COUNTAPPROXIMATE(mv{f}#5,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT(mv)$not_rounded#3],INITIAL,[$$SUM(mv)$not_rounded$value$uncorrected{r$}#16, $$SUM(mv)$not_rounded$delta$uncorrected{r$}#17, $$SUM(mv)$not_rounded$seen{r}#13, $$COUNT(mv)$not_rounded$count$uncorrected{r$}#18, $$COUNT(mv)$not_rounded$seen{r}#15],40]
               \_EvalExec[[TODOUBLE(mv{f}#5) AS $$SUM(mv)$todouble#4]]
-                \_FieldExtractExec[mv{f}#5]<[],[],[]>
+                \_FieldExtractExec[[mv{f}#5]<[],[],[]>,_doc{f}#19]
                   \_EsQueryExec[many_numbers], indexMode[standard], [_doc{f}#19], limit[], sort[] estimatedRowSize[16] queryBuilderAndTags [[QueryBuilderAndTags[query={
   "bool" : {
     "filter" : [

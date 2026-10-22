@@ -12,6 +12,7 @@ package org.elasticsearch.plugins.internal;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineBatch;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngine;
@@ -111,11 +112,8 @@ public class XContentMeteringParserDecoratorIT extends ESIntegTestCase {
 
                 @Override
                 public List<IndexResult> indexBatch(EngineBatch batch) throws IOException {
-                    List<IndexResult> results = super.indexBatch(batch);
-                    for (Index op : batch.operations()) {
-                        reportDocumentSize(op.parsedDoc());
-                    }
-                    return results;
+                    // TODO: report document sizes for batch-indexed docs (no ParsedDocument in columnar path)
+                    return super.indexBatch(batch);
                 }
 
                 private void reportDocumentSize(ParsedDocument parsedDocument) {
@@ -124,7 +122,7 @@ public class XContentMeteringParserDecoratorIT extends ESIntegTestCase {
                         config().getMapperService(),
                         DocumentSizeAccumulator.EMPTY_INSTANCE
                     );
-                    documentParsingReporter.onIndexingCompleted(parsedDocument);
+                    documentParsingReporter.onIndexingCompleted(parsedDocument, Engine.Operation.Origin.PRIMARY);
                 }
             });
         }
@@ -138,7 +136,7 @@ public class XContentMeteringParserDecoratorIT extends ESIntegTestCase {
         public DocumentParsingProvider getDocumentParsingProvider() {
             return new DocumentParsingProvider() {
                 @Override
-                public <T> XContentMeteringParserDecorator newMeteringParserDecorator(IndexRequest request) {
+                public XContentMeteringParserDecorator newMeteringParserDecorator() {
                     return new TestXContentMeteringParserDecorator(0L);
                 }
 
@@ -163,7 +161,7 @@ public class XContentMeteringParserDecoratorIT extends ESIntegTestCase {
         }
 
         @Override
-        public void onIndexingCompleted(ParsedDocument parsedDocument) {
+        public void onIndexingCompleted(ParsedDocument parsedDocument, Engine.Operation.Origin origin) {
             long delta = parsedDocument.getNormalizedSize();
             if (delta > XContentMeteringParserDecorator.UNKNOWN_SIZE) {
                 COUNTER.addAndGet(delta);

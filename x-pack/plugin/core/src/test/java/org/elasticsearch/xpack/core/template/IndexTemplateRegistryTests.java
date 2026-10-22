@@ -118,9 +118,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
     }
 
     @After
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void shutdownThreadPool() throws Exception {
         threadPool.shutdownNow();
     }
 
@@ -757,6 +755,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         assertThat(composableIndexTemplate.composedOf().get(1), equalTo("syslog@custom"));
         assertThat(composableIndexTemplate.getIgnoreMissingComponentTemplates(), hasSize(1));
         assertThat(composableIndexTemplate.getIgnoreMissingComponentTemplates().get(0), equalTo("syslog@custom"));
+        assertTrue(composableIndexTemplate.isRegistryInstalled());
         assertNotNull(listener);
         calledTimes.incrementAndGet();
     }

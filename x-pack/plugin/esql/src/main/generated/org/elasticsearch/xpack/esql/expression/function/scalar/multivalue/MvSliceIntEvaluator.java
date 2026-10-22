@@ -74,10 +74,11 @@ public final class MvSliceIntEvaluator implements ExpressionEvaluator {
         if (!fieldBlock.isNull(p)) {
           allBlocksAreNulls = false;
         }
+        if (startBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (startBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -85,10 +86,11 @@ public final class MvSliceIntEvaluator implements ExpressionEvaluator {
               result.appendNull();
               continue position;
         }
+        if (endBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (endBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:

@@ -32,6 +32,12 @@ import java.util.Set;
 
 public abstract class AbstractGenerateTransportVersionDefinitionTask extends DefaultTask {
 
+    /**
+     * The increment used for ids which share a base with an existing id, ie patch ids. Patch ids must be
+     * dense within their base, so this can only ever be one.
+     */
+    protected static final int PATCH_INCREMENT = 1;
+
     @ServiceReference("transportVersionResources")
     abstract Property<TransportVersionResourcesService> getResourceService();
 
@@ -39,6 +45,25 @@ public abstract class AbstractGenerateTransportVersionDefinitionTask extends Def
     @Optional
     @Option(option = "increment", description = "The amount to increment the id from the current upper bounds file by")
     public abstract Property<Integer> getIncrement();
+
+    /**
+     * The name of the branch which tracks what is currently deployed to serverless production. Transport
+     * versions generated for that branch are patch ids, see {@link #getPatchBranch()}. When this is unset,
+     * the repository has no such branch and patch ids are never generated.
+     */
+    @Input
+    @Optional
+    public abstract Property<String> getPatchBranchName();
+
+    /**
+     * Whether to generate a patch id rather than incrementing the base. This is detected from the branch
+     * the change targets, but must be set explicitly when generating outside of CI, where the branch
+     * cannot be determined.
+     */
+    @Input
+    @Optional
+    @Option(option = "patch", description = "Generate a patch id, for changes targeting the serverless patch branch")
+    public abstract Property<Boolean> getPatchBranch();
 
     /**
      * The name of the upper bounds file which will be used at runtime on the current branch. Normally
@@ -54,6 +79,14 @@ public abstract class AbstractGenerateTransportVersionDefinitionTask extends Def
     @InputFile
     @Optional
     public abstract RegularFileProperty getAlternateUpperBoundFile();
+
+    /**
+     * Return whether a patch id should be generated, either because it was explicitly asked for or because
+     * the change targets the branch tracking serverless production.
+     */
+    protected boolean isPatchBranch(TransportVersionResourcesService resources) {
+        return resources.resolveTargetsPatchBranch(getPatchBranchName().getOrNull(), getPatchBranch().getOrNull());
+    }
 
     protected abstract void runGeneration(
         TransportVersionResourcesService resources,
@@ -73,6 +106,9 @@ public abstract class AbstractGenerateTransportVersionDefinitionTask extends Def
     @TaskAction
     public void run() throws IOException {
         TransportVersionResourcesService resources = getResourceService().get();
+        if (isPatchBranch(resources)) {
+            getLogger().lifecycle("Generating a patch transport version id for the serverless patch branch");
+        }
         List<TransportVersionUpperBound> upstreamUpperBounds = resources.getUpperBoundsFromGitBase();
         boolean onReleaseBranch = resources.checkIfDefinitelyOnReleaseBranch(upstreamUpperBounds, getCurrentUpperBoundName().get());
 
@@ -115,6 +151,7 @@ public abstract class AbstractGenerateTransportVersionDefinitionTask extends Def
         if (increment > 1000) {
             throw new IllegalArgumentException("Invalid increment " + increment + ", must be no larger than 1000");
         }
+        boolean patchBranch = isPatchBranch(resources);
         List<TransportVersionId> ids = new ArrayList<>();
 
         TransportVersionDefinition existingDefinition = resources.getReferableDefinitionFromGitBase(definitionName);
@@ -126,7 +163,11 @@ public abstract class AbstractGenerateTransportVersionDefinitionTask extends Def
                 TransportVersionId targetId = maybeGetExistingId(existingUpperBound, existingDefinition, definitionName);
                 if (targetId == null) {
                     // Case: an id doesn't yet exist for this upper bound, so create one
-                    int targetIncrement = upperBoundName.equals(currentUpperBoundName) ? increment : 1;
+                    // The current branch normally takes a new base. On the patch branch it must take a patch id
+                    // instead, so that it slots in below whatever the branch it will be merged back into has
+                    // already allocated. Other branches are backports, which are always patch ids.
+                    boolean useBase = patchBranch == false && upperBoundName.equals(currentUpperBoundName);
+                    int targetIncrement = useBase ? increment : PATCH_INCREMENT;
                     targetId = createTargetId(existingUpperBound, targetIncrement);
                     var newUpperBound = new TransportVersionUpperBound(upperBoundName, definitionName, targetId);
                     writeUpperBound(resources, newUpperBound);
@@ -202,6 +243,14 @@ public abstract class AbstractGenerateTransportVersionDefinitionTask extends Def
             }
         }
 
-        return TransportVersionId.fromInt(currentId + increment);
+        TransportVersionId targetId = TransportVersionId.fromInt(currentId + increment);
+        if (increment == PATCH_INCREMENT && targetId.base() != TransportVersionId.fromInt(currentId).base()) {
+            throw new IllegalStateException(
+                "Exhausted the patch ids for base "
+                    + TransportVersionId.fromInt(currentId).base()
+                    + "; a patch id cannot roll over into the next base, which belongs to another branch"
+            );
+        }
+        return targetId;
     }
 }

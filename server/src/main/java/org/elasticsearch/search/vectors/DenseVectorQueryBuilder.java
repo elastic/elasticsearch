@@ -14,6 +14,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -292,7 +293,9 @@ public class DenseVectorQueryBuilder extends LeafQueryBuilder<DenseVectorQueryBu
         if (Boolean.TRUE.equals(quantized) && similarityFunction == null) {
             MappedFieldType fieldType = ctx.getFieldType(fieldName);
             if (fieldType instanceof DenseVectorFieldType vectorFieldType && vectorFieldType.isSearchable()) {
-                return new ExactKnnQueryBuilder(queryVector, fieldName, null).boost(boost).queryName(queryName);
+                // Oversample 0 pins the exact query to the quantized representation, which is what [quantized] asks
+                // for; leaving it unset would let the field's configured oversample select full-precision scoring.
+                return new ExactKnnQueryBuilder(queryVector, fieldName, null, 0f).boost(boost).queryName(queryName);
             }
         }
         return this;
@@ -302,7 +305,10 @@ public class DenseVectorQueryBuilder extends LeafQueryBuilder<DenseVectorQueryBu
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType == null) {
-            throw new IllegalArgumentException("field [" + fieldName + "] does not exist in the mapping");
+            // A search may target an index pattern where only some indices map the field. Matching no documents
+            // on the shards that don't map it lets the remaining indices still contribute results, instead of
+            // failing those shards. This mirrors [knn] and the internal [exact_knn] query.
+            return Queries.NO_DOCS_INSTANCE;
         }
         if (fieldType instanceof DenseVectorFieldType == false) {
             throw new IllegalArgumentException(

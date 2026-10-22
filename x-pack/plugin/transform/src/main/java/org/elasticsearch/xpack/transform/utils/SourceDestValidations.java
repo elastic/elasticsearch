@@ -83,7 +83,7 @@ public final class SourceDestValidations {
         );
     }
 
-    private static boolean isCrossProjectSource(CrossProjectModeDecider crossProjectModeDecider) {
+    public static boolean isCrossProjectSource(CrossProjectModeDecider crossProjectModeDecider) {
         return crossProjectModeDecider.crossProjectEnabled() && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled();
     }
 

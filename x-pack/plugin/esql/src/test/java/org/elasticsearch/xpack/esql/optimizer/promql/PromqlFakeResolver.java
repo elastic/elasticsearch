@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -111,7 +112,7 @@ public class PromqlFakeResolver extends Rule<LogicalPlan, LogicalPlan> {
                 IndexMode.TIME_SERIES,
                 Map.of(),
                 Map.of(),
-                Map.of("promql_data", IndexMode.TIME_SERIES),
+                Map.of("promql_data", new IndexProperties(IndexMode.TIME_SERIES, 0)),
                 attributes
             )
         );

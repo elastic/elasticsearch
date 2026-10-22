@@ -23,6 +23,8 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.plain.MultiValuedBinaryDocValuesSortField;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.BucketedSort;
@@ -70,8 +72,8 @@ public class SearchAfterBuilderTests extends ESTestCase {
                 case 6 -> values[i] = randomByte();
                 case 7 -> values[i] = randomShort();
                 case 8 -> values[i] = new Text(randomAlphaOfLengthBetween(5, 20));
-                case 9 -> values[i] = null;
-                case 10 -> values[i] = randomBigInteger();
+                case 9 -> values[i] = randomBigInteger();
+                case 10 -> values[i] = null;
             }
         }
         searchAfterBuilder.setSortValues(values);
@@ -257,6 +259,13 @@ public class SearchAfterBuilderTests extends ESTestCase {
 
         type = extractSortType(new SortedSetSortField("field", false));
         assertThat(type, equalTo(SortField.Type.STRING));
+
+        for (BinaryDocValuesFormat format : BinaryDocValuesFormat.values()) {
+            for (boolean maxMode : new boolean[] { false, true }) {
+                type = extractSortType(new MultiValuedBinaryDocValuesSortField("field", false, SortField.STRING_LAST, maxMode, format));
+                assertThat("format=" + format + " maxMode=" + maxMode, type, equalTo(SortField.Type.STRING));
+            }
+        }
     }
 
     public void testBuildFieldDocWithCollapse() {
@@ -279,5 +288,41 @@ public class SearchAfterBuilderTests extends ESTestCase {
             "collapse_field"
         );
         assertEquals(fieldDoc.toString(), new FieldDoc(Integer.MAX_VALUE, 0, new Object[] { new BytesRef("foo") }).toString());
+    }
+
+    /**
+     * Test that buildFieldDoc rejects null values
+     */
+    public void testBuildFieldDocRejectsNull() {
+        for (SortField.Type type : new SortField.Type[] {
+            SortField.Type.LONG,
+            SortField.Type.INT,
+            SortField.Type.DOUBLE,
+            SortField.Type.FLOAT,
+            SortField.Type.DOC }) {
+            SortField sortField = new SortField("field", type, true);
+            Sort sort = new Sort(sortField);
+            DocValueFormat[] formats = { DocValueFormat.RAW };
+            SortAndFormats sortAndFormats = new SortAndFormats(sort, formats);
+
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+                SearchAfterBuilder.buildFieldDoc(sortAndFormats, new Object[] { null }, null);
+            });
+            assertThat(e.getMessage(), containsString("cannot be null"));
+            assertThat(e.getMessage(), containsString(type.name()));
+        }
+    }
+
+    /**
+     * Test that buildFieldDoc allows null values for string sort types
+     */
+    public void testBuildFieldDocAllowsNullForStringSort() {
+        for (SortField sortField : new SortField[] {
+            new SortedSetSortField("field", false),
+            new SortField("field", SortField.Type.STRING_VAL) }) {
+            SortAndFormats sortAndFormats = new SortAndFormats(new Sort(sortField), new DocValueFormat[] { DocValueFormat.RAW });
+            FieldDoc fieldDoc = SearchAfterBuilder.buildFieldDoc(sortAndFormats, new Object[] { null }, null);
+            assertNull(fieldDoc.fields[0]);
+        }
     }
 }

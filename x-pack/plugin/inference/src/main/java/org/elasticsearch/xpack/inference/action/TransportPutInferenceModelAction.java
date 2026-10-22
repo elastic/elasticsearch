@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -27,14 +25,16 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.StrictDynamicMappingException;
+import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
-import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -62,6 +62,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.resolveTimeoutForTaskType;
+import static org.elasticsearch.xpack.inference.InferenceFeatures.DECISION_TASK_TYPE;
+import static org.elasticsearch.xpack.inference.InferenceFeatures.DOCUMENT_EXTRACTION_TASK_TYPE;
 import static org.elasticsearch.xpack.inference.InferenceFeatures.EMBEDDING_TASK_TYPE;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.inference.common.SemanticTextInfoExtractor.getModelSettingsForIndicesReferencingInferenceEndpoints;
@@ -139,6 +141,33 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
                 new ElasticsearchStatusException(
                     "task_type ["
                         + TaskType.EMBEDDING
+                        + "] is not supported by all nodes in the cluster; "
+                        + "please complete upgrades before creating an endpoint with this task_type",
+                    RestStatus.BAD_REQUEST
+                )
+            );
+            return;
+        }
+
+        if (resolvedTaskType == TaskType.DECISION && featureService.clusterHasFeature(state, DECISION_TASK_TYPE) == false) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "task_type ["
+                        + TaskType.DECISION
+                        + "] is not supported by all nodes in the cluster; "
+                        + "please complete upgrades before creating an endpoint with this task_type",
+                    RestStatus.BAD_REQUEST
+                )
+            );
+            return;
+        }
+
+        if (resolvedTaskType == TaskType.DOCUMENT_EXTRACTION
+            && featureService.clusterHasFeature(state, DOCUMENT_EXTRACTION_TASK_TYPE) == false) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "task_type ["
+                        + TaskType.DOCUMENT_EXTRACTION
                         + "] is not supported by all nodes in the cluster; "
                         + "please complete upgrades before creating an endpoint with this task_type",
                     RestStatus.BAD_REQUEST
@@ -331,7 +360,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         var serviceSettingsMap = getModelSettingsForIndicesReferencingInferenceEndpoints(metadata, inferenceEntityIdSet);
         var incompatibleIndices = new HashSet<String>();
         if (serviceSettingsMap.isEmpty() == false) {
-            MinimalServiceSettings newSettings = new MinimalServiceSettings(model);
+            EndpointClusterState newSettings = new EndpointClusterState(model);
             serviceSettingsMap.forEach((indexName, existingSettings) -> {
                 if (canMergeModelSettings(existingSettings, newSettings, new FieldMapper.Conflicts("")) == false) {
                     incompatibleIndices.add(indexName);

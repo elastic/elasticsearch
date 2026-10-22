@@ -13,6 +13,8 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
+import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -21,6 +23,7 @@ import org.elasticsearch.logging.Logger;
 
 import java.util.Collections;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -58,6 +61,19 @@ public class DriverContext {
     // Working set. Only the thread executing the driver will update this set.
     Set<Releasable> workingSet = Collections.newSetFromMap(new IdentityHashMap<>());
 
+    /**
+     * {@link Warnings} accumulated during the driver run and snapshotted at {@link #finish()}
+     * into {@link #warningsSnapshot}.
+     */
+    private final Set<String> warnings = Collections.synchronizedSet(new LinkedHashSet<>());
+
+    /**
+     * Immutable copy of warnings, copied at {@link #finish()}. This mostly exists out
+     * of paranoia to make sure we don't mutate the list of warnings after we've finished
+     * the driver.
+     */
+    private volatile List<String> warningsSnapshot;
+
     private final AtomicReference<Snapshot> snapshot = new AtomicReference<>();
 
     private final BigArrays bigArrays;
@@ -85,6 +101,9 @@ public class DriverContext {
      */
     private final List<BooleanSupplier> stopHooks = new CopyOnWriteArrayList<>();
 
+    /** Thread CPU time this driver used on any thread: in {@link Driver#run} and in {@link #meteredCpu(CheckedSupplier)}. */
+    private final CpuTracker cpuTracker;
+
     public DriverContext(BigArrays bigArrays, BlockFactory blockFactory, @Nullable LocalCircuitBreaker.SizeSettings localBreakerSettings) {
         this(bigArrays, blockFactory, localBreakerSettings, null, WarningsMode.COLLECT);
     }
@@ -98,12 +117,24 @@ public class DriverContext {
         this(bigArrays, blockFactory, localBreakerSettings, description, WarningsMode.COLLECT);
     }
 
-    private DriverContext(
+    DriverContext(
         BigArrays bigArrays,
         BlockFactory blockFactory,
         @Nullable LocalCircuitBreaker.SizeSettings localBreakerSettings,
         @Nullable String description,
         WarningsMode warningsMode
+    ) {
+        this(bigArrays, blockFactory, localBreakerSettings, description, warningsMode, new CpuTracker());
+    }
+
+    /** Visible for testing, so tests can measure with a {@link CpuTracker} that reads a fake CPU clock. */
+    DriverContext(
+        BigArrays bigArrays,
+        BlockFactory blockFactory,
+        @Nullable LocalCircuitBreaker.SizeSettings localBreakerSettings,
+        @Nullable String description,
+        WarningsMode warningsMode,
+        CpuTracker cpuTracker
     ) {
         Objects.requireNonNull(bigArrays);
         Objects.requireNonNull(blockFactory);
@@ -112,6 +143,7 @@ public class DriverContext {
         this.localBreakerSettings = localBreakerSettings == null ? LocalCircuitBreaker.SizeSettings.DEFAULT_SETTINGS : localBreakerSettings;
         this.driverDescription = description;
         this.warningsMode = warningsMode;
+        this.cpuTracker = Objects.requireNonNull(cpuTracker);
     }
 
     public BigArrays bigArrays() {
@@ -214,7 +246,30 @@ public class DriverContext {
             releasableSet.add(r);
             itr.remove();
         }
+        synchronized (warnings) {
+            warningsSnapshot = List.copyOf(warnings);
+        }
         snapshot.compareAndSet(null, new Snapshot(releasableSet));
+    }
+
+    /**
+     * Adds a fully-formatted warning string to this context's per-driver sink.
+     * Called mostly single-threaded from the driver loop, but also called by async
+     * operators from other threads.
+     * @return {@code true} if the warning was not already in the sink
+     */
+    public boolean addWarning(String warning) {
+        assert warningsSnapshot == null;
+        return warnings.add(warning);
+    }
+
+    /**
+     * Returns the snapshot of warnings accumulated during the driver run. Must only be called after the context
+     * has been {@link #finish() finished}.
+     */
+    public List<String> warnings() {
+        ensureFinished();
+        return warningsSnapshot;
     }
 
     private void ensureFinished() {
@@ -231,7 +286,12 @@ public class DriverContext {
         asyncActions.addInstance();
     }
 
+    /**
+     * Removing the last async action can let the driver publish its final status, so this first adds what the calling
+     * thread's open {@link #meteredCpu(CheckedSupplier)} measurement has used so far.
+     */
     public void removeAsyncAction() {
+        cpuTracker.checkpoint();
         asyncActions.removeInstance();
     }
 
@@ -240,6 +300,43 @@ public class DriverContext {
      */
     public boolean hasPendingAsyncActions() {
         return asyncActions.instances.get() > 1;
+    }
+
+    /**
+     * Runs {@code work} on the current thread and adds the thread CPU time it uses to {@link #cpuNanos()}, which the
+     * driver reports as {@link DriverStatus#cpuNanos()} at its next status update. For work an operator runs on a thread
+     * other than the driver's, such as a background worker.
+     * <p>
+     * Hand off to another thread that can let the driver finish only after {@code work} returns. The driver publishes
+     * its final status once the async actions are done, and CPU time added after that is not counted. Removing an async
+     * action inside {@code work} is safe, see {@link #removeAsyncAction()}.
+     * <p>
+     * Measures nothing when the current thread's innermost open measurement already belongs to this driver, such as
+     * inside {@link Driver#run}. Otherwise pauses the innermost open measurement, such as another driver's, until
+     * {@code work} returns. See {@link CpuTracker}.
+     */
+    public <T, E extends Exception> T meteredCpu(CheckedSupplier<T, E> work) throws E {
+        return cpuTracker.meteredCpu(work);
+    }
+
+    /** {@link #meteredCpu(CheckedSupplier)} for work that returns nothing. */
+    public <E extends Exception> void meteredCpu(CheckedRunnable<E> work) throws E {
+        meteredCpu(() -> {
+            work.run();
+            return null;
+        });
+    }
+
+    /**
+     * Thread CPU time this driver has used on any thread, counting each measurement up to when it was closed or last
+     * {@link CpuTracker#checkpoint() checkpointed}. {@link Driver} reports it as {@link DriverStatus#cpuNanos()}.
+     */
+    public long cpuNanos() {
+        return cpuTracker.cpuNanos();
+    }
+
+    CpuTracker cpuTracker() {
+        return cpuTracker;
     }
 
     /**
@@ -299,29 +396,30 @@ public class DriverContext {
     }
 
     /**
-     * Create a new {@link Warnings} collector using this context's {@link #warningsMode()}.
-     * @see Warnings#createWarnings(WarningsMode, WarningSourceLocation)
+     * Create a new {@link Warnings} collector using this context's {@link #warningsMode()}. Registered warnings
+     * are written into this context's per-driver sink (see {@link #addWarning(String)}).
+     * @see Warnings#createWarnings(DriverContext, WarningSourceLocation)
      */
     public Warnings createWarnings(WarningSourceLocation source) {
-        return Warnings.createWarnings(warningsMode, source);
+        return Warnings.createWarnings(this, source);
     }
 
     /**
      * Create a new {@link Warnings} collector, using this context's {@link #warningsMode()}, that warns
      * that it treats the result as {@code false}.
-     * @see Warnings#createWarningsTreatedAsFalse(WarningsMode, WarningSourceLocation)
+     * @see Warnings#createWarningsTreatedAsFalse(DriverContext, WarningSourceLocation)
      */
     public Warnings createWarningsTreatedAsFalse(WarningSourceLocation source) {
-        return Warnings.createWarningsTreatedAsFalse(warningsMode, source);
+        return Warnings.createWarningsTreatedAsFalse(this, source);
     }
 
     /**
      * Create a new {@link Warnings} collector, using this context's {@link #warningsMode()}, that warns
      * that evaluation resulted in warnings.
-     * @see Warnings#createOnlyWarnings(WarningsMode, WarningSourceLocation)
+     * @see Warnings#createOnlyWarnings(DriverContext, WarningSourceLocation)
      */
     public Warnings createOnlyWarnings(WarningSourceLocation source) {
-        return Warnings.createOnlyWarnings(warningsMode, source);
+        return Warnings.createOnlyWarnings(this, source);
     }
 
     /**

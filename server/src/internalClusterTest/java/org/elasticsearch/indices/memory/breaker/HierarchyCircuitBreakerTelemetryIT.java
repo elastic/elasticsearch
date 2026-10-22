@@ -121,8 +121,8 @@ public class HierarchyCircuitBreakerTelemetryIT extends ESIntegTestCase {
         final TestTelemetryPlugin plugin = telemetryPlugin(dataNodeName);
         plugin.collect();
 
-        final List<Measurement> limits = plugin.getLongGaugeMeasurement(CircuitBreakerMetrics.ES_BREAKER_MEMORY_LIMIT);
-        final List<Measurement> estimates = plugin.getLongGaugeMeasurement(CircuitBreakerMetrics.ES_BREAKER_MEMORY_ESTIMATED);
+        final List<Measurement> limits = plugin.getLongAsyncGaugeMeasurement(CircuitBreakerMetrics.ES_BREAKER_MEMORY_LIMIT);
+        final List<Measurement> estimates = plugin.getLongAsyncGaugeMeasurement(CircuitBreakerMetrics.ES_BREAKER_MEMORY_ESTIMATED);
 
         final Set<String> expectedTypes = Set.of(
             CircuitBreaker.PARENT,

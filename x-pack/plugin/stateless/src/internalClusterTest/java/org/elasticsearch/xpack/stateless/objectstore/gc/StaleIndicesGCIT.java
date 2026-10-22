@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -32,9 +33,11 @@ import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryPlugin;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryStrategy;
 import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitCleaner;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+import org.elasticsearch.xpack.stateless.reshard.ReshardIndexRequest;
+import org.elasticsearch.xpack.stateless.reshard.TransportReshardAction;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -52,15 +55,26 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.xpack.stateless.reshard.SplitSourceService.RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, autoManageMasterNodes = false)
 public class StaleIndicesGCIT extends AbstractStatelessPluginIntegTestCase {
+
+    private static final TimeValue GC_INTERVAL = TimeValue.timeValueSeconds(1);
+
+    /// How long to wait when asserting that the GC did *not* delete something. Such an assertion can only be made after giving the GC
+    /// loop a chance to run, so it is expressed as a small multiple of [#GC_INTERVAL] rather than an arbitrary duration.
+    private static final long SEVERAL_GC_INTERVALS = 3 * GC_INTERVAL.millis();
 
     @Override
     protected boolean addMockFsRepository() {
@@ -75,7 +89,123 @@ public class StaleIndicesGCIT extends AbstractStatelessPluginIntegTestCase {
     @Override
     protected Settings.Builder nodeSettings() {
         return super.nodeSettings().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
-            .put(ObjectStoreGCTask.GC_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1));
+            .put(ObjectStoreGCTask.GC_INTERVAL_SETTING.getKey(), GC_INTERVAL);
+    }
+
+    /// Most tests here pin their indices to a single index node with `index.routing.allocation.require._name` and then stop that
+    /// node, so when the test ends some primaries can never be assigned again.
+    ///
+    /// [AbstractStatelessPluginIntegTestCase#beforeIndexDeletion] flushes *every* index to release commits held by the current
+    /// VBCC, and a flush against an unassigned primary does not give up until the timeout (one minute by default) has elapsed.
+    /// That stall dominated the runtime of this suite. An unassigned shard has no engine and therefore holds no commit, so
+    /// restricting the flush to indices whose primaries are assigned releases exactly the same commits without the wait.
+    @Override
+    protected void beforeIndexDeletion() throws Exception {
+        if (internalCluster().size() > 0) {
+            final var indicesToFlush = indicesWithActivePrimaries();
+            if (indicesToFlush.length > 0) {
+                flush(indicesToFlush);
+            }
+        }
+        // Deliberately skips the superclass, whose flush covers indices whose primaries cannot be assigned.
+        internalCluster().beforeIndexDeletion();
+    }
+
+    private static String[] indicesWithActivePrimaries() {
+        final var state = client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        final var routingTable = state.routingTable(ProjectId.DEFAULT);
+        return state.metadata().getProject().indices().keySet().stream().filter(indexName -> {
+            final var indexRoutingTable = routingTable.index(indexName);
+            return indexRoutingTable != null && indexRoutingTable.allPrimaryShardsActive();
+        }).toArray(String[]::new);
+    }
+
+    public void testRestoreBeforeReshardCleansRemovedShards() throws Exception {
+        restoreBeforeReshardCleansRemovedShards(false);
+    }
+
+    public void testRestoreClosedIndexBeforeReshardCleansRemovedShards() throws Exception {
+        restoreBeforeReshardCleansRemovedShards(true);
+    }
+
+    private void restoreBeforeReshardCleansRemovedShards(boolean closeBeforeRestore) throws Exception {
+        internalCluster().setBootstrapMasterNodeIndex(0);
+        startMasterNode();
+        final String indexNode = startIndexNode(
+            Settings.builder()
+                .put(RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.ZERO)
+                .put(StatelessClusterConsistencyService.DELAYED_CLUSTER_CONSISTENCY_INTERVAL_SETTING.getKey(), "100ms")
+                .build()
+        );
+        startSearchNode();
+        final String indexName = "restored";
+        createIndex(indexName, indexSettings(1, 1).build());
+        indexDocsAndRefresh(indexName, 20);
+        createRepository("test-repo", "fs");
+        createSnapshot("test-repo", "before-reshard", List.of(indexName), List.of());
+        final var identity = resolveIndex(indexName);
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet(SAFE_AWAIT_TIMEOUT);
+        awaitClusterState(state -> state.metadata().getProject().index(indexName).getReshardingMetadata() == null);
+        ensureGreen(indexName);
+        final int expandedShards = getNumShards(indexName).numPrimaries;
+        assertThat(expandedShards, greaterThan(1));
+        prepareIndex(indexName).setId("after-reshard").setSource("field", "new").get();
+        flush(indexName);
+        createSnapshot("test-repo", "after-reshard", List.of(indexName), List.of());
+        final var objectStore = getObjectStoreService(indexNode);
+        final var removedContainer = objectStore.getProjectBlobContainer(new ShardId(identity, expandedShards - 1));
+        assertBusy(() -> assertTrue(hasShardFiles(removedContainer)));
+
+        for (String snapshot : List.of("before-reshard", "after-reshard", "before-reshard")) {
+            if (closeBeforeRestore) {
+                assertAcked(indicesAdmin().prepareClose(indexName));
+            }
+            final var restore = clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", snapshot)
+                .setIndices(indexName)
+                .setWaitForCompletion(true);
+            restore.request().restoreOverExisting(closeBeforeRestore == false);
+            assertEquals(0, restore.get().getRestoreInfo().failedShards());
+            ensureGreen(indexName);
+            assertEquals(identity, resolveIndex(indexName));
+            assertHitCount(prepareSearch(indexName), snapshot.equals("before-reshard") ? 20 : 21);
+            if (snapshot.equals("before-reshard")) {
+                assertEquals(1, getNumShards(indexName).numPrimaries);
+                assertBusy(() -> assertFalse(hasShardFiles(removedContainer)), 30, TimeUnit.SECONDS);
+            } else {
+                assertEquals(expandedShards, getNumShards(indexName).numPrimaries);
+            }
+        }
+        // Reusing the removed IDs through another reshard must be safe too, not just through a larger snapshot restore.
+        final var beforeSplit = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().getProject().index(indexName);
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet(SAFE_AWAIT_TIMEOUT);
+        awaitClusterState(state -> state.metadata().getProject().index(indexName).getReshardingMetadata() == null);
+        ensureGreen(indexName);
+        assertEquals(expandedShards, getNumShards(indexName).numPrimaries);
+        final var afterSplit = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().getProject().index(indexName);
+        for (int shard = 1; shard < expandedShards; shard++) {
+            assertThat(afterSplit.primaryTerm(shard), greaterThanOrEqualTo(beforeSplit.primaryTerm(0)));
+        }
+        assertHitCount(prepareSearch(indexName), 20);
+        // Snapshot data must remain usable after the removed live shard files have been collected.
+        final var restore = clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "after-reshard")
+            .setIndices(indexName)
+            .setWaitForCompletion(true);
+        restore.request().restoreOverExisting(true);
+        assertEquals(0, restore.get().getRestoreInfo().failedShards());
+        ensureGreen(indexName);
+        assertHitCount(prepareSearch(indexName), 21);
+    }
+
+    private static boolean hasShardFiles(BlobContainer container) throws IOException {
+        if (container.listBlobs(OperationPurpose.INDICES).isEmpty() == false) {
+            return true;
+        }
+        for (BlobContainer child : container.children(OperationPurpose.INDICES).values()) {
+            if (hasShardFiles(child)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public void testStaleIndicesAreCleanedEventually() throws Exception {
@@ -189,7 +319,7 @@ public class StaleIndicesGCIT extends AbstractStatelessPluginIntegTestCase {
         final int numDeleted = between(1, indexNames.length);
         client().admin().indices().prepareDelete(subArray(indexNames, 0, numDeleted)).get();
 
-        safeSleep(5000);
+        safeSleep(SEVERAL_GC_INTERVALS);
         assertIndexExistsInObjectStore(indexUUIDs);
     }
 
@@ -208,8 +338,11 @@ public class StaleIndicesGCIT extends AbstractStatelessPluginIntegTestCase {
 
     public void doTestNoNewIndexDataIsDeletedUnderDisruptions(DisruptionScenario disruptionScenario) throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
+        // The node running the GC task is disrupted below, so it never acknowledges a cluster state it is sent and the master waits out
+        // this timeout on every single publication. The state is already committed by then (the master is the only master-eligible node,
+        // so it is its own quorum), and the publication just takes this long to complete, so keep the timeout short.
         var masterNode = startMasterNode(
-            Settings.builder().put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(5)).build()
+            Settings.builder().put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(1)).build()
         );
 
         var indexNode = startIndexNode();
@@ -248,7 +381,10 @@ public class StaleIndicesGCIT extends AbstractStatelessPluginIntegTestCase {
                         .put("index.routing.allocation.require._name", nodeWhereIndexIsAllocated)
                         .build()
                 )
-                .setTimeout(TimeValue.timeValueSeconds(10)) // No need to wait long for the disrupted node to ack
+                // The disrupted node never acks, so this request always burns its full timeout before returning an unacknowledged
+                // response. Keep it short: the index is committed on the master regardless, and the green-health check below is what
+                // actually establishes that the shard is ready.
+                .setTimeout(TimeValue.timeValueSeconds(1))
                 .execute()
                 .get();
         }
@@ -275,7 +411,7 @@ public class StaleIndicesGCIT extends AbstractStatelessPluginIntegTestCase {
         executingTaskNodeRepositoryStrategy.unblockGetChildren();
         // Ensure that the isolated node has enough time to go through the listed files
         // and waits for the latest cluster state instead of deleting the newly created files
-        safeSleep(5000);
+        safeSleep(SEVERAL_GC_INTERVALS);
 
         assertIndexExistsInObjectStore(masterNode, indexUUIDs);
         disruption.stopDisrupting();
@@ -380,7 +516,7 @@ public class StaleIndicesGCIT extends AbstractStatelessPluginIntegTestCase {
                 long blobSize,
                 boolean failIfAlreadyExists
             ) throws IOException {
-                if (StatelessCompoundCommit.startsWithBlobPrefix(blobName)) {
+                if (BatchedCompoundCommit.startsWithBlobPrefix(blobName)) {
                     logger.info("--> simulate failure on [{}]", blobName);
                     failed.countDown();
                     throw new IOException("simulate failure after write");
@@ -463,9 +599,12 @@ public class StaleIndicesGCIT extends AbstractStatelessPluginIntegTestCase {
                     .put("index.routing.allocation.require._name", indexNode)
                     .build()
             );
-            var numberOfSegments = randomIntBetween(5, 10);
+            // These tests only assert on the presence or absence of the per-index blob containers, so a handful of docs spread over a
+            // couple of commits is enough to give the GC something to list and delete. Larger indices only slow the suite down, since
+            // every flush uploads to the object store and every extra segment adds merge work to wait for after the test.
+            var numberOfSegments = randomIntBetween(2, 3);
             for (int i = 0; i < numberOfSegments; i++) {
-                indexDocs(indexName, 1000);
+                indexDocs(indexName, 10);
                 flush(indexName);
             }
         }

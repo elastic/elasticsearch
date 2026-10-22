@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.qa.single_node;
 
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.qa.rest.generative.ForkTestUtils;
 
 import java.io.IOException;
@@ -36,10 +35,6 @@ public abstract class AbstractEsqlSpecForkIT extends AbstractEsqlSpecIT {
     protected void doTest() throws Throwable {
         // Dataset-backed specs are covered by the external-source suites; skip them here.
         assumeFalse("dataset-backed spec; covered by the external-source suites", testCase.datasetSources.isEmpty() == false);
-        assumeFalse(
-            "LOAD_ALL doesn't currently support fork",
-            testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL.capabilityName())
-        );
         // We add a LIMIT in one of the branches to prevent filter pushdown from removing one of the branches.
         String query = testCase.query + " | FORK (WHERE true | LIMIT 300) (WHERE true) | LIMIT 300 | WHERE _fork == \"fork1\" | DROP _fork";
         doTest(query);

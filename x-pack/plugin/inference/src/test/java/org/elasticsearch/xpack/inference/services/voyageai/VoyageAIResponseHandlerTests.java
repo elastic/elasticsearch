@@ -7,10 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.voyageai;
 
-import org.apache.http.Header;
-import org.apache.http.HeaderElement;
-import org.apache.http.HttpResponse;
-import org.apache.http.StatusLine;
+import org.apache.hc.core5.http.Header;
+import org.apache.hc.core5.http.HttpResponse;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
@@ -80,6 +78,16 @@ public class VoyageAIResponseHandlerTests extends ESTestCase {
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
+    public void testBuildFailureStatusCodeException_ReturnsFor422() {
+        var exception = callHandleFailureStatusCode(422, "id");
+        assertFalse(exception.shouldRetry());
+        MatcherAssert.assertThat(
+            exception.getCause().getMessage(),
+            containsString("Received an input validation error response for request from inference entity id [id] status [422]")
+        );
+        MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.UNPROCESSABLE_ENTITY));
+    }
+
     public void testBuildFailureStatusCodeException_ReturnsFor401() {
         var exception = callHandleFailureStatusCode(401, "inferenceEntityId");
         assertFalse(exception.shouldRetry());
@@ -104,13 +112,9 @@ public class VoyageAIResponseHandlerTests extends ESTestCase {
     }
 
     private static RetryException callHandleFailureStatusCode(int statusCode, @Nullable String errorMessage, String modelId) {
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.getStatusCode()).thenReturn(statusCode);
-
         var httpResponse = mock(HttpResponse.class);
-        when(httpResponse.getStatusLine()).thenReturn(statusLine);
+        when(httpResponse.getCode()).thenReturn(statusCode);
         var header = mock(Header.class);
-        when(header.getElements()).thenReturn(new HeaderElement[] {});
         when(httpResponse.getFirstHeader(anyString())).thenReturn(header);
 
         String escapedErrorMessage = errorMessage != null ? errorMessage.replace("\\", "\\\\").replace("\"", "\\\"") : errorMessage;

@@ -8,11 +8,15 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.view.DeleteViewAction;
+import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -25,6 +29,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
@@ -45,6 +51,8 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
     private static final String REMOTE_CLUSTER_1_INDEX = REMOTE_CLUSTER_1 + ":" + REMOTE_INDEX;
     private static final String REMOTE_CLUSTER_2_INDEX = REMOTE_CLUSTER_2 + ":" + REMOTE_INDEX;
 
+    private Map<String, Object> clusterInfo;
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins(clusterAlias));
@@ -58,17 +66,27 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
     }
 
     @Before
-    public void checkSubqueryInFromCommandSupport() throws IOException {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        setupClusters(3);
+    public void setupClusters() throws IOException {
+        clusterInfo = setupClusters(3);
     }
 
-    private static void checkSubqueryWithRowSupport() {
-        assumeTrue("Requires subquery with ROW as source command support", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
+    private int localShards() {
+        return (int) clusterInfo.get("local.num_shards");
     }
 
-    private static void checkSubqueryWithTSSupport() {
-        assumeTrue("Requires subquery with TS as source command support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+    private int remote1Shards() {
+        return (int) clusterInfo.get("remote1.num_shards");
+    }
+
+    private int remote2Shards() {
+        return (int) clusterInfo.get("remote2.num_shards");
+    }
+
+    /**
+     * Shard counts for the usual {@code FROM logs-*}/{@code FROM *:logs-*} split: each cluster is searched once.
+     */
+    private Map<String, Integer> logsShardsOnce() {
+        return Map.of(LOCAL_CLUSTER, localShards(), REMOTE_CLUSTER_1, remote1Shards(), REMOTE_CLUSTER_2, remote2Shards());
     }
 
     public void testSubquery() {
@@ -100,7 +118,7 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
             }
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertCCSExecutionInfoDetails(executionInfo);
+            assertCCSExecutionInfoDetailsWithShards(executionInfo, logsShardsOnce());
         }
     }
 
@@ -128,7 +146,7 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
             assertEquals(expected, values);
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertCCSExecutionInfoDetails(executionInfo);
+            assertCCSExecutionInfoDetailsWithShards(executionInfo, logsShardsOnce());
         }
     }
 
@@ -140,9 +158,12 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy.MM.dd", Locale.ROOT);
         String indexName = "idx_" + nowUtc.format(formatter);
 
-        populateIndex(LOCAL_CLUSTER, indexName, randomIntBetween(1, 5), 5);
-        populateIndex(REMOTE_CLUSTER_1, indexName, randomIntBetween(1, 5), 5);
-        populateIndex(REMOTE_CLUSTER_2, indexName, randomIntBetween(1, 5), 5);
+        int localIdxShards = randomIntBetween(1, 5);
+        int remote1IdxShards = randomIntBetween(1, 5);
+        int remote2IdxShards = randomIntBetween(1, 5);
+        populateIndex(LOCAL_CLUSTER, indexName, localIdxShards, 5);
+        populateIndex(REMOTE_CLUSTER_1, indexName, remote1IdxShards, 5);
+        populateIndex(REMOTE_CLUSTER_2, indexName, remote2IdxShards, 5);
 
         try (EsqlQueryResponse resp = runQuery("""
             FROM
@@ -159,7 +180,10 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
             assertEquals(expected, values);
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertCCSExecutionInfoDetails(executionInfo);
+            assertCCSExecutionInfoDetailsWithShards(
+                executionInfo,
+                Map.of(LOCAL_CLUSTER, localIdxShards, REMOTE_CLUSTER_1, remote1IdxShards, REMOTE_CLUSTER_2, remote2IdxShards)
+            );
         }
     }
 
@@ -167,8 +191,10 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
      * Validate Analyzer.PruneEmptyUnionAllBranch when remote index is missing
      */
     public void testSubqueryWithMissingRemoteIndex() {
-        populateIndex(LOCAL_CLUSTER, "local_idx", randomIntBetween(1, 5), 5);
-        populateIndex(REMOTE_CLUSTER_2, "remote_idx", randomIntBetween(1, 5), 5);
+        int localIdxShards = randomIntBetween(1, 5);
+        int remote2IdxShards = randomIntBetween(1, 5);
+        populateIndex(LOCAL_CLUSTER, "local_idx", localIdxShards, 5);
+        populateIndex(REMOTE_CLUSTER_2, "remote_idx", remote2IdxShards, 5);
 
         // all subqueries have at least one index matching the index pattern, query succeeds
         try (EsqlQueryResponse resp = runQuery("""
@@ -185,7 +211,11 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
             assertEquals(expected, values);
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertCCSExecutionInfoDetails(executionInfo);
+            // *:remote* targets both remotes; cluster-a has no matching index so it contributes zero shards
+            assertCCSExecutionInfoDetailsWithShards(
+                executionInfo,
+                Map.of(LOCAL_CLUSTER, localIdxShards, REMOTE_CLUSTER_1, 0, REMOTE_CLUSTER_2, remote2IdxShards)
+            );
         }
 
         // One subquery on remote cluster 1 does not have any index matching the index pattern,
@@ -207,9 +237,11 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
             assertEquals(expected, values);
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertClusterEsqlExecutionInfo(executionInfo, LOCAL_CLUSTER, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
-            assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_1, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
-            assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_2, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
+            // empty c*:remote* branch is pruned; cluster-a is still present with zero shards
+            assertCCSExecutionInfoDetailsWithShards(
+                executionInfo,
+                Map.of(LOCAL_CLUSTER, localIdxShards, REMOTE_CLUSTER_1, 0, REMOTE_CLUSTER_2, remote2IdxShards)
+            );
         }
 
         // Multiple subqueries on remote cluster 1 do not have any index matching the index pattern,
@@ -232,9 +264,10 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
             assertEquals(expected, values);
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertClusterEsqlExecutionInfo(executionInfo, LOCAL_CLUSTER, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
-            assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_1, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
-            assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_2, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
+            assertCCSExecutionInfoDetailsWithShards(
+                executionInfo,
+                Map.of(LOCAL_CLUSTER, localIdxShards, REMOTE_CLUSTER_1, 0, REMOTE_CLUSTER_2, remote2IdxShards)
+            );
         }
 
         // Some subqueries on remote cluster 1 have indexes matching the index pattern, some don't
@@ -259,7 +292,11 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
                 List.of(5L, REMOTE_CLUSTER_2 + ":remote_idx")
             );
             assertEquals(expected, values);
-            assertCCSExecutionInfoDetails(resp.getExecutionInfo());
+            // local_idx + cluster-a logs-2 + remote-b remote_idx; empty c*:remote* adds nothing
+            assertCCSExecutionInfoDetailsWithShards(
+                resp.getExecutionInfo(),
+                Map.of(LOCAL_CLUSTER, localIdxShards, REMOTE_CLUSTER_1, remote1Shards(), REMOTE_CLUSTER_2, remote2IdxShards)
+            );
         }
 
         try (EsqlQueryResponse resp = runQuery("""
@@ -281,7 +318,10 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
                 List.of(5L, REMOTE_CLUSTER_2 + ":remote_idx")
             );
             assertEquals(expected, values);
-            assertCCSExecutionInfoDetails(resp.getExecutionInfo());
+            assertCCSExecutionInfoDetailsWithShards(
+                resp.getExecutionInfo(),
+                Map.of(LOCAL_CLUSTER, localIdxShards, REMOTE_CLUSTER_1, remote1Shards(), REMOTE_CLUSTER_2, remote2IdxShards)
+            );
         }
 
         try (EsqlQueryResponse resp = runQuery("""
@@ -322,8 +362,10 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
      * Validate Analyzer.PruneEmptyUnionAllBranch when local index is missing
      */
     public void testSubqueryWithMissingLocalIndex() {
-        populateIndex(REMOTE_CLUSTER_1, "remote_idx", randomIntBetween(1, 5), 5);
-        populateIndex(REMOTE_CLUSTER_2, "remote_idx", randomIntBetween(1, 5), 5);
+        int remote1IdxShards = randomIntBetween(1, 5);
+        int remote2IdxShards = randomIntBetween(1, 5);
+        populateIndex(REMOTE_CLUSTER_1, "remote_idx", remote1IdxShards, 5);
+        populateIndex(REMOTE_CLUSTER_2, "remote_idx", remote2IdxShards, 5);
 
         try (EsqlQueryResponse resp = runQuery("""
             FROM missing*, (FROM *:remote* metadata _index) metadata _index
@@ -342,9 +384,11 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
             assertEquals(expected, values);
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertClusterEsqlExecutionInfo(executionInfo, LOCAL_CLUSTER, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
-            assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_1, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
-            assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_2, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
+            // missing* is pruned locally; *:remote* searches remote_idx on both remotes
+            assertCCSExecutionInfoDetailsWithShards(
+                executionInfo,
+                Map.of(LOCAL_CLUSTER, 0, REMOTE_CLUSTER_1, remote1IdxShards, REMOTE_CLUSTER_2, remote2IdxShards)
+            );
         }
 
         try (EsqlQueryResponse resp = runQuery("""
@@ -364,9 +408,11 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
             assertEquals(expected, values);
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertClusterEsqlExecutionInfo(executionInfo, LOCAL_CLUSTER, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
-            assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_1, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
-            assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_2, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
+            // empty local* branch is pruned; remotes still search remote_idx
+            assertCCSExecutionInfoDetailsWithShards(
+                executionInfo,
+                Map.of(LOCAL_CLUSTER, 0, REMOTE_CLUSTER_1, remote1IdxShards, REMOTE_CLUSTER_2, remote2IdxShards)
+            );
         }
 
         try (EsqlQueryResponse resp = runQuery("""
@@ -389,7 +435,18 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
             assertEquals(expected, values);
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertCCSExecutionInfoDetails(executionInfo);
+            // FROM * searches local logs-1; FROM *:* searches logs-2 + remote_idx on each remote
+            assertCCSExecutionInfoDetailsWithShards(
+                executionInfo,
+                Map.of(
+                    LOCAL_CLUSTER,
+                    localShards(),
+                    REMOTE_CLUSTER_1,
+                    remote1Shards() + remote1IdxShards,
+                    REMOTE_CLUSTER_2,
+                    remote2Shards() + remote2IdxShards
+                )
+            );
         }
     }
 
@@ -414,7 +471,7 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
             assertEquals(expected, values);
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertCCSExecutionInfoDetails(executionInfo);
+            assertCCSExecutionInfoDetailsWithShards(executionInfo, logsShardsOnce());
         }
     }
 
@@ -441,7 +498,7 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
             assertEquals(expected, values);
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertCCSExecutionInfoDetails(executionInfo);
+            assertCCSExecutionInfoDetailsWithShards(executionInfo, logsShardsOnce());
         }
 
         try (EsqlQueryResponse resp = runQuery("""
@@ -468,7 +525,7 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
             assertEquals(expected, values);
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertCCSExecutionInfoDetails(executionInfo);
+            assertCCSExecutionInfoDetailsWithShards(executionInfo, logsShardsOnce());
         }
     }
 
@@ -489,7 +546,7 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
             assertEquals(expected, values);
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertCCSExecutionInfoDetails(executionInfo);
+            assertCCSExecutionInfoDetailsWithShards(executionInfo, logsShardsOnce());
         }
     }
 
@@ -519,7 +576,7 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
             assertEquals(expected, values);
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertCCSExecutionInfoDetails(executionInfo);
+            assertCCSExecutionInfoDetailsWithShards(executionInfo, logsShardsOnce());
         }
     }
 
@@ -541,7 +598,7 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
                     Arrays.asList("remote", null, 81L)
                 )
             );
-            assertCCSExecutionInfoDetails(response.getExecutionInfo());
+            assertCCSExecutionInfoDetailsWithShards(response.getExecutionInfo(), logsShardsOnce());
         }
     }
 
@@ -615,7 +672,11 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
             assertEquals(expected, values);
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertCCSExecutionInfoDetails(executionInfo);
+            // logs-* plus (logs-*, *:logs-*) search local twice; each remote is in its own branch plus the wildcard branch
+            assertCCSExecutionInfoDetailsWithShards(
+                executionInfo,
+                Map.of(LOCAL_CLUSTER, localShards() * 2, REMOTE_CLUSTER_1, remote1Shards() * 2, REMOTE_CLUSTER_2, remote2Shards() * 2)
+            );
         }
     }
 
@@ -699,6 +760,10 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
                 assertClusterEsqlExecutionInfo(executionInfo, LOCAL_CLUSTER, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
                 assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_1, EsqlExecutionInfo.Cluster.Status.SKIPPED);
                 assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_2, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
+                assertThat(executionInfo.getCluster(LOCAL_CLUSTER).getTotalShards(), equalTo(localShards()));
+                assertThat(executionInfo.getCluster(LOCAL_CLUSTER).getSuccessfulShards(), equalTo(localShards()));
+                assertThat(executionInfo.getCluster(REMOTE_CLUSTER_2).getTotalShards(), equalTo(remote2Shards()));
+                assertThat(executionInfo.getCluster(REMOTE_CLUSTER_2).getSuccessfulShards(), equalTo(remote2Shards()));
             }
         } finally {
             setSkipUnavailable(REMOTE_CLUSTER_1, false);
@@ -735,7 +800,7 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
             }
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertCCSExecutionInfoDetails(executionInfo);
+            assertCCSExecutionInfoDetailsWithShards(executionInfo, logsShardsOnce());
         }
     }
 
@@ -770,7 +835,12 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
             }
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertCCSExecutionInfoDetails(executionInfo);
+            // INLINE STATS runs as a local subplan before the FROM branches; remotes skip that update, then the logs-* merge branch adds
+            // local shards again.
+            assertCCSExecutionInfoDetailsWithShards(
+                executionInfo,
+                Map.of(LOCAL_CLUSTER, localShards() * 2, REMOTE_CLUSTER_1, remote1Shards(), REMOTE_CLUSTER_2, remote2Shards())
+            );
         }
     }
 
@@ -805,42 +875,43 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
             assertEquals(expected, values);
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertCCSExecutionInfoDetails(executionInfo);
+            assertCCSExecutionInfoDetailsWithShards(executionInfo, logsShardsOnce());
         }
     }
 
     public void testNestedSubqueries() {
-        // nested subqueries are not supported yet
-        VerificationException ex = expectThrows(VerificationException.class, () -> runQuery("""
+        try (EsqlQueryResponse resp = runQuery("""
             FROM logs-*,(FROM c*:logs-*, (FROM r*:logs-*))
-            """, randomBoolean()));
-        assertThat(ex.getMessage(), containsString("Nested subqueries are not supported"));
+            | STATS c = count(*), s = sum(v) BY tag
+            | SORT tag
+            """, randomBoolean())) {
+            List<List<Object>> values = getValuesList(resp);
+            // local logs-1 has 10 rows with v in [0,9] (sum 45); each remote logs-2 has 10 rows with v = i*i (sum 285)
+            assertThat(values, hasSize(2));
+            assertThat(values.get(0), equalTo(List.of(10L, 45L, "local")));
+            assertThat(values.get(1), equalTo(List.of(20L, 570L, "remote")));
+        }
     }
 
     public void testSubqueryWithFork() {
-        // fork after subqueries is not supported yet
-        VerificationException ex = expectThrows(VerificationException.class, () -> runQuery("""
+        try (EsqlQueryResponse resp = runQuery("""
             FROM logs-*,(FROM c*:logs-*), (FROM r*:logs-*)
-            | FORK
-              (WHERE v > 5)
-              (WHERE v < 3)
-            """, randomBoolean()));
-        assertThat(ex.getMessage(), containsString("FORK after subquery is not supported"));
+            | FORK (WHERE v > 5) (WHERE v < 3)
+            """, randomBoolean())) {
+            assertThat(getValuesList(resp), hasSize(25));
+        }
 
-        // fork inside subquery is not supported yet
-        ex = expectThrows(VerificationException.class, () -> runQuery("""
+        try (EsqlQueryResponse resp = runQuery("""
             FROM
                 logs-*,
                 (FROM c*:logs-*),
-                (FROM r*:logs-*
-                 | FORK (WHERE v > 5) (WHERE v < 3))
-            """, randomBoolean()));
-        assertThat(ex.getMessage(), containsString("FORK inside subquery is not supported"));
+                (FROM r*:logs-* | FORK (WHERE v > 5) (WHERE v < 3))
+            """, randomBoolean())) {
+            assertThat(getValuesList(resp), hasSize(29));
+        }
     }
 
     public void testSubqueryWithRow() {
-        checkSubqueryWithRowSupport();
-
         try (EsqlQueryResponse resp = runQuery("""
             FROM
                 (FROM logs-* | STATS c = count(*) | EVAL cluster = "local"),
@@ -857,7 +928,7 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
             assertEquals(expected, values);
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertCCSExecutionInfoDetails(executionInfo);
+            assertCCSExecutionInfoDetailsWithShards(executionInfo, logsShardsOnce());
         }
 
         try (EsqlQueryResponse resp = runQuery("""
@@ -882,12 +953,11 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
             assertEquals(expected, values);
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertCCSExecutionInfoDetails(executionInfo);
+            assertCCSExecutionInfoDetailsWithShards(executionInfo, logsShardsOnce());
         }
     }
 
     public void testSubqueryWithRowAndLookupJoin() {
-        checkSubqueryWithRowSupport();
         populateLookupIndex(LOCAL_CLUSTER, "values_lookup", 10);
         populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup", 10);
         populateLookupIndex(REMOTE_CLUSTER_2, "values_lookup", 10);
@@ -913,13 +983,12 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
             assertEquals(expected, values);
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertCCSExecutionInfoDetails(executionInfo);
+            assertCCSExecutionInfoDetailsWithShards(executionInfo, logsShardsOnce());
         }
     }
 
     // Same limitation as testSubqueryWithLookupJoinInMainQuery
     public void testSubqueryWithRowAndLookupJoinInMainQuery() {
-        checkSubqueryWithRowSupport();
         populateLookupIndex(LOCAL_CLUSTER, "values_lookup", 1);
         populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup", 1);
         populateLookupIndex(REMOTE_CLUSTER_2, "values_lookup", 1);
@@ -942,7 +1011,6 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
     }
 
     public void testSubqueryWithRowAndLookupIndicesExistOnClustersReferencedBySubquery() {
-        checkSubqueryWithRowSupport();
         populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup_remote", 10);
         populateLookupIndex(REMOTE_CLUSTER_2, "values_lookup_remote", 10);
         populateLookupIndex(LOCAL_CLUSTER, "values_lookup_local", 10);
@@ -968,13 +1036,11 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
             assertEquals(expected, values);
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertCCSExecutionInfoDetails(executionInfo);
+            assertCCSExecutionInfoDetailsWithShards(executionInfo, logsShardsOnce());
         }
     }
 
     public void testSubqueryWithRowAndLookupIndicesMissingOnClustersReferencedBySubquery() {
-        checkSubqueryWithRowSupport();
-
         VerificationException ex = expectThrows(VerificationException.class, () -> runQuery("""
             FROM
                 cluster-a:logs-*,
@@ -994,10 +1060,17 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
     }
 
     public void testSubqueryWithTS() {
-        checkSubqueryWithTSSupport();
-        populateTimeSeriesIndex(LOCAL_CLUSTER, "metrics");
-        populateTimeSeriesIndex(REMOTE_CLUSTER_1, "metrics");
-        populateTimeSeriesIndex(REMOTE_CLUSTER_2, "metrics");
+        int localMetricsShards = populateTimeSeriesIndex(LOCAL_CLUSTER, "metrics");
+        int remote1MetricsShards = populateTimeSeriesIndex(REMOTE_CLUSTER_1, "metrics");
+        int remote2MetricsShards = populateTimeSeriesIndex(REMOTE_CLUSTER_2, "metrics");
+        Map<String, Integer> metricsShardsOnce = Map.of(
+            LOCAL_CLUSTER,
+            localMetricsShards,
+            REMOTE_CLUSTER_1,
+            remote1MetricsShards,
+            REMOTE_CLUSTER_2,
+            remote2MetricsShards
+        );
 
         try (EsqlQueryResponse resp = runQuery("""
             FROM
@@ -1015,7 +1088,7 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
             assertEquals(expected, values);
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertCCSExecutionInfoDetails(executionInfo);
+            assertCCSExecutionInfoDetailsWithShards(executionInfo, metricsShardsOnce);
         }
 
         try (EsqlQueryResponse resp = runQuery("""
@@ -1034,14 +1107,13 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
             assertEquals(expected, values);
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertCCSExecutionInfoDetails(executionInfo);
+            assertCCSExecutionInfoDetailsWithShards(executionInfo, metricsShardsOnce);
         }
     }
 
     public void testSubqueryWithTSAndLookupJoin() {
-        checkSubqueryWithTSSupport();
-        populateTimeSeriesIndex(REMOTE_CLUSTER_1, "metrics");
-        populateTimeSeriesIndex(REMOTE_CLUSTER_2, "metrics");
+        int remote1MetricsShards = populateTimeSeriesIndex(REMOTE_CLUSTER_1, "metrics");
+        int remote2MetricsShards = populateTimeSeriesIndex(REMOTE_CLUSTER_2, "metrics");
         populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup", 10);
         populateLookupIndex(REMOTE_CLUSTER_2, "values_lookup", 10);
 
@@ -1074,13 +1146,15 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
             assertEquals(expected, values);
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertCCSExecutionInfoDetails(executionInfo);
+            assertCCSExecutionInfoDetailsWithShards(
+                executionInfo,
+                Map.of(REMOTE_CLUSTER_1, remote1MetricsShards, REMOTE_CLUSTER_2, remote2MetricsShards)
+            );
         }
     }
 
     // Same limitation as testSubqueryWithLookupJoinInMainQuery
     public void testSubqueryWithTSAndLookupJoinInMainQuery() {
-        checkSubqueryWithTSSupport();
         populateTimeSeriesIndex(REMOTE_CLUSTER_1, "metrics");
         populateTimeSeriesIndex(REMOTE_CLUSTER_2, "metrics");
         populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup", 1);
@@ -1102,9 +1176,8 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
     }
 
     public void testSubqueryWithTSAndLookupIndicesExistOnClustersReferencedBySubquery() {
-        checkSubqueryWithTSSupport();
-        populateTimeSeriesIndex(REMOTE_CLUSTER_1, "metrics");
-        populateTimeSeriesIndex(REMOTE_CLUSTER_2, "metrics");
+        int remote1MetricsShards = populateTimeSeriesIndex(REMOTE_CLUSTER_1, "metrics");
+        int remote2MetricsShards = populateTimeSeriesIndex(REMOTE_CLUSTER_2, "metrics");
         populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup_1", 10);
         populateLookupIndex(REMOTE_CLUSTER_2, "values_lookup_2", 10);
         populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup", 10);
@@ -1139,7 +1212,10 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
             assertEquals(expected, values);
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertCCSExecutionInfoDetails(executionInfo);
+            assertCCSExecutionInfoDetailsWithShards(
+                executionInfo,
+                Map.of(REMOTE_CLUSTER_1, remote1MetricsShards, REMOTE_CLUSTER_2, remote2MetricsShards)
+            );
         }
 
         try (EsqlQueryResponse resp = runQuery("""
@@ -1175,12 +1251,14 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
             assertEquals(expected, values);
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertCCSExecutionInfoDetails(executionInfo);
+            assertCCSExecutionInfoDetailsWithShards(
+                executionInfo,
+                Map.of(REMOTE_CLUSTER_1, remote1MetricsShards, REMOTE_CLUSTER_2, remote2MetricsShards)
+            );
         }
     }
 
     public void testSubqueryWithTSAndLookupIndexMissingOnClustersReferencedBySubquery() {
-        checkSubqueryWithTSSupport();
         populateTimeSeriesIndex(REMOTE_CLUSTER_1, "metrics");
         populateTimeSeriesIndex(REMOTE_CLUSTER_2, "metrics");
 
@@ -1218,11 +1296,9 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
     }
 
     public void testSubqueryWithMixedSources() {
-        checkSubqueryWithRowSupport();
-        checkSubqueryWithTSSupport();
-        populateTimeSeriesIndex(LOCAL_CLUSTER, "metrics");
-        populateTimeSeriesIndex(REMOTE_CLUSTER_1, "metrics");
-        populateTimeSeriesIndex(REMOTE_CLUSTER_2, "metrics");
+        int localMetricsShards = populateTimeSeriesIndex(LOCAL_CLUSTER, "metrics");
+        int remote1MetricsShards = populateTimeSeriesIndex(REMOTE_CLUSTER_1, "metrics");
+        int remote2MetricsShards = populateTimeSeriesIndex(REMOTE_CLUSTER_2, "metrics");
 
         try (EsqlQueryResponse resp = runQuery("""
             FROM
@@ -1248,14 +1324,23 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
             assertEquals(expected, values);
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertCCSExecutionInfoDetails(executionInfo);
+            // FROM logs-* / *:logs-* plus TS metrics / *:metrics: each cluster is searched twice
+            assertCCSExecutionInfoDetailsWithShards(
+                executionInfo,
+                Map.of(
+                    LOCAL_CLUSTER,
+                    localShards() + localMetricsShards,
+                    REMOTE_CLUSTER_1,
+                    remote1Shards() + remote1MetricsShards,
+                    REMOTE_CLUSTER_2,
+                    remote2Shards() + remote2MetricsShards
+                )
+            );
         }
     }
 
     public void testSubqueryWithMixedSourcesWithoutAgg() {
-        checkSubqueryWithRowSupport();
-        checkSubqueryWithTSSupport();
-        populateTimeSeriesIndex(REMOTE_CLUSTER_1, "metrics");
+        int remote1MetricsShards = populateTimeSeriesIndex(REMOTE_CLUSTER_1, "metrics");
 
         try (EsqlQueryResponse resp = runQuery("""
             FROM
@@ -1285,14 +1370,23 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
             assertEquals(expected, values);
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertCCSExecutionInfoDetails(executionInfo);
+            // FROM logs on all clusters plus TS metrics on cluster-a
+            assertCCSExecutionInfoDetailsWithShards(
+                executionInfo,
+                Map.of(
+                    LOCAL_CLUSTER,
+                    localShards(),
+                    REMOTE_CLUSTER_1,
+                    remote1Shards() + remote1MetricsShards,
+                    REMOTE_CLUSTER_2,
+                    remote2Shards()
+                )
+            );
         }
     }
 
     public void testSubqueryWithMixedSourcesAndLookupJoin() {
-        checkSubqueryWithRowSupport();
-        checkSubqueryWithTSSupport();
-        populateTimeSeriesIndex(REMOTE_CLUSTER_1, "metrics");
+        int remote1MetricsShards = populateTimeSeriesIndex(REMOTE_CLUSTER_1, "metrics");
         populateLookupIndex(LOCAL_CLUSTER, "values_lookup", 10);
         populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup", 10);
         populateLookupIndex(REMOTE_CLUSTER_2, "values_lookup", 10);
@@ -1327,7 +1421,17 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
             assertEquals(expected, values);
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertCCSExecutionInfoDetails(executionInfo);
+            assertCCSExecutionInfoDetailsWithShards(
+                executionInfo,
+                Map.of(
+                    LOCAL_CLUSTER,
+                    localShards(),
+                    REMOTE_CLUSTER_1,
+                    remote1Shards() + remote1MetricsShards,
+                    REMOTE_CLUSTER_2,
+                    remote2Shards()
+                )
+            );
         }
     }
 
@@ -1337,8 +1441,6 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
      * rejects the lookup that follows the STATS in the cross-cluster branch.
      */
     public void testSubqueryWithMixedSourcesAndLookupJoinAfterStats() {
-        checkSubqueryWithRowSupport();
-        checkSubqueryWithTSSupport();
         populateTimeSeriesIndex(REMOTE_CLUSTER_1, "metrics");
         populateTimeSeriesIndex(REMOTE_CLUSTER_2, "metrics");
         populateLookupIndex(LOCAL_CLUSTER, "values_lookup", 20);
@@ -1384,6 +1486,7 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
                     getValuesList(resp),
                     equalTo(List.of(List.of(2L), List.of(3L), List.of(4L), List.of(4L), List.of(4L), List.of(5L), List.of(6L)))
                 );
+                assertCCSExecutionInfoDetailsWithShards(resp.getExecutionInfo(), logsShardsOnce());
             }
         } finally {
             deleteEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich");
@@ -1461,6 +1564,10 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
                     getValuesList(resp),
                     equalTo(List.of(List.of(2L), List.of(3L), List.of(4L), List.of(4L), List.of(5L), List.of(6L)))
                 );
+                assertCCSExecutionInfoDetailsWithShards(
+                    resp.getExecutionInfo(),
+                    Map.of(LOCAL_CLUSTER, localShards(), REMOTE_CLUSTER_1, remote1Shards())
+                );
             }
         } finally {
             deleteEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich");
@@ -1487,6 +1594,10 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
                     getValuesList(resp),
                     equalTo(List.of(List.of(2L), List.of(3L), List.of(4L), List.of(4L), List.of(5L), List.of(6L)))
                 );
+                assertCCSExecutionInfoDetailsWithShards(
+                    resp.getExecutionInfo(),
+                    Map.of(LOCAL_CLUSTER, localShards(), REMOTE_CLUSTER_1, remote1Shards())
+                );
             }
         } finally {
             deleteEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich");
@@ -1510,6 +1621,7 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
                 | KEEP v
                 """, false)) {
                 assertThat(getValuesList(resp), equalTo(List.of(List.of(4L))));
+                assertCCSExecutionInfoDetailsWithShards(resp.getExecutionInfo(), Map.of(REMOTE_CLUSTER_1, remote1Shards()));
             }
         } finally {
             deleteEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich");
@@ -1541,6 +1653,10 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
                 assertThat(
                     getValuesList(resp),
                     equalTo(List.of(List.of(0L), List.of(1L), List.of(2L), List.of(3L), List.of(4L), List.of(4L)))
+                );
+                assertCCSExecutionInfoDetailsWithShards(
+                    resp.getExecutionInfo(),
+                    Map.of(LOCAL_CLUSTER, localShards(), REMOTE_CLUSTER_1, remote1Shards())
                 );
             }
         } finally {
@@ -1604,6 +1720,10 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
                 | WHERE v < 5
                 """, false)) {
                 assertThat(getValuesList(resp), equalTo(List.of(List.of(0L), List.of(1L), List.of(4L), List.of(4L))));
+                assertCCSExecutionInfoDetailsWithShards(
+                    resp.getExecutionInfo(),
+                    Map.of(REMOTE_CLUSTER_1, remote1Shards(), REMOTE_CLUSTER_2, remote2Shards())
+                );
             }
         } finally {
             deleteEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich");
@@ -1632,6 +1752,10 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
                 | KEEP v
                 """, false)) {
                 assertThat(getValuesList(resp), equalTo(List.of(List.of(4L))));
+                assertCCSExecutionInfoDetailsWithShards(
+                    resp.getExecutionInfo(),
+                    Map.of(LOCAL_CLUSTER, localShards(), REMOTE_CLUSTER_1, remote1Shards())
+                );
             }
         } finally {
             deleteEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich");
@@ -1670,6 +1794,10 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
                     getValuesList(resp),
                     equalTo(List.of(List.of(2L), List.of(3L), List.of(4L), List.of(4L), List.of(5L), List.of(6L)))
                 );
+                assertCCSExecutionInfoDetailsWithShards(
+                    resp.getExecutionInfo(),
+                    Map.of(LOCAL_CLUSTER, localShards(), REMOTE_CLUSTER_1, remote1Shards())
+                );
             }
         } finally {
             deleteEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich_0");
@@ -1679,12 +1807,302 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
         }
     }
 
-    private void populateTimeSeriesIndex(String clusterAlias, String indexName) {
+    // -- nested UnionAll with different source command combinations --
+
+    public void testNestedSubqueriesWithTsAndRow() {
+        int remote2MetricsShards = populateTimeSeriesIndex(REMOTE_CLUSTER_2, "metrics");
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM logs-*,
+                 (FROM (TS r*:metrics
+                        | STATS max_cpu = max(cpu), cnt = count(cpu) BY host
+                        | EVAL tag = CASE(max_cpu > 5, "ts-high", "ts-low"), v = cnt),
+                       (ROW tag = "row", v = TO_LONG(9), max_cpu = 99.0, cnt = TO_LONG(1))
+                 )
+            | EVAL max_cpu = COALESCE(max_cpu, 0.0)
+            | STATS total = count(*), max_of_max = TO_LONG(max(max_cpu)), sum_v = sum(v) BY tag
+            | SORT tag
+            """, randomBoolean())) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(4));
+            // local logs-1: 10 docs, max_cpu filled to 0.0 by COALESCE, sum_v = 0+1+…+9 = 45
+            assertThat(values.get(0), equalTo(List.of(10L, 0L, 45L, "local")));
+            // ROW: 1 doc, max_cpu = 99.0 → TO_LONG = 99, v = 9
+            assertThat(values.get(1), equalTo(List.of(1L, 99L, 9L, "row")));
+            // TS h2: max_cpu = 6.0 > 5 → tag = "ts-high"; count(cpu)=1 per TSID, so sum_v=1
+            assertThat(values.get(2), equalTo(List.of(1L, 6L, 1L, "ts-high")));
+            // TS h1: max_cpu = 3.0 ≤ 5 → tag = "ts-low"; count(cpu)=1 per TSID, so sum_v=1
+            assertThat(values.get(3), equalTo(List.of(1L, 3L, 1L, "ts-low")));
+            // FROM logs-* on local plus TS r*:metrics on remote-b; ROW adds no shards
+            assertCCSExecutionInfoDetailsWithShards(
+                resp.getExecutionInfo(),
+                Map.of(LOCAL_CLUSTER, localShards(), REMOTE_CLUSTER_2, remote2MetricsShards)
+            );
+        }
+    }
+
+    public void testNestedSubqueriesWithAllSourceTypes() {
+        populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup", 10);
+        populateLookupIndex(REMOTE_CLUSTER_2, "values_lookup", 10);
+        int remote1MetricsShards = populateTimeSeriesIndex(REMOTE_CLUSTER_1, "metrics");
+        int remote2MetricsShards = populateTimeSeriesIndex(REMOTE_CLUSTER_2, "metrics");
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM
+                (FROM logs-*
+                 | STATS c = count(*), s = sum(v), m = max(v)
+                 | EVAL src = "from-local"),
+                (FROM
+                     (FROM *:logs-*
+                      | WHERE v >= 1 AND v <= 9
+                      | LOOKUP JOIN values_lookup ON v == lookup_key
+                      | STATS c = count(*), s = sum(v), m = max(v)
+                      | EVAL src = "from-remote"),
+                      (TS *:metrics
+                       | WHERE cpu > 3
+                       | STATS c = count(cpu), s = TO_LONG(sum(cpu)), m = TO_LONG(max(cpu))
+                       | EVAL src = "ts-high-cpu"),
+                       (ROW c = TO_LONG(3), s = TO_LONG(42), m = TO_LONG(21), src = "row")
+                )
+            | STATS total_c = sum(c), total_s = sum(s), overall_max = max(m) BY src
+            | SORT src
+            """, randomBoolean())) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(4));
+            // local logs-1: 10 docs, sum = 45, max_v = 9
+            assertThat(values.get(0), equalTo(List.of(10L, 45L, 9L, "from-local")));
+            // both remotes, v in {1,4,9} (all match lookup keys 0-9): 6 docs, sum = 28, max = 9
+            assertThat(values.get(1), equalTo(List.of(6L, 28L, 9L, "from-remote")));
+            assertThat(values.get(2), equalTo(List.of(3L, 42L, 21L, "row")));
+            // TS *:metrics last-value per TSID: h2 last_cpu=6 passes WHERE cpu>3; count=1 TSID, sum=6, max=6
+            assertThat(values.get(3), equalTo(List.of(1L, 6L, 6L, "ts-high-cpu")));
+            // FROM logs-* on local plus *:logs-* and TS *:metrics on both remotes; LOOKUP JOIN and ROW add no shards
+            assertCCSExecutionInfoDetailsWithShards(
+                resp.getExecutionInfo(),
+                Map.of(
+                    LOCAL_CLUSTER,
+                    localShards(),
+                    REMOTE_CLUSTER_1,
+                    remote1Shards() + remote1MetricsShards,
+                    REMOTE_CLUSTER_2,
+                    remote2Shards() + remote2MetricsShards
+                )
+            );
+        }
+    }
+
+    public void testNestedSubqueryAllInnerBranchesMissingExactIndices() {
+        String query = """
+            FROM logs-*,
+                 (FROM
+                    (FROM cluster-a:does-not-exist),
+                    (FROM remote-b:does-not-exist)
+                 )
+                 metadata _index
+            | STATS c = count(*) by _index
+            | SORT _index
+            """;
+
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            VerificationException ex = expectThrows(VerificationException.class, () -> runQuery(query, randomBoolean()));
+            assertThat(ex.getMessage(), containsString("Unknown index [" + REMOTE_CLUSTER_1 + ":does-not-exist]"));
+
+            setSkipUnavailable(REMOTE_CLUSTER_1, true);
+            setSkipUnavailable(REMOTE_CLUSTER_2, true);
+            try (EsqlQueryResponse resp = runQuery(query, randomBoolean())) {
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(10L, LOCAL_INDEX))));
+            }
+        } finally {
+            setSkipUnavailable(REMOTE_CLUSTER_1, false);
+            setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        }
+    }
+
+    public void testBranchPlanWithAllEmptyRemoteBranches() {
+        String viewA = "missing_remote_view_a_" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        String viewB = "missing_remote_view_b_" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        try {
+            createViewOnCluster(LOCAL_CLUSTER, viewA, "FROM cluster-a:missing-view-a-*");
+            createViewOnCluster(LOCAL_CLUSTER, viewB, "FROM remote-b:missing-view-b-*");
+
+            try (EsqlQueryResponse response = runQuery("FROM missing_remote_view_* | STATS count = COUNT(*)", randomBoolean())) {
+                assertThat(getValuesList(response), equalTo(List.of(List.of(0L))));
+            }
+        } finally {
+            deleteViewOnCluster(viewA);
+            deleteViewOnCluster(viewB);
+        }
+    }
+
+    // nested subqueries and views with fork
+
+    public void testForkAfterNestedSubquery() {
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM (FROM logs-*),
+                 (FROM c*:logs-*, (FROM r*:logs-*))
+            | FORK (WHERE v > 5) (WHERE v < 3)
+            | STATS c = COUNT(*) BY _fork, tag
+            | SORT _fork, tag
+            """, randomBoolean())) {
+            assertEquals(
+                List.of(
+                    List.of(4L, "fork1", "local"),
+                    List.of(14L, "fork1", "remote"),
+                    List.of(3L, "fork2", "local"),
+                    List.of(4L, "fork2", "remote")
+                ),
+                getValuesList(resp)
+            );
+            // FORK duplicates the union into each branch, so every cluster is searched twice
+            assertCCSExecutionInfoDetailsWithShards(
+                resp.getExecutionInfo(),
+                Map.of(LOCAL_CLUSTER, localShards() * 2, REMOTE_CLUSTER_1, remote1Shards() * 2, REMOTE_CLUSTER_2, remote2Shards() * 2)
+            );
+        }
+    }
+
+    public void testForkInSubqueries() {
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM (FROM logs-* | FORK (WHERE v > 5) (WHERE v < 3)),
+                 (FROM *:logs-* | FORK (WHERE v > 16) (WHERE v < 4))
+            | STATS c = COUNT(*) BY _fork, tag
+            | SORT _fork, tag
+            """, randomBoolean())) {
+            assertEquals(
+                List.of(
+                    List.of(4L, "fork1", "local"),
+                    List.of(10L, "fork1", "remote"),
+                    List.of(3L, "fork2", "local"),
+                    List.of(4L, "fork2", "remote")
+                ),
+                getValuesList(resp)
+            );
+            // each subquery FORKs after FROM, so local and both remotes are each searched twice
+            assertCCSExecutionInfoDetailsWithShards(
+                resp.getExecutionInfo(),
+                Map.of(LOCAL_CLUSTER, localShards() * 2, REMOTE_CLUSTER_1, remote1Shards() * 2, REMOTE_CLUSTER_2, remote2Shards() * 2)
+            );
+        }
+    }
+
+    public void testForkAfterView() {
+        String view = "ccs_remote_view_" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        try {
+            createViewOnCluster(LOCAL_CLUSTER, view, "FROM *:logs-*");
+            try (
+                EsqlQueryResponse resp = runQuery(
+                    "FROM " + view + " | FORK (WHERE v > 16) (WHERE v < 4) | STATS c = COUNT(*) BY _fork | SORT _fork",
+                    randomBoolean()
+                )
+            ) {
+                assertEquals(List.of(List.of(10L, "fork1"), List.of(4L, "fork2")), getValuesList(resp));
+                // view is *:logs-*; FORK after the view searches each remote twice
+                assertCCSExecutionInfoDetailsWithShards(
+                    resp.getExecutionInfo(),
+                    Map.of(REMOTE_CLUSTER_1, remote1Shards() * 2, REMOTE_CLUSTER_2, remote2Shards() * 2)
+                );
+            }
+        } finally {
+            deleteViewOnCluster(view);
+        }
+    }
+
+    public void testForkReferencedInView() {
+        String view = "ccs_remote_fork_view_" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        try {
+            createViewOnCluster(LOCAL_CLUSTER, view, "FROM *:logs-* | FORK (WHERE v > 16) (WHERE v < 4)");
+            try (EsqlQueryResponse resp = runQuery("FROM " + view + " | STATS c = COUNT(*) BY _fork | SORT _fork", randomBoolean())) {
+                assertEquals(List.of(List.of(10L, "fork1"), List.of(4L, "fork2")), getValuesList(resp));
+                // view expands to FROM *:logs-* | FORK, so each remote is searched twice
+                assertCCSExecutionInfoDetailsWithShards(
+                    resp.getExecutionInfo(),
+                    Map.of(REMOTE_CLUSTER_1, remote1Shards() * 2, REMOTE_CLUSTER_2, remote2Shards() * 2)
+                );
+            }
+        } finally {
+            deleteViewOnCluster(view);
+        }
+    }
+
+    public void testForkAfterSubqueryAndView() {
+        String view = "ccs_remote_view_" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        try {
+            createViewOnCluster(LOCAL_CLUSTER, view, "FROM *:logs-*");
+            try (
+                EsqlQueryResponse resp = runQuery(
+                    "FROM (FROM logs-*), "
+                        + view
+                        + " | FORK (WHERE v > 5) (WHERE v < 3) | STATS c = COUNT(*) BY _fork, tag | SORT _fork, tag",
+                    randomBoolean()
+                )
+            ) {
+                assertEquals(
+                    List.of(
+                        List.of(4L, "fork1", "local"),
+                        List.of(14L, "fork1", "remote"),
+                        List.of(3L, "fork2", "local"),
+                        List.of(4L, "fork2", "remote")
+                    ),
+                    getValuesList(resp)
+                );
+                // FORK after (FROM logs-*) union (FROM *:logs-* view) searches every cluster twice
+                assertCCSExecutionInfoDetailsWithShards(
+                    resp.getExecutionInfo(),
+                    Map.of(LOCAL_CLUSTER, localShards() * 2, REMOTE_CLUSTER_1, remote1Shards() * 2, REMOTE_CLUSTER_2, remote2Shards() * 2)
+                );
+            }
+        } finally {
+            deleteViewOnCluster(view);
+        }
+    }
+
+    public void testForkReferencedInViewInSubquery() {
+        String view = "ccs_local_fork_view_" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        try {
+            createViewOnCluster(LOCAL_CLUSTER, view, "FROM logs-* | FORK (WHERE v > 5) (WHERE v < 3)");
+            try (
+                EsqlQueryResponse resp = runQuery(
+                    "FROM (FROM "
+                        + view
+                        + "), (FROM *:logs-* | WHERE v == 0 | EVAL _fork = \"fork2\") | STATS c = COUNT(*) BY _fork | SORT _fork",
+                    randomBoolean()
+                )
+            ) {
+                assertEquals(List.of(List.of(4L, "fork1"), List.of(5L, "fork2")), getValuesList(resp));
+                // view FORKs local logs-* twice; the sibling *:logs-* branch searches each remote once
+                assertCCSExecutionInfoDetailsWithShards(
+                    resp.getExecutionInfo(),
+                    Map.of(LOCAL_CLUSTER, localShards() * 2, REMOTE_CLUSTER_1, remote1Shards(), REMOTE_CLUSTER_2, remote2Shards())
+                );
+            }
+        } finally {
+            deleteViewOnCluster(view);
+        }
+    }
+
+    private void createViewOnCluster(String clusterAlias, String viewName, String query) {
+        assertAcked(
+            client(clusterAlias).execute(
+                PutViewAction.INSTANCE,
+                new PutViewAction.Request(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS, new View(viewName, query))
+            ).actionGet(30, TimeUnit.SECONDS)
+        );
+    }
+
+    private void deleteViewOnCluster(String viewName) {
+        client(LOCAL_CLUSTER).execute(
+            DeleteViewAction.INSTANCE,
+            new DeleteViewAction.Request(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS, new String[] { viewName })
+        ).actionGet(30, TimeUnit.SECONDS);
+    }
+
+    private int populateTimeSeriesIndex(String clusterAlias, String indexName) {
         String clusterTag = Strings.isEmpty(clusterAlias) ? "local" : clusterAlias;
+        int numShards = randomIntBetween(1, 3);
         Settings settings = Settings.builder()
             .put("mode", "time_series")
             .putList("routing_path", List.of("host"))
-            .put("index.number_of_shards", randomIntBetween(1, 3))
+            .put("index.number_of_shards", numShards)
             .build();
         Client client = client(clusterAlias);
         assertAcked(
@@ -1713,6 +2131,7 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
             }
         }
         client.admin().indices().prepareRefresh(indexName).get();
+        return numShards;
     }
 
     static void assertClusterEsqlExecutionInfo(

@@ -99,6 +99,7 @@ public class HollowIndexEngineTests extends EngineTestCase {
             (g) -> Set.of(),
             DocumentParsingProvider.EMPTY_INSTANCE,
             new IndexEngine.EngineMetrics(TranslogRecoveryMetrics.NOOP, MergeMetrics.NOOP, HollowShardsMetrics.NOOP),
+            AbstractEngineTestCase.newIndexEngineDynamicSettings(engineConfig.getIndexSettings().getNodeSettings()),
             (si) -> true,
             mock(ShardLocalReadersTracker.class)
         );

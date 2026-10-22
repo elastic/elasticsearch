@@ -105,7 +105,10 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter<ES920DiskBBQVect
             ES920DiskBBQVectorsFormat.CENTROID_EXTENSION,
             ES920DiskBBQVectorsFormat.CLUSTER_EXTENSION,
             writeVersion >= ES920DiskBBQVectorsFormat.VERSION_DIRECT_IO,
-            flatVectorThreshold
+            flatVectorThreshold,
+            // this codec predates on_disk_merge: nothing can ask it for the flag and it never records it
+            false,
+            false
         );
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;
@@ -253,7 +256,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter<ES920DiskBBQVect
                     (byte) 1,
                     centroid
                 );
-                ESVectorUtil.packAsBinary(quantized, binary);
+                ESVectorUtil.pack1BitValues(quantized, binary);
                 writeQuantizedValue(quantizedVectorsTemp, binary, result);
 
                 var overspills = overspillAssignments.getAssignmentsFor(i);
@@ -266,7 +269,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter<ES920DiskBBQVect
                         (byte) 1,
                         centroidSupplier.centroid(overspills.nextInt())
                     );
-                    ESVectorUtil.packAsBinary(quantized, binary);
+                    ESVectorUtil.pack1BitValues(quantized, binary);
                     writeQuantizedValue(quantizedVectorsTemp, binary, result);
                     assert !overspills.hasNext();
                 } else {
@@ -772,7 +775,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter<ES920DiskBBQVect
             int ord = ordTransformer.apply(currOrd);
             float[] vector = vectorValues.vectorValue(ord);
             corrections = quantizer.scalarQuantize(vector, floatVectorScratch, quantizedVectorScratch, (byte) 1, currentCentroid);
-            ESVectorUtil.packAsBinary(quantizedVectorScratch, quantizedVector);
+            ESVectorUtil.pack1BitValues(quantizedVectorScratch, quantizedVector);
             return quantizedVector;
         }
 

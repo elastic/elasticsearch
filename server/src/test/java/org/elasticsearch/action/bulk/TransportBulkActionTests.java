@@ -27,10 +27,12 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -52,6 +54,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.dlm.TimeSeriesEligibleWriteWindowLocator;
@@ -68,6 +71,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
@@ -76,6 +80,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
 
@@ -130,7 +135,7 @@ public class TransportBulkActionTests extends ESTestCase {
                 TransportBulkActionTests.this.clusterService,
                 null,
                 new NodeClient(Settings.EMPTY, TransportBulkActionTests.this.threadPool, TestProjectResolvers.alwaysThrow()),
-                new ActionFilters(Collections.emptySet()),
+                ActionFilters.EMPTY,
                 new Resolver(),
                 new IndexingPressure(Settings.EMPTY),
                 new SystemIndices(
@@ -163,7 +168,8 @@ public class TransportBulkActionTests extends ESTestCase {
                     }
                 },
                 new TimeSeriesEligibleWriteWindowLocator(),
-                DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings())
+                DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings()),
+                BigArrays.NON_RECYCLING_INSTANCE
             );
         }
 
@@ -345,7 +351,7 @@ public class TransportBulkActionTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> requireSliceRoutingWhenEnabled(request, indexAbstraction, idx -> indexMetadata)
         );
-        assertThat(exception.getMessage(), containsString("[slice] is required when [index.slice.enabled] is true"));
+        assertThat(exception.getMessage(), containsString("[_slice] is required when [index.slice.enabled] is true"));
     }
 
     public void testRequireSliceRoutingWhenSliceEnabledAndRoutingProvided() {
@@ -364,7 +370,7 @@ public class TransportBulkActionTests extends ESTestCase {
             () -> requireSliceRoutingWhenEnabled(request, indexAbstraction, idx -> indexMetadata)
         );
         assertThat(exception.getMessage(), containsString("[routing] is not allowed when [index.slice.enabled] is true"));
-        assertThat(exception.getMessage(), containsString("use [slice] instead"));
+        assertThat(exception.getMessage(), containsString("use [_slice] instead"));
     }
 
     public void testRequireSliceRoutingWhenSliceEnabledAndSliceProvided() {
@@ -396,7 +402,7 @@ public class TransportBulkActionTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> requireSliceRoutingWhenEnabled(request, indexAbstraction, idx -> indexMetadata)
         );
-        assertThat(exception.getMessage(), containsString("[slice] is not allowed when [index.slice.enabled] is false"));
+        assertThat(exception.getMessage(), containsString("[_slice] is not allowed when [index.slice.enabled] is false"));
     }
 
     public void testRoutingAllowedWhenSliceSettingDisabledAndNoSliceProvenance() {
@@ -428,7 +434,7 @@ public class TransportBulkActionTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> requireSliceRoutingWhenEnabled(request, indexAbstraction, idx -> indexMetadata)
         );
-        assertThat(exception.getMessage(), containsString("[slice] is not allowed when [index.slice.enabled] is false"));
+        assertThat(exception.getMessage(), containsString("[_slice] is not allowed when [index.slice.enabled] is false"));
     }
 
     public void testDeleteRoutingAllowedWhenSliceSettingDisabledAndNoSliceProvenance() {
@@ -657,6 +663,70 @@ public class TransportBulkActionTests extends ESTestCase {
         } finally {
             blockingLatch.countDown();
         }
+    }
+
+    public void testPreBuiltBatchReleasedOnCoordinationRejection() {
+        BulkRequestTests.CloseCountingBatch batch = new BulkRequestTests.CloseCountingBatch();
+        BulkRequest bulkRequest = preBuiltBatchBulkRequest(batch, null);
+
+        final var blockingLatch = new CountDownLatch(1);
+        try {
+            blockWriteCoordinationThreadPool(blockingLatch);
+            safeAwaitFailure(
+                EsRejectedExecutionException.class,
+                BulkResponse.class,
+                l -> ActionTestUtils.execute(bulkAction, null, bulkRequest, l)
+            );
+        } finally {
+            blockingLatch.countDown();
+        }
+        assertThat(batch.closeCount.get(), equalTo(1));
+    }
+
+    public void testPreBuiltBatchReleasedOnClusterBlock() {
+        ClusterServiceUtils.setState(
+            clusterService,
+            ClusterState.builder(clusterService.state()).blocks(ClusterBlocks.builder().addGlobalBlock(Metadata.CLUSTER_READ_ONLY_BLOCK))
+        );
+        BulkRequestTests.CloseCountingBatch batch = new BulkRequestTests.CloseCountingBatch();
+        BulkRequest bulkRequest = preBuiltBatchBulkRequest(batch, null);
+
+        safeAwaitFailure(ClusterBlockException.class, BulkResponse.class, l -> ActionTestUtils.execute(bulkAction, null, bulkRequest, l));
+        assertThat(batch.closeCount.get(), equalTo(1));
+    }
+
+    public void testPreBuiltBatchReleasedWhenRouterRejects() {
+        BulkRequestTests.CloseCountingBatch batch = new BulkRequestTests.CloseCountingBatch();
+        BulkRequest bulkRequest = preBuiltBatchBulkRequest(batch, null);
+
+        var e = safeAwaitFailure(
+            IllegalStateException.class,
+            BulkResponse.class,
+            l -> ActionTestUtils.execute(bulkAction, null, bulkRequest, l)
+        );
+        assertThat(e.getMessage(), containsString("batch indexing is not supported"));
+        assertThat(batch.closeCount.get(), equalTo(1));
+    }
+
+    public void testPreBuiltBatchRejectedWithPipelines() {
+        BulkRequestTests.CloseCountingBatch batch = new BulkRequestTests.CloseCountingBatch();
+        BulkRequest bulkRequest = preBuiltBatchBulkRequest(batch, "pipeline");
+
+        var e = safeAwaitFailure(
+            IllegalArgumentException.class,
+            BulkResponse.class,
+            l -> ActionTestUtils.execute(bulkAction, null, bulkRequest, l)
+        );
+        assertThat(e.getMessage(), containsString("cannot run ingest pipelines"));
+        assertThat(batch.closeCount.get(), equalTo(1));
+    }
+
+    private static BulkRequest preBuiltBatchBulkRequest(BulkRequestTests.CloseCountingBatch batch, String pipeline) {
+        IndexRequest indexRequest = new IndexRequest("index").id("id").setPipeline(pipeline);
+        indexRequest.indexSource().setSourceRow(batch, 0, XContentType.JSON);
+        BulkRequest bulkRequest = new BulkRequest().add(indexRequest);
+        bulkRequest.setPreBuiltBatches(Map.of("index", batch));
+        return bulkRequest;
     }
 
     public void testRejectionAfterCreateIndexIsPropagated() {

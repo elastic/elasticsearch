@@ -9,6 +9,8 @@
 
 package org.elasticsearch.inference.completion;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -42,7 +44,7 @@ public record Message(
     @Nullable List<ToolCall> toolCalls,
     @Nullable String reasoning,
     @Nullable List<ReasoningDetail> reasoningDetails
-) implements Writeable, ToXContentObject {
+) implements Accountable, Writeable, ToXContentObject {
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<Message, Void> PARSER = new ConstructingObjectParser<>(
@@ -56,6 +58,8 @@ public record Message(
             (List<ReasoningDetail>) args[5]
         )
     );
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Message.class);
 
     static {
         PARSER.declareField(
@@ -134,5 +138,28 @@ public record Message(
         }
 
         return builder.endObject();
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + ramBytesUsed(content()) + RamUsageEstimator.sizeOf(role()) + RamUsageEstimator.sizeOf(toolCallId())
+            + listRamBytesUsed(toolCalls()) + RamUsageEstimator.sizeOf(reasoning()) + listRamBytesUsed(reasoningDetails());
+    }
+
+    private static long ramBytesUsed(@Nullable Accountable accountable) {
+        return accountable == null ? 0L : accountable.ramBytesUsed();
+    }
+
+    // sizeOfCollection uses one NUM_BYTES_ARRAY_HEADER, but the actual JVM layout of immutable collections
+    // (List.of) has enough overhead that sizeOfCollection under-counts by ~8 bytes per list. The extra
+    // NUM_BYTES_ARRAY_HEADER keeps the estimate >= actual as required by the circuit-breaker contract.
+    private static <T extends Accountable> long listRamBytesUsed(@Nullable List<T> list) {
+        if (list == null) {
+            return 0L;
+        }
+        return RamUsageEstimator.alignObjectSize(
+            RamUsageEstimator.shallowSizeOf(list) + 2L * RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) list.size()
+                * RamUsageEstimator.NUM_BYTES_OBJECT_REF
+        ) + list.stream().mapToLong(Accountable::ramBytesUsed).sum();
     }
 }

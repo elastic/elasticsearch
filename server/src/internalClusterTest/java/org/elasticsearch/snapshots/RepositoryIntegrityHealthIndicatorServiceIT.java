@@ -9,10 +9,14 @@
 
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.health.Diagnosis;
+import org.elasticsearch.health.Diagnosis.Resource.Type;
 import org.elasticsearch.health.GetHealthAction;
-import org.elasticsearch.health.HealthStatus;
+import org.elasticsearch.health.HealthIndicatorImpact;
+import org.elasticsearch.health.HealthIndicatorResult;
+import org.elasticsearch.health.ImpactArea;
+import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -20,20 +24,18 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.getRepositoryDataBlobName;
-import static org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService.NAME;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RepositoryIntegrityHealthIndicatorServiceIT extends AbstractSnapshotIntegTestCase {
 
-    public void testRepositoryIntegrityHealthIndicator() throws IOException, InterruptedException {
-
-        var client = client();
-
+    public void testRepositoryIntegrityHealthIndicator() throws IOException {
         var repository = "test-repo";
         var location = randomRepoPath();
 
@@ -47,13 +49,13 @@ public class RepositoryIntegrityHealthIndicatorServiceIT extends AbstractSnapsho
                 .put(BlobStoreRepository.CACHE_REPOSITORY_DATA.getKey(), false)
         );
 
-        assertSnapshotRepositoryHealth("Indicator should be green after empty repository is created", client, GREEN);
+        assertSnapshotRepositoryHealth("Indicator should be green after empty repository is created", greenResult());
 
         createIndex("test-index-1");
         indexRandomDocs("test-index-1", randomIntBetween(1, 10));
         createFullSnapshot(repository, "snapshot-1");
 
-        assertSnapshotRepositoryHealth("Indicator should be green after successful snapshot is taken", client, GREEN);
+        assertSnapshotRepositoryHealth("Indicator should be green after successful snapshot is taken", greenResult());
 
         corruptRepository(repository, location);
         // Currently, the health indicator is not proactively checking the repository and
@@ -63,14 +65,69 @@ public class RepositoryIntegrityHealthIndicatorServiceIT extends AbstractSnapsho
             containsString("[" + repository + "] The repository has been disabled to prevent data corruption")
         );
 
-        assertSnapshotRepositoryHealth("Indicator should be yellow after file is deleted from the repository", client, YELLOW);
+        assertSnapshotRepositoryHealth(
+            "Indicator should be yellow after file is deleted from the repository",
+            new HealthIndicatorResult(
+                "repository_integrity",
+                YELLOW,
+                "Detected [1] corrupted snapshot repository.",
+                new SimpleHealthIndicatorDetails(
+                    Map.of(
+                        "total_repositories",
+                        1,
+                        "corrupted_repositories",
+                        1,
+                        "corrupted",
+                        List.of(repository),
+                        "unknown_repositories",
+                        0,
+                        "invalid_repositories",
+                        0
+                    )
+                ),
+                List.of(
+                    new HealthIndicatorImpact(
+                        "repository_integrity",
+                        "backups_at_risk",
+                        2,
+                        "Data in the affected snapshot repositories may be lost and cannot be restored.",
+                        List.of(ImpactArea.BACKUP)
+                    )
+                ),
+                List.of(
+                    new Diagnosis(
+                        new Diagnosis.Definition(
+                            "repository_integrity",
+                            "corrupt_repo_integrity",
+                            "Multiple clusters are writing to the same repository.",
+                            "Remove the repository from the other cluster(s), or mark it as read-only in the other cluster(s), "
+                                + "and then re-add the repository to this cluster.",
+                            "https://ela.st/fix-repository-integrity"
+                        ),
+                        List.of(new Diagnosis.Resource(Type.SNAPSHOT_REPOSITORY, List.of(repository)))
+                    )
+                )
+            )
+        );
 
         deleteRepository(repository);
     }
 
-    private void assertSnapshotRepositoryHealth(String message, Client client, HealthStatus status) {
-        var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(randomBoolean(), 1000)).actionGet();
-        assertThat(message, response.findIndicator(NAME).status(), equalTo(status));
+    private void assertSnapshotRepositoryHealth(String message, HealthIndicatorResult expected) {
+        var response = client().execute(GetHealthAction.INSTANCE, new GetHealthAction.Request("repository_integrity", true, 1000))
+            .actionGet();
+        assertThat(message, response.findIndicator("repository_integrity"), equalTo(expected));
+    }
+
+    private static HealthIndicatorResult greenResult() {
+        return new HealthIndicatorResult(
+            "repository_integrity",
+            GREEN,
+            "All repositories are healthy.",
+            new SimpleHealthIndicatorDetails(Map.of("total_repositories", 1)),
+            List.of(),
+            List.of()
+        );
     }
 
     private void corruptRepository(String name, Path location) throws IOException {

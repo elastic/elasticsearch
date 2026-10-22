@@ -29,7 +29,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalLong;
@@ -180,14 +179,11 @@ public class FollowingEngine extends InternalEngine {
     }
 
     @Override
-    public List<IndexResult> indexBatch(EngineBatch batch) throws IOException {
-        // CCR following engine has special versioning semantics that are not compatible with
-        // the optimized batch indexing path in InternalEngine. Fall back to sequential indexing.
-        List<IndexResult> results = new ArrayList<>(batch.operations().size());
-        for (Index op : batch.operations()) {
-            results.add(index(op));
-        }
-        return results;
+    public List<IndexResult> indexBatch(EngineBatch engineBatch) throws IOException {
+        // CCR following engine has special versioning semantics; delegate to InternalEngine's batch
+        // path which uses planIndexingAsNonPrimary for replica/recovery origins.
+        // TODO: Verify that InternalEngine's planIndexingAsNonPrimary honours CCR versioning.
+        return super.indexBatch(engineBatch);
     }
 
     private OptionalLong lookupPrimaryTerm(final long seqNo) throws IOException {

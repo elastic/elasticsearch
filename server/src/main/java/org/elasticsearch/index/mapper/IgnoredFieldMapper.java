@@ -29,7 +29,6 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlo
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.KeywordDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.transport.BytesRefRecycler;
 
 import java.util.Collections;
 
@@ -148,12 +147,11 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public boolean supportsColumnarParse(IndexSettings indexSettings) {
-        // Ignored-field recording is only triggered by field (non-metadata) mappers, and none
-        // support columnar parsing yet in this first pass. postColumnarParse is therefore a no-op
-        // for all current columnar batches (empty-doc-only scope). When field mappers gain columnar
-        // support they will need to invoke an equivalent of DocumentParserContext#addIgnoredField,
-        // and postColumnarParse will need to write the resulting _ignored doc-values column.
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+        // Field mappers that support columnar parsing call BatchMappingContext#addIgnoredFieldColumnar
+        // (the columnar equivalent of DocumentParserContext#addIgnoredField) when a value is dropped
+        // (e.g. ignore_above on keyword). postColumnarParse drains that accumulator and writes the
+        // resulting _ignored doc-values column.
         return true;
     }
 
@@ -164,7 +162,9 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
             return;
         }
 
-        final EscfColumnData data = acc.finish(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        final EscfColumnData data = acc.finish(context.recycler());
+        // One serialization, up to two field-type wrappers, so ownership is registered once.
+        context.addResource(data);
         if (context.indexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD)) {
             context.addColumn(LuceneBinaryColumn.of(data, NAME, SortedSetDocValuesField.TYPE));
             context.addColumn(LuceneBinaryColumn.of(data, NAME, StringField.TYPE_NOT_STORED));

@@ -23,6 +23,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.index.search.QueryParserHelper;
@@ -61,6 +62,7 @@ public final class QueryStringQueryBuilder extends LeafQueryBuilder<QueryStringQ
     public static final Operator DEFAULT_OPERATOR = Operator.OR;
     public static final MultiMatchQueryBuilder.Type DEFAULT_TYPE = MultiMatchQueryBuilder.Type.BEST_FIELDS;
     public static final boolean DEFAULT_FUZZY_TRANSPOSITIONS = FuzzyQuery.defaultTranspositions;
+    static final int MAX_QUERY_LENGTH_IN_ERROR = 1024;
 
     public static final ParseField QUERY_FIELD = new ParseField("query");
     public static final ParseField BOOST_FIELD = new ParseField("boost");
@@ -868,6 +870,7 @@ public final class QueryStringQueryBuilder extends LeafQueryBuilder<QueryStringQ
     }
 
     @Override
+    @SuppressForbidden(reason = "TODO: replace with manual depth tracking before the overflow occurs")
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         String rewrittenQueryString = escape ? org.apache.lucene.queryparser.classic.QueryParser.escape(this.queryString) : queryString;
         if (fieldsAndWeights.size() > 0 && this.defaultField != null) {
@@ -898,7 +901,8 @@ public final class QueryStringQueryBuilder extends LeafQueryBuilder<QueryStringQ
                     context,
                     QueryParserHelper.parseFieldsAndWeights(defaultFields)
                 );
-                queryParser = new QueryStringQueryParser(context, resolvedFields, isLenient);
+                boolean forceLenient = lenient == null && context.hasAllFieldsWildcardDefaultField();
+                queryParser = new QueryStringQueryParser(context, resolvedFields, forceLenient || isLenient);
             }
         }
 
@@ -946,14 +950,19 @@ public final class QueryStringQueryBuilder extends LeafQueryBuilder<QueryStringQ
         try {
             query = queryParser.parse(rewrittenQueryString);
         } catch (org.apache.lucene.queryparser.classic.ParseException e) {
-            throw new QueryShardException(context, "Failed to parse query [" + this.queryString + "]", e);
-        } catch (StackOverflowError e) {
+            throw new QueryShardException(
+                context,
+                "Failed to parse query [{}]",
+                truncateParseException(e, rewrittenQueryString),
+                Strings.cleanTruncate(this.queryString, MAX_QUERY_LENGTH_IN_ERROR)
+            );
+        } catch (StackOverflowError e) { // TODO: unsafe - replace with manual depth tracking
             // A deeply nested query string overflows the stack of Lucene's recursive-descent parser. Convert it to a client
             // error so it does not reach the uncaught exception handler and halt the node.
             throw new QueryShardException(
                 context,
                 "Failed to parse query [{}]: query is too deeply nested",
-                Strings.cleanTruncate(this.queryString, 1024)
+                Strings.cleanTruncate(this.queryString, MAX_QUERY_LENGTH_IN_ERROR)
             );
         }
 
@@ -977,6 +986,30 @@ public final class QueryStringQueryBuilder extends LeafQueryBuilder<QueryStringQ
         }
 
         return query;
+    }
+
+    /**
+     * Shortens a long Lucene parse error. The error repeats the whole query, and a shard failure keeps it, so a large query is copied into
+     * every failed shard. Keeps the first {@link #MAX_QUERY_LENGTH_IN_ERROR} chars of the query and of the detail, with no marker, and
+     * drops the cause, which can repeat the query too. A short error is returned as is.
+     */
+    static org.apache.lucene.queryparser.classic.ParseException truncateParseException(
+        org.apache.lucene.queryparser.classic.ParseException e,
+        String query
+    ) {
+        if (e.getMessage() == null || e.getMessage().length() <= 2 * MAX_QUERY_LENGTH_IN_ERROR) {
+            return e;
+        }
+        // Lucene's message is "Cannot parse '<query>': " followed by the message of its cause
+        final Throwable detail = e.getCause() != null ? e.getCause() : e;
+        final var result = new org.apache.lucene.queryparser.classic.ParseException(
+            "Cannot parse '"
+                + Strings.cleanTruncate(query, MAX_QUERY_LENGTH_IN_ERROR)
+                + "': "
+                + Strings.cleanTruncate(detail.getMessage(), MAX_QUERY_LENGTH_IN_ERROR)
+        );
+        result.setStackTrace(e.getStackTrace());
+        return result;
     }
 
     @Override

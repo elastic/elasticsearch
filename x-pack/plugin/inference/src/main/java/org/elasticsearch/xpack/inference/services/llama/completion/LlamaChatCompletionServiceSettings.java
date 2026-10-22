@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -44,13 +43,7 @@ public class LlamaChatCompletionServiceSettings extends LlamaServiceSettings {
      * @return the parser
      */
     static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields) {
-        ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
-            ModelConfigurations.SERVICE_SETTINGS,
-            ignoreUnknownFields,
-            Builder::new
-        );
-        LlamaServiceSettings.declareCommonFields(parser);
-        return parser;
+        return LlamaServiceSettings.buildCommonParser(ignoreUnknownFields, Builder::new);
     }
 
     /**
@@ -125,11 +118,7 @@ public class LlamaChatCompletionServiceSettings extends LlamaServiceSettings {
      */
     private static class Update extends LlamaServiceSettings.CommonUpdate {
 
-        private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(ModelConfigurations.SERVICE_SETTINGS, Update::new);
-
-        static {
-            LlamaServiceSettings.declareCommonUpdatableFields(PARSER);
-        }
+        private static final ObjectParser<Update, Void> PARSER = LlamaServiceSettings.buildCommonUpdateParser(Update::new);
 
         public LlamaChatCompletionServiceSettings mergeInto(LlamaChatCompletionServiceSettings existing) {
             return new LlamaChatCompletionServiceSettings(existing.modelId(), existing.uri(), mergedRateLimitSettings(existing));

@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.search.aggregations.support.TimeSeriesIndexSearcher;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
@@ -54,6 +55,7 @@ public class AggregationPhase {
             );
     }
 
+    @SuppressForbidden(reason = "TODO: replace with manual depth tracking before the overflow occurs")
     private static AggregatorCollector newAggregatorCollector(SearchContext context) {
         try {
             Aggregator[] aggregators = context.aggregations().factories().createTopLevelAggregators();
@@ -62,6 +64,8 @@ public class AggregationPhase {
             return new AggregatorCollector(aggregators, bucketCollector);
         } catch (IOException e) {
             throw new AggregationInitializationException("Could not initialize aggregators", e);
+        } catch (StackOverflowError e) { // TODO: unsafe - replace with manual depth tracking
+            throw new IllegalArgumentException("The aggregations are too deeply nested to build");
         }
     }
 

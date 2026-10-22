@@ -1,6 +1,0 @@
-area: ES|QL
-type: bug
-summary: Fix TS STATS aggregate aliases that collide with grouping keys
-pr: 155312
-issues:
-  - 153507

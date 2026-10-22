@@ -1,0 +1,105 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities, contains ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_load_all_single_source_column, optional_fields_load_all_grok_dissect_mv_expand_sample ]
+      reason: "GROK, DISSECT, MV_EXPAND and SAMPLE are only allowed under unmapped_fields=\"LOAD_ALL\" with this capability"
+
+  - do:
+      indices.create:
+        index: la_misuse
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+              msg:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "la_misuse", "_id": "1" } }
+          - { "id": "1", "msg": "alpha one", "note": "beta two", "uvalue": "5" }
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: la_misuse
+        ignore_unavailable: true
+
+---
+'GROK cannot read the _unmapped_fields column':
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_misuse | KEEP id, note* | GROK _unmapped_fields "%{WORD:w}"'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Unknown column [_unmapped_fields]' }
+
+---
+'DISSECT cannot read the _unmapped_fields column':
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_misuse | KEEP id, note* | DISSECT _unmapped_fields "%{a}"'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Unknown column [_unmapped_fields]' }
+
+---
+'MV_EXPAND cannot expand the _unmapped_fields column':
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_misuse | KEEP id, note* | MV_EXPAND _unmapped_fields'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Unknown column [_unmapped_fields]' }
+
+---
+'CHANGE_POINT over an unmapped value is rejected because unmapped fields load as keyword':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_load_all_change_point, change_point ]
+      reason: "CHANGE_POINT is only allowed under unmapped_fields=\"LOAD_ALL\" with this capability"
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_misuse | CHANGE_POINT uvalue ON id'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'CHANGE_POINT only supports numeric values, found expression [uvalue] type [KEYWORD]' }
+
+---
+'CHANGE_POINT cannot read the _unmapped_fields column':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_load_all_change_point, change_point ]
+      reason: "CHANGE_POINT is only allowed under unmapped_fields=\"LOAD_ALL\" with this capability"
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_misuse | KEEP id, note* | CHANGE_POINT _unmapped_fields ON id'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Unknown column [_unmapped_fields]' }

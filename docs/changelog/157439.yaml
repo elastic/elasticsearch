@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 157439
+summary: Add full name and email to audit `MapMessage`
+type: enhancement

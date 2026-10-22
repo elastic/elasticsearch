@@ -16,20 +16,25 @@ import org.elasticsearch.columnar.ColumnarFieldType;
  * calls {@link #select} once per field at write time and then applies the format's block size to
  * the returned template to obtain the concrete {@link NumericPipeline}.
  *
- * <p>Implementations live outside {@code libs/columnar}: the server module supplies a concrete
- * implementation that inspects field type, index mode, and metric role via the mapper. The library
- * never imports mapper types. A typical server-side implementation closes over mapper context and
- * routes by field semantics using named pipeline factories as method references:
+ * <p>The selector only chooses the logical pipeline for a field. Implementations live outside
+ * {@code libs/columnar}: the server module supplies a concrete implementation that inspects field
+ * type, index mode, and metric role via the mapper. The library never imports mapper types. A
+ * typical server-side implementation routes by field semantics:
  *
  * <pre>{@code
- * new ColumNARDocValuesFormat((fieldName, type) -> switch (type) {
- *     case DOUBLE -> NumericPipeline::doubleGaugePipeline;
- *     default     -> NumericPipeline::defaultPipeline;
- * }, blockSize);
+ * new ColumNARDocValuesFormat(
+ *     (fieldName, type) -> switch (type) {
+ *         case DOUBLE -> NumericPipeline::doubleGaugePipeline;
+ *         default     -> NumericPipeline::defaultPipeline;
+ *     },
+ *     field -> ColumnarFieldType.DOUBLE,
+ *     blockSize
+ * )
  * }</pre>
  *
- * <p>The no-arg {@link org.elasticsearch.columnar.ColumNARDocValuesFormat} constructor wires a
- * default implementation that always returns {@link NumericPipeline#defaultPipeline}.
+ * <p>The no-arg {@link org.elasticsearch.columnar.ColumNARDocValuesFormat} SPI constructor is
+ * read-only: it pairs {@link NumericPipeline#defaultPipeline} with a type selector that fails fast
+ * if a write path resolves a type through it.
  */
 @FunctionalInterface
 public interface NumericPipelineSelector {
@@ -39,7 +44,7 @@ public interface NumericPipelineSelector {
      * the format's block size to produce the concrete {@link NumericPipeline}.
      *
      * @param fieldName the Lucene field name
-     * @param type      the columnar field type resolved from {@link org.apache.lucene.index.FieldInfo} attributes
+     * @param type      the columnar field type resolved by the injected {@code ColumnarFieldTypeSelector}
      */
     NumericPipelineTemplate select(String fieldName, ColumnarFieldType type);
 }

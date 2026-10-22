@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.ProjectSecrets;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.azure.AzureStorageService.AzureStorageClientsManager;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -41,6 +42,9 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -52,8 +56,10 @@ import static org.elasticsearch.repositories.azure.AzureStorageSettings.KEY_SETT
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
@@ -88,6 +94,9 @@ public class AzureStorageClientsManagerTests extends ESTestCase {
                 KEY_SETTING.getConcreteSettingForNamespace(clientName).getKey(),
                 encodeKey(clientName + "_cluster_key")
             );
+            if (randomBoolean()) {
+                builder.put("azure.client." + clientName + ".max_connections", between(1, 10));
+            }
             if (randomBoolean()) {
                 builder.put("azure.client." + clientName + ".max_retries", between(1, 10));
             }
@@ -286,6 +295,85 @@ public class AzureStorageClientsManagerTests extends ESTestCase {
         assertNotNull(getClientFromService(projectIdForClusterClient(), clientName));
     }
 
+    public void testApplyClusterStateEvictsConnectionProviders() throws Exception {
+        final ProjectId projectId1 = randomUniqueProjectId();
+        final ProjectId projectId2 = randomUniqueProjectId();
+        final String clientName = randomFrom(clientNames);
+        final String otherClientName = randomValueOtherThan(clientName, () -> randomFrom(clientNames));
+
+        // introducing new projects/clients does not evict anything
+        updateProjectInClusterState(projectId1, newProjectClientsSecrets(projectId1, clientName, otherClientName, "default"));
+        updateProjectInClusterState(projectId2, newProjectClientsSecrets(projectId2, clientName));
+        final var account1 = projectClientAccount(projectId1, clientName);
+        final var otherAccount = projectClientAccount(projectId1, otherClientName);
+        final var defaultAccount = projectClientAccount(projectId1, "default");
+        final var account2 = projectClientAccount(projectId2, clientName);
+
+        assertThat(azureClientProvider.droppedConnectionProviderKeys, empty());
+
+        // Changing project1's `account1`'s secrets changes its `account`, so exactly project1's/account1 old connection-provider key
+        // must be evicted and nothing else.
+        final var changedSecrets = new HashMap<>(newProjectClientsSecrets(projectId1, clientName));
+        // leave other client's settings unchanged
+        changedSecrets.put(ACCOUNT_SETTING.getConcreteSettingForNamespace(otherClientName).getKey(), otherAccount);
+        changedSecrets.put(KEY_SETTING.getConcreteSettingForNamespace(otherClientName).getKey(), projectClientKey(projectId1, "default"));
+        changedSecrets.put(ACCOUNT_SETTING.getConcreteSettingForNamespace("default").getKey(), defaultAccount);
+        changedSecrets.put(KEY_SETTING.getConcreteSettingForNamespace("default").getKey(), projectClientKey(projectId1, "default"));
+        updateProjectInClusterState(projectId1, changedSecrets);
+
+        // use `assertBusy` because the `dropConnectionProviders` is dispatched to the generic thread pool
+        assertBusy(() -> assertThat(azureClientProvider.droppedConnectionProviderKeys, hasSize(1)), 10, TimeUnit.SECONDS);
+        assertEquals(
+            Set.of(new AzureClientProvider.ConnectionProviderKey(projectId1, clientName, account1)),
+            azureClientProvider.droppedConnectionProviderKeys.get(0)
+        );
+
+        // Change project1's key while keeping the account unchanged, therefore the connection provider must not be evicted.
+        // We indirectly test this does not lead to any evictions when looking that `droppedConnectionProviderKeys` has size of 2 later on.
+        // otherAccount and default must be included here too, otherwise they would be treated as removed and trigger an eviction.
+        updateProjectInClusterState(
+            projectId1,
+            Map.of(
+                // client's account remains unchanged
+                ACCOUNT_SETTING.getConcreteSettingForNamespace(clientName).getKey(),
+                projectClientAccount(projectId1, clientName), // we do not use `account1` here because the account was changed in the
+                                                              // previous `updateProjectInClusterState`
+                KEY_SETTING.getConcreteSettingForNamespace(clientName).getKey(),
+                encodeKey(randomAlphaOfLength(14)),
+                // other client's account remains unchanged
+                ACCOUNT_SETTING.getConcreteSettingForNamespace(otherClientName).getKey(),
+                otherAccount,
+                KEY_SETTING.getConcreteSettingForNamespace(otherClientName).getKey(),
+                encodeKey(randomAlphaOfLength(14)),
+                // default client's account remains unchanged
+                ACCOUNT_SETTING.getConcreteSettingForNamespace("default").getKey(),
+                defaultAccount,
+                KEY_SETTING.getConcreteSettingForNamespace("default").getKey(),
+                encodeKey(randomAlphaOfLength(14))
+            )
+        );
+
+        // removing project2 (or just its secrets) drops exactly project2's keys (including the aliased "default" client)
+        if (randomBoolean()) {
+            removeProjectFromClusterState(projectId2);
+        } else {
+            updateProjectInClusterState(projectId2, Map.of());
+        }
+        assertBusy(() -> assertThat(azureClientProvider.droppedConnectionProviderKeys, hasSize(2)), 10, TimeUnit.SECONDS);
+        assertEquals(
+            Set.of(
+                new AzureClientProvider.ConnectionProviderKey(projectId2, clientName, account2),
+                // Note that two keys are dropped because `AzureStorageSettings.load` always aliases the "default" client to the first named
+                // config, so the same account is also reachable under "default."
+                new AzureClientProvider.ConnectionProviderKey(projectId2, "default", account2)
+            ),
+            azureClientProvider.droppedConnectionProviderKeys.get(1)
+        );
+
+        // nothing else was dropped during the whole test
+        assertThat(azureClientProvider.droppedConnectionProviderKeys, hasSize(2));
+    }
+
     private TestAzureBlobServiceClient getClientFromManager(ProjectId projectId, String clientName) throws IOException {
         return asInstanceOf(
             TestAzureBlobServiceClient.class,
@@ -324,6 +412,7 @@ public class AzureStorageClientsManagerTests extends ESTestCase {
             assertThat(projectClientCredentials, containsString(";AccountName=" + projectClientAccount(projectId, clientName)));
             assertThat(projectClientCredentials, containsString(";AccountKey=" + projectClientKey(projectId, clientName)));
             // Inherit setting override from the cluster client of the same name
+            assertThat(projectClientSettings.getMaxConnections(), equalTo(clusterClientSettings.getMaxConnections()));
             assertThat(projectClientSettings.getMaxRetries(), equalTo(clusterClientSettings.getMaxRetries()));
             assertThat(projectClientSettings.getTimeout(), equalTo(clusterClientSettings.getTimeout()));
         }
@@ -410,12 +499,24 @@ public class AzureStorageClientsManagerTests extends ESTestCase {
 
     static class TestAzureClientProvider extends AzureClientProvider {
 
+        // Each element is the exact set passed to one `dropConnectionProviders` invocation. Written on the generic
+        // thread pool (where `applyClusterState` dispatches the drops), read on the test thread.
+        final List<Set<ConnectionProviderKey>> droppedConnectionProviderKeys = new CopyOnWriteArrayList<>();
+
         TestAzureClientProvider(int multipartUploadMaxConcurrency) {
-            super(null, null, null, null, null, multipartUploadMaxConcurrency);
+            super(null, null, null, null, null, null, multipartUploadMaxConcurrency);
+        }
+
+        @Override
+        void dropConnectionProviders(Set<ConnectionProviderKey> connectionProvidersToEvict) {
+            droppedConnectionProviderKeys.add(Set.copyOf(connectionProvidersToEvict));
+            super.dropConnectionProviders(connectionProvidersToEvict);
         }
 
         @Override
         TestAzureBlobServiceClient createClient(
+            @Nullable ProjectId projectId,
+            String clientName,
             AzureStorageSettings settings,
             LocationMode locationMode,
             RequestRetryOptions retryOptions,
@@ -431,7 +532,7 @@ public class AzureStorageClientsManagerTests extends ESTestCase {
         final AzureStorageSettings settings;
 
         TestAzureBlobServiceClient(AzureStorageSettings settings) {
-            super(null, null, settings.getMaxRetries(), null);
+            super(null, null, settings.getMaxRetries(), null, null);
             this.settings = settings;
         }
     }

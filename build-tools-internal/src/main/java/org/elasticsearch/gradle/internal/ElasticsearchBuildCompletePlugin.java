@@ -215,6 +215,10 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
             projectDirFiles.exclude("**/build/testrun/*/temp/**/repo/**");
             projectDirFiles.exclude("**/build/testrun/*/temp/**/extract/**");
             projectDirFiles.exclude("**/build/testrun/*/temp/**/tmp/**");
+            // GeoIP .mmdb files are static test fixtures copied onto every ES|QL test-cluster
+            // node. They account for most of the archive size. The same files come from the
+            // geolite2-databases test dependency, not from the failing test.
+            projectDirFiles.exclude("**/*.mmdb");
             projectDirFiles.getFiles().stream().filter(f -> Files.isRegularFile(f.toPath())).forEach(collectedFiles::add);
         }
         // core dump files are in the working directory of the installation, which is not project specific

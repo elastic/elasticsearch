@@ -1,0 +1,1241 @@
+// Numerator of the on(cluster) match below.
+vector_match_operand_numerator
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m tx=(sum by (cluster) (network.eth0.tx))
+| SORT cluster, step;
+
+tx:double | step:datetime            | cluster:keyword
+1068.0    | 2024-05-10T00:10:00.000Z | prod
+2676.0    | 2024-05-10T00:20:00.000Z | prod
+2116.0    | 2024-05-10T00:30:00.000Z | prod
+1914.0    | 2024-05-10T00:10:00.000Z | qa
+4157.0    | 2024-05-10T00:20:00.000Z | qa
+4337.0    | 2024-05-10T00:30:00.000Z | qa
+1266.0    | 2024-05-10T00:10:00.000Z | staging
+2516.0    | 2024-05-10T00:20:00.000Z | staging
+2763.0    | 2024-05-10T00:30:00.000Z | staging
+;
+
+// Denominator of the on(cluster) match below.
+vector_match_operand_denominator
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m rx=(sum by (cluster) (network.eth0.rx))
+| SORT cluster, step;
+
+rx:double | step:datetime            | cluster:keyword
+968.0     | 2024-05-10T00:10:00.000Z | prod
+2345.0    | 2024-05-10T00:20:00.000Z | prod
+1823.0    | 2024-05-10T00:30:00.000Z | prod
+1967.0    | 2024-05-10T00:10:00.000Z | qa
+3409.0    | 2024-05-10T00:20:00.000Z | qa
+3643.0    | 2024-05-10T00:30:00.000Z | qa
+1355.0    | 2024-05-10T00:10:00.000Z | staging
+2413.0    | 2024-05-10T00:20:00.000Z | staging
+2790.0    | 2024-05-10T00:30:00.000Z | staging
+;
+
+// 1:1 match on (cluster): ratio[cluster, step] = numerator / denominator for the same (cluster, step).
+vector_match_on_cluster
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m ratio=(sum by (cluster) (network.eth0.tx) / on (cluster) sum by (cluster) (network.eth0.rx))
+| SORT cluster, step;
+
+ratio:double       | step:datetime            | cluster:keyword
+1.103305785123967  | 2024-05-10T00:10:00.000Z | prod
+1.1411513859275053 | 2024-05-10T00:20:00.000Z | prod
+1.16072408118486   | 2024-05-10T00:30:00.000Z | prod
+0.9730554143365532 | 2024-05-10T00:10:00.000Z | qa
+1.219419184511587  | 2024-05-10T00:20:00.000Z | qa
+1.1905023332418336 | 2024-05-10T00:30:00.000Z | qa
+0.9343173431734317 | 2024-05-10T00:10:00.000Z | staging
+1.0426854537919603 | 2024-05-10T00:20:00.000Z | staging
+0.9903225806451613 | 2024-05-10T00:30:00.000Z | staging
+;
+
+// on(cluster) with opaque operands: `without` packs each operand's identity into _timeseries with no label columns
+// of its own; the on(cluster) demand materializes the label as a concrete column to key the join on. The k8s label
+// universe is (cluster, pod, region), so `without (pod, region)` matches vector_match_on_cluster exactly.
+vector_match_on_cluster_opaque_operands-Ignore
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m ratio=(sum without (pod, region) (network.eth0.tx) / on (cluster) sum without (pod, region) (network.eth0.rx))
+| KEEP ratio, step, cluster
+| SORT cluster, step;
+
+ratio:double       | step:datetime            | cluster:keyword
+1.103305785123967  | 2024-05-10T00:10:00.000Z | prod
+1.1411513859275053 | 2024-05-10T00:20:00.000Z | prod
+1.16072408118486   | 2024-05-10T00:30:00.000Z | prod
+0.9730554143365532 | 2024-05-10T00:10:00.000Z | qa
+1.219419184511587  | 2024-05-10T00:20:00.000Z | qa
+1.1905023332418336 | 2024-05-10T00:30:00.000Z | qa
+0.9343173431734317 | 2024-05-10T00:10:00.000Z | staging
+1.0426854537919603 | 2024-05-10T00:20:00.000Z | staging
+0.9903225806451613 | 2024-05-10T00:30:00.000Z | staging
+;
+
+// INNER semantics: the denominator only has cluster=prod, so qa/staging have no match and are dropped.
+vector_match_inner_drops_unmatched
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m ratio=(sum by (cluster) (network.eth0.tx) / on (cluster) sum by (cluster) (network.eth0.rx{cluster="prod"}))
+| SORT cluster, step;
+
+ratio:double       | step:datetime            | cluster:keyword
+1.103305785123967  | 2024-05-10T00:10:00.000Z | prod
+1.1411513859275053 | 2024-05-10T00:20:00.000Z | prod
+1.16072408118486   | 2024-05-10T00:30:00.000Z | prod
+;
+
+// Many-to-one group_left: the "many" LHS is grouped by (cluster, pod); each pod's tx is divided by its cluster's
+// summed rx (the "one" RHS grouped by cluster), which is broadcast across the pods of that cluster.
+vector_match_group_left
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m ratio=(sum by (cluster, pod) (network.eth0.tx) / on (cluster) group_left sum by (cluster) (network.eth0.rx))
+| SORT cluster, pod, step;
+
+ratio:double        | step:datetime            | cluster:keyword | pod:keyword
+0.4225206611570248  | 2024-05-10T00:10:00.000Z | prod            | one
+0.432409381663113   | 2024-05-10T00:20:00.000Z | prod            | one
+0.6302797586396051  | 2024-05-10T00:30:00.000Z | prod            | one
+0.37293388429752067 | 2024-05-10T00:10:00.000Z | prod            | three
+0.3957356076759062  | 2024-05-10T00:20:00.000Z | prod            | three
+0.30785123966942146 | 2024-05-10T00:10:00.000Z | prod            | two
+0.3130063965884861  | 2024-05-10T00:20:00.000Z | prod            | two
+0.5304443225452551  | 2024-05-10T00:30:00.000Z | prod            | two
+0.257244534824606   | 2024-05-10T00:10:00.000Z | qa              | one
+0.3660897623936638  | 2024-05-10T00:20:00.000Z | qa              | one
+0.3788086741696404  | 2024-05-10T00:30:00.000Z | qa              | one
+0.2541942043721403  | 2024-05-10T00:10:00.000Z | qa              | three
+0.35200938691698447 | 2024-05-10T00:20:00.000Z | qa              | three
+0.340653307713423   | 2024-05-10T00:30:00.000Z | qa              | three
+0.4616166751398068  | 2024-05-10T00:10:00.000Z | qa              | two
+0.5013200352009387  | 2024-05-10T00:20:00.000Z | qa              | two
+0.47104035135877026 | 2024-05-10T00:30:00.000Z | qa              | two
+0.25535055350553504 | 2024-05-10T00:10:00.000Z | staging         | one
+0.22213012847078326 | 2024-05-10T00:20:00.000Z | staging         | one
+0.2082437275985663  | 2024-05-10T00:30:00.000Z | staging         | one
+0.33062730627306275 | 2024-05-10T00:10:00.000Z | staging         | three
+0.4728553667633651  | 2024-05-10T00:20:00.000Z | staging         | three
+0.43333333333333335 | 2024-05-10T00:30:00.000Z | staging         | three
+0.34833948339483395 | 2024-05-10T00:10:00.000Z | staging         | two
+0.34769995855781183 | 2024-05-10T00:20:00.000Z | staging         | two
+0.3487455197132617  | 2024-05-10T00:30:00.000Z | staging         | two
+;
+
+// One-to-many group_right: the "many" RHS is grouped by (cluster, pod); the "one" LHS (cluster) is broadcast.
+vector_match_group_right
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m ratio=(sum by (cluster) (network.eth0.tx) / on (cluster) group_right sum by (cluster, pod) (network.eth0.rx))
+| SORT cluster, pod, step;
+
+ratio:double       | step:datetime            | cluster:keyword | pod:keyword
+2.4272727272727272 | 2024-05-10T00:10:00.000Z | prod            | one
+2.7817047817047817 | 2024-05-10T00:20:00.000Z | prod            | one
+1.9448529411764706 | 2024-05-10T00:30:00.000Z | prod            | one
+2.894308943089431  | 2024-05-10T00:10:00.000Z | prod            | three
+3.336658354114713  | 2024-05-10T00:20:00.000Z | prod            | three
+6.716981132075472  | 2024-05-10T00:10:00.000Z | prod            | two
+4.605851979345955  | 2024-05-10T00:20:00.000Z | prod            | two
+2.8789115646258505 | 2024-05-10T00:30:00.000Z | prod            | two
+2.3398533007334965 | 2024-05-10T00:10:00.000Z | qa              | one
+3.2939778129952457 | 2024-05-10T00:20:00.000Z | qa              | one
+3.1022889842632333 | 2024-05-10T00:30:00.000Z | qa              | one
+3.618147448015123  | 2024-05-10T00:10:00.000Z | qa              | three
+3.8526413345690456 | 2024-05-10T00:20:00.000Z | qa              | three
+3.9284420289855073 | 2024-05-10T00:30:00.000Z | qa              | three
+3.087096774193548  | 2024-05-10T00:10:00.000Z | qa              | two
+3.892322097378277  | 2024-05-10T00:20:00.000Z | qa              | two
+3.801051709027169  | 2024-05-10T00:30:00.000Z | qa              | two
+3.478021978021978  | 2024-05-10T00:10:00.000Z | staging         | one
+4.186356073211314  | 2024-05-10T00:20:00.000Z | staging         | one
+4.123880597014925  | 2024-05-10T00:30:00.000Z | staging         | one
+3.2628865979381443 | 2024-05-10T00:10:00.000Z | staging         | three
+2.7170626349892006 | 2024-05-10T00:20:00.000Z | staging         | three
+2.462566844919786  | 2024-05-10T00:30:00.000Z | staging         | three
+2.099502487562189  | 2024-05-10T00:10:00.000Z | staging         | two
+2.839729119638826  | 2024-05-10T00:20:00.000Z | staging         | two
+2.7685370741482966 | 2024-05-10T00:30:00.000Z | staging         | two
+;
+
+// Bool-mode comparison: 1.0 where tx > rx for the matched (cluster, step), else 0.0; no rows dropped.
+vector_match_comparison_bool
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m result=(sum by (cluster) (network.eth0.tx) > bool on (cluster) sum by (cluster) (network.eth0.rx))
+| SORT cluster, step;
+
+result:double | step:datetime            | cluster:keyword
+1.0           | 2024-05-10T00:10:00.000Z | prod
+1.0           | 2024-05-10T00:20:00.000Z | prod
+1.0           | 2024-05-10T00:30:00.000Z | prod
+0.0           | 2024-05-10T00:10:00.000Z | qa
+1.0           | 2024-05-10T00:20:00.000Z | qa
+1.0           | 2024-05-10T00:30:00.000Z | qa
+0.0           | 2024-05-10T00:10:00.000Z | staging
+1.0           | 2024-05-10T00:20:00.000Z | staging
+0.0           | 2024-05-10T00:30:00.000Z | staging
+;
+
+// Filter-mode comparison: keep the LHS value (tx) only on the matched (cluster, step) rows where tx > rx.
+vector_match_comparison_filter
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m result=(sum by (cluster) (network.eth0.tx) > on (cluster) sum by (cluster) (network.eth0.rx))
+| SORT cluster, step;
+
+result:double | step:datetime            | cluster:keyword
+1068.0        | 2024-05-10T00:10:00.000Z | prod
+2676.0        | 2024-05-10T00:20:00.000Z | prod
+2116.0        | 2024-05-10T00:30:00.000Z | prod
+4157.0        | 2024-05-10T00:20:00.000Z | qa
+4337.0        | 2024-05-10T00:30:00.000Z | qa
+2516.0        | 2024-05-10T00:20:00.000Z | staging
+;
+
+// `and on(cluster)` semi-join: every tx cluster also has an rx series, so all LHS (tx) series are kept (result = the tx sums).
+vector_match_and_keeps_all-Ignore
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m result=(sum by (cluster) (network.eth0.tx) and on (cluster) sum by (cluster) (network.eth0.rx))
+| SORT cluster, step;
+
+result:double | step:datetime            | cluster:keyword
+1068.0        | 2024-05-10T00:10:00.000Z | prod
+2676.0        | 2024-05-10T00:20:00.000Z | prod
+2116.0        | 2024-05-10T00:30:00.000Z | prod
+1914.0        | 2024-05-10T00:10:00.000Z | qa
+4157.0        | 2024-05-10T00:20:00.000Z | qa
+4337.0        | 2024-05-10T00:30:00.000Z | qa
+1266.0        | 2024-05-10T00:10:00.000Z | staging
+2516.0        | 2024-05-10T00:20:00.000Z | staging
+2763.0        | 2024-05-10T00:30:00.000Z | staging
+;
+
+// `and on(cluster)` semi-join with the RHS restricted to prod: only tx series whose cluster is prod survive.
+vector_match_and_filters-Ignore
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m result=(sum by (cluster) (network.eth0.tx) and on (cluster) sum by (cluster) (network.eth0.rx{cluster="prod"}))
+| SORT cluster, step;
+
+result:double | step:datetime            | cluster:keyword
+1068.0        | 2024-05-10T00:10:00.000Z | prod
+2676.0        | 2024-05-10T00:20:00.000Z | prod
+2116.0        | 2024-05-10T00:30:00.000Z | prod
+;
+
+// Nested: scalar arithmetic on top of a vector match. result[cluster,step] = 1 + ratio.
+vector_match_nested_scalar
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m result=(1 + (sum by (cluster) (network.eth0.tx) / on (cluster) sum by (cluster) (network.eth0.rx)))
+| SORT cluster, step;
+
+result:double      | step:datetime            | cluster:keyword
+2.103305785123967  | 2024-05-10T00:10:00.000Z | prod
+2.1411513859275053 | 2024-05-10T00:20:00.000Z | prod
+2.16072408118486   | 2024-05-10T00:30:00.000Z | prod
+1.973055414336553  | 2024-05-10T00:10:00.000Z | qa
+2.2194191845115867 | 2024-05-10T00:20:00.000Z | qa
+2.1905023332418336 | 2024-05-10T00:30:00.000Z | qa
+1.9343173431734317 | 2024-05-10T00:10:00.000Z | staging
+2.04268545379196   | 2024-05-10T00:20:00.000Z | staging
+1.9903225806451612 | 2024-05-10T00:30:00.000Z | staging
+;
+
+// Nested: aggregation over a vector match. result[step] = sum over clusters of ratio (sum() drops the cluster label).
+vector_match_nested_sum
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m result=(sum(sum by (cluster) (network.eth0.tx) / on (cluster) sum by (cluster) (network.eth0.rx)))
+| SORT step;
+
+result:double      | step:datetime
+3.010678542633952  | 2024-05-10T00:10:00.000Z
+3.4032560242310526 | 2024-05-10T00:20:00.000Z
+3.341548995071855  | 2024-05-10T00:30:00.000Z
+;
+
+// Multiplication across the match: result = tx * rx per (cluster, step).
+vector_match_multiply
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m result=(sum by (cluster) (network.eth0.tx) * on (cluster) sum by (cluster) (network.eth0.rx))
+| SORT cluster, step;
+
+result:double | step:datetime            | cluster:keyword
+1033824.0     | 2024-05-10T00:10:00.000Z | prod
+6275220.0     | 2024-05-10T00:20:00.000Z | prod
+3857468.0     | 2024-05-10T00:30:00.000Z | prod
+3764838.0     | 2024-05-10T00:10:00.000Z | qa
+14171213.0    | 2024-05-10T00:20:00.000Z | qa
+15799691.0    | 2024-05-10T00:30:00.000Z | qa
+1715430.0     | 2024-05-10T00:10:00.000Z | staging
+6071108.0     | 2024-05-10T00:20:00.000Z | staging
+7708770.0     | 2024-05-10T00:30:00.000Z | staging
+;
+
+// Subtraction across the match: result = tx - rx (can be negative).
+vector_match_subtract
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m result=(sum by (cluster) (network.eth0.tx) - on (cluster) sum by (cluster) (network.eth0.rx))
+| SORT cluster, step;
+
+result:double | step:datetime            | cluster:keyword
+100.0         | 2024-05-10T00:10:00.000Z | prod
+331.0         | 2024-05-10T00:20:00.000Z | prod
+293.0         | 2024-05-10T00:30:00.000Z | prod
+-53.0         | 2024-05-10T00:10:00.000Z | qa
+748.0         | 2024-05-10T00:20:00.000Z | qa
+694.0         | 2024-05-10T00:30:00.000Z | qa
+-89.0         | 2024-05-10T00:10:00.000Z | staging
+103.0         | 2024-05-10T00:20:00.000Z | staging
+-27.0         | 2024-05-10T00:30:00.000Z | staging
+;
+
+// ignoring(pod): both operands are grouped by cluster only, so ignoring pod matches on cluster - same result as on(cluster).
+vector_match_ignoring
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m result=(sum by (cluster) (network.eth0.tx) / ignoring (pod) sum by (cluster) (network.eth0.rx))
+| SORT cluster, step;
+
+result:double      | step:datetime            | cluster:keyword
+1.103305785123967  | 2024-05-10T00:10:00.000Z | prod
+1.1411513859275053 | 2024-05-10T00:20:00.000Z | prod
+1.16072408118486   | 2024-05-10T00:30:00.000Z | prod
+0.9730554143365532 | 2024-05-10T00:10:00.000Z | qa
+1.219419184511587  | 2024-05-10T00:20:00.000Z | qa
+1.1905023332418336 | 2024-05-10T00:30:00.000Z | qa
+0.9343173431734317 | 2024-05-10T00:10:00.000Z | staging
+1.0426854537919603 | 2024-05-10T00:20:00.000Z | staging
+0.9903225806451613 | 2024-05-10T00:30:00.000Z | staging
+;
+
+// Bool-mode <=: 1.0 where tx <= rx for the matched (cluster, step), else 0.0.
+vector_match_comparison_le_bool
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m result=(sum by (cluster) (network.eth0.tx) <= bool on (cluster) sum by (cluster) (network.eth0.rx))
+| SORT cluster, step;
+
+result:double | step:datetime            | cluster:keyword
+0.0           | 2024-05-10T00:10:00.000Z | prod
+0.0           | 2024-05-10T00:20:00.000Z | prod
+0.0           | 2024-05-10T00:30:00.000Z | prod
+1.0           | 2024-05-10T00:10:00.000Z | qa
+0.0           | 2024-05-10T00:20:00.000Z | qa
+0.0           | 2024-05-10T00:30:00.000Z | qa
+1.0           | 2024-05-10T00:10:00.000Z | staging
+0.0           | 2024-05-10T00:20:00.000Z | staging
+1.0           | 2024-05-10T00:30:00.000Z | staging
+;
+
+// Filter-mode <: keep the LHS value (tx) only where tx < rx.
+vector_match_comparison_lt_filter
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m result=(sum by (cluster) (network.eth0.tx) < on (cluster) sum by (cluster) (network.eth0.rx))
+| SORT cluster, step;
+
+result:double | step:datetime            | cluster:keyword
+1914.0        | 2024-05-10T00:10:00.000Z | qa
+1266.0        | 2024-05-10T00:10:00.000Z | staging
+2763.0        | 2024-05-10T00:30:00.000Z | staging
+;
+
+// `and` with no on/ignoring matches on the full (shared) label set - here cluster - so all tx series are kept.
+vector_match_and_default-Ignore
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m result=(sum by (cluster) (network.eth0.tx) and sum by (cluster) (network.eth0.rx))
+| SORT cluster, step;
+
+result:double | step:datetime            | cluster:keyword
+1068.0        | 2024-05-10T00:10:00.000Z | prod
+2676.0        | 2024-05-10T00:20:00.000Z | prod
+2116.0        | 2024-05-10T00:30:00.000Z | prod
+1914.0        | 2024-05-10T00:10:00.000Z | qa
+4157.0        | 2024-05-10T00:20:00.000Z | qa
+4337.0        | 2024-05-10T00:30:00.000Z | qa
+1266.0        | 2024-05-10T00:10:00.000Z | staging
+2516.0        | 2024-05-10T00:20:00.000Z | staging
+2763.0        | 2024-05-10T00:30:00.000Z | staging
+;
+
+// group_left with an INNER drop: RHS restricted to prod, so only prod's pods survive (qa/staging pods have no match).
+vector_match_group_left_inner_drop
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m result=(sum by (cluster, pod) (network.eth0.tx) / on (cluster) group_left sum by (cluster) (network.eth0.rx{cluster="prod"}))
+| SORT cluster, pod, step;
+
+result:double       | step:datetime            | cluster:keyword | pod:keyword
+0.4225206611570248  | 2024-05-10T00:10:00.000Z | prod            | one
+0.432409381663113   | 2024-05-10T00:20:00.000Z | prod            | one
+0.6302797586396051  | 2024-05-10T00:30:00.000Z | prod            | one
+0.37293388429752067 | 2024-05-10T00:10:00.000Z | prod            | three
+0.3957356076759062  | 2024-05-10T00:20:00.000Z | prod            | three
+0.30785123966942146 | 2024-05-10T00:10:00.000Z | prod            | two
+0.3130063965884861  | 2024-05-10T00:20:00.000Z | prod            | two
+0.5304443225452551  | 2024-05-10T00:30:00.000Z | prod            | two
+;
+
+// Nested: aggregate a bool comparison. result[step] = number of clusters where tx > rx.
+vector_match_nested_comparison_sum
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m result=(sum(sum by (cluster) (network.eth0.tx) > bool on (cluster) sum by (cluster) (network.eth0.rx)))
+| SORT step;
+
+result:double | step:datetime
+1.0           | 2024-05-10T00:10:00.000Z
+3.0           | 2024-05-10T00:20:00.000Z
+2.0           | 2024-05-10T00:30:00.000Z
+;
+
+// Match on two labels on(cluster, pod): 1:1 per (cluster, pod).
+vector_match_on_two_labels
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m result=(sum by (cluster, pod) (network.eth0.tx) / on (cluster, pod) sum by (cluster, pod) (network.eth0.rx))
+| SORT cluster, pod, step;
+
+result:double      | step:datetime            | cluster:keyword | pod:keyword
+0.9295454545454546 | 2024-05-10T00:10:00.000Z | prod            | one
+1.054054054054054  | 2024-05-10T00:20:00.000Z | prod            | one
+1.0560661764705883 | 2024-05-10T00:30:00.000Z | prod            | one
+0.978319783197832  | 2024-05-10T00:10:00.000Z | prod            | three
+1.1571072319201996 | 2024-05-10T00:20:00.000Z | prod            | three
+1.8742138364779874 | 2024-05-10T00:10:00.000Z | prod            | two
+1.2633390705679863 | 2024-05-10T00:20:00.000Z | prod            | two
+1.3156462585034014 | 2024-05-10T00:30:00.000Z | prod            | two
+0.6185819070904646 | 2024-05-10T00:10:00.000Z | qa              | one
+0.9889064976228209 | 2024-05-10T00:20:00.000Z | qa              | one
+0.9871244635193133 | 2024-05-10T00:30:00.000Z | qa              | one
+0.945179584120983  | 2024-05-10T00:10:00.000Z | qa              | three
+1.1121408711770158 | 2024-05-10T00:20:00.000Z | qa              | three
+1.1240942028985508 | 2024-05-10T00:30:00.000Z | qa              | three
+1.4645161290322581 | 2024-05-10T00:10:00.000Z | qa              | two
+1.600187265917603  | 2024-05-10T00:20:00.000Z | qa              | two
+1.5039439088518842 | 2024-05-10T00:30:00.000Z | qa              | two
+0.9505494505494505 | 2024-05-10T00:10:00.000Z | staging         | one
+0.891846921797005  | 2024-05-10T00:20:00.000Z | staging         | one
+0.8671641791044776 | 2024-05-10T00:30:00.000Z | staging         | one
+1.1546391752577319 | 2024-05-10T00:10:00.000Z | staging         | three
+1.232181425485961  | 2024-05-10T00:20:00.000Z | staging         | three
+1.0775401069518717 | 2024-05-10T00:30:00.000Z | staging         | three
+0.7827529021558872 | 2024-05-10T00:10:00.000Z | staging         | two
+0.9469525959367946 | 2024-05-10T00:20:00.000Z | staging         | two
+0.9749498997995992 | 2024-05-10T00:30:00.000Z | staging         | two
+;
+
+// Default 1:1 matching: same label sets match without an explicit on()/ignoring() modifier.
+vector_match_default_same_labels
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m result=(sum by (cluster) (network.eth0.tx) / sum by (cluster) (network.eth0.rx))
+| SORT cluster, step;
+
+result:double      | step:datetime            | cluster:keyword
+1.103305785123967  | 2024-05-10T00:10:00.000Z | prod
+1.1411513859275053 | 2024-05-10T00:20:00.000Z | prod
+1.16072408118486   | 2024-05-10T00:30:00.000Z | prod
+0.9730554143365532 | 2024-05-10T00:10:00.000Z | qa
+1.219419184511587  | 2024-05-10T00:20:00.000Z | qa
+1.1905023332418336 | 2024-05-10T00:30:00.000Z | qa
+0.9343173431734317 | 2024-05-10T00:10:00.000Z | staging
+1.0426854537919603 | 2024-05-10T00:20:00.000Z | staging
+0.9903225806451613 | 2024-05-10T00:30:00.000Z | staging
+;
+
+// Empty on(): match only by step, producing one value per evaluation step and no labels.
+vector_match_on_empty_label_list
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m result=(sum(network.eth0.tx) / on () sum(network.eth0.rx))
+| SORT step;
+
+result:double      | step:datetime
+0.9902097902097902 | 2024-05-10T00:10:00.000Z
+1.1447287865801397 | 2024-05-10T00:20:00.000Z
+1.1162790697674418 | 2024-05-10T00:30:00.000Z
+;
+
+// Empty ignoring(): ignore no labels, so it behaves like the default full-label match.
+vector_match_ignoring_empty_label_list
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m result=(sum by (cluster) (network.eth0.tx) / ignoring () sum by (cluster) (network.eth0.rx))
+| SORT cluster, step;
+
+result:double      | step:datetime            | cluster:keyword
+1.103305785123967  | 2024-05-10T00:10:00.000Z | prod
+1.1411513859275053 | 2024-05-10T00:20:00.000Z | prod
+1.16072408118486   | 2024-05-10T00:30:00.000Z | prod
+0.9730554143365532 | 2024-05-10T00:10:00.000Z | qa
+1.219419184511587  | 2024-05-10T00:20:00.000Z | qa
+1.1905023332418336 | 2024-05-10T00:30:00.000Z | qa
+0.9343173431734317 | 2024-05-10T00:10:00.000Z | staging
+1.0426854537919603 | 2024-05-10T00:20:00.000Z | staging
+0.9903225806451613 | 2024-05-10T00:30:00.000Z | staging
+;
+
+// Addition across the match: covers the + arithmetic operator on matched instant vectors.
+vector_match_add
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m result=(sum by (cluster) (network.eth0.tx) + on (cluster) sum by (cluster) (network.eth0.rx))
+| SORT cluster, step;
+
+result:double | step:datetime            | cluster:keyword
+2036.0        | 2024-05-10T00:10:00.000Z | prod
+5021.0        | 2024-05-10T00:20:00.000Z | prod
+3939.0        | 2024-05-10T00:30:00.000Z | prod
+3881.0        | 2024-05-10T00:10:00.000Z | qa
+7566.0        | 2024-05-10T00:20:00.000Z | qa
+7980.0        | 2024-05-10T00:30:00.000Z | qa
+2621.0        | 2024-05-10T00:10:00.000Z | staging
+4929.0        | 2024-05-10T00:20:00.000Z | staging
+5553.0        | 2024-05-10T00:30:00.000Z | staging
+;
+
+// Modulo across the match: covers the % arithmetic operator on matched instant vectors.
+vector_match_modulo
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m result=(sum by (cluster) (network.eth0.tx) % on (cluster) sum by (cluster) (network.eth0.rx))
+| SORT cluster, step;
+
+result:double | step:datetime            | cluster:keyword
+100.0         | 2024-05-10T00:10:00.000Z | prod
+331.0         | 2024-05-10T00:20:00.000Z | prod
+293.0         | 2024-05-10T00:30:00.000Z | prod
+1914.0        | 2024-05-10T00:10:00.000Z | qa
+748.0         | 2024-05-10T00:20:00.000Z | qa
+694.0         | 2024-05-10T00:30:00.000Z | qa
+1266.0        | 2024-05-10T00:10:00.000Z | staging
+103.0         | 2024-05-10T00:20:00.000Z | staging
+2763.0        | 2024-05-10T00:30:00.000Z | staging
+;
+
+// Power across the match: RHS is a same-label vector of 1.0 values, so result remains tx while exercising ^.
+vector_match_power
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m result=(sum by (cluster) (network.eth0.tx) ^ on (cluster) max by (cluster) (network.eth0.rx * 0 + 1))
+| SORT cluster, step;
+
+result:double | step:datetime            | cluster:keyword
+1068.0        | 2024-05-10T00:10:00.000Z | prod
+2676.0        | 2024-05-10T00:20:00.000Z | prod
+2116.0        | 2024-05-10T00:30:00.000Z | prod
+1914.0        | 2024-05-10T00:10:00.000Z | qa
+4157.0        | 2024-05-10T00:20:00.000Z | qa
+4337.0        | 2024-05-10T00:30:00.000Z | qa
+1266.0        | 2024-05-10T00:10:00.000Z | staging
+2516.0        | 2024-05-10T00:20:00.000Z | staging
+2763.0        | 2024-05-10T00:30:00.000Z | staging
+;
+
+// Bool-mode ==: all matched tx/rx pairs differ, so all matched rows survive with 0.0.
+vector_match_comparison_eq_bool
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m result=(sum by (cluster) (network.eth0.tx) == bool on (cluster) sum by (cluster) (network.eth0.rx))
+| SORT cluster, step;
+
+result:double | step:datetime            | cluster:keyword
+0.0           | 2024-05-10T00:10:00.000Z | prod
+0.0           | 2024-05-10T00:20:00.000Z | prod
+0.0           | 2024-05-10T00:30:00.000Z | prod
+0.0           | 2024-05-10T00:10:00.000Z | qa
+0.0           | 2024-05-10T00:20:00.000Z | qa
+0.0           | 2024-05-10T00:30:00.000Z | qa
+0.0           | 2024-05-10T00:10:00.000Z | staging
+0.0           | 2024-05-10T00:20:00.000Z | staging
+0.0           | 2024-05-10T00:30:00.000Z | staging
+;
+
+// Filter-mode ==: no matched tx/rx pair is equal, so the result vector is empty.
+vector_match_comparison_eq_filter_empty
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m result=(sum by (cluster) (network.eth0.tx) == on (cluster) sum by (cluster) (network.eth0.rx))
+| SORT cluster, step;
+
+result:double | step:datetime | cluster:keyword
+;
+
+// Filter-mode !=: every matched tx/rx pair differs, so all LHS values are kept.
+vector_match_comparison_neq_filter
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m result=(sum by (cluster) (network.eth0.tx) != on (cluster) sum by (cluster) (network.eth0.rx))
+| SORT cluster, step;
+
+result:double | step:datetime            | cluster:keyword
+1068.0        | 2024-05-10T00:10:00.000Z | prod
+2676.0        | 2024-05-10T00:20:00.000Z | prod
+2116.0        | 2024-05-10T00:30:00.000Z | prod
+1914.0        | 2024-05-10T00:10:00.000Z | qa
+4157.0        | 2024-05-10T00:20:00.000Z | qa
+4337.0        | 2024-05-10T00:30:00.000Z | qa
+1266.0        | 2024-05-10T00:10:00.000Z | staging
+2516.0        | 2024-05-10T00:20:00.000Z | staging
+2763.0        | 2024-05-10T00:30:00.000Z | staging
+;
+
+// Filter-mode >=: same rows as > here because none of the matched pairs are equal.
+vector_match_comparison_gte_filter
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m result=(sum by (cluster) (network.eth0.tx) >= on (cluster) sum by (cluster) (network.eth0.rx))
+| SORT cluster, step;
+
+result:double | step:datetime            | cluster:keyword
+1068.0        | 2024-05-10T00:10:00.000Z | prod
+2676.0        | 2024-05-10T00:20:00.000Z | prod
+2116.0        | 2024-05-10T00:30:00.000Z | prod
+4157.0        | 2024-05-10T00:20:00.000Z | qa
+4337.0        | 2024-05-10T00:30:00.000Z | qa
+2516.0        | 2024-05-10T00:20:00.000Z | staging
+;
+
+// group_left(label): copy pod from the one-side RHS while matching on cluster.
+vector_match_group_left_include_label
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m result=(sum by (cluster) (network.eth0.tx) / on (cluster) group_left (pod) sum by (cluster, pod) (network.eth0.rx{pod="one"}))
+| SORT cluster, pod, step;
+
+result:double       | step:datetime            | cluster:keyword | pod:keyword
+2.4272727272727272  | 2024-05-10T00:10:00.000Z | prod            | one
+2.7817047817047817  | 2024-05-10T00:20:00.000Z | prod            | one
+1.9448529411764706  | 2024-05-10T00:30:00.000Z | prod            | one
+2.3398533007334965  | 2024-05-10T00:10:00.000Z | qa              | one
+3.2939778129952457  | 2024-05-10T00:20:00.000Z | qa              | one
+3.1022889842632333  | 2024-05-10T00:30:00.000Z | qa              | one
+3.478021978021978   | 2024-05-10T00:10:00.000Z | staging         | one
+4.186356073211314   | 2024-05-10T00:20:00.000Z | staging         | one
+4.123880597014925   | 2024-05-10T00:30:00.000Z | staging         | one
+;
+
+// group_right(label): copy pod from the one-side LHS while matching on cluster.
+vector_match_group_right_include_label
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m result=(sum by (cluster, pod) (network.eth0.tx{pod="one"}) / on (cluster) group_right (pod) sum by (cluster) (network.eth0.rx))
+| SORT cluster, pod, step;
+
+result:double       | step:datetime            | cluster:keyword | pod:keyword
+0.4225206611570248  | 2024-05-10T00:10:00.000Z | prod            | one
+0.432409381663113   | 2024-05-10T00:20:00.000Z | prod            | one
+0.6302797586396051  | 2024-05-10T00:30:00.000Z | prod            | one
+0.257244534824606   | 2024-05-10T00:10:00.000Z | qa              | one
+0.3660897623936638  | 2024-05-10T00:20:00.000Z | qa              | one
+0.3788086741696404  | 2024-05-10T00:30:00.000Z | qa              | one
+0.25535055350553504 | 2024-05-10T00:10:00.000Z | staging         | one
+0.22213012847078326 | 2024-05-10T00:20:00.000Z | staging         | one
+0.2082437275985663  | 2024-05-10T00:30:00.000Z | staging         | one
+;
+
+// ignoring(...) group_left: many-to-one matching can be requested with ignoring instead of on.
+vector_match_ignoring_group_left
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m ratio=(sum by (cluster, pod) (network.eth0.tx) / ignoring (pod) group_left sum by (cluster) (network.eth0.rx))
+| SORT cluster, pod, step;
+
+ratio:double        | step:datetime            | cluster:keyword | pod:keyword
+0.4225206611570248  | 2024-05-10T00:10:00.000Z | prod            | one
+0.432409381663113   | 2024-05-10T00:20:00.000Z | prod            | one
+0.6302797586396051  | 2024-05-10T00:30:00.000Z | prod            | one
+0.37293388429752067 | 2024-05-10T00:10:00.000Z | prod            | three
+0.3957356076759062  | 2024-05-10T00:20:00.000Z | prod            | three
+0.30785123966942146 | 2024-05-10T00:10:00.000Z | prod            | two
+0.3130063965884861  | 2024-05-10T00:20:00.000Z | prod            | two
+0.5304443225452551  | 2024-05-10T00:30:00.000Z | prod            | two
+0.257244534824606   | 2024-05-10T00:10:00.000Z | qa              | one
+0.3660897623936638  | 2024-05-10T00:20:00.000Z | qa              | one
+0.3788086741696404  | 2024-05-10T00:30:00.000Z | qa              | one
+0.2541942043721403  | 2024-05-10T00:10:00.000Z | qa              | three
+0.35200938691698447 | 2024-05-10T00:20:00.000Z | qa              | three
+0.340653307713423   | 2024-05-10T00:30:00.000Z | qa              | three
+0.4616166751398068  | 2024-05-10T00:10:00.000Z | qa              | two
+0.5013200352009387  | 2024-05-10T00:20:00.000Z | qa              | two
+0.47104035135877026 | 2024-05-10T00:30:00.000Z | qa              | two
+0.25535055350553504 | 2024-05-10T00:10:00.000Z | staging         | one
+0.22213012847078326 | 2024-05-10T00:20:00.000Z | staging         | one
+0.2082437275985663  | 2024-05-10T00:30:00.000Z | staging         | one
+0.33062730627306275 | 2024-05-10T00:10:00.000Z | staging         | three
+0.4728553667633651  | 2024-05-10T00:20:00.000Z | staging         | three
+0.43333333333333335 | 2024-05-10T00:30:00.000Z | staging         | three
+0.34833948339483395 | 2024-05-10T00:10:00.000Z | staging         | two
+0.34769995855781183 | 2024-05-10T00:20:00.000Z | staging         | two
+0.3487455197132617  | 2024-05-10T00:30:00.000Z | staging         | two
+;
+
+// and ignoring(...): set-intersection with an ignoring modifier keeps LHS pod series that match the filtered RHS cluster.
+vector_match_and_ignoring-Ignore
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m result=(sum by (cluster, pod) (network.eth0.tx) and ignoring (pod) sum by (cluster) (network.eth0.rx{cluster="prod"}))
+| SORT cluster, pod, step;
+
+result:double | step:datetime            | cluster:keyword | pod:keyword
+409.0         | 2024-05-10T00:10:00.000Z | prod            | one
+1014.0        | 2024-05-10T00:20:00.000Z | prod            | one
+1149.0        | 2024-05-10T00:30:00.000Z | prod            | one
+361.0         | 2024-05-10T00:10:00.000Z | prod            | three
+928.0         | 2024-05-10T00:20:00.000Z | prod            | three
+298.0         | 2024-05-10T00:10:00.000Z | prod            | two
+734.0         | 2024-05-10T00:20:00.000Z | prod            | two
+967.0         | 2024-05-10T00:30:00.000Z | prod            | two
+;
+
+// Top-level or: set-union keeps LHS values for matching label sets and fills missing clusters from RHS.
+vector_match_or
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+required_capability: promql_set_operator_union
+PROMQL index=k8s step=10m result=(sum by (cluster) (network.eth0.tx{cluster="prod"}) or sum by (cluster) (network.eth0.rx))
+| SORT cluster, step;
+
+result:double | step:datetime            | cluster:keyword
+1068.0        | 2024-05-10T00:10:00.000Z | prod
+2676.0        | 2024-05-10T00:20:00.000Z | prod
+2116.0        | 2024-05-10T00:30:00.000Z | prod
+1967.0        | 2024-05-10T00:10:00.000Z | qa
+3409.0        | 2024-05-10T00:20:00.000Z | qa
+3643.0        | 2024-05-10T00:30:00.000Z | qa
+1355.0        | 2024-05-10T00:10:00.000Z | staging
+2413.0        | 2024-05-10T00:20:00.000Z | staging
+2790.0        | 2024-05-10T00:30:00.000Z | staging
+;
+
+// Filter-mode comparison match as a union branch: LHS keeps tx where tx > rx per (cluster, step); the or fills
+// the filtered-out (cluster, step) pairs from rx.
+vector_match_comparison_filter_in_or
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+required_capability: promql_set_operator_union
+PROMQL index=k8s step=10m result=((sum by (cluster) (network.eth0.tx) > on (cluster) sum by (cluster) (network.eth0.rx)) or sum by (cluster) (network.eth0.rx))
+| SORT cluster, step;
+
+result:double | step:datetime            | cluster:keyword
+1068.0        | 2024-05-10T00:10:00.000Z | prod
+2676.0        | 2024-05-10T00:20:00.000Z | prod
+2116.0        | 2024-05-10T00:30:00.000Z | prod
+1967.0        | 2024-05-10T00:10:00.000Z | qa
+4157.0        | 2024-05-10T00:20:00.000Z | qa
+4337.0        | 2024-05-10T00:30:00.000Z | qa
+1355.0        | 2024-05-10T00:10:00.000Z | staging
+2516.0        | 2024-05-10T00:20:00.000Z | staging
+2790.0        | 2024-05-10T00:30:00.000Z | staging
+;
+
+// A parent aggregate regrouping by a label the match dropped: on(cluster) reduces the join result's label set
+// to {cluster}, so the outer sum by (pod) sees pod as absent and folds everything into a single pod-less group.
+vector_match_parent_groups_by_dropped_label
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m result=(sum by (pod) (sum by (cluster, pod) (network.eth0.tx{cluster="prod", pod="one"}) / on (cluster) sum by (cluster, pod) (network.eth0.rx{cluster="prod", pod="one"})))
+| SORT step;
+
+result:double      | step:datetime            | pod:keyword
+0.9295454545454546 | 2024-05-10T00:10:00.000Z | null
+1.054054054054054  | 2024-05-10T00:20:00.000Z | null
+1.0560661764705883 | 2024-05-10T00:30:00.000Z | null
+;
+
+// A vector-match result composed with an unmatched +: translates as a second join with default matching on the
+// shared (cluster) label set; result = tx/rx + rx per (cluster, step).
+vector_match_composed_with_plain_operand
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m result=((sum by (cluster) (network.eth0.tx) / on (cluster) sum by (cluster) (network.eth0.rx)) + sum by (cluster) (network.eth0.rx))
+| SORT cluster, step;
+
+result:double      | step:datetime            | cluster:keyword
+969.103305785124   | 2024-05-10T00:10:00.000Z | prod
+2346.1411513859275 | 2024-05-10T00:20:00.000Z | prod
+1824.1607240811848 | 2024-05-10T00:30:00.000Z | prod
+1967.9730554143366 | 2024-05-10T00:10:00.000Z | qa
+3410.2194191845115 | 2024-05-10T00:20:00.000Z | qa
+3644.190502333242  | 2024-05-10T00:30:00.000Z | qa
+1355.9343173431735 | 2024-05-10T00:10:00.000Z | staging
+2414.042685453792  | 2024-05-10T00:20:00.000Z | staging
+2790.990322580645  | 2024-05-10T00:30:00.000Z | staging
+;
+
+// topk over a vector match as a union branch: per step the top 2 clusters by tx/rx ratio survive (staging never
+// ranks); the or fills staging from rx.
+vector_match_topk_in_or
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+required_capability: promql_set_operator_union
+PROMQL index=k8s step=10m result=(topk(2, sum by (cluster) (network.eth0.tx) / on (cluster) sum by (cluster) (network.eth0.rx)) or sum by (cluster) (network.eth0.rx))
+| SORT cluster, step;
+
+result:double      | step:datetime            | cluster:keyword
+1.103305785123967  | 2024-05-10T00:10:00.000Z | prod
+1.1411513859275053 | 2024-05-10T00:20:00.000Z | prod
+1.16072408118486   | 2024-05-10T00:30:00.000Z | prod
+0.9730554143365532 | 2024-05-10T00:10:00.000Z | qa
+1.219419184511587  | 2024-05-10T00:20:00.000Z | qa
+1.1905023332418336 | 2024-05-10T00:30:00.000Z | qa
+1355.0             | 2024-05-10T00:10:00.000Z | staging
+2413.0             | 2024-05-10T00:20:00.000Z | staging
+2790.0             | 2024-05-10T00:30:00.000Z | staging
+;
+
+// Focused REST coverage for both successful and failing vector matching queries lives in PromqlVectorMatchingIT.
+
+///////////////////////////////////////////////////////////////////////////////
+// Opaque-operand matrix: vector matching where one or both operands are opaque
+// (a bare selector or a `without` aggregation packs its identity into
+// `_timeseries` with no label columns of its own). The match key labels are
+// demanded from the operand compilations and materialized alongside the packed
+// identity. In this dataset (cluster, pod) uniquely identifies a series, so the
+// raw-selector cases must numerically equal the sum by (cluster, pod) baseline.
+// Per-series values at 2024-05-10T00:10: tx(prod) = one 409, three 361, two 298;
+// rx(prod) = one 440, three 369, two 159.
+///////////////////////////////////////////////////////////////////////////////
+
+// Baseline: concrete/concrete on (cluster, pod).
+vector_match_matrix_concrete_concrete
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m r=(sum by (cluster, pod) (network.eth0.tx) / on (cluster, pod) sum by (cluster, pod) (network.eth0.rx))
+| WHERE cluster == "prod" AND step == "2024-05-10T00:10:00.000Z"
+| KEEP r, cluster, pod, step
+| SORT pod;
+
+r:double           | cluster:keyword | pod:keyword | step:datetime
+0.9295454545454546 | prod            | one         | 2024-05-10T00:10:00.000Z
+0.978319783197832  | prod            | three       | 2024-05-10T00:10:00.000Z
+1.8742138364779874 | prod            | two         | 2024-05-10T00:10:00.000Z
+;
+
+// Opaque/opaque: both keys are materialized from _timeseries, no regrouping.
+vector_match_matrix_opaque_opaque_on-Ignore
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m r=(network.eth0.tx / on (cluster, pod) network.eth0.rx)
+| WHERE cluster == "prod" AND step == "2024-05-10T00:10:00.000Z"
+| KEEP r, cluster, pod, step
+| SORT pod;
+
+r:double           | cluster:keyword | pod:keyword | step:datetime
+0.9295454545454546 | prod            | one         | 2024-05-10T00:10:00.000Z
+0.978319783197832  | prod            | three       | 2024-05-10T00:10:00.000Z
+1.8742138364779874 | prod            | two         | 2024-05-10T00:10:00.000Z
+;
+
+// Opaque/concrete: hidden labels on the LHS become join keys.
+vector_match_matrix_opaque_concrete-Ignore
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m r=(network.eth0.tx / on (cluster, pod) sum by (cluster, pod) (network.eth0.rx))
+| WHERE cluster == "prod" AND step == "2024-05-10T00:10:00.000Z"
+| KEEP r, cluster, pod, step
+| SORT pod;
+
+r:double           | cluster:keyword | pod:keyword | step:datetime
+0.9295454545454546 | prod            | one         | 2024-05-10T00:10:00.000Z
+0.978319783197832  | prod            | three       | 2024-05-10T00:10:00.000Z
+1.8742138364779874 | prod            | two         | 2024-05-10T00:10:00.000Z
+;
+
+// Concrete/opaque: hidden labels on the RHS become join keys.
+vector_match_matrix_concrete_opaque-Ignore
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m r=(sum by (cluster, pod) (network.eth0.tx) / on (cluster, pod) network.eth0.rx)
+| WHERE cluster == "prod" AND step == "2024-05-10T00:10:00.000Z"
+| KEEP r, cluster, pod, step
+| SORT pod;
+
+r:double           | cluster:keyword | pod:keyword | step:datetime
+0.9295454545454546 | prod            | one         | 2024-05-10T00:10:00.000Z
+0.978319783197832  | prod            | three       | 2024-05-10T00:10:00.000Z
+1.8742138364779874 | prod            | two         | 2024-05-10T00:10:00.000Z
+;
+
+// Opaque many / concrete one: the LHS keeps per-series identity; pod survives as
+// an output column materialized from the LHS (the one side has no pod to copy).
+// Same numbers as vector_match_group_left.
+vector_match_matrix_opaque_many_group_left-Ignore
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m r=(network.eth0.tx / on (cluster) group_left (pod) sum by (cluster) (network.eth0.rx))
+| WHERE cluster == "prod" AND step == "2024-05-10T00:10:00.000Z"
+| KEEP r, cluster, pod, step
+| SORT pod;
+
+r:double            | cluster:keyword | pod:keyword | step:datetime
+0.4225206611570248  | prod            | one         | 2024-05-10T00:10:00.000Z
+0.37293388429752067 | prod            | three       | 2024-05-10T00:10:00.000Z
+0.30785123966942146 | prod            | two         | 2024-05-10T00:10:00.000Z
+;
+
+// Concrete one / opaque many: the RHS hidden labels survive through group_right.
+// Same numbers as vector_match_group_right.
+vector_match_matrix_opaque_many_group_right-Ignore
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m r=(sum by (cluster) (network.eth0.tx) / on (cluster) group_right (pod) network.eth0.rx)
+| WHERE cluster == "prod" AND step == "2024-05-10T00:10:00.000Z"
+| KEEP r, cluster, pod, step
+| SORT pod;
+
+r:double           | cluster:keyword | pod:keyword | step:datetime
+2.4272727272727272 | prod            | one         | 2024-05-10T00:10:00.000Z
+2.894308943089431  | prod            | three       | 2024-05-10T00:10:00.000Z
+6.716981132075472  | prod            | two         | 2024-05-10T00:10:00.000Z
+;
+
+// ignoring(...) with an opaque operand: the key set is the labels the operands
+// declare minus the ignored ones - here the concrete RHS defines {cluster} - not
+// a physical-column intersection. Same numbers as vector_match_group_left.
+vector_match_matrix_opaque_ignoring-Ignore
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m r=(network.eth0.tx / ignoring (pod) group_left (pod) sum by (cluster) (network.eth0.rx))
+| WHERE cluster == "prod" AND step == "2024-05-10T00:10:00.000Z"
+| KEEP r, cluster, pod, step
+| SORT pod;
+
+r:double            | cluster:keyword | pod:keyword | step:datetime
+0.4225206611570248  | prod            | one         | 2024-05-10T00:10:00.000Z
+0.37293388429752067 | prod            | three       | 2024-05-10T00:10:00.000Z
+0.30785123966942146 | prod            | two         | 2024-05-10T00:10:00.000Z
+;
+
+// A `without` identity can still expose concrete join labels: without (pod)
+// keeps (cluster, region) packed, and cluster is materialized for the key.
+// Same numbers as vector_match_on_cluster.
+vector_match_matrix_without_identity-Ignore
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m r=(sum without (pod) (network.eth0.tx) / on (cluster) sum by (cluster) (network.eth0.rx))
+| WHERE cluster == "prod" AND step == "2024-05-10T00:10:00.000Z"
+| KEEP r, cluster, step;
+
+r:double          | cluster:keyword | step:datetime
+1.103305785123967 | prod            | 2024-05-10T00:10:00.000Z
+;
+
+// An outer aggregate consumes a joined opaque-lowered table: sum over the nine
+// per-series ratios. ROUND guards against float summation-order jitter.
+vector_match_matrix_nested_join-Ignore
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m r=(sum(network.eth0.tx / on (cluster, pod) network.eth0.rx))
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| EVAL r = ROUND(r, 9)
+| KEEP r, step;
+
+r:double    | step:datetime
+9.698298222 | 2024-05-10T00:10:00.000Z
+;
+
+// The same key lowering works for comparisons: 1.0 where tx > rx per series.
+vector_match_matrix_comparison_bool-Ignore
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m r=(network.eth0.tx > bool on (cluster, pod) network.eth0.rx)
+| WHERE cluster == "prod" AND step == "2024-05-10T00:10:00.000Z"
+| KEEP r, cluster, pod, step
+| SORT pod;
+
+r:double | cluster:keyword | pod:keyword | step:datetime
+0.0      | prod            | one         | 2024-05-10T00:10:00.000Z
+0.0      | prod            | three       | 2024-05-10T00:10:00.000Z
+1.0      | prod            | two         | 2024-05-10T00:10:00.000Z
+;
+
+// The semi-join path uses the same key lowering: every tx series has a matching
+// rx series, so all LHS values survive unchanged.
+vector_match_matrix_and-Ignore
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m r=(network.eth0.tx and on (cluster, pod) network.eth0.rx)
+| WHERE cluster == "prod" AND step == "2024-05-10T00:10:00.000Z"
+| KEEP r, cluster, pod, step
+| SORT pod;
+
+r:double | cluster:keyword | pod:keyword | step:datetime
+409.0    | prod            | one         | 2024-05-10T00:10:00.000Z
+361.0    | prod            | three       | 2024-05-10T00:10:00.000Z
+298.0    | prod            | two         | 2024-05-10T00:10:00.000Z
+;
+
+///////////////////////////////////////////////////////////////////////////////
+// Nested vector matches: a matched binary operator as an operand of another
+// operator (another match, an aggregation, a function, a set operator). The
+// join's output header must compose like any other subtree: its labels feed the
+// parent's keys and demand pushes down through it.
+///////////////////////////////////////////////////////////////////////////////
+
+// The LHS of the outer on(cluster) match is itself an on(cluster) match:
+// result = (tx - rx) / rx per (cluster, step).
+vector_match_nested_join_operand
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m result=((sum by (cluster) (network.eth0.tx) - on (cluster) sum by (cluster) (network.eth0.rx)) / on (cluster) sum by (cluster) (network.eth0.rx))
+| SORT cluster, step;
+
+result:double         | step:datetime            | cluster:keyword
+0.10330578512396695   | 2024-05-10T00:10:00.000Z | prod
+0.14115138592750534   | 2024-05-10T00:20:00.000Z | prod
+0.16072408118486012   | 2024-05-10T00:30:00.000Z | prod
+-0.026944585663446874 | 2024-05-10T00:10:00.000Z | qa
+0.21941918451158698   | 2024-05-10T00:20:00.000Z | qa
+0.19050233324183366   | 2024-05-10T00:30:00.000Z | qa
+-0.06568265682656826  | 2024-05-10T00:10:00.000Z | staging
+0.04268545379196022   | 2024-05-10T00:20:00.000Z | staging
+-0.00967741935483871  | 2024-05-10T00:30:00.000Z | staging
+;
+
+// Both operands of the outer match are themselves matches:
+// result = (tx + rx) / (tx - rx) per (cluster, step).
+vector_match_nested_join_both_operands
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m result=((sum by (cluster) (network.eth0.tx) + on (cluster) sum by (cluster) (network.eth0.rx)) / on (cluster) (sum by (cluster) (network.eth0.tx) - on (cluster) sum by (cluster) (network.eth0.rx)))
+| SORT cluster, step;
+
+result:double       | step:datetime            | cluster:keyword
+20.36               | 2024-05-10T00:10:00.000Z | prod
+15.169184290030211  | 2024-05-10T00:20:00.000Z | prod
+13.443686006825939  | 2024-05-10T00:30:00.000Z | prod
+-73.22641509433963  | 2024-05-10T00:10:00.000Z | qa
+10.114973262032086  | 2024-05-10T00:20:00.000Z | qa
+11.498559077809798  | 2024-05-10T00:30:00.000Z | qa
+-29.44943820224719  | 2024-05-10T00:10:00.000Z | staging
+47.85436893203884   | 2024-05-10T00:20:00.000Z | staging
+-205.66666666666666 | 2024-05-10T00:30:00.000Z | staging
+;
+
+// The RHS of the outer match is itself a match: result = tx / (tx + rx) per
+// (cluster, step).
+vector_match_nested_join_rhs_operand
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m result=(sum by (cluster) (network.eth0.tx) / on (cluster) (sum by (cluster) (network.eth0.tx) + on (cluster) sum by (cluster) (network.eth0.rx)))
+| SORT cluster, step;
+
+result:double       | step:datetime            | cluster:keyword
+0.5245579567779961  | 2024-05-10T00:10:00.000Z | prod
+0.5329615614419438  | 2024-05-10T00:20:00.000Z | prod
+0.5371921807565372  | 2024-05-10T00:30:00.000Z | prod
+0.49317186292192733 | 2024-05-10T00:10:00.000Z | qa
+0.5494316679883691  | 2024-05-10T00:20:00.000Z | qa
+0.5434837092731829  | 2024-05-10T00:30:00.000Z | qa
+0.4830217474246471  | 2024-05-10T00:10:00.000Z | staging
+0.5104483668086833  | 2024-05-10T00:20:00.000Z | staging
+0.49756888168557534 | 2024-05-10T00:30:00.000Z | staging
+;
+
+// Different keys per nesting level: the inner match is per (cluster, pod), the
+// outer group_left broadcasts a per-cluster vector over the inner result's pods.
+// result = (tx_pod / rx_pod) * rx_cluster.
+vector_match_nested_join_mixed_keys
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m r=((sum by (cluster, pod) (network.eth0.tx) / on (cluster, pod) sum by (cluster, pod) (network.eth0.rx)) * on (cluster) group_left sum by (cluster) (network.eth0.rx))
+| WHERE cluster == "prod" AND step == "2024-05-10T00:10:00.000Z"
+| KEEP r, cluster, pod, step
+| SORT pod;
+
+r:double           | cluster:keyword | pod:keyword | step:datetime
+899.8000000000001  | prod            | one         | 2024-05-10T00:10:00.000Z
+947.0135501355013  | prod            | three       | 2024-05-10T00:10:00.000Z
+1814.2389937106918 | prod            | two         | 2024-05-10T00:10:00.000Z
+;
+
+// A bool comparison between two nested matches: tx/rx > rx/tx iff tx > rx.
+vector_match_nested_join_comparison
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m result=((sum by (cluster) (network.eth0.tx) / on (cluster) sum by (cluster) (network.eth0.rx)) > bool on (cluster) (sum by (cluster) (network.eth0.rx) / on (cluster) sum by (cluster) (network.eth0.tx)))
+| SORT cluster, step;
+
+result:double | step:datetime            | cluster:keyword
+1.0           | 2024-05-10T00:10:00.000Z | prod
+1.0           | 2024-05-10T00:20:00.000Z | prod
+1.0           | 2024-05-10T00:30:00.000Z | prod
+0.0           | 2024-05-10T00:10:00.000Z | qa
+1.0           | 2024-05-10T00:20:00.000Z | qa
+1.0           | 2024-05-10T00:30:00.000Z | qa
+0.0           | 2024-05-10T00:10:00.000Z | staging
+1.0           | 2024-05-10T00:20:00.000Z | staging
+0.0           | 2024-05-10T00:30:00.000Z | staging
+;
+
+// A group_left match as an operand of an on(cluster, pod) match: the pod label
+// the inner join carried from its many side keys the outer join.
+// result = (tx_pod / rx_cluster) * rx_pod.
+vector_match_nested_group_left_in_join
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m r=((sum by (cluster, pod) (network.eth0.tx) / on (cluster) group_left sum by (cluster) (network.eth0.rx)) * on (cluster, pod) sum by (cluster, pod) (network.eth0.rx))
+| WHERE cluster == "prod" AND step == "2024-05-10T00:10:00.000Z"
+| KEEP r, cluster, pod, step
+| SORT pod;
+
+r:double           | cluster:keyword | pod:keyword | step:datetime
+185.9090909090909  | prod            | one         | 2024-05-10T00:10:00.000Z
+137.61260330578511 | prod            | three       | 2024-05-10T00:10:00.000Z
+48.94834710743801  | prod            | two         | 2024-05-10T00:10:00.000Z
+;
+
+// A by(cluster) aggregation regroups a group_left match: summing the per-pod
+// ratios over each cluster gives back tx_cluster / rx_cluster. ROUND guards
+// against float summation-order jitter.
+vector_match_nested_sum_by
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m r=(sum by (cluster) (sum by (cluster, pod) (network.eth0.tx) / on (cluster) group_left sum by (cluster) (network.eth0.rx)))
+| EVAL r = ROUND(r, 9)
+| KEEP r, step, cluster
+| SORT cluster, step;
+
+r:double    | step:datetime            | cluster:keyword
+1.103305785 | 2024-05-10T00:10:00.000Z | prod
+1.141151386 | 2024-05-10T00:20:00.000Z | prod
+1.160724081 | 2024-05-10T00:30:00.000Z | prod
+0.973055414 | 2024-05-10T00:10:00.000Z | qa
+1.219419185 | 2024-05-10T00:20:00.000Z | qa
+1.190502333 | 2024-05-10T00:30:00.000Z | qa
+0.934317343 | 2024-05-10T00:10:00.000Z | staging
+1.042685454 | 2024-05-10T00:20:00.000Z | staging
+0.990322581 | 2024-05-10T00:30:00.000Z | staging
+;
+
+// A function call over a match: ceil(tx / rx) per (cluster, step).
+vector_match_nested_function
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m result=(ceil(sum by (cluster) (network.eth0.tx) / on (cluster) sum by (cluster) (network.eth0.rx)))
+| SORT cluster, step;
+
+result:double | step:datetime            | cluster:keyword
+2.0           | 2024-05-10T00:10:00.000Z | prod
+2.0           | 2024-05-10T00:20:00.000Z | prod
+2.0           | 2024-05-10T00:30:00.000Z | prod
+1.0           | 2024-05-10T00:10:00.000Z | qa
+2.0           | 2024-05-10T00:20:00.000Z | qa
+2.0           | 2024-05-10T00:30:00.000Z | qa
+1.0           | 2024-05-10T00:10:00.000Z | staging
+2.0           | 2024-05-10T00:20:00.000Z | staging
+1.0           | 2024-05-10T00:30:00.000Z | staging
+;
+
+// A match nested under a set operator: `and` keeps the ratio rows whose cluster
+// also has a prod-filtered rx series, i.e. only prod's ratios.
+vector_match_nested_join_in_and-Ignore
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m result=((sum by (cluster) (network.eth0.tx) / on (cluster) sum by (cluster) (network.eth0.rx)) and on (cluster) sum by (cluster) (network.eth0.rx{cluster="prod"}))
+| SORT cluster, step;
+
+result:double      | step:datetime            | cluster:keyword
+1.103305785123967  | 2024-05-10T00:10:00.000Z | prod
+1.1411513859275053 | 2024-05-10T00:20:00.000Z | prod
+1.16072408118486   | 2024-05-10T00:30:00.000Z | prod
+;
+
+// Labels are a set in PromQL: the match key packs both sides' label values in one shared order, so the order in which
+// each operand lists its grouping labels does not matter. Same result as vector_match_on_two_labels.
+vector_match_ignoring_empty_by_order_swapped
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m result=(sum by (cluster, pod) (network.eth0.tx) / ignoring () sum by (pod, cluster) (network.eth0.rx))
+| SORT cluster, pod, step;
+
+result:double      | step:datetime            | cluster:keyword | pod:keyword
+0.9295454545454546 | 2024-05-10T00:10:00.000Z | prod            | one
+1.054054054054054  | 2024-05-10T00:20:00.000Z | prod            | one
+1.0560661764705883 | 2024-05-10T00:30:00.000Z | prod            | one
+0.978319783197832  | 2024-05-10T00:10:00.000Z | prod            | three
+1.1571072319201996 | 2024-05-10T00:20:00.000Z | prod            | three
+1.8742138364779874 | 2024-05-10T00:10:00.000Z | prod            | two
+1.2633390705679863 | 2024-05-10T00:20:00.000Z | prod            | two
+1.3156462585034014 | 2024-05-10T00:30:00.000Z | prod            | two
+0.6185819070904646 | 2024-05-10T00:10:00.000Z | qa              | one
+0.9889064976228209 | 2024-05-10T00:20:00.000Z | qa              | one
+0.9871244635193133 | 2024-05-10T00:30:00.000Z | qa              | one
+0.945179584120983  | 2024-05-10T00:10:00.000Z | qa              | three
+1.1121408711770158 | 2024-05-10T00:20:00.000Z | qa              | three
+1.1240942028985508 | 2024-05-10T00:30:00.000Z | qa              | three
+1.4645161290322581 | 2024-05-10T00:10:00.000Z | qa              | two
+1.600187265917603  | 2024-05-10T00:20:00.000Z | qa              | two
+1.5039439088518842 | 2024-05-10T00:30:00.000Z | qa              | two
+0.9505494505494505 | 2024-05-10T00:10:00.000Z | staging         | one
+0.891846921797005  | 2024-05-10T00:20:00.000Z | staging         | one
+0.8671641791044776 | 2024-05-10T00:30:00.000Z | staging         | one
+1.1546391752577319 | 2024-05-10T00:10:00.000Z | staging         | three
+1.232181425485961  | 2024-05-10T00:20:00.000Z | staging         | three
+1.0775401069518717 | 2024-05-10T00:30:00.000Z | staging         | three
+0.7827529021558872 | 2024-05-10T00:10:00.000Z | staging         | two
+0.9469525959367946 | 2024-05-10T00:20:00.000Z | staging         | two
+0.9749498997995992 | 2024-05-10T00:30:00.000Z | staging         | two
+;
+
+// The same through default matching, which folds both operands into one shared aggregate.
+vector_match_default_by_order_swapped
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m result=(sum by (cluster, pod) (network.eth0.tx) / sum by (pod, cluster) (network.eth0.rx))
+| SORT cluster, pod, step;
+
+result:double      | step:datetime            | cluster:keyword | pod:keyword
+0.9295454545454546 | 2024-05-10T00:10:00.000Z | prod            | one
+1.054054054054054  | 2024-05-10T00:20:00.000Z | prod            | one
+1.0560661764705883 | 2024-05-10T00:30:00.000Z | prod            | one
+0.978319783197832  | 2024-05-10T00:10:00.000Z | prod            | three
+1.1571072319201996 | 2024-05-10T00:20:00.000Z | prod            | three
+1.8742138364779874 | 2024-05-10T00:10:00.000Z | prod            | two
+1.2633390705679863 | 2024-05-10T00:20:00.000Z | prod            | two
+1.3156462585034014 | 2024-05-10T00:30:00.000Z | prod            | two
+0.6185819070904646 | 2024-05-10T00:10:00.000Z | qa              | one
+0.9889064976228209 | 2024-05-10T00:20:00.000Z | qa              | one
+0.9871244635193133 | 2024-05-10T00:30:00.000Z | qa              | one
+0.945179584120983  | 2024-05-10T00:10:00.000Z | qa              | three
+1.1121408711770158 | 2024-05-10T00:20:00.000Z | qa              | three
+1.1240942028985508 | 2024-05-10T00:30:00.000Z | qa              | three
+1.4645161290322581 | 2024-05-10T00:10:00.000Z | qa              | two
+1.600187265917603  | 2024-05-10T00:20:00.000Z | qa              | two
+1.5039439088518842 | 2024-05-10T00:30:00.000Z | qa              | two
+0.9505494505494505 | 2024-05-10T00:10:00.000Z | staging         | one
+0.891846921797005  | 2024-05-10T00:20:00.000Z | staging         | one
+0.8671641791044776 | 2024-05-10T00:30:00.000Z | staging         | one
+1.1546391752577319 | 2024-05-10T00:10:00.000Z | staging         | three
+1.232181425485961  | 2024-05-10T00:20:00.000Z | staging         | three
+1.0775401069518717 | 2024-05-10T00:30:00.000Z | staging         | three
+0.7827529021558872 | 2024-05-10T00:10:00.000Z | staging         | two
+0.9469525959367946 | 2024-05-10T00:20:00.000Z | staging         | two
+0.9749498997995992 | 2024-05-10T00:30:00.000Z | staging         | two
+;
+
+// Default matching between operands over different label sets. A Prometheus signature has no entry for an absent
+// label, so a (cluster) series and a (pod) series never share one: the result is the empty vector, and like every
+// one-to-one match it carries the left operand's labels.
+vector_match_default_mismatched_label_sets_is_empty
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m result=(sum by (cluster) (network.eth0.tx) + sum by (pod) (network.eth0.rx))
+| SORT cluster, step;
+
+result:double | step:datetime | cluster:keyword
+;

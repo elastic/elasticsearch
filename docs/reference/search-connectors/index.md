@@ -25,12 +25,12 @@ These connectors are written in Python and the source code is available in the [
 
 ## Setup modes [setup-modes]
 
-You can set up content connectors in two ways. The availability of each setup mode is indicated on the interface of your {{kib}} **Content connectors** page. 
+You can set up content connectors in two ways. The availability of each setup mode is indicated on the interface of your {{kib}} **Content connectors** page.
 
 | | **[Self-managed](self-managed-connectors.md)** | **Elastic managed** |
 |---|---|---|
 | **Infrastructure** | You deploy the connector service | Elastic hosts it for you |
-| **Availability** | Any Elastic environment | {{ecloud}} only ({{ech}}/Serverless), for {{product.observability}} and [{{product.security}}](docs-content://solutions/security/get-started/content-connectors.md) |
+| **Availability** | Any Elastic environment, including {{es-serverless}} | {{ecloud}} only, where the option is enabled on the **Content connectors** page (for example, for {{product.observability}} and [{{product.security}}](docs-content://solutions/security/get-started/content-connectors.md)) |
 | **Can send data to** | Any {{es}} instance | Deployment or project the connector is deployed within only |
 | **Customization** | Supported | Not supported |
 
@@ -56,6 +56,7 @@ The columns provide specific information about each connector:
 | [Confluence Data Center](/reference/search-connectors/es-connectors-confluence.md) | **Preview** | 8.13+ | 8.13+ | 8.13+ | 8.14+ | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/atlassian/confluence)                              |
 | [Confluence Server](/reference/search-connectors/es-connectors-confluence.md)| **GA** | 8.9+ | 8.11+ | 8.13+ | 8.14+ | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/atlassian/confluence)                              |
 | [Dropbox](/reference/search-connectors/es-connectors-dropbox.md)| **GA** | - | 8.11+ | 8.13+ | 8.12+ | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/dropbox)                                 |
+| [Exchange Server](/reference/search-connectors/es-connectors-exchange-server.md)| **GA** | - | 9.6+ | 9.6+ | 9.6+ | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/exchange_server)                        |
 | [GitHub](/reference/search-connectors/es-connectors-github.md)| **GA** | 8.10+ | 8.11+ | 8.13+ | 8.12+ | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/github)                                  |
 | [Gmail](/reference/search-connectors/es-connectors-gmail.md)| **GA** | - | - | 8.13+ | 8.10+ | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/gmail)                                   |
 | [Google Cloud Storage](/reference/search-connectors/es-connectors-google-cloud.md)| **GA** | - | 8.11+ | 8.13+ | - | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/google_cloud_storage)                    |
@@ -80,7 +81,7 @@ The columns provide specific information about each connector:
 | [Sharepoint Online](/reference/search-connectors/es-connectors-sharepoint-online.md)| **GA** | 8.9+ | 8.9+ | 8.9+ | 8.9+ | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/sharepoint/sharepoint_online)                       |
 | [Sharepoint Server](/reference/search-connectors/es-connectors-sharepoint.md)| **Beta** | - | 8.11+ | 8.13+ | 8.15+ | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/sharepoint/sharepoint_server)                       |
 | [Slack](/reference/search-connectors/es-connectors-slack.md)| **Preview** | - | - | - | - | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/slack)                                   |
-| [Teams](/reference/search-connectors/es-connectors-teams.md)| **Preview** | - | - | 8.13+ | - | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/microsoft_teams)                                   |
+| [Teams](/reference/search-connectors/es-connectors-teams.md)| **Preview** | - | 9.6+ | - | 9.6+ | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/microsoft_teams)                                   |
 | [Zoom](/reference/search-connectors/es-connectors-zoom.md)| **Preview** | - | 8.11+ | 8.13+ | - | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/zoom)                                    |
 
 :::{tip}

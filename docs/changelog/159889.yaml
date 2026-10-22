@@ -1,0 +1,6 @@
+area: ES|QL
+issues: []
+pr: 159889
+summary: "[ESQLDS] Fix wrong SORT+LIMIT rows for INT32 decimal/date/uint32 declared\
+  \ integer"
+type: bug

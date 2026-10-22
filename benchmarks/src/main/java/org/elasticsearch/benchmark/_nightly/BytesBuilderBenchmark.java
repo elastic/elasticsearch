@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.benchmark.ExtraParam;
 import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -88,7 +89,7 @@ public class BytesBuilderBenchmark {
     private static final VarHandle INT_BIG_ENDIAN = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
         if (false == "true".equals(System.getProperty("skipSelfTest"))) {
             // Smoke test all the expected values and force loading subclasses more like prod.
             // Confusingly, this makes the test *faster* in some cases and *slower* in others.
@@ -117,7 +118,7 @@ public class BytesBuilderBenchmark {
     @Setup
     public void setup() throws Exception {
         Data data = Data.build(this.data);
-        NoopCircuitBreaker breaker = new NoopCircuitBreaker("benchmark");
+        NoopCircuitBreaker breaker = NoopCircuitBreaker.INSTANCE;
         int byteSize = (int) data.expectedLength();
         selected = switch (impl) {
             case "paged" -> new Paged(PageCacheRecycler.NON_RECYCLING_INSTANCE, breaker, byteSize);

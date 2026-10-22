@@ -18,10 +18,6 @@ public class QlClientException extends QlException {
         super(message, args);
     }
 
-    protected QlClientException(String message, Throwable cause, boolean enableSuppression, boolean writableStackTrace) {
-        super(message, cause, enableSuppression, writableStackTrace);
-    }
-
     protected QlClientException(String message, Throwable cause) {
         super(message, cause);
     }

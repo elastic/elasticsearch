@@ -18,6 +18,7 @@ import org.junit.Before;
 
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -109,9 +110,12 @@ public class LinearScoreEvalOperatorTests extends FuseOperatorTestCase {
             assertThat(scores.isNull(0), equalTo(true));   // multivalued score -> null score
             assertThat(scores.isNull(1), equalTo(false));  // ordinary rows keep a score
             assertThat(scores.isNull(2), equalTo(false));
-            assertWarnings(
-                "Line 1:1: evaluation of [null] failed, treating result as null. Only first 20 failures recorded.",
-                "Line 1:1: java.lang.IllegalArgumentException: score column contains multivalued entries; assigning null scores"
+            assertThat(
+                collectWarnings(ctx),
+                containsInAnyOrder(
+                    "Line 1:1: evaluation of [null] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line 1:1: java.lang.IllegalArgumentException: score column contains multivalued entries; assigning null scores"
+                )
             );
         } finally {
             output.forEach(Page::releaseBlocks);

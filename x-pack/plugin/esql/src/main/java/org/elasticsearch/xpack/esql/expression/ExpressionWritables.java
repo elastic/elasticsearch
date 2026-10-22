@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetim
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDoubleRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToExponentialHistogram;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoint;
@@ -94,6 +95,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplif
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopology;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSymDifference;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StUnion;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StUnionUnary;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StX;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StXMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StXMin;
@@ -256,6 +258,7 @@ public class ExpressionWritables {
         entries.add(ToDateNanos.ENTRY);
         entries.add(ToDateRange.ENTRY);
         entries.add(ToDegrees.ENTRY);
+        entries.add(ToDoubleRange.ENTRY);
         entries.add(ToDenseVector.ENTRY);
         entries.add(ToDouble.ENTRY);
         entries.add(ToExponentialHistogram.ENTRY);
@@ -309,7 +312,8 @@ public class ExpressionWritables {
             StSimplify.ENTRY,
             StSimplifyPreserveTopology.ENTRY,
             StSymDifference.ENTRY,
-            StUnion.ENTRY
+            StUnion.ENTRY,
+            StUnionUnary.ENTRY
         );
     }
 

@@ -18,16 +18,22 @@ import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -81,6 +87,45 @@ public abstract class HeapAttackRestHelpers extends ESRestTestCase {
             }
         }
         fail("giving up circuit breaking after " + MAX_ATTEMPTS + " attempts");
+    }
+
+    /**
+     * Like {@link #assertCircuitBreaks(TryCircuitBreaking)} but also accepts a 400 whose reason is a
+     * cancelled whole-file decompress ({@code Truncated zstd input} / gzip EOF). STATS-BY blows the
+     * request breaker while the source is still in {@code PanamaZstdInputStream}; aborting the S3 GET
+     * mid-frame is reported as malformed data, not 429. The node staying up is the heap-attack
+     * invariant; {@code ConnectionClosedException} still fails the test.
+     */
+    protected void assertCircuitBreaksAllowingCancelledDecompress(TryCircuitBreaking tryBreaking) throws IOException {
+        int attempt = 1;
+        while (attempt <= MAX_ATTEMPTS) {
+            try {
+                Map<String, Object> response = tryBreaking.attempt(attempt);
+                logger.warn("{}: should have circuit broken but got {}", attempt, response);
+                attempt++;
+            } catch (ResponseException e) {
+                Map<?, ?> map = responseAsMap(e.getResponse());
+                if (isCancelledDecompress(map)) {
+                    logger.info("{}: query failed via cancelled decompress (node alive): {}", attempt, map.get("error"));
+                    return;
+                }
+                assertMap(
+                    map,
+                    matchesMap().entry("status", 429).entry("error", matchesMap().extraOk().entry("type", "circuit_breaking_exception"))
+                );
+                return;
+            }
+        }
+        fail("giving up circuit breaking after " + MAX_ATTEMPTS + " attempts");
+    }
+
+    static boolean isCancelledDecompress(Map<?, ?> map) {
+        if (map.get("error") instanceof Map<?, ?> error
+            && "external_client_exception".equals(error.get("type"))
+            && error.get("reason") instanceof String reason) {
+            return reason.contains("Truncated zstd") || reason.contains("Truncated gzip") || reason.contains("Unexpected end of ZLIB");
+        }
+        return false;
     }
 
     /**
@@ -228,6 +273,57 @@ public abstract class HeapAttackRestHelpers extends ESRestTestCase {
             "{\"persistent\": {\"indices.breaker.request.limit\": " + (limit == null ? "null" : "\"" + limit + "\"") + "}}"
         );
         adminClient().performRequest(request);
+    }
+
+    protected record StreamSummary(
+        List<Map<String, Object>> columns,
+        long rowCount,
+        Map<String, Object> footer,
+        List<Map<String, Object>> errors
+    ) {}
+
+    @SuppressWarnings("unchecked")
+    protected StreamSummary streamQuery(String esqlQuery, int batchSize) throws IOException {
+        Request request = new Request("POST", "/_query");
+        request.addParameter("streaming", "true");
+        request.addParameter("format", "ndjson");
+        request.addParameter("batch_size", Integer.toString(batchSize));
+        request.addParameter("error_trace", "");
+        String body = "{\"query\":\"" + esqlQuery.replace("\n", "\\n") + "\"}";
+        request.setJsonEntity(body);
+        request.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .setRequestConfig(RequestConfig.custom().setSocketTimeout(Math.toIntExact(TimeValue.timeValueMinutes(6).millis())).build())
+                .setWarningsHandler(WarningsHandler.PERMISSIVE)
+        );
+        logger.info("Running streaming query: {}", esqlQuery);
+        Response response = runQuery(() -> client().performRequest(request));
+
+        List<Map<String, Object>> columns = null;
+        long rowCount = 0L;
+        Map<String, Object> footer = null;
+        List<Map<String, Object>> errors = new ArrayList<>();
+
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (line.isBlank()) {
+                    continue;
+                }
+                Map<String, Object> parsed = XContentHelper.convertToMap(XContentType.JSON.xContent(), line, false);
+                if (parsed.containsKey("error")) {
+                    errors.add(parsed);
+                }
+                if (parsed.containsKey("columns")) {
+                    columns = (List<Map<String, Object>>) parsed.get("columns");
+                } else if (parsed.containsKey("values")) {
+                    rowCount += ((List<List<Object>>) parsed.get("values")).size();
+                } else if (parsed.containsKey("took")) {
+                    footer = parsed;
+                }
+            }
+        }
+        return new StreamSummary(columns, rowCount, footer, errors);
     }
 
     protected static boolean isServerless() throws IOException {

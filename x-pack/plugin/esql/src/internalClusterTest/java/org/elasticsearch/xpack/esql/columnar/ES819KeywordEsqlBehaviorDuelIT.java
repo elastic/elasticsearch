@@ -1,0 +1,141 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.columnar;
+
+import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.test.codec.columnar.BehaviorDuelHarness;
+import org.elasticsearch.test.codec.columnar.BehaviorWritePlan;
+import org.elasticsearch.test.codec.columnar.DuelField;
+import org.elasticsearch.test.codec.columnar.DuelIndexAccess;
+import org.elasticsearch.test.codec.columnar.DuelIndexConfig;
+import org.elasticsearch.test.codec.columnar.DuelScenario;
+import org.elasticsearch.test.codec.columnar.KeywordScenarios;
+import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+
+import java.util.List;
+import java.util.Random;
+import java.util.Set;
+
+/**
+ * ES|QL keyword behavior duel of a columnar-mode index created just before the ColumNAR codec (the ES819 tsdb
+ * doc-values format, {@code ES819Version3TSDBDocValuesFormat}) against a ColumNAR contender. Both indices use the
+ * same strict columnar index mode and differ only in the keyword doc-values format, so the duel isolates the
+ * codec substitution as the single variable and compares API-visible ES|QL
+ * behavior, not doc-values bytes. It runs every named corpus scenario through the shared
+ * {@link BehaviorDuelHarness}. Query pragmas are pinned so both indices run under identical execution, and only
+ * result rows are compared, never ES|QL warnings.
+ */
+// Force the production per-field codec so the contender's keyword field is actually encoded by ColumNAR.
+// Without this, ESIntegTestCase sets index.codec=lucene_default, which bypasses the ColumNAR per-field
+// routing, leaving the duel with nothing to compare.
+@SuppressCodecs("*")
+public class ES819KeywordEsqlBehaviorDuelIT extends AbstractEsqlIntegTestCase {
+
+    private static final String KEYWORD_FIELD = "kw";
+    private static final String DUEL_NAME = "es819_vs_columnar_esql";
+
+    @Override
+    protected boolean forbidPrivateIndexSettings() {
+        // Need to set IndexVersion of baseline ES819 index.
+        return false;
+    }
+
+    @Override
+    protected Settings.Builder setRandomIndexSettings(final Random random, final Settings.Builder builder) {
+        // Columnar modes require DOC_VALUES_ONLY for seq_no; remove the randomly chosen value so it does not
+        // conflict with the mode's seq_no default.
+        return super.setRandomIndexSettings(random, builder).remove(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey());
+    }
+
+    @Override
+    protected QueryPragmas getPragmas() {
+        // Pin execution so the baseline and contender indices are compared under identical strategy.
+        return QueryPragmas.EMPTY;
+    }
+
+    public void testSingleDense() {
+        runDuel(KeywordScenarios.singleDense());
+    }
+
+    public void testSingleSparse() {
+        runDuel(KeywordScenarios.singleSparse());
+    }
+
+    public void testMultiDense() {
+        runDuel(KeywordScenarios.multiDense());
+    }
+
+    public void testMultiSparse() {
+        runDuel(KeywordScenarios.multiSparse());
+    }
+
+    public void testNulls() {
+        runDuel(KeywordScenarios.nulls());
+    }
+
+    public void testEmptyArrays() {
+        runDuel(KeywordScenarios.emptyArrays());
+    }
+
+    public void testDuplicates() {
+        runDuel(KeywordScenarios.duplicates());
+    }
+
+    public void testHighCardinality() {
+        runDuel(KeywordScenarios.highCardinality());
+    }
+
+    public void testUnicode() {
+        runDuel(KeywordScenarios.unicode());
+    }
+
+    public void testLongValues() {
+        runDuel(KeywordScenarios.longValues());
+    }
+
+    public void testRandomizedMixed() {
+        runDuel(KeywordScenarios.randomizedMixed());
+    }
+
+    public void testEmptyStrings() {
+        runDuel(KeywordScenarios.emptyStrings());
+    }
+
+    public void testLargeCorpus() {
+        runDuel(KeywordScenarios.largeCorpus());
+    }
+
+    public void testSingleValued() {
+        runDuel(KeywordScenarios.singleValued());
+    }
+
+    private void runDuel(final DuelScenario scenario) {
+        final BehaviorDuelHarness harness = new BehaviorDuelHarness(client(), this::indexSettings, this::docValuesFormats);
+        harness.run(
+            DUEL_NAME,
+            scenario,
+            BehaviorWritePlan.random(),
+            DuelIndexConfig.es819("kw_baseline", IndexMode.COLUMNAR),
+            DuelIndexConfig.columnar("kw_contender", IndexMode.COLUMNAR),
+            List.of(DuelField.keyword(KEYWORD_FIELD, EsqlKeywordChecks.all()))
+        );
+    }
+
+    private IndexSettings indexSettings(final String indexName) {
+        return DuelIndexAccess.indexSettings(internalCluster(), resolveIndex(indexName));
+    }
+
+    private Set<String> docValuesFormats(final String indexName, final String field) {
+        indicesAdmin().prepareRefresh(indexName).get();
+        return DuelIndexAccess.docValuesFormats(internalCluster(), resolveIndex(indexName), field);
+    }
+}

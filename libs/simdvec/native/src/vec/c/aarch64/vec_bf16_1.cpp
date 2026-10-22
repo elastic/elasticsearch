@@ -20,8 +20,23 @@ static inline float32x4_t bf16_to_f32(uint16x4_t bf16) {
     return vreinterpretq_f32_u32(vshll_n_u16(bf16, 16));
 }
 
+// Widening bf16 to f32 puts the 16 bits into the upper half of each lane. Interleaving with a zero vector
+// does exactly that on the permute pipes, which on Neoverse V2 run twice as wide as the shift pipes SHLL
+// uses, and lets one 128-bit load feed two f32 vectors.
+static inline float32x4_t bf16_low_to_f32(uint16x8_t bf16) {
+    return vreinterpretq_f32_u16(vzip1q_u16(vdupq_n_u16(0), bf16));
+}
+
+static inline float32x4_t bf16_high_to_f32(uint16x8_t bf16) {
+    return vreinterpretq_f32_u16(vzip2q_u16(vdupq_n_u16(0), bf16));
+}
+
 static inline float32x4_t load_bf16(const bf16_t* ptr, int elements) {
     return bf16_to_f32(vld1_u16((const uint16_t*)(ptr + elements)));
+}
+
+static inline uint16x8_t load_bf16x8(const bf16_t* ptr, int elements) {
+    return vld1q_u16((const uint16_t*)(ptr + elements));
 }
 
 static inline float32x4_t load_f32(const f32_t* ptr, int elements) {
@@ -43,12 +58,15 @@ static inline f32_t bf16_inner(const bf16_t* d, const TQuery* q, const int32_t e
     });
 
     int i = 0;
-    // each value has <elements> floats, and we iterate over <stride> floats at a time
+    // each accumulator covers <elements> consecutive values of a step; one 128-bit load holds the values
+    // of two adjacent accumulators, and we iterate over <stride> values at a time
     constexpr int elements = sizeof(uint16x4_t) / sizeof(bf16_t);
     constexpr int stride = sizeof(uint16x4_t) / sizeof(bf16_t) * batches;
     for (; i < (elementCount & ~(stride - 1)); i += stride) {
-        apply_indexed<batches>([&](auto I) {
-            sums[I] = vector_op(sums[I], load_bf16(d, i + I * elements), load_q(q, i + I * elements));
+        apply_indexed<batches / 2>([&](auto J) {
+            const uint16x8_t dv = load_bf16x8(d, i + 2 * J * elements);
+            sums[2 * J] = vector_op(sums[2 * J], bf16_low_to_f32(dv), load_q(q, i + 2 * J * elements));
+            sums[2 * J + 1] = vector_op(sums[2 * J + 1], bf16_high_to_f32(dv), load_q(q, i + (2 * J + 1) * elements));
         });
     }
 
@@ -85,7 +103,8 @@ template <
     float32x4_t(*inner_op)(const float32x4_t, const float32x4_t, const float32x4_t),
     f32_t(*scalar_op)(const bf16_t, const TQuery),
     f32_t(*bulk_tail)(const bf16_t*, const TQuery*, const int32_t),
-    int batches = 8
+    int batches = 8,
+    int32_t(*out_mapper)(const int32_t*, const int32_t) = compact_output
 >
 static inline void bf16_bulk_inner(
     const TData* a,
@@ -109,13 +128,27 @@ static inline void bf16_bulk_inner(
         });
 
         int32_t i = 0;
-        // do <batches> vectors at a time, iterating through the dimensions in parallel
-        constexpr int stride = sizeof(uint16x4_t) / sizeof(bf16_t);
+        // do <batches> vectors at a time, iterating through the dimensions in parallel: one 128-bit load per
+        // vector widens into two f32 vectors that are accumulated in dimension order, so the per-lane sums
+        // are the same as with one 64-bit load per step
+        constexpr int elements = sizeof(uint16x4_t) / sizeof(bf16_t);
+        constexpr int stride = sizeof(uint16x8_t) / sizeof(bf16_t);
         for (; i < (dims & ~(stride - 1)); i += stride) {
+            float32x4_t bi_low = load_q(b, i);
+            float32x4_t bi_high = load_q(b, i + elements);
+            apply_indexed<batches>([&](auto I) {
+                const uint16x8_t av = load_bf16x8(as[I], i);
+                sums[I] = inner_op(sums[I], bf16_low_to_f32(av), bi_low);
+                sums[I] = inner_op(sums[I], bf16_high_to_f32(av), bi_high);
+            });
+        }
+        // a remaining group of <elements> dimensions
+        if (i < (dims & ~(elements - 1))) {
             float32x4_t bi = load_q(b, i);
             apply_indexed<batches>([&](auto I) {
                 sums[I] = inner_op(sums[I], load_bf16(as[I], i), bi);
             });
+            i += elements;
         }
 
         f32_t res[batches];
@@ -130,14 +163,15 @@ static inline void bf16_bulk_inner(
             });
         }
 
-        // this should be turned into direct value copies by the compiler
-        std::copy_n(res, batches, results + c);
+        apply_indexed<batches>([&](auto I) {
+            results[out_mapper(offsets, c + I)] = res[I];
+        });
     }
 
     // Tail-handling: remaining vectors
     for (; c < count; c++) {
         const bf16_t* a0 = mapper(a, c, offsets, pitch);
-        results[c] = bulk_tail(a0, b, dims);
+        results[out_mapper(offsets, c)] = bulk_tail(a0, b, dims);
     }
 }
 
@@ -191,30 +225,6 @@ EXPORT void vec_dotDbf16Qbf16_bulk_sparse(
 ) {
     bf16_bulk_inner<const bf16_t*, bf16_t, sparse_mapper, load_bf16, vfmaq_f32, dot_scalar, vec_dotDbf16Qbf16>(
         (const bf16_t* const*)addresses, query, length, 0, NULL, count, results);
-}
-
-EXPORT void vec_dotDbf16Qf32_bulk_offsets(
-    const bf16_t* a,
-    const f32_t* b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results) {
-    bf16_bulk_inner<bf16_t, f32_t, offsets_mapper, load_f32, vfmaq_f32, dot_scalar, vec_dotDbf16Qf32>(
-        a, b, dims, pitch / sizeof(bf16_t), offsets, count, results);
-}
-
-EXPORT void vec_dotDbf16Qbf16_bulk_offsets(
-    const bf16_t* a,
-    const bf16_t* b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results) {
-    bf16_bulk_inner<bf16_t, bf16_t, offsets_mapper, load_bf16, vfmaq_f32, dot_scalar, vec_dotDbf16Qbf16>(
-        a, b, dims, pitch / sizeof(bf16_t), offsets, count, results);
 }
 
 static inline float32x4_t sqrf32_vector(float32x4_t sum, float32x4_t a, float32x4_t b) {
@@ -272,28 +282,4 @@ EXPORT void vec_sqrDbf16Qbf16_bulk_sparse(
 ) {
     bf16_bulk_inner<const bf16_t*, bf16_t, sparse_mapper, load_bf16, sqrf32_vector, sqr_scalar, vec_sqrDbf16Qbf16>(
         (const bf16_t* const*)addresses, query, length, 0, NULL, count, results);
-}
-
-EXPORT void vec_sqrDbf16Qf32_bulk_offsets(
-    const bf16_t* a,
-    const f32_t* b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results) {
-    bf16_bulk_inner<bf16_t, f32_t, offsets_mapper, load_f32, sqrf32_vector, sqr_scalar, vec_sqrDbf16Qf32>(
-        a, b, dims, pitch / sizeof(bf16_t), offsets, count, results);
-}
-
-EXPORT void vec_sqrDbf16Qbf16_bulk_offsets(
-    const bf16_t* a,
-    const bf16_t* b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results) {
-    bf16_bulk_inner<bf16_t, bf16_t, offsets_mapper, load_bf16, sqrf32_vector, sqr_scalar, vec_sqrDbf16Qbf16>(
-        a, b, dims, pitch / sizeof(bf16_t), offsets, count, results);
 }

@@ -314,6 +314,131 @@ public class PushdownGoldenTests extends UnmappedGoldenTestCase {
         runGoldenTest(query, STAGES);
     }
 
+    /**
+     * mv_greater Lucene pushdown strategies: YES (exact drop filter), YES+inclusive, YES+NOT,
+     * YES keyword (exact byte-encoded), YES keyword+NOT, RECHECK double, RECHECK+NOT, text NO.
+     */
+    public void testMvGreaterPushdown() {
+        runGoldenTest("""
+                FROM employees
+                | KEEP salary
+                | WHERE mv_greater(salary, 25000)
+            """, STAGES, "yes");
+        runGoldenTest("""
+                FROM employees
+                | KEEP salary
+                | WHERE mv_greater(salary, 25000, {"include_bound": true})
+            """, STAGES, "yes_inclusive");
+        runGoldenTest("""
+                FROM employees
+                | KEEP salary
+                | WHERE NOT mv_greater(salary, 25000)
+            """, STAGES, "yes_not");
+        runGoldenTest("""
+                FROM all_types
+                | KEEP keyword
+                | WHERE mv_greater(keyword, "m")
+            """, STAGES, "yes_keyword");
+        runGoldenTest("""
+                FROM all_types
+                | KEEP keyword
+                | WHERE NOT mv_greater(keyword, "m")
+            """, STAGES, "yes_keyword_not");
+        runGoldenTest("""
+                FROM all_types
+                | KEEP double
+                | WHERE mv_greater(double, 1.0)
+            """, STAGES, "recheck");
+        runGoldenTest("""
+                FROM all_types
+                | KEEP double
+                | WHERE NOT mv_greater(double, 1.0)
+            """, STAGES, "recheck_not");
+        runGoldenTest("""
+                FROM all_types
+                | KEEP text
+                | WHERE mv_greater(text, "a")
+            """, STAGES, "text_no");
+    }
+
+    /**
+     * mv_less Lucene pushdown strategies: same matrix as {@link #testMvGreaterPushdown}.
+     */
+    public void testMvLessPushdown() {
+        runGoldenTest("""
+                FROM employees
+                | KEEP salary
+                | WHERE mv_less(salary, 30000)
+            """, STAGES, "yes");
+        runGoldenTest("""
+                FROM employees
+                | KEEP salary
+                | WHERE mv_less(salary, 30000, {"include_bound": true})
+            """, STAGES, "yes_inclusive");
+        runGoldenTest("""
+                FROM employees
+                | KEEP salary
+                | WHERE NOT mv_less(salary, 30000)
+            """, STAGES, "yes_not");
+        runGoldenTest("""
+                FROM all_types
+                | KEEP keyword
+                | WHERE mv_less(keyword, "m")
+            """, STAGES, "yes_keyword");
+        runGoldenTest("""
+                FROM all_types
+                | KEEP keyword
+                | WHERE NOT mv_less(keyword, "m")
+            """, STAGES, "yes_keyword_not");
+        runGoldenTest("""
+                FROM all_types
+                | KEEP double
+                | WHERE mv_less(double, 1.0)
+            """, STAGES, "recheck");
+        runGoldenTest("""
+                FROM all_types
+                | KEEP double
+                | WHERE NOT mv_less(double, 1.0)
+            """, STAGES, "recheck_not");
+        runGoldenTest("""
+                FROM all_types
+                | KEEP text
+                | WHERE mv_less(text, "a")
+            """, STAGES, "text_no");
+    }
+
+    /**
+     * IN with a null in the list is pushed as a terms query without the null. That is exact for IN, but its negation is not:
+     * NOT IN must keep the IN in a filter so non-matching rows evaluate to null and are excluded.
+     */
+    public void testInWithNullPushdown() {
+        runGoldenTest("""
+                FROM employees
+                | KEEP emp_no
+                | WHERE emp_no IN (10001, null)
+            """, STAGES, "in");
+        runGoldenTest("""
+                FROM employees
+                | KEEP emp_no
+                | WHERE emp_no NOT IN (10001, 10002)
+            """, STAGES, "not_in_without_null");
+        runGoldenTest("""
+                FROM employees
+                | KEEP emp_no
+                | WHERE emp_no NOT IN (10001, null)
+            """, STAGES, "not_in");
+        runGoldenTest("""
+                FROM employees
+                | KEEP emp_no
+                | WHERE NOT (emp_no IN (10001, null) AND emp_no < 10003)
+            """, STAGES, "not_of_and");
+        runGoldenTest("""
+                FROM employees
+                | KEEP emp_no, languages
+                | WHERE NOT (emp_no IN (10001, null) OR languages == 2)
+            """, STAGES, "not_of_or");
+    }
+
     /** Registers {@code golden_salaries} as an external dataset so {@code FROM golden_salaries} becomes an external relation. */
     private static ProjectMetadata salariesDatasetMetadata() {
         DataSource dataSource = new DataSource("golden_ds", "test", null, Map.of());

@@ -9,9 +9,11 @@
 
 package org.elasticsearch.workloadidentity;
 
-import org.apache.http.conn.ssl.DefaultHostnameVerifier;
-import org.apache.http.conn.ssl.NoopHostnameVerifier;
-import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
+import org.apache.hc.client5.http.ssl.DefaultClientTlsStrategy;
+import org.apache.hc.client5.http.ssl.DefaultHostnameVerifier;
+import org.apache.hc.client5.http.ssl.HostnameVerificationPolicy;
+import org.apache.hc.client5.http.ssl.NoopHostnameVerifier;
+import org.apache.hc.core5.reactor.ssl.SSLBufferMode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
@@ -46,7 +48,7 @@ import static org.elasticsearch.common.settings.Setting.stringListSetting;
 
 /**
  * Loads {@code workload_identity.ssl.*} configuration from {@link Settings} and exposes the
- * resulting {@link SSLIOSessionStrategy} for the Apache HC-based issuer client.
+ * resulting {@link org.apache.hc.client5.http.ssl.DefaultClientTlsStrategy} for the Apache HC-based issuer client.
  *
  * <p>The underlying {@link SSLContext} is rebuilt in place when any of the files referenced by
  * the loaded {@link SslConfiguration} (see {@link SslConfiguration#getDependentFiles()}) change on
@@ -280,23 +282,30 @@ public final class WorkloadIdentitySslConfig implements Closeable {
     }
 
     /**
-     * @return an {@link SSLIOSessionStrategy} over the currently-published {@link SSLContext}. A
-     *         fresh strategy is returned each call; rotation-aware callers should re-fetch via
+     * @return a {@link DefaultClientTlsStrategy} over the currently-published {@link SSLContext}.
+     *         A fresh strategy is returned each call; rotation-aware callers should re-fetch via
      *         {@link #addReloadListener(Runnable)} rather than cache the result. Remains usable
      *         after {@link #close()} (which only stops future reloads) over the last-published
      *         context.
      * @throws IllegalStateException if {@link #start()} has not yet completed.
      */
-    public SSLIOSessionStrategy getStrategy() {
+    public DefaultClientTlsStrategy getStrategy() {
         if (state.get() == State.INIT) {
             throw new IllegalStateException("workload-identity SSL config has not been started");
         }
         final HostnameVerifier hostnameVerifier = configuration.verificationMode().isHostnameVerificationEnabled()
-            ? new DefaultHostnameVerifier()
-            : new NoopHostnameVerifier();
+            ? new DefaultHostnameVerifier(null)
+            : NoopHostnameVerifier.INSTANCE;
         final String[] protocols = configuration.supportedProtocols().toArray(Strings.EMPTY_ARRAY);
         final String[] cipherSuites = configuration.getCipherSuites().toArray(Strings.EMPTY_ARRAY);
-        return new SSLIOSessionStrategy(context, protocols, cipherSuites, hostnameVerifier);
+        return new DefaultClientTlsStrategy(
+            context,
+            protocols,
+            cipherSuites,
+            SSLBufferMode.DYNAMIC,
+            HostnameVerificationPolicy.CLIENT,
+            hostnameVerifier
+        );
     }
 
     // Visible for testing

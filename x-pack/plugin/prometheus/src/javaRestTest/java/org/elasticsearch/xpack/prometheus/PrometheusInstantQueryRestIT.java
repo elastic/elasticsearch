@@ -13,10 +13,19 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.xpack.prometheus.proto.RemoteWrite;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
+import static org.elasticsearch.xpack.prometheus.PromqlResponseSeries.of;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -27,6 +36,8 @@ import static org.hamcrest.Matchers.instanceOf;
  * Integration tests for the Prometheus {@code /api/v1/query} instant query endpoint.
  */
 public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
+
+    private static final String METRIC = "test_gauge_labels_iq";
 
     /**
      * Verifies that querying when no Prometheus indices exist returns an empty result instead of an error.
@@ -111,12 +122,64 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertThat(responsePath.evaluate("data.result"), empty());
     }
 
+    public void testInstantQueryWithTimeout() throws Exception {
+        ingestTestData("test_gauge_iq");
+
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/query",
+            new BasicNameValuePair("query", "test_gauge_iq{job=\"test_job\"}"),
+            new BasicNameValuePair("time", "2026-01-01T00:08:00Z"),
+            new BasicNameValuePair("timeout", "1m")
+        );
+
+        ObjectPath responsePath = ObjectPath.createFromResponse(client().performRequest(request));
+        assertThat(responsePath.evaluate("status"), equalTo("success"));
+        assertThat(responsePath.evaluate("data.result"), hasSize(1));
+    }
+
+    public void testInstantQueryWithInvalidTimeoutReturnsBadRequest() throws Exception {
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/query",
+            new BasicNameValuePair("query", "up"),
+            new BasicNameValuePair("timeout", "soon")
+        );
+
+        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        ObjectPath errorPath = ObjectPath.createFromResponse(e.getResponse());
+        assertThat(errorPath.evaluate("status"), equalTo("error"));
+        assertThat(errorPath.evaluate("errorType"), equalTo("bad_data"));
+        assertThat(errorPath.evaluate("error"), equalTo("invalid parameter \"timeout\": cannot parse \"soon\" to a valid duration"));
+    }
+
     public void testInstantQueryReturnsLatestSampleWithinDefaultLookback() throws Exception {
         ingestTestData("test_gauge_iq");
         // Evaluation time T = 00:08:00; default lookback = 5m, so window is (00:03:00, 00:08:00].
         ObjectPath responsePath = executeInstantQuery("test_gauge_iq{job=\"test_job\"}", "2026-01-01T00:08:00Z", null);
         assertThat(responsePath.evaluate("data.result"), hasSize(1));
         assertThat(responsePath.evaluate("data.result.0.value"), equalTo(List.of(1767226080.0 /*=2026-01-01T00:08:00Z*/, "40.0")));
+    }
+
+    public void testInstantQueryChangesCountsValueTransitions() throws Exception {
+        assumePromqlChangesSupported();
+
+        String metric = "test_gauge_changes_iq";
+        RemoteWrite.TimeSeries series = RemoteWrite.TimeSeries.newBuilder()
+            .addLabels(label("__name__", metric))
+            .addLabels(label("job", "test_job"))
+            .addLabels(label("instance", "localhost:9090"))
+            .addSamples(sample(0.0, 1767225600000L))
+            .addSamples(sample(0.0, 1767225660000L))
+            .addSamples(sample(1.0, 1767225720000L))
+            .addSamples(sample(1.0, 1767225780000L))
+            .addSamples(sample(2.0, 1767225840000L))
+            .build();
+        ingestTestData(RemoteWrite.WriteRequest.newBuilder().addTimeseries(series).build());
+
+        assertThat(
+            PromqlResponseSeries.ofInstant(executeInstantQuery("changes(" + metric + "[5m])", "2026-01-01T00:04:00Z", null)),
+            contains(new PromqlResponseSeries(Map.of("job", "test_job", "instance", "localhost:9090"), 2.0))
+        );
     }
 
     /**
@@ -138,11 +201,101 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertThat(path.evaluate("data.result"), equalTo(List.of(1767225900.0, "3.14")));
     }
 
+    /** Prometheus: a duration literal is a float literal in seconds - {@code 1h30m} is the scalar {@code 5400}. */
+    public void testInstantQueryDurationLiteralIsSeconds() throws Exception {
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/query",
+            new BasicNameValuePair("query", "1h30m"),
+            new BasicNameValuePair("time", "2026-01-01T00:05:00Z")
+        );
+        ObjectPath path = ObjectPath.createFromResponse(client().performRequest(request));
+        assertThat(path.evaluate("status"), equalTo("success"));
+        assertThat(path.evaluate("data.resultType"), equalTo("scalar"));
+        assertThat(Double.parseDouble(path.evaluate("data.result.1")), equalTo(5400.0));
+    }
+
+    /** Prometheus: a string literal is a result of type {@code string}, rendered as {@code [<unix_time>, "<string>"]}. */
+    public void testInstantQueryStringLiteral() throws Exception {
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/query",
+            new BasicNameValuePair("query", "\"a string\""),
+            new BasicNameValuePair("time", "2026-01-01T00:05:00Z")
+        );
+        ObjectPath path = ObjectPath.createFromResponse(client().performRequest(request));
+        assertThat(path.evaluate("status"), equalTo("success"));
+        assertThat(path.evaluate("data.resultType"), equalTo("string"));
+        assertThat(path.evaluate("data.result"), equalTo(List.of(1767225900.0, "a string")));
+    }
+
     public void testInstantQueryDropsSeriesOutsideDefaultLookback() throws Exception {
         ingestTestData("test_gauge_iq");
 
         ObjectPath responsePath = executeInstantQuery("test_gauge_iq{job=\"test_job\"}", "2026-01-01T00:10:00Z", null);
         assertThat(responsePath.evaluate("data.result"), empty());
+    }
+
+    public void testInstantQuerySumByEachLabel() throws Exception {
+        ingestLabelledSeries(METRIC);
+
+        assertThat(
+            instantSeries("sum by (cluster) (" + METRIC + ")"),
+            containsInAnyOrder(of("cluster", "a", 3.0), of("cluster", "b", 7.0))
+        );
+        assertThat(instantSeries("sum by (pod) (" + METRIC + ")"), containsInAnyOrder(of("pod", "p1", 4.0), of("pod", "p2", 6.0)));
+        assertThat(instantSeries("sum by (region) (" + METRIC + ")"), containsInAnyOrder(of("region", "r1", 5.0), of("region", "r2", 5.0)));
+        assertThat(instantSeries("sum by (job) (" + METRIC + ")"), contains(of("job", "test_job", 10.0)));
+    }
+
+    public void testInstantQuerySumWithoutEachLabel() throws Exception {
+        ingestLabelledSeries(METRIC);
+
+        for (String dropped : LABELLED_SERIES_LABELS) {
+            assertThat(
+                "without(" + dropped + ")",
+                instantSeries("sum without (" + dropped + ") (" + METRIC + ")"),
+                containsInAnyOrder(LABELLED_SERIES.stream().map(series -> series.without(dropped)).toArray(PromqlResponseSeries[]::new))
+            );
+        }
+    }
+
+    public void testInstantQueryTopKKeepsSeriesLabels() throws Exception {
+        ingestLabelledSeries(METRIC);
+
+        assertThat(instantSeries("topk(2, " + METRIC + ")"), containsInAnyOrder(seriesWithValueAbove(2.0)));
+    }
+
+    public void testInstantQueryComparisonFiltersSeries() throws Exception {
+        ingestLabelledSeries(METRIC);
+
+        assertThat(instantSeries(METRIC + " > 1"), containsInAnyOrder(seriesWithValueAbove(1.0)));
+    }
+
+    public void testInstantQuerySortOrdersByValueAscending() throws Exception {
+        ingestLabelledSeries(METRIC);
+
+        assertThat(instantSeries("sort(" + METRIC + ")"), contains(LABELLED_SERIES.toArray(PromqlResponseSeries[]::new)));
+    }
+
+    public void testInstantQuerySortDescOrdersByValueAndOmitsSyntheticNanLabel() throws Exception {
+        ingestLabelledSeries(METRIC);
+
+        List<PromqlResponseSeries> series = instantSeries("sort_desc(" + METRIC + ")");
+        List<PromqlResponseSeries> expected = LABELLED_SERIES.reversed();
+        assertThat(series, contains(expected.toArray(PromqlResponseSeries[]::new)));
+        for (PromqlResponseSeries s : series) {
+            for (String label : s.labels().keySet()) {
+                assertFalse("synthetic sort key leaked into metric labels: " + s.labels(), label.contains("promql_sort"));
+                assertFalse("synthetic sort key leaked into metric labels: " + s.labels(), label.startsWith("$$"));
+            }
+        }
+    }
+
+    private static PromqlResponseSeries[] seriesWithValueAbove(double threshold) {
+        return LABELLED_SERIES.stream().filter(series -> series.value() > threshold).toArray(PromqlResponseSeries[]::new);
+    }
+
+    private List<PromqlResponseSeries> instantSeries(String promql) throws Exception {
+        return PromqlResponseSeries.ofInstant(executeInstantQuery(promql, "2026-01-01T00:05:00Z", null));
     }
 
     private static void assertMetricResult(ObjectPath responsePath) throws IOException {
@@ -204,4 +357,423 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         client().performRequest(request);
     }
 
+    // --- tx/rx queries across ingestion paths through the instant query API ---
+    // Ingestion helpers live in the base class.
+
+    private static final Instant QUERY_TIME = Instant.parse("2024-05-10T00:00:00Z");
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testInstantRawOperandsMatchAcrossIngestionPaths() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantValues("tx / rx", 5, 10, 3);
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_TIME);
+        assertBinopInstantValues("tx / rx", 5, 10, 3);
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_TIME);
+        assertBinopInstantValues("tx / rx", 5, 10, 3);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testInstantRawAndPairedOperandsMatchAcrossIngestionPaths() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantValues("tx / (tx + rx)", 5.0 / 6, 10.0 / 11, 3.0 / 4);
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_TIME);
+        assertBinopInstantValues("tx / (tx + rx)", 5.0 / 6, 10.0 / 11, 3.0 / 4);
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_TIME);
+        assertBinopInstantValues("tx / (tx + rx)", 5.0 / 6, 10.0 / 11, 3.0 / 4);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testInstantSumOverCrossMetricPairing() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantValues("sum(tx / rx)", 18);
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_TIME);
+        assertBinopInstantValues("sum(tx / rx)", 18);
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_TIME);
+        assertBinopInstantValues("sum(tx / rx)", 18);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testInstantSumOverSameMetricPairing() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantValues("sum(tx / tx)", 3);
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_TIME);
+        assertBinopInstantValues("sum(tx / tx)", 3);
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_TIME);
+        assertBinopInstantValues("sum(tx / tx)", 3);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testInstantSumOverChainedPairing() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantValues("sum(tx / (tx + rx))", 5.0 / 6 + 10.0 / 11 + 3.0 / 4);
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_TIME);
+        assertBinopInstantValues("sum(tx / (tx + rx))", 5.0 / 6 + 10.0 / 11 + 3.0 / 4);
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_TIME);
+        assertBinopInstantValues("sum(tx / (tx + rx))", 5.0 / 6 + 10.0 / 11 + 3.0 / 4);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testInstantGroupedSumOverPairing() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantGroups("sum by (cluster) (tx / rx)", "cluster", Map.of("prod", 15.0, "qa", 3.0));
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_TIME);
+        assertBinopInstantGroups("sum by (cluster) (tx / rx)", "cluster", Map.of("prod", 15.0, "qa", 3.0));
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_TIME);
+        assertBinopInstantGroups("sum by (cluster) (tx / rx)", "cluster", Map.of("prod", 15.0, "qa", 3.0));
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testInstantGroupedSumOverIncreasePairing() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantGroups("sum by (cluster) (increase(tx[1m]) / increase(rx[1m]))", "cluster", Map.of("prod", 15.0, "qa", 3.0));
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_TIME);
+        assertBinopInstantGroups("sum by (cluster) (increase(tx[1m]) / increase(rx[1m]))", "cluster", Map.of("prod", 15.0, "qa", 3.0));
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_TIME);
+        assertBinopInstantGroups("sum by (cluster) (increase(tx[1m]) / increase(rx[1m]))", "cluster", Map.of("prod", 15.0, "qa", 3.0));
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testInstantGroupedSumOverIratePairing() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantGroups("sum by (cluster) (irate(tx[1m]) / irate(rx[1m]))", "cluster", Map.of("prod", 15.0, "qa", 3.0));
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_TIME);
+        assertBinopInstantGroups("sum by (cluster) (irate(tx[1m]) / irate(rx[1m]))", "cluster", Map.of("prod", 15.0, "qa", 3.0));
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_TIME);
+        assertBinopInstantGroups("sum by (cluster) (irate(tx[1m]) / irate(rx[1m]))", "cluster", Map.of("prod", 15.0, "qa", 3.0));
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testInstantDefaultMatchingExcludesMetricName() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantGroups("sum by (host, __name__) (tx) / sum by (host, __name__) (rx)", "host", txRxRatios());
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_TIME);
+        assertBinopInstantGroups("sum by (host, __name__) (tx) / sum by (host, __name__) (rx)", "host", txRxRatios());
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_TIME);
+        assertBinopInstantGroups("sum by (host, __name__) (tx) / sum by (host, __name__) (rx)", "host", txRxRatios());
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testInstantIgnoringMatchingExcludesMetricName() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantGroups("sum by (host, __name__) (tx) / ignoring () sum by (host, __name__) (rx)", "host", txRxRatios());
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_TIME);
+        assertBinopInstantGroups("sum by (host, __name__) (tx) / ignoring () sum by (host, __name__) (rx)", "host", txRxRatios());
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_TIME);
+        assertBinopInstantGroups("sum by (host, __name__) (tx) / ignoring () sum by (host, __name__) (rx)", "host", txRxRatios());
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testInstantMatchingPreservesBothOperandSelections() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantValues("topk(1, tx) + bottomk(1, tx)");
+        assertBinopInstantValues("bottomk(1, tx) + topk(1, tx)");
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_TIME);
+        assertBinopInstantValues("topk(1, tx) + bottomk(1, tx)");
+        assertBinopInstantValues("bottomk(1, tx) + topk(1, tx)");
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_TIME);
+        assertBinopInstantValues("topk(1, tx) + bottomk(1, tx)");
+        assertBinopInstantValues("bottomk(1, tx) + topk(1, tx)");
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testInstantMatchingPreservesRightOperandSelection() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantValues("tx / topk(1, rx)", 3);
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_TIME);
+        assertBinopInstantValues("tx / topk(1, rx)", 3);
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_TIME);
+        assertBinopInstantValues("tx / topk(1, rx)", 3);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testInstantMatchingPreservesLeftOperandSelection() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantValues("topk(1, tx) / rx", 10);
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_TIME);
+        assertBinopInstantValues("topk(1, tx) / rx", 10);
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_TIME);
+        assertBinopInstantValues("topk(1, tx) / rx", 10);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testInstantMixedDuplicateRawMatchKeysAreRejected() throws Exception {
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_TIME);
+        assertBinopInstantDuplicate("tx_dup / rx_dup");
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testInstantMixedDuplicateLeftExpressionMatchKeysAreRejected() throws Exception {
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_TIME);
+        assertBinopInstantDuplicate("(tx_dup + 0) / rx_dup");
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testInstantMixedDuplicateRightExpressionMatchKeysAreRejected() throws Exception {
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_TIME);
+        assertBinopInstantDuplicate("tx_dup / (rx_dup + 0)");
+    }
+
+    public void testInstantAggregatedOperandsMatchAcrossIngestionPaths() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantAggGroups();
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_TIME);
+        assertBinopInstantAggGroups();
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_TIME);
+        assertBinopInstantAggGroups();
+    }
+
+    public void testInstantExplicitOnMatchesRetainedMetricNames() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantGroups("sum by (host, __name__) (tx) / on (host) sum by (host, __name__) (rx)", "host", txRxRatios());
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_TIME);
+        assertBinopInstantGroups("sum by (host, __name__) (tx) / on (host) sum by (host, __name__) (rx)", "host", txRxRatios());
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_TIME);
+        assertBinopInstantGroups("sum by (host, __name__) (tx) / on (host) sum by (host, __name__) (rx)", "host", txRxRatios());
+    }
+
+    /**
+     * {@code vector(s)} in an {@code or} fills what the other side lacks: its steps are its own, so the instant query's range
+     * filter still drops the sample exactly one lookback before the query time, and the range query keeps one step per row.
+     */
+    public void testInstantOrConstantVector() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME.minusSeconds(300));
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantValues("tx or vector(0)", 10, 30, 12, 0);
+        assertBinopInstantValues("vector(0) or tx", 0, 10, 30, 12);
+        assertBinopInstantValues("sum(tx) or vector(0)", 52);
+        assertBinopInstantValues("sum(tx{host=~\"nope\"}) or vector(0)", 0);
+    }
+
+    /**
+     * Prometheus treats a label with an empty value as absent: a label function that empties a label drops it from the series,
+     * so {@code label_replace(tx, "host", "", "host", "a")} leaves host a with no {@code host} label and its own group.
+     */
+    public void testInstantEmptyLabelValueIsAbsent() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        List<PromqlResponseSeries> counted = PromqlResponseSeries.ofInstant(
+            executeBinopInstantQuery("count by (dst) (label_replace(tx, \"dst\", \"\", \"host\", \".*\"))")
+        );
+        assertThat(counted, hasSize(1));
+        assertThat(counted.getFirst().labels(), equalTo(Map.of()));
+        assertThat(counted.getFirst().value(), closeTo(3.0, 1e-10));
+        Map<String, Double> byHost = new HashMap<>();
+        for (PromqlResponseSeries series : PromqlResponseSeries.ofInstant(
+            executeBinopInstantQuery("sum by (host) (label_replace(tx, \"host\", \"\", \"host\", \"a\"))")
+        )) {
+            assertNull("duplicate output group", byHost.put(series.labels().getOrDefault("host", "<absent>"), series.value()));
+        }
+        assertThat(byHost, equalTo(Map.of("<absent>", 10.0, "b", 30.0, "c", 12.0)));
+    }
+
+    private ObjectPath executeBinopInstantQuery(String expression) throws IOException {
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/query",
+            new BasicNameValuePair("query", expression),
+            new BasicNameValuePair("time", QUERY_TIME.toString())
+        );
+        Response response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        ObjectPath responsePath = ObjectPath.createFromResponse(response);
+        assertThat(responsePath.evaluate("status"), equalTo("success"));
+        assertThat(responsePath.evaluate("data.resultType"), equalTo("vector"));
+        return responsePath;
+    }
+
+    private void assertBinopInstantValues(String expression, double... expected) throws IOException {
+        ObjectPath response = executeBinopInstantQuery(expression);
+        List<Double> actual = PromqlResponseSeries.ofInstant(response).stream().map(PromqlResponseSeries::value).sorted().toList();
+        Arrays.sort(expected);
+        assertEquals(expression + ": " + actual, expected.length, actual.size());
+        for (int i = 0; i < expected.length; i++) {
+            assertThat(expression, actual.get(i), closeTo(expected[i], 1e-10));
+        }
+    }
+
+    private void assertBinopInstantGroups(String expression, String group, Map<String, Double> expected) throws IOException {
+        ObjectPath response = executeBinopInstantQuery(expression);
+        Map<String, Double> actual = new HashMap<>();
+        for (PromqlResponseSeries series : PromqlResponseSeries.ofInstant(response)) {
+            assertNull("duplicate output group", actual.put(series.labels().get(group), series.value()));
+        }
+        assertThat(expression, actual.keySet(), equalTo(expected.keySet()));
+        expected.forEach((label, value) -> assertThat(expression + " " + label, actual.get(label), closeTo(value, 1e-10)));
+    }
+
+    private void assertBinopInstantAggGroups() throws IOException {
+        // Default matching exercises folding; explicit matching exercises the join.
+        for (String match : List.of("", "on (host)", "ignoring ()")) {
+            assertBinopInstantGroups("sum by (host) (tx) / " + match + " sum by (host) (rx)", "host", txRxRatios());
+        }
+    }
+
+    private void assertBinopInstantDuplicate(String expression) {
+        ResponseException error = expectThrows(ResponseException.class, () -> executeBinopInstantQuery(expression));
+        assertThat(error.getMessage(), containsString("duplicate"));
+    }
+
+    /**
+     * Prometheus answers an instant query over a range vector with a {@code matrix} of the raw samples in the window: the
+     * two samples of every series here, 30 seconds apart. Nothing produces that yet, so the shape is rejected instead.
+     */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/metrics-program/issues/344")
+    public void testInstantRangeVectorIsAMatrixOfRawSamples() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/query",
+            new BasicNameValuePair("query", "tx{host=\"a\"}[5m]"),
+            new BasicNameValuePair("time", QUERY_TIME.toString())
+        );
+        ObjectPath path = ObjectPath.createFromResponse(client().performRequest(request));
+        assertThat(path.evaluate("data.resultType"), equalTo("matrix"));
+        List<Map<String, Object>> result = path.evaluate("data.result");
+        assertThat(result, hasSize(1));
+        assertThat(result.getFirst().get("metric"), equalTo(Map.of("__name__", "tx", "host", "a", "cluster", "prod")));
+        assertThat(result.getFirst().get("values"), equalTo(List.of(List.of(1715299170.0, "5.0"), List.of(1715299200.0, "10.0"))));
+    }
+
+    /** Until then the shape is a clear rejection rather than a plan that fails in the optimizer. */
+    public void testInstantRangeVectorIsRejected() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        for (String query : List.of("tx[5m]", "tx[5m] offset 1m")) {
+            Request request = prometheusReadRequest(
+                "/_prometheus/api/v1/query",
+                new BasicNameValuePair("query", query),
+                new BasicNameValuePair("time", QUERY_TIME.toString())
+            );
+            ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
+            assertThat(query, e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+            assertThat(
+                EntityUtils.toString(e.getResponse().getEntity()),
+                containsString("range vector results are not supported at this time [" + query + "]")
+            );
+        }
+    }
+
+    /**
+     * {@code without} over a binary operator between two closed aggregates regroups its named labels: the per-host ratios
+     * (a: 5, b: 10, c: 3) sum without host into {@code {cluster="prod"} 15} and {@code {cluster="qa"} 3}.
+     */
+    public void testInstantWithoutOverAClosedBinaryOperator() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantGroups(
+            "sum without (host) (sum by (host, cluster) (tx) / sum by (host, cluster) (rx))",
+            "cluster",
+            Map.of("prod", 15.0, "qa", 3.0)
+        );
+        assertBinopInstantValues("sum without (host, cluster) (sum by (host, cluster) (tx) / sum by (host, cluster) (rx))", 18);
+        assertBinopInstantValues("count without (host) (sum by (host) (tx) / sum by (host) (rx))", 3);
+    }
+
+    /**
+     * Prometheus reads {@code {__name__="tx",host="a"}} the same as {@code tx{host="a"}}: the position of the {@code __name__}
+     * matcher among the label matchers does not change which labels the other matchers filter on.
+     */
+    public void testInstantNameMatcherPositionDoesNotChangeTheResult() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        for (String query : List.of(
+            "tx{host=\"a\"}",
+            "{host=\"a\",__name__=\"tx\"}",
+            "{__name__=\"tx\",host=\"a\"}",
+            "{\"tx\",host=\"a\"}"
+        )) {
+            assertBinopInstantValues(query, 10);
+        }
+    }
+
+    /** Prometheus converts k with an integer cast: {@code topk(1.5, tx)} keeps one series and {@code topk(0.5, tx)} none. */
+    public void testInstantFractionalKIsTruncated() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantValues("topk(1.5, tx)", 30);
+        assertBinopInstantValues("bottomk(1.5, tx)", 10);
+        assertBinopInstantValues("topk(2.9, tx)", 30, 12);
+        assertBinopInstantValues("topk(0.5, tx)");
+    }
+
+    /**
+     * A count over no element is no element, not 0: {@code count by (cluster) (rx{host="a"})} has no {@code qa} group, so the
+     * operator has no {@code qa} pair; two counts over nothing pair nothing.
+     */
+    public void testInstantCountOverNothingIsNoElement() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantGroups("count by (cluster) (tx) - count by (cluster) (rx{host=\"a\"})", "cluster", Map.of("prod", 1.0));
+        assertBinopInstantValues("count(tx{host=~\"nope\"}) - count(rx{host=~\"nope\"})");
+        assertBinopInstantValues("count by (cluster) (tx{cluster=~\"nope\"}) - count by (cluster) (rx{cluster=~\"nope\"})");
+        assertBinopInstantValues("count_over_time(tx{host=~\"nope\"}[5m]) - count_over_time(tx{cluster=~\"nope\"}[5m])");
+    }
+
+    /**
+     * A range function over a series without a matching sample is no element: {@code rx{host="a"}} has no {@code qa}
+     * series, so neither the count nor the sum of its {@code count_over_time} has a {@code qa} element, and the count
+     * covers host a alone rather than every series the operands share.
+     */
+    public void testInstantSamplesOverNothingIsNoElement() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantGroups(
+            "count by (cluster) (count_over_time(tx[5m])) - count by (cluster) (count_over_time(rx{host=\"a\"}[5m]))",
+            "cluster",
+            Map.of("prod", 1.0)
+        );
+        assertBinopInstantGroups(
+            "sum by (cluster) (count_over_time(tx[5m])) - sum by (cluster) (count_over_time(rx{host=\"a\"}[5m]))",
+            "cluster",
+            Map.of("prod", 2.0)
+        );
+        assertBinopInstantGroups(
+            "count by (cluster) (present_over_time(tx[5m])) - count by (cluster) (present_over_time(rx{host=\"a\"}[5m]))",
+            "cluster",
+            Map.of("prod", 1.0)
+        );
+    }
+
+    /**
+     * A series without a partner leaves the operator's result before an enclosing aggregate sees it: host c has no
+     * {@code rx{host!="c"}} partner, so {@code count by (cluster)} has no {@code qa} group rather than a count of 0.
+     */
+    public void testInstantUnmatchedPairsNeverReachTheEnclosingCount() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        String pairs = "sum by (host, cluster) (tx) / sum by (host, cluster) (rx{host!=\"c\"})";
+        assertBinopInstantGroups("count by (cluster) (" + pairs + ")", "cluster", Map.of("prod", 2.0));
+        assertBinopInstantValues("count(sum by (host) (tx) / sum by (host) (rx{host=~\"nope\"}))");
+    }
+
+    /**
+     * {@code absent_over_time} has an element only for a series its selector selects that has no sample: every series of
+     * {@code tx} and of {@code rx{host="a"}} has samples, and the series of the other metric, or those the matchers reject,
+     * are not selected.
+     */
+    public void testInstantAbsentOverTimeOfFusedOperandsIsNoElement() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantValues("max by (cluster) (absent_over_time(tx[5m])) - max by (cluster) (absent_over_time(rx{host=\"a\"}[5m]))");
+        assertBinopInstantValues("absent_over_time(rx{host=\"a\"}[5m])");
+    }
 }

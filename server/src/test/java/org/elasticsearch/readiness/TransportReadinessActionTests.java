@@ -24,7 +24,6 @@ import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.is;
@@ -53,7 +52,7 @@ public class TransportReadinessActionTests extends ESTestCase {
         TransportService transportService = mock(TransportService.class);
         when(transportService.getThreadPool()).thenReturn(threadPool);
         when(transportService.getTaskManager()).thenReturn(mock(TaskManager.class));
-        action = new TransportReadinessAction(new ActionFilters(Set.of()), transportService, readinessService);
+        action = new TransportReadinessAction(ActionFilters.EMPTY, transportService, readinessService);
     }
 
     @After

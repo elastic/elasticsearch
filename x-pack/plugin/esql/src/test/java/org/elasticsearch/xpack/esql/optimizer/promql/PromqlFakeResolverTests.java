@@ -22,6 +22,10 @@ public class PromqlFakeResolverTests extends AbstractLogicalPlanOptimizerTests {
 
     private final PromqlFakeResolver resolver = new PromqlFakeResolver();
 
+    public PromqlFakeResolverTests(VersionMode versionMode) {
+        super(versionMode);
+    }
+
     public void testSimpleQuery() {
         var attributes = extractAttributes("PROMQL step=1m foo");
         assertThat(gauges(attributes), contains("foo"));

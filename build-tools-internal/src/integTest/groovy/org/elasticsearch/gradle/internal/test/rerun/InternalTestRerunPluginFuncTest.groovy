@@ -355,7 +355,7 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
                 }
 
                 dependencies {
-                    testImplementation 'junit:junit:4.13.1'
+                    testImplementation 'junit:junit:4.13.2'
                 }
 
                 tasks.named("test").configure {
@@ -391,7 +391,7 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
                 }
 
                 dependencies {
-                    testImplementation 'junit:junit:4.13.1'
+                    testImplementation 'junit:junit:4.13.2'
                     testImplementation 'com.carrotsearch.randomizedtesting:randomizedtesting-runner:2.8.2'
                 }
 

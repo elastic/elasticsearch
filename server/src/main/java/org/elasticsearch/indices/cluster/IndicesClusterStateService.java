@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.Type;
@@ -74,6 +75,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.recovery.FailureStrategy;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryCancelledException;
@@ -136,6 +138,16 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         Setting.Property.NodeScope
     );
 
+    /**
+     * Enable / disable local retry functionality on recovery failure.
+     */
+    public static final Setting<Boolean> INDICES_RECOVERY_LOCAL_RETRY_SETTING = Setting.boolSetting(
+        "indices.recovery.local_retry",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     final AllocatedIndices<? extends Shard, ? extends AllocatedIndex<? extends Shard>> indicesService;
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
@@ -165,6 +177,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private final NodeClient client;
     private final TimeValue shardLockRetryInterval;
     private final TimeValue shardLockRetryTimeout;
+    private volatile boolean localRecoveryRetryEnabled;
 
     private final Executor shardCloseExecutor;
 
@@ -240,6 +253,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         this.shardLockRetryInterval = SHARD_LOCK_RETRY_INTERVAL_SETTING.get(settings);
         this.shardLockRetryTimeout = SHARD_LOCK_RETRY_TIMEOUT_SETTING.get(settings);
         this.shardCloseExecutor = new ShardCloseExecutor(settings, threadPool.generic());
+        // setting only registered in tests today
+        clusterService.getClusterSettings()
+            .initializeAndWatchIfRegistered(INDICES_RECOVERY_LOCAL_RETRY_SETTING, b -> localRecoveryRetryEnabled = b);
     }
 
     @Override
@@ -285,6 +301,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             closingMoreShards = true;
             return currentClusterStateShardsClosedListeners.acquire();
         }
+    }
+
+    // package private for tests
+    boolean getLocalRecoveryRetryEnabled() {
+        return localRecoveryRetryEnabled;
     }
 
     /**
@@ -428,7 +449,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final ThreadContext threadContext = threadPool.getThreadContext();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.markAsSystemContext();
-            client.executeLocally(
+            client.execute(
                 GlobalCheckpointSyncAction.TYPE,
                 new GlobalCheckpointSyncAction.Request(shardId),
                 ActionListener.wrap(r -> {}, e -> {
@@ -530,6 +551,49 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     }
 
     /**
+     * Detects a change, between two {@link IndexMetadata} instances for the same open index, to the cluster-state-level
+     * {@link IndexMetadata#SETTING_HISTORY_UUID} setting. This is useful because it lets us know if an in-place snapshot restore is being
+     * attempted. Today, a snapshot restore is the only thing that writes the SETTING_HISTORY_UUID setting onto an index that a node already
+     * has open. A restore assigns the destination a new history UUID (see {@code RestoreService#restoreOverExistingIndex}) while preserving
+     * its index UUID.
+     *
+     * @param existingMetadata the metadata backing the index service currently loaded on this node
+     * @param newIndexMetadata the metadata for the same {@link Index}, i.e. with the same index UUID, in the new cluster state
+     */
+    private static boolean isRestoreHistoryUuidTransition(IndexMetadata existingMetadata, IndexMetadata newIndexMetadata) {
+        assert existingMetadata.getIndexUUID().equals(newIndexMetadata.getIndexUUID())
+            : "expected the same index but got [" + existingMetadata.getIndex() + "] and [" + newIndexMetadata.getIndex() + "]";
+        if (newIndexMetadata.getState() != IndexMetadata.State.OPEN) {
+            return false;
+        }
+        return historyUUID(existingMetadata).equals(historyUUID(newIndexMetadata)) == false;
+    }
+
+    /**
+     * @return whether any shard of {@code index} has a primary with a {@link RecoverySource.SnapshotRecoverySource} in {@code state},
+     * i.e. whether a restore is actually in progress for it. Used only to assert the precondition described on
+     * {@link #isRestoreHistoryUuidTransition}: that restore is currently the only thing that can trigger that transition. If this ever
+     * trips, some other operation has started writing {@link IndexMetadata#SETTING_HISTORY_UUID} onto an already-open index, and this
+     * transition's assumptions (and its {@link IndexRemovalReason#REOPENED} choice) need to be revisited for that case too.
+     */
+    private static boolean hasSnapshotRecoverySource(ClusterState state, ProjectId projectId, Index index) {
+        final IndexRoutingTable indexRoutingTable = state.routingTable(projectId).index(index);
+        if (indexRoutingTable == null) {
+            return false;
+        }
+        for (int shard = 0; shard < indexRoutingTable.size(); shard++) {
+            if (indexRoutingTable.shard(shard).primaryShard().recoverySource() instanceof RecoverySource.SnapshotRecoverySource) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String historyUUID(IndexMetadata indexMetadata) {
+        return indexMetadata.getSettings().get(IndexMetadata.SETTING_HISTORY_UUID, IndexMetadata.INDEX_UUID_NA_VALUE);
+    }
+
+    /**
      * Removes indices that have no shards allocated to this node or indices whose state has changed. This does not delete the shard data
      * as we wait for enough shard copies to exist in the cluster before deleting shard data (triggered by
      * {@link org.elasticsearch.indices.store.IndicesStore}).
@@ -550,8 +614,21 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final IndexMetadata existingMetadata = indexService.getIndexSettings().getIndexMetadata();
 
             IndexRemovalReason reason = null;
+            boolean cleanUpRemovedShards = false;
             if (indexMetadata != null && indexMetadata.getState() != existingMetadata.getState()) {
                 reason = indexMetadata.getState() == IndexMetadata.State.CLOSE ? CLOSED : REOPENED;
+            } else if (indexMetadata != null && isRestoreHistoryUuidTransition(existingMetadata, indexMetadata)) {
+                assert hasSnapshotRecoverySource(state, project.get().id(), index)
+                    : "history UUID changed for open index "
+                        + index
+                        + " without a snapshot-recovery shard; today only restore does this, see #isRestoreHistoryUuidTransition";
+                // We assign the reason "REOPENED" here despite the fact that the index has not actually been closed. This is the closest
+                // IndexRemovalReason we have available, and it results in the expected behavior -- the shards are preserved on disk.
+                // NO_LONGER_ASSIGNED might seem closer to what we want, but
+                // {@link org.elasticsearch.search.SearchService#afterIndexRemoved} does not free open search contexts for
+                // NO_LONGER_ASSIGNED, which would result in search contexts continuing to operate on data the user is attempting to
+                // replace.
+                reason = REOPENED;
             } else if (localRoutingNode == null || localRoutingNode.hasIndex(index) == false) {
                 // if the cluster change indicates a brand new cluster, we only want
                 // to remove the in-memory structures for the index and not delete the
@@ -564,9 +641,23 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 reason = indexMetadata != null && indexMetadata.getState() == IndexMetadata.State.CLOSE ? CLOSED : NO_LONGER_ASSIGNED;
             }
 
+            // A restore (over an open or a closed index) may have reduced the shard count. If this node keeps shards of the index then the
+            // cleanup happens when the index service is recreated (see createIndicesAndUpdateShards), otherwise nothing else would ever
+            // remove the stores of the removed shards.
+            if (reason != null
+                && indexMetadata != null
+                && indexMetadata.getNumberOfShards() < existingMetadata.getNumberOfShards()
+                && historyUUID(existingMetadata).equals(historyUUID(indexMetadata)) == false
+                && (localRoutingNode == null || localRoutingNode.hasIndex(index) == false)) {
+                cleanUpRemovedShards = true;
+            }
+
             if (reason != null) {
                 logger.debug("{} removing index ({})", index, reason);
                 indicesService.removeIndex(index, reason, "removing index (" + reason + ")", shardCloseExecutor, getShardsClosedListener());
+                if (cleanUpRemovedShards) {
+                    deleteStoresOfShardsOutsideIndexRange(indexMetadata);
+                }
             } else {
                 // remove shards based on routing nodes (no deletion of data)
                 for (Shard shard : indexService) {
@@ -755,7 +846,27 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             for (ShardRouting shardRouting : entry.getValue()) {
                 createOrUpdateShard(state, shardRouting, indexService);
             }
+            // Also covers stores left behind by a restore that reduced the shard count, whether this node was restarted since or the
+            // index service was just recreated by that restore.
+            deleteStoresOfShardsOutsideIndexRange(indexMetadata);
         }
+    }
+
+    /**
+     * Removes stores of shards that are beyond the index's current shard count, which a restore over an existing index can leave
+     * behind. Waits for shards closed by this and earlier cluster states so that the shard locks are released first. A failure is
+     * only logged: the next time the index service is created on this node (e.g. after a restart) will try again.
+     */
+    private void deleteStoresOfShardsOutsideIndexRange(IndexMetadata indexMetadata) {
+        onClusterStateShardsClosed(
+            () -> indicesService.deleteShardsOutsideIndexRange(
+                indexMetadata,
+                ActionListener.wrap(
+                    ignored -> {},
+                    e -> logger.debug(() -> format("failed to clean up stores of shards removed from %s", indexMetadata.getIndex()), e)
+                )
+            )
+        );
     }
 
     private void createOrUpdateShard(ClusterState state, ShardRouting shardRouting, AllocatedIndex<? extends Shard> indexService) {
@@ -858,12 +969,16 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 0,
                 0L,
                 new RunOnce(
-                    () -> HotThreads.logLocalCurrentThreads(
-                        logger,
-                        Level.WARN,
-                        shardId + ": acquire shard lock for create",
-                        ReferenceDocs.SHARD_LOCK_TROUBLESHOOTING
-                    )
+                    // forked so that hot threads sampling (which blocks for a while) never runs while holding this service's monitor
+                    () -> threadPool.generic()
+                        .execute(
+                            () -> HotThreads.logLocalCurrentThreads(
+                                logger,
+                                Level.WARN,
+                                shardId + ": acquire shard lock for create",
+                                ReferenceDocs.SHARD_LOCK_TROUBLESHOOTING
+                            )
+                        )
                 ),
                 ActionListener.runBefore(new ActionListener<>() {
                     @Override
@@ -923,13 +1038,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private void createShardWhenLockAvailable(
         ShardRouting shardRouting,
         ClusterState originalState,
-        DiscoveryNode sourceNode,
+        @Nullable DiscoveryNode sourceNode,
         long primaryTerm,
         int iteration,
         long delayMillis,
         RunOnce dumpHotThreads,
         ActionListener<Boolean> listener
     ) {
+        assert Thread.holdsLock(this);
         try {
             logger.debug("{} creating shard with primary term [{}], iteration [{}]", shardRouting.shardId(), primaryTerm, iteration);
             indicesService.createShard(
@@ -975,70 +1091,76 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 () -> clusterService.getClusterApplierService()
                     .runOnApplierThread("create shard " + shardRouting, Priority.NORMAL, currentState -> {
+                        // Hold this service's lock so that handleRecoveryFailure / FailedShardHandler (which holds the same lock and run on
+                        // the generic pool) cannot fail and remove the shard between this task creating it and the creation listener
+                        // completing. It then avoids an older attempt clobbering the state of a newer recovery retry. This is cheap: this
+                        // task never waits on the shard lock while holding the monitor, and it's already on the applier thread, it does not
+                        // delay cluster state application any more than applyClusterState (also synchronized, on the same thread) already
+                        // does.
+                        synchronized (this) {
+                            assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
+                            final var pendingShardCreation = pendingShardCreations.get(shardRouting.shardId());
+                            if (pendingShardCreation == null) {
+                                listener.onResponse(false);
+                                return;
+                            }
 
-                        assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
-                        final var pendingShardCreation = pendingShardCreations.get(shardRouting.shardId());
-                        if (pendingShardCreation == null) {
-                            listener.onResponse(false);
-                            return;
-                        }
+                            if (originalState.stateUUID().equals(currentState.stateUUID()) == false) {
+                                logger.debug(
+                                    "cluster state updated from version [{}/{}] to version [{}/{}] before creation of shard {}",
+                                    originalState.version(),
+                                    originalState.stateUUID(),
+                                    currentState.version(),
+                                    currentState.stateUUID(),
+                                    shardRouting.shardId()
+                                );
+                                listener.onResponse(false);
+                                return;
+                            }
+                            assert pendingShardCreation.clusterStateUUID().equals(currentState.stateUUID());
 
-                        if (originalState.stateUUID().equals(currentState.stateUUID()) == false) {
-                            logger.debug(
-                                "cluster state updated from version [{}/{}] to version [{}/{}] before creation of shard {}",
-                                originalState.version(),
-                                originalState.stateUUID(),
-                                currentState.version(),
-                                currentState.stateUUID(),
-                                shardRouting.shardId()
+                            final var newDelayMillis = threadPool.relativeTimeInMillis() - pendingShardCreation.startTimeMillis();
+                            if (newDelayMillis > shardLockRetryTimeout.millis()) {
+                                logger.warn(
+                                    "timed out after [{}={}/{}ms] while waiting to acquire shard lock for {}",
+                                    SHARD_LOCK_RETRY_TIMEOUT_SETTING.getKey(),
+                                    shardLockRetryTimeout,
+                                    shardLockRetryTimeout.millis(),
+                                    shardRouting
+                                );
+                                dumpHotThreads.run();
+                                listener.onFailure(
+                                    new ElasticsearchTimeoutException("timed out while waiting to acquire shard lock for " + shardRouting)
+                                );
+                                return;
+                            }
+
+                            final var indexService = indicesService.indexService(shardRouting.index());
+                            if (indexService == null) {
+                                final var message = "index service unexpectedly not found for " + shardRouting;
+                                assert false : message;
+                                listener.onFailure(new ElasticsearchException(message));
+                                return;
+                            }
+
+                            if (indexService.getShardOrNull(shardRouting.shardId().id()) != null) {
+                                final var message = "index shard unexpectedly found for " + shardRouting;
+                                assert false : message;
+                                listener.onFailure(new ElasticsearchException(message));
+                                return;
+                            }
+
+                            createShardWhenLockAvailable(
+                                shardRouting,
+                                originalState,
+                                sourceNode,
+                                primaryTerm,
+                                iteration + 1,
+                                newDelayMillis,
+                                dumpHotThreads,
+                                listener
                             );
-                            listener.onResponse(false);
-                            return;
                         }
-                        assert pendingShardCreation.clusterStateUUID().equals(currentState.stateUUID());
-
-                        final var newDelayMillis = threadPool.relativeTimeInMillis() - pendingShardCreation.startTimeMillis();
-                        if (newDelayMillis > shardLockRetryTimeout.millis()) {
-                            logger.warn(
-                                "timed out after [{}={}/{}ms] while waiting to acquire shard lock for {}",
-                                SHARD_LOCK_RETRY_TIMEOUT_SETTING.getKey(),
-                                shardLockRetryTimeout,
-                                shardLockRetryTimeout.millis(),
-                                shardRouting
-                            );
-                            dumpHotThreads.run();
-                            listener.onFailure(
-                                new ElasticsearchTimeoutException("timed out while waiting to acquire shard lock for " + shardRouting)
-                            );
-                            return;
-                        }
-
-                        final var indexService = indicesService.indexService(shardRouting.index());
-                        if (indexService == null) {
-                            final var message = "index service unexpectedly not found for " + shardRouting;
-                            assert false : message;
-                            listener.onFailure(new ElasticsearchException(message));
-                            return;
-                        }
-
-                        if (indexService.getShardOrNull(shardRouting.shardId().id()) != null) {
-                            final var message = "index shard unexpectedly found for " + shardRouting;
-                            assert false : message;
-                            listener.onFailure(new ElasticsearchException(message));
-                            return;
-                        }
-
-                        createShardWhenLockAvailable(
-                            shardRouting,
-                            originalState,
-                            sourceNode,
-                            primaryTerm,
-                            iteration + 1,
-                            newDelayMillis,
-                            dumpHotThreads,
-                            listener
-                        );
-
                     }, ActionListener.noop())
             );
         } catch (Exception e) {
@@ -1230,7 +1352,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
 
         @Override
-        public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+        public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, FailureStrategy failureStrategy) {
+            if (failureStrategy == FailureStrategy.ABORT) {
+                // We don't need to notify master of anything here because recovery abortion is a
+                // symptom of a shard that is closing and this is communicated to master through other
+                // means (or the master already knows because the master initiated it, e.g. by moving the shard)
+                return;
+            }
             RecoveryClusterStateDelay.ensureClusterStateVersion(
                 creationClusterStateVersion,
                 clusterService,
@@ -1238,28 +1366,26 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 threadPool.getThreadContext(),
                 ActionListener.noop(),
                 listener -> {
-                    handleRecoveryFailure(shardRouting, sendShardFailure, primaryTerm, e);
+                    handleRecoveryFailure(shardRouting, failureStrategy, primaryTerm, e);
                     listener.onResponse(null);
                 }
             );
         }
-
-        @Override
-        public void onRecoveryAborted() {
-            // We don't need to notify master of anything here because recovery abortion is a
-            // symptom of a shard that is closing and this is communicated to master through other
-            // means (or the master already knows because the master initiated it, e.g. by moving the shard)
-        }
     }
 
     // package-private for testing
-    synchronized void handleRecoveryFailure(ShardRouting shardRouting, boolean sendShardFailure, long primaryTerm, Exception failure) {
+    synchronized void handleRecoveryFailure(
+        ShardRouting shardRouting,
+        FailureStrategy failureStrategy,
+        long primaryTerm,
+        Exception failure
+    ) {
         try {
             CloseUtils.executeDirectly(
                 l -> failAndRemoveShard(
                     shardRouting,
                     primaryTerm,
-                    sendShardFailure,
+                    failureStrategy.notifyMaster(),
                     "failed recovery",
                     failure,
                     clusterService.state(),
@@ -1516,6 +1642,15 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             Executor shardCloseExecutor,
             ActionListener<Void> shardsClosedListener
         );
+
+        /**
+         * Deletes the on-disk stores of any shards of the given index whose ID is not below its current number of shards, for example
+         * because a restore reduced the shard count. Runs asynchronously, off the calling thread.
+         *
+         * @param metadata the current metadata of the index
+         * @param listener completed when all such stores have been deleted
+         */
+        void deleteShardsOutsideIndexRange(IndexMetadata metadata, ActionListener<Void> listener);
 
         /**
          * Returns an IndexService for the specified index if exists otherwise returns <code>null</code>.

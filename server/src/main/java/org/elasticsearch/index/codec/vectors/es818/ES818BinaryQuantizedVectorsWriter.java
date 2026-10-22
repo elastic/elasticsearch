@@ -202,7 +202,7 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
                 (byte) 1,
                 clusterCenter
             );
-            ESVectorUtil.packAsBinary(quantizationScratch, vector);
+            ESVectorUtil.pack1BitValues(quantizationScratch, vector);
             binarizedVectorData.writeBytes(vector, vector.length);
             binarizedVectorData.writeInt(Float.floatToIntBits(corrections.lowerInterval()));
             binarizedVectorData.writeInt(Float.floatToIntBits(corrections.upperInterval()));
@@ -252,7 +252,7 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
                 (byte) 1,
                 clusterCenter
             );
-            ESVectorUtil.packAsBinary(quantizationScratch, vector);
+            ESVectorUtil.pack1BitValues(quantizationScratch, vector);
             binarizedVectorData.writeBytes(vector, vector.length);
             binarizedVectorData.writeInt(Float.floatToIntBits(corrections.lowerInterval()));
             binarizedVectorData.writeInt(Float.floatToIntBits(corrections.upperInterval()));
@@ -614,7 +614,7 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
 
         private void binarize(int ord) throws IOException {
             corrections = quantizer.scalarQuantize(values.vectorValue(ord), scratch, initQuantized, (byte) 1, centroid);
-            ESVectorUtil.packAsBinary(initQuantized, binarized);
+            ESVectorUtil.pack1BitValues(initQuantized, binarized);
         }
 
         @Override

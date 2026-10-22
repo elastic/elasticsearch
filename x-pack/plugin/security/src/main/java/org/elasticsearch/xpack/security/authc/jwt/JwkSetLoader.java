@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.security.authc.jwt;
 
 import com.nimbusds.jose.jwk.JWK;
 
-import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
+import org.apache.hc.client5.http.impl.async.CloseableHttpAsyncClient;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;

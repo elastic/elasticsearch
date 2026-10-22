@@ -55,9 +55,7 @@ public class MvLastTests extends AbstractMultivalueFunctionTestCase {
         if (EsqlCapabilities.Cap.MV_FIRST_LAST_DATE_RANGE.isEnabled()) {
             dateRanges(cases);
         }
-        if (EsqlCapabilities.Cap.DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V8.isEnabled()) {
-            doubleRanges(cases);
-        }
+        doubleRanges(cases);
         return parameterSuppliersFromTypedDataWithDefaultChecks(false, cases);
     }
 

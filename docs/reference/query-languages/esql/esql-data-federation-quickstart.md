@@ -188,11 +188,17 @@ A successful request returns `{"acknowledged": true}`.
 6. On the **Schema mappings** step, turn off **Enable time-based filtering**, then click **Next**. The Ookla files have no date column to map to `@timestamp`, so you can't move to the next step while this setting is on. With the setting off, the step leaves **Infer unmapped fields** selected, so {{es}} infers every column from the Parquet files:
 
    ![The Schema mappings step with Enable time-based filtering turned off and Infer unmapped fields selected](images/data-federation/add-dataset-schema-mappings-time-filter-off.png)
-7. On the **Review** step, click **Add dataset**.
+7. On the **Review** step, you can select the **Request** tab to view the equivalent API request. Then click **Add dataset**.
 
-Before you click **Add dataset**, you can select the **Request** tab on the **Review** step to see the equivalent API request.
-
-{applies_to}`stack: experimental =9.5` **Add dataset** opens a flyout. Select `ookla_speedtest` as the **Data source**, enter `speedtest_fixed` as the **Name**, enter the resource path in **Resource**, set **Format** to **Parquet**, then click **Add**.
+:::{dropdown} Add a dataset with the flyout
+:applies_to: stack: experimental =9.5
+1. Select the **Datasets** tab, then click **Add dataset**.
+2. Select `ookla_speedtest` as the **Data source**.
+3. Enter `speedtest_fixed` as the **Name**.
+4. In **Resource**, enter the resource path shown earlier in this tab.
+5. Set **Format** to **Parquet**.
+6. Click **Add**.
+:::
 ::::
 
 :::::
@@ -344,7 +350,7 @@ If the query returns results, your data source is working. You can now use the f
 
 :::{tip}
 :applies_to: stack: experimental 9.6+
-In {{kib}}, you can also query a dataset from the **Datasets** tab. Click **Open in Discover** in the dataset's row to open **Discover** with a `FROM speedtest_fixed` query.
+In {{kib}}, you can also query a dataset from the **Datasets** tab. In the dataset's row, click the **Open in Discover** icon ({icon}`product_discover`) to open **Discover** with a `FROM speedtest_fixed` query.
 :::
 ::::::
 

@@ -48,7 +48,7 @@ The {{kib}} UI lets you connect data sources and add datasets without using the 
 Turn on the UI with an advanced setting:
 
 1. Find **Advanced settings** in the navigation menu or use the global search field, then select the **Global Settings** tab.
-2. Turn on **{{esql}} Data Federation**. When it's on, the setting shows **Reset to default** under the toggle:
+2. Turn on **{{esql}} Data Federation**:
 
    ![The ES|QL Data Federation advanced setting turned on in the Global Settings tab](images/data-federation/advanced-setting.png)
 3. Click **Save changes**, then reload the page.

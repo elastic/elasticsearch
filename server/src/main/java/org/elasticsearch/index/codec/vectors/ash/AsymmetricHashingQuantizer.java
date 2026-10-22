@@ -373,11 +373,6 @@ public final class AsymmetricHashingQuantizer {
 
         for (int start = 0; start < trainingSize; start += blockRows) {
             int rows = Math.min(blockRows, trainingSize - start);
-            if (rows != blockRows) {
-                // the final, partial block: the multiply needs exactly-sized arrays
-                block = new float[rows * originalDim];
-                blockT = new float[rows * originalDim];
-            }
             for (int i = 0; i < rows; i++) {
                 int srcIdx = sampleIndices[start + i];
                 float[] centroid = centroids.apply(srcIdx);
@@ -585,10 +580,7 @@ public final class AsymmetricHashingQuantizer {
 
         @Override
         protected void project() {
-            // The multiply doesn't have offsets, so the full matrix is calculated
-            // Although this means that partial blocks multiply whatever is left in 'centered' after the tail,
-            // only 'size' rows are read back
-            ESVectorUtil.matrixMultiply(centered, w, maxBlockSize, originalDim, nDims, latent, executor);
+            ESVectorUtil.matrixMultiply(centered, w, size, originalDim, nDims, latent, executor);
         }
     }
 

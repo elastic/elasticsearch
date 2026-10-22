@@ -623,7 +623,14 @@ public class SearchExecutionContext extends QueryRewriteContext {
                 )
             ),
             sourceProvider,
-            fieldLookupProvider
+            fieldLookupProvider,
+            // Account decode buffers that script doc-values readers retain (e.g. the uncompressed-block buffer of
+            // the TSDB binary doc-values format) on the request breaker. One such buffer is held per field, leaf
+            // and clause that reads doc values through a script, so an unbounded fan-out (many runtime-field
+            // clauses in a filters aggregation, say) trips the breaker instead of exhausting the heap. The
+            // accounted memory accumulates in this context's query construction pool and is drained at request end
+            // by releaseQueryConstructionMemory().
+            (bytes, field) -> addCircuitBreakerMemory(bytes, "script_doc_values:" + field)
         );
     }
 

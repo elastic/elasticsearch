@@ -422,7 +422,8 @@ module org.elasticsearch.server {
             org.elasticsearch.xpack.core,
             org.elasticsearch.xpack.gpu,
             org.elasticsearch.xpack.diskbbq,
-            org.elasticsearch.xpack.stateless;
+            org.elasticsearch.xpack.stateless,
+            co.elastic.elasticsearch.serverless.datarecovery;
 
     exports org.elasticsearch.telemetry.instrumentation;
     exports org.elasticsearch.telemetry.tracing;

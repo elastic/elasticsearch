@@ -23,7 +23,7 @@ import java.util.function.Supplier;
  * Base class for tests of {@link InferenceFunction}s that take {@code (input, inference_id [, options])}, where
  * {@code options} is an optional trailing map expression.
  * <p>
- * Subclasses extend {@link AbstractFunctionTestCase} directly, not {@link AbstractScalarFunctionTestCase}.
+ * This class extends {@link AbstractFunctionTestCase} directly, not {@link AbstractScalarFunctionTestCase}.
  * Inference functions have no per-row evaluator, so they never run as ordinary scalar functions. The only way to
  * resolve one to a value is folding: a dedicated pre-optimizer pass ({@code FoldInferenceFunctions}) makes a real
  * inference call outside {@link org.elasticsearch.xpack.esql.core.expression.Expression#fold}. That means the

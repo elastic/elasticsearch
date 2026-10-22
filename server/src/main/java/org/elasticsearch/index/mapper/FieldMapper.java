@@ -828,6 +828,26 @@ public abstract class FieldMapper extends Mapper {
     }
 
     /**
+     * Writes a single array-slot value that this mapper previously recorded via
+     * {@link FieldArrayContext#recordOffset(String, Comparable, FieldMapper)} back in a form suitable for {@code _source}.
+     * <p>
+     * This is used as a fallback when the encoded offsets of a leaf array are too large for a sorted doc value (larger than
+     * {@link org.apache.lucene.index.IndexWriter#MAX_TERM_LENGTH}): rather than rejecting the whole document, the array is
+     * rebuilt from the recorded offsets and stored in {@code _ignored_source}. Implementations must write the same
+     * representation that their offsets-aware synthetic source loader produces, so that the fallback is indistinguishable
+     * from the native array reconstruction.
+     * <p>
+     * Mappers that record offsets with the {@link FieldMapper}-aware overloads of
+     * {@link FieldArrayContext#recordOffset(String, Comparable, FieldMapper)} and
+     * {@link FieldArrayContext#recordNull(String, FieldMapper)} must override this method.
+     */
+    protected void writeRecordedOffsetValue(XContentBuilder builder, Comparable<?> value) throws IOException {
+        throw new UnsupportedOperationException(
+            "field [" + fullPath() + "] of type [" + typeName() + "] cannot rebuild values recorded for array offsets"
+        );
+    }
+
+    /**
      * <p>
      * Returns implementation of synthetic source support for the mapper.
      * <br>

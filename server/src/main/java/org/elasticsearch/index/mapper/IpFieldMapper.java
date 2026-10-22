@@ -1135,11 +1135,18 @@ public class IpFieldMapper extends FieldMapper {
         } else if (FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue())) {
             if (address != null) {
                 BytesRef sortableValue = address.binaryValue();
-                context.getOffSetContext().recordOffset(offsetsFieldName, sortableValue);
+                context.getOffSetContext().recordOffset(offsetsFieldName, sortableValue, this);
             } else {
-                context.getOffSetContext().recordNull(offsetsFieldName);
+                context.getOffSetContext().recordNull(offsetsFieldName, this);
             }
         }
+    }
+
+    @Override
+    protected void writeRecordedOffsetValue(XContentBuilder builder, Comparable<?> value) throws IOException {
+        // The recorded value is the encoded (sortable) address; format it like the offsets-aware loader does.
+        BytesRef formatted = convert((BytesRef) value);
+        builder.utf8Value(formatted.bytes, formatted.offset, formatted.length);
     }
 
     private void indexValue(DocumentParserContext context, ESInetAddressPoint address) {

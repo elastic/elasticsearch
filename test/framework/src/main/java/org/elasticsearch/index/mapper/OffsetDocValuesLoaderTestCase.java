@@ -10,15 +10,20 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.notNullValue;
@@ -132,6 +137,80 @@ public abstract class OffsetDocValuesLoaderTestCase extends MapperServiceTestCas
         minimalMapping(mapping);
         mapping.endObject().endObject().endObject().endObject();
         testOffsetArrayRandom(mapping);
+    }
+
+    /**
+     * An array with so many elements that its encoded offsets exceed {@link IndexWriter#MAX_TERM_LENGTH} must not fail the
+     * document. Instead the array is stored in {@code _ignored_source}, so synthetic source still reproduces element order,
+     * duplicates and nulls exactly, and no {@code field.offsets} doc value is written.
+     */
+    public void testOversizedOffsetArrayFallsBackToIgnoredSource() throws Exception {
+        // One more slot than IndexWriter.MAX_TERM_LENGTH guarantees the encoded offsets exceed the limit, since every slot
+        // takes at least one byte on top of the length prefix.
+        int numSlots = IndexWriter.MAX_TERM_LENGTH + between(1, 500);
+        List<Object> values = new ArrayList<>(numSlots);
+        List<Object> pool = new ArrayList<>();
+        for (int i = 0; i < numSlots; i++) {
+            if (randomInt(10) == 1) {
+                values.add(null);
+            } else if (randomInt(10) == 1 && pool.isEmpty() == false) {
+                values.add(randomFrom(pool));
+            } else {
+                Object value = randomValue();
+                pool.add(value);
+                values.add(value);
+            }
+        }
+
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("field");
+        minimalMapping(mapping);
+        mapping.endObject().endObject().endObject().endObject();
+        try (var mapperService = createMapperService(mapping)) {
+            var mapper = mapperService.documentMapper();
+
+            var doc = mapper.parse(source(b -> b.field("field", values)));
+            assertThat(doc.rootDoc().getFields("field.offsets"), Matchers.empty());
+
+            String expected;
+            try (XContentBuilder b = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                b.startObject().field("field", values).endObject();
+                expected = Strings.toString(b);
+            }
+            assertThat(syntheticSource(mapper, b -> b.field("field", values)), Matchers.equalTo(expected));
+        }
+    }
+
+    /**
+     * Like {@link #testOversizedOffsetArrayFallsBackToIgnoredSource()}, but in a strict columnar index mode, where
+     * {@code _ignored_source} is not available as a fallback: the document must be rejected, with a clearer and earlier
+     * error than the one Lucene produces for an oversized sorted doc value.
+     */
+    public void testOversizedOffsetArrayInColumnarModeIsRejected() throws Exception {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("field");
+        minimalMapping(mapping);
+        mapping.endObject().endObject().endObject().endObject();
+        try (var mapperService = createMapperService(settings, mapping)) {
+            var mapper = mapperService.documentMapper();
+
+            // Some field types store array order inline in binary doc values in columnar mode instead of recording offsets.
+            // Detect at runtime whether this type uses offsets here, and skip the test when it does not.
+            List<Object> smallArray = List.of(randomValue(), randomValue(), randomValue());
+            var smallDoc = mapper.parse(source(b -> b.field("field", smallArray)));
+            assumeFalse(
+                "field type does not record offsets in columnar index mode",
+                smallDoc.rootDoc().getFields("field.offsets").isEmpty()
+            );
+
+            int numSlots = IndexWriter.MAX_TERM_LENGTH + between(1, 500);
+            List<Object> values = new ArrayList<>(numSlots);
+            for (int i = 0; i < numSlots; i++) {
+                values.add(randomValue());
+            }
+            var exception = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.field("field", values))));
+            assertThat(exception.getCause().getMessage(), Matchers.containsString("encoded offsets of field [field.offsets]"));
+            assertThat(exception.getCause().getMessage(), Matchers.containsString("cannot be preserved in [_ignored_source]"));
+        }
     }
 
     protected void minimalMapping(XContentBuilder b) throws IOException {

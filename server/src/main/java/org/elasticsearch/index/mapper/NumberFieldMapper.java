@@ -3022,12 +3022,18 @@ public class NumberFieldMapper extends FieldMapper {
                 // We cannot simply cast value to Comparable<> because we need to also capture the potential loss of precision that occurs
                 // when the value is stored into the doc values.
                 long sortableLongValue = type.toSortableLong(value);
-                context.getOffSetContext().recordOffset(offsetsFieldName, sortableLongValue);
+                context.getOffSetContext().recordOffset(offsetsFieldName, sortableLongValue, this);
             } else {
-                context.getOffSetContext().recordNull(offsetsFieldName);
+                context.getOffSetContext().recordNull(offsetsFieldName, this);
             }
         }
 
+    }
+
+    @Override
+    protected void writeRecordedOffsetValue(XContentBuilder builder, Comparable<?> value) throws IOException {
+        // The recorded value is the sortable long (doc values) representation, see parseCreateField.
+        type.writeValue(builder, (Long) value);
     }
 
     /**

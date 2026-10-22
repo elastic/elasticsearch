@@ -76,6 +76,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.LongScriptFieldDistanceFeatureQuery;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -1364,7 +1365,7 @@ public final class DateFieldMapper extends FieldMapper {
         if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
             if (nullValue == null) {
                 if (FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue())) {
-                    context.getOffSetContext().recordNull(offsetsFieldName);
+                    context.getOffSetContext().recordNull(offsetsFieldName, this);
                 }
                 return;
             }
@@ -1407,8 +1408,14 @@ public final class DateFieldMapper extends FieldMapper {
 
         indexValue(context, timestamp);
         if (FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue())) {
-            context.getOffSetContext().recordOffset(offsetsFieldName, timestamp);
+            context.getOffSetContext().recordOffset(offsetsFieldName, timestamp, this);
         }
+    }
+
+    @Override
+    protected void writeRecordedOffsetValue(XContentBuilder builder, Comparable<?> value) throws IOException {
+        // The recorded value is the parsed timestamp in this field's resolution; format it like the offsets-aware loader does.
+        builder.value(fieldType().format((Long) value, fieldType().dateTimeFormatter()));
     }
 
     /*

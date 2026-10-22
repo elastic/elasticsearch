@@ -2329,11 +2329,17 @@ public final class KeywordFieldMapper extends FieldMapper {
             }
         } else if (FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue())) {
             if (indexed) {
-                context.getOffSetContext().recordOffset(offsetsFieldName, value.bytes());
+                context.getOffSetContext().recordOffset(offsetsFieldName, value.bytes(), this);
             } else if (value == null) {
-                context.getOffSetContext().recordNull(offsetsFieldName);
+                context.getOffSetContext().recordNull(offsetsFieldName, this);
             }
         }
+    }
+
+    @Override
+    protected void writeRecordedOffsetValue(XContentBuilder builder, Comparable<?> value) throws IOException {
+        var utf8Bytes = (XContentString.UTF8Bytes) value;
+        builder.utf8Value(utf8Bytes.bytes(), utf8Bytes.offset(), utf8Bytes.length());
     }
 
     @Override

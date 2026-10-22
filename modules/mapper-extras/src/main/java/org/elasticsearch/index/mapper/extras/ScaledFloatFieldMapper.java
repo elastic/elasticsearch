@@ -756,7 +756,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         if (value == null) {
             if (shouldStoreOffsets) {
-                context.getOffSetContext().recordNull(offsetsFieldName);
+                context.getOffSetContext().recordNull(offsetsFieldName, this);
             }
             return;
         }
@@ -791,7 +791,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         );
 
         if (shouldStoreOffsets) {
-            context.getOffSetContext().recordOffset(offsetsFieldName, scaledValue);
+            context.getOffSetContext().recordOffset(offsetsFieldName, scaledValue, this);
         }
 
         if (docValuesParameters.enabled() == false && (indexed || stored)) {
@@ -801,6 +801,12 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
     static long encode(double value, double scalingFactor) {
         return Math.round(value * scalingFactor);
+    }
+
+    @Override
+    protected void writeRecordedOffsetValue(XContentBuilder builder, Comparable<?> value) throws IOException {
+        // The recorded value is the scaled long (doc values) representation; decode it like the offsets-aware loader does.
+        builder.value(decodeForSyntheticSource((Long) value, scalingFactor));
     }
 
     private static class ScaledFloatIndexFieldData extends IndexNumericFieldData {

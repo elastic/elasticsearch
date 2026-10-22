@@ -888,11 +888,17 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
         if (FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue())) {
             if (numericValue != null) {
-                context.getOffSetContext().recordOffset(offsetsFieldName, numericValue);
+                context.getOffSetContext().recordOffset(offsetsFieldName, numericValue, this);
             } else {
-                context.getOffSetContext().recordNull(offsetsFieldName);
+                context.getOffSetContext().recordNull(offsetsFieldName, this);
             }
         }
+    }
+
+    @Override
+    protected void writeRecordedOffsetValue(XContentBuilder builder, Comparable<?> value) throws IOException {
+        // The recorded value is the sortable signed long (doc values) representation; format it like the offsets-aware loader does.
+        builder.value(DocValueFormat.UNSIGNED_LONG_SHIFTED.format((Long) value));
     }
 
     @Override

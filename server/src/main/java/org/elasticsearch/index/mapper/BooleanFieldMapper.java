@@ -666,11 +666,16 @@ public class BooleanFieldMapper extends FieldMapper {
         indexValue(context, value);
         if (FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue())) {
             if (value != null) {
-                context.getOffSetContext().recordOffset(offsetsFieldName, value);
+                context.getOffSetContext().recordOffset(offsetsFieldName, value, this);
             } else {
-                context.getOffSetContext().recordNull(offsetsFieldName);
+                context.getOffSetContext().recordNull(offsetsFieldName, this);
             }
         }
+    }
+
+    @Override
+    protected void writeRecordedOffsetValue(XContentBuilder builder, Comparable<?> value) throws IOException {
+        builder.value((Boolean) value);
     }
 
     private void indexValue(DocumentParserContext context, Boolean value) {

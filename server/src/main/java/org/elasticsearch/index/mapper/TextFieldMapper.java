@@ -2299,7 +2299,7 @@ public final class TextFieldMapper extends FieldMapper {
                     MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull(context.doc(), fieldType().name());
                 }
             } else if (recordOffsets) {
-                context.getOffSetContext().recordNull(offsetsFieldName);
+                context.getOffSetContext().recordNull(offsetsFieldName, this);
             }
             return;
         }
@@ -2349,7 +2349,7 @@ public final class TextFieldMapper extends FieldMapper {
         }
 
         if (recordOffsets) {
-            context.getOffSetContext().recordOffset(offsetsFieldName, new BytesRef(value));
+            context.getOffSetContext().recordOffset(offsetsFieldName, new BytesRef(value), this);
         }
 
         if (isIndexed() || fieldType.stored()) {
@@ -2383,6 +2383,12 @@ public final class TextFieldMapper extends FieldMapper {
                 context.doc().add(new StoredField(fallbackFieldName, value));
             }
         }
+    }
+
+    @Override
+    protected void writeRecordedOffsetValue(XContentBuilder builder, Comparable<?> value) throws IOException {
+        var bytesRef = (BytesRef) value;
+        builder.utf8Value(bytesRef.bytes, bytesRef.offset, bytesRef.length);
     }
 
     private void storeValueInFallbackField(String fallbackFieldName, BytesRef bytesRef, DocumentParserContext context) {

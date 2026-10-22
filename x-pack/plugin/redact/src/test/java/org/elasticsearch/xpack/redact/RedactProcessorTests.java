@@ -18,6 +18,7 @@ import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.joni.Matcher;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -216,7 +217,7 @@ public class RedactProcessorTests extends ESTestCase {
         private final AtomicInteger unregistrations = new AtomicInteger();
 
         @Override
-        public void register(org.joni.Matcher matcher) {
+        public void register(Matcher matcher) {
             registrations.incrementAndGet();
         }
 
@@ -226,7 +227,7 @@ public class RedactProcessorTests extends ESTestCase {
         }
 
         @Override
-        public void unregister(org.joni.Matcher matcher) {
+        public void unregister(Matcher matcher) {
             unregistrations.incrementAndGet();
         }
     }

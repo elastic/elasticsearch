@@ -78,9 +78,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherIT
   method: testForceCommitPrefetch
   issue: https://github.com/elastic/elasticsearch/issues/147847
-- class: org.elasticsearch.search.aggregations.metrics.LargeTopHitsIT
-  method: test500Queries
-  issue: https://github.com/elastic/elasticsearch/issues/148056
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testStressWithRelocationFailures
   issue: https://github.com/elastic/elasticsearch/issues/148129
@@ -385,9 +382,6 @@ tests:
 - class: org.elasticsearch.xpack.search.AsyncSearchActionIT
   method: testRemoveAsyncIndex
   issue: https://github.com/elastic/elasticsearch/issues/161316
-- class: org.elasticsearch.integration.FieldLevelSecurityTests
-  method: testPercolatorConstantKeywordQueryDependsOnIndexingUsersFls
-  issue: https://github.com/elastic/elasticsearch/issues/161396
 - class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRecoveryIT
   method: testPeerRecovery
   issue: https://github.com/elastic/elasticsearch/issues/161463
@@ -523,3 +517,6 @@ tests:
 - class: org.elasticsearch.xpack.wildcard.search.WildcardAutomatonBreakerIT
   method: testAutomatonStaysChargedUntilSearchContextReleased
   issue: https://github.com/elastic/elasticsearch/issues/162754
+- class: org.elasticsearch.columnar.string.StringColumnMetadataTests
+  method: testRoundTrip
+  issue: https://github.com/elastic/elasticsearch/issues/162976

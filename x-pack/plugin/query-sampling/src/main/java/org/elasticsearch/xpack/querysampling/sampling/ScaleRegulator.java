@@ -7,13 +7,12 @@
 
 package org.elasticsearch.xpack.querysampling.sampling;
 
-import java.util.concurrent.atomic.LongAdder;
-
 /**
  * Steers the pick rate towards a target by scaling γ. It only affects later arrivals, each of which records the
  * probability it was drawn with, so estimates stay unbiased. The rate is measured over a window long enough for about
  * {@value #PICKS_PER_WINDOW} picks, and each step is the square root of the error, capped at a factor of two, to
- * settle without overshooting.
+ * settle without overshooting. Called by the pipeline thread only; the adjustment and the target are volatile as other
+ * threads read the first and set the second.
  */
 final class ScaleRegulator {
 
@@ -24,7 +23,7 @@ final class ScaleRegulator {
     static final double MAX_WINDOW_SECONDS = 3600.0;
     static final int PICKS_PER_WINDOW = 10;
 
-    private final LongAdder picks = new LongAdder();
+    private long picks;
     private volatile double adjustment = 1.0;
     private volatile long targetPerHour;
     private long picksAtLastWindow;
@@ -41,12 +40,12 @@ final class ScaleRegulator {
 
     /** Head-query picks are not recorded, as the sampler has no say in them. */
     void recordPick() {
-        picks.increment();
+        picks++;
     }
 
-    synchronized void observe(double seconds) {
+    void observe(double seconds) {
         long target = targetPerHour;
-        long total = picks.sum();
+        long total = picks;
         if (target <= 0) {
             adjustment = 1.0;
             picksAtLastWindow = total;

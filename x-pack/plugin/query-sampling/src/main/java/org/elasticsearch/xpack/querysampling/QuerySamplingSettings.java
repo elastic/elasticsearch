@@ -8,12 +8,20 @@
 package org.elasticsearch.xpack.querysampling;
 
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexSettings;
 
 import java.util.List;
 
 /** Settings of the query sampling pipeline; the sampling knobs are dynamic so it can be tuned without a restart. */
 public final class QuerySamplingSettings {
+
+    /** The most hits that one search of an index returns, which is how many records of the golden dataset are read at once. */
+    public static final int MAX_RESULT_WINDOW = IndexSettings.MAX_RESULT_WINDOW_SETTING.getDefault(Settings.EMPTY);
+
+    // every run reads the golden dataset and the stored samples and writes a version, all on the master
+    static final TimeValue MIN_GOLDEN_PROMOTION_INTERVAL = TimeValue.timeValueMinutes(5);
 
     /** When false the pipeline does no work on the search path. */
     public static final Setting<Boolean> ENABLED = Setting.boolSetting(
@@ -36,7 +44,7 @@ public final class QuerySamplingSettings {
     public static final Setting<TimeValue> WEIGHTS_REFRESH_INTERVAL = Setting.timeSetting(
         "xpack.query_sampling.weights_refresh_interval",
         TimeValue.timeValueSeconds(30),
-        TimeValue.timeValueSeconds(1),
+        TimeValue.timeValueSeconds(10),
         Setting.Property.NodeScope
     );
 
@@ -96,13 +104,14 @@ public final class QuerySamplingSettings {
 
     /**
      * Number of clusters of query vectors per field used to balance the sample, see {@link #SPATIAL_BALANCE}. 0
-     * disables. Built per node, in memory.
+     * disables. Built per node, in memory: before the clusters are fitted, ten vectors per cluster wait for it, for each
+     * field, which is why the number is limited.
      */
     public static final Setting<Integer> SPATIAL_CLUSTERS = Setting.intSetting(
         "xpack.query_sampling.spatial_clusters",
         0,
         0,
-        256,
+        64,
         Setting.Property.NodeScope
     );
 
@@ -155,12 +164,20 @@ public final class QuerySamplingSettings {
 
     /**
      * How often the elected master grows the golden dataset with new queries that have ground truth. 0 only
-     * promotes when asked.
+     * promotes when asked; otherwise it is at least five minutes.
      */
-    public static final Setting<TimeValue> GOLDEN_PROMOTION_INTERVAL = Setting.timeSetting(
+    public static final Setting<TimeValue> GOLDEN_PROMOTION_INTERVAL = new Setting<>(
         "xpack.query_sampling.golden_promotion_interval",
-        TimeValue.ZERO,
-        TimeValue.ZERO,
+        "0",
+        value -> {
+            TimeValue interval = TimeValue.parseTimeValue(value, "xpack.query_sampling.golden_promotion_interval");
+            if (interval.millis() != 0 && interval.compareTo(MIN_GOLDEN_PROMOTION_INTERVAL) < 0) {
+                throw new IllegalArgumentException(
+                    "[xpack.query_sampling.golden_promotion_interval] must be 0 or at least [" + MIN_GOLDEN_PROMOTION_INTERVAL + "]"
+                );
+            }
+            return interval;
+        },
         Setting.Property.NodeScope
     );
 
@@ -172,7 +189,7 @@ public final class QuerySamplingSettings {
         "xpack.query_sampling.golden_max_queries",
         1000,
         1,
-        10_000,
+        MAX_RESULT_WINDOW,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -202,11 +219,14 @@ public final class QuerySamplingSettings {
         Setting.Property.Dynamic
     );
 
-    /** How long a query is remembered after its last search; its count only covers this window. */
+    /**
+     * The window that the arrivals of a query are counted in. A query is forgotten between one and two windows after its
+     * last search, and then its count starts again.
+     */
     public static final Setting<TimeValue> MULTIPLICITY_WINDOW = Setting.timeSetting(
         "xpack.query_sampling.multiplicity_window",
         TimeValue.timeValueHours(1),
-        TimeValue.timeValueSeconds(1),
+        TimeValue.timeValueMinutes(1),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

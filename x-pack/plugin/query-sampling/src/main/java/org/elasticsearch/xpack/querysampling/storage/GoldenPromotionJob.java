@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.querysampling.storage;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.querysampling.QuerySamplingSettings;
@@ -26,9 +25,6 @@ public final class GoldenPromotionJob {
 
     private static final Logger logger = LogManager.getLogger(GoldenPromotionJob.class);
 
-    // keeps a near-zero setting from keeping the master busy
-    static final TimeValue MIN_INTERVAL = TimeValue.timeValueSeconds(1);
-
     private final BiConsumer<Integer, ActionListener<GoldenUpdater.Result>> grow;
     private final AtomicBoolean running = new AtomicBoolean();
     private volatile int limit = 1;
@@ -39,11 +35,6 @@ public final class GoldenPromotionJob {
 
     public void watch(ClusterSettings clusterSettings) {
         clusterSettings.initializeAndWatch(QuerySamplingSettings.GOLDEN_MAX_QUERIES, value -> this.limit = value);
-    }
-
-    /** The configured interval, but not so short that it keeps the master busy. */
-    public static TimeValue interval(TimeValue configured) {
-        return configured.compareTo(MIN_INTERVAL) < 0 ? MIN_INTERVAL : configured;
     }
 
     public void run() {
@@ -60,7 +51,10 @@ public final class GoldenPromotionJob {
                     result.dropped()
                 );
             }
-        }, e -> { logger.debug("failed to grow the golden dataset", e); }), () -> running.set(false));
+            if (result.failed() > 0) {
+                logger.warn("[{}] queries could not be copied or computed again for the golden dataset", result.failed());
+            }
+        }, e -> { logger.warn("failed to grow the golden dataset", e); }), () -> running.set(false));
         try {
             grow.accept(limit, done);
         } catch (Exception e) {

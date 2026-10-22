@@ -128,6 +128,9 @@ public record DataState(long documents, long digest) {
         if (byIndex == null) {
             throw new IllegalStateException("the search did not tell the state of the data");
         }
+        if (byIndex.getSumOfOtherDocCounts() > 0) {
+            throw new IllegalStateException("found more than [" + MAX_INDICES + "] indices to take the state of");
+        }
         for (Terms.Bucket bucket : byIndex.getBuckets()) {
             Sum sum = bucket.getAggregations().get(SEQ_NO_SUM);
             states.add(new ShardState(bucket.getKeyAsString(), shard, bucket.getDocCount(), sum.value()));

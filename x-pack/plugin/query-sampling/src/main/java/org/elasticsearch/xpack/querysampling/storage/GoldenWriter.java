@@ -123,9 +123,29 @@ public final class GoldenWriter {
                 written += item.isFailed() ? 0 : 1;
             }
             if (written < queries.size()) {
-                logger.debug("[{}] queries could not be written: {}", queries.size() - written, response.buildFailureMessage());
+                // readers skip a version that is not complete, so the next update starts again from the last good one
+                String failure = response.buildFailureMessage();
+                logger.warn(
+                    "[{}] of [{}] golden queries could not be written, version [{}] is left incomplete: {}",
+                    queries.size() - written,
+                    queries.size(),
+                    version,
+                    failure
+                );
+                listener.onFailure(
+                    new IllegalStateException(
+                        "["
+                            + (queries.size() - written)
+                            + "] of ["
+                            + queries.size()
+                            + "] queries of version ["
+                            + version
+                            + "] could not be written"
+                    )
+                );
+                return;
             }
-            complete(version, written, queries.size() - written, listener);
+            complete(version, written, 0, listener);
         }, listener::onFailure));
     }
 

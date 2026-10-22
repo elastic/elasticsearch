@@ -33,6 +33,8 @@ import java.util.function.Supplier;
  * One instance lives as long as the node and keeps the clusters of a space (a field and its dimensions) for each one it
  * meets, at most {@link #MAX_SPACES}: the fields that are searched are not known in advance, and queries of a space
  * beyond the limit are not grouped, which gives them a factor of 1.
+ * <p>
+ * Used by the pipeline thread only, which is why the spaces need no lock; only the balance, set by a setting, is volatile.
  */
 public final class SpatialStrata {
 
@@ -83,17 +85,15 @@ public final class SpatialStrata {
             }
         }
         String name = field + "/" + vector.length;
-        synchronized (spaces) { // reading a space and updating it is one step, which a concurrent map would not make
-            Space space = spaces.get(name);
-            if (space == null) {
-                if (spaces.size() >= MAX_SPACES) {
-                    return;
-                }
-                space = new Space(clusters, vector.length, warmup);
-                spaces.put(name, space);
+        Space space = spaces.get(name);
+        if (space == null) {
+            if (spaces.size() >= MAX_SPACES) {
+                return;
             }
-            space.add(name, vector, receiver, random);
+            space = new Space(clusters, vector.length, warmup);
+            spaces.put(name, space);
         }
+        space.add(name, vector, receiver, random);
     }
 
     public double factor(@Nullable Stratum stratum) {
@@ -101,13 +101,11 @@ public final class SpatialStrata {
         if (stratum == null || balance == 0.0) {
             return 1.0;
         }
-        synchronized (spaces) {
-            Space space = spaces.get(stratum.space());
-            if (space == null) {
-                return 1.0;
-            }
-            return Math.min(MAX_FACTOR, Math.pow(space.averageCount() / space.counts[stratum.cluster()], balance));
+        Space space = spaces.get(stratum.space());
+        if (space == null) {
+            return 1.0;
         }
+        return Math.min(MAX_FACTOR, Math.pow(space.averageCount() / space.counts[stratum.cluster()], balance));
     }
 
     private static final class Space {

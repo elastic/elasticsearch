@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.querysampling.sampling;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.BiConsumer;
@@ -49,6 +51,7 @@ public final class SelectivityStrata {
 
     private final BiConsumer<SearchRequest, ActionListener<SearchResponse>> search;
     private final LongSupplier clock;
+    private final Executor executor;
     private final AtomicInteger inFlight = new AtomicInteger();
     private final Map<String, Total> totals = new ConcurrentHashMap<>();
     private final LongAdder counted = new LongAdder();
@@ -57,10 +60,12 @@ public final class SelectivityStrata {
     /**
      * @param search how the counts are made, which decides who they are made as
      * @param clock  milliseconds, monotonic
+     * @param executor where the second count is started
      */
-    public SelectivityStrata(BiConsumer<SearchRequest, ActionListener<SearchResponse>> search, LongSupplier clock) {
+    public SelectivityStrata(BiConsumer<SearchRequest, ActionListener<SearchResponse>> search, LongSupplier clock, Executor executor) {
         this.search = search;
         this.clock = clock;
+        this.executor = executor;
     }
 
     public void watch(ClusterSettings clusterSettings) {
@@ -85,14 +90,20 @@ public final class SelectivityStrata {
         ActionListener<Double> done = ActionListener.runAfter(ActionListener.wrap(fraction -> {
             tracked.selectivity(Selectivity.of(fraction));
             counted.increment();
-        }, e -> { logger.debug("failed to count the vectors that the filters of a query leave", e); }), inFlight::decrementAndGet);
+        }, e -> { logger.warn("failed to count the vectors that the filters of a query leave", e); }), inFlight::decrementAndGet);
         try {
             vectors(query, done.delegateFailureAndWrap((l, total) -> {
                 if (total == 0) {
                     l.onFailure(new IllegalStateException("there are no vectors to take a share of"));
                     return;
                 }
-                count(query, filtered(query), l.map(passing -> Math.min(1.0, (double) passing / total)));
+                // the first count may have been completed by a network thread, which must not start the next search
+                executor.execute(
+                    ActionRunnable.wrap(
+                        l,
+                        next -> count(query, filtered(query), next.map(passing -> Math.min(1.0, (double) passing / total)))
+                    )
+                );
             }));
         } catch (Exception e) {
             done.onFailure(e);
@@ -125,6 +136,8 @@ public final class SelectivityStrata {
     private void count(CapturedQuery query, QueryBuilder what, ActionListener<Long> listener) {
         SearchRequest request = new SearchRequest(query.indices());
         request.source(new SearchSourceBuilder().size(0).trackTotalHits(true).query(what));
+        // a count that leaves out the shards that failed would give a wrong share, and the total is kept for ten minutes
+        request.allowPartialSearchResults(false);
         search.accept(request, listener.map(response -> response.getHits().getTotalHits().value()));
     }
 

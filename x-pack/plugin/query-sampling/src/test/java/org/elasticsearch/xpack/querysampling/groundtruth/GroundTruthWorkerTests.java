@@ -16,12 +16,14 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
@@ -29,12 +31,10 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.querysampling.GroundTruthRunner;
+import org.elasticsearch.xpack.querysampling.QuerySamplingSettings;
 import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
 import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
 import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
@@ -45,19 +45,14 @@ import org.elasticsearch.xpack.querysampling.storage.SampledQuery;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.IdentityHashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.function.Function;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
 
-public class GroundTruthTests extends ESTestCase {
+public class GroundTruthWorkerTests extends ESTestCase {
 
     private static final FakeShards SHARDS = FakeShards.of(new FakeShards.Shard("idx", 0, 3, 6), new FakeShards.Shard("idx", 1, 2, 4));
 
@@ -73,90 +68,6 @@ public class GroundTruthTests extends ESTestCase {
                 search.accept(request, listener);
             }
         };
-    }
-
-    public void testNeitherTheExactSearchNorTheProbeIsAnsweredFromSomeOfTheShards() {
-        CapturedQuery query = query(1);
-
-        assertThat(ExactSearch.request(query).allowPartialSearchResults(), equalTo(false));
-        assertThat(DataState.probe(query, 0).allowPartialSearchResults(), equalTo(false));
-    }
-
-    public void testProbeMatchesWhatTheExactSearchScansAndOnlyCountsIt() {
-        QueryBuilder brand = QueryBuilders.termQuery("brand", "apple");
-        CapturedQuery query = new CapturedQuery(
-            new String[] { "a", "b" },
-            "vec",
-            new float[] { 1f },
-            7,
-            100,
-            null,
-            null,
-            List.of(brand),
-            "q1"
-        );
-
-        SearchRequest request = DataState.probe(query, 2);
-
-        assertArrayEquals(new String[] { "a", "b" }, request.indices());
-        assertThat("only the shards with this number", request.preference(), equalTo("_shards:2"));
-        assertThat("no hits, only what is counted", request.source().size(), equalTo(0));
-        BoolQueryBuilder bool = (BoolQueryBuilder) request.source().query();
-        assertThat(
-            "the vector has to be there, and the filter of the query",
-            bool.filter(),
-            equalTo(List.of(QueryBuilders.existsQuery("vec"), brand))
-        );
-        assertThat(bool.must().isEmpty(), equalTo(true));
-        List<AggregationBuilder> aggregations = List.copyOf(request.source().aggregations().getAggregatorFactories());
-        assertThat(
-            "the documents and the sequence numbers of each index",
-            aggregations,
-            equalTo(
-                List.of(
-                    AggregationBuilders.terms("by_index")
-                        .field("_index")
-                        .size(10_000)
-                        .subAggregation(AggregationBuilders.sum("seq_no_sum").field("_seq_no"))
-                )
-            )
-        );
-    }
-
-    public void testADocumentThatMovesToAnotherShardIsSeenEvenIfTheTotalsAreTheSame() {
-        FakeShards before = FakeShards.of(new FakeShards.Shard("idx", 0, 2, 10), new FakeShards.Shard("idx", 1, 1, 4));
-        // the document with the sequence number 4 is deleted from the first shard, and another with the number 4 is added to the second:
-        // the number of documents is the same and so is the sum of all the sequence numbers, 14
-        FakeShards after = FakeShards.of(new FakeShards.Shard("idx", 0, 1, 6), new FakeShards.Shard("idx", 1, 2, 8));
-
-        assertThat("the number of documents is the same", after.state().documents(), equalTo(before.state().documents()));
-        assertThat(after.state(), not(equalTo(before.state())));
-    }
-
-    public void testAnUpdateThatChangesOnlyASequenceNumberIsSeen() {
-        FakeShards before = FakeShards.of(new FakeShards.Shard("idx", 0, 5, 10));
-        FakeShards after = FakeShards.of(new FakeShards.Shard("idx", 0, 5, 11));
-
-        assertThat(after.state(), not(equalTo(before.state())));
-    }
-
-    public void testAChangeDuringTheExactSearchLeavesTheStateOfBeforeItSoThatItLooksOutOfDate() {
-        AtomicReference<FakeShards> shards = new AtomicReference<>(SHARDS);
-        FakeShards changed = FakeShards.of(new FakeShards.Shard("idx", 0, 3, 6), new FakeShards.Shard("idx", 1, 2, 9));
-        GroundTruthRunner runner = new GroundTruthRunner((request, listener) -> {
-            if (FakeShards.isProbe(request)) {
-                shards.get().accept(request, listener);
-            } else {
-                shards.set(changed);
-                respond(listener, "doc");
-            }
-        }, EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        CapturedQuery query = query(1);
-
-        run(runner, List.of(query));
-
-        assertThat(stored.get(query).dataState(), equalTo(SHARDS.state()));
-        assertThat(stored.get(query).dataState(), not(equalTo(changed.state())));
     }
 
     private final List<SearchRequest> sampleSearches = new ArrayList<>();
@@ -190,6 +101,9 @@ public class GroundTruthTests extends ESTestCase {
 
     private int waiting;
 
+    /** Ids of stored documents that the search for the worker's own queries returns, whose source is not a sampled query. */
+    private List<String> unreadable = List.of();
+
     public void testItComputesWhatTheCreditAffords() {
         waiting = 5;
         budget.earn(50);
@@ -217,12 +131,48 @@ public class GroundTruthTests extends ESTestCase {
         );
     }
 
+    public void testItIsScheduledOnlyWhileTheCostRatioIsAboveZero() {
+        DeterministicTaskQueue queue = new DeterministicTaskQueue();
+        budget.earn(50);
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(QuerySamplingSettings.SAMPLING_COST_RATIO));
+        worker().start(queue.getThreadPool(), queue.getThreadPool().generic(), clusterSettings);
+
+        queue.runTasksUpToTimeInOrder(queue.getCurrentTimeMillis() + 2 * GroundTruthWorker.INTERVAL.millis());
+        assertTrue("a ratio of 0 schedules nothing", sampleSearches.isEmpty());
+
+        clusterSettings.applySettings(Settings.builder().put(QuerySamplingSettings.SAMPLING_COST_RATIO.getKey(), 0.5).build());
+        queue.runTasksUpToTimeInOrder(queue.getCurrentTimeMillis() + 2 * GroundTruthWorker.INTERVAL.millis());
+        assertFalse("it runs once there is a ratio", sampleSearches.isEmpty());
+
+        clusterSettings.applySettings(Settings.builder().put(QuerySamplingSettings.SAMPLING_COST_RATIO.getKey(), 0).build());
+        sampleSearches.clear();
+        queue.runTasksUpToTimeInOrder(queue.getCurrentTimeMillis() + 2 * GroundTruthWorker.INTERVAL.millis());
+        assertTrue("and stops when the ratio is 0 again", sampleSearches.isEmpty());
+    }
+
+    public void testAStoredQueryThatCannotBeReadIsTouchedSoThatItMakesWayForOthersAndCountsAsFailed() {
+        waiting = 2;
+        unreadable = List.of("sampler_unreadable");
+        budget.earn(50);
+        GroundTruthWorker worker = worker();
+
+        worker.run();
+
+        List<DocWriteRequest<?>> updates = bulks.get(0).requests();
+        assertThat(updates.size(), equalTo(3));
+        UpdateRequest touch = (UpdateRequest) updates.get(2);
+        assertThat(touch.id(), equalTo("sampler_unreadable"));
+        assertThat("only marked as looked at", touch.doc().sourceAsMap().keySet(), equalTo(Set.of("updated_at")));
+        assertThat(worker.computed(), equalTo(2L));
+        assertThat(worker.failed(), equalTo(1L));
+    }
+
     private GroundTruthWorker worker() {
         return new GroundTruthWorker((request, listener) -> {
             sampleSearches.add(request);
             try {
                 boolean own = request.source().query().toString().contains("sampler_id");
-                respondWithPending(listener, own ? Math.min(waiting, request.source().size()) : 0);
+                respondWithPending(listener, own ? Math.min(waiting, request.source().size()) : 0, own ? unreadable : List.of());
             } catch (IOException e) {
                 throw new AssertionError(e);
             }
@@ -248,8 +198,8 @@ public class GroundTruthTests extends ESTestCase {
         );
     }
 
-    private void respondWithPending(ActionListener<SearchResponse> listener, int count) throws IOException {
-        SearchHit[] hits = new SearchHit[count];
+    private void respondWithPending(ActionListener<SearchResponse> listener, int count, List<String> unreadableIds) throws IOException {
+        SearchHit[] hits = new SearchHit[count + unreadableIds.size()];
         for (int i = 0; i < count; i++) {
             QueryFingerprint fingerprint = new QueryFingerprint(i + 1, i + 1);
             CapturedQuery query = new CapturedQuery(new String[] { "idx" }, "vec", new float[] { i }, 3, 10, null, null, List.of(), null);
@@ -261,7 +211,11 @@ public class GroundTruthTests extends ESTestCase {
             hits[i] = SearchHit.unpooled(i, SampleRecord.documentId("sampler", fingerprint));
             hits[i].sourceRef(BytesReference.bytes(SampleRecord.document(JsonXContent.contentBuilder(), "sampler", sampled, 1L)));
         }
-        SearchHits searchHits = new SearchHits(hits, new TotalHits(count, TotalHits.Relation.EQUAL_TO), 1f);
+        for (int i = 0; i < unreadableIds.size(); i++) {
+            hits[count + i] = SearchHit.unpooled(count + i, unreadableIds.get(i));
+            hits[count + i].sourceRef(new BytesArray("{\"query\":\"not a query\"}"));
+        }
+        SearchHits searchHits = new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 1f);
         SearchResponse response = SearchResponseUtils.successfulResponse(searchHits);
         searchHits.decRef();
         try {
@@ -270,36 +224,5 @@ public class GroundTruthTests extends ESTestCase {
             response.decRef();
         }
         waiting -= count;
-    }
-
-    private final Map<CapturedQuery, GroundTruth> stored = new IdentityHashMap<>();
-
-    private GroundTruthRunner.Result run(GroundTruthRunner runner, List<CapturedQuery> queries) {
-        AtomicReference<GroundTruthRunner.Result> result = new AtomicReference<>();
-        AtomicInteger notifications = new AtomicInteger();
-        runner.run(queries, Function.identity(), stored::put, ActionListener.wrap(r -> {
-            notifications.incrementAndGet();
-            result.set(r);
-        }, e -> fail(e)));
-        assertThat("the caller is notified exactly once", notifications.get(), equalTo(1));
-        return result.get();
-    }
-
-    private static void respond(ActionListener<SearchResponse> listener, String id) {
-        SearchHit hit = SearchHit.unpooled(0, id);
-        hit.score(1f);
-        hit.shard(new SearchShardTarget("node", new ShardId("idx", "_na_", 0), null));
-        SearchHits hits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f);
-        SearchResponse response = SearchResponseUtils.successfulResponse(hits);
-        hits.decRef();
-        try {
-            listener.onResponse(response);
-        } finally {
-            response.decRef();
-        }
-    }
-
-    private static CapturedQuery query(int k) {
-        return new CapturedQuery(new String[] { "idx" }, "vec", new float[] { k }, k, 10, null, null, List.of(), null);
     }
 }

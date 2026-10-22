@@ -83,11 +83,11 @@ public final class StoredGroundTruth {
             "updated_at",
             SortOrder.ASC,
             max,
-            ActionListener.wrap(read -> compute(read.samples(), read.unreadable(), listener), listener::onFailure)
+            ActionListener.wrap(read -> compute(read.samples(), read.unreadableIds(), listener), listener::onFailure)
         );
     }
 
-    private void compute(List<StoredSample> samples, int unreadable, ActionListener<GroundTruthRunner.Result> listener) {
+    private void compute(List<StoredSample> samples, List<String> unreadable, ActionListener<GroundTruthRunner.Result> listener) {
         Map<StoredSample, GroundTruth> computed = new IdentityHashMap<>();
         new GroundTruthRunner(exactSearch, executor).run(
             samples,
@@ -100,7 +100,7 @@ public final class StoredGroundTruth {
     private void store(
         List<StoredSample> samples,
         Map<StoredSample, GroundTruth> computed,
-        int unreadable,
+        List<String> unreadable,
         ActionListener<GroundTruthRunner.Result> listener
     ) {
         BulkRequest request = new BulkRequest();
@@ -121,18 +121,28 @@ public final class StoredGroundTruth {
                 return;
             }
         }
+        // a document that cannot be read is looked at too: left as it is, it would stay first in line and starve the others
+        for (String id : unreadable) {
+            try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+                request.add(new UpdateRequest(QuerySamplingIndex.NAME, id).retryOnConflict(3).doc(SampleRecord.touch(builder, now)));
+            } catch (Exception e) {
+                listener.onFailure(e);
+                return;
+            }
+        }
         if (request.numberOfActions() == 0) {
-            listener.onResponse(new GroundTruthRunner.Result(0, unreadable));
+            listener.onResponse(new GroundTruthRunner.Result(0, 0));
             return;
         }
         sampleBulk.accept(request, ActionListener.wrap(response -> {
             // the items are in the order of the request, which is the order of the samples
             int stored = 0;
             BulkItemResponse[] items = response.getItems();
-            for (int i = 0; i < items.length; i++) {
+            assert items.length == request.numberOfActions() : "a bulk response has an item for each action";
+            for (int i = 0; i < samples.size(); i++) {
                 stored += items[i].isFailed() == false && computed.containsKey(samples.get(i)) ? 1 : 0;
             }
-            listener.onResponse(new GroundTruthRunner.Result(stored, samples.size() + unreadable - stored));
+            listener.onResponse(new GroundTruthRunner.Result(stored, samples.size() + unreadable.size() - stored));
         }, listener::onFailure));
     }
 }

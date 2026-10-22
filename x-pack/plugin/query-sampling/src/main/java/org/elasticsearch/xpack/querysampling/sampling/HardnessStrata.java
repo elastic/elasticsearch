@@ -26,6 +26,8 @@ import java.util.Map;
  * One instance lives as long as the node and keeps the statistics of a space (a field and its dimensions) for each one
  * it meets, at most {@link #MAX_SPACES}: the fields that are searched are not known in advance, and queries of a space
  * beyond the limit have no hardness, which counts as medium.
+ * <p>
+ * Used by the pipeline thread only, which is why the spaces need no lock; only the tilt, set by a setting, is volatile.
  */
 public final class HardnessStrata {
 
@@ -78,19 +80,17 @@ public final class HardnessStrata {
             return null;
         }
         String name = field + "/" + dims;
-        synchronized (spaces) { // reading a space and updating it is one step, which a concurrent map would not make
-            Moments moments = spaces.get(name);
-            if (moments == null) {
-                if (spaces.size() >= MAX_SPACES) {
-                    return null;
-                }
-                moments = new Moments();
-                spaces.put(name, moments);
+        Moments moments = spaces.get(name);
+        if (moments == null) {
+            if (spaces.size() >= MAX_SPACES) {
+                return null;
             }
-            Hardness hardness = moments.classify(contrast);
-            moments.add(contrast);
-            return hardness;
+            moments = new Moments();
+            spaces.put(name, moments);
         }
+        Hardness hardness = moments.classify(contrast);
+        moments.add(contrast);
+        return hardness;
     }
 
     /**

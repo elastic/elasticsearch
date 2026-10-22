@@ -7,12 +7,16 @@
 
 package org.elasticsearch.xpack.querysampling.sampling;
 
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.querysampling.QuerySamplingSettings;
 import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
 import org.elasticsearch.xpack.querysampling.dedup.QueryFingerprint;
 import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
 
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -20,11 +24,9 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class SamplerTests extends ESTestCase {
+public class QuerySamplerTests extends ESTestCase {
 
     private static final QueryFingerprint FINGERPRINT = new QueryFingerprint(1, 1);
-
-    private final ScaleRegulator regulator = new ScaleRegulator();
 
     public void testQueriesGetNoChanceOnceThePicksAreUsedUpAndThatIsRecorded() {
         AtomicLong clock = new AtomicLong();
@@ -68,21 +70,56 @@ public class SamplerTests extends ESTestCase {
         assertThat((double) sampled / trials, closeTo(inclusionProbability, fiveSigma));
     }
 
-    public void testSettlesAtATargetAndStaysThere() {
-        regulator.targetPerHour(3600);
-        double picksPerWindowAtFullScale = 120;
-        for (int window = 0; window < 20; window++) {
-            pick((int) Math.round(picksPerWindowAtFullScale * regulator.adjustment()));
-            regulator.observe(30);
-        }
+    public void testTheScaleIsRaisedByAnArrivalOnceTheIntervalHasPassedWhenThePicksFallShortOfTheTarget() {
+        AtomicLong nanos = new AtomicLong();
+        QuerySampler sampler = sampler(3600, nanos);
+        MultiplicityTracker tracker = new MultiplicityTracker(10);
 
-        assertThat("30 seconds of 3600 picks an hour", picksPerWindowAtFullScale * regulator.adjustment(), closeTo(30, 1.5));
+        nanos.addAndGet(TimeUnit.SECONDS.toNanos(9));
+        sampler.offer(tracker.record(FINGERPRINT));
+        assertThat("the interval has not passed", sampler.effectiveScale(), equalTo(1.0));
+
+        nanos.addAndGet(TimeUnit.SECONDS.toNanos(21));
+        sampler.offer(tracker.record(FINGERPRINT));
+        assertThat("nothing was picked, so the scale is raised", sampler.effectiveScale(), greaterThan(1.0));
     }
 
-    private void pick(int picks) {
-        for (int i = 0; i < picks; i++) {
-            regulator.recordPick();
+    public void testTheScaleNeverChangesWithoutATarget() {
+        AtomicLong nanos = new AtomicLong();
+        QuerySampler sampler = sampler(0, nanos);
+        MultiplicityTracker tracker = new MultiplicityTracker(10);
+
+        for (int i = 0; i < 5; i++) {
+            nanos.addAndGet(TimeUnit.MINUTES.toNanos(10));
+            sampler.offer(tracker.record(FINGERPRINT));
         }
+
+        assertThat(sampler.effectiveScale(), equalTo(1.0));
+    }
+
+    private static QuerySampler sampler(long targetPicksPerHour, AtomicLong nanos) {
+        QuerySampler sampler = new QuerySampler(
+            1.0,
+            1000,
+            alwaysDrawing(1.0),
+            new PickBudget(nanos::get),
+            new SpatialStrata(0),
+            nanos::get
+        );
+        sampler.watch(
+            new ClusterSettings(
+                Settings.builder().put(QuerySamplingSettings.TARGET_PICKS_PER_HOUR.getKey(), targetPicksPerHour).build(),
+                Set.of(
+                    QuerySamplingSettings.ACCEPTANCE_SCALE,
+                    QuerySamplingSettings.HEAD_THRESHOLD,
+                    QuerySamplingSettings.MAX_PICKS_PER_HOUR,
+                    QuerySamplingSettings.TARGET_PICKS_PER_HOUR,
+                    QuerySamplingSettings.SPATIAL_BALANCE,
+                    QuerySamplingSettings.HARDNESS_TILT
+                )
+            )
+        );
+        return sampler;
     }
 
     private Random seededRandom() {

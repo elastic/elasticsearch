@@ -149,7 +149,7 @@ public final class SampleWriter {
                 weights.add(written);
             } catch (Exception e) {
                 failed.increment();
-                logger.debug("failed to build the document of a sampled query", e);
+                logger.warn("failed to build the document of a sampled query", e);
             }
         }
         if (request.numberOfActions() == 0) {
@@ -159,10 +159,11 @@ public final class SampleWriter {
         ActionListener<BulkResponse> listener = ActionListener.runAfter(ActionListener.wrap(response -> {
             long failures = 0;
             BulkItemResponse[] items = response.getItems();
+            assert items.length == request.numberOfActions() : "a bulk response has an item for each action";
             for (int i = 0; i < items.length; i++) {
                 if (items[i].isFailed()) {
                     failures++;
-                } else if (i < sent.size() && sent.get(i).eventId() == null) { // an event is final, there is nothing to refresh
+                } else if (sent.get(i).eventId() == null) { // an event is final, there is nothing to refresh
                     SampledQuery query = sent.get(i);
                     onWritten.written(query.fingerprint(), query.tracked(), weights.get(i));
                 }
@@ -170,11 +171,11 @@ public final class SampleWriter {
             failed.add(failures);
             written.add(request.numberOfActions() - failures);
             if (failures > 0) {
-                logger.debug("[{}] sampled queries could not be written: {}", failures, response.buildFailureMessage());
+                logger.warn("[{}] sampled queries could not be written: {}", failures, response.buildFailureMessage());
             }
         }, e -> {
             failed.add(request.numberOfActions());
-            logger.debug("failed to write sampled queries", e);
+            logger.warn("failed to write sampled queries", e);
         }), this::completed);
         try {
             bulk.accept(request, listener);

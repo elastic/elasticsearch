@@ -35,9 +35,13 @@ public final class StoredSamples {
     private static final Logger logger = LogManager.getLogger(StoredSamples.class);
 
     /**
-     * @param unreadable documents that matched but could not be parsed
+     * @param unreadableIds the documents that matched but could not be parsed
      */
-    public record Read(List<StoredSample> samples, int unreadable) {}
+    public record Read(List<StoredSample> samples, List<String> unreadableIds) {
+        public int unreadable() {
+            return unreadableIds.size();
+        }
+    }
 
     private final BiConsumer<SearchRequest, ActionListener<SearchResponse>> search;
     private final NamedXContentRegistry registry;
@@ -64,17 +68,21 @@ public final class StoredSamples {
     ) {
         search.accept(request, ActionListener.wrap(response -> {
             List<StoredSample> samples = new ArrayList<>();
-            int unreadable = 0;
+            List<String> unreadable = new ArrayList<>();
+            Exception first = null;
             for (SearchHit hit : response.getHits().getHits()) {
                 try {
                     samples.add(parse.apply(hit.getSourceAsMap()));
                 } catch (Exception e) {
-                    unreadable++;
-                    logger.debug("failed to read the stored query [{}]", hit.getId(), e);
+                    unreadable.add(hit.getId());
+                    first = first == null ? e : first;
                 }
             }
+            if (unreadable.isEmpty() == false) {
+                logger.warn("[{}] stored queries could not be read, for example [{}]", unreadable.size(), unreadable.get(0), first);
+            }
             listener.onResponse(new Read(samples, unreadable));
-        }, e -> noIndexIs(new Read(List.of(), 0), e, listener)));
+        }, e -> noIndexIs(new Read(List.of(), List.of()), e, listener)));
     }
 
     /** A missing index just means nothing was ever stored. */

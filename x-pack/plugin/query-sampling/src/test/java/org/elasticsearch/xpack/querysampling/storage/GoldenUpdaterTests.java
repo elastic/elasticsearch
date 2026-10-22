@@ -18,6 +18,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -49,13 +50,14 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
-public class GoldenTests extends ESTestCase {
+public class GoldenUpdaterTests extends ESTestCase {
 
     private static final NamedXContentRegistry REGISTRY = new NamedXContentRegistry(
         new SearchModule(Settings.EMPTY, List.of()).getNamedXContents()
@@ -90,6 +92,10 @@ public class GoldenTests extends ESTestCase {
 
     private final List<BulkRequest> bulks = new ArrayList<>();
 
+    private final List<UpdateRequest> completions = new ArrayList<>();
+
+    private boolean failingARecord = false;
+
     private List<SearchHit> goldenUpdaterStored = List.of();
 
     private List<SearchHit> golden = List.of();
@@ -109,15 +115,22 @@ public class GoldenTests extends ESTestCase {
                 bulks.add(request);
                 BulkItemResponse[] items = new BulkItemResponse[request.numberOfActions()];
                 for (int i = 0; i < items.length; i++) {
-                    items[i] = BulkItemResponse.success(
-                        i,
-                        DocWriteRequest.OpType.CREATE,
-                        new IndexResponse(new ShardId(GoldenIndex.NAME, "_na_", 0), "id", 0, 1, 1, true)
-                    );
+                    items[i] = failingARecord && i == 0
+                        ? BulkItemResponse.failure(
+                            i,
+                            DocWriteRequest.OpType.CREATE,
+                            new BulkItemResponse.Failure(GoldenIndex.NAME, "id", new IllegalStateException("rejected"))
+                        )
+                        : BulkItemResponse.success(
+                            i,
+                            DocWriteRequest.OpType.CREATE,
+                            new IndexResponse(new ShardId(GoldenIndex.NAME, "_na_", 0), "id", 0, 1, 1, true)
+                        );
                 }
                 listener.onResponse(new BulkResponse(items, 1));
             },
             (request, listener) -> {
+                completions.add(request);
                 listener.onResponse(
                     new UpdateResponse(new ShardId(GoldenIndex.NAME, "_na_", 0), request.id(), 0, 1, 1, DocWriteResponse.Result.UPDATED)
                 );
@@ -145,7 +158,7 @@ public class GoldenTests extends ESTestCase {
         return new GoldenUpdater(reader, samples(), writer(), new GoldenStaleness(reader, (request, listener) -> {
             probes.add(request);
             shardsOf(now.apply(numberOf(request))).accept(request, listener);
-        }), (request, listener) -> {
+        }, EsExecutors.DIRECT_EXECUTOR_SERVICE), (request, listener) -> {
             if (FakeShards.isProbe(request)) {
                 CHANGED_SHARDS.accept(request, listener);
                 return;
@@ -187,6 +200,7 @@ public class GoldenTests extends ESTestCase {
         assertThat(result, equalTo(new GoldenUpdater.Result(4, 5, 2, 1, 0, 0, 0)));
         assertThat("only the stale one is scanned again", exactSearches.size(), equalTo(1));
         assertThat(manifests.get(0).source().utf8ToString().contains("\"source_version\":4"), equalTo(true));
+        assertThat("the version is completed", completions.size(), equalTo(1));
         assertThat(writtenIds(), equalTo(List.of("5_" + fp(3), "5_" + fp(2), "5_" + fp(1))));
         String refreshed = ((IndexRequest) bulks.get(0).requests().get(1)).source().utf8ToString();
         assertThat(
@@ -197,6 +211,20 @@ public class GoldenTests extends ESTestCase {
         assertThat(refreshed.contains("\"digest\":" + CHANGED.digest()), equalTo(true));
         String copied = ((IndexRequest) bulks.get(0).requests().get(0)).source().utf8ToString();
         assertThat("as it was", copied.contains("\"digest\":" + STORED.digest()), equalTo(true));
+    }
+
+    public void testWhenARecordCannotBeWrittenTheUpdateFailsAndTheVersionIsNotCompleted() throws IOException {
+        latestVersion = 4;
+        golden = List.of(goldenRecord(1, 100, STORED));
+        goldenUpdaterStored = List.of(sample("s", 5, 500));
+        failingARecord = true;
+        AtomicReference<Exception> failure = new AtomicReference<>();
+
+        refreshing().update(10, ActionListener.wrap(result -> fail("the update must fail"), failure::set));
+
+        assertThat(failure.get().getMessage(), containsString("could not be written"));
+        assertThat("the records were sent", bulks.size(), equalTo(1));
+        assertThat("but the manifest was not completed", completions, empty());
     }
 
     public void testWhenTheLimitIsLowerThanTheVersionTheNewestQueriesAreKeptWhateverTheirFingerprints() throws IOException {
@@ -291,70 +319,5 @@ public class GoldenTests extends ESTestCase {
         } finally {
             response.decRef();
         }
-    }
-
-    private List<SearchHit> records = List.of();
-
-    private GoldenStaleness staleness() {
-        GoldenReader reader = new GoldenReader((request, listener) -> {
-            if (request.source().size() == 1) {
-                respond(listener, List.of(manifest(3)));
-            } else {
-                respond(listener, records);
-            }
-        }, REGISTRY);
-        return new GoldenStaleness(reader, (request, listener) -> {
-            probes.add(request);
-            STORED_SHARDS.accept(request, listener);
-        });
-    }
-
-    private GoldenStaleness.Result check(GoldenStaleness staleness, long version, int max) {
-        AtomicReference<GoldenStaleness.Result> result = new AtomicReference<>();
-        staleness.check(version, max, ActionListener.wrap(result::set, e -> fail(e)));
-        return result.get();
-    }
-
-    public void testQueriesWhoseDataIsAsItWasAreFreshAndThoseWhoseDataChangedAreStale() throws IOException {
-        records = List.of(record(1, STORED), record(2, STORED), record(3, CHANGED));
-
-        GoldenStaleness.Result result = check(staleness(), 3, 10);
-
-        assertThat(result, equalTo(new GoldenStaleness.Result(3, 3, 2, 1, 0, 0)));
-    }
-
-    public void testManyQueriesWithoutTheStateOfTheDataDoNotExhaustTheStack() {
-        List<StoredSample> many = new ArrayList<>();
-        for (int i = 0; i < 100_000; i++) {
-            many.add(storedSample(1, 100, "d", null));
-        }
-        AtomicReference<List<GoldenStaleness.Status>> statuses = new AtomicReference<>();
-
-        staleness().classify(many, ActionListener.wrap(statuses::set, e -> fail(e)));
-
-        assertThat(statuses.get().size(), equalTo(many.size()));
-        assertThat(Set.copyOf(statuses.get()), equalTo(Set.of(GoldenStaleness.Status.UNKNOWN)));
-    }
-
-    private static SearchHit record(long n, DataState state) throws IOException {
-        CapturedQuery query = new CapturedQuery(new String[] { "idx" + n }, "vec", new float[] { n }, 3, 10, null, null, List.of(), null);
-        StoredSample sample = new StoredSample(
-            "sampler",
-            String.valueOf(n),
-            new CapturedSearch(query, List.of(), 1, 1.0),
-            new TrackedQuery.Weights(1, 1.0, 1.0, 1.0, 1.0),
-            1L,
-            2L,
-            new GroundTruth(List.of(new CapturedSearch.Hit("idx" + n, "d" + n, 1f)), state),
-            null,
-            null,
-            null,
-            null
-        );
-        SearchHit hit = SearchHit.unpooled((int) n, GoldenRecord.recordId(3, sample.fingerprint()));
-        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            hit.sourceRef(BytesReference.bytes(GoldenRecord.record(builder, 3, sample, 9L)));
-        }
-        return hit;
     }
 }

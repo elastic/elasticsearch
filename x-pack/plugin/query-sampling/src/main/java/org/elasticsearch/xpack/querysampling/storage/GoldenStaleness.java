@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.querysampling.storage;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.logging.LogManager;
@@ -16,7 +17,7 @@ import org.elasticsearch.xpack.querysampling.groundtruth.DataState;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 
 /**
@@ -31,10 +32,12 @@ public final class GoldenStaleness {
 
     private final GoldenReader reader;
     private final BiConsumer<SearchRequest, ActionListener<SearchResponse>> probe;
+    private final Executor executor;
 
-    public GoldenStaleness(GoldenReader reader, BiConsumer<SearchRequest, ActionListener<SearchResponse>> probe) {
+    public GoldenStaleness(GoldenReader reader, BiConsumer<SearchRequest, ActionListener<SearchResponse>> probe, Executor executor) {
         this.reader = reader;
         this.probe = probe;
+        this.executor = executor;
     }
 
     /** Checks up to {@code max} queries of {@code version}, or of the latest completed one if it is 0. */
@@ -56,6 +59,15 @@ public final class GoldenStaleness {
         reader.read(version, max, ActionListener.wrap(read -> classify(read.samples(), ActionListener.wrap(statuses -> {
             int[] counts = new int[Status.values().length];
             statuses.forEach(status -> counts[status.ordinal()]++);
+            int failed = read.unreadable() + counts[Status.FAILED.ordinal()];
+            if (failed > 0) {
+                logger.warn(
+                    "[{}] of [{}] golden queries of version [{}] could not be checked",
+                    failed,
+                    read.samples().size() + read.unreadable(),
+                    version
+                );
+            }
             listener.onResponse(
                 new Result(
                     version,
@@ -86,6 +98,15 @@ public final class GoldenStaleness {
         next(records, new ArrayList<>(records.size()), listener);
     }
 
+    // the probe before may have been completed by a network thread, which must not start the next one
+    private void resume(List<StoredSample> records, List<Status> statuses, ActionListener<List<Status>> listener) {
+        try {
+            executor.execute(ActionRunnable.wrap(listener, l -> next(records, statuses, l)));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
     private void next(List<StoredSample> records, List<Status> statuses, ActionListener<List<Status>> listener) {
         // the queries that cannot be told are taken in a loop, as no search comes between them to end the call stack
         while (statuses.size() < records.size() && stateOf(records.get(statuses.size())) == null) {
@@ -98,29 +119,16 @@ public final class GoldenStaleness {
         }
         StoredSample record = records.get(index);
         DataState stored = stateOf(record);
-        ActionListener<DataState> done = new ActionListener<>() {
-            // a search function may complete the listener and then still throw, only the first outcome counts
-            private final AtomicBoolean completed = new AtomicBoolean();
-
-            @Override
-            public void onResponse(DataState now) {
-                if (completed.compareAndSet(false, true) == false) {
-                    return;
-                }
-                statuses.add(stored.equals(now) ? Status.FRESH : Status.STALE);
-                next(records, statuses, listener);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                if (completed.compareAndSet(false, true) == false) {
-                    return;
-                }
-                logger.debug("failed to look at the state of the data of a golden query", e);
-                statuses.add(Status.FAILED);
-                next(records, statuses, listener);
-            }
-        };
+        // a search function may complete the listener and then still throw, only the first outcome counts
+        ActionListener<DataState> done = ActionListener.notifyOnce(ActionListener.wrap(now -> {
+            statuses.add(stored.equals(now) ? Status.FRESH : Status.STALE);
+            resume(records, statuses, listener);
+        }, e -> {
+            // there can be thousands of these, so each is at debug, and the number is in the summary
+            logger.debug("failed to look at the state of the data of a golden query", e);
+            statuses.add(Status.FAILED);
+            resume(records, statuses, listener);
+        }));
         try {
             DataState.read(probe, record.search().query(), done);
         } catch (Exception e) {

@@ -24,7 +24,11 @@ import java.util.List;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
 
-/** Processes captured searches off the search thread: dedup, sampling decision, listeners. Single-threaded use only. */
+/**
+ * Processes captured searches off the search thread: dedup, sampling decision, listeners. The tracker and the strata keep
+ * state that is not made for several threads. The pool that runs this has one thread, and the lock keeps one search at a
+ * time even if someone gives the pool more; it is not contended, as nothing else calls it.
+ */
 public final class SamplingPipeline implements Consumer<CapturedSearch> {
 
     private static final Logger logger = LogManager.getLogger(SamplingPipeline.class);
@@ -66,7 +70,7 @@ public final class SamplingPipeline implements Consumer<CapturedSearch> {
     }
 
     @Override
-    public void accept(CapturedSearch captured) {
+    public synchronized void accept(CapturedSearch captured) {
         // time over capture probability is an unbiased estimate of the time of all searches this one stands for;
         // sub-millisecond searches count as 1ms, as exact searches do
         budget.earn(Math.max(1, captured.tookMillis()) / captured.captureRate());

@@ -64,15 +64,15 @@ public final class SampleRetention {
             deleteByQuery.accept(request, ActionListener.wrap(response -> {
                 deleted.add(response.getDeleted());
                 if (response.getBulkFailures().isEmpty() == false || response.getSearchFailures().isEmpty() == false) {
-                    logger.debug("some expired sampled queries could not be deleted");
+                    logger.warn("some expired sampled queries could not be deleted");
                 }
             }, e -> {
                 if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException == false) { // nothing was ever sampled
-                    logger.debug("failed to delete the expired sampled queries", e);
+                    logger.warn("failed to delete the expired sampled queries", e);
                 }
             }));
         } catch (Exception e) {
-            logger.debug("failed to delete the expired sampled queries", e);
+            logger.warn("failed to delete the expired sampled queries", e);
         }
     }
 

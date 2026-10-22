@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.querysampling;
 
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
 import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
@@ -29,7 +30,7 @@ import java.util.Set;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
-public class QuerySamplingTests extends ESTestCase {
+public class SamplingPipelineTests extends ESTestCase {
 
     private final MultiplicityTracker tracker = new MultiplicityTracker(100);
 
@@ -95,7 +96,11 @@ public class QuerySamplingTests extends ESTestCase {
 
     /** Selectivity counts are off in these tests; if one were asked for it would fail rather than search. */
     private static SelectivityStrata noSelectivity() {
-        return new SelectivityStrata((request, listener) -> listener.onFailure(new UnsupportedOperationException()), () -> 0L);
+        return new SelectivityStrata(
+            (request, listener) -> listener.onFailure(new UnsupportedOperationException()),
+            () -> 0L,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
     }
 
     /** A random whose draws are all the given value, so sampling decisions are deterministic. */

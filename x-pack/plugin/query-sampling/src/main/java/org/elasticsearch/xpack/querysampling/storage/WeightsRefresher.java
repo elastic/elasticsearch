@@ -37,7 +37,9 @@ import java.util.function.LongSupplier;
 /**
  * Rewrites the weights of documents written by {@link SampleWriter} while they keep changing. Once the tracker has
  * forgotten the query its counters are final, so the last change is written and the query is dropped. Only what is
- * needed to compare weights is kept, so memory is bounded by how many queries the tracker holds.
+ * needed to compare weights is kept: a query stays until its last state is written, or until its updates have failed
+ * {@code MAX_FAILURES} times in a row, so memory is bounded by how many samples are written, and by the tracker once the
+ * writes keep up.
  */
 public final class WeightsRefresher {
 
@@ -143,7 +145,7 @@ public final class WeightsRefresher {
                 );
             } catch (Exception e) {
                 completed(fingerprints, weights, null);
-                logger.debug("failed to build the update of a sampled query", e);
+                logger.warn("failed to build the update of a sampled query", e);
                 return;
             }
         }
@@ -151,7 +153,8 @@ public final class WeightsRefresher {
             Outcome[] outcomes = new Outcome[fingerprints.size()];
             Arrays.fill(outcomes, Outcome.FAILED);
             BulkItemResponse[] items = response.getItems();
-            for (int i = 0; i < items.length && i < outcomes.length; i++) {
+            assert items.length == outcomes.length : "a bulk response has an item for each action";
+            for (int i = 0; i < items.length; i++) {
                 if (items[i].isFailed() == false) {
                     outcomes[i] = Outcome.UPDATED;
                 } else if (items[i].getFailure().getStatus() == RestStatus.NOT_FOUND) {
@@ -160,7 +163,7 @@ public final class WeightsRefresher {
             }
             completed(fingerprints, weights, outcomes);
         }, e -> {
-            logger.debug("failed to refresh the weights of sampled queries", e);
+            logger.warn("failed to refresh the weights of sampled queries", e);
             completed(fingerprints, weights, null);
         });
         try {
@@ -185,6 +188,8 @@ public final class WeightsRefresher {
      */
     private void completed(List<QueryFingerprint> fingerprints, List<TrackedQuery.Weights> weights, Outcome[] outcomes) {
         boolean allSucceeded = outcomes != null;
+        int failedUpdates = 0;
+        int givenUp = 0;
         synchronized (this) {
             inFlight = false;
             for (int i = 0; i < fingerprints.size(); i++) {
@@ -200,16 +205,21 @@ public final class WeightsRefresher {
                 if (outcome == Outcome.GONE) {
                     written.remove(fingerprint);
                 } else if (outcomes != null) {
-                    written.computeIfPresent(
-                        fingerprint,
-                        (key, value) -> value.failures() + 1 >= MAX_FAILURES
-                            ? null
-                            : new Written(value.tracked(), value.last(), value.failures() + 1)
-                    );
+                    failedUpdates++;
+                    Written value = written.get(fingerprint);
+                    if (value != null && value.failures() + 1 >= MAX_FAILURES) {
+                        written.remove(fingerprint);
+                        givenUp++;
+                    } else if (value != null) {
+                        written.put(fingerprint, new Written(value.tracked(), value.last(), value.failures() + 1));
+                    }
                 }
             }
             // a full request means that more may be waiting, which is not the case to wait for after a failure
             scheduleNextRound(allSucceeded && fingerprints.size() >= maxBatch);
+        }
+        if (failedUpdates > 0) {
+            logger.warn("[{}] updates of the weights of sampled queries failed, [{}] of them were given up", failedUpdates, givenUp);
         }
     }
 

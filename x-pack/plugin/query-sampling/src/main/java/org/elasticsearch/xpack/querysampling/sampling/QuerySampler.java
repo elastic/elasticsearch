@@ -8,17 +8,15 @@
 package org.elasticsearch.xpack.querysampling.sampling;
 
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.threadpool.Scheduler;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.querysampling.QuerySamplingSettings;
 import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
 import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
 
 import java.util.List;
 import java.util.Random;
-import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.function.LongSupplier;
 
 /**
  * Decides which distinct queries are picked. The {@code w}-th arrival is accepted with probability
@@ -29,6 +27,8 @@ import java.util.concurrent.atomic.LongAdder;
  */
 public final class QuerySampler {
 
+    private static final long REGULATION_INTERVAL_NANOS = TimeUnit.SECONDS.toNanos(10);
+
     private volatile double scale;
     private volatile long headThreshold;
     private final Random random;
@@ -37,12 +37,20 @@ public final class QuerySampler {
     private final HardnessStrata hardness;
     private final LongAdder starved = new LongAdder();
     private final ScaleRegulator regulator = new ScaleRegulator();
+    private final LongSupplier nanoTime;
+    private long lastRegulation; // the pipeline thread only
 
     /**
      * @param scale         γ, the probability scale
      * @param headThreshold estimated multiplicity from which a query is always picked
      */
     public QuerySampler(double scale, long headThreshold, Random random, PickBudget budget, SpatialStrata spatial) {
+        this(scale, headThreshold, random, budget, spatial, System::nanoTime);
+    }
+
+    QuerySampler(double scale, long headThreshold, Random random, PickBudget budget, SpatialStrata spatial, LongSupplier nanoTime) {
+        this.nanoTime = nanoTime;
+        this.lastRegulation = nanoTime.getAsLong();
         this.spatial = spatial;
         this.hardness = new HardnessStrata();
         this.scale = scale;
@@ -60,16 +68,15 @@ public final class QuerySampler {
         hardness.watch(clusterSettings);
     }
 
-    /**
-     * Adjusts γ every ten seconds; a no-op while no target is set, so it can run unconditionally.
-     */
-    public Scheduler.Cancellable startRegulation(ThreadPool threadPool, Executor executor) {
-        long[] last = { System.nanoTime() };
-        return threadPool.scheduleWithFixedDelay(() -> {
-            long now = System.nanoTime();
-            regulator.observe((now - last[0]) / 1_000_000_000.0);
-            last[0] = now;
-        }, TimeValue.timeValueSeconds(10), executor);
+    // Brings γ up to date with the pick rate once ten seconds have passed. The arrivals do it, as they are what makes the picks, so
+    // nothing is scheduled; it changes nothing while no target is set. After a quiet spell one step covers all of it.
+    private void regulate() {
+        long now = nanoTime.getAsLong();
+        long elapsed = now - lastRegulation;
+        if (elapsed >= REGULATION_INTERVAL_NANOS) {
+            regulator.observe(elapsed / 1_000_000_000.0);
+            lastRegulation = now;
+        }
     }
 
     /** Arrivals given no chance to be picked because the pick limit was reached. */
@@ -101,6 +108,7 @@ public final class QuerySampler {
      * @return whether this arrival picked the query, which happens at most once per query
      */
     public boolean offer(TrackedQuery query) {
+        regulate();
         TrackedQuery.Weights weights = query.weights();
         double multiplicity = weights.weightedMultiplicity();
         boolean head = multiplicity >= headThreshold;

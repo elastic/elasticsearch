@@ -12,6 +12,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -21,6 +22,7 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.querysampling.GroundTruthRunner;
+import org.elasticsearch.xpack.querysampling.QuerySamplingSettings;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.LongAdder;
@@ -32,7 +34,7 @@ import java.util.function.LongSupplier;
  * then ones nobody has touched for a while (likely from a node that went away; running nodes refresh theirs regularly).
  * <p>
  * Searches run as the plugin, since nobody is asking, so document level security is not applied; that is why the worker
- * only runs when {@code sampling_cost_ratio} is above zero. At most one batch runs at a time.
+ * is only scheduled while {@code sampling_cost_ratio} is above zero. At most one batch runs at a time.
  */
 public final class GroundTruthWorker {
 
@@ -49,8 +51,11 @@ public final class GroundTruthWorker {
     private final String samplerId;
     private final LongSupplier clock;
 
+    private Scheduler.Cancellable scheduled; // guarded by this
     private boolean inFlight; // guarded by this
     private double costMillis = INITIAL_COST_MILLIS; // guarded by this
+
+    private volatile String lastFailure;
 
     private final LongAdder computed = new LongAdder();
     private final LongAdder failed = new LongAdder();
@@ -81,8 +86,18 @@ public final class GroundTruthWorker {
         );
     }
 
-    public Scheduler.Cancellable start(ThreadPool threadPool, Executor executor) {
-        return threadPool.scheduleWithFixedDelay(this::run, INTERVAL, executor);
+    /** Runs every few seconds, but only while {@code sampling_cost_ratio} is above 0, as without a budget there is nothing to do. */
+    public void start(ThreadPool threadPool, Executor executor, ClusterSettings clusterSettings) {
+        clusterSettings.initializeAndWatch(QuerySamplingSettings.SAMPLING_COST_RATIO, ratio -> schedule(ratio > 0, threadPool, executor));
+    }
+
+    private synchronized void schedule(boolean wanted, ThreadPool threadPool, Executor executor) {
+        if (wanted && scheduled == null) {
+            scheduled = threadPool.scheduleWithFixedDelay(this::run, INTERVAL, executor);
+        } else if (wanted == false && scheduled != null) {
+            scheduled.cancel();
+            scheduled = null;
+        }
     }
 
     public void run() {
@@ -110,13 +125,21 @@ public final class GroundTruthWorker {
     }
 
     private void finished(GroundTruthRunner.Result result) {
+        lastFailure = null;
         computed.add(result.computed());
         failed.add(result.failed());
         batchDone();
     }
 
     private void failed(Exception e) {
-        logger.debug("failed to compute the ground truth of stored queries", e);
+        // this repeats every few seconds while the cause stays, so only a new failure is logged at warn
+        String failure = e.toString();
+        if (failure.equals(lastFailure)) {
+            logger.debug("failed again to compute the ground truth of stored queries", e);
+        } else {
+            lastFailure = failure;
+            logger.warn("failed to compute the ground truth of stored queries (the same failure again is logged at debug)", e);
+        }
         batchDone();
     }
 

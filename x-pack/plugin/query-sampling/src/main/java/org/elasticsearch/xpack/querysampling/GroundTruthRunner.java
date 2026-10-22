@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.querysampling;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.core.Nullable;
@@ -101,15 +102,25 @@ public final class GroundTruthRunner {
         DataState.read(search, query, new ActionListener<>() {
             @Override
             public void onResponse(DataState state) {
-                scan(query, state, listener);
+                startScan(query, state, listener);
             }
 
             @Override
             public void onFailure(Exception e) {
-                logger.debug("failed to read the state of the data before the exact search of a sampled kNN search", e);
-                scan(query, null, listener);
+                // without it the ground truth is stored without a state, which counts as out of date for good
+                logger.warn("failed to read the state of the data before the exact search of a sampled kNN search", e);
+                startScan(query, null, listener);
             }
         });
+    }
+
+    // the last probe may have been completed by a network thread, which must not start the scan
+    private void startScan(CapturedQuery query, @Nullable DataState state, ActionListener<GroundTruth> listener) {
+        try {
+            executor.execute(ActionRunnable.wrap(listener, l -> scan(query, state, l)));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     private void scan(CapturedQuery query, @Nullable DataState state, ActionListener<GroundTruth> listener) {

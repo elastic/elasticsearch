@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
@@ -41,7 +42,11 @@ import java.util.function.Supplier;
 /**
  * Captures a copy of eligible kNN searches on the coordinating node; the search itself proceeds unchanged.
  * Eligible: a single top-level {@code knn} with a literal float vector, and nothing that changes which documents are
- * searched or which hits come back. Searches with a parent task (cross-cluster or internal) are skipped.
+ * searched (routing, any preference, PIT, scroll) or which hits come back or how they are ranked (an offset, no hits,
+ * {@code search_after}, {@code terminate_after}, a minimum score, a post filter, collapsing, rescoring, boosts of indices,
+ * a similarity threshold, a sort by a field, which leaves the hits without a score). Searches with a parent task
+ * (cross-cluster or internal) are skipped, and so are answers that are partial: a timeout, a search that stopped early or
+ * shards that failed would count as a low recall.
  * <p>
  * The filter sees the request before the search rewrites it, so a vector that is only known after the rewrite (a query
  * vector builder such as a {@code semantic_text} field, or a {@code knn} query inside {@code query}) is not captured.
@@ -53,12 +58,16 @@ public final class QueryCaptureFilter implements MappedActionFilter {
 
     private static final int DEFAULT_SIZE = SearchService.DEFAULT_SIZE;
 
+    private static final long NEVER = Long.MIN_VALUE;
+    private static final long WARN_INTERVAL_MILLIS = TimeUnit.MINUTES.toMillis(1);
+
     private final Consumer<CapturedSearch> consumer;
     private final Supplier<Random> random;
     private volatile boolean enabled;
     private final CaptureRate captureRate = new CaptureRate(0, 0);
     private final LongSupplier millis;
     private final AtomicReference<Mark> lastUpdate;
+    private final AtomicLong lastWarning = new AtomicLong(NEVER);
 
     // how often the capture rate is brought up to date with the traffic, by the searches themselves
     private static final long UPDATE_INTERVAL_MILLIS = TimeUnit.SECONDS.toMillis(10);
@@ -146,7 +155,7 @@ public final class QueryCaptureFilter implements MappedActionFilter {
                     searchListener = withResults(listener, capture(task, searchRequest, knn), rate);
                 } catch (Exception e) {
                     // capturing must never fail the search
-                    logger.debug("failed to capture kNN search", e);
+                    warn("failed to capture kNN search", e);
                 }
             }
         }
@@ -159,15 +168,31 @@ public final class QueryCaptureFilter implements MappedActionFilter {
         double rate
     ) {
         return listener.delegateFailure((l, response) -> {
-            if (response instanceof SearchResponse searchResponse) {
+            // a partial answer (shards that failed, a timeout, a search that stopped early) would count as a low recall
+            if (response instanceof SearchResponse searchResponse && isComplete(searchResponse)) {
                 try {
                     consumer.accept(captureResults(query, searchResponse, rate));
                 } catch (Exception e) {
-                    logger.debug("failed to capture kNN search results", e);
+                    warn("failed to capture kNN search results", e);
                 }
             }
             l.onResponse(response);
         });
+    }
+
+    private static boolean isComplete(SearchResponse response) {
+        return response.isTimedOut() == false
+            && response.getFailedShards() == 0
+            && Boolean.TRUE.equals(response.isTerminatedEarly()) == false;
+    }
+
+    // this runs for every captured search, so a failure that repeats must not fill the log
+    private void warn(String message, Exception e) {
+        long now = millis.getAsLong();
+        long last = lastWarning.get();
+        if ((last == NEVER || now - last >= WARN_INTERVAL_MILLIS) && lastWarning.compareAndSet(last, now)) {
+            logger.warn(message + " (logged at most once a minute)", e);
+        }
     }
 
     // the response is ref-counted, so what is needed is copied out of it
@@ -225,9 +250,14 @@ public final class QueryCaptureFilter implements MappedActionFilter {
         return source.sorts() != null && source.sorts().stream().anyMatch(sort -> sort instanceof ScoreSortBuilder == false);
     }
 
-    // recall compares the returned hits with the exact nearest ones, so hits that are offset, cut, collapsed or rescored are out
+    // recall compares the returned hits with the exact nearest ones, so hits that are offset, cut, collapsed, rescored or
+    // ranked with boosts of indices are out, and so is a search that asks for no hits
     private static boolean returnsOtherHitsThanTheNearestK(SearchSourceBuilder source) {
         return source.from() > 0
+            || source.size() == 0
+            || source.searchAfter() != null
+            || source.terminateAfter() > 0
+            || (source.indexBoosts() != null && source.indexBoosts().isEmpty() == false)
             || source.minScore() != null
             || source.postFilter() != null
             || source.collapse() != null

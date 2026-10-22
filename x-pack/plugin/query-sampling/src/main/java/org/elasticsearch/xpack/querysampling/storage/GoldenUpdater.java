@@ -14,6 +14,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.querysampling.GroundTruthRunner;
+import org.elasticsearch.xpack.querysampling.QuerySamplingSettings;
 import org.elasticsearch.xpack.querysampling.groundtruth.GroundTruth;
 
 import java.util.ArrayList;
@@ -37,7 +38,7 @@ import java.util.function.BiConsumer;
 public final class GoldenUpdater {
 
     // the most that one search of an index can return
-    private static final int MAX_READ = 10_000;
+    private static final int MAX_READ = QuerySamplingSettings.MAX_RESULT_WINDOW;
 
     /** {@code version} is 0 if nothing changed and none was made; {@code failed} counts queries that were left out or not written. */
     public record Result(long sourceVersion, long version, int copied, int recomputed, int added, int dropped, int failed) {}

@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.querysampling;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.Randomness;
@@ -50,6 +53,8 @@ import org.elasticsearch.xpack.querysampling.storage.WeightsRefresher;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.Executor;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.core.ClientHelper.QUERY_SAMPLING_ORIGIN;
 
@@ -91,7 +96,11 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
+        if (QUERY_SAMPLING_FEATURE_FLAG.isEnabled() == false) {
+            return List.of();
+        }
         ClusterSettings clusterSettings = services.clusterService().getClusterSettings();
+        Executor generic = services.threadPool().generic();
         MultiplicityTracker tracker = new MultiplicityTracker(MAX_DISTINCT_QUERIES, TimeValue.timeValueHours(1), System::nanoTime);
         tracker.watch(clusterSettings);
         // new id per run: weights only make sense against the counts this run keeps
@@ -124,12 +133,20 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
             services.threadPool()::absoluteTimeInMillis,
             retentionPeriod
         );
-        GoldenReader goldenReader = new GoldenReader(client::search, services.xContentRegistry());
+        // what is read and written in bulk is parsed and built by the thread that completes the call, so that is an executor's
+        BiConsumer<SearchRequest, ActionListener<SearchResponse>> search = ListenerThread.on(generic, client::search);
+        GoldenReader goldenReader = new GoldenReader(search, services.xContentRegistry());
         // the schedule only adds; recomputing ground truth searches user data, so it runs as the caller
         GoldenUpdater goldenUpdater = new GoldenUpdater(
             goldenReader,
-            new StoredSamples(client::search, services.xContentRegistry()),
-            new GoldenWriter(client::search, client::index, client::bulk, client::update, services.threadPool()::absoluteTimeInMillis),
+            new StoredSamples(search, services.xContentRegistry()),
+            new GoldenWriter(
+                search,
+                ListenerThread.on(generic, client::index),
+                ListenerThread.on(generic, client::bulk),
+                ListenerThread.on(generic, client::update),
+                services.threadPool()::absoluteTimeInMillis
+            ),
             null,
             null,
             null
@@ -141,13 +158,10 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
         masterTasks.add(new MasterTasks.Task(retention::run, SampleRetention.interval(retentionPeriod)));
         TimeValue goldenInterval = QuerySamplingSettings.GOLDEN_PROMOTION_INTERVAL.get(services.clusterService().getSettings());
         if (goldenInterval.millis() > 0) {
-            masterTasks.add(new MasterTasks.Task(goldenPromotion::run, GoldenPromotionJob.interval(goldenInterval)));
+            masterTasks.add(new MasterTasks.Task(goldenPromotion::run, goldenInterval));
         }
-        if (QUERY_SAMPLING_FEATURE_FLAG.isEnabled()) {
-            services.clusterService()
-                .addLocalNodeMasterListener(new MasterTasks(services.threadPool(), services.threadPool().generic(), masterTasks));
-        }
-        // placeholders until the settings are read
+        services.clusterService().addLocalNodeMasterListener(new MasterTasks(services.threadPool(), generic, masterTasks));
+        // the values given here are replaced by the settings in the watch calls
         QuerySampler sampler = new QuerySampler(
             1.0,
             100,
@@ -160,7 +174,7 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
         budget.watch(clusterSettings);
         EventSlice eventSlice = new EventSlice();
         eventSlice.watch(clusterSettings);
-        SelectivityStrata selectivity = new SelectivityStrata(client::search, services.threadPool()::relativeTimeInMillis);
+        SelectivityStrata selectivity = new SelectivityStrata(client::search, services.threadPool()::relativeTimeInMillis, generic);
         selectivity.watch(clusterSettings);
         SamplingPipeline pipeline = new SamplingPipeline(tracker, sampler, List.of(writer::onSampled), budget, eventSlice, selectivity);
         // runs as the plugin since no user asked for these searches
@@ -174,10 +188,7 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
             services.threadPool()::absoluteTimeInMillis,
             services.threadPool().generic()
         );
-        if (QUERY_SAMPLING_FEATURE_FLAG.isEnabled()) {
-            groundTruthWorker.start(services.threadPool(), services.threadPool().generic());
-            sampler.startRegulation(services.threadPool(), services.threadPool().generic());
-        }
+        groundTruthWorker.start(services.threadPool(), generic, clusterSettings);
         CaptureHandoff handoff = new CaptureHandoff(services.threadPool().executor(THREAD_POOL_NAME), pipeline);
         QueryCaptureFilter filter = new QueryCaptureFilter(clusterSettings, handoff, services.threadPool()::relativeTimeInMillis);
         captureFilter.set(filter);

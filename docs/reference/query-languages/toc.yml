@@ -1,3 +1,5 @@
+suppress:
+  - DeepLinkingVirtualFile
 toc:
   - file: index.md
   - file: querydsl.md

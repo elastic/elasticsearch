@@ -140,22 +140,15 @@ public class KnnNestedFilterLevelTests extends MapperServiceTestCase {
                 "fuzzy on chapters",
                 QueryBuilders.fuzzyQuery("chapters.language", "fz").fuzziness(Fuzziness.ONE),
                 c -> "fr".equals(c.language())
-            )
+            ),
+            books("term on books", QueryBuilders.termQuery("genre", "nature"), b -> "nature".equals(b.genre())),
+            books("prefix on books", QueryBuilders.prefixQuery("genre", "no"), b -> "novel".equals(b.genre())),
+            books("range on books", QueryBuilders.rangeQuery("year").gte(1995), b -> b.year() >= 1995)
         );
         assertFilters(filters);
     }
 
-    public void testRootFieldFilters() throws IOException {
-        assertFilters(
-            List.of(
-                books("term", QueryBuilders.termQuery("genre", "nature"), b -> "nature".equals(b.genre())),
-                books("prefix", QueryBuilders.prefixQuery("genre", "no"), b -> "novel".equals(b.genre())),
-                books("range", QueryBuilders.rangeQuery("year").gte(1995), b -> b.year() >= 1995)
-            )
-        );
-    }
-
-    public void testFiltersMixingLevels() throws IOException {
+    public void testCompoundFilters() throws IOException {
         Filter genre = books("genre", QueryBuilders.termQuery("genre", "nature"), b -> "nature".equals(b.genre()));
         Filter language = chapters("language", QueryBuilders.termQuery("chapters.language", "fr"), c -> "fr".equals(c.language()));
         Filter title = chapters("title", QueryBuilders.prefixQuery("chapters.title", "in"), c -> "intro".equals(c.title()));
@@ -167,6 +160,10 @@ public class KnnNestedFilterLevelTests extends MapperServiceTestCase {
                 bool(List.of(genre), List.of(), List.of(), List.of(language)),
                 bool(List.of(genre, language, text), List.of(), List.of(), List.of()),
                 bool(List.of(), List.of(), List.of(genre, text), List.of(language)),
+                bool(List.of(), List.of(text), List.of(), List.of()),
+                bool(List.of(), List.of(language), List.of(), List.of()),
+                bool(List.of(), List.of(genre), List.of(), List.of()),
+                bool(List.of(), List.of(text, genre), List.of(), List.of()),
                 new Filter(
                     "dis_max(genre, language)",
                     QueryBuilders.disMaxQuery().add(genre.query()).add(language.query()),
@@ -185,20 +182,6 @@ public class KnnNestedFilterLevelTests extends MapperServiceTestCase {
                     genre.matches().and(language.matches()),
                     Set.of(0, 1)
                 )
-            )
-        );
-    }
-
-    public void testNegatedFilters() throws IOException {
-        Filter text = paragraphs("text", QueryBuilders.termQuery("chapters.paragraphs.text", "alpha"), p -> "alpha".equals(p.text()));
-        Filter language = chapters("language", QueryBuilders.termQuery("chapters.language", "fr"), c -> "fr".equals(c.language()));
-        Filter genre = books("genre", QueryBuilders.termQuery("genre", "nature"), b -> "nature".equals(b.genre()));
-        assertFilters(
-            List.of(
-                bool(List.of(), List.of(text), List.of(), List.of()),
-                bool(List.of(), List.of(language), List.of(), List.of()),
-                bool(List.of(), List.of(genre), List.of(), List.of()),
-                bool(List.of(), List.of(text, genre), List.of(), List.of())
             )
         );
     }

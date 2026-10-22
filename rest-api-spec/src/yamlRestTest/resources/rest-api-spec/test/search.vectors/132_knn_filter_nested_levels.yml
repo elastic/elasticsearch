@@ -1,11 +1,7 @@
 setup:
   - requires:
-      capabilities:
-        - method: POST
-          path: /_search
-          capabilities: [ knn_filter_nested_levels ]
-      test_runner_features: [ "capabilities" ]
-      reason: "Capability for resolving the nested level of knn filters required"
+      cluster_features: "search.vectors.knn_filter_nested_levels"
+      reason: "knn filters are evaluated at the nested level of the fields they read"
   - do:
       indices.create:
         index: books
@@ -61,13 +57,13 @@ setup:
       indices.refresh: {}
 
 ---
-"Filters on the vector's own nested fields of any query type":
+"Filters on the vector's own level":
 
   # prefix
   - do:
       search:
         index: books
-        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"prefix": {"chapters.paragraphs.text": "al"}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
+        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "filter": {"prefix": {"chapters.paragraphs.text": "al"}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
 
   - match: { hits.total.value: 3 }
   - match: { hits.hits.0._id: "1" }
@@ -80,86 +76,11 @@ setup:
   - length: { hits.hits.2.inner_hits.inner.hits.hits: 1 }
   - match: { hits.hits.2.inner_hits.inner.hits.hits.0._source.pid: "p6" }
 
-  - do:
-      search:
-        index: books
-        body: {"_source": false, "query": {"nested": {"path": "chapters", "query": {"nested": {"path": "chapters.paragraphs", "query": {"knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"prefix": {"chapters.paragraphs.text": "al"}}}}}}}}}
-
-  - match: { hits.total.value: 3 }
-  - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.1._id: "2" }
-  - match: { hits.hits.2._id: "3" }
-
-  # wildcard
-  - do:
-      search:
-        index: books
-        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"wildcard": {"chapters.paragraphs.text": "*eta"}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
-
-  - match: { hits.total.value: 2 }
-  - match: { hits.hits.0._id: "1" }
-  - length: { hits.hits.0.inner_hits.inner.hits.hits: 1 }
-  - match: { hits.hits.0.inner_hits.inner.hits.hits.0._source.pid: "p2" }
-  - match: { hits.hits.1._id: "2" }
-  - length: { hits.hits.1.inner_hits.inner.hits.hits: 1 }
-  - match: { hits.hits.1.inner_hits.inner.hits.hits.0._source.pid: "p5" }
-
-  - do:
-      search:
-        index: books
-        body: {"_source": false, "query": {"nested": {"path": "chapters", "query": {"nested": {"path": "chapters.paragraphs", "query": {"knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"wildcard": {"chapters.paragraphs.text": "*eta"}}}}}}}}}
-
-  - match: { hits.total.value: 2 }
-  - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.1._id: "2" }
-
-  # regexp
-  - do:
-      search:
-        index: books
-        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"regexp": {"chapters.paragraphs.text": "g.*"}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
-
-  - match: { hits.total.value: 1 }
-  - match: { hits.hits.0._id: "1" }
-  - length: { hits.hits.0.inner_hits.inner.hits.hits: 1 }
-  - match: { hits.hits.0.inner_hits.inner.hits.hits.0._source.pid: "p3" }
-
-  - do:
-      search:
-        index: books
-        body: {"_source": false, "query": {"nested": {"path": "chapters", "query": {"nested": {"path": "chapters.paragraphs", "query": {"knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"regexp": {"chapters.paragraphs.text": "g.*"}}}}}}}}}
-
-  - match: { hits.total.value: 1 }
-  - match: { hits.hits.0._id: "1" }
-
-  # fuzzy
-  - do:
-      search:
-        index: books
-        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"fuzzy": {"chapters.paragraphs.text": {"value": "bata", "fuzziness": 1}}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
-
-  - match: { hits.total.value: 2 }
-  - match: { hits.hits.0._id: "1" }
-  - length: { hits.hits.0.inner_hits.inner.hits.hits: 1 }
-  - match: { hits.hits.0.inner_hits.inner.hits.hits.0._source.pid: "p2" }
-  - match: { hits.hits.1._id: "2" }
-  - length: { hits.hits.1.inner_hits.inner.hits.hits: 1 }
-  - match: { hits.hits.1.inner_hits.inner.hits.hits.0._source.pid: "p5" }
-
-  - do:
-      search:
-        index: books
-        body: {"_source": false, "query": {"nested": {"path": "chapters", "query": {"nested": {"path": "chapters.paragraphs", "query": {"knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"fuzzy": {"chapters.paragraphs.text": {"value": "bata", "fuzziness": 1}}}}}}}}}}
-
-  - match: { hits.total.value: 2 }
-  - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.1._id: "2" }
-
   # match_phrase
   - do:
       search:
         index: books
-        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"match_phrase": {"chapters.paragraphs.body": "red green"}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
+        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "filter": {"match_phrase": {"chapters.paragraphs.body": "red green"}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
 
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._id: "1" }
@@ -169,20 +90,11 @@ setup:
   - length: { hits.hits.1.inner_hits.inner.hits.hits: 1 }
   - match: { hits.hits.1.inner_hits.inner.hits.hits.0._source.pid: "p4" }
 
-  - do:
-      search:
-        index: books
-        body: {"_source": false, "query": {"nested": {"path": "chapters", "query": {"nested": {"path": "chapters.paragraphs", "query": {"knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"match_phrase": {"chapters.paragraphs.body": "red green"}}}}}}}}}
-
-  - match: { hits.total.value: 2 }
-  - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.1._id: "2" }
-
   # exists on a doc values only field
   - do:
       search:
         index: books
-        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"exists": {"field": "chapters.paragraphs.kind"}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
+        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "filter": {"exists": {"field": "chapters.paragraphs.kind"}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
 
   - match: { hits.total.value: 3 }
   - match: { hits.hits.0._id: "1" }
@@ -197,44 +109,11 @@ setup:
   - length: { hits.hits.2.inner_hits.inner.hits.hits: 1 }
   - match: { hits.hits.2.inner_hits.inner.hits.hits.0._source.pid: "p6" }
 
-  - do:
-      search:
-        index: books
-        body: {"_source": false, "query": {"nested": {"path": "chapters", "query": {"nested": {"path": "chapters.paragraphs", "query": {"knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"exists": {"field": "chapters.paragraphs.kind"}}}}}}}}}
-
-  - match: { hits.total.value: 3 }
-  - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.1._id: "2" }
-  - match: { hits.hits.2._id: "3" }
-
-  # term on a doc values only field
-  - do:
-      search:
-        index: books
-        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"term": {"chapters.paragraphs.kind": "b"}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
-
-  - match: { hits.total.value: 2 }
-  - match: { hits.hits.0._id: "1" }
-  - length: { hits.hits.0.inner_hits.inner.hits.hits: 1 }
-  - match: { hits.hits.0.inner_hits.inner.hits.hits.0._source.pid: "p2" }
-  - match: { hits.hits.1._id: "2" }
-  - length: { hits.hits.1.inner_hits.inner.hits.hits: 1 }
-  - match: { hits.hits.1.inner_hits.inner.hits.hits.0._source.pid: "p4" }
-
-  - do:
-      search:
-        index: books
-        body: {"_source": false, "query": {"nested": {"path": "chapters", "query": {"nested": {"path": "chapters.paragraphs", "query": {"knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"term": {"chapters.paragraphs.kind": "b"}}}}}}}}}
-
-  - match: { hits.total.value: 2 }
-  - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.1._id: "2" }
-
   # range on a float
   - do:
       search:
         index: books
-        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"range": {"chapters.paragraphs.score": {"gte": 4}}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
+        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "filter": {"range": {"chapters.paragraphs.score": {"gte": 4}}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
 
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._id: "2" }
@@ -245,20 +124,11 @@ setup:
   - length: { hits.hits.1.inner_hits.inner.hits.hits: 1 }
   - match: { hits.hits.1.inner_hits.inner.hits.hits.0._source.pid: "p6" }
 
-  - do:
-      search:
-        index: books
-        body: {"_source": false, "query": {"nested": {"path": "chapters", "query": {"nested": {"path": "chapters.paragraphs", "query": {"knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"range": {"chapters.paragraphs.score": {"gte": 4}}}}}}}}}}
-
-  - match: { hits.total.value: 2 }
-  - match: { hits.hits.0._id: "2" }
-  - match: { hits.hits.1._id: "3" }
-
   # must_not only
   - do:
       search:
         index: books
-        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"bool": {"must_not": {"term": {"chapters.paragraphs.text": "alpha"}}}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
+        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "filter": {"bool": {"must_not": {"term": {"chapters.paragraphs.text": "alpha"}}}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
 
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._id: "1" }
@@ -269,23 +139,14 @@ setup:
   - length: { hits.hits.1.inner_hits.inner.hits.hits: 1 }
   - match: { hits.hits.1.inner_hits.inner.hits.hits.0._source.pid: "p5" }
 
-  - do:
-      search:
-        index: books
-        body: {"_source": false, "query": {"nested": {"path": "chapters", "query": {"nested": {"path": "chapters.paragraphs", "query": {"knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"bool": {"must_not": {"term": {"chapters.paragraphs.text": "alpha"}}}}}}}}}}}
-
-  - match: { hits.total.value: 2 }
-  - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.1._id: "2" }
-
 ---
-"Filters on root fields two levels above the vector":
+"Filters on ancestor levels":
 
-  # term on a doc values only long
+  # root: term on a doc values only long
   - do:
       search:
         index: books
-        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"term": {"pages": 100}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
+        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "filter": {"term": {"pages": 100}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "1" }
@@ -294,62 +155,11 @@ setup:
   - match: { hits.hits.0.inner_hits.inner.hits.hits.1._source.pid: "p2" }
   - match: { hits.hits.0.inner_hits.inner.hits.hits.2._source.pid: "p3" }
 
+  # root: match_phrase on match_only_text
   - do:
       search:
         index: books
-        body: {"_source": false, "query": {"nested": {"path": "chapters", "query": {"nested": {"path": "chapters.paragraphs", "query": {"knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"term": {"pages": 100}}}}}}}}}
-
-  - match: { hits.total.value: 1 }
-  - match: { hits.hits.0._id: "1" }
-
-  # date range
-  - do:
-      search:
-        index: books
-        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"range": {"published": {"gte": "2010-01-01"}}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
-
-  - match: { hits.total.value: 2 }
-  - match: { hits.hits.0._id: "2" }
-  - length: { hits.hits.0.inner_hits.inner.hits.hits: 2 }
-  - match: { hits.hits.0.inner_hits.inner.hits.hits.0._source.pid: "p4" }
-  - match: { hits.hits.0.inner_hits.inner.hits.hits.1._source.pid: "p5" }
-  - match: { hits.hits.1._id: "3" }
-  - length: { hits.hits.1.inner_hits.inner.hits.hits: 1 }
-  - match: { hits.hits.1.inner_hits.inner.hits.hits.0._source.pid: "p6" }
-
-  - do:
-      search:
-        index: books
-        body: {"_source": false, "query": {"nested": {"path": "chapters", "query": {"nested": {"path": "chapters.paragraphs", "query": {"knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"range": {"published": {"gte": "2010-01-01"}}}}}}}}}}
-
-  - match: { hits.total.value: 2 }
-  - match: { hits.hits.0._id: "2" }
-  - match: { hits.hits.1._id: "3" }
-
-  # match on match_only_text
-  - do:
-      search:
-        index: books
-        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"match": {"summary": "birds"}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
-
-  - match: { hits.total.value: 1 }
-  - match: { hits.hits.0._id: "3" }
-  - length: { hits.hits.0.inner_hits.inner.hits.hits: 1 }
-  - match: { hits.hits.0.inner_hits.inner.hits.hits.0._source.pid: "p6" }
-
-  - do:
-      search:
-        index: books
-        body: {"_source": false, "query": {"nested": {"path": "chapters", "query": {"nested": {"path": "chapters.paragraphs", "query": {"knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"match": {"summary": "birds"}}}}}}}}}
-
-  - match: { hits.total.value: 1 }
-  - match: { hits.hits.0._id: "3" }
-
-  # match_phrase on match_only_text
-  - do:
-      search:
-        index: books
-        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"match_phrase": {"summary": "long story"}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
+        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "filter": {"match_phrase": {"summary": "long story"}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "2" }
@@ -357,19 +167,11 @@ setup:
   - match: { hits.hits.0.inner_hits.inner.hits.hits.0._source.pid: "p4" }
   - match: { hits.hits.0.inner_hits.inner.hits.hits.1._source.pid: "p5" }
 
+  # root: flattened
   - do:
       search:
         index: books
-        body: {"_source": false, "query": {"nested": {"path": "chapters", "query": {"nested": {"path": "chapters.paragraphs", "query": {"knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"match_phrase": {"summary": "long story"}}}}}}}}}
-
-  - match: { hits.total.value: 1 }
-  - match: { hits.hits.0._id: "2" }
-
-  # flattened
-  - do:
-      search:
-        index: books
-        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"term": {"tags.color": "green"}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
+        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "filter": {"term": {"tags.color": "green"}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
 
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._id: "1" }
@@ -381,20 +183,11 @@ setup:
   - length: { hits.hits.1.inner_hits.inner.hits.hits: 1 }
   - match: { hits.hits.1.inner_hits.inner.hits.hits.0._source.pid: "p6" }
 
+  # root: nested query on a sibling object
   - do:
       search:
         index: books
-        body: {"_source": false, "query": {"nested": {"path": "chapters", "query": {"nested": {"path": "chapters.paragraphs", "query": {"knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"term": {"tags.color": "green"}}}}}}}}}
-
-  - match: { hits.total.value: 2 }
-  - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.1._id: "3" }
-
-  # nested query on a sibling object
-  - do:
-      search:
-        index: books
-        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"nested": {"path": "authors", "query": {"term": {"authors.name": "bob"}}}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
+        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "filter": {"nested": {"path": "authors", "query": {"term": {"authors.name": "bob"}}}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
 
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._id: "2" }
@@ -405,59 +198,11 @@ setup:
   - length: { hits.hits.1.inner_hits.inner.hits.hits: 1 }
   - match: { hits.hits.1.inner_hits.inner.hits.hits.0._source.pid: "p6" }
 
+  # intermediate: flattened
   - do:
       search:
         index: books
-        body: {"_source": false, "query": {"nested": {"path": "chapters", "query": {"nested": {"path": "chapters.paragraphs", "query": {"knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"nested": {"path": "authors", "query": {"term": {"authors.name": "bob"}}}}}}}}}}}
-
-  - match: { hits.total.value: 2 }
-  - match: { hits.hits.0._id: "2" }
-  - match: { hits.hits.1._id: "3" }
-
-  # runtime field
-  - do:
-      search:
-        index: books
-        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"term": {"genre_length": 5}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}, "runtime_mappings": {"genre_length": {"type": "long", "script": "emit(doc['genre'].value.length())"}}}
-
-  - match: { hits.total.value: 1 }
-  - match: { hits.hits.0._id: "2" }
-  - length: { hits.hits.0.inner_hits.inner.hits.hits: 2 }
-  - match: { hits.hits.0.inner_hits.inner.hits.hits.0._source.pid: "p4" }
-  - match: { hits.hits.0.inner_hits.inner.hits.hits.1._source.pid: "p5" }
-
----
-"Filters on fields of an intermediate level":
-
-  # match on match_only_text
-  - do:
-      search:
-        index: books
-        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"match": {"chapters.body": "debut"}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
-
-  - match: { hits.total.value: 2 }
-  - match: { hits.hits.0._id: "1" }
-  - length: { hits.hits.0.inner_hits.inner.hits.hits: 2 }
-  - match: { hits.hits.0.inner_hits.inner.hits.hits.0._source.pid: "p1" }
-  - match: { hits.hits.0.inner_hits.inner.hits.hits.1._source.pid: "p2" }
-  - match: { hits.hits.1._id: "3" }
-  - length: { hits.hits.1.inner_hits.inner.hits.hits: 1 }
-  - match: { hits.hits.1.inner_hits.inner.hits.hits.0._source.pid: "p6" }
-
-  - do:
-      search:
-        index: books
-        body: {"_source": false, "query": {"nested": {"path": "chapters", "query": {"nested": {"path": "chapters.paragraphs", "query": {"knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"match": {"chapters.body": "debut"}}}}}}}}}
-
-  - match: { hits.total.value: 2 }
-  - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.1._id: "3" }
-
-  # flattened
-  - do:
-      search:
-        index: books
-        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"term": {"chapters.meta.level": "hard"}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
+        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "filter": {"term": {"chapters.meta.level": "hard"}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
 
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._id: "1" }
@@ -467,71 +212,26 @@ setup:
   - length: { hits.hits.1.inner_hits.inner.hits.hits: 1 }
   - match: { hits.hits.1.inner_hits.inner.hits.hits.0._source.pid: "p5" }
 
+  # runtime fields have no known level and are evaluated on the root documents
   - do:
       search:
         index: books
-        body: {"_source": false, "query": {"nested": {"path": "chapters", "query": {"nested": {"path": "chapters.paragraphs", "query": {"knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"term": {"chapters.meta.level": "hard"}}}}}}}}}
+        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "filter": {"term": {"genre_length": 5}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}, "runtime_mappings": {"genre_length": {"type": "long", "script": "emit(doc['genre'].value.length())"}}}
 
-  - match: { hits.total.value: 2 }
-  - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.1._id: "2" }
-
-  # prefix
-  - do:
-      search:
-        index: books
-        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"prefix": {"chapters.title": "in"}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
-
-  - match: { hits.total.value: 3 }
-  - match: { hits.hits.0._id: "1" }
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "2" }
   - length: { hits.hits.0.inner_hits.inner.hits.hits: 2 }
-  - match: { hits.hits.0.inner_hits.inner.hits.hits.0._source.pid: "p1" }
-  - match: { hits.hits.0.inner_hits.inner.hits.hits.1._source.pid: "p2" }
-  - match: { hits.hits.1._id: "2" }
-  - length: { hits.hits.1.inner_hits.inner.hits.hits: 1 }
-  - match: { hits.hits.1.inner_hits.inner.hits.hits.0._source.pid: "p4" }
-  - match: { hits.hits.2._id: "3" }
-  - length: { hits.hits.2.inner_hits.inner.hits.hits: 1 }
-  - match: { hits.hits.2.inner_hits.inner.hits.hits.0._source.pid: "p6" }
-
-  - do:
-      search:
-        index: books
-        body: {"_source": false, "query": {"nested": {"path": "chapters", "query": {"nested": {"path": "chapters.paragraphs", "query": {"knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"prefix": {"chapters.title": "in"}}}}}}}}}
-
-  - match: { hits.total.value: 3 }
-  - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.1._id: "2" }
-  - match: { hits.hits.2._id: "3" }
+  - match: { hits.hits.0.inner_hits.inner.hits.hits.0._source.pid: "p4" }
+  - match: { hits.hits.0.inner_hits.inner.hits.hits.1._source.pid: "p5" }
 
 ---
 "Filters mixing levels":
-
-  # conjunction
-  - do:
-      search:
-        index: books
-        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"bool": {"must": [{"term": {"genre": "nature"}}, {"term": {"chapters.language": "fr"}}]}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
-
-  - match: { hits.total.value: 1 }
-  - match: { hits.hits.0._id: "1" }
-  - length: { hits.hits.0.inner_hits.inner.hits.hits: 2 }
-  - match: { hits.hits.0.inner_hits.inner.hits.hits.0._source.pid: "p1" }
-  - match: { hits.hits.0.inner_hits.inner.hits.hits.1._source.pid: "p2" }
-
-  - do:
-      search:
-        index: books
-        body: {"_source": false, "query": {"nested": {"path": "chapters", "query": {"nested": {"path": "chapters.paragraphs", "query": {"knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"bool": {"must": [{"term": {"genre": "nature"}}, {"term": {"chapters.language": "fr"}}]}}}}}}}}}
-
-  - match: { hits.total.value: 1 }
-  - match: { hits.hits.0._id: "1" }
 
   # disjunction
   - do:
       search:
         index: books
-        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"bool": {"should": [{"term": {"genre": "novel"}}, {"term": {"chapters.paragraphs.text": "gamma"}}]}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
+        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "filter": {"bool": {"should": [{"term": {"genre": "novel"}}, {"term": {"chapters.paragraphs.text": "gamma"}}]}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
 
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._id: "1" }
@@ -542,39 +242,22 @@ setup:
   - match: { hits.hits.1.inner_hits.inner.hits.hits.0._source.pid: "p4" }
   - match: { hits.hits.1.inner_hits.inner.hits.hits.1._source.pid: "p5" }
 
+  # negation of an ancestor level
   - do:
       search:
         index: books
-        body: {"_source": false, "query": {"nested": {"path": "chapters", "query": {"nested": {"path": "chapters.paragraphs", "query": {"knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"bool": {"should": [{"term": {"genre": "novel"}}, {"term": {"chapters.paragraphs.text": "gamma"}}]}}}}}}}}}
-
-  - match: { hits.total.value: 2 }
-  - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.1._id: "2" }
-
-  # negation of another level
-  - do:
-      search:
-        index: books
-        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"bool": {"filter": {"term": {"chapters.language": "en"}}, "must_not": {"match_phrase": {"summary": "wild animals"}}}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
+        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "filter": {"bool": {"filter": {"term": {"chapters.language": "en"}}, "must_not": {"match_phrase": {"summary": "wild animals"}}}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "3" }
   - length: { hits.hits.0.inner_hits.inner.hits.hits: 1 }
   - match: { hits.hits.0.inner_hits.inner.hits.hits.0._source.pid: "p6" }
 
+  # query_string over three levels
   - do:
       search:
         index: books
-        body: {"_source": false, "query": {"nested": {"path": "chapters", "query": {"nested": {"path": "chapters.paragraphs", "query": {"knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"bool": {"filter": {"term": {"chapters.language": "en"}}, "must_not": {"match_phrase": {"summary": "wild animals"}}}}}}}}}}}
-
-  - match: { hits.total.value: 1 }
-  - match: { hits.hits.0._id: "3" }
-
-  # query_string
-  - do:
-      search:
-        index: books
-        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"query_string": {"query": "genre:nature AND chapters.meta.level:easy AND NOT chapters.paragraphs.text:beta"}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
+        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "filter": {"query_string": {"query": "genre:nature AND chapters.meta.level:easy AND NOT chapters.paragraphs.text:beta"}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
 
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._id: "1" }
@@ -584,20 +267,11 @@ setup:
   - length: { hits.hits.1.inner_hits.inner.hits.hits: 1 }
   - match: { hits.hits.1.inner_hits.inner.hits.hits.0._source.pid: "p6" }
 
-  - do:
-      search:
-        index: books
-        body: {"_source": false, "query": {"nested": {"path": "chapters", "query": {"nested": {"path": "chapters.paragraphs", "query": {"knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"query_string": {"query": "genre:nature AND chapters.meta.level:easy AND NOT chapters.paragraphs.text:beta"}}}}}}}}}
-
-  - match: { hits.total.value: 2 }
-  - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.1._id: "3" }
-
   # dis_max
   - do:
       search:
         index: books
-        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"dis_max": {"queries": [{"term": {"pages": 300}}, {"term": {"chapters.paragraphs.kind": "a"}}]}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
+        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "filter": {"dis_max": {"queries": [{"term": {"pages": 300}}, {"term": {"chapters.paragraphs.kind": "a"}}]}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
 
   - match: { hits.total.value: 3 }
   - match: { hits.hits.0._id: "1" }
@@ -611,24 +285,14 @@ setup:
   - length: { hits.hits.2.inner_hits.inner.hits.hits: 1 }
   - match: { hits.hits.2.inner_hits.inner.hits.hits.0._source.pid: "p6" }
 
-  - do:
-      search:
-        index: books
-        body: {"_source": false, "query": {"nested": {"path": "chapters", "query": {"nested": {"path": "chapters.paragraphs", "query": {"knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"dis_max": {"queries": [{"term": {"pages": 300}}, {"term": {"chapters.paragraphs.kind": "a"}}]}}}}}}}}}
-
-  - match: { hits.total.value: 3 }
-  - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.1._id: "2" }
-  - match: { hits.hits.2._id: "3" }
-
 ---
 "Nested query on a level below the vector":
 
-  # top level knn and inner hits agree
+  # top level knn: the nested query joins to the book, and inner hits agree with the hits
   - do:
       search:
         index: books
-        body: {"_source": false, "knn": {"field": "chapters.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"nested": {"path": "chapters.paragraphs", "query": {"term": {"chapters.paragraphs.text": "beta"}}}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
+        body: {"_source": false, "knn": {"field": "chapters.vector", "query_vector": [0, 0], "k": 10, "filter": {"nested": {"path": "chapters.paragraphs", "query": {"term": {"chapters.paragraphs.text": "beta"}}}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}
 
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._id: "1" }
@@ -640,11 +304,58 @@ setup:
   - match: { hits.hits.1.inner_hits.inner.hits.hits.0._source.cid: "c3" }
   - match: { hits.hits.1.inner_hits.inner.hits.hits.1._source.cid: "c4" }
 
+---
+"Knn query inside nested queries":
+
+  # query_string over three levels
   - do:
       search:
         index: books
-        body: {"_source": false, "query": {"nested": {"path": "chapters", "query": {"knn": {"field": "chapters.vector", "query_vector": [0, 0], "k": 10, "num_candidates": 100, "filter": {"nested": {"path": "chapters.paragraphs", "query": {"term": {"chapters.paragraphs.text": "beta"}}}}}}}}}
+        body: {"_source": false, "query": {"nested": {"path": "chapters", "query": {"nested": {"path": "chapters.paragraphs", "query": {"knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "filter": {"query_string": {"query": "genre:nature AND chapters.meta.level:easy AND NOT chapters.paragraphs.text:beta"}}}}, "inner_hits": {"name": "paragraphs", "size": 10, "_source": true}}}, "inner_hits": {"name": "chapters", "size": 10, "_source": true}}}}
 
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._id: "1" }
+  - length: { hits.hits.0.inner_hits.chapters.hits.hits: 1 }
+  - match: { hits.hits.0.inner_hits.chapters.hits.hits.0._source.cid: "c1" }
+  - length: { hits.hits.0.inner_hits.chapters.hits.hits.0.inner_hits.paragraphs.hits.hits: 1 }
+  - match: { hits.hits.0.inner_hits.chapters.hits.hits.0.inner_hits.paragraphs.hits.hits.0._source.pid: "p1" }
+  - match: { hits.hits.1._id: "3" }
+  - length: { hits.hits.1.inner_hits.chapters.hits.hits: 1 }
+  - match: { hits.hits.1.inner_hits.chapters.hits.hits.0._source.cid: "c5" }
+  - length: { hits.hits.1.inner_hits.chapters.hits.hits.0.inner_hits.paragraphs.hits.hits: 1 }
+  - match: { hits.hits.1.inner_hits.chapters.hits.hits.0.inner_hits.paragraphs.hits.hits.0._source.pid: "p6" }
+
+  # nested query on a sibling object
+  - do:
+      search:
+        index: books
+        body: {"_source": false, "query": {"nested": {"path": "chapters", "query": {"nested": {"path": "chapters.paragraphs", "query": {"knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "filter": {"nested": {"path": "authors", "query": {"term": {"authors.name": "bob"}}}}}}, "inner_hits": {"name": "paragraphs", "size": 10, "_source": true}}}, "inner_hits": {"name": "chapters", "size": 10, "_source": true}}}}
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "2" }
+  - length: { hits.hits.0.inner_hits.chapters.hits.hits: 2 }
+  - match: { hits.hits.0.inner_hits.chapters.hits.hits.0._source.cid: "c3" }
+  - length: { hits.hits.0.inner_hits.chapters.hits.hits.0.inner_hits.paragraphs.hits.hits: 1 }
+  - match: { hits.hits.0.inner_hits.chapters.hits.hits.0.inner_hits.paragraphs.hits.hits.0._source.pid: "p4" }
+  - match: { hits.hits.0.inner_hits.chapters.hits.hits.1._source.cid: "c4" }
+  - length: { hits.hits.0.inner_hits.chapters.hits.hits.1.inner_hits.paragraphs.hits.hits: 1 }
+  - match: { hits.hits.0.inner_hits.chapters.hits.hits.1.inner_hits.paragraphs.hits.hits.0._source.pid: "p5" }
+  - match: { hits.hits.1._id: "3" }
+  - length: { hits.hits.1.inner_hits.chapters.hits.hits: 1 }
+  - match: { hits.hits.1.inner_hits.chapters.hits.hits.0._source.cid: "c5" }
+  - length: { hits.hits.1.inner_hits.chapters.hits.hits.0.inner_hits.paragraphs.hits.hits: 1 }
+  - match: { hits.hits.1.inner_hits.chapters.hits.hits.0.inner_hits.paragraphs.hits.hits.0._source.pid: "p6" }
+
+  # nested query on a level below the vector, joined to the enclosing chapter
+  - do:
+      search:
+        index: books
+        body: {"_source": false, "query": {"nested": {"path": "chapters", "query": {"knn": {"field": "chapters.vector", "query_vector": [0, 0], "k": 10, "filter": {"nested": {"path": "chapters.paragraphs", "query": {"term": {"chapters.paragraphs.text": "beta"}}}}}}, "inner_hits": {"name": "inner", "size": 10, "_source": true}}}}
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "1" }
+  - length: { hits.hits.0.inner_hits.inner.hits.hits: 1 }
+  - match: { hits.hits.0.inner_hits.inner.hits.hits.0._source.cid: "c1" }
   - match: { hits.hits.1._id: "2" }
+  - length: { hits.hits.1.inner_hits.inner.hits.hits: 1 }
+  - match: { hits.hits.1.inner_hits.inner.hits.hits.0._source.cid: "c4" }

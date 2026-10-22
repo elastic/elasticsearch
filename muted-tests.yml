@@ -579,3 +579,9 @@ tests:
 - class: org.elasticsearch.index.mapper.DynamicMappingIT
   method: testConcurrentBulkRequestsWithDynamicMappingUpdates
   issue: https://github.com/elastic/elasticsearch/issues/162912
+- class: org.elasticsearch.action.search.TransportSearchActionTests
+  method: testIgnoreIndicesWithoutSlices
+  issue: https://github.com/elastic/elasticsearch/issues/162943
+- class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/162945

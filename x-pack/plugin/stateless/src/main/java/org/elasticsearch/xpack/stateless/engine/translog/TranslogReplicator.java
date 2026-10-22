@@ -105,8 +105,10 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         Setting.Property.NodeScope
     );
 
-    /// Time to wait for the first translog-upload try to complete before firing the exact same translog upload request in parallel
-    /// to the first. For a specific translog upload, we only fire at most one extra request (irrespectively of the total tries needed for
+    /// Time to wait for the first translog-upload try to complete before firing the exact same translog upload request in parallel to the
+    /// first. The delay is measured from the moment the first upload's blob write actually starts (i.e., after any time the upload spent
+    /// queued behind other translog uploads in the object store service) so that the hedge covers a slow object store write rather than
+    /// local queueing. For a specific translog upload, we only fire at most one hedge upload (irrespectively of the total tries needed for
     /// the translog to be uploaded).
     public static final Setting<TimeValue> UPLOAD_HEDGE_DELAY_SETTING = Setting.timeSetting(
         "stateless.translog.upload.hedge_delay",
@@ -520,8 +522,8 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             }
         }
 
-        // A translog-upload might be slow or might even hang, so on the first try of an `UploadTranslogTask`, we schedule a hedge upload
-        // that will be fired after `UPLOAD_HEDGE_DELAY_SETTING` seconds.
+        // A translog-upload might be slow or might even hang, so once the first try of an `UploadTranslogTask` actually starts its blob
+        // write (see `tryAction`), we schedule a hedge upload that will be fired after `UPLOAD_HEDGE_DELAY_SETTING` seconds.
         // - If the hedge upload completes first, then `isDone` is set, and we'll stop retrying this `UploadTranslogTask`. Note this is
         // because the `listener` passed in `hedge(listener)` is the same `RetryingListener` passed in `tryAction` and hence
         // `RetryableAction`'s `isDone` is set to true.
@@ -537,6 +539,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             objectStoreService.uploadTranslogFile(
                 translog.metadata().name(),
                 translog.bytes().data(),
+                () -> {},
                 ActionListener.releaseAfter(
                     ActionListener.wrap(
                         unused -> uploaded(true, listener),
@@ -549,14 +552,22 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
         @Override
         public void tryAction(ActionListener<UploadTranslogTask> listener) {
-            if (uploadTryNumber.get() == 0) {
+            final boolean firstTry = uploadTryNumber.get() == 0;
+            Runnable onBeforeUpload = () -> {};
+            if (firstTry) {
                 firstAttemptStartMillis = threadPool.relativeTimeInMillis();
-                // Only in the first try we schedule another parallel upload, only if after `uploadHedgeDelay` seconds
-                // we have not yet uploaded the translog.
-                // Note that `hedge` gets the same `listener` as the one passed as an argument in `tryAction`. This means that if
+                // Only the first try starts a hedge upload, and this happens only when this first try is about to actually start the
+                // translog upload (i.e., after any time the upload spent queued behind other translog uploads in the object store service).
+                // By doing this we start the hedge only when the other upload is indeed slow and not just waiting in a queue, something
+                // that would have exacerbated the situation.
+                // Also note that `hedge` gets the same `listener` as the one passed as an argument in `tryAction`. This means that if
                 // the `hedge` completes the upload first, `RetryingListener.onResponse` is called that sets
                 // the `isDone` of `RetryingAction` to true. As a result, we stop retrying (i.e., `tryAction`) to upload a translog.
-                hedgeTimer = threadPool.schedule(() -> hedge(listener), uploadHedgeDelay, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+                onBeforeUpload = () -> hedgeTimer = threadPool.schedule(
+                    () -> hedge(listener),
+                    uploadHedgeDelay,
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE
+                );
             }
             if (uploadRefs.tryIncRef()) {
                 uploadTryNumber.incrementAndGet();
@@ -564,6 +575,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                 objectStoreService.uploadTranslogFile(
                     translog.metadata().name(),
                     translog.bytes().data(),
+                    onBeforeUpload,
                     ActionListener.releaseAfter(ActionListener.wrap(unused -> {
                         logger.debug(() -> format("uploaded translog file [%s]", translog.metadata().name()));
                         uploaded(false, listener);

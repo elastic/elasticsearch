@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -132,6 +133,38 @@ public class SqlSearchIT extends ESRestTestCase {
             fieldValues.put("half_float_field", Double.valueOf(Float.toString(roundedHalfFloat)));
         });
         assertAllTypesWithNodes(expectedResponse, Clusters.newNodeAddresses(cluster));
+    }
+
+    /**
+     * Ordering by an expression over a {@code long} field is run as a script sort on every shard, including those
+     * held by nodes that predate the {@code long} script sort type. The request goes to the upgraded node, and is
+     * repeated so that shard copies on the old nodes get picked too. Those nodes sort the values as doubles, which
+     * is the precision bug being fixed, so only that the query succeeds and returns every row is asserted here.
+     */
+    public void testOrderByLongExpressionWithRequestToUpgradedNodes() throws Exception {
+        List<Long> expected = new ArrayList<>();
+        for (int i = 0; i < 6; i++) {
+            expected.add(Long.MAX_VALUE - i);
+            Request request = new Request("PUT", index + "/_doc/" + i);
+            request.addParameter("refresh", "true");
+            request.setJsonEntity("{\"id\":" + i + ",\"long_field\":" + expected.get(i) + "}");
+            assertOK(client().performRequest(request));
+        }
+        try (RestClient client = buildClient(restClientSettings(), Clusters.newNodeAddresses(cluster))) {
+            Request request = new Request("POST", "_sql");
+            request.setJsonEntity(
+                SqlCompatIT.sqlQueryEntityWithOptionalMode("SELECT long_field - 1 + 1 AS x FROM " + index + " ORDER BY 1 DESC")
+            );
+            for (int attempt = 0; attempt < 20; attempt++) {
+                @SuppressWarnings("unchecked")
+                List<List<Object>> rows = (List<List<Object>>) runSql(client, request).get("rows");
+                assertEquals(
+                    new HashSet<>(expected),
+                    rows.stream().map(row -> ((Number) row.get(0)).longValue()).collect(Collectors.toSet())
+                );
+                assertEquals(expected.size(), rows.size());
+            }
+        }
     }
 
     @SuppressWarnings("unchecked")

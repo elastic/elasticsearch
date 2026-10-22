@@ -40,12 +40,14 @@ public class OtelSdkExportTracerSupplier implements TraceSupplier {
 
     private final Settings settings;
     private final Supplier<MeterProvider> meterProvider;
+    final String authHeader;
     private final Object mutex = new Object();
     private volatile OpenTelemetrySdk openTelemetrySdk;
 
     public OtelSdkExportTracerSupplier(Settings settings, Supplier<MeterProvider> meterProvider) {
         this.settings = settings;
         this.meterProvider = meterProvider;
+        this.authHeader = OtelSdkExportMeterSupplier.buildOtlpAuthorizationHeader(settings);
     }
 
     @Override
@@ -97,7 +99,6 @@ public class OtelSdkExportTracerSupplier implements TraceSupplier {
             .setTimeout(OtelSdkSettings.TELEMETRY_EXPORT_SEND_TIMEOUT.get(settings).toDuration())
             .setConnectTimeout(OtelSdkSettings.TELEMETRY_EXPORT_CONNECT_TIMEOUT.get(settings).toDuration())
             .setRetryPolicy(OtelSdkSettings.OTLP_RETRY_POLICY);
-        String authHeader = OtelSdkExportMeterSupplier.buildOtlpAuthorizationHeader(settings);
         if (authHeader != null) {
             builder.addHeader("Authorization", authHeader);
         }

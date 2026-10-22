@@ -222,7 +222,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         );
         this.translogUploadHedgesWonCounter = meterRegistry.registerLongCounter(
             TRANSLOG_UPLOAD_HEDGES_WON_TOTAL,
-            "translog uploads completed by the hedge upload rather than the original upload",
+            "translog uploads completed by the hedge upload rather than the normal upload",
             "count"
         );
     }
@@ -504,7 +504,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             this.translogFile = new BlobTranslogFileImpl(translog.metadata());
             // Increment the ref of the translog file to prevent the following scenario: we end up with 2 uploads (one due to hedge),
             // one upload goes through, then we end up GCing the translog file, and afterwards the second upload also goes through.
-            // In such a scenario we end up with a non-GCed translog file.
+            // In such a scenario we end up with a non-GCed translog file. Test in `testTranslogFileIsDeletedOnlyAfterBothUploadsComplete`.
             this.translogFile.incRef();
             this.uploadRefs = new AbstractRefCounted() {
                 @Override

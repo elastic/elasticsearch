@@ -130,6 +130,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.Charset;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -183,6 +184,8 @@ public abstract class EngineTestCase extends ESTestCase {
     protected String codecName;
     protected Path primaryTranslogDir;
     protected Path replicaTranslogDir;
+    private Path suiteTempDir;
+    private Set<Path> existingTempPaths;
     // A default primary term is used by engine instances created in this test.
     protected final PrimaryTermSupplier primaryTerm = new PrimaryTermSupplier(1L);
     protected static SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions = SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES;
@@ -230,6 +233,13 @@ public abstract class EngineTestCase extends ESTestCase {
 
     @Before
     public void initializeEngineTestResources() throws Exception {
+        // Lucene removes temporary paths only at suite end and limits each prefix to 9999 names. Track all paths
+        // created by this test (including those created by helpers), preserving resources that predate the test.
+        Path testTempDir = createTempDir("engine-test");
+        suiteTempDir = testTempDir.getParent();
+        try (var paths = Files.list(suiteTempDir)) {
+            existingTempPaths = paths.filter(path -> path.equals(testTempDir) == false).collect(Collectors.toSet());
+        }
         primaryTerm.set(randomLongBetween(1, Long.MAX_VALUE));
         CodecService codecService = newCodecService();
         String name = Codec.getDefault().getName();
@@ -302,6 +312,17 @@ public abstract class EngineTestCase extends ESTestCase {
             }
         } finally {
             IOUtils.close(replicaEngine, storeReplica, engine, store, () -> terminate(threadPool), nodeEnvironment);
+        }
+    }
+
+    @Override
+    protected void afterIfSuccessful() throws Exception {
+        super.afterIfSuccessful();
+        // Run after all teardown checks so failed tests retain their files for debugging, as in LuceneTestCase.
+        if (LEAVE_TEMPORARY == false && existingTempPaths != null) {
+            try (var paths = Files.list(suiteTempDir)) {
+                IOUtils.rm(paths.filter(path -> existingTempPaths.contains(path) == false).toArray(Path[]::new));
+            }
         }
     }
 

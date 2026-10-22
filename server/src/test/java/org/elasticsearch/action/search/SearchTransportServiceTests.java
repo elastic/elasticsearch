@@ -10,10 +10,15 @@ package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
@@ -26,12 +31,52 @@ import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.transport.AbstractTransportRequest;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_DOC_ID_ORDER;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class SearchTransportServiceTests extends ESTestCase {
+
+    /** A held last chunk stays charged while the coordinator keeps slices of it, and the charge goes with its pages. */
+    public void testChargeHeldChunkLastsUntilThePagesAreFreed() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(10));
+        AtomicBoolean pagesFreed = new AtomicBoolean();
+        int length = randomIntBetween(1, 100_000);
+        ReleasableBytesReference pages = new ReleasableBytesReference(new BytesArray(randomByteArrayOfLength(length)), () -> {
+            pagesFreed.set(true);
+        });
+
+        ReleasableBytesReference held = SearchTransportService.chargeHeldChunk(pages, breaker);
+        assertThat(breaker.getUsed(), equalTo((long) length));
+
+        ReleasableBytesReference coordinatorSlice = held.retainedSlice(0, length);
+        held.close();
+        assertThat("the coordinator still holds the pages", breaker.getUsed(), equalTo((long) length));
+        assertFalse(pagesFreed.get());
+
+        coordinatorSlice.close();
+        assertTrue(pagesFreed.get());
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /** A held last chunk that does not fit trips the breaker and leaves its pages to the caller, which closes them with the chunk. */
+    public void testChargeHeldChunkTrips() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofKb(1));
+        AtomicBoolean pagesFreed = new AtomicBoolean();
+        ReleasableBytesReference pages = new ReleasableBytesReference(
+            new BytesArray(randomByteArrayOfLength(4096)),
+            () -> { pagesFreed.set(true); }
+        );
+
+        expectThrows(CircuitBreakingException.class, () -> SearchTransportService.chargeHeldChunk(pages, breaker));
+        assertThat(breaker.getUsed(), equalTo(0L));
+        assertFalse(pagesFreed.get());
+
+        pages.close();
+        assertTrue(pagesFreed.get());
+    }
 
     /**
      * Verifies that {@link SearchTransportService#countingRequest} and

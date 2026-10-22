@@ -8,15 +8,26 @@
  */
 package org.elasticsearch.action.search;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.fetch.FetchSearchResult;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.transport.AbstractTransportRequest;
 
 import java.io.IOException;
 
+import static org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_DOC_ID_ORDER;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -91,5 +102,45 @@ public class SearchTransportServiceTests extends ESTestCase {
         // Two ints = 8 bytes
         assertThat(counted[0], equalTo(8L));
         assertThat(out.size(), equalTo(8));
+    }
+
+    public void testPopulateBwcLastChunkBytesWritesPositionsForDocIdOrderCoordinators() throws IOException {
+        assertBwcLastChunkBytes(TransportVersionUtils.randomVersionSupporting(CHUNKED_FETCH_DOC_ID_ORDER), true);
+    }
+
+    public void testPopulateBwcLastChunkBytesOmitsPositionsForOlderCoordinators() throws IOException {
+        assertBwcLastChunkBytes(TransportVersionUtils.randomVersionNotSupporting(CHUNKED_FETCH_DOC_ID_ORDER), false);
+    }
+
+    private static void assertBwcLastChunkBytes(TransportVersion coordinatorVersion, boolean withPositions) throws IOException {
+        FetchSearchResult result = new FetchSearchResult(
+            new ShardSearchContextId("test", 1L),
+            new SearchShardTarget("node", new ShardId(new Index("idx", "uuid"), 0), null)
+        );
+        try {
+            SearchHit[] hits = new SearchHit[] { new SearchHit(0, "doc-0"), new SearchHit(1, "doc-1"), new SearchHit(2, "doc-2") };
+            result.shardResult(new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), Float.NaN), null);
+
+            SearchTransportService.populateBwcLastChunkBytes(result, coordinatorVersion);
+
+            assertThat(result.getLastChunkHitCount(), equalTo(hits.length));
+            try (StreamInput in = result.getLastChunkBytes().streamInput()) {
+                in.setTransportVersion(coordinatorVersion);
+                for (int i = 0; i < hits.length; i++) {
+                    if (withPositions) {
+                        assertThat(in.readVInt(), equalTo(i));
+                    }
+                    SearchHit hit = SearchHit.readFrom(in);
+                    try {
+                        assertThat(hit.getId(), equalTo("doc-" + i));
+                    } finally {
+                        hit.decRef();
+                    }
+                }
+                assertThat(in.available(), equalTo(0));
+            }
+        } finally {
+            result.decRef();
+        }
     }
 }

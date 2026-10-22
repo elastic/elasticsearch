@@ -656,15 +656,8 @@ public final class SimdJsonDirectWalker {
     }
 
     /**
-     * Given {@code t}, a word of 8 input bytes with {@code 0x30} subtracted from each, returns a value whose
-     * byte {@code i} has its high bit set exactly when input byte {@code i} is not an ASCII digit, for the
-     * lowest such byte. Bytes above the lowest non-digit are unspecified because a borrow or carry from it may
-     * flow into them, so callers must only trust the lowest set byte.
-     *
-     * <p>Testing only the high nibble ({@code t & 0xF0F0...}) is not enough: it accepts {@code ':'} through
-     * {@code '?'} ({@code 0x3A}..{@code 0x3F}), whose {@code t} bytes are {@code 0x0A}..{@code 0x0F}. Adding
-     * {@code 0x76} pushes any byte in {@code 0x0A}..{@code 0x7F} into the high bit, and bytes of {@code 0x80}
-     * or more (including those that underflowed below {@code '0'}) already have it set.
+     * Sets the high bit of each byte of {@code t} (8 input bytes minus {@code 0x30}) that is not a digit.
+     * Only the lowest set byte is reliable. Unlike {@code t & 0xF0F0...}, this rejects {@code ':'}..{@code '?'}.
      */
     private static long nonDigitBytes(long t) {
         return ((t + 0x7676767676767676L) | t) & 0x8080808080808080L;

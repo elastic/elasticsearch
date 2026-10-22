@@ -623,6 +623,10 @@ public class FakeStatelessNode implements Closeable {
     // This results in correct tombstone document being created but doesn't actually modify any of the existing documents.
     private static final Function<Integer, String> DEFAULT_ID_GENERATOR_FOR_DELETES = ignored -> ESTestCase.randomAlphaOfLength(10);
 
+    /// Generates a `commitsNumber` commits using provided `indexWriterConfig`.
+    /// @param idGeneratorForDeletes function that returns an id of the document that should be deleted based on the commit number.
+    ///                              Can return `null` to not apply any deletes and can be `null` itself with the same effect.
+    /// @param newDocForCommitFunction function that generates documents to be added to the commit based on the commit number.
     public List<StatelessCommitRef> generateIndexCommits(
         int commitsNumber,
         boolean merge,

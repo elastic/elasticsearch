@@ -3291,6 +3291,13 @@ public class StatelessCommitServiceTests extends ESTestCase {
             );
 
             do {
+                VirtualBatchedCompoundCommit currentVbcc = testHarness.commitService.getCurrentVirtualBcc(testHarness.shardId);
+                if (currentVbcc != null) {
+                    // The VBCC is not uploaded yet so must below the threshold.
+                    assertTrue(currentVbcc.sizeInBytesExcludingCopiedGenerationalFiles() < uploadMaxSize);
+                    assertTrue(currentVbcc.sizeInBytesExcludingCopiedGenerationalFiles() <= currentVbcc.getTotalSizeInBytes());
+                }
+
                 StatelessCommitRef commitRef = testHarness.generateIndexCommits(1).get(0);
                 referenceVbcc.appendCommit(
                     commitRef,

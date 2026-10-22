@@ -1424,7 +1424,9 @@ class NodeConstruction {
             final RecoveryMetricsCollector recoveryMetricsCollector = new RecoveryMetricsCollector(
                 telemetryProvider,
                 throttlingRecoveryService,
-                threadPool.relativeTimeInMillisSupplier()
+                threadPool.relativeTimeInMillisSupplier(),
+                clusterService.getClusterSettings(),
+                JvmInfo.jvmInfo().getMem().getHeapMax()
             );
             recoverySchedulingListeners.addListener(recoveryMetricsCollector);
             final PeerRecoverySourceService peerRecovery = new PeerRecoverySourceService(

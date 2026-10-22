@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.analysis.rules.ResolveHighlightIndexKey;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolvePromqlFunctions;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveUnmapped;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolvedProjects;
+import org.elasticsearch.xpack.esql.analysis.rules.ViewUtils;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
@@ -391,7 +392,40 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         LogicalPlan verified = verify(analyzed, gatherPreAnalysisMetrics(plan, partialMetrics));
         // verify throws on failure, so we only reach here once the plan is valid: flush the warnings deferred during analysis.
         context().deferredHeaderWarnings().forEach(HeaderWarning::addWarning);
+        viewBoundaryNullFillWarnings(context().viewBoundaryNullFills()).forEach(HeaderWarning::addWarning);
         return verified;
+    }
+
+    /**
+     * One warning per view boundary whose output null-filled outer references because the referencing scope's
+     * {@code unmapped_fields} mode does not apply inside it.
+     */
+    static List<String> viewBoundaryNullFillWarnings(Set<AnalyzerContext.ViewBoundaryNullFill> nullFills) {
+        Map<AnalyzerContext.ViewBoundary, List<String>> fieldsByBoundary = new LinkedHashMap<>();
+        for (AnalyzerContext.ViewBoundaryNullFill fill : nullFills) {
+            fieldsByBoundary.computeIfAbsent(fill.boundary(), k -> new ArrayList<>()).add(fill.fieldName());
+        }
+        List<String> warnings = new ArrayList<>(fieldsByBoundary.size());
+        fieldsByBoundary.forEach((boundary, fields) -> warnings.add(viewBoundaryNullFillWarning(boundary, fields)));
+        return warnings;
+    }
+
+    static String viewBoundaryNullFillWarning(AnalyzerContext.ViewBoundary boundary, List<String> fieldNames) {
+        assert fieldNames.isEmpty() == false : "no fields to warn about";
+        boolean one = fieldNames.size() == 1;
+        return Strings.format(
+            "SET unmapped_fields=\"%s\"%s does not affect the contents of view [%s]%s, so field%s %s %s null in its rows; "
+                + "to load such fields, the view definition must %s them itself",
+            boundary.resolution().settingValue(),
+            boundary.settingView() == null ? "" : " in view [" + boundary.settingView() + "]",
+            boundary.viewName(),
+            boundary.enclosingView() == null ? "" : " nested in view [" + boundary.enclosingView() + "]",
+            one ? "" : "s",
+            ViewQuerySettings.bracketedList(fieldNames),
+            one ? "is" : "are",
+            // A view that already SETs load loads only the fields its own body references.
+            boundary.viewLoadsUnmappedFields() ? "reference" : "SET unmapped_fields=\"load\" and reference"
+        );
     }
 
     public LogicalPlan verify(LogicalPlan plan, BitSet partialMetrics) {
@@ -2126,7 +2160,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // output, so MergePlan.outputUnion misses it. Surface it as a FORK column when a sibling branch can surface it (the dropping
             // branch then null-fills it). Skip it when no branch can surface it (e.g. dropped in every branch), else it would be null
             // everywhere and isn't a real column.
-            if (alignUnmappedAcrossBranches && fork.children().stream().anyMatch(plan -> canSurfaceFromSource(plan, null, false))) {
+            if (alignUnmappedAcrossBranches && fork.children().stream().anyMatch(plan -> canSurfaceFromSource(plan, null, false, null))) {
                 addDroppedUnmappedFieldsMissingFromMerge(outputUnion, unmappedFieldsDroppedByProjection(fork));
             }
             List<String> mergeColumns = outputUnion.stream().map(Attribute::name).toList();
@@ -2178,7 +2212,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
                 // materialize the unmapped fields in this branch's own source relation so they surface in its output
                 if (toLoad.isEmpty() == false) {
-                    LogicalPlan withLoaded = logicalPlan.transformUp(
+                    LogicalPlan withLoaded = ViewUtils.transformUpOutsideViews(
+                        logicalPlan,
                         EsRelation.class,
                         esr -> withAdditionalAttributesUnlessLookup(esr, toLoad, false)
                     );
@@ -2412,7 +2447,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<FieldAttribute> toLoad,
             AnalyzerContext context
         ) {
-            if (mergePlan instanceof BranchPlan branchPlan && branchPlan.isViewBranch(branchIndex)) {
+            if (ViewUtils.isViewBody(mergePlan, branchIndex)) {
                 return false;
             }
             UnmappedResolution unmappedResolution = context.unmappedResolution();
@@ -2450,24 +2485,44 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * collapses the rows, so neither can surface it. {@link InlineStats} keeps those input rows, so the check continues at the
          * aggregate's input.
          */
-        private static boolean branchCanSurfaceLoadedField(LogicalPlan plan, String name) {
-            return canSurfaceFromSource(plan, name, true);
+        public static boolean branchCanSurfaceLoadedField(LogicalPlan plan, String name) {
+            return canSurfaceFromSource(plan, name, true, null);
         }
 
-        private static boolean canSurfaceFromSource(LogicalPlan plan, String name, boolean consultResolvingProject) {
+        /**
+         * Like {@link #branchCanSurfaceLoadedField(LogicalPlan, String)}, but a {@link MergePlan} reached in {@code plan} is answered by
+         * {@code mergeCanSurface} rather than treated as hiding the field.
+         */
+        public static boolean branchCanSurfaceLoadedField(LogicalPlan plan, String name, Predicate<MergePlan> mergeCanSurface) {
+            return canSurfaceFromSource(plan, name, true, mergeCanSurface);
+        }
+
+        private static boolean canSurfaceFromSource(
+            LogicalPlan plan,
+            String name,
+            boolean consultResolvingProject,
+            @Nullable Predicate<MergePlan> mergeCanSurface
+        ) {
             return switch (plan) {
                 case EsRelation esRelation -> esRelation.indexMode() != IndexMode.LOOKUP;
                 case ResolvingProject resolvingProject when consultResolvingProject -> resolvingProject.admitsLateUnmappedField(name)
-                    && canSurfaceFromSource(resolvingProject.child(), name, true);
+                    && canSurfaceFromSource(resolvingProject.child(), name, true, mergeCanSurface);
                 case Project unused -> false;
-                case InlineStats inlineStats -> canSurfaceFromSource(inlineStats.aggregate().child(), name, consultResolvingProject);
+                case InlineStats inlineStats -> canSurfaceFromSource(
+                    inlineStats.aggregate().child(),
+                    name,
+                    consultResolvingProject,
+                    mergeCanSurface
+                );
                 case Aggregate unused -> false;
                 case Join join when join.config().type() == JoinTypes.LEFT -> canSurfaceFromSource(
                     join.left(),
                     name,
-                    consultResolvingProject
+                    consultResolvingProject,
+                    mergeCanSurface
                 );
-                case UnaryPlan unaryPlan -> canSurfaceFromSource(unaryPlan.child(), name, consultResolvingProject);
+                case UnaryPlan unaryPlan -> canSurfaceFromSource(unaryPlan.child(), name, consultResolvingProject, mergeCanSurface);
+                case MergePlan mergePlan when mergeCanSurface != null -> mergeCanSurface.test(mergePlan);
                 case null, default -> false;
             };
         }
@@ -4626,6 +4681,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     }
                 }
                 newOutput.add(attr);
+            }
+            // NO_FIELDS should not be retained if other attributes actually exist
+            if (newOutput.size() > 1) {
+                newOutput.removeIf(attr -> attr == NO_FIELDS.getFirst());
             }
 
             return newOutput.size() == output.size() ? plan : new Project(Source.EMPTY, plan, newOutput);

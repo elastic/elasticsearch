@@ -894,7 +894,7 @@ public class TestAnalyzer {
         wildcardsMatchDatasets = statement.setting(QuerySettings.WILDCARDS_MATCH_DATASETS);
         var analyzed = buildAnalyzer().analyze(resolveViewsAndInSubqueries(statement.plan()));
         var failures = new Failures();
-        PlanConsistencyChecker.checkPlan(analyzed, failures);
+        analyzed.forEachDown(p -> PlanConsistencyChecker.checkPlan(p, failures));
         if (failures.hasFailures()) {
             throw new VerificationException(failures);
         }

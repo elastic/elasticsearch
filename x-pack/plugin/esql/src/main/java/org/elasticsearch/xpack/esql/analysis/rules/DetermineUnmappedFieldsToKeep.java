@@ -197,10 +197,10 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
                     // A view is a virtual index with no _source of its own, and the setting ends at its boundary: it has no
                     // _unmapped_fields column, and where a sibling has one, finishMergeUnmappedFields null-fills the view's.
                     newChildren.add(child);
-                    continue;
+                } else {
+                    LogicalPlan annotated = annotate(child, computeUnmappedFieldsToKeep(child).intersect(pattern));
+                    newChildren.add(annotated instanceof Project project ? passThroughUnmappedFields(project) : annotated);
                 }
-                LogicalPlan annotated = annotate(child, computeUnmappedFieldsToKeep(child).intersect(pattern));
-                newChildren.add(annotated instanceof Project project ? passThroughUnmappedFields(project) : annotated);
             }
             return merge.replaceChildren(newChildren);
         }

@@ -561,11 +561,11 @@ public abstract class FieldMapper extends Mapper {
     }
 
     /**
-     * Whether every document is guaranteed to hold at most one value for this field, because the mapping rejects any document with
-     * more than one ({@code multi_value=false} with {@code on_failure=fail}). Readers such as field caps may rely on it.
+     * Whether the mapping guarantees at most one value per document for this field: {@code multi_value=false} with
+     * {@code on_failure=fail}, so a second value rejects the document. Readers such as field caps may rely on it.
      * <p>
-     * Defaults to {@code false}, which only means "not guaranteed". A mapper returns {@code true} only if it rejects a second value
-     * at parse time on every path, and the guarantee cannot be removed later: {@code multi_value} is not updateable.
+     * Defaults to {@code false}, which only means "not guaranteed". {@code multi_value} is not updateable, so the guarantee cannot be
+     * removed later.
      */
     protected boolean guaranteesSingleValue() {
         return false;

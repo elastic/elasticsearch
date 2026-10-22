@@ -105,12 +105,6 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {yaml=ml/delete_expired_data/Test delete expired data with path parameters}
   issue: https://github.com/elastic/elasticsearch/issues/152311
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
-  method: testMultiTermVectorsApiRealtimeGet
-  issue: https://github.com/elastic/elasticsearch/issues/150101
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
-  method: testTermVectorsApiRealtimeGet
-  issue: https://github.com/elastic/elasticsearch/issues/153282
 - class: org.elasticsearch.xpack.transform.integration.TransformCrossProjectIT
   method: testUpdateTransformWithProjectRouting
   issue: https://github.com/elastic/elasticsearch/issues/147534

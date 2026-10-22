@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.datageneration.Mapping;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.BinaryDVBlockLoaderTestCase;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockLoaderTestCase;
 import org.elasticsearch.index.mapper.BlockLoaderTestRunner;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -139,13 +140,10 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
         }
 
         static ValuesMode from(Map<String, Object> fieldMapping, Params params) {
+            boolean keepArraysOriginal = BlockLoaderTestCase.isMappingKeepingOriginalSourceForArrays(params.blTestCaseParams());
             var configuredValue = fieldMapping.get("preserve_leaf_arrays");
-            if (params.indexMode() == IndexMode.LOGSDB) {
-                if ("lossy".equals(configuredValue)) {
-                    return ValuesMode.SORTED_UNIQUE;
-                } else {
-                    return ValuesMode.AS_IS_OFFSETS;
-                }
+            if (configuredValue == null && (params.indexMode().isStrictColumnar() || keepArraysOriginal)) {
+                return ValuesMode.AS_IS_OFFSETS;
             }
 
             boolean isExact = "exact".equals(configuredValue) || (configuredValue == null && params.indexMode().isStrictColumnar());

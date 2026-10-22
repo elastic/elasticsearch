@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
@@ -45,6 +46,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
@@ -67,6 +69,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -74,8 +77,10 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -139,6 +144,78 @@ public class RestoreServiceTests extends ESTestCase {
                 dataStreamName
             )
         );
+    }
+
+    public void testKeepAliasesOfReplacedDataStreams() {
+        final ProjectMetadata withoutAliases = DataStreamTestHelper.getProjectWithDataStreams(
+            List.of(Tuple.tuple("replaced", 1), Tuple.tuple("other", 1)),
+            List.of()
+        );
+        final ProjectMetadata.Builder beforeBuilder = ProjectMetadata.builder(withoutAliases);
+        beforeBuilder.put("shared-alias", "replaced", true, "{\"term\":{\"field\":\"value\"}}");
+        beforeBuilder.put("shared-alias", "other", false, null);
+        beforeBuilder.put("alias-of-other", "other", true, null);
+        final ProjectMetadata before = beforeBuilder.build();
+        // what the restore has when it runs: the data streams are there, and none is in an alias
+        final ProjectMetadata.Builder restored = ProjectMetadata.builder(withoutAliases);
+
+        RestoreService.keepAliasesOfReplacedDataStreams(before, List.of(restoreTarget(withoutAliases, "replaced")), restored);
+
+        final Map<String, DataStreamAlias> aliases = restored.build().dataStreamAliases();
+        assertThat("only the aliases that the replaced data stream was in", aliases.keySet(), contains("shared-alias"));
+        final DataStreamAlias alias = aliases.get("shared-alias");
+        assertThat("not the other data streams of the alias", alias.getDataStreams(), contains("replaced"));
+        assertEquals("replaced", alias.getWriteDataStream());
+        assertEquals(before.dataStreamAliases().get("shared-alias").getFilter("replaced").string(), alias.getFilter("replaced").string());
+    }
+
+    public void testKeepAliasesOfReplacedDataStreamsWithoutFilterOrWriteFlag() {
+        final ProjectMetadata withoutAliases = DataStreamTestHelper.getProjectWithDataStreams(
+            List.of(Tuple.tuple("replaced", 1), Tuple.tuple("other", 1)),
+            List.of()
+        );
+        final ProjectMetadata.Builder beforeBuilder = ProjectMetadata.builder(withoutAliases);
+        beforeBuilder.put("alias", "replaced", false, null);
+        beforeBuilder.put("alias", "other", true, null);
+        final ProjectMetadata.Builder restored = ProjectMetadata.builder(withoutAliases);
+
+        RestoreService.keepAliasesOfReplacedDataStreams(
+            beforeBuilder.build(),
+            List.of(restoreTarget(withoutAliases, "replaced")),
+            restored
+        );
+
+        final DataStreamAlias alias = restored.build().dataStreamAliases().get("alias");
+        assertThat(alias.getDataStreams(), contains("replaced"));
+        assertNull(alias.getWriteDataStream());
+        assertNull(alias.getFilter("replaced"));
+    }
+
+    public void testKeepAliasesOfReplacedDataStreamsDoesNothingWithoutReplacedDataStreams() {
+        final ProjectMetadata withoutAliases = DataStreamTestHelper.getProjectWithDataStreams(
+            List.of(Tuple.tuple("data-stream", 1)),
+            List.of()
+        );
+        final ProjectMetadata.Builder beforeBuilder = ProjectMetadata.builder(withoutAliases);
+        beforeBuilder.put("alias", "data-stream", true, null);
+        final ProjectMetadata.Builder restored = ProjectMetadata.builder(withoutAliases);
+
+        RestoreService.keepAliasesOfReplacedDataStreams(beforeBuilder.build(), List.of(), restored);
+
+        assertThat(restored.build().dataStreamAliases().keySet(), empty());
+    }
+
+    /** A restore of the data stream over the one of the same name, which has the same backing indices here. */
+    private static RestoreService.DataStreamRestoreTarget restoreTarget(ProjectMetadata project, String dataStreamName) {
+        final DataStream dataStream = project.dataStreams().get(dataStreamName);
+        final Map<String, RestoreService.DataStreamRestoreTarget.SnapshotIndex> snapshotIndices = new HashMap<>();
+        for (Index index : Stream.concat(dataStream.getIndices().stream(), dataStream.getFailureIndices().stream()).toList()) {
+            snapshotIndices.put(
+                index.getName(),
+                new RestoreService.DataStreamRestoreTarget.SnapshotIndex(new IndexId(index.getName(), randomUUID()), project.index(index))
+            );
+        }
+        return new RestoreService.DataStreamRestoreTarget(dataStream, dataStream, snapshotIndices);
     }
 
     public void testUpdateDataStream() {

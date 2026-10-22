@@ -136,6 +136,11 @@ public final class UnmappedFieldsAttribute extends TypedAttribute {
     }
 
     @Override
+    public boolean isInternal() {
+        return true;
+    }
+
+    @Override
     protected UnmappedFieldsAttribute clone(
         Source source,
         String qualifier,

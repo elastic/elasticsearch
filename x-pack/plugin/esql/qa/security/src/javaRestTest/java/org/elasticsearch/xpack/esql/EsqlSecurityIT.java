@@ -453,7 +453,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     private void createView(String user, String viewName, String query) throws IOException {
-        Request request = new Request("PUT", "/_query/view/" + viewName);
+        Request request = new Request("PUT", "/_query/view/" + viewName + "?validate=false");
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
         builder.field("query", query);

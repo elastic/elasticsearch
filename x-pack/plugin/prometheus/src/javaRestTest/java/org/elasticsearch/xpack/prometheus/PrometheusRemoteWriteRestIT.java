@@ -14,7 +14,6 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.cluster.LogType;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -95,18 +94,18 @@ public class PrometheusRemoteWriteRestIT extends AbstractPrometheusRestIT {
         List<Map<String, Object>> matches = new ArrayList<>();
         assertBusy(() -> {
             matches.clear();
-            try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
-                for (String line : Streams.readAllLines(auditLog)) {
-                    if (line.contains("authentication_success") == false) continue;
-                    Map<String, Object> event = XContentHelper.convertToMap(XContentType.JSON.xContent(), line, true);
-                    if ("authentication_success".equals(event.get("event.action"))
-                        && path.equals(event.get("url.path"))
-                        && expectedRawBody.equals(event.get("request.raw_body"))) {
-                        matches.add(event);
-                    }
+            for (String line : cluster.readNodeLogIncludingRolled(0, LogType.AUDIT)) {
+                if (line.contains("authentication_success") == false) {
+                    continue;
                 }
-                assertThat("expected one authentication_success event with matching raw body for " + path, matches, hasSize(1));
+                Map<String, Object> event = XContentHelper.convertToMap(XContentType.JSON.xContent(), line, true);
+                if ("authentication_success".equals(event.get("event.action"))
+                    && path.equals(event.get("url.path"))
+                    && expectedRawBody.equals(event.get("request.raw_body"))) {
+                    matches.add(event);
+                }
             }
+            assertThat("expected one authentication_success event with matching raw body for " + path, matches, hasSize(1));
         }, 5, TimeUnit.SECONDS);
         return matches.getFirst();
     }

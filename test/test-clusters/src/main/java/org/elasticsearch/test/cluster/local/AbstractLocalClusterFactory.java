@@ -280,6 +280,10 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             throw new IllegalArgumentException("Log file " + logFile + " does not exist.");
         }
 
+        List<String> readLogIncludingRolled(LogType logType) {
+            return RolledLogReader.readAllLines(logsDir, spec.getCluster().getName(), logType);
+        }
+
         public LocalNodeSpec getSpec() {
             return spec;
         }

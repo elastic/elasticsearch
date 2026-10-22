@@ -219,6 +219,11 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
         return nodes.get(index).getLog(logType);
     }
 
+    @Override
+    public List<String> readNodeLogIncludingRolled(int index, LogType logType) {
+        return nodes.get(index).readLogIncludingRolled(logType);
+    }
+
     public Path getNodeConfigPath(int index) {
         return nodes.get(index).getConfigDir();
     }

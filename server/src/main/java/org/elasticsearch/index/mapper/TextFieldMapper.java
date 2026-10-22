@@ -630,6 +630,12 @@ public final class TextFieldMapper extends FieldMapper {
 
     public static final TypeParser PARSER = createTypeParserWithLegacySupport(Builder::new);
 
+    // The recorded value is the raw UTF-8 value; write it back like the offsets-aware loader does.
+    private static final CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> OFFSETS_FALLBACK = (b, v) -> {
+        var bytesRef = (BytesRef) v;
+        b.utf8Value(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+    };
+
     private static class PhraseWrappedAnalyzer extends ElasticsearchAnalyzerWrapper {
 
         private final Analyzer delegate;
@@ -1950,11 +1956,6 @@ public final class TextFieldMapper extends FieldMapper {
     private final IndexSettings indexSettings;
     // The companion ".offsets" field used to reconstruct array order and null positions in strict-columnar mode; null otherwise.
     private final String offsetsFieldName;
-    // The recorded value is the raw UTF-8 value; write it back like the offsets-aware loader does.
-    private static final CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> OFFSETS_FALLBACK = (b, v) -> {
-        var bytesRef = (BytesRef) v;
-        b.utf8Value(bytesRef.bytes, bytesRef.offset, bytesRef.length);
-    };
     // The type the doc-values payload reports for a document that holds no value, or null when the field is not indexed;
     // see ColumnarBinaryDocValuesField#fieldType.
     private final FieldType payloadTypeWhenValueless;

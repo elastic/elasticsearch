@@ -284,6 +284,11 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
     public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getIndexSettings()));
 
+    // The recorded value is the sortable signed long (doc values) representation; format it like the offsets-aware loader does.
+    private static final CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> OFFSETS_FALLBACK = (b, v) -> b.value(
+        DocValueFormat.UNSIGNED_LONG_SHIFTED.format((Long) v)
+    );
+
     public static final class UnsignedLongFieldType extends SimpleMappedFieldType {
 
         private final Number nullValueFormatted;
@@ -756,10 +761,6 @@ public class UnsignedLongFieldMapper extends FieldMapper {
     private final MetricType metricType;
     private final IndexSettings indexSettings;
     private final String offsetsFieldName;
-    // The recorded value is the sortable signed long (doc values) representation; format it like the offsets-aware loader does.
-    private static final CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> OFFSETS_FALLBACK = (b, v) -> b.value(
-        DocValueFormat.UNSIGNED_LONG_SHIFTED.format((Long) v)
-    );
 
     private UnsignedLongFieldMapper(
         String simpleName,

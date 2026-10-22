@@ -257,6 +257,8 @@ public class BooleanFieldMapper extends FieldMapper {
         (n, c) -> new Builder(n, c.scriptCompiler(), c.getIndexSettings())
     );
 
+    private static final CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> OFFSETS_FALLBACK = (b, v) -> b.value((Boolean) v);
+
     public static final class BooleanFieldType extends TermBasedFieldType {
 
         private final Boolean nullValue;
@@ -571,7 +573,6 @@ public class BooleanFieldMapper extends FieldMapper {
     private final boolean storeMalformedFields;
 
     private final String offsetsFieldName;
-    private static final CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> OFFSETS_FALLBACK = (b, v) -> b.value((Boolean) v);
 
     protected BooleanFieldMapper(
         String simpleName,

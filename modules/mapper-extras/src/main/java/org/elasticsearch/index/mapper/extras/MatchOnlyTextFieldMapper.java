@@ -303,6 +303,12 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
     public static final TypeParser PARSER = new TypeParser(Builder::new);
 
+    // The recorded value is the raw UTF-8 value; write it back like the offsets-aware loader does.
+    private static final CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> OFFSETS_FALLBACK = (b, v) -> {
+        var bytesRef = (BytesRef) v;
+        b.utf8Value(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+    };
+
     public static class MatchOnlyTextFieldType extends TextFamilyFieldType {
 
         private final Analyzer indexAnalyzer;
@@ -1115,11 +1121,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     private final IndexSettings indexSettings;
     // The companion ".offsets" field used to reconstruct array order and null positions in strict-columnar mode; null otherwise.
     private final String offsetsFieldName;
-    // The recorded value is the raw UTF-8 value; write it back like the offsets-aware loader does.
-    private static final CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> OFFSETS_FALLBACK = (b, v) -> {
-        var bytesRef = (BytesRef) v;
-        b.utf8Value(bytesRef.bytes, bytesRef.offset, bytesRef.length);
-    };
     // The type the doc-values payload reports for a document that holds no value; see ColumnarBinaryDocValuesField#fieldType.
     private final FieldType payloadTypeWhenValueless;
 

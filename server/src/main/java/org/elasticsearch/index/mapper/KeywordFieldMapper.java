@@ -670,6 +670,12 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     public static final TypeParser PARSER = createTypeParserWithLegacySupport(Builder::new);
 
+    // The recorded value is the raw UTF-8 value; write it back like the offsets-aware loader does.
+    private static final CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> OFFSETS_FALLBACK = (b, v) -> {
+        var utf8Bytes = (XContentString.UTF8Bytes) v;
+        b.utf8Value(utf8Bytes.bytes(), utf8Bytes.offset(), utf8Bytes.length());
+    };
+
     public static final class KeywordFieldType extends TextFamilyFieldType {
 
         private static final IgnoreAbove IGNORE_ABOVE_DEFAULT = new IgnoreAbove(null, IndexMode.STANDARD);
@@ -1601,11 +1607,6 @@ public final class KeywordFieldMapper extends FieldMapper {
     private final boolean forceDocValuesSkipper;
     private final boolean storeIgnoredFieldsInBinaryDocValues;
     private final String offsetsFieldName;
-    // The recorded value is the raw UTF-8 value; write it back like the offsets-aware loader does.
-    private static final CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> OFFSETS_FALLBACK = (b, v) -> {
-        var utf8Bytes = (XContentString.UTF8Bytes) v;
-        b.utf8Value(utf8Bytes.bytes(), utf8Bytes.offset(), utf8Bytes.length());
-    };
     // The type the doc-values payload reports for a document that holds no value, or null when the field is not indexed;
     // see ColumnarBinaryDocValuesField#fieldType.
     private final FieldType payloadTypeWhenValueless;

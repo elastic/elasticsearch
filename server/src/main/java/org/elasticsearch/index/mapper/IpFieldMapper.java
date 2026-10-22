@@ -340,6 +340,12 @@ public class IpFieldMapper extends FieldMapper {
         (n, c) -> new Builder(n, c.scriptCompiler(), c.getIndexSettings())
     );
 
+    // The recorded value is the encoded (sortable) address; format it like the offsets-aware loader does.
+    private static final CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> OFFSETS_FALLBACK = (b, v) -> {
+        BytesRef formatted = convert((BytesRef) v);
+        b.utf8Value(formatted.bytes, formatted.offset, formatted.length);
+    };
+
     public static final class IpFieldType extends SimpleMappedFieldType {
 
         private final InetAddress nullValue;
@@ -796,11 +802,6 @@ public class IpFieldMapper extends FieldMapper {
     private final ScriptCompiler scriptCompiler;
 
     private final String offsetsFieldName;
-    // The recorded value is the encoded (sortable) address; format it like the offsets-aware loader does.
-    private static final CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> OFFSETS_FALLBACK = (b, v) -> {
-        BytesRef formatted = convert((BytesRef) v);
-        b.utf8Value(formatted.bytes, formatted.offset, formatted.length);
-    };
 
     private IpFieldMapper(
         String simpleName,

@@ -345,10 +345,12 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
 
     /**
      * Like {@link #getUnderLock(BytesRef)} but, while the version map or its archive is unsafe, returns the
-     * {@link #VERSION_MAP_UNSAFE} sentinel instead of consulting the archive (which may hold a stale version). Callers must
+     * {@link #VERSION_MAP_UNSAFE} sentinel instead of an archived version (which may be stale). Callers must
      * compare the result against {@link #VERSION_MAP_UNSAFE} by identity and resolve the version from Lucene rather than
      * trusting it. Realtime gets must also make sure the doc is in the commit the search shards are told to wait for. Used
-     * by the engine version-resolution paths.
+     * by the engine version-resolution paths. If the archive holds no version for the uid, this returns {@code null} as
+     * usual even while unsafe: there is no stale version to distrust, so callers need not flush on account of this lookup.
+     * In particular, archives that never hold entries (such as the no-op archive) never produce the sentinel.
      */
     VersionValue getUnderLockOrUnsafe(final BytesRef uid) {
         return getUnderLock(uid, maps, true);
@@ -374,12 +376,15 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
             return value;
         }
 
-        // Due to race between beforeRefresh() and enforceSafeAccess(), we sometimes cannot trust the archive.
-        if (gateOnUnsafe && (currentMaps.current.isUnsafe() || currentMaps.old.isUnsafe() || archive.isUnsafe())) {
+        final VersionValue archived = archive.get(uid);
+        // Due to race between beforeRefresh() and enforceSafeAccess(), we sometimes cannot trust the archive. Only
+        // substitute the sentinel when the archive actually holds a version for this uid. A version missing from the archive is either
+        // committed or was already covered by the caller's unsafe pre-check under the uid lock
+        if (gateOnUnsafe && archived != null && (currentMaps.current.isUnsafe() || currentMaps.old.isUnsafe() || archive.isUnsafe())) {
             return VERSION_MAP_UNSAFE;
         }
 
-        return archive.get(uid);
+        return archived;
     }
 
     VersionValue getVersionForAssert(final BytesRef uid) {

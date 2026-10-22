@@ -561,6 +561,44 @@ public class LiveVersionMapTests extends ESTestCase {
     }
 
     /**
+     * With the no-op archive used in stateful, the archive never holds a version, so there is no stale version for
+     * {@link LiveVersionMap#getUnderLockOrUnsafe} to distrust. Even after the map flips unsafe, the gated lookup must
+     * return {@code null} like the ungated one, rather than {@link LiveVersionMap#VERSION_MAP_UNSAFE}. On the sentinel,
+     * a realtime get would flush to make sure a stale archived version reaches the search shards; with no archive that
+     * flush would be wasted work.
+     */
+    public void testUnsafeGateReturnsNullWhenArchiveHasNoEntryForId() throws IOException {
+        final LiveVersionMap map = new LiveVersionMap();
+
+        final BytesRef id = uid("doc-under-test");
+        try (Releasable ignored = map.acquireLock(id)) {
+            map.putIndexUnderLock(id, randomIndexVersionValue());
+        }
+        // The refresh moves the doc out of the live maps, and the no-op archive retains nothing.
+        map.beforeRefresh();
+        map.afterRefresh(true);
+
+        // A caller does unsafe pre-check. It is either safe, or the caller does a refresh and makes it safe.
+        assertFalse(map.isUnsafe());
+        try (Releasable ignored = map.acquireLock(id)) {
+            assertNull(map.getUnderLock(id));
+            assertNull(map.getUnderLockOrUnsafe(id));
+        }
+
+        // As in testArchiveUnsafeGateDropsValidEntryAfterConcurrentFlip, an unrelated skipped op flips the map unsafe.
+        final BytesRef unrelated = uid("unrelated-doc");
+        try (Releasable ignored = map.acquireLock(unrelated)) {
+            map.maybePutIndexUnderLock(unrelated, randomIndexVersionValue());
+        }
+        assertTrue(map.isUnsafe());
+
+        try (Releasable ignored = map.acquireLock(id)) {
+            assertNull(map.getUnderLock(id));
+            assertNull(map.getUnderLockOrUnsafe(id));
+        }
+    }
+
+    /**
      * In-memory archive that retains entries and reports unsafe once an unsafe old map has been archived.
      */
     private static final class TestArchive implements LiveVersionMapArchive {

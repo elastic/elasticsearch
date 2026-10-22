@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
@@ -62,6 +63,7 @@ import static org.elasticsearch.cluster.metadata.Metadata.DEFAULT_PROJECT_ID;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.elasticsearch.xpack.stateless.cache.SearchRecoveryWarmingTestUtils.clusterStateInitializingSearchReplicaWithActivePeer;
 import static org.elasticsearch.xpack.stateless.cache.SearchRecoveryWarmingTestUtils.clusterStateOneSearchReplica;
 import static org.elasticsearch.xpack.stateless.cache.SearchRecoveryWarmingTestUtils.initializingSearchReplica;
@@ -93,8 +95,14 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
     ) {
         final var cacheService = Mockito.mock(StatelessSharedBlobCacheService.class);
         when(cacheService.getCacheSize()).thenReturn(cacheSize);
-        // Unknown heap size, so that only the static incoming recovery limit applies.
-        return new SearchRecoveryTimeoutCalculationService(cacheService, threadPool, clusterSettings, ByteSizeValue.ZERO);
+        // The heap-based limit does not apply to search nodes, so only the static incoming recovery limit applies.
+        return new SearchRecoveryTimeoutCalculationService(
+            cacheService,
+            threadPool,
+            clusterSettings,
+            onlyRole(DiscoveryNodeRole.SEARCH_ROLE),
+            ByteSizeValue.ZERO
+        );
     }
 
     private static ClusterSettings newClusterSettings(Settings settings) {
@@ -899,7 +907,13 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
         }
 
         FixedPlanCalculationService(ThreadPool threadPool, ClusterSettings clusterSettings, SearchRecoveryTimeout plan) {
-            super(Mockito.mock(StatelessSharedBlobCacheService.class), threadPool, clusterSettings, ByteSizeValue.ZERO);
+            super(
+                Mockito.mock(StatelessSharedBlobCacheService.class),
+                threadPool,
+                clusterSettings,
+                onlyRole(DiscoveryNodeRole.SEARCH_ROLE),
+                ByteSizeValue.ZERO
+            );
             this.plan = plan;
         }
 

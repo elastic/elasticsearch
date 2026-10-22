@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocation
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings;
@@ -33,8 +34,10 @@ import org.junit.After;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationHandoffAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static org.hamcrest.Matchers.equalTo;
@@ -93,9 +96,11 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
 
     @After
     public void verifyNoOutstandingRecoveries() {
+        final Map<String, Predicate<RecoveryStats>> noCurrentRecoveries = new HashMap<>();
         for (final var nodeName : internalCluster().getNodeNames()) {
-            assertTrue("expected no current recoveries on node [" + nodeName + "]", getRecoveryStats(nodeName).noCurrentRecoveries());
+            noCurrentRecoveries.put(nodeName, RecoveryStats::noCurrentRecoveries);
         }
+        awaitRecoveryCountStats(noCurrentRecoveries);
     }
 
     public void testIndexNodeQueuesIncomingRecoveriesPastConcurrencyLimit() {

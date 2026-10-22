@@ -28,6 +28,7 @@ public interface NoHardLinksDirectory {
                 return false;
             }
             if (directory instanceof FilterDirectory filterDirectory) {
+                // Walk one level at a time: FilterDirectory.unwrap would skip any marked directories in the middle of the chain.
                 directory = filterDirectory.getDelegate();
             } else {
                 return true;

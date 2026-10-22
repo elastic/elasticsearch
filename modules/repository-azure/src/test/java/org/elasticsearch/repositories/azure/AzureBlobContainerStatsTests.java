@@ -32,6 +32,8 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import static org.elasticsearch.repositories.azure.AzureBlobStore.Operation.BLOB_BATCH;
 import static org.elasticsearch.repositories.azure.AzureBlobStore.Operation.LIST_BLOBS;
 import static org.elasticsearch.repositories.azure.AzureBlobStore.Operation.PUT_BLOB;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class AzureBlobContainerStatsTests extends AbstractAzureServerTestCase {
 
@@ -117,14 +119,18 @@ public class AzureBlobContainerStatsTests extends AbstractAzureServerTestCase {
         // BLOB_BATCH
         blobStore.deleteBlobs(purpose, List.of(randomIdentifier(), randomIdentifier(), randomIdentifier()).iterator());
         // COPY_BLOB
-        blobStore.copyBlob(purpose, blobName, blobStore, randomIdentifier());
+        blobStore.copyBlob(purpose, blobName, blobStore, randomIdentifier(), () -> {});
 
         Map<String, BlobStoreActionStats> stats = blobStore.stats();
         String statsMapString = stats.toString();
         assertEquals(statsMapString, 1L, stats.get(statsKey(purpose, AzureBlobStore.Operation.PUT_BLOB)).operations());
         assertEquals(statsMapString, 1L, stats.get(statsKey(purpose, AzureBlobStore.Operation.LIST_BLOBS)).operations());
-        // Copy polls blob properties for completion
-        assertEquals(statsMapString, 2L, stats.get(statsKey(purpose, AzureBlobStore.Operation.GET_BLOB_PROPERTIES)).operations());
+        // Copy polls blob properties for completion. The number of polls can vary based on timing.
+        assertThat(
+            statsMapString,
+            stats.get(statsKey(purpose, AzureBlobStore.Operation.GET_BLOB_PROPERTIES)).operations(),
+            greaterThanOrEqualTo(2L)
+        );
         assertEquals(statsMapString, 1L, stats.get(statsKey(purpose, AzureBlobStore.Operation.PUT_BLOCK)).operations());
         assertEquals(statsMapString, 1L, stats.get(statsKey(purpose, AzureBlobStore.Operation.PUT_BLOCK_LIST)).operations());
         assertEquals(statsMapString, 1L, stats.get(statsKey(purpose, AzureBlobStore.Operation.BLOB_BATCH)).operations());
@@ -156,7 +162,7 @@ public class AzureBlobContainerStatsTests extends AbstractAzureServerTestCase {
             // BLOB_BATCH
             blobStore.deleteBlobs(purpose, List.of(randomIdentifier(), randomIdentifier(), randomIdentifier()).iterator());
             // COPY_BLOB
-            blobStore.copyBlob(purpose, blobName, blobStore, randomIdentifier());
+            blobStore.copyBlob(purpose, blobName, blobStore, randomIdentifier(), () -> {});
         }
 
         Map<String, BlobStoreActionStats> stats = blobStore.stats();

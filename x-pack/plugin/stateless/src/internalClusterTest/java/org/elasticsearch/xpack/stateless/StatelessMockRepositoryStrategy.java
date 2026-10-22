@@ -160,7 +160,7 @@ public class StatelessMockRepositoryStrategy {
     }
 
     /**
-     * Called in {@link BlobContainer#copyBlob(OperationPurpose, BlobContainer, String, String, long, java.util.concurrent.Executor)}.
+     * Called in {@link BlobContainer#copyBlob(OperationPurpose, BlobContainer, String, String, long, java.util.concurrent.Executor, Runnable)}.
      */
     public void blobContainerCopyBlob(
         CheckedRunnable<IOException> originalRunnable,
@@ -168,7 +168,8 @@ public class StatelessMockRepositoryStrategy {
         BlobContainer sourceBlobContainer,
         String sourceBlobName,
         String blobName,
-        long blobSize
+        long blobSize,
+        Runnable cancellationCheck
     ) throws IOException {
         originalRunnable.run();
     }

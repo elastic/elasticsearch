@@ -367,9 +367,18 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
                 BlobContainer sourceBlobContainer,
                 String sourceBlobName,
                 String blobName,
-                long blobSize
+                long blobSize,
+                Runnable cancellationCheck
             ) throws IOException {
-                super.blobContainerCopyBlob(originalRunnable, purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);
+                super.blobContainerCopyBlob(
+                    originalRunnable,
+                    purpose,
+                    sourceBlobContainer,
+                    sourceBlobName,
+                    blobName,
+                    blobSize,
+                    cancellationCheck
+                );
                 // Signal that we've started the initial copy. It won't see any new commits generated after this, so we know
                 // that the new ones come from ongoing copying.
                 postCopyLatch.countDown();
@@ -3433,11 +3442,20 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
                 BlobContainer sourceBlobContainer,
                 String sourceBlobName,
                 String blobName,
-                long blobSize
+                long blobSize,
+                Runnable cancellationCheck
             ) throws IOException {
                 copyStarted.countDown();
                 safeAwait(copyBlock);
-                super.blobContainerCopyBlob(originalRunnable, purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);
+                super.blobContainerCopyBlob(
+                    originalRunnable,
+                    purpose,
+                    sourceBlobContainer,
+                    sourceBlobName,
+                    blobName,
+                    blobSize,
+                    cancellationCheck
+                );
             }
         };
 
@@ -3553,11 +3571,20 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
                 BlobContainer sourceBlobContainer,
                 String sourceBlobName,
                 String blobName,
-                long blobSize
+                long blobSize,
+                Runnable cancellationCheck
             ) throws IOException {
                 restartLatch.countDown();
                 safeAwait(copyLatch);
-                super.blobContainerCopyBlob(originalRunnable, purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);
+                super.blobContainerCopyBlob(
+                    originalRunnable,
+                    purpose,
+                    sourceBlobContainer,
+                    sourceBlobName,
+                    blobName,
+                    blobSize,
+                    cancellationCheck
+                );
             }
         };
 
@@ -3617,11 +3644,20 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
                 BlobContainer sourceBlobContainer,
                 String sourceBlobName,
                 String blobName,
-                long blobSize
+                long blobSize,
+                Runnable cancellationCheck
             ) throws IOException {
                 copyBlockedLatch.countDown();
                 safeAwait(copyContinueLatch);
-                super.blobContainerCopyBlob(originalRunnable, purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);
+                super.blobContainerCopyBlob(
+                    originalRunnable,
+                    purpose,
+                    sourceBlobContainer,
+                    sourceBlobName,
+                    blobName,
+                    blobSize,
+                    cancellationCheck
+                );
             }
         };
 
@@ -3867,7 +3903,8 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
                 BlobContainer sourceBlobContainer,
                 String sourceBlobName,
                 String blobName,
-                long blobSize
+                long blobSize,
+                Runnable cancellationCheck
             ) throws IOException {
                 if (copiesInProgress.add(blobName) == false) {
                     // Copies from the old and new source shard have interfered
@@ -3878,7 +3915,15 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
                     relocateLatch.countDown();
                     safeAwait(copyLatch);
                 }
-                super.blobContainerCopyBlob(originalRunnable, purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);
+                super.blobContainerCopyBlob(
+                    originalRunnable,
+                    purpose,
+                    sourceBlobContainer,
+                    sourceBlobName,
+                    blobName,
+                    blobSize,
+                    cancellationCheck
+                );
                 copiesInProgress.remove(blobName);
             }
         };

@@ -78,27 +78,7 @@ public class HealthInfoCache implements ClusterStateListener {
             repositoriesHealthInfo,
             fileSettingsHealthInfo,
             latestDlmFrozenTransitionsHealthInfo,
-            null
-        );
-    }
-
-    public void updateNodeHealth(
-        String nodeId,
-        @Nullable DiskHealthInfo diskHealthInfo,
-        @Nullable DataStreamLifecycleHealthInfo latestDslHealthInfo,
-        @Nullable RepositoriesHealthInfo repositoriesHealthInfo,
-        @Nullable FileSettingsHealthInfo fileSettingsHealthInfo,
-        @Nullable DlmFrozenTransitionsHealthInfo latestDlmFrozenTransitionsHealthInfo,
-        @Nullable DataRecoveryHealthInfo latestDataRecoveryHealthInfo
-    ) {
-        updateNodeHealth(
-            nodeId,
-            diskHealthInfo,
-            latestDslHealthInfo,
-            repositoriesHealthInfo,
-            fileSettingsHealthInfo,
-            latestDlmFrozenTransitionsHealthInfo,
-            latestDataRecoveryHealthInfo,
+            null,
             null
         );
     }

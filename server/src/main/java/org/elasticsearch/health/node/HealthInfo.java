@@ -65,24 +65,13 @@ public record HealthInfo(
         FileSettingsHealthInfo fileSettingsHealthInfo,
         @Nullable DlmFrozenTransitionsHealthInfo dlmFrozenTransitionsHealthInfo
     ) {
-        this(diskInfoByNode, dslHealthInfo, repositoriesInfoByNode, fileSettingsHealthInfo, dlmFrozenTransitionsHealthInfo, null);
-    }
-
-    public HealthInfo(
-        Map<String, DiskHealthInfo> diskInfoByNode,
-        @Nullable DataStreamLifecycleHealthInfo dslHealthInfo,
-        Map<String, RepositoriesHealthInfo> repositoriesInfoByNode,
-        FileSettingsHealthInfo fileSettingsHealthInfo,
-        @Nullable DlmFrozenTransitionsHealthInfo dlmFrozenTransitionsHealthInfo,
-        @Nullable DataRecoveryHealthInfo dataRecoveryHealthInfo
-    ) {
         this(
             diskInfoByNode,
             dslHealthInfo,
             repositoriesInfoByNode,
             fileSettingsHealthInfo,
             dlmFrozenTransitionsHealthInfo,
-            dataRecoveryHealthInfo,
+            null,
             Map.of()
         );
     }

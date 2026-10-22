@@ -108,7 +108,8 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
             Map.of(),
             FileSettingsHealthInfo.INDETERMINATE,
             dlmFrozen,
-            randomDataRecoveryHealthInfo()
+            randomDataRecoveryHealthInfo(),
+            Map.of()
         );
         // Use a version that supports the DLM frozen field but not data_recovery_health_info, verifying only the data recovery field is
         // dropped and the earlier field is still round-tripped.

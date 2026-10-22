@@ -236,11 +236,11 @@ public class HealthInfoCacheTests extends ESTestCase {
         );
 
         // update from master (node1) is accepted
-        healthInfoCache.updateNodeHealth(node1.getId(), GREEN, null, null, FileSettingsHealthInfo.INDETERMINATE, fromMaster, null);
+        healthInfoCache.updateNodeHealth(node1.getId(), GREEN, null, null, FileSettingsHealthInfo.INDETERMINATE, fromMaster, null, null);
         assertThat(healthInfoCache.getHealthInfo().dlmFrozenTransitionsHealthInfo(), equalTo(fromMaster));
 
         // update from non-master (node2) is rejected; old value is preserved
-        healthInfoCache.updateNodeHealth(node2.getId(), RED, null, null, FileSettingsHealthInfo.INDETERMINATE, fromNonMaster, null);
+        healthInfoCache.updateNodeHealth(node2.getId(), RED, null, null, FileSettingsHealthInfo.INDETERMINATE, fromNonMaster, null, null);
         assertThat(healthInfoCache.getHealthInfo().dlmFrozenTransitionsHealthInfo(), equalTo(fromMaster));
     }
 
@@ -254,11 +254,11 @@ public class HealthInfoCacheTests extends ESTestCase {
         DataRecoveryHealthInfo fromNonMaster = randomValueOtherThan(fromMaster, HealthInfoTests::randomDataRecoveryHealthInfo);
 
         // update from master (node1) is accepted
-        healthInfoCache.updateNodeHealth(node1.getId(), GREEN, null, null, FileSettingsHealthInfo.INDETERMINATE, null, fromMaster);
+        healthInfoCache.updateNodeHealth(node1.getId(), GREEN, null, null, FileSettingsHealthInfo.INDETERMINATE, null, fromMaster, null);
         assertThat(healthInfoCache.getHealthInfo().dataRecoveryHealthInfo(), equalTo(fromMaster));
 
         // update from non-master (node2) is rejected; old value is preserved
-        healthInfoCache.updateNodeHealth(node2.getId(), RED, null, null, FileSettingsHealthInfo.INDETERMINATE, null, fromNonMaster);
+        healthInfoCache.updateNodeHealth(node2.getId(), RED, null, null, FileSettingsHealthInfo.INDETERMINATE, null, fromNonMaster, null);
         assertThat(healthInfoCache.getHealthInfo().dataRecoveryHealthInfo(), equalTo(fromMaster));
     }
 

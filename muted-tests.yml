@@ -511,3 +511,8 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {yaml=indices.sort/30_multi_value/Index Sort with index.mapping.doc_values.multi_value false - keyword}
   issue: https://github.com/elastic/elasticsearch/issues/163014
+- class: org.elasticsearch.xpack.stateless.StatelessResizeIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testShrinkIndex
+  issue: https://github.com/elastic/elasticsearch/issues/163039

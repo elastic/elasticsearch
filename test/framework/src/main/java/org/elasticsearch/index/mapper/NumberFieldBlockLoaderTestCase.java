@@ -246,10 +246,9 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
         }
 
         var mapping = new Mapping(
-            Map.of("_doc", Map.of("properties", new HashMap<>(Map.of("field", fieldMapping)))),
+            Map.of("_doc", Map.of("properties", Map.of("field", fieldMapping))),
             Map.of("field", fieldMapping)
         );
-        decorateMappingWithRequiredFields(mapping);
 
         Object expected = expected(mapping.lookup().get("field"), value, new TestContext(false, false));
 
@@ -277,10 +276,9 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
         }
 
         var mapping = new Mapping(
-            new HashMap<>(Map.of("_doc", new HashMap<>(Map.of("properties", new HashMap<>(Map.of("field", fieldMapping)))))),
+            Map.of("_doc", Map.of("properties", Map.of("field", fieldMapping))),
             Map.of("field", fieldMapping)
         );
-        decorateMappingWithRequiredFields(mapping);
 
         Object expected = expected(mapping.lookup().get("field"), value, new TestContext(false, false));
 

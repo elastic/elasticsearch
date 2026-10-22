@@ -300,10 +300,9 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
         runner.fieldName("field");
 
         Mapping mapping = new Mapping(
-            Map.of("_doc", Map.of("properties", new HashMap<>(Map.of("field", Map.of("type", "flattened"))))),
+            Map.of("_doc", Map.of("properties", Map.of("field", Map.of("type", "flattened")))),
             Map.of("field", Map.of("type", "flattened"))
         );
-        decorateMappingWithRequiredFields(mapping);
 
         var settings = getSettingsForParams();
         runner.mapperService(createMapperService(settings.build(), XContentFactory.jsonBuilder().map(mapping.raw())));
@@ -329,10 +328,9 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
 
         Map<String, Object> flattenedMapping = Map.of("type", "flattened", "preserve_leaf_arrays", "exact");
         Mapping mapping = new Mapping(
-            Map.of("_doc", Map.of("properties", new HashMap<>(Map.of("field", flattenedMapping)))),
+            Map.of("_doc", Map.of("properties", Map.of("field", flattenedMapping))),
             Map.of("field", flattenedMapping)
         );
-        decorateMappingWithRequiredFields(mapping);
 
         String expected = "{\"key\":[\"b\",\"a\",\"c\"]}";
 
@@ -354,10 +352,9 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
         runner.fieldName("field");
 
         Mapping mapping = new Mapping(
-            Map.of("_doc", Map.of("properties", new HashMap<>(Map.of("field", Map.of("type", "flattened"))))),
+            Map.of("_doc", Map.of("properties", Map.of("field", Map.of("type", "flattened")))),
             Map.of("field", Map.of("type", "flattened"))
         );
-        decorateMappingWithRequiredFields(mapping);
 
         String expected = "{\"a.b\":[\"cat\",\"dog\"]}";
 
@@ -373,10 +370,9 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
         runner.fieldName("field");
 
         Mapping mapping = new Mapping(
-            Map.of("_doc", Map.of("properties", new HashMap<>(Map.of("field", Map.of("type", "flattened"))))),
+            Map.of("_doc", Map.of("properties", Map.of("field", Map.of("type", "flattened")))),
             Map.of("field", Map.of("type", "flattened"))
         );
-        decorateMappingWithRequiredFields(mapping);
 
         String expected = "{\"a.x\":\"10\",\"b.y\":\"20\"}";
 
@@ -403,10 +399,9 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
             Map.of("status_code", Map.of("type", "long"), "message", Map.of("type", "text"))
         );
         Mapping mapping = new Mapping(
-            Map.of("_doc", Map.of("properties", new HashMap<>(Map.of("field", flattenedMapping)))),
+            Map.of("_doc", Map.of("properties", Map.of("field", flattenedMapping))),
             Map.of("field", flattenedMapping)
         );
-        decorateMappingWithRequiredFields(mapping);
 
         String expected = "{\"env\":\"prod\",\"message\":\"hello\",\"status_code\":\"200\"}";
 
@@ -429,10 +424,9 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
             Map.of("status", Map.of("type", "keyword"), "code", Map.of("type", "long"))
         );
         Mapping mapping = new Mapping(
-            Map.of("_doc", Map.of("properties", new HashMap<>(Map.of("field", flattenedMapping)))),
+            Map.of("_doc", Map.of("properties", Map.of("field", flattenedMapping))),
             Map.of("field", flattenedMapping)
         );
-        decorateMappingWithRequiredFields(mapping);
 
         String expected = "{\"code\":\"200\",\"status\":\"ok\",\"unmapped_key\":\"some_value\"}";
 
@@ -450,10 +444,9 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
 
         Map<String, Object> flattenedMapping = Map.of("type", "flattened", "properties", Map.of("status", Map.of("type", "keyword")));
         Mapping mapping = new Mapping(
-            Map.of("_doc", Map.of("properties", new HashMap<>(Map.of("field", flattenedMapping)))),
+            Map.of("_doc", Map.of("properties", Map.of("field", flattenedMapping))),
             Map.of("field", flattenedMapping)
         );
-        decorateMappingWithRequiredFields(mapping);
 
         // A mapped sub-field forces _source even with no unmapped keys, so the single mapped leaf renders as a string
         // and the blob is identical on every loading path.

@@ -1195,13 +1195,13 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
 
     /**
      * A shard whose mapping maps every field, and that skipped none, holds no field outside of its mapping. The keys of an
-     * object-valued field are still read from {@code _source}, as they are not fields of their own.
+     * object-valued field are part of its value and not fields either.
      */
     public void testMayHoldUnmappedFields() throws IOException {
         MapperService mapsEverything = createMapperService("""
             { "_doc": { "properties": { "field": { "type": "keyword" }, "range": { "type": "integer_range" } } } }""");
         MapperService keepsUnmappedFields = createMapperService("""
-            { "_doc": { "dynamic": false, "properties": { "field": { "type": "keyword" } } } }""");
+            { "_doc": { "dynamic": false, "properties": { "field": { "type": "keyword" }, "span": { "type": "integer_range" } } } }""");
         try {
             withLuceneIndex(
                 mapsEverything,
@@ -1221,12 +1221,19 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
                         assertFalse(closedOnly.mayHoldUnmappedFields());
                         assertFalse(closedOnly.mayHoldUnmappedField(new FieldAttribute.FieldName("unmapped")));
                         assertFalse(closedOnly.mayHoldUnmappedField(new FieldAttribute.FieldName("unmapped.below")));
-                        assertTrue(closedOnly.mayHoldUnmappedField(new FieldAttribute.FieldName("range.gte")));
+                        assertFalse(closedOnly.mayHoldUnmappedField(new FieldAttribute.FieldName("range.gte")));
 
                         // One shard that may hold unmapped fields is enough for the whole node.
                         SearchStats both = SearchContextStats.from(List.of(closed, open));
                         assertTrue(both.mayHoldUnmappedFields());
                         assertTrue(both.mayHoldUnmappedField(new FieldAttribute.FieldName("unmapped")));
+
+                        // A key of the value of a mapped field is not read, even where unmapped fields are kept.
+                        SearchStats openOnly = SearchContextStats.from(List.of(open));
+                        assertTrue(openOnly.mayHoldUnmappedFields());
+                        assertTrue(openOnly.mayHoldUnmappedField(new FieldAttribute.FieldName("unmapped")));
+                        assertFalse(openOnly.mayHoldUnmappedField(new FieldAttribute.FieldName("span.gte")));
+                        assertTrue(openOnly.mayHoldUnmappedField(new FieldAttribute.FieldName("field.below")));
                     }
                 )
             );

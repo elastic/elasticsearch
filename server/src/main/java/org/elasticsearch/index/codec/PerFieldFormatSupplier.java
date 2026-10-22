@@ -40,6 +40,7 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
@@ -83,11 +84,13 @@ public class PerFieldFormatSupplier {
     }
 
     // vectordb queries fetch a few top-k documents rather than scanning, so string columns are written in
-    // small chunks to make each read decompress fewer values.
+    // small chunks to make each read decompress fewer values. The byte bound caps what a single read of a
+    // plain or escaped value decompresses at 32KB, however long the values are.
     private static final int VECTORDB_MAX_VALUES_PER_CHUNK = 128;
-    private static final ChunkBounds VECTORDB_PLAIN_CHUNKS = new ChunkBounds(128 * 1024, VECTORDB_MAX_VALUES_PER_CHUNK);
+    private static final int VECTORDB_MAX_CHUNK_BYTES = 32 * 1024;
+    private static final ChunkBounds VECTORDB_PLAIN_CHUNKS = new ChunkBounds(VECTORDB_MAX_CHUNK_BYTES, VECTORDB_MAX_VALUES_PER_CHUNK);
     /** Escaped values are reached one at a time, so they are chunked no larger than the values. */
-    private static final ChunkBounds VECTORDB_ESCAPE_CHUNKS = new ChunkBounds(32 * 1024, VECTORDB_MAX_VALUES_PER_CHUNK);
+    private static final ChunkBounds VECTORDB_ESCAPE_CHUNKS = new ChunkBounds(VECTORDB_MAX_CHUNK_BYTES, VECTORDB_MAX_VALUES_PER_CHUNK);
     private static final int VECTORDB_COMPRESSED_ORDINAL_BLOCK_SIZE = 512;
 
     private static final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
@@ -278,7 +281,19 @@ public class PerFieldFormatSupplier {
      */
     @Nullable
     StringColumnOptions columnarStringOptionsOf(final String field) {
-        return mapperService.mappingLookup().getMapper(field) instanceof FieldMapper mapper ? mapper.columnarStringOptions() : null;
+        final MappingLookup lookup = mapperService.mappingLookup();
+        final Mapper mapper = lookup.getMapper(field);
+        if (mapper != null) {
+            return mapper instanceof FieldMapper fieldMapper ? fieldMapper.columnarStringOptions() : null;
+        }
+        // A field a mapper writes under its own path has no mapper of its own; the nearest mapped ancestor answers for it.
+        for (int dot = field.lastIndexOf('.'); dot > 0; dot = field.lastIndexOf('.', dot - 1)) {
+            final Mapper owner = lookup.getMapper(field.substring(0, dot));
+            if (owner != null) {
+                return owner instanceof FieldMapper fieldMapper ? fieldMapper.internalColumnarStringOptions(field) : null;
+            }
+        }
+        return null;
     }
 
     /**
@@ -299,15 +314,20 @@ public class PerFieldFormatSupplier {
         return options.withSizes(
             new StringColumnOptions.Sizes(
                 sizes.valuesPerBlock(),
-                VECTORDB_PLAIN_CHUNKS,
-                VECTORDB_ESCAPE_CHUNKS,
+                smaller(sizes.plainChunks(), VECTORDB_PLAIN_CHUNKS),
+                smaller(sizes.escapeChunks(), VECTORDB_ESCAPE_CHUNKS),
                 sizes.packedOrdinalBlockSize(),
-                VECTORDB_COMPRESSED_ORDINAL_BLOCK_SIZE,
+                Math.min(sizes.compressedOrdinalBlockSize(), VECTORDB_COMPRESSED_ORDINAL_BLOCK_SIZE),
                 sizes.escapeRankBlockSize(),
                 sizes.slotCountsBlockSize(),
                 sizes.lengthBlockSize()
             )
         );
+    }
+
+    /** A mode only ever shrinks a field's chunks: a field written in smaller ones, such as a payload, keeps them. */
+    private static ChunkBounds smaller(final ChunkBounds field, final ChunkBounds mode) {
+        return new ChunkBounds(Math.min(field.targetBytes(), mode.targetBytes()), Math.min(field.maxValues(), mode.maxValues()));
     }
 
     FieldContext resolveFieldContext(final String fieldName, final int blockSize) {

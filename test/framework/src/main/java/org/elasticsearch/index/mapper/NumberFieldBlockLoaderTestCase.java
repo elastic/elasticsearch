@@ -255,7 +255,7 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
 
         var settings = getSettingsForParams();
         runner.mapperService(createMapperService(settings.build(), XContentFactory.jsonBuilder().map(mapping.raw())));
-        configureRunner(runner, settings, mapping).run(expected);
+        runner.run(expected);
     }
 
     public void testBlockLoaderNonLatinDigit_parseFromSource() throws IOException {

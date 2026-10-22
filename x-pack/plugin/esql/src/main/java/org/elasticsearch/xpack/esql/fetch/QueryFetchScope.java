@@ -24,17 +24,20 @@ import java.util.function.Supplier;
  *                       counters and profile.
  * @param docOrigins     numbers the origins of the documents the TopN of the query keeps. The coordinator releases it
  *                       when its compute ends.
+ * @param fetchFailures  the shards whose fetch failed, which the query reports once its computes are done
  */
 public record QueryFetchScope(
     CancellableTask rootTask,
     String sessionId,
     Configuration configuration,
     Supplier<ActionListener<DriverCompletionInfo>> completionInfo,
-    DocOriginTable docOrigins
+    DocOriginTable docOrigins,
+    FetchFailures fetchFailures
 ) {
     public QueryFetchScope {
         Objects.requireNonNull(rootTask, "rootTask");
         Objects.requireNonNull(completionInfo, "completionInfo");
         Objects.requireNonNull(docOrigins, "docOrigins");
+        Objects.requireNonNull(fetchFailures, "fetchFailures");
     }
 }

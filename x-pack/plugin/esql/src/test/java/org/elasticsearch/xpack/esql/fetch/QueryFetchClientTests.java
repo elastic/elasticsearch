@@ -211,7 +211,7 @@ public class QueryFetchClientTests extends ComputeTestCase {
     private QueryFetchScope scope() {
         // the client never numbers origins, so the table needs no breaker
         DocOriginTable docOrigins = new DocOriginTable(NoopCircuitBreaker.INSTANCE);
-        return new QueryFetchScope(rootTask, "query-session", EsqlTestUtils.TEST_CFG, drivers, docOrigins);
+        return new QueryFetchScope(rootTask, "query-session", EsqlTestUtils.TEST_CFG, drivers, docOrigins, new FetchFailures(false));
     }
 
     private DiscoveryNodes nodes() {

@@ -60,7 +60,48 @@ final class FetchBatchPlanner {
      *                     are read one after the other
      * @param deduplicated whether several rows read the same response row
      */
-    record Batch(List<NodeBatch> nodes, int[] responseRows, boolean deduplicated) {}
+    record Batch(List<NodeBatch> nodes, int[] responseRows, boolean deduplicated) {
+        /**
+         * The response row of each row of the cut when the responses hold no rows for the shards whose fetch failed: the
+         * rows of those shards get {@code -1}, and the response rows of the shards after them move up.
+         *
+         * @param failedShards for each shard of the batch, the shards of each node in the order of {@link #nodes}, whether
+         *                     its fetch failed
+         */
+        int[] responseRowsWithout(boolean[] failedShards) {
+            int shardCount = 0;
+            for (NodeBatch node : nodes) {
+                shardCount += node.shards().size();
+            }
+            if (failedShards.length != shardCount) {
+                throw new IllegalArgumentException("[" + failedShards.length + "] shards for a batch of [" + shardCount + "] shards");
+            }
+            // the response rows of each shard are contiguous, and every shard of a batch has documents
+            int[] firstPlannedRow = new int[shardCount];
+            int[] shift = new int[shardCount];
+            int planned = 0;
+            int kept = 0;
+            int shard = 0;
+            for (NodeBatch node : nodes) {
+                for (FetchRequest.ShardDocs docs : node.shards()) {
+                    firstPlannedRow[shard] = planned;
+                    shift[shard] = kept - planned;
+                    planned += docs.docCount();
+                    if (failedShards[shard] == false) {
+                        kept += docs.docCount();
+                    }
+                    shard++;
+                }
+            }
+            int[] rows = new int[responseRows.length];
+            for (int r = 0; r < responseRows.length; r++) {
+                int found = Arrays.binarySearch(firstPlannedRow, responseRows[r]);
+                int shardOfRow = found >= 0 ? found : -found - 2;
+                rows[r] = failedShards[shardOfRow] ? -1 : responseRows[r] + shift[shardOfRow];
+            }
+            return rows;
+        }
+    }
 
     /**
      * @param pages         the rows of the cut

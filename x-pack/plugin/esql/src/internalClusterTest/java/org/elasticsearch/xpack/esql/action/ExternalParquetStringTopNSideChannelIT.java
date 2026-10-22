@@ -136,7 +136,7 @@ public class ExternalParquetStringTopNSideChannelIT extends AbstractExternalData
     }
 
     /**
-     * Regression for esql-planning#1010: sorting a {@code UTF8}-annotated Parquet column that actually
+    * Regression for : sorting a {@code UTF8}-annotated Parquet column that actually
      * holds malformed UTF-8 (e.g. Spark output) must not throw {@link ArrayIndexOutOfBoundsException}
      * from the TopN Utf8 encoder. The reader sanitizes such bytes to {@code U+FFFD} on read, so the sort
      * completes and every returned value is well-formed UTF-8.

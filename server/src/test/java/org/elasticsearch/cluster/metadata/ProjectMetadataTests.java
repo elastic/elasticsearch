@@ -14,6 +14,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -2937,6 +2938,22 @@ public class ProjectMetadataTests extends ESTestCase {
         );
         final BytesReference actual = XContentHelper.toXContent(projectMetadata, XContentType.JSON, params, randomBoolean());
         assertToXContentEquivalent(expected, actual, XContentType.JSON);
+    }
+
+    public void testIsProjectUnderDeletion() {
+        final ProjectId deletingProject = randomUniqueProjectId();
+        final ProjectId otherProject = randomUniqueProjectId();
+
+        assertFalse(ProjectMetadata.isProjectUnderDeletion(ClusterBlocks.EMPTY_CLUSTER_BLOCK, deletingProject));
+
+        final ClusterBlocks blocks = ClusterBlocks.builder()
+            .addProjectGlobalBlock(deletingProject, ProjectMetadata.PROJECT_UNDER_DELETION_BLOCK)
+            .addProjectGlobalBlock(otherProject, ProjectMetadata.PROJECT_UNDER_CREATION_BLOCK)
+            .build();
+        assertTrue(ProjectMetadata.isProjectUnderDeletion(blocks, deletingProject));
+        // only the deletion block counts, and only for the project that carries it
+        assertFalse(ProjectMetadata.isProjectUnderDeletion(blocks, otherProject));
+        assertFalse(ProjectMetadata.isProjectUnderDeletion(blocks, randomUniqueProjectId()));
     }
 
     private static ProjectMetadata prepareProjectMetadata() {

@@ -49,7 +49,8 @@ public class ES93HnswBitVectorsFormatTests extends BaseKnnBitVectorsFormatTestCa
                 DenseVectorFieldMapper.ElementType.BIT,
                 DEFAULT_NUM_MERGE_WORKER,
                 null,
-                random().nextInt(1, 20)
+                random().nextInt(1, 20),
+                false
             )
         );
     }
@@ -76,7 +77,8 @@ public class ES93HnswBitVectorsFormatTests extends BaseKnnBitVectorsFormatTestCa
             DenseVectorFieldMapper.ElementType.BIT,
             DEFAULT_NUM_MERGE_WORKER,
             null,
-            0
+            0,
+            false
         );
         var config = newIndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(format));
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, config)) {

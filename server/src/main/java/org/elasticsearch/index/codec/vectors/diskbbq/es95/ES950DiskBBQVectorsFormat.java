@@ -60,7 +60,8 @@ public class ES950DiskBBQVectorsFormat extends KnnVectorsFormat {
 
     public static final int VERSION_START = 1;
     public static final int VERSION_DIRECT_IO = VERSION_START;
-    public static final int VERSION_CURRENT = VERSION_START;
+    public static final int VERSION_ON_DISK_MERGE = 2;
+    public static final int VERSION_CURRENT = VERSION_ON_DISK_MERGE;
     public static final float DYNAMIC_VISIT_RATIO = 0.0f;
 
     private static final DirectIOCapableFlatVectorsFormat float32VectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
@@ -102,6 +103,7 @@ public class ES950DiskBBQVectorsFormat extends KnnVectorsFormat {
     private final int vectorPerCluster;
     private final int centroidsPerParentCluster;
     private final boolean useDirectIO;
+    private final boolean onDiskMerge;
     private final DirectIOCapableFlatVectorsFormat rawVectorFormat;
     private final TaskExecutor mergeExec;
     private final int numMergeWorkers;
@@ -128,7 +130,8 @@ public class ES950DiskBBQVectorsFormat extends KnnVectorsFormat {
             DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
             defaultFlatThreshold(vectorPerCluster),
             IvfFlushConfigSource.empty(),
-            IvfMergeConfigResolver.useCodecDefault()
+            IvfMergeConfigResolver.useCodecDefault(),
+            false
         );
     }
 
@@ -155,7 +158,8 @@ public class ES950DiskBBQVectorsFormat extends KnnVectorsFormat {
             preconditioningBlockDimension,
             defaultFlatThreshold(vectorPerCluster),
             IvfFlushConfigSource.empty(),
-            IvfMergeConfigResolver.useCodecDefault()
+            IvfMergeConfigResolver.useCodecDefault(),
+            false
         );
     }
 
@@ -183,13 +187,15 @@ public class ES950DiskBBQVectorsFormat extends KnnVectorsFormat {
             preconditioningBlockDimension,
             flatVectorThreshold,
             IvfFlushConfigSource.empty(),
-            IvfMergeConfigResolver.useCodecDefault()
+            IvfMergeConfigResolver.useCodecDefault(),
+            false
         );
     }
 
     /**
      * @param ivfFlushConfigSource optional per-field config on flush ({@code null} uses writer default)
      * @param ivfMergeConfigResolver optional merged config on merge ({@code null} uses writer default)
+     * @param onDiskMerge whether merges use direct I/O for the raw vectors (the field's {@code on_disk_merge} option)
      */
     public ES950DiskBBQVectorsFormat(
         QuantEncoding quantEncoding,
@@ -203,7 +209,8 @@ public class ES950DiskBBQVectorsFormat extends KnnVectorsFormat {
         int preconditioningBlockDimension,
         int flatVectorThreshold,
         IvfFlushConfigSource ivfFlushConfigSource,
-        IvfMergeConfigResolver ivfMergeConfigResolver
+        IvfMergeConfigResolver ivfMergeConfigResolver,
+        boolean onDiskMerge
     ) {
         super(NAME);
         if (vectorPerCluster < MIN_VECTORS_PER_CLUSTER || vectorPerCluster > MAX_VECTORS_PER_CLUSTER) {
@@ -252,6 +259,7 @@ public class ES950DiskBBQVectorsFormat extends KnnVectorsFormat {
             default -> throw new IllegalArgumentException("Unsupported element type " + elementType);
         };
         this.useDirectIO = useDirectIO;
+        this.onDiskMerge = onDiskMerge;
         this.mergeExec = mergingExecutorService == null ? null : new TaskExecutor(mergingExecutorService);
         this.numMergeWorkers = maxMergingWorkers;
         this.preconditioningBlockDimension = preconditioningBlockDimension;
@@ -272,7 +280,8 @@ public class ES950DiskBBQVectorsFormat extends KnnVectorsFormat {
             state,
             rawVectorFormat.getName(),
             useDirectIO,
-            rawVectorFormat.fieldsWriter(state),
+            onDiskMerge,
+            rawVectorFormat.fieldsWriter(state, onDiskMerge),
             quantEncoding,
             vectorPerCluster,
             centroidsPerParentCluster,
@@ -288,10 +297,10 @@ public class ES950DiskBBQVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new ES950DiskBBQVectorsReader(state, (f, dio) -> {
+        return new ES950DiskBBQVectorsReader(state, (f, dio, odm) -> {
             var format = supportedFormats.get(f);
             if (format == null) return null;
-            return format.fieldsReader(state, dio);
+            return format.fieldsReader(state, dio, odm);
         });
     }
 

@@ -504,6 +504,8 @@ The `RERANK` and `COMPLETION` commands, and the `TEXT_EMBEDDING` and `EMBEDDING`
 
 {applies_to}`stack: preview 9.4` This also applies to `MMR` when its query vector comes from an inference function rather than from a literal or an existing vector field.
 
+{applies_to}`stack: preview 9.6+` This also applies to `DENSE_VECTOR`.
+
 Querying a [`semantic_text`](/reference/elasticsearch/mapping-reference/semantic-text.md) field works the other way around: each cluster generates query embeddings using its own `search_inference_id`, so the endpoint must exist on the cluster that holds the data.
 
 A query that does both needs endpoints on both clusters. The following reads no local data at all, and still requires the `semantic_text` field's endpoint on `my_remote_cluster` and the `rerank-1` endpoint on the local cluster:
@@ -540,15 +542,18 @@ A cross-cluster `LOOKUP JOIN` cannot follow a command that runs on the querying 
 
 ### Datasets across clusters
 ```{applies_to}
-stack: experimental =9.5
+stack: experimental 9.5
 ```
 
-You can query datasets created through [{{esql}} Data Federation](/reference/query-languages/esql/esql-data-federation.md) on the local cluster only. Querying a dataset on a remote cluster returns an error.
+You can query datasets created through [{{esql}} Data Federation](/reference/query-languages/esql/esql-data-federation.md) on the local cluster only.
+
+{applies_to}`stack: experimental 9.6` A dataset on a remote cluster is invisible to your query, which treats its name exactly as it treats a name registered on no cluster at all. A wildcard that matches it returns that cluster's indices beside it. Naming the dataset directly resolves to nothing, so the remote cluster's `skip_unavailable` setting decides what happens next, as described in [Skipping problematic remote clusters](#ccq-skip-unavailable-clusters).
+
+{applies_to}`stack: experimental =9.5` Querying a dataset on a remote cluster returns an error, and so does a wildcard that matches one.
 
 ## Query across {{serverless-short}} projects [ccq-cps]
-
 ```{applies_to}
-serverless: preview
+serverless: ga
 ```
 
 You can use cross-project search (CPS) to query across multiple linked serverless projects. To learn more, refer to [Query across {{serverless-short}} projects](esql-cross-serverless-projects.md).

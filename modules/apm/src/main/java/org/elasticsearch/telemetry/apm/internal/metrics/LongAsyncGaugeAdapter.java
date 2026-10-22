@@ -13,12 +13,10 @@ import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.api.metrics.ObservableLongGauge;
 
 import org.elasticsearch.telemetry.metric.LongAsyncGauge;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
+import org.elasticsearch.telemetry.metric.LongAsyncMeasurement;
 
-import java.util.Collection;
 import java.util.Objects;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 class LongAsyncGaugeAdapter extends AbstractAsyncInstrument<ObservableLongGauge> implements LongAsyncGauge {
 
@@ -27,18 +25,18 @@ class LongAsyncGaugeAdapter extends AbstractAsyncInstrument<ObservableLongGauge>
         String name,
         String description,
         String unit,
-        Supplier<Collection<LongWithAttributes>> observer,
+        Consumer<LongAsyncMeasurement> callback,
         Consumer<AbstractInstrument<?>> deregisterFunc
     ) {
-        super(meter, new Builder(name, description, unit, observer), deregisterFunc);
+        super(meter, new Builder(name, description, unit, callback), deregisterFunc);
     }
 
     private static class Builder extends AbstractInstrument.Builder<ObservableLongGauge> {
-        private final Supplier<Collection<LongWithAttributes>> observer;
+        private final Consumer<LongAsyncMeasurement> callback;
 
-        private Builder(String name, String description, String unit, Supplier<Collection<LongWithAttributes>> observer) {
+        private Builder(String name, String description, String unit, Consumer<LongAsyncMeasurement> callback) {
             super(name, description, unit);
-            this.observer = observer;
+            this.callback = Objects.requireNonNull(callback);
         }
 
         @Override
@@ -48,7 +46,7 @@ class LongAsyncGaugeAdapter extends AbstractAsyncInstrument<ObservableLongGauge>
                 .ofLongs()
                 .setDescription(description)
                 .setUnit(unit)
-                .buildWithCallback(OtelHelper.longMeasurementCallback(name, observer));
+                .buildWithCallback(OtelHelper.longMeasurementCallback(name, callback));
         }
     }
 }

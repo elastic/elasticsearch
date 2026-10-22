@@ -55,7 +55,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
 
-public class Count extends AggregateFunction
+public class Count extends UnaryAggregateFunction
     implements
         ToAggregator,
         SurrogateExpression,
@@ -68,7 +68,7 @@ public class Count extends AggregateFunction
         .capabilities("flattened", "histogram_bucket")
         .name("count");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
-        .acrossSeries(Count::new)
+        .acrossSeries((source, field) -> new Count(source, CountOverTime.promqlSample(field)))
         .description("Counts the number of elements in the input vector.")
         .example("count(http_requests_total)")
         .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
@@ -217,11 +217,6 @@ public class Count extends AggregateFunction
     }
 
     @Override
-    public AggregateFunction withFilter(Expression filter) {
-        return new Count(source(), field(), filter, window(), bucket());
-    }
-
-    @Override
     public Count replaceChildren(List<Expression> newChildren) {
         return new Count(
             source(),
@@ -339,7 +334,7 @@ public class Count extends AggregateFunction
         return null;
     }
 
-    public static Expression AggregateMetricDoubleSurrogate(AggregateFunction af) {
+    public static Expression AggregateMetricDoubleSurrogate(UnaryAggregateFunction af) {
         var s = af.source();
         return new Sum(
             s,

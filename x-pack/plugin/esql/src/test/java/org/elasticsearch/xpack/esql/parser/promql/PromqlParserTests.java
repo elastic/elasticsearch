@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.parser.promql;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.expression.promql.subquery.Subquery;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.PromqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
@@ -30,6 +31,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -334,6 +336,19 @@ public class PromqlParserTests extends ESTestCase {
         assertThat(rangeSelectors.getFirst().range().fold(null), equalTo(Duration.ofMinutes(10)));
     }
 
+    public void testDurationParameterSubtraction() {
+        PromqlCommand promql = as(
+            TEST_PARSER.parseQuery(
+                "PROMQL index=test step=5m rate(foo[?_long - ?_short])",
+                new QueryParams(List.of(paramAsConstant("_long", "10m"), paramAsConstant("_short", "5m")))
+            ),
+            PromqlCommand.class
+        );
+        List<RangeSelector> rangeSelectors = promql.promqlPlan().collect(RangeSelector.class);
+        assertThat(rangeSelectors, hasSize(1));
+        assertThat(rangeSelectors.getFirst().range().fold(null), equalTo(Duration.ofMinutes(5)));
+    }
+
     public void testPositionalParameterInDuration() {
         PromqlCommand promql = as(
             TEST_PARSER.parseQuery("PROMQL index=test step=15m rate(http_requests_total[?1])", paramsAsConstant(null, "15m")),
@@ -390,6 +405,134 @@ public class PromqlParserTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Expected parameter [?_bad] to be of type string, but found [INTEGER]"));
     }
 
+    /** A dashboard's time range, passed as its start and end timestamps, is a range: {@code [?_tend - ?_tstart]}. */
+    public void testTimeRangeParametersInDuration() {
+        Map<String, Duration> ranges = Map.of(
+            "?_tend - ?_tstart",
+            Duration.ofMinutes(90),
+            "(?_tend - ?_tstart)",
+            Duration.ofMinutes(90),
+            "(?_tend) - (?_tstart)",
+            Duration.ofMinutes(90),
+            "((?_tend)) - ((?_tstart))",
+            Duration.ofMinutes(90),
+            "(?_tend - ?_tstart) / 2",
+            Duration.ofMinutes(45),
+            "?_tend - ?_tstart + 5m",
+            Duration.ofMinutes(95)
+        );
+        for (Map.Entry<String, Duration> range : ranges.entrySet()) {
+            PromqlCommand promql = as(
+                TEST_PARSER.parseQuery("PROMQL index=test time=?_tend increase(foo[" + range.getKey() + "])", timeRangeParams()),
+                PromqlCommand.class
+            );
+            List<RangeSelector> rangeSelectors = promql.promqlPlan().collect(RangeSelector.class);
+            assertThat(rangeSelectors, hasSize(1));
+            assertThat(range.getKey(), rangeSelectors.getFirst().range().fold(null), equalTo(range.getValue()));
+        }
+    }
+
+    public void testTimeRangePositionalParametersInDuration() {
+        PromqlCommand promql = as(
+            TEST_PARSER.parseQuery(
+                "PROMQL index=test time=?2 increase(foo[?2 - ?1])",
+                new QueryParams(
+                    List.of(paramAsConstant(null, "2025-10-31T00:00:00.000Z"), paramAsConstant(null, "2025-10-31T01:30:00.000Z"))
+                )
+            ),
+            PromqlCommand.class
+        );
+        List<RangeSelector> rangeSelectors = promql.promqlPlan().collect(RangeSelector.class);
+        assertThat(rangeSelectors, hasSize(1));
+        assertThat(rangeSelectors.getFirst().range().fold(null), equalTo(Duration.ofMinutes(90)));
+    }
+
+    public void testTimeRangeParametersWithZoneOffset() {
+        PromqlCommand promql = as(
+            TEST_PARSER.parseQuery(
+                "PROMQL index=test step=5m increase(foo[?_tend - ?_tstart])",
+                new QueryParams(
+                    List.of(paramAsConstant("_tstart", "2025-10-31T00:00:00Z"), paramAsConstant("_tend", "2025-10-31T02:30:00+01:00"))
+                )
+            ),
+            PromqlCommand.class
+        );
+        List<RangeSelector> rangeSelectors = promql.promqlPlan().collect(RangeSelector.class);
+        assertThat(rangeSelectors, hasSize(1));
+        assertThat(rangeSelectors.getFirst().range().fold(null), equalTo(Duration.ofMinutes(90)));
+    }
+
+    public void testTimeRangeParametersInSubqueryRange() {
+        PromqlCommand promql = as(
+            TEST_PARSER.parseQuery("PROMQL index=test time=?_tend max_over_time(rate(foo[5m])[?_tend - ?_tstart:1m])", timeRangeParams()),
+            PromqlCommand.class
+        );
+        List<Subquery> subqueries = promql.promqlPlan().collect(Subquery.class);
+        assertThat(subqueries, hasSize(1));
+        assertThat(subqueries.getFirst().range().fold(null), equalTo(Duration.ofMinutes(90)));
+    }
+
+    public void testTimeRangeParametersInOffset() {
+        PromqlCommand promql = as(
+            TEST_PARSER.parseQuery("PROMQL index=test time=?_tend foo offset (?_tend - ?_tstart)", timeRangeParams()),
+            PromqlCommand.class
+        );
+        List<InstantSelector> selectors = promql.promqlPlan().collect(InstantSelector.class);
+        assertThat(selectors, hasSize(1));
+        assertThat(selectors.getFirst().evaluation().offset().fold(null), equalTo(Duration.ofMinutes(90)));
+    }
+
+    public void testTimeRangeParametersOutsideSubtractionError() {
+        for (String query : List.of(
+            "foo[?_tstart]",
+            "foo offset ?_tstart",
+            "foo @ ?_tstart",
+            "foo[?_tend + ?_tstart]",
+            "foo[?_tend * ?_tstart]",
+            "foo[?_tend == ?_tstart]",
+            "vector(?_tstart)",
+            "-?_tstart",
+            "max_over_time(foo[5m:?_tstart])"
+        )) {
+            ParsingException e = assertThrows(
+                ParsingException.class,
+                () -> TEST_PARSER.parseQuery("PROMQL index=test step=5m " + query, timeRangeParams())
+            );
+            assertThat(query, e.getMessage(), containsString("] can only be subtracted from another timestamp, as in [?_tend - ?_tstart]"));
+        }
+    }
+
+    public void testTimeRangeParameterSubtractedFromDurationError() {
+        for (String range : List.of(
+            "?_tend - 5m",
+            "5m - ?_tstart",
+            "?_tend - ?_tstart - ?_tstart",
+            "?_tend - ?_tstart * 2",
+            "?_tend * 2 - ?_tstart",
+            "?_tend - on(job) ?_tstart"
+        )) {
+            ParsingException e = assertThrows(
+                ParsingException.class,
+                () -> TEST_PARSER.parseQuery("PROMQL index=test step=5m foo[" + range + "]", timeRangeParams())
+            );
+            assertThat(range, e.getMessage(), containsString("A timestamp parameter can only be subtracted from another timestamp"));
+        }
+    }
+
+    public void testTimeRangeParametersReversedError() {
+        ParsingException e = assertThrows(
+            ParsingException.class,
+            () -> TEST_PARSER.parseQuery("PROMQL index=test step=5m foo[?_tstart - ?_tend]", timeRangeParams())
+        );
+        assertThat(e.getMessage(), containsString("Time range [?_tstart - ?_tend] must end after it starts"));
+    }
+
+    private static QueryParams timeRangeParams() {
+        return new QueryParams(
+            List.of(paramAsConstant("_tstart", "2025-10-31T00:00:00.000Z"), paramAsConstant("_tend", "2025-10-31T01:30:00.000Z"))
+        );
+    }
+
     public void testRangeVectorExpectedSupportsInstantSelector() {
         // rate() expects a range vector; an instant selector should be implicitly promoted at analysis time
         PromqlCommand promql = parse("PROMQL index=test step=5m rate(foo)");
@@ -424,6 +567,45 @@ public class PromqlParserTests extends ESTestCase {
             assertThat(lower, equalTo(func.toLowerCase(Locale.ROOT)));
             assertThat(camel, equalTo(func.toLowerCase(Locale.ROOT)));
         });
+    }
+
+    /**
+     * Prometheus: a duration in an expression is another spelling of a float literal, its number of seconds; a range or
+     * offset written as a number (or arithmetic over one) is a duration again, truncated to the millisecond.
+     */
+    public void testDurationLiteralIsSeconds() {
+        assertThat(as(parse("PROMQL index=test step=5m 1h30m").promqlPlan(), LiteralSelector.class).literal().value(), equalTo(5400.0));
+        assertThat(as(parse("PROMQL index=test step=5m 1ms").promqlPlan(), LiteralSelector.class).literal().value(), equalTo(0.001));
+        assertThat(as(parse("PROMQL index=test step=5m 2m + 30s").promqlPlan(), LiteralSelector.class).literal().value(), equalTo(150.0));
+        assertThat(
+            as(parse("PROMQL index=test step=5m foo[300]").promqlPlan(), RangeSelector.class).range().fold(null),
+            equalTo(Duration.ofMinutes(5))
+        );
+        assertThat(
+            as(parse("PROMQL index=test step=5m foo[5m * 2]").promqlPlan(), RangeSelector.class).range().fold(null),
+            equalTo(Duration.ofMinutes(10))
+        );
+        assertThat(
+            as(parse("PROMQL index=test step=5m foo[1.5]").promqlPlan(), RangeSelector.class).range().fold(null),
+            equalTo(Duration.ofMillis(1500))
+        );
+        assertThat(
+            as(parse("PROMQL index=test step=5m foo offset 90").promqlPlan(), InstantSelector.class).evaluation().offset().value(),
+            equalTo(Duration.ofSeconds(90))
+        );
+        assertThat(
+            as(parse("PROMQL index=test step=5m foo[1.0007]").promqlPlan(), RangeSelector.class).range().fold(null),
+            equalTo(Duration.ofMillis(1000))
+        );
+        assertThat(
+            as(parse("PROMQL index=test step=5m foo offset -1.0007").promqlPlan(), InstantSelector.class).evaluation().offset().value(),
+            equalTo(Duration.ofMillis(-1000))
+        );
+        assertThat(
+            as(parse("PROMQL index=test step=5m foo[0.0009]").promqlPlan(), RangeSelector.class).range().fold(null),
+            equalTo(Duration.ofMillis(1))
+        );
+        assertWarnings("Line 1:31: duration [0.0009] is shorter than 1ms, using 1ms instead");
     }
 
     public void testCaseInsensitivityKeywords() {
@@ -1039,6 +1221,35 @@ public class PromqlParserTests extends ESTestCase {
         for (InstantSelector selector : selectors) {
             assertThat(selector.labelMatchers().matchers().get(1).getFirstValue(), equalTo("server-1"));
         }
+    }
+
+    public void testPromqlExpressionTooLarge() {
+        String query = "m".repeat(PromqlParser.MAX_LENGTH + 1);
+        ParsingException e = assertThrows(ParsingException.class, () -> new PromqlParser().createStatement(query));
+        assertThat(e.getMessage(), containsString("PromQL statement is too large"));
+    }
+
+    public void testPromqlBinaryOperatorChainRejected() {
+        // security#12593: a long chain of binary operators must be rejected before ANTLR builds the parse tree
+        String query = "m" + " + m".repeat(PromqlParser.MAX_BINARY_OPERATORS + 500);
+        ParsingException e = assertThrows(ParsingException.class, () -> new PromqlParser().createStatement(query));
+        assertThat(e.getMessage(), containsString("exceeded the maximum number of binary operators allowed"));
+    }
+
+    public void testPromqlDeepParenthesesRejected() {
+        String query = "(".repeat(PromqlAstBuilder.MAX_EXPRESSION_DEPTH + 10)
+            + "m"
+            + ")".repeat(PromqlAstBuilder.MAX_EXPRESSION_DEPTH + 10);
+        ParsingException e = assertThrows(ParsingException.class, () -> new PromqlParser().createStatement(query));
+        assertThat(e.getMessage(), containsString("exceeded the maximum expression depth allowed"));
+    }
+
+    public void testPromqlCommandBinaryOperatorChainRejectedEndToEnd() {
+        // Same attack shape as security#12593 but through the full PROMQL source command; must fail fast
+        // with a ParsingException (400) rather than exhausting the heap.
+        String inner = "m" + " + m".repeat(PromqlParser.MAX_BINARY_OPERATORS + 500);
+        ParsingException e = assertThrows(ParsingException.class, () -> parse("PROMQL index=test step=5m (" + inner + ")"));
+        assertThat(e.getMessage(), containsString("exceeded the maximum number of binary operators allowed"));
     }
 
     private static PromqlCommand parse(String query) {

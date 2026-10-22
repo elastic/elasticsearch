@@ -49,6 +49,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -733,7 +734,6 @@ public enum IndexMode {
     /**
      * Strict columnar index mode optimized for indexing and searching {@code dense_vector} fields.
      */
-    // TODO: report usage in _xpack/usage, like vectordb_document
     VECTORDB_COLUMNAR("vectordb_columnar") {
         @Override
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
@@ -810,10 +810,9 @@ public enum IndexMode {
             return SourceFieldMapper.Mode.SYNTHETIC;
         }
 
-        // TODO: support SourceFieldMapper.Mode#COLUMNAR_STORED
         @Override
         public List<SourceFieldMapper.Mode> supportedSourceModes() {
-            return List.of(SourceFieldMapper.Mode.SYNTHETIC);
+            return List.of(SourceFieldMapper.Mode.SYNTHETIC, SourceFieldMapper.Mode.COLUMNAR_STORED);
         }
 
         @Override
@@ -1206,6 +1205,20 @@ public enum IndexMode {
      * Lookup, strict columnar data-stream, and vector database modes provide additional settings.
      */
     public static final class IndexModeSettingsProvider implements IndexSettingProvider {
+        private static final Set<String> AFFECTED_SETTINGS = Set.of(
+            IndexMetadata.SETTING_NUMBER_OF_SHARDS,
+            IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(),
+            IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(),
+            IndexModule.INDEX_STORE_PRE_LOAD_SETTING.getKey(),
+            IndexSettings.INTRA_MERGE_PARALLELISM_ENABLED_SETTING.getKey(),
+            MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey()
+        );
+
+        @Override
+        public Set<String> affectedSettings() {
+            return AFFECTED_SETTINGS;
+        }
+
         @Override
         public void provideAdditionalSettings(
             String indexName,

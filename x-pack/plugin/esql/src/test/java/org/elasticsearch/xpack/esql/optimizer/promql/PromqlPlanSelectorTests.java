@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PromqlHistogramQuantile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
@@ -53,6 +52,10 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
 public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
+
+    public PromqlPlanSelectorTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     /**
      * Regression guard for the promcheck "Unknown column [label]" failures: {@code sum by (<absent>) (metric)}
@@ -157,6 +160,21 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
         assertThat(as(as(in.list().getFirst(), Literal.class).value(), BytesRef.class).utf8ToString(), equalTo("foo"));
     }
 
+    /** A label matcher filters on its own label wherever the {@code __name__} matcher sits among the matchers. */
+    public void testLabelSelectorWithNameMatcherInBraces() {
+        for (String selector : List.of(
+            "network.bytes_in{pod!=\"foo\"}",
+            "{__name__=\"network.bytes_in\",pod!=\"foo\"}",
+            "{pod!=\"foo\",__name__=\"network.bytes_in\"}",
+            "{\"network.bytes_in\",pod!=\"foo\"}"
+        )) {
+            var plan = planPromql("PROMQL index=k8s step=1m avg(" + selector + ")");
+            var not = collectInnermostSelectorFilter(plan, Not.class);
+            var in = as(not.field(), In.class);
+            assertThat(selector, as(in.value(), FieldAttribute.class).name(), equalTo("pod"));
+        }
+    }
+
     public void testLabelSelectorRegexNegation() {
         var plan = planPromql("PROMQL index=k8s step=1m avg(network.bytes_in{pod!~\"f.o\"})");
         var not = collectInnermostSelectorFilter(plan, Not.class);
@@ -221,9 +239,7 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
         var plan = planPromql("PROMQL index=k8s step=1m network.bytes_in", false);
         var dimensions = plan.collect(TimeSeriesAggregate.class)
             .stream()
-            .flatMap(aggregate -> aggregate.aggregates().stream())
-            .flatMap(aggregate -> aggregate.collect(DimensionValues.class).stream())
-            .map(DimensionValues::field)
+            .flatMap(aggregate -> packedDims(aggregate.aggregates()).stream())
             .map(e -> e instanceof Attribute attribute ? attribute.name() : e.toString())
             .toList();
         assertThat(dimensions, equalTo(List.of(MetadataAttribute.TIMESERIES)));

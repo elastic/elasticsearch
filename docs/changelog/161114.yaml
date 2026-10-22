@@ -1,0 +1,5 @@
+area: "ILM"
+issues: []
+pr: 161114
+summary: Explain why an index is not managed in the data stream lifecycle and ILM explain APIs
+type: enhancement

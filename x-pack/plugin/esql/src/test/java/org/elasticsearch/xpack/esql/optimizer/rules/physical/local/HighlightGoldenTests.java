@@ -69,6 +69,21 @@ public class HighlightGoldenTests extends GoldenTestCase {
     }
 
     /**
+     * An EVAL between HIGHLIGHT and the SORT moves below HIGHLIGHT, so the TopN still runs before highlighting.
+     */
+    public void testTopNIsPushedBelowHighlightPastEval() {
+        String query = """
+            FROM employees
+            | WHERE first_name : "elasticsearch"
+            | HIGHLIGHT "elasticsearch" ON first_name
+            | EVAL negated = -emp_no
+            | SORT negated
+            | LIMIT 10
+            """;
+        builder(query).stages(STAGES).since(Highlight.ESQL_HIGHLIGHT).run();
+    }
+
+    /**
      * The TopN stays above HIGHLIGHT when it sorts on a generated highlight column, since that sort depends on the highlight output.
      */
     public void testTopNOnGeneratedSnippetIsNotPushedBelowHighlight() {

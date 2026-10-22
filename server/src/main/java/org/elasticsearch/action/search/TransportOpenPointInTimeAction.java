@@ -279,12 +279,9 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             .indicesOptions(request.indicesOptions())
             .preference(request.preference())
             .allowPartialSearchResults(request.allowPartialSearchResults())
-            .source(new SearchSourceBuilder().query(request.indexFilter()));
-        if (request.searchSlice() != null) {
-            searchRequest.searchSlice(request.searchSlice());
-        } else {
-            searchRequest.routing(request.routing());
-        }
+            .source(new SearchSourceBuilder().query(request.indexFilter()))
+            .routing(request.routing())
+            .setRoutingFromSlice(request.isRoutingFromSlice());
         searchRequest.setMaxConcurrentShardRequests(request.maxConcurrentShardRequests());
         searchRequest.setCcsMinimizeRoundtrips(false);
 
@@ -420,6 +417,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                 clusterState,
                 task,
                 new ArraySearchPhaseResults<>(shardIterators.size()),
+                searchService.getCircuitBreaker(),
                 searchRequest.getMaxConcurrentShardRequests(),
                 clusters,
                 searchResponseMetrics,

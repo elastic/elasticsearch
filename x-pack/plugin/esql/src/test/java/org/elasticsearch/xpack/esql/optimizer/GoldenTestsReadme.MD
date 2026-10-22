@@ -144,10 +144,14 @@ range, at a random released version inside it. The two names mute independently:
   own starting version, so the old shape comes back and `{current}` stays red.
 - `{historical}` flaky on an unlabeled test: you found an undeclared fork; the failure diff shows
   both shapes. Declare it (label or `since`) and regenerate.
-- Warning about a dead range: the compatibility floor (advances at major releases) passed a label.
-  Harmless, but clean up as the message says — delete the `before_<label>` directory and remove
-  the declaration; nothing else moves. `-Dgolden.gc.strict` escalates the warning to a failure,
-  for scheduled cleanup sweeps.
+- Dead range or dead `since`: the compatibility floor (advances at major releases) passed the
+  declared version, so it no longer splits or removes any coverage. The test fails on the PR that
+  moved the floor. Run `./gradlew :x-pack:plugin:esql:goldenGc -Dtests.mutes.enabled=false` (so
+  muted golden tests are repaired too): it deletes the dead `before_<label>` directories across
+  each suite, removes the declarations and their now-unused constants from the test sources, and
+  reformats. Nothing else moves. A `since` through a version constant is matched by name
+  (`Sum.ESQL_SUM_LONG_OVERFLOW_FIX` names `esql_sum_long_overflow_fix`); one the task cannot
+  match fails with a message asking for a hand edit.
 - Error that a declaration no longer resolves: the transport version name was retired, meaning the
   code path it gated is gone. Remove the declaration; for a label, also delete its
   `before_<label>` directory (its files described planning that no longer exists).

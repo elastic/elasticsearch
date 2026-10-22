@@ -21,12 +21,40 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 
+import java.time.Duration;
 import java.util.Arrays;
 
 import static org.elasticsearch.compute.aggregation.AbstractRateGroupingFunction.BufferedArray.indexInPage;
 import static org.elasticsearch.compute.aggregation.AbstractRateGroupingFunction.BufferedArray.pageIndex;
 
 class AbstractRateGroupingFunction {
+    /**
+     * Maximum empty interval across which rate-like aggregations interpolate between populated buckets.
+     */
+    static final long MAX_LOOKBACK_MILLIS = Duration.ofMinutes(5).toMillis();
+
+    static boolean isPreviousGroupWithinLookback(
+        TimeSeriesGroupingAggregatorEvaluationContext context,
+        int previousGroupId,
+        int currentGroupId
+    ) {
+        return previousGroupId >= 0
+            && context.rangeStartInMillis(currentGroupId) - context.rangeEndInMillis(previousGroupId) <= MAX_LOOKBACK_MILLIS;
+    }
+
+    static boolean isNextGroupWithinLookback(TimeSeriesGroupingAggregatorEvaluationContext context, int currentGroupId, int nextGroupId) {
+        return nextGroupId >= 0
+            && context.rangeStartInMillis(nextGroupId) - context.rangeEndInMillis(currentGroupId) <= MAX_LOOKBACK_MILLIS;
+    }
+
+    /**
+     * Splits an empty interval evenly between its surrounding populated buckets.
+     */
+    static double interpolationBoundaryInSeconds(long previousBucketEndMillis, long nextBucketStartMillis) {
+        assert previousBucketEndMillis <= nextBucketStartMillis;
+        return (previousBucketEndMillis + (nextBucketStartMillis - previousBucketEndMillis) / 2.0) / 1000.0;
+    }
+
     /**
      * Buffers data points in two arrays: one for timestamps and one for values, partitioned into multiple slices.
      * Each slice is sorted in descending order of timestamp. A new slice is created when a data point has a

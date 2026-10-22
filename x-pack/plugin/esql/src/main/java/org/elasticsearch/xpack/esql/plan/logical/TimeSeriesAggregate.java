@@ -230,7 +230,7 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
                 if (outer instanceof Sparkline sparkline) {
                     failures.add(fail(sparkline, "sparkline [{}] can't be used with TS command", sparkline.sourceText()));
                 }
-                outer.field().forEachDown(AggregateFunction.class, nested -> {
+                outer.fields().forEach(field -> field.forEachDown(AggregateFunction.class, nested -> {
                     if (nested instanceof TimeSeriesAggregateFunction == false) {
                         failures.add(
                             fail(
@@ -242,19 +242,21 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
                             )
                         );
                     }
-                    nested.field()
-                        .forEachDown(
-                            AggregateFunction.class,
-                            nested2 -> failures.add(
-                                fail(
-                                    this,
-                                    "cannot use aggregate function [{}] inside over-time aggregation function [{}]",
-                                    nested2.sourceText(),
-                                    nested.sourceText()
+                    nested.fields()
+                        .forEach(
+                            field2 -> field2.forEachDown(
+                                AggregateFunction.class,
+                                nested2 -> failures.add(
+                                    fail(
+                                        this,
+                                        "cannot use aggregate function [{}] inside over-time aggregation function [{}]",
+                                        nested2.sourceText(),
+                                        nested.sourceText()
+                                    )
                                 )
                             )
                         );
-                });
+                }));
             }
         }
     }

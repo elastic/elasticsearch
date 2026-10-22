@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.http;
 
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -56,6 +57,6 @@ final class HttpTransientTypingInputStream extends FilterInputStream {
     }
 
     private ExternalUnavailableException type(IOException e) {
-        return new ExternalUnavailableException(false, e, "transient read failure for [{}]", path);
+        return new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, path, "", "", false, 0L, e);
     }
 }

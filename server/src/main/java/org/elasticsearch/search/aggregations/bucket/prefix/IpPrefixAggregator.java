@@ -16,7 +16,7 @@ import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -102,12 +102,12 @@ public final class IpPrefixAggregator extends BucketsAggregator {
 
     @Override
     protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
-        final SortedBinaryDocValues values = config.getValuesSource().bytesValues(aggCtx.getLeafReaderContext());
+        final SortableBinaryDocValues values = config.getValuesSource().bytesValues(aggCtx.getLeafReaderContext());
         final BinaryDocValues singleton = FieldData.unwrapSingleton(values);
         return singleton != null ? getLeafCollector(singleton, sub) : getLeafCollector(values, sub);
     }
 
-    private LeafBucketCollector getLeafCollector(SortedBinaryDocValues values, LeafBucketCollector sub) {
+    private LeafBucketCollector getLeafCollector(SortableBinaryDocValues values, LeafBucketCollector sub) {
 
         return new LeafBucketCollectorBase(sub, values) {
             @Override

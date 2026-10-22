@@ -14,23 +14,22 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.expression.VirtualAttribute;
 import org.elasticsearch.xpack.esql.core.util.Holder;
-import org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
-import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightSupport;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
@@ -41,6 +40,7 @@ import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneEmptyPlans.skipPlan;
@@ -84,16 +84,17 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                     case Project project -> pruneColumnsInProject(project, used, recheck);
                     case EsRelation esr -> pruneColumnsInEsRelation(esr, used);
                     case ExternalRelation ext -> pruneColumnsInExternalRelation(ext, used);
-                    case Fork fork -> {
-                        // Skip descending into the Fork subtree: a true Fork handles its subplans internally in
-                        // pruneColumnsInFork, while UnionAll is left untouched. Using skipBranch (instead of a sticky
-                        // flag) ensures that pruning resumes for siblings outside the Fork, e.g. the right-hand side
-                        // of an enclosing InlineJoin.
+                    case MergePlan mergePlan -> {
+                        // Skip descending into the merge subtree: pruneColumnsInMergePlan handles Fork subplans
+                        // internally, while UnionAll is left untouched except for leaf unions. Using skipBranch
+                        // (instead of a sticky flag) ensures that pruning resumes for siblings outside the merge, e.g.
+                        // the right-hand side of an enclosing InlineJoin.
                         skipBranch.set(true);
-                        yield pruneColumnsInFork(fork, used);
+                        yield pruneColumnsInMergePlan(mergePlan, used);
                     }
                     case RegexExtract re -> pruneUnusedRegexExtract(re, used, recheck);
                     case DenseVector dv -> pruneUnusedDenseVector(dv, used, recheck);
+                    case Highlight h -> pruneUnusedHighlight(h, used, recheck);
                     default -> p;
                 };
             } while (recheck.get());
@@ -237,72 +238,22 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
      * Unlike {@link EsRelation} (where {@code InsertFieldExtraction} handles field-level pruning for non-LOOKUP modes),
      * the attribute list on an external relation directly controls which columns the format reader loads from storage.
      * <p>
-     * Exception: when {@code _source} survives downstream and is referenced, the synthesizer needs every
-     * file-resident data column at compose time — pruning them would render {@code {}} for the user. Pin
-     * them as "used" before the prune. Gating on {@code used.contains(_source-attr)} rather than
-     * {@code ext.output()} ensures the pin only fires when {@code _source} is actually consumed (a query
-     * that requests {@code _source} but drops it without reading does not need the pin). Indexed
-     * {@code _source} reads from the stored doc and is independent of projection; external {@code _source}
-     * has no stored doc to fall back to.
-     * <p>
-     * Same shape for a declared {@code _id.path}: when {@code _id} is consumed AND the dataset declares
-     * {@code mappings._id.path}, the id-source column must be read even if the query did not {@code KEEP} it — the
-     * reader stamps {@code _id} from its value. Pin only that one data column (by its logical name) into {@code used}.
-     * The top-level {@code Project} drops it from the user's output automatically when it was not projected.
+     * {@code _source} needs no exception here. A dataset answers it as SQL NULL — a file carries no stored
+     * source — so it is a constant null block with no data column behind it to keep.
      */
     private static LogicalPlan pruneColumnsInExternalRelation(ExternalRelation ext, AttributeSet.Builder used) {
-        boolean sourceConsumed = false;
-        boolean idConsumed = false;
-        for (Attribute a : ext.output()) {
-            if (a instanceof ExternalMetadataAttribute && used.contains(a)) {
-                if (ExternalMetadataColumns.SOURCE.equals(a.name())) {
-                    sourceConsumed = true;
-                } else if (ExternalMetadataColumns.ID.equals(a.name())) {
-                    idConsumed = true;
-                }
-            }
-        }
-        if (sourceConsumed) {
-            for (Attribute a : ext.output()) {
-                if (a instanceof ExternalMetadataAttribute == false && a instanceof VirtualAttribute == false) {
-                    used.add(a);
-                }
-            }
-        }
-        if (idConsumed) {
-            String idPath = declaredIdPath(ext);
-            if (idPath != null) {
-                for (Attribute a : ext.output()) {
-                    if (a instanceof ExternalMetadataAttribute == false
-                        && a instanceof VirtualAttribute == false
-                        && idPath.equals(a.name())) {
-                        used.add(a);
-                        break;
-                    }
-                }
-            }
-        }
         var remaining = pruneUnusedAndAddReferences(ext.output(), used);
         return remaining != null ? ext.withAttributes(remaining) : ext;
     }
 
-    /**
-     * The declared {@code _id.path} (logical column name) carried on the external relation's typed
-     * {@link org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec}, or {@code null} when the dataset declares no
-     * {@code mappings._id.path}.
-     */
-    private static String declaredIdPath(ExternalRelation ext) {
-        return ext.declaredReadSpec().idPath();
-    }
+    // TODO: see ResolveUnmapped#patchMergePlan comment
+    private static LogicalPlan pruneColumnsInMergePlan(MergePlan mergePlan, AttributeSet.Builder used) {
 
-    // TODO: see ResolveUnmapped#patchFork comment
-    private static LogicalPlan pruneColumnsInFork(Fork fork, AttributeSet.Builder used) {
-
-        if (fork instanceof UnionAll unionAll) {
+        if (mergePlan instanceof UnionAll unionAll) {
             if (PushDownUtils.isLeafUnionAll(unionAll) == false) {
                 // Subquery-shape UnionAll: each branch's Project is pruned by the transformDown
                 // traversal when it reaches the branch; skip here to avoid double-pruning.
-                return fork;
+                return mergePlan;
             }
             // Direct-leaf UnionAll (heterogeneous FROM): prune ExternalRelation children so the
             // format reader only loads the columns actually needed. EsRelation children are left
@@ -311,43 +262,41 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
             boolean changed = false;
             for (LogicalPlan child : unionAll.children()) {
                 LogicalPlan newChild = child instanceof ExternalRelation ext ? pruneColumnsInExternalRelation(ext, used) : child;
-                if (newChild != child) {
-                    changed = true;
-                }
+                changed |= newChild != child;
                 newChildren.add(newChild);
             }
             return changed ? unionAll.replaceChildren(newChildren) : unionAll;
         }
 
-        // prune the output attributes of fork based on usage from the rest of the plan
-        boolean forkOutputChanged = false;
+        // prune the output attributes of the merge based on usage from the rest of the plan
+        boolean mergeOutputChanged = false;
         AttributeSet.Builder builder = AttributeSet.builder();
-        // if any of the fork outputs are used, keep them
+        // if any of the merge outputs are used, keep them
         // otherwise, prune them based on the rest of the plan's usage
-        for (var attr : fork.output()) {
+        for (var attr : mergePlan.output()) {
             // we should also ensure to keep any synthetic attributes around as those could still be used for internal processing
             if (attr.synthetic() || used.contains(attr)) {
                 builder.add(attr);
             } else {
-                forkOutputChanged = true;
+                mergeOutputChanged = true;
             }
         }
-        var prunedForkAttrs = forkOutputChanged ? builder.build().stream().toList() : fork.output();
-        // now that we have the pruned fork output attributes, we can proceed to apply pruning all children plan
-        var forkOutputNames = prunedForkAttrs.stream().map(NamedExpression::name).collect(Collectors.toSet());
+        var prunedMergeAttrs = mergeOutputChanged ? builder.build().stream().toList() : mergePlan.output();
+        // now that we have the pruned merge output attributes, we can proceed to apply pruning all children plan
+        var mergeOutputNames = prunedMergeAttrs.stream().map(NamedExpression::name).collect(Collectors.toSet());
         boolean subPlanChanged = false;
         List<LogicalPlan> newChildren = new ArrayList<>();
-        for (var subPlan : fork.children()) {
+        for (var subPlan : mergePlan.children()) {
             var usedAttrs = AttributeSet.builder();
             LogicalPlan newSubPlan;
             // if it's a local relation, just update the output attributes
             // and return early
             if (subPlan instanceof LocalRelation localRelation) {
-                var outputAttrs = localRelation.output().stream().filter(x -> forkOutputNames.contains(x.name())).toList();
+                var outputAttrs = localRelation.output().stream().filter(x -> mergeOutputNames.contains(x.name())).toList();
                 newSubPlan = new LocalRelation(localRelation.source(), outputAttrs, localRelation.supplier());
             } else {
                 // otherwise, we first prune the projections of the top-level Project of each subplan
-                subPlan.outputSet().stream().filter(x -> forkOutputNames.contains(x.name())).forEach(usedAttrs::add);
+                subPlan.outputSet().stream().filter(x -> mergeOutputNames.contains(x.name())).forEach(usedAttrs::add);
 
                 Holder<Boolean> projectVisited = new Holder<>(false);
                 newSubPlan = subPlan.transformDown(Project.class, p -> {
@@ -355,8 +304,8 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                         return p;
                     }
                     projectVisited.set(true);
-                    // filter projections based on fork output attributes
-                    var prunedAttrs = p.projections().stream().filter(x -> forkOutputNames.contains(x.name())).toList();
+                    // filter projections based on merge output attributes
+                    var prunedAttrs = p.projections().stream().filter(x -> mergeOutputNames.contains(x.name())).toList();
                     return new Project(p.source(), p.child(), prunedAttrs);
                 });
                 newSubPlan = pruneColumns(newSubPlan, usedAttrs, false);
@@ -366,10 +315,10 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
             }
             newChildren.add(newSubPlan);
         }
-        if (subPlanChanged || forkOutputChanged) {
-            fork = fork.replaceSubPlansAndOutput(newChildren, prunedForkAttrs);
+        if (subPlanChanged || mergeOutputChanged) {
+            mergePlan = mergePlan.replaceSubPlansAndOutput(newChildren, prunedMergeAttrs);
         }
-        return fork;
+        return mergePlan;
     }
 
     /**
@@ -432,6 +381,57 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
             prunedGeneratedFields.add(denseVector.generatedAttributes().get(i));
         }
         return denseVector.withPrunedFields(prunedFields, prunedGeneratedFields);
+    }
+
+    /**
+     * Prunes a {@link Highlight} to the ON fields whose generated {@code <prefix><field>} column is used downstream,
+     * plus any ON field the query still translates against. This is the first change that lets a HIGHLIGHT carry every
+     * text/keyword column ({@code ON *}, or the literal / KQL / QSTR fallback), so without it a {@code KEEP highlight_x}
+     * would still extract and highlight every string column at runtime. The field list and generated attributes stay
+     * aligned 1:1. If none of the generated columns is used, the whole node is removed: HIGHLIGHT never filters rows,
+     * so its child is a drop-in replacement.
+     * <p>
+     * A colon-free literal query is applied to whatever ON fields remain, so unused ones can go. {@code QSTR} /
+     * {@code KQL} - and a {@code field:term} string literal, which is translated as {@code query_string} - can name
+     * arbitrary fields, and {@code MATCH(a)} still queries {@code a} even when {@code highlight_a} is unused: those ON
+     * fields have to stay or Lucene rejects them as not searchable.
+     */
+    private static LogicalPlan pruneUnusedHighlight(Highlight highlight, AttributeSet.Builder used, Holder<Boolean> recheck) {
+        List<Integer> retained = retainedGeneratedIndices(highlight.generatedAttributes(), used);
+
+        if (retained.size() == highlight.generatedAttributes().size()) {
+            // every generated column is used; nothing to prune
+            return highlight;
+        }
+
+        if (retained.isEmpty()) {
+            // no generated column is used; drop the node entirely
+            recheck.set(true);
+            return highlight.child();
+        }
+
+        Set<String> required = HighlightSupport.fieldsRequiredForTranslation(highlight.query());
+        if (required == null) {
+            // QSTR/KQL (or an unrecognised shape) can name any ON field; dropping one fails at runtime.
+            return highlight;
+        }
+
+        List<NamedExpression> prunedFields = new ArrayList<>();
+        List<Attribute> prunedGeneratedFields = new ArrayList<>();
+        for (int i = 0; i < highlight.fields().size(); i++) {
+            NamedExpression field = highlight.fields().get(i);
+            Attribute generated = highlight.generatedAttributes().get(i);
+            // Keep a column if it is still read downstream, or if the query translates against its ON field.
+            if (used.contains(generated) || required.contains(field.name())) {
+                prunedFields.add(field);
+                prunedGeneratedFields.add(generated);
+            }
+        }
+        if (prunedGeneratedFields.size() == highlight.generatedAttributes().size()) {
+            // The required ON fields brought every column back; nothing to prune.
+            return highlight;
+        }
+        return highlight.withPrunedFields(prunedFields, prunedGeneratedFields);
     }
 
     private static LogicalPlan emptyLocalRelation(UnaryPlan plan) {

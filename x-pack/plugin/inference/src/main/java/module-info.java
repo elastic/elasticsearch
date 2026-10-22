@@ -8,13 +8,13 @@
 module org.elasticsearch.inference {
     requires org.elasticsearch.base;
     requires org.elasticsearch.server;
+    requires org.elasticsearch.columnar;
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.xcore;
 
-    requires org.apache.httpcomponents.httpclient;
-    requires org.apache.httpcomponents.httpcore;
-    requires org.apache.httpcomponents.httpasyncclient;
-    requires org.apache.httpcomponents.httpcore.nio;
+    requires org.apache.httpcomponents.client5.httpclient5;
+    requires org.apache.httpcomponents.core5.httpcore5;
+    requires org.apache.httpcomponents.core5.httpcore5.reactive;
     requires org.apache.lucene.core;
     requires org.apache.lucene.join;
     requires com.google.auth.oauth2;

@@ -49,7 +49,7 @@ dataset: employees_declared_multifile_city: "{{employees_multifile_ubn}}" WITH {
 FROM employees_declared_multifile_city
 | SORT name
 | LIMIT 10;
-warningRegex:declared column \[city\] is not present in some source files and reads null there
+warningRegex:column \[city\] is not present in some source files and reads null there
 
 name:keyword | city:keyword
 "alice"      | null
@@ -122,9 +122,10 @@ name:keyword | age:long
 
 // Aggregates over a declared column across the glob, run cold then warm by the harness, so the declaration is
 // asserted against the coordinator's per-file schema cache as well as the cold scan. The columns are RENAMED via
-// `path` deliberately: with schema_resolution unset the default is union_by_name, so a declaration that merely
-// restated the files' own names would produce the same table an undeclared read produces and would assert
-// nothing about the declared path. No undeclared read can yield a column called `years`.
+// `path` deliberately: a declaration that merely restated the files' own names would produce the same table an
+// undeclared read can produce under either reconciliation mode, and would assert nothing about the declared path.
+// Declared mappings pin the schema, so schema_resolution is irrelevant. No undeclared read can yield a column
+// called `years`.
 strictDeclaredSchemaAggregatesAcrossFilesColdAndWarm
 required_capability: dataset_in_from_command
 required_capability: external_csv_header_row_option

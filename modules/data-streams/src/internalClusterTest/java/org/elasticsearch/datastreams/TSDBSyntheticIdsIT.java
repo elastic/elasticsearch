@@ -63,6 +63,7 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
@@ -744,7 +745,8 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         for (var index : docsIndices) {
             var recoveryResponse = indicesAdmin().prepareRecoveries(index).get();
             assertThat(recoveryResponse.hasRecoveries(), equalTo(true));
-            for (var shardRecoveryState : recoveryResponse.shardRecoveryStates().get(index)) {
+            for (var recoveryInfo : recoveryResponse.shardRecoveryInfos().get(index)) {
+                var shardRecoveryState = recoveryInfo.recoveryState();
                 assertThat(shardRecoveryState.getStage(), equalTo(RecoveryState.Stage.DONE));
                 assertThat(shardRecoveryState.getTargetNode(), notNullValue());
                 assertThat(shardRecoveryState.getTargetNode().getName(), equalTo(targetNode));
@@ -941,7 +943,8 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         // Check that operations were successfully recovered locally
         var recoveryResponse = indicesAdmin().prepareRecoveries(backingIndex).get();
         assertThat(recoveryResponse.hasRecoveries(), equalTo(true));
-        for (var shardRecoveryState : recoveryResponse.shardRecoveryStates().get(backingIndex)) {
+        for (var recoveryInfo : recoveryResponse.shardRecoveryInfos().get(backingIndex)) {
+            var shardRecoveryState = recoveryInfo.recoveryState();
             assertThat(shardRecoveryState.getStage(), equalTo(RecoveryState.Stage.DONE));
             assertThat(shardRecoveryState.getRecoverySource(), equalTo(RecoverySource.ExistingStoreRecoverySource.INSTANCE));
             assertThat((long) shardRecoveryState.getTranslog().totalOperationsOnStart(), equalTo(expectedRecoveredOperations));
@@ -1769,7 +1772,8 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         final var settings = indexSettings(primaries, replicas).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
             .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
-            .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), false); // Sequence numbers are needed for id validation.
+            .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), false) // Sequence numbers are needed for id validation.
+            .put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), randomBoolean());
 
         if (randomBoolean()) {
             settings.put(EngineConfig.INDEX_CODEC_SETTING.getKey(), randomValidCodec());

@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 157440
-pr: 157475
-summary: Fix `isPartial` flag handling
-type: bug

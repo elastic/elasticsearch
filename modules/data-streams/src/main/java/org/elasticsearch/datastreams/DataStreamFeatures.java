@@ -38,6 +38,8 @@ public class DataStreamFeatures implements FeatureSpecification {
 
     public static final NodeFeature DATA_STREAMS_MODIFY_DELETE_INDEX = new NodeFeature("data_stream.modify.delete_index", true);
 
+    public static final NodeFeature GET_DATA_STREAMS_INDEX_MODE_FIX = new NodeFeature("data_stream.get_data_streams.index_mode_fix");
+
     @Override
     public Set<NodeFeature> getFeatures() {
         return Set.of(
@@ -55,7 +57,8 @@ public class DataStreamFeatures implements FeatureSpecification {
             LOGS_STREAM_FEATURE,
             FAILURE_STORE_IN_LOG_DATA_STREAMS,
             DOWNSAMPLE_MULTI_VALUE_DIMENSIONS,
-            DATA_STREAMS_MAPPINGS_API
+            DATA_STREAMS_MAPPINGS_API,
+            GET_DATA_STREAMS_INDEX_MODE_FIX
         );
     }
 }

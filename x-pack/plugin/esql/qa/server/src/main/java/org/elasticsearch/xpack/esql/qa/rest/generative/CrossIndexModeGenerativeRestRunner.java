@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.availableDatasetsForEs;
@@ -126,7 +127,12 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
         "unmapped_multi_synthetic",
         "unmapped_multi_stored_mixed",
         "unmapped_array_data",
-        "unmapped_object_data"
+        "unmapped_object_data",
+        // all_types_unmapped* drop every typed column from mapping-all-types.json so each ES scalar type lands in _source only.
+        // Same dynamic:false reasoning as the datasets exclusions above.
+        "all_types_unmapped",
+        "all_types_unmapped_synthetic",
+        "logsdb_partial_mapping"
     );
 
     /**
@@ -147,21 +153,9 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
         // Long-running queries on very large synthetic result sets may time out on the cand side
         // while completing on the ref side. Known performance difference, not a correctness bug.
         "milliseconds timeout on connection",
-        // Columnar mode can throw a query_shard_exception when a WHERE clause tries to match a
-        // string literal against a numeric field (Lucene NumberFormatException: "For input string:
-        // \"hello\""). Standard mode silently returns no rows; query-execution path difference.
-        "For input string:",
         // semantic_text fields reject full-text match queries (qstr/MATCH) in columnar mode with
         // "does not support match queries", while standard mode handles them. Known mode difference.
         "does not support match queries",
-        // Columnar mode has no inverted index for date fields, so a qstr/MATCH query that searches
-        // a date field with a non-date string fails with a date-parse error surfaced as unexpected
-        // partial results. Standard mode handles this gracefully. Known mode-level difference.
-        "failed to parse date field",
-        // Columnar mode throws when a qstr/MATCH query is applied to an IP-range field and the
-        // search string is not a valid IP literal (e.g. "ring"). Standard mode silently returns
-        // no results. Same root cause as "For input string:" for numeric fields.
-        "is not an IP string literal",
         // DateExtract.resolveType incorrectly handles null field types (server-side bug). Produces
         // a 500 error on any shard that encounters a null-typed unmapped field in a date_extract()
         // expression. Affects both modes equally but can surface as partial results on one side
@@ -189,6 +183,9 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
      * {@code POINT (4.999999953... 4.999999995...)}) does not produce false value divergences.
      */
     private static final Pattern WKT_NUMBER = Pattern.compile("-?\\d+(?:\\.\\d+)?(?:[Ee][+-]?\\d+)?");
+
+    /** Precision that doubles and WKT coordinates are rounded to before comparison. */
+    private static final MathContext CANONICAL_PRECISION = new MathContext(5, RoundingMode.HALF_DOWN);
 
     /** Surviving reference-side index names, set once per JVM by {@link #setupCrossModeIndices}. */
     private static volatile List<String> crossModeRefIndices;
@@ -306,7 +303,7 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
                         (c, name, mapping, baseSettings) -> createIndex(
                             name,
                             Settings.builder().put(baseSettings).put(refExtra).build(),
-                            mapping
+                            withoutMappingParams(mapping, REFERENCE_STRIPPED_MAPPING_PARAMS)
                         )
                     );
                 } catch (Exception e) {
@@ -320,11 +317,7 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
                         (c, name, mapping, baseSettings) -> createIndex(
                             name,
                             Settings.builder().put(baseSettings).put(candExtra).build(),
-                            // Strict columnar modes reject `store: true` on any field. Strip the
-                            // attribute so datasets that carry it (e.g. hosts/mapping-hosts.json)
-                            // can be created in columnar mode. Values remain accessible via doc
-                            // values and synthetic source, so query results are unaffected.
-                            stripStoredFields(mapping)
+                            withoutMappingParams(mapping, CANDIDATE_STRIPPED_MAPPING_PARAMS)
                         )
                     );
                     surviving.add(REF_PREFIX + dataset.indexName());
@@ -394,8 +387,11 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
     @Override
     protected Set<String> additionalAllowedErrors() {
         Set<String> errors = new HashSet<>(super.additionalAllowedErrors());
-        // All mode-difference substrings are acceptable on either side of the pipeline.
-        errors.addAll(ALLOWED_MODE_DIFFERENCE_SUBSTRINGS);
+        // Mode-difference substrings are literal strings; quote them so the base-class regex
+        // compiler treats them as literals rather than as regex patterns.
+        for (String s : ALLOWED_MODE_DIFFERENCE_SUBSTRINGS) {
+            errors.add(Pattern.quote(s));
+        }
         return errors;
     }
 
@@ -613,6 +609,20 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
             if (isAllowedModeDifference(refMsg) || isAllowedModeDifference(candMsg)) {
                 return;
             }
+            if (refThrew && isStrictAllFieldsNarrowingDifference(ref.query(), refMsg)) {
+                return;
+            }
+            // Once the determinism gate has closed, the two modes process different row sets: a
+            // row-truncating or non-deterministic command (e.g. LIMIT ... BY, SORT on a non-unique
+            // key, SAMPLE) appeared earlier in the pipeline, or a FROM saturated the implicit
+            // LIMIT 1000. A per-row value-parse failure in an evaluator — an invalid IP/CIDR,
+            // number, date, or boolean reaching e.g. cidr_match()/to_ip()/to_long() — can then
+            // legitimately occur on one side only, because the offending row survives the
+            // truncation on just that side. While the gate is open the row sets are identical, so
+            // the same divergence would signal real value corruption and is still reported.
+            if (deterministic == false && isFieldParseFailure(refThrew ? refMsg : candMsg)) {
+                return;
+            }
             fail(
                 "Cross-mode failure parity divergence at ["
                     + current.commandName()
@@ -730,10 +740,15 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
             );
             return;
         }
-        List<String> refCanon = toCanonical(refRows, refSchema);
-        List<String> candCanon = toCanonical(candRows, refSchema);
+        List<List<String>> refCells = toCanonicalCells(refRows, refSchema);
+        List<List<String>> candCells = toCanonicalCells(candRows, refSchema);
+        List<String> refCanon = joinRows(refCells);
+        List<String> candCanon = joinRows(candCells);
         Collections.sort(refCanon);
         Collections.sort(candCanon);
+        if (refCanon.equals(candCanon) || rowsMatchWithinRoundingTolerance(refCells, candCells, refSchema)) {
+            return;
+        }
         for (int row = 0; row < refCanon.size(); row++) {
             if (refCanon.get(row).equals(candCanon.get(row)) == false) {
                 fail(
@@ -756,6 +771,63 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
                 );
             }
         }
+    }
+
+    /** Errors a field raises when it cannot parse the value of a query string. */
+    private static final List<String> FIELD_PARSE_FAILURES = List.of(
+        "For input string:",
+        "failed to parse date field",
+        "is not an IP string literal",
+        // A boolean field without index:true is searched on the reference side only; a non-boolean
+        // term such as "search" then fails to parse against it. Raised by BooleanFieldMapper.
+        "Can't parse boolean value"
+    );
+
+    /** A {@code qstr} with {@code "lenient": false}. Group 1 is the query string. */
+    private static final Pattern STRICT_QSTR = Pattern.compile(
+        "(?i)\\bqstr\\s*\\(\\s*\"([^\"]*)\"\\s*,\\s*\\{[^}]*\"lenient\"\\s*:\\s*false"
+    );
+
+    /**
+     * A field-less {@code qstr} searches every field in standard mode, but only densely indexed
+     * fields in strict columnar mode (see {@code SearchExecutionContext#defaultFields}). Numeric,
+     * date, ip and boolean fields without {@code index: true} are therefore searched on the
+     * reference side only. With {@code "lenient": false}, a value such as {@code "quick"} fails to
+     * parse against them, so only the reference side throws. This is a consequence of that
+     * narrowing, not of the leniency handling.
+     *
+     * <p>Only this direction is accepted. Columnar searches a subset of the reference fields, so it
+     * can never fail on more of them. Columnar throwing where standard does not is the lost
+     * leniency bug class, and is still reported. A qstr naming its field ({@code "distance:quick"})
+     * searches the same field on both sides and is not covered either.
+     */
+    static boolean isStrictAllFieldsNarrowingDifference(String referenceQuery, String referenceError) {
+        if (referenceQuery == null || referenceError == null) {
+            return false;
+        }
+        if (isFieldParseFailure(referenceError) == false) {
+            return false;
+        }
+        Matcher strictQstr = STRICT_QSTR.matcher(referenceQuery);
+        while (strictQstr.find()) {
+            if (strictQstr.group(1).contains(":") == false) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Returns {@code true} if {@code errorMessage} is a per-row value-parse failure — the error an
+     * evaluator raises when a field or literal value cannot be parsed into the type a function
+     * expects (an invalid IP/CIDR, number, date, or boolean). These are inherently row-dependent,
+     * so they are tolerated as one-sided divergences only once the determinism gate has closed.
+     */
+    private static boolean isFieldParseFailure(String errorMessage) {
+        if (errorMessage == null) {
+            return false;
+        }
+        return FIELD_PARSE_FAILURES.stream().anyMatch(errorMessage::contains);
     }
 
     private static boolean isAllowedModeDifference(String errorMessage) {
@@ -825,18 +897,20 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
      * placeholder so that inherent precision differences (stored vs synthetic source coordinate
      * encoding) do not produce false-positive failures.
      */
-    @SuppressWarnings("unchecked")
     static List<String> toCanonical(List<List<Object>> rows, List<Column> schema) {
-        List<String> result = new ArrayList<>(rows.size());
+        return joinRows(toCanonicalCells(rows, schema));
+    }
+
+    /** Same canonicalisation as {@link #toCanonical}, kept per cell so column types stay attached. */
+    @SuppressWarnings("unchecked")
+    static List<List<String>> toCanonicalCells(List<List<Object>> rows, List<Column> schema) {
+        List<List<String>> result = new ArrayList<>(rows.size());
         for (List<Object> row : rows) {
-            StringBuilder sb = new StringBuilder();
+            List<String> cells = new ArrayList<>(row.size());
             for (int i = 0; i < row.size(); i++) {
-                if (i > 0) {
-                    sb.append('\t');
-                }
                 String colType = i < schema.size() ? schema.get(i).type() : null;
                 if (SKIP_VALUE_COLUMN_TYPES.contains(colType)) {
-                    sb.append("~");
+                    cells.add("~");
                     continue;
                 }
                 Object val = row.get(i);
@@ -852,14 +926,113 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
                         // ["a","b"] (standard) == ["b","a","a"] (columnar) after sort+dedup.
                         strs = strs.stream().distinct().toList();
                     }
-                    sb.append(strs);
+                    cells.add(strs.toString());
                 } else {
-                    sb.append(canonicalValue(val));
+                    cells.add(canonicalValue(val));
                 }
             }
-            result.add(sb.toString());
+            result.add(cells);
         }
         return result;
+    }
+
+    private static List<String> joinRows(List<List<String>> cells) {
+        List<String> rows = new ArrayList<>(cells.size());
+        for (List<String> row : cells) {
+            rows.add(String.join("\t", row));
+        }
+        return rows;
+    }
+
+    /**
+     * Column types whose values may differ by one canonical rounding step between the two sides.
+     * Integer types are deliberately absent: their canonical form is exact, and a long such as
+     * {@code 2706453028782618448} would otherwise get a tolerance of 10^14.
+     */
+    private static final Set<String> ROUNDING_TOLERANT_TYPES = Set.of("double");
+
+    /**
+     * Fallback for when the exact canonical comparison fails. Rounding to a fixed number of
+     * significant figures cannot absorb a value that sits on a rounding boundary: a stored
+     * {@code -99.8825} rounds to {@code -99.882}, while the doc-values-reconstructed
+     * {@code -99.88250002} rounds to {@code -99.883}. This accepts a pairing of rows in which every
+     * cell is either identical or, for {@link #ROUNDING_TOLERANT_TYPES} and WKT strings, differs by
+     * at most one unit in the last canonical significant figure. That is no looser than what the
+     * rounding already intends, it only fixes the boundary case.
+     *
+     * <p>Rows are paired greedily with the first unused candidate row that matches.
+     */
+    static boolean rowsMatchWithinRoundingTolerance(List<List<String>> ref, List<List<String>> cand, List<Column> schema) {
+        if (ref.size() != cand.size()) {
+            return false;
+        }
+        boolean[] used = new boolean[cand.size()];
+        for (List<String> refRow : ref) {
+            boolean matched = false;
+            for (int c = 0; c < cand.size() && matched == false; c++) {
+                if (used[c] == false && rowMatchesWithinRoundingTolerance(refRow, cand.get(c), schema)) {
+                    used[c] = true;
+                    matched = true;
+                }
+            }
+            if (matched == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean rowMatchesWithinRoundingTolerance(List<String> ref, List<String> cand, List<Column> schema) {
+        if (ref.size() != cand.size()) {
+            return false;
+        }
+        for (int i = 0; i < ref.size(); i++) {
+            String colType = i < schema.size() ? schema.get(i).type() : null;
+            if (cellMatchesWithinRoundingTolerance(ref.get(i), cand.get(i), colType) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    static boolean cellMatchesWithinRoundingTolerance(String ref, String cand, String colType) {
+        if (ref.equals(cand)) {
+            return true;
+        }
+        if (ROUNDING_TOLERANT_TYPES.contains(colType) == false && (containsWkt(ref) == false || containsWkt(cand) == false)) {
+            return false;
+        }
+        if (WKT_NUMBER.matcher(ref).replaceAll("#").equals(WKT_NUMBER.matcher(cand).replaceAll("#")) == false) {
+            return false;
+        }
+        Matcher refNumbers = WKT_NUMBER.matcher(ref);
+        Matcher candNumbers = WKT_NUMBER.matcher(cand);
+        while (refNumbers.find() && candNumbers.find()) {
+            if (withinOneRoundingStep(refNumbers.group(), candNumbers.group()) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Covers single WKT values and multi-value cells such as {@code [POINT (…), POINT (…)]}. */
+    private static boolean containsWkt(String cell) {
+        return isWktString(cell.startsWith("[") ? cell.substring(1) : cell);
+    }
+
+    private static boolean withinOneRoundingStep(String refNumber, String candNumber) {
+        if (refNumber.equals(candNumber)) {
+            return true;
+        }
+        double a = Double.parseDouble(refNumber);
+        double b = Double.parseDouble(candNumber);
+        double magnitude = Math.max(Math.abs(a), Math.abs(b));
+        if (magnitude == 0) {
+            return false;
+        }
+        double oneStep = Math.pow(10, Math.floor(Math.log10(magnitude)) - (CANONICAL_PRECISION.getPrecision() - 1));
+        // Slack for the binary representation of the decimal step itself.
+        return Math.abs(a - b) <= oneStep * (1 + 1e-9);
     }
 
     /**
@@ -890,7 +1063,7 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
             if (Math.abs(d) < 1e-9) {
                 return "0.0";
             }
-            return String.valueOf(new BigDecimal(d).round(new MathContext(5, RoundingMode.HALF_DOWN)).doubleValue());
+            return String.valueOf(new BigDecimal(d).round(CANONICAL_PRECISION).doubleValue());
         }
         String s = String.valueOf(val);
         if (isWktString(s)) {
@@ -911,18 +1084,31 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
     }
 
     /**
-     * Removes all {@code "store": true} attributes from a mapping JSON string.
-     *
-     * <p>Strict columnar index modes (e.g. {@code index.mode=columnar}) reject any field that has
-     * {@code store: true} at mapping-parse time. The ES|QL CSV test fixtures retain that attribute
-     * in some mappings (e.g. {@code mapping-hosts.json}) for use in non-columnar test suites. To
-     * allow those datasets to be created in columnar mode, the candidate-side index creator strips
-     * the attribute before forwarding the mapping to the server. Field values are still readable
-     * via doc values and synthetic source, so all ES|QL CSV tests exercise the same query paths.
+     * {@code ignore_above} is a no-op in columnar mode, which keeps every value in doc values
+     * regardless of length (see {@code IndexVersions.IGNORE_ABOVE_NO_OP_IN_COLUMNAR}), while
+     * standard mode drops over-limit values from the field. A keyword sub-field such as
+     * {@code message.raw} in {@code mapping-mv_text.json} therefore returns more values on the
+     * candidate side by design. Stripping it from both sides makes both keep every value, so the
+     * field is still compared rather than skipped.
      */
-    private static String stripStoredFields(String mapping) throws IOException {
+    static final Set<String> REFERENCE_STRIPPED_MAPPING_PARAMS = Set.of("ignore_above");
+
+    /**
+     * Everything stripped from the reference side, plus {@code store}: strict columnar modes reject
+     * {@code store: true} at mapping-parse time, and fixtures such as {@code mapping-hosts.json} carry
+     * it for other suites. Values remain readable via doc values, so query results are unaffected.
+     */
+    static final Set<String> CANDIDATE_STRIPPED_MAPPING_PARAMS = Set.of("ignore_above", "store");
+
+    /**
+     * Returns {@code mapping} with every attribute named in {@code params} removed at any depth.
+     *
+     * <p>Matching is by key name, so a field literally named like one of the params would also be
+     * removed. No fixture currently has a field named {@code store} or {@code ignore_above}.
+     */
+    static String withoutMappingParams(String mapping, Set<String> params) throws IOException {
         Map<String, Object> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, mapping, false);
-        removeKey(map, "store");
+        removeKeys(map, params);
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.map(map);
             return Strings.toString(builder);
@@ -930,11 +1116,11 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
     }
 
     @SuppressWarnings("unchecked")
-    private static void removeKey(Map<String, Object> map, String key) {
-        map.remove(key);
+    private static void removeKeys(Map<String, Object> map, Set<String> keys) {
+        map.keySet().removeAll(keys);
         for (Object value : map.values()) {
             if (value instanceof Map) {
-                removeKey((Map<String, Object>) value, key);
+                removeKeys((Map<String, Object>) value, keys);
             }
         }
     }
@@ -948,7 +1134,7 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
             String coord = mr.group();
             try {
                 double d = Double.parseDouble(coord);
-                return String.valueOf(new BigDecimal(d).round(new MathContext(5, RoundingMode.HALF_DOWN)).doubleValue());
+                return String.valueOf(new BigDecimal(d).round(CANONICAL_PRECISION).doubleValue());
             } catch (NumberFormatException e) {
                 return coord;
             }

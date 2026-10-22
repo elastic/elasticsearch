@@ -8,8 +8,11 @@
 package org.elasticsearch.xpack.esql.core.anonymizer;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+
+import static org.hamcrest.Matchers.matchesRegex;
 
 public class AnonymizationContextTests extends ESTestCase {
 
@@ -87,5 +90,35 @@ public class AnonymizationContextTests extends ESTestCase {
         assertNotNull(ctx.mapper().column("foo"));
         assertNotNull(ctx.mapper().index("bar"));
         assertNotNull(ctx.mapper().literal(1, DataType.INTEGER));
+    }
+
+    /**
+     * Identifiers shorter than the 14 bytes an HMAC key needs to clear 112 bits, which is the minimum
+     * FIPS approved mode enforces: {@code resolveClusterUuid} answers {@code ""} from a {@code null}
+     * cluster state, and {@link Metadata#UNKNOWN_CLUSTER_UUID} is {@code _na_} until a cluster UUID
+     * is generated. Each must render a token rather than throw. Only a FIPS run
+     * ({@code -Dtests.fips.enabled=true}) reaches the throw.
+     */
+    public void testShortClusterUuidStillRendersTokens() {
+        for (String clusterUuid : new String[] { "", Metadata.UNKNOWN_CLUSTER_UUID }) {
+            var ctx = AnonymizationContext.forSubmission(clusterUuid);
+            // Assert the rendered shape, not just non-nullity: column() cannot return null, so a null check
+            // holds against either derivation and would carry no information on a non-FIPS run.
+            assertThat("column token for cluster uuid [" + clusterUuid + "]", ctx.mapper().column("foo"), matchesRegex("col_[0-9a-f]{12}"));
+            assertThat("index token for cluster uuid [" + clusterUuid + "]", ctx.mapper().index("bar"), matchesRegex("idx_[0-9a-f]{12}"));
+        }
+    }
+
+    /**
+     * Keying on the raw identifier substituted a single zero byte for an empty one, which collapsed
+     * {@code ""} and {@code "\0"} onto one key — UTF-8 encodes {@code U+0000} as that same byte.
+     * Deriving the key by digest separates that pair. It is the one property here that holds the two
+     * derivations apart without FIPS, so it is what pins the change on an ordinary run. {@code null}
+     * is not part of it: it normalises to {@code ""} before either derivation sees a byte.
+     */
+    public void testEmptyAndNulByteClusterUuidsDoNotShareAKey() {
+        String fromEmpty = AnonymizationContext.forSubmission("").mapper().column("salary");
+        String fromNulByte = AnonymizationContext.forSubmission("\0").mapper().column("salary");
+        assertNotEquals("an empty and a NUL identifier must not share a key", fromEmpty, fromNulByte);
     }
 }

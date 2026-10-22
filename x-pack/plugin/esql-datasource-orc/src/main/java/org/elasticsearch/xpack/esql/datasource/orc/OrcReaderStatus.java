@@ -112,8 +112,6 @@ public record OrcReaderStatus(
         builder.field("predicate_columns", predicateColumns);
         builder.field("columns_projected", columnsProjected);
         builder.field("columns_total", columnsTotal);
-        builder.field("read_nanos", readNanos);
-        builder.field("read_cpu_nanos", readCpuNanos);
         return builder;
     }
 }

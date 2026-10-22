@@ -139,14 +139,14 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
         ProjectMetadata before = DataStreamTestHelper.getProjectWithDataStreams(List.of(new Tuple<>(dataStream, 2)), List.of());
 
         Settings settingsWithDefaultRetention = builder().put(
-            DataStreamGlobalRetentionSettings.DATA_STREAMS_DEFAULT_RETENTION_SETTING.getKey(),
+            DataStreamLifecycleSettings.DATA_STREAMS_DEFAULT_RETENTION_SETTING.getKey(),
             defaultRetention
         ).build();
 
         MetadataDataStreamsService metadataDataStreamsService = new MetadataDataStreamsService(
             mock(ClusterService.class),
             mock(IndicesService.class),
-            DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings(settingsWithDefaultRetention)),
+            DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings(settingsWithDefaultRetention)),
             IndexSettingProviders.EMPTY
         );
 
@@ -269,7 +269,7 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
         );
         TimeValue defaultRetention = randomTimeValue(2, 100, TimeUnit.DAYS);
         Settings settingsWithDefaultRetention = Settings.builder()
-            .put(DataStreamGlobalRetentionSettings.DATA_STREAMS_DEFAULT_RETENTION_SETTING.getKey(), defaultRetention)
+            .put(DataStreamLifecycleSettings.DATA_STREAMS_DEFAULT_RETENTION_SETTING.getKey(), defaultRetention)
             .build();
         ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
         AtomicInteger instantSourceInvocationCounter = new AtomicInteger();
@@ -282,7 +282,7 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
             xContentRegistry(),
             EmptySystemIndices.INSTANCE,
             new IndexSettingProviders(Set.of()),
-            DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings(settingsWithDefaultRetention)),
+            DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings(settingsWithDefaultRetention)),
             instantSource
         );
 

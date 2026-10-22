@@ -26,7 +26,7 @@ import Expression,
        Promql;
 
 statements
-    : setCommand* singleStatement EOF
+    : setCommand* letCommand* singleStatement EOF
     ;
 
 singleStatement
@@ -79,10 +79,11 @@ processingCommand
     | ipLocationCommand
     | mmrCommand
     | highlightCommand
+    | denseVectorCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
     | dedupCommand
-    | {this.isDevVersion()}? denseVectorCommand
+    | {this.isDevVersion()}? fillNullCommand
     ;
 
 whereCommand
@@ -207,8 +208,15 @@ identifier
 
 identifierPattern
     : ID_PATTERN
+    | expressionModeIdentifierPattern
     | parameter
     | doubleParameter
+    ;
+
+// HIGHLIGHT remains in EXPRESSION_MODE after ON, where identifier patterns are emitted as identifier/ASTERISK tokens.
+expressionModeIdentifierPattern
+    : identifier? ASTERISK (identifier | ASTERISK)*
+    | identifier
     ;
 
 parameter
@@ -397,11 +405,19 @@ dedupCommand
     ;
 
 highlightCommand
-    : HIGHLIGHT (prefixKeyword=identifier ASSIGN prefix=string)? queryExpression=booleanExpression ON highlightFields=qualifiedNames commandNamedParameters
+    : HIGHLIGHT (prefixKeyword=identifier ASSIGN prefix=string)? queryExpression=booleanExpression? (ON highlightFields=qualifiedNamePatterns)? commandNamedParameters
     ;
 
 qualifiedNames
     : qualifiedName (COMMA qualifiedName)*
+    ;
+
+fillNullCommand
+    : DEV_FILLNULL fillNullValue ON qualifiedNamePatterns
+    ;
+
+fillNullValue
+    : NULL | DEFAULT | integerValue | decimalValue | booleanValue | string | parameter
     ;
 
 uriPartsCommand
@@ -428,6 +444,14 @@ setField
     : identifier ASSIGN ( constant | mapExpression )
     ;
 
+letCommand
+    : DEV_LET letBinding SEMICOLON
+    ;
+
+letBinding
+    : UNQUOTED_IDENTIFIER ASSIGN subquery
+    ;
+
 mmrCommand
     :  MMR (queryVector=mmrQueryVectorParams)? ON diversifyField=qualifiedName MMR_LIMIT limitValue=integerValue commandNamedParameters
     ;
@@ -437,6 +461,16 @@ mmrQueryVectorParams
     | primaryExpression                   # mmrQueryVectorExpression
     ;
 
+// The field list is optional in the grammar only so the command can report its own errors: an absent list and a
+// literal input both parse here and are rejected in the builder, where the message can name the actual problem.
 denseVectorCommand
-    : DEV_DENSE_VECTOR qualifiedNames commandNamedParameters
+    : DENSE_VECTOR denseVectorNaming? qualifiedNames? commandNamedParameters
+    ;
+
+// `ON` closes the suffix clause instead of separating two operands, so it sits inside the optional
+// group: without it, `DENSE_VECTOR title, description` would have to spell a bare `ON`.
+denseVectorNaming
+    : targetField=qualifiedName ASSIGN                      # denseVectorTargetName
+    | suffixKeyword=identifier ASSIGN suffix=string ON      # denseVectorSuffix
+    | (targetField=qualifiedName ASSIGN)? literalInput=string  # denseVectorLiteralInput
     ;

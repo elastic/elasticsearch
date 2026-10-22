@@ -11,6 +11,7 @@ package org.elasticsearch.simdvec.internal.vectorization;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.lucene.store.IndexInputUtils;
+import org.elasticsearch.simdvec.BulkMask;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer.QuantEncoding;
 
 import java.io.IOException;
@@ -52,8 +53,8 @@ abstract sealed class StripedES940OSQVectorsScorer extends MemorySegmentES940OSQ
     ) {
         super(in, dimensions, dataLength, bulkSize);
         this.dotProduct = dotProduct;
-        this.queryBitScale = bitScale(encoding.queryBits());
-        this.indexBitScale = bitScale(encoding.indexBits());
+        this.queryBitScale = bitScale(encoding.bbqEncoding().queryBits());
+        this.indexBitScale = bitScale(encoding.bbqEncoding().dataBits());
     }
 
     /**
@@ -82,8 +83,8 @@ abstract sealed class StripedES940OSQVectorsScorer extends MemorySegmentES940OSQ
     }
 
     @Override
-    final boolean quantizeScoreBulkOffsets(byte[] q, int[] offsets, int offsetsCount, float[] scores, int count) throws IOException {
-        dotProduct.dotProductBulkOffsets(q, offsets, offsetsCount, scores, count);
+    final boolean quantizeScoreBulkMasked(byte[] q, int mask, float[] scores, int count) throws IOException {
+        dotProduct.dotProductBulkMasked(q, mask, scores, count);
         return true;
     }
 
@@ -113,7 +114,7 @@ abstract sealed class StripedES940OSQVectorsScorer extends MemorySegmentES940OSQ
     }
 
     @Override
-    final float scoreBulkOffsets(
+    final float scoreBulkMasked(
         byte[] q,
         float queryLowerInterval,
         float queryUpperInterval,
@@ -121,12 +122,11 @@ abstract sealed class StripedES940OSQVectorsScorer extends MemorySegmentES940OSQ
         float queryAdditionalCorrection,
         VectorSimilarityFunction similarityFunction,
         float centroidDp,
-        int[] offsets,
-        int offsetsCount,
+        int mask,
         float[] scores,
         int count
     ) throws IOException {
-        dotProduct.dotProductBulkOffsets(q, offsets, offsetsCount, scores, count);
+        dotProduct.dotProductBulkMasked(q, mask, scores, count);
         // corrections are applied across the whole block; the unscored entries are discarded below
         applyCorrections(
             queryLowerInterval,
@@ -139,9 +139,8 @@ abstract sealed class StripedES940OSQVectorsScorer extends MemorySegmentES940OSQ
             count
         );
         float maxScore = Float.NEGATIVE_INFINITY;
-        for (int i = 0, offsetIdx = 0; i < count; i++) {
-            if (offsetIdx < offsetsCount && offsets[offsetIdx] == i) {
-                offsetIdx++;
+        for (int i = 0; i < count; i++) {
+            if (BulkMask.isSelected(mask, i)) {
                 if (scores[i] > maxScore) {
                     maxScore = scores[i];
                 }
@@ -155,14 +154,7 @@ abstract sealed class StripedES940OSQVectorsScorer extends MemorySegmentES940OSQ
     private static final class PanamaImpl extends StripedES940OSQVectorsScorer {
 
         PanamaImpl(IndexInput in, QuantEncoding encoding, int dimensions, int dataLength, int bulkSize) {
-            super(
-                in,
-                encoding,
-                dimensions,
-                dataLength,
-                bulkSize,
-                PanamaBBQDotProduct.create(in, dimensions, encoding.indexBits(), encoding.queryBits())
-            );
+            super(in, encoding, dimensions, dataLength, bulkSize, PanamaBBQDotProduct.create(in, dimensions, encoding.bbqEncoding()));
         }
 
         @Override
@@ -197,14 +189,7 @@ abstract sealed class StripedES940OSQVectorsScorer extends MemorySegmentES940OSQ
         private MemorySegment cachedScoresSegment;
 
         NativeImpl(IndexInput in, QuantEncoding encoding, int dimensions, int dataLength, int bulkSize) {
-            super(
-                in,
-                encoding,
-                dimensions,
-                dataLength,
-                bulkSize,
-                NativeBBQDotProduct.create(in, dimensions, encoding.indexBits(), encoding.queryBits())
-            );
+            super(in, encoding, dimensions, dataLength, bulkSize, NativeBBQDotProduct.create(in, dimensions, encoding.bbqEncoding()));
         }
 
         private MemorySegment scoresSegment(float[] scores) {

@@ -23,6 +23,7 @@ import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.time.Duration;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -37,11 +38,14 @@ public class ReindexFromRemote7xIT extends AbstractReindexIT {
 
     private static final int DOCS = 10;
 
-    @ClassRule
-    public static OldElasticsearchContainer es79 = new OldElasticsearchContainer("7.9.3", repoLocation("7.9.3"));
+    // Two containers start sequentially; cap each pull at 5 minutes so both fit within the suite timeout.
+    private static final Duration PULL_TIMEOUT = Duration.ofMinutes(5);
 
     @ClassRule
-    public static OldElasticsearchContainer es710 = new OldElasticsearchContainer("7.10.0", repoLocation("7.10.0"));
+    public static OldElasticsearchContainer es79 = new OldElasticsearchContainer("7.9.3", repoLocation("7.9.3"), PULL_TIMEOUT);
+
+    @ClassRule
+    public static OldElasticsearchContainer es710 = new OldElasticsearchContainer("7.10.0", repoLocation("7.10.0"), PULL_TIMEOUT);
 
     /**
      * The old-ES fixture doesn't use its snapshot repository directory for these tests, but the

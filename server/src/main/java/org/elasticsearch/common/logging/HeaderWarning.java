@@ -17,6 +17,8 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.BitSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
@@ -469,6 +471,25 @@ public class HeaderWarning {
             }
         }
         return "";
+    }
+
+    /**
+     * Reads and consumes all {@code Warning} response headers from {@code threadContext},
+     * parses each RFC 7234 header value, and returns the decoded warning strings.
+     * Used as a backwards-compatibility fallback when reading responses from nodes
+     * that propagate warnings via HTTP headers rather than in the serialized stream.
+     */
+    public static Set<String> readWarningsFromThreadContext(ThreadContext threadContext) {
+        List<String> headerWarnings = threadContext.takeResponseHeaders("Warning");
+        if (headerWarnings.isEmpty()) {
+            return Set.of();
+        }
+        LinkedHashSet<String> parsed = new LinkedHashSet<>(headerWarnings.size());
+        for (String header : headerWarnings) {
+            String extracted = extractWarningValueFromWarningHeader(header, false);
+            parsed.add(decodeAndUnescape(extracted));
+        }
+        return parsed;
     }
 
     public static void addWarning(String message, Object... params) {

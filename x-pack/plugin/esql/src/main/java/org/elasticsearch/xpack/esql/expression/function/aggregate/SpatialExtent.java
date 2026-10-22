@@ -85,11 +85,6 @@ public final class SpatialExtent extends SpatialAggregateFunction implements ToA
     }
 
     @Override
-    public SpatialExtent withFilter(Expression filter) {
-        return new SpatialExtent(source(), field(), filter, window(), fieldExtractPreference);
-    }
-
-    @Override
     public SpatialExtent withFieldExtractPreference(FieldExtractPreference preference) {
         return new SpatialExtent(source(), field(), filter(), window(), preference);
     }

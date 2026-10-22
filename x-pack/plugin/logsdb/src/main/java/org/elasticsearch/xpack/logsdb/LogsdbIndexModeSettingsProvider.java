@@ -73,6 +73,17 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         new String[0]
     );
 
+    private static final Set<String> AFFECTED_SETTINGS = Set.of(
+        IndexSettings.MODE.getKey(),
+        IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(),
+        IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.getKey(),
+        IndexSettings.LOGSDB_SORT_ON_HOST_NAME.getKey(),
+        IndexSettings.LOGSDB_SORT_ON_MESSAGE_TEMPLATE.getKey(),
+        IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(),
+        INDEX_ROUTING_PATH.getKey(),
+        PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING.getKey()
+    );
+
     private final LogsdbLicenseService licenseService;
     private final SetOnce<CheckedFunction<IndexMetadata, MapperService, IOException>> mapperServiceFactory = new SetOnce<>();
     private final SetOnce<Supplier<IndexVersion>> createdIndexVersion = new SetOnce<>();
@@ -115,6 +126,11 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         this.minNodeVersion.set(minNodeVersion);
         this.supportFallbackToStoredSource.set(supportFallbackToStoredSource);
         this.supportFallbackLogsdbRouting.set(supportFallbackLogsdbRouting);
+    }
+
+    @Override
+    public Set<String> affectedSettings() {
+        return AFFECTED_SETTINGS;
     }
 
     @Override
@@ -191,22 +207,10 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
                 if (resolvedIndexMode == null) {
                     resolvedIndexMode = templateIndexMode;
                 }
-                if (resolvedIndexMode == IndexMode.VECTORDB_COLUMNAR) {
-                    // This mode supports synthetic source only, so there is no source mode to fall back to. Templates may
-                    // still declare the mode; the license is enforced when an index is created from them.
-                    if (isTemplateValidation == false) {
-                        throw new IllegalArgumentException(
-                            "index mode ["
-                                + IndexMode.VECTORDB_COLUMNAR.getName()
-                                + "] requires synthetic source, which is not available with the current license"
-                        );
-                    }
-                } else {
-                    additionalSettings.put(
-                        IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(),
-                        fallbackSourceMode(resolvedIndexMode).toString()
-                    );
-                }
+                additionalSettings.put(
+                    IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(),
+                    fallbackSourceMode(resolvedIndexMode).toString()
+                );
             }
         }
 

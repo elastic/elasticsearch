@@ -29,7 +29,6 @@ import org.elasticsearch.compute.operator.AbstractPageMappingToIteratorOperator;
 import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverStatus;
-import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.GroupedLimitOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.LimitOperator;
@@ -794,28 +793,25 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     }
 
     /**
-     * Graceful shutdown waits for:
+     * Graceful shutdown waits for the tasks that keep an ES|QL query's work alive on a node:
      * <ul>
-     *     <li>the async coordinator tasks, which outlive the HTTP request that started them and only complete once the result is
-     *     stored;</li>
-     *     <li>the coordinator tasks started by transport-level callers, which aren't bound to an HTTP connection;</li>
-     *     <li>the compute, exchange and lookup tasks a node runs for a local coordinator or on behalf of one on another node.</li>
+     *     <li>on the coordinator, the async query tasks, which outlive the HTTP request that started them and only complete once the
+     *     result is stored;</li>
+     *     <li>on the nodes holding the queried shards, the data node tasks;</li>
+     *     <li>on the node of a remote cluster that a cross-cluster query enters through, the cluster tasks;</li>
+     *     <li>on the nodes holding the lookup or enrich shards, the lookup tasks.</li>
      * </ul>
-     * {@link EsqlStreamQueryAction} is omitted since it is bound to its HTTP connection, which is already drained.
+     * The compute and exchange tasks are not listed: they only run while one of the above is still running, since those tasks wait
+     * for their drivers and for their exchange sinks to be fully consumed before completing. The synchronous {@link EsqlQueryAction}
+     * and {@link EsqlStreamQueryAction} tasks are not listed either: they are only started by REST requests on the coordinator and
+     * complete within them, so the HTTP server's shutdown already waits for them.
      */
     @Override
     public Collection<String> getActionsToAwaitOnShutdown() {
         return List.of(
-            EsqlQueryAction.NAME,
             EsqlQueryAction.NAME + AsyncTaskManagementService.ASYNC_ACTION_SUFFIX,
             ComputeService.DATA_ACTION_NAME,
             ComputeService.CLUSTER_ACTION_NAME,
-            DriverTaskRunner.ACTION_NAME,
-            ExchangeService.OPEN_EXCHANGE_ACTION_NAME,
-            ExchangeService.OPEN_EXCHANGE_ACTION_NAME_FOR_CCS,
-            ExchangeService.EXCHANGE_ACTION_NAME,
-            ExchangeService.EXCHANGE_ACTION_NAME_FOR_CCS,
-            ExchangeService.BATCH_EXCHANGE_STATUS_ACTION_NAME,
             EnrichLookupService.LOOKUP_ACTION_NAME,
             LookupFromIndexService.LOOKUP_ACTION_NAME
         );

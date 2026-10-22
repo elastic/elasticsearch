@@ -34,6 +34,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -764,11 +765,11 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
 
     private static Source loadColumnarStoredSource(MapperService mapperService, LeafReaderContext leaf, SourceFilter filter)
         throws IOException {
-        SourceLoader loader = mapperService.mappingLookup().newSourceLoader(filter, SourceFieldMetrics.NOOP, null);
+        SourceLoader loader = mapperService.mappingLookup().newSourceLoader(filter, SourceFieldMetrics.NOOP);
         int[] docIds = new int[] { 0 };
         LeafStoredFieldLoader sfLoader = StoredFieldLoader.create(false, loader.requiredStoredFields()).getLoader(leaf, docIds);
         sfLoader.advanceTo(0);
-        return loader.leaf(leaf, docIds).source(sfLoader, 0);
+        return loader.leaf(leaf.reader(), docIds).source(sfLoader, 0);
     }
 
     /**

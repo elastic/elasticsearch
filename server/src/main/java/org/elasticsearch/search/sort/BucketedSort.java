@@ -124,6 +124,13 @@ public abstract class BucketedSort implements Releasable {
      * doc id as extra data and implements this interface over it. Sorts whose extra data does not implement it behave exactly
      * as before.
      * </p>
+     * <p>
+     * This only decides between entries that are already kept. A document that arrives with a value equal to the worst kept one
+     * is never better than it, whatever its doc id, because {@link Leaf#collect} checks it against the worst entry on the value
+     * alone. That gives the lower doc id the win among equal values only if documents are collected in increasing doc id order,
+     * which is how a Lucene {@code TopFieldCollector} is fed too, and which a caller relying on this has to guarantee. Documents
+     * collected out of doc id order can keep a later document over an earlier one with the same value.
+     * </p>
      */
     public interface TieBreakingExtraData extends ExtraData {
         /**

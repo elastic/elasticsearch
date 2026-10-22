@@ -12,6 +12,7 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Scorable;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
@@ -32,6 +33,7 @@ import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.search.sort.SortFieldValidation;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.sort.SortValue;
 
@@ -53,8 +55,14 @@ import java.util.function.Function;
  * exact number of hits of the bucket; and, with {@code track_scores}, the highest score of any document in the bucket.
  * </p>
  * <p>
- * Only a single sort on a numeric field is supported. {@link #tryCreate} returns {@code null} for anything else, and
- * {@link TopHitsAggregator} keeps using the Lucene collectors for it.
+ * The lower doc id winning among equal sort values relies on the documents being collected in increasing doc id order, which an
+ * aggregator is fed in, segment after segment, and which a deferred collection keeps when it replays them. See
+ * {@link BucketedSort.TieBreakingExtraData}.
+ * </p>
+ * <p>
+ * Only a single sort on a numeric field is supported, and only when the values it reports are of the type the sort field of the
+ * shard result declares. {@link #tryCreate} returns {@code null} for anything else, and {@link TopHitsAggregator} keeps using the
+ * Lucene collectors for it.
  * </p>
  */
 final class BucketedTopHits implements Releasable {
@@ -183,14 +191,18 @@ final class BucketedTopHits implements Releasable {
                 // support it, for example on a field that is not numeric, or on _doc.
                 return null;
             }
-            Function<SortValue, Object> rawValue = rawValue(sort);
-            if (rawValue == null) {
+            RawValues raw = rawValues(sort);
+            if (raw == null || raw.type() != SortFieldValidation.getType(subSearchContext.sort().sort.getSort()[0])) {
+                // The shard results are merged using the type each sort field declares, and the values have to be of that type. They
+                // are not always: int, short and byte fields in indices created before 9.28 declare a long sort, which the Lucene
+                // collectors fill with longs, while the sort built here is an int one and reports integers. Merging the two fails
+                // with a ClassCastException, so the Lucene collectors keep those.
                 return null;
             }
             hitCounts = bigArrays.newLongArray(1);
             boolean trackScores = subSearchContext.trackScores();
             maxScores = trackScores ? bigArrays.newFloatArray(1, false) : null;
-            BucketedTopHits result = new BucketedTopHits(bigArrays, sort, docIds, hitCounts, maxScores, rawValue);
+            BucketedTopHits result = new BucketedTopHits(bigArrays, sort, docIds, hitCounts, maxScores, raw.convert());
             success = true;
             return result;
         } finally {
@@ -201,29 +213,37 @@ final class BucketedTopHits implements Releasable {
     }
 
     /**
-     * How to turn a {@link SortValue} back into the raw value the Lucene comparator for the same sort holds in
-     * {@link FieldDoc#fields}, or {@code null} if the sort is not a numeric one. The shard results are merged with those raw
-     * values, so the type has to be the same: an {@link Integer} for int, short and byte fields, a {@link Long} for the other
-     * integral types and dates, a {@link Float} and a {@link Double}.
+     * The raw values a kind of {@link BucketedSort} reports: the type of Lucene sort they belong to, and how to turn a
+     * {@link SortValue} back into the raw value the Lucene comparator for the same sort holds in {@link FieldDoc#fields}.
      * <p>
-     * A {@code NaN} is the exception to a sort value having a number: {@link SortValue#from(double)} turns it into an empty
-     * value, which has none. The Lucene comparators sort it after every other value and report it as {@code NaN}, so it is
-     * turned back into one.
+     * The shard results are merged with those raw values, so they have to be of the type the comparator would have given: an
+     * {@link Integer} for int, short and byte fields, a {@link Long} for the other integral types and dates, a {@link Float} and
+     * a {@link Double}. A {@code NaN} is the exception to a sort value having a number: {@link SortValue#from(double)} turns it
+     * into an empty value, which has none. The Lucene comparators sort it after every other value and report it as {@code NaN},
+     * so it is turned back into one.
      * </p>
      */
+    private record RawValues(SortField.Type type, Function<SortValue, Object> convert) {}
+
+    /**
+     * The raw values of a {@link BucketedSort}, or {@code null} if it is not a numeric one.
+     */
     @Nullable
-    private static Function<SortValue, Object> rawValue(BucketedSort sort) {
+    private static RawValues rawValues(BucketedSort sort) {
         if (sort instanceof BucketedSort.ForLongs) {
-            return value -> value.numberValue().longValue();
+            return new RawValues(SortField.Type.LONG, value -> value.numberValue().longValue());
         }
         if (sort instanceof BucketedSort.ForInts) {
-            return value -> value.numberValue().intValue();
+            return new RawValues(SortField.Type.INT, value -> value.numberValue().intValue());
         }
         if (sort instanceof BucketedSort.ForDoubles) {
-            return value -> value.numberValue() == null ? Double.NaN : value.numberValue().doubleValue();
+            return new RawValues(
+                SortField.Type.DOUBLE,
+                value -> value.numberValue() == null ? Double.NaN : value.numberValue().doubleValue()
+            );
         }
         if (sort instanceof BucketedSort.ForFloats) {
-            return value -> value.numberValue() == null ? Float.NaN : value.numberValue().floatValue();
+            return new RawValues(SortField.Type.FLOAT, value -> value.numberValue() == null ? Float.NaN : value.numberValue().floatValue());
         }
         return null;
     }

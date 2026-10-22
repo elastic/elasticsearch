@@ -206,7 +206,11 @@ public final class SortFieldValidation {
         return type == SortField.Type.INT || type == SortField.Type.LONG || type == SortField.Type.FLOAT || type == SortField.Type.DOUBLE;
     }
 
-    private static SortField.Type getType(SortField sortField) {
+    /**
+     * The type of values a sort field compares, which is the type the values of the shard results have to be for them to be merged.
+     * A sort field that Lucene cannot describe on its own, like one built from a comparator source, is resolved through it.
+     */
+    public static SortField.Type getType(SortField sortField) {
         if (sortField instanceof SortedNumericSortField sf) {
             return sf.getNumericType();
         } else if (sortField instanceof SortedSetSortField) {

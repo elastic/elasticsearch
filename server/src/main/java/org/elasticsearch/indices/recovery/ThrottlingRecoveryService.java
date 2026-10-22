@@ -122,6 +122,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         clusterService.addListener(this);
         DataNodeRecoveryThrottlingSettings.watchIncomingRecoveryLimits(
             clusterService.getClusterSettings(),
+            clusterService.getSettings(),
             maxHeap,
             this::applyIncomingRecoveryLimits
         );

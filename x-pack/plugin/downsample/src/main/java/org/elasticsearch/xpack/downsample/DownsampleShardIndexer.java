@@ -16,6 +16,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor2;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -67,7 +68,6 @@ import org.elasticsearch.xpack.core.exponentialhistogram.fielddata.ExponentialHi
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -202,11 +202,13 @@ class DownsampleShardIndexer {
 
         TimeValue duration = TimeValue.timeValueMillis(client.threadPool().relativeTimeInMillis() - startTime);
         logger.info(
-            "Shard [{}] successfully sent [{}], received source doc [{}], indexed downsampled doc [{}], failed [{}], took [{}]",
+            "Shard [{}] successfully sent [{}], received source doc [{}], indexed downsampled doc [{}], "
+                + "skipped already indexed [{}], failed [{}], took [{}]",
             indexShard.shardId(),
             task.getNumReceived(),
             task.getNumSent(),
             task.getNumIndexed(),
+            task.getNumSkippedAlreadyIndexed(),
             task.getNumFailed(),
             duration
         );
@@ -320,20 +322,47 @@ class DownsampleShardIndexer {
                 long bulkIngestTookMillis = response.getIngestTookInMillis() >= 0 ? response.getIngestTookInMillis() : 0;
                 long bulkTookMillis = response.getTook().getMillis();
                 task.addNumIndexed(request.numberOfActions());
+                List<BulkItemResponse> failedItems = List.of();
+                if (response.hasFailures()) {
+                    // Version conflicts are expected when a task resumes after an interruption, the documents are created with op type
+                    // CREATE, so the bucket that were already indexed by the previous run are rejected. They are skipped rather
+                    // than counted as failures.
+                    int conflicts = 0;
+                    for (BulkItemResponse item : response.getItems()) {
+                        if (item.isFailed() == false) {
+                            continue;
+                        }
+                        if (item.getFailure().getStatus() == RestStatus.CONFLICT) {
+                            conflicts++;
+                        } else {
+                            if (failedItems.isEmpty()) {
+                                failedItems = new ArrayList<>();
+                            }
+                            failedItems.add(item);
+                        }
+                    }
+                    if (conflicts > 0) {
+                        task.addNumSkippedAlreadyIndexed(conflicts);
+                        logger.debug(
+                            "Shard [{}] skipped [{}] downsampled documents that were already indexed",
+                            indexShard.shardId(),
+                            conflicts
+                        );
+                    }
+                }
                 task.setAfterBulkInfo(
                     new DownsampleAfterBulkInfo(
                         client.threadPool().absoluteTimeInMillis(),
                         executionId,
                         bulkIngestTookMillis,
                         bulkTookMillis,
-                        response.hasFailures(),
+                        failedItems.isEmpty() == false,
                         RestStatus.OK.getStatus()
                     )
                 );
                 task.updateBulkInfo(bulkIngestTookMillis, bulkTookMillis);
 
-                if (response.hasFailures()) {
-                    List<BulkItemResponse> failedItems = Arrays.stream(response.getItems()).filter(BulkItemResponse::isFailed).toList();
+                if (failedItems.isEmpty() == false) {
                     task.addNumFailed(failedItems.size());
 
                     Map<String, String> failures = failedItems.stream()
@@ -716,6 +745,9 @@ class DownsampleShardIndexer {
 
         private void indexBucket(XContentBuilder doc) {
             IndexRequestBuilder request = client.prepareIndex(downsampleIndex);
+            // The _id is derived from _tsid and timestamp. Use CREATE so that a bucket already indexed by a previous,
+            // interrupted run of this task is rejected with a version conflict instead of being indexed a second time.
+            request.setOpType(DocWriteRequest.OpType.CREATE);
             request.setSource(doc);
             if (logger.isTraceEnabled()) {
                 logger.trace("Indexing downsample doc: [{}]", Strings.toString(doc));

@@ -37,6 +37,7 @@ public class DownsampleShardStatusSerializingTests extends AbstractXContentSeria
         long lastSourceTimestamp = System.currentTimeMillis();
         long totalShardDocCount = randomLongBetween(500_000, 800_000);
         long numFailed = randomNonNegativeLong();
+        long numSkippedAlreadyIndexed = randomNonNegativeLong();
         long numIndexed = randomNonNegativeLong();
         long numSent = randomNonNegativeLong();
         long numReceived = randomNonNegativeLong();
@@ -50,6 +51,7 @@ public class DownsampleShardStatusSerializingTests extends AbstractXContentSeria
             numSent,
             numIndexed,
             numFailed,
+            numSkippedAlreadyIndexed,
             totalShardDocCount,
             lastSourceTimestamp,
             lastTargetTimestamp,

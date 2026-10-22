@@ -1033,7 +1033,8 @@ class KibanaOwnedReservedRoleDescriptors {
                     "winlogbeat-*"
                 )
                 .privileges("read")
-                .build()
+                .build(),
+            RoleDescriptor.IndicesPrivileges.builder().indices("metrics-endpoint.metadata_current_*").privileges("read").build()
         );
     }
 

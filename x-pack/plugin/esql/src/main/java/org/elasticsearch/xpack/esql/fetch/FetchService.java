@@ -101,11 +101,12 @@ public final class FetchService {
             request,
             parentTask,
             TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(
-                listener,
-                in -> new FetchResponse(new BlockStreamInput(in, blockFactory), threadContext),
-                transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
-            )
+            new ActionListenerResponseHandler<>(listener, in -> {
+                // the stream keeps a reference to the last block of nulls it read, which closing it releases
+                try (BlockStreamInput blocks = new BlockStreamInput(in, blockFactory)) {
+                    return new FetchResponse(blocks, threadContext);
+                }
+            }, transportService.getThreadPool().executor(ThreadPool.Names.SEARCH))
         );
     }
 

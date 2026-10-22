@@ -166,10 +166,11 @@ public class FetchActionIT extends AbstractEsqlIntegTestCase {
                 } finally {
                     pages.forEach(Page::releaseBlocks);
                 }
-            }),
-                in -> new FetchResponse(new BlockStreamInput(in, blockFactory), transportService.getThreadPool().getThreadContext()),
-                EsExecutors.DIRECT_EXECUTOR_SERVICE
-            )
+            }), in -> {
+                try (BlockStreamInput blocks = new BlockStreamInput(in, blockFactory)) {
+                    return new FetchResponse(blocks, transportService.getThreadPool().getThreadContext());
+                }
+            }, EsExecutors.DIRECT_EXECUTOR_SERVICE)
         );
         Tuple<List<FetchResponse.ShardResult>, List<Tuple<String, Long>>> fetched = future.actionGet(TimeValue.timeValueSeconds(30));
 

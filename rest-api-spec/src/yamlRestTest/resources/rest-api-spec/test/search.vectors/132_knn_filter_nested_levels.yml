@@ -359,3 +359,24 @@ setup:
   - match: { hits.hits.1._id: "2" }
   - length: { hits.hits.1.inner_hits.inner.hits.hits: 1 }
   - match: { hits.hits.1.inner_hits.inner.hits.hits.0._source.cid: "c4" }
+
+---
+"Filters whose level is not resolved":
+
+  # A runtime field has no known level. Inside nested queries it is evaluated on the parent of the enclosing level, the
+  # chapters, where genre has no value. Book 2 would match if it were evaluated on the books.
+  - do:
+      search:
+        index: books
+        body: {"_source": false, "query": {"nested": {"path": "chapters", "query": {"nested": {"path": "chapters.paragraphs", "query": {"knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "filter": {"term": {"genre_length": 5}}}}}}}}, "runtime_mappings": {"genre_length": {"type": "long", "script": "if (doc['genre'].size() > 0) { emit(doc['genre'].value.length()) }"}}}
+
+  - match: { hits.total.value: 0 }
+
+  # A cross_fields multi_match over several levels cannot be split per level, and neither can combined_fields. It is
+  # evaluated on the books, where chapters.language has no value. Book 2 would match if it were split.
+  - do:
+      search:
+        index: books
+        body: {"_source": false, "knn": {"field": "chapters.paragraphs.vector", "query_vector": [0, 0], "k": 10, "filter": {"multi_match": {"query": "novel fr", "type": "cross_fields", "operator": "and", "fields": ["genre", "chapters.language"]}}}}
+
+  - match: { hits.total.value: 0 }

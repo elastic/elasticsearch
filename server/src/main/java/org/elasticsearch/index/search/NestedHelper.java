@@ -185,8 +185,9 @@ public final class NestedHelper {
      * ancestor per level.
      * <p>
      * The level of scripts, runtime fields, metadata fields and fields copied by {@code include_in_parent} or
-     * {@code include_in_root} is unknown. Such filters are joined from {@code unknownLevelParentPath} when
-     * {@link #mightMatchNonNestedDocs} reports that they might match documents outside {@code nestedPath}.
+     * {@code include_in_root} is unknown. A clause of unknown level is evaluated with its siblings when they read a single
+     * level. Otherwise it is joined from {@code unknownLevelParentPath} when {@link #mightMatchNonNestedDocs} reports that
+     * it might match documents outside {@code nestedPath}.
      *
      * @param nestedPath             the nested level of the documents to select
      * @param unknownLevelParentPath the level filters of unknown level are joined from, {@code null} for the root

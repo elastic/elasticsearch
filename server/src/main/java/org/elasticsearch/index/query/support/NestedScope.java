@@ -51,10 +51,14 @@ public final class NestedScope {
     /**
      * Returns the innermost enclosing level that is an ancestor of {@code path}, or {@code null} for the root. The
      * enclosing levels are not always ancestors, for instance for a nested query in a knn filter on another object.
+     * A {@code null} level, pushed by a {@code reverse_nested} aggregation to the root, makes the root the current level.
      */
     @Nullable
     public NestedObjectMapper nearestAncestorOf(String path) {
         for (NestedObjectMapper level : levelStack) {
+            if (level == null) {
+                return null;
+            }
             if (path.startsWith(level.fullPath() + ".")) {
                 return level;
             }

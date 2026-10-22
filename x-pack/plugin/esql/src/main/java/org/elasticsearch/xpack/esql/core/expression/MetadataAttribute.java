@@ -172,6 +172,11 @@ public final class MetadataAttribute extends TypedAttribute {
     }
 
     @Override
+    public boolean isInternal() {
+        return true;
+    }
+
+    @Override
     protected NodeInfo<? extends Expression> info() {
         return NodeInfo.create(this, MetadataAttribute::new, name(), dataType(), nullable(), id(), synthetic(), searchable);
     }

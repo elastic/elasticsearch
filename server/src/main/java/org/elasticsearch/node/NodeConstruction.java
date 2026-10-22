@@ -1421,6 +1421,7 @@ class NodeConstruction {
                 throttlingRecoveryService,
                 threadPool.relativeTimeInMillisSupplier(),
                 clusterService.getClusterSettings(),
+                clusterService.getSettings(),
                 JvmInfo.jvmInfo().getMem().getHeapMax()
             );
             recoverySchedulingListeners.addListener(recoveryMetricsCollector);

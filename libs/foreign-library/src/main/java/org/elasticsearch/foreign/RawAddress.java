@@ -21,4 +21,5 @@ import java.lang.foreign.MemorySegment;
  */
 @Retention(RetentionPolicy.SOURCE)
 @Target(ElementType.PARAMETER)
-public @interface RawAddress {}
+public @interface RawAddress {
+}

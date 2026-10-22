@@ -78,6 +78,13 @@ public class LinkerHelper {
     }
 
     /**
+     * Asserts that a segment passed to a non-critical binding is native.
+     */
+    public static void assertNative(MemorySegment segment) {
+        assert segment.isNative() : "non-critical bindings require native memory segments";
+    }
+
+    /**
      * Shared capture-state buffer for {@code @CaptureSystemError} calls. A single segment is enough on
      * any platform: {@link Linker.Option#captureStateLayout()} spans every capture state the platform
      * supports, and only one system-error mechanism ({@code errno} on POSIX, {@code GetLastError} on

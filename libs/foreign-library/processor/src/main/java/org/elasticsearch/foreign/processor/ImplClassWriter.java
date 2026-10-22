@@ -135,6 +135,7 @@ class ImplClassWriter {
     private static final MethodTypeDesc MTD_unsupportedFallback = MethodTypeDesc.of(CD_MethodHandle, CD_MethodHandle, CD_String);
     private static final MethodTypeDesc MTD_LinkerHelper_readString = MethodTypeDesc.of(CD_String, CD_MemorySegment);
     private static final MethodTypeDesc MTD_LinkerHelper_rawAddress = MethodTypeDesc.of(CD_long, CD_MemorySegment);
+    private static final MethodTypeDesc MTD_LinkerHelper_assertNative = MethodTypeDesc.of(CD_void, CD_MemorySegment);
     private static final MethodTypeDesc MTD_Reference_reachabilityFence = MethodTypeDesc.of(CD_void, CD_Object);
     private static final MethodTypeDesc MTD_Arena_ofConfined = MethodTypeDesc.of(CD_Arena);
     private static final MethodTypeDesc MTD_Arena_close = MethodTypeDesc.of(CD_void);
@@ -868,7 +869,13 @@ class ImplClassWriter {
                     marshaledSlot++;
                     slot++;
                 } else {
-                    slot += emitLoadParam(tryBlock, paramType, slot, nm.rawAddressParamIndices().contains(paramIndex));
+                    slot += emitLoadParam(
+                        tryBlock,
+                        paramType,
+                        slot,
+                        nm.rawAddressParamIndices().contains(paramIndex),
+                        nm.isCritical() == false
+                    );
                 }
                 paramIndex++;
             }
@@ -942,7 +949,7 @@ class ImplClassWriter {
                 if (t == NativeType.UPCALL) {
                     tryBlock.aload(stubSlots.get(i));
                 } else {
-                    emitLoadParam(tryBlock, t, slots[i]);
+                    emitLoadParam(tryBlock, t, slots[i], false, nm.isCritical() == false);
                 }
             }
             tryBlock.invokevirtual(CD_MethodHandle, "invokeExact", buildInvokeExactDesc(nm));
@@ -993,7 +1000,7 @@ class ImplClassWriter {
         int slot = 1;
         for (int i = 0; i < nm.paramTypes().size(); i++) {
             NativeType paramType = nm.paramTypes().get(i);
-            slot += emitLoadParam(cb, paramType, slot, nm.rawAddressParamIndices().contains(i));
+            slot += emitLoadParam(cb, paramType, slot, nm.rawAddressParamIndices().contains(i), nm.isCritical() == false);
         }
 
         cb.invokevirtual(CD_MethodHandle, "invokeExact", buildInvokeExactDesc(nm));
@@ -1011,11 +1018,7 @@ class ImplClassWriter {
      * Loads a single parameter onto the stack. Returns the number of local-variable slots consumed
      * (2 for {@code long}/{@code double}, 1 for everything else).
      */
-    private static int emitLoadParam(CodeBuilder cb, NativeType paramType, int slot) {
-        return emitLoadParam(cb, paramType, slot, false);
-    }
-
-    private static int emitLoadParam(CodeBuilder cb, NativeType paramType, int slot, boolean rawAddress) {
+    private static int emitLoadParam(CodeBuilder cb, NativeType paramType, int slot, boolean rawAddress, boolean assertNative) {
         if (rawAddress) {
             assert paramType == NativeType.ADDRESS : "@RawAddress parameter must be a MemorySegment";
             cb.aload(slot);
@@ -1027,7 +1030,13 @@ class ImplClassWriter {
             case LONG -> cb.lload(slot);
             case FLOAT -> cb.fload(slot);
             case DOUBLE -> cb.dload(slot);
-            case ADDRESS -> cb.aload(slot);
+            case ADDRESS -> {
+                if (assertNative) {
+                    cb.aload(slot);
+                    cb.invokestatic(CD_LinkerHelper, "assertNative", MTD_LinkerHelper_assertNative);
+                }
+                cb.aload(slot);
+            }
             case ADDRESSABLE -> {
                 // Convert Addressable -> long: null becomes 0L, otherwise call segment().address().
                 // Cast to Addressable first so the JVM verifier accepts the invokeinterface regardless

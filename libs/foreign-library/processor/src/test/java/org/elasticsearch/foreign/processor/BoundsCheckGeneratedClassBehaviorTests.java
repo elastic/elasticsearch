@@ -69,6 +69,29 @@ public class BoundsCheckGeneratedClassBehaviorTests extends ProcessorTestCase {
         }
     }
 
+    public void testNonCriticalBindingRequiresNativeSegment() throws Throwable {
+        LoadedLibrary lib = loadLibrary("test.MemCmpLib", """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            @LibrarySpecification
+            public interface MemCmpLib {
+                @Function("memcmp")
+                int memcmp(MemorySegment a, MemorySegment b, long n);
+            }
+            """);
+
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment nativeSegment = fill(arena.allocate(8));
+            MemorySegment other = fill(arena.allocate(8));
+            assertEquals(0, (int) lib.call("memcmp", nativeSegment, other, 8L));
+
+            MemorySegment heapSegment = MemorySegment.ofArray(new byte[8]);
+            lib.expectThrows(AssertionError.class, "memcmp", heapSegment, other, 8L);
+        }
+    }
+
     /**
      * Proves the emitted {@code Objects.checkFromIndexSize} call really does throw on an undersized
      * segment, and really does let a correctly-sized call through to the native function.

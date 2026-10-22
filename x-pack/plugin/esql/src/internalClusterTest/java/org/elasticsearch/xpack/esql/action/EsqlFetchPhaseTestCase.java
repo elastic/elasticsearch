@@ -316,6 +316,41 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
         assertFetchedOnly(run, "source_payload");
     }
 
+    /**
+     * A column without a value in any fetched document comes back from its node as a block of nulls. The coordinator
+     * releases that block with the rest of the response, so its breaker returns to zero.
+     */
+    public void testFetchesAColumnWithoutValuesForTheWinners() {
+        String index = indexName + "_sparse";
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(indexSettings(4, 0))
+                .setMapping("unique_sort", "type=long", "payload", "type=keyword", "sparse", "type=keyword")
+        );
+        BulkRequestBuilder losers = client().prepareBulk();
+        for (int i = 0; i < 32; i++) {
+            losers.add(prepareIndex(index).setSource("unique_sort", i, "payload", "payload-" + i, "sparse", "sparse-" + i));
+        }
+        losers.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        // the winners get segments of their own, where sparse has no values, so every page of theirs loads it as a block of nulls
+        BulkRequestBuilder winners = client().prepareBulk();
+        for (int i = 32; i < 64; i++) {
+            winners.add(prepareIndex(index).setSource("unique_sort", i, "payload", "payload-" + i));
+        }
+        winners.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+        // the 32 winners span every shard, so on several nodes some come from a node other than the coordinator
+        Run run = runBoth("FROM " + index + " | SORT unique_sort DESC | LIMIT 32 | KEEP unique_sort, payload, sparse");
+        List<List<Object>> expected = new ArrayList<>();
+        for (long i = 63; i >= 32; i--) {
+            expected.add(Arrays.asList(i, "payload-" + i, null));
+        }
+        assertThat(run.rows(), equalTo(expected));
+        assertFetched(run, 32);
+        assertFetchedOnly(run, "payload");
+        ensureBlocksReleased();
+    }
+
     public void testAnExpressionAfterTheCutReadsAFetchedColumn() {
         Run run = runBoth(
             "FROM "

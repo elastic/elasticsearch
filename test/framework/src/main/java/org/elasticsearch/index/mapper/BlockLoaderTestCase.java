@@ -272,7 +272,6 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
             new TestContext(false, false)
         );
 
-        decorateMappingWithRequiredFields(mapping);
         var settings = getSettingsForParams();
         var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
         runner.mapperService(createMapperService(settings.build(), mappingXContent));
@@ -337,8 +336,6 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
             testContext = new TestContext(true, false);
         }
 
-        decorateMappingWithRequiredFields(mapping);
-
         var settings = getSettingsForParams();
         var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
         runner.mapperService(createMapperService(settings.build(), mappingXContent));
@@ -363,20 +360,6 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
             document.putIfAbsent("@timestamp", randomMillisUpToYear9999());
         }
         return document;
-    }
-
-    protected void decorateMappingWithRequiredFields(Mapping mapping) {
-        IndexMode indexMode = params.indexMode;
-        decorateMappingWithRequiredFields(mapping, indexMode);
-    }
-
-    @SuppressWarnings("unchecked")
-    public static void decorateMappingWithRequiredFields(Mapping mapping, IndexMode indexMode) {
-        if (indexMode == IndexMode.LOGSDB) {
-            var docMapping = (Map<String, Object>) mapping.raw().get("_doc");
-            var mappingProperties = (Map<String, Object>) docMapping.get("properties");
-            mappingProperties.putIfAbsent("@timestamp", Map.of("type", "date"));
-        }
     }
 
     protected boolean supportsMultiField() {
@@ -455,8 +438,6 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         var mapping = new MappingGenerator(specification).generate(template);
         @SuppressWarnings("unchecked")
         var fieldMapping = (Map<String, Object>) ((Map<String, Object>) mapping.lookup().get("parent").get("fields")).get("mf");
-
-        decorateMappingWithRequiredFields(mapping);
 
         runner.document(decorateWithRequiredFields(new DocumentGenerator(specification).generate(template, mapping)));
 

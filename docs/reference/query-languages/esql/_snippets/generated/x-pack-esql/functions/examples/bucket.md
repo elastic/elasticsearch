@@ -223,6 +223,36 @@ FROM employees
 | [1955-01-21T00:00:00.000Z, 1955-08-20T00:00:00.000Z, 1955-08-28T00:00:00.000Z, 1955-10-04T00:00:00.000Z] | 1954-12-31T23:00:00.000Z | 4 |
 | [1957-04-04T00:00:00.000Z, 1957-05-23T00:00:00.000Z, 1957-05-25T00:00:00.000Z, 1957-12-03T00:00:00.000Z] | 1956-12-31T23:00:00.000Z | 4 |
 
+```{applies_to}
+stack: ga 9.6.0
+```
+
+By default, `BUCKET` only returns buckets that contain at least one row. Set the
+`include_empty_buckets` option to `true` to also return the empty buckets in the `from`..`to` range,
+filled with default aggregate values:
+
+```esql
+FROM employees
+| WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
+| STATS hires_per_month = COUNT(*), total_salary = SUM(salary)
+  BY month = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z", {"include_empty_buckets": true})
+```
+
+| hires_per_month:long | total_salary:long | month:date |
+| --- | --- | --- |
+| 0 | null | 1985-01-01T00:00:00.000Z |
+| 2 | 92610 | 1985-02-01T00:00:00.000Z |
+| 0 | null | 1985-03-01T00:00:00.000Z |
+| 0 | null | 1985-04-01T00:00:00.000Z |
+| 1 | 44817 | 1985-05-01T00:00:00.000Z |
+| 0 | null | 1985-06-01T00:00:00.000Z |
+| 1 | 62405 | 1985-07-01T00:00:00.000Z |
+| 0 | null | 1985-08-01T00:00:00.000Z |
+| 1 | 49095 | 1985-09-01T00:00:00.000Z |
+| 2 | 103064 | 1985-10-01T00:00:00.000Z |
+| 4 | 218159 | 1985-11-01T00:00:00.000Z |
+| 0 | null | 1985-12-01T00:00:00.000Z |
+
 `BUCKET` can also operate on `exponential_histogram` and `tdigest` fields. Instead of a single value, it
 returns the `double_range` buckets that hold values of the histogram, so a histogram spanning several buckets
 contributes a row to each of them. Pass the bucket as the second argument of

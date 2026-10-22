@@ -337,31 +337,32 @@ public final class RestResponse implements Releasable {
             if (shardFailures.length == 0) {
                 return;
             }
-            final DistinctShardFailures distinct = distinctShardFailures(shardFailures);
+            final DistinctShardFailures distinct = DistinctShardFailures.from(shardFailures);
             message.field("elasticsearch.error.shard_failure_count", shardFailures.length);
             message.field("elasticsearch.error.distinct_shard_failure_count", distinct.count());
             message.field("elasticsearch.error.shard_failures", distinct.reported());
         }
     }
 
-    private record DistinctShardFailures(int count, List<Map<String, Object>> reported) {}
+    private record DistinctShardFailures(int count, List<Map<String, Object>> reported) {
 
-    /**
-     * Identities are kept for every failure, but only the first {@link #MAX_REPORTED_SHARD_FAILURES} are rendered, so a search that
-     * failed on very many shards does not build a document it cannot log. {@link ExceptionsHelper#groupBy} is not used because it
-     * keys on the immediate cause, which hides a failure whose own deepest cause differs from another's behind a shared wrapper; the
-     * response body groups that way and keeps its existing semantics.
-     */
-    private static DistinctShardFailures distinctShardFailures(ShardSearchFailure[] shardFailures) {
-        final Set<ReportedCause> seen = new HashSet<>();
-        final List<Map<String, Object>> reported = new ArrayList<>(MAX_REPORTED_SHARD_FAILURES);
-        for (ShardSearchFailure failure : shardFailures) {
-            final ReportedCause cause = ReportedCause.from(failure);
-            if (seen.add(cause) && reported.size() < MAX_REPORTED_SHARD_FAILURES) {
-                reported.add(cause.fields(failure));
+        /**
+         * Identities are kept for every failure, but only the first {@link #MAX_REPORTED_SHARD_FAILURES} are rendered, so a search that
+         * failed on very many shards does not build a document it cannot log. {@link ExceptionsHelper#groupBy} is not used because it
+         * keys on the immediate cause, which hides a failure whose own deepest cause differs from another's behind a shared wrapper;
+         * the response body groups that way and keeps its existing semantics.
+         */
+        static DistinctShardFailures from(ShardSearchFailure[] shardFailures) {
+            final Set<ReportedCause> seen = new HashSet<>();
+            final List<Map<String, Object>> reported = new ArrayList<>(MAX_REPORTED_SHARD_FAILURES);
+            for (ShardSearchFailure failure : shardFailures) {
+                final ReportedCause cause = ReportedCause.from(failure);
+                if (seen.add(cause) && reported.size() < MAX_REPORTED_SHARD_FAILURES) {
+                    reported.add(cause.fields(failure));
+                }
             }
+            return new DistinctShardFailures(seen.size(), reported);
         }
-        return new DistinctShardFailures(seen.size(), reported);
     }
 
     /**

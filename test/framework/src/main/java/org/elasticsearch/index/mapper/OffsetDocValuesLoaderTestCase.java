@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -177,6 +178,61 @@ public abstract class OffsetDocValuesLoaderTestCase extends MapperServiceTestCas
                 expected = Strings.toString(b);
             }
             assertThat(syntheticSource(mapper, b -> b.field("field", values)), Matchers.equalTo(expected));
+        }
+    }
+
+    /**
+     * Like {@link #testOversizedOffsetArrayFallsBackToIgnoredSource()}, but the field is mapped dynamically by the very
+     * document that holds the oversized array, so the field's mapper is not part of the mapping lookup while the document
+     * is parsed. A dynamic template pins the field type under test, since plain dynamic mapping only produces a few types.
+     */
+    public void testOversizedOffsetArrayOnDynamicallyMappedFieldFallsBackToIgnoredSource() throws Exception {
+        // No nulls here, unlike testOversizedOffsetArrayFallsBackToIgnoredSource: a null array element of a field that was
+        // mapped dynamically by the current document never reaches the field mapper (see DocumentParser#parseNullValue), so
+        // no null slot is recorded. That loss predates the oversized-offsets fallback and is independent of it.
+        int numSlots = IndexWriter.MAX_TERM_LENGTH + between(1, 500);
+        List<Object> values = new ArrayList<>(numSlots);
+        List<Object> pool = new ArrayList<>();
+        for (int i = 0; i < numSlots; i++) {
+            if (randomInt(10) == 1 && pool.isEmpty() == false) {
+                values.add(randomFrom(pool));
+            } else {
+                Object value = randomValue();
+                pool.add(value);
+                values.add(value);
+            }
+        }
+
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc");
+        mapping.startArray("dynamic_templates");
+        mapping.startObject().startObject("field_template").field("match", "field").startObject("mapping");
+        minimalMapping(mapping);
+        mapping.endObject().endObject().endObject();
+        mapping.endArray();
+        mapping.endObject().endObject();
+
+        try (var mapperService = createMapperService(mapping); Directory directory = newDirectory()) {
+            var mapper = mapperService.documentMapper();
+
+            var doc = mapper.parse(source(b -> b.field("field", values)));
+            assertThat(doc.rootDoc().getFields("field.offsets"), Matchers.empty());
+            assertThat(doc.dynamicMappingsUpdate(), notNullValue());
+            merge(mapperService, doc.dynamicMappingsUpdate().string());
+
+            var indexWriter = indexWriterForSyntheticSource(directory);
+            doc.updateSeqID(0, 0);
+            doc.version().setLongValue(0);
+            indexWriter.addDocuments(doc.docs());
+            indexWriter.close();
+
+            String expected;
+            try (XContentBuilder b = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                b.startObject().field("field", values).endObject();
+                expected = Strings.toString(b);
+            }
+            try (DirectoryReader reader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
+                assertThat(syntheticSource(mapperService.documentMapper(), reader, 0), Matchers.equalTo(expected));
+            }
         }
     }
 

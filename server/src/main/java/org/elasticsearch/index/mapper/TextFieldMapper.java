@@ -65,6 +65,7 @@ import org.elasticsearch.columnar.string.DictionaryPolicy;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.columnar.string.StringColumnOptions;
 import org.elasticsearch.columnar.string.SummaryPolicy;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
@@ -1949,6 +1950,11 @@ public final class TextFieldMapper extends FieldMapper {
     private final IndexSettings indexSettings;
     // The companion ".offsets" field used to reconstruct array order and null positions in strict-columnar mode; null otherwise.
     private final String offsetsFieldName;
+    // The recorded value is the raw UTF-8 value; write it back like the offsets-aware loader does.
+    private static final CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> OFFSETS_FALLBACK = (b, v) -> {
+        var bytesRef = (BytesRef) v;
+        b.utf8Value(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+    };
     // The type the doc-values payload reports for a document that holds no value, or null when the field is not indexed;
     // see ColumnarBinaryDocValuesField#fieldType.
     private final FieldType payloadTypeWhenValueless;
@@ -2299,7 +2305,7 @@ public final class TextFieldMapper extends FieldMapper {
                     MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull(context.doc(), fieldType().name());
                 }
             } else if (recordOffsets) {
-                context.getOffSetContext().recordNull(offsetsFieldName, this);
+                context.getOffSetContext().recordNull(offsetsFieldName, OFFSETS_FALLBACK);
             }
             return;
         }
@@ -2349,7 +2355,7 @@ public final class TextFieldMapper extends FieldMapper {
         }
 
         if (recordOffsets) {
-            context.getOffSetContext().recordOffset(offsetsFieldName, new BytesRef(value), this);
+            context.getOffSetContext().recordOffset(offsetsFieldName, new BytesRef(value), OFFSETS_FALLBACK);
         }
 
         if (isIndexed() || fieldType.stored()) {
@@ -2383,12 +2389,6 @@ public final class TextFieldMapper extends FieldMapper {
                 context.doc().add(new StoredField(fallbackFieldName, value));
             }
         }
-    }
-
-    @Override
-    protected void writeRecordedOffsetValue(XContentBuilder builder, Comparable<?> value) throws IOException {
-        var bytesRef = (BytesRef) value;
-        builder.utf8Value(bytesRef.bytes, bytesRef.offset, bytesRef.length);
     }
 
     private void storeValueInFallbackField(String fallbackFieldName, BytesRef bytesRef, DocumentParserContext context) {

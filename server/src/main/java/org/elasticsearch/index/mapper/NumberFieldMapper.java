@@ -39,6 +39,7 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
@@ -2749,6 +2750,7 @@ public class NumberFieldMapper extends FieldMapper {
     private boolean allowMultipleValues;
     private final boolean isSyntheticSource;
     private final String offsetsFieldName;
+    private final CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> offsetsFallback;
     private final boolean indexTerms;
 
     private final IndexSettings indexSettings;
@@ -2785,6 +2787,8 @@ public class NumberFieldMapper extends FieldMapper {
         this.allowMultipleValues = builder.allowMultipleValues;
         this.isSyntheticSource = isSyntheticSource;
         this.offsetsFieldName = offsetsFieldName;
+        // The recorded value is the sortable long (doc values) representation, see parseCreateField.
+        this.offsetsFallback = (b, v) -> type.writeValue(b, (Long) v);
         this.indexSettings = builder.indexSettings;
         this.indexTerms = builder.indexTerms.getValue();
 
@@ -3022,18 +3026,12 @@ public class NumberFieldMapper extends FieldMapper {
                 // We cannot simply cast value to Comparable<> because we need to also capture the potential loss of precision that occurs
                 // when the value is stored into the doc values.
                 long sortableLongValue = type.toSortableLong(value);
-                context.getOffSetContext().recordOffset(offsetsFieldName, sortableLongValue, this);
+                context.getOffSetContext().recordOffset(offsetsFieldName, sortableLongValue, offsetsFallback);
             } else {
-                context.getOffSetContext().recordNull(offsetsFieldName, this);
+                context.getOffSetContext().recordNull(offsetsFieldName, offsetsFallback);
             }
         }
 
-    }
-
-    @Override
-    protected void writeRecordedOffsetValue(XContentBuilder builder, Comparable<?> value) throws IOException {
-        // The recorded value is the sortable long (doc values) representation, see parseCreateField.
-        type.writeValue(builder, (Long) value);
     }
 
     /**

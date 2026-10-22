@@ -13,6 +13,7 @@ import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.IndexVersion;
@@ -73,13 +74,20 @@ public class FieldArrayContext {
     }
 
     /**
-     * Like {@link #recordOffset(String, Comparable)}, but also registers the recording {@code mapper} so that, when the encoded
-     * offsets turn out too large for a sorted doc value, the array can be rebuilt via
-     * {@link FieldMapper#writeRecordedOffsetValue} and stored in {@code _ignored_source} instead of failing the document.
+     * Like {@link #recordOffset(String, Comparable)}, but also registers a writer that converts a recorded array-slot value
+     * back to a form suitable for {@code _source}, so that, when the encoded offsets turn out too large for a sorted doc
+     * value, the array can be rebuilt and stored in {@code _ignored_source} instead of failing the document. Since mappers
+     * record their doc-values representation (e.g. sortable longs for numbers), the writer must produce the same
+     * representation that the field's offsets-aware synthetic source loader produces, so that the {@code _ignored_source}
+     * fallback is indistinguishable from the native array reconstruction.
      */
-    public void recordOffset(String field, Comparable<?> value, FieldMapper mapper) {
+    public void recordOffset(
+        String field,
+        Comparable<?> value,
+        CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> fallbackWriter
+    ) {
         var offsets = offsetsFor(field);
-        offsets.fieldMapper = mapper;
+        offsets.fallbackWriter = fallbackWriter;
         offsets.recordOffset(value);
     }
 
@@ -88,12 +96,12 @@ public class FieldArrayContext {
     }
 
     /**
-     * Like {@link #recordNull(String)}, but also registers the recording {@code mapper}; see
-     * {@link #recordOffset(String, Comparable, FieldMapper)}.
+     * Like {@link #recordNull(String)}, but also registers a fallback writer; see
+     * {@link #recordOffset(String, Comparable, CheckedBiConsumer)}.
      */
-    public void recordNull(String field, FieldMapper mapper) {
+    public void recordNull(String field, CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> fallbackWriter) {
         var offsets = offsetsFor(field);
-        offsets.fieldMapper = mapper;
+        offsets.fallbackWriter = fallbackWriter;
         offsets.recordNull();
     }
 
@@ -144,16 +152,16 @@ public class FieldArrayContext {
         Offsets offsets,
         int encodedSize
     ) throws IOException {
-        FieldMapper fieldMapper = offsets.fieldMapper;
-        if (fieldMapper == null || context.canAddIgnoredField() == false) {
-            // Either no mapper registered a way to rebuild the recorded values, or _ignored_source is unavailable
+        CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> fallbackWriter = offsets.fallbackWriter;
+        if (fallbackWriter == null || context.canAddIgnoredField() == false) {
+            // Either the recording mapper registered no way to rebuild the recorded values, or _ignored_source is unavailable
             // (strict columnar mode or ignored source writes disabled).
             throw new IllegalArgumentException(
                 oversizedOffsetsMessage(offsetsFieldName, encodedSize) + " and the array cannot be preserved in [_ignored_source]"
             );
         }
-        String fieldName = fieldMapper.fullPath();
-        assert offsetsFieldName.equals(offsetsFieldName(fieldName)) : offsetsFieldName + " vs " + fieldName;
+        assert offsetsFieldName.endsWith(OFFSETS_FIELD_NAME_SUFFIX) : offsetsFieldName;
+        String fieldName = offsetsFieldName.substring(0, offsetsFieldName.length() - OFFSETS_FIELD_NAME_SUFFIX.length());
         if (context.isFieldIgnored(fieldName)) {
             // Some values of this field were not indexed (e.g. ignore_above or ignore_malformed) and so have no recorded slot;
             // they live in field-specific fallback storage that the _ignored_source entry would suppress at load time, so the
@@ -174,6 +182,7 @@ public class FieldArrayContext {
                 slotValues[slot] = valueEntry.getKey();
             }
         }
+        String leafName = leafName(context, fieldName);
         // Slots recorded via recordNull keep their null and are written as explicit null values below.
         try (XContentBuilder builder = XContentBuilder.builder(context.parser().contentType().xContent())) {
             builder.startArray();
@@ -181,15 +190,31 @@ public class FieldArrayContext {
                 if (slotValue == null) {
                     builder.nullValue();
                 } else {
-                    fieldMapper.writeRecordedOffsetValue(builder, slotValue);
+                    fallbackWriter.accept(builder, slotValue);
                 }
             }
             builder.endArray();
-            int parentOffset = fieldName.lastIndexOf(fieldMapper.leafName());
+            int parentOffset = fieldName.lastIndexOf(leafName);
             context.addIgnoredField(
                 new IgnoredSourceFieldMapper.NameValue(fieldName, parentOffset, XContentDataHelper.encodeXContentBuilder(builder), doc)
             );
         }
+    }
+
+    /**
+     * Resolves the leaf name of the field that recorded offsets, needed to compute the parent offset of the
+     * {@link IgnoredSourceFieldMapper.NameValue} entry. The leaf name cannot be parsed out of the full path, since under
+     * {@code subobjects: false} the leaf name itself can contain dots. The mapping lookup does not contain fields that were
+     * mapped dynamically while parsing the current document, so those are resolved through the context's dynamic mappers.
+     */
+    private static String leafName(DocumentParserContext context, String fieldName) {
+        var fieldMapper = context.mappingLookup().getMapper(fieldName);
+        if (fieldMapper != null) {
+            return fieldMapper.leafName();
+        }
+        var dynamicMappers = context.getDynamicMappers(fieldName);
+        assert dynamicMappers != null && dynamicMappers.isEmpty() == false : "no mapper for field [" + fieldName + "]";
+        return dynamicMappers.getFirst().leafName();
     }
 
     private static String oversizedOffsetsMessage(String offsetsFieldName, int encodedSize) {
@@ -349,9 +374,9 @@ public class FieldArrayContext {
      */
     protected static class Offsets {
 
-        // The mapper that records into this instance, when registered via the FieldMapper-aware record overloads. Used to
-        // rebuild the array for _ignored_source when the encoded offsets are too large for a sorted doc value.
-        private FieldMapper fieldMapper;
+        // Registered via the fallback-aware record overloads. Used to rebuild the array for _ignored_source when the
+        // encoded offsets are too large for a sorted doc value.
+        private CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> fallbackWriter;
 
         // Inline single-value state — non-null while no second value/null/empty-array marker has been recorded yet
         private Comparable<?> pendingValue;

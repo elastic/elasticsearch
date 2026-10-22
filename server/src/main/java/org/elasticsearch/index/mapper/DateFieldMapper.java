@@ -30,6 +30,7 @@ import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -1197,6 +1198,7 @@ public final class DateFieldMapper extends FieldMapper {
     private final boolean isDataStreamTimestampField;
     private final IndexSettings indexSettings;
     private final String offsetsFieldName;
+    private final CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> fallbackWriter;
 
     private DateFieldMapper(
         String leafName,
@@ -1231,6 +1233,8 @@ public final class DateFieldMapper extends FieldMapper {
         this.isDataStreamTimestampField = isDataStream && mappedFieldType.name().equals(DataStreamTimestampFieldMapper.DEFAULT_PATH);
         this.indexSettings = builder.indexSettings;
         this.offsetsFieldName = offsetsFieldName;
+        // The recorded value is the parsed timestamp in this field's resolution; format it like the offsets-aware loader does.
+        this.fallbackWriter = (b, v) -> b.value(fieldType().format((Long) v, fieldType().dateTimeFormatter()));
     }
 
     @Override
@@ -1365,7 +1369,7 @@ public final class DateFieldMapper extends FieldMapper {
         if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
             if (nullValue == null) {
                 if (FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue())) {
-                    context.getOffSetContext().recordNull(offsetsFieldName, this);
+                    context.getOffSetContext().recordNull(offsetsFieldName, fallbackWriter);
                 }
                 return;
             }
@@ -1408,14 +1412,8 @@ public final class DateFieldMapper extends FieldMapper {
 
         indexValue(context, timestamp);
         if (FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue())) {
-            context.getOffSetContext().recordOffset(offsetsFieldName, timestamp, this);
+            context.getOffSetContext().recordOffset(offsetsFieldName, timestamp, fallbackWriter);
         }
-    }
-
-    @Override
-    protected void writeRecordedOffsetValue(XContentBuilder builder, Comparable<?> value) throws IOException {
-        // The recorded value is the parsed timestamp in this field's resolution; format it like the offsets-aware loader does.
-        builder.value(fieldType().format((Long) value, fieldType().dateTimeFormatter()));
     }
 
     /*

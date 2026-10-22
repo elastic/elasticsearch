@@ -16,6 +16,7 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -755,6 +756,10 @@ public class UnsignedLongFieldMapper extends FieldMapper {
     private final MetricType metricType;
     private final IndexSettings indexSettings;
     private final String offsetsFieldName;
+    // The recorded value is the sortable signed long (doc values) representation; format it like the offsets-aware loader does.
+    private static final CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> OFFSETS_FALLBACK = (b, v) -> b.value(
+        DocValueFormat.UNSIGNED_LONG_SHIFTED.format((Long) v)
+    );
 
     private UnsignedLongFieldMapper(
         String simpleName,
@@ -888,17 +893,11 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
         if (FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue())) {
             if (numericValue != null) {
-                context.getOffSetContext().recordOffset(offsetsFieldName, numericValue, this);
+                context.getOffSetContext().recordOffset(offsetsFieldName, numericValue, OFFSETS_FALLBACK);
             } else {
-                context.getOffSetContext().recordNull(offsetsFieldName, this);
+                context.getOffSetContext().recordNull(offsetsFieldName, OFFSETS_FALLBACK);
             }
         }
-    }
-
-    @Override
-    protected void writeRecordedOffsetValue(XContentBuilder builder, Comparable<?> value) throws IOException {
-        // The recorded value is the sortable signed long (doc values) representation; format it like the offsets-aware loader does.
-        builder.value(DocValueFormat.UNSIGNED_LONG_SHIFTED.format((Long) value));
     }
 
     @Override

@@ -27,6 +27,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -795,6 +796,11 @@ public class IpFieldMapper extends FieldMapper {
     private final ScriptCompiler scriptCompiler;
 
     private final String offsetsFieldName;
+    // The recorded value is the encoded (sortable) address; format it like the offsets-aware loader does.
+    private static final CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> OFFSETS_FALLBACK = (b, v) -> {
+        BytesRef formatted = convert((BytesRef) v);
+        b.utf8Value(formatted.bytes, formatted.offset, formatted.length);
+    };
 
     private IpFieldMapper(
         String simpleName,
@@ -1135,18 +1141,11 @@ public class IpFieldMapper extends FieldMapper {
         } else if (FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue())) {
             if (address != null) {
                 BytesRef sortableValue = address.binaryValue();
-                context.getOffSetContext().recordOffset(offsetsFieldName, sortableValue, this);
+                context.getOffSetContext().recordOffset(offsetsFieldName, sortableValue, OFFSETS_FALLBACK);
             } else {
-                context.getOffSetContext().recordNull(offsetsFieldName, this);
+                context.getOffSetContext().recordNull(offsetsFieldName, OFFSETS_FALLBACK);
             }
         }
-    }
-
-    @Override
-    protected void writeRecordedOffsetValue(XContentBuilder builder, Comparable<?> value) throws IOException {
-        // The recorded value is the encoded (sortable) address; format it like the offsets-aware loader does.
-        BytesRef formatted = convert((BytesRef) value);
-        builder.utf8Value(formatted.bytes, formatted.offset, formatted.length);
     }
 
     private void indexValue(DocumentParserContext context, ESInetAddressPoint address) {

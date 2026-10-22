@@ -27,6 +27,7 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
@@ -570,6 +571,7 @@ public class BooleanFieldMapper extends FieldMapper {
     private final boolean storeMalformedFields;
 
     private final String offsetsFieldName;
+    private static final CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> OFFSETS_FALLBACK = (b, v) -> b.value((Boolean) v);
 
     protected BooleanFieldMapper(
         String simpleName,
@@ -666,16 +668,11 @@ public class BooleanFieldMapper extends FieldMapper {
         indexValue(context, value);
         if (FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue())) {
             if (value != null) {
-                context.getOffSetContext().recordOffset(offsetsFieldName, value, this);
+                context.getOffSetContext().recordOffset(offsetsFieldName, value, OFFSETS_FALLBACK);
             } else {
-                context.getOffSetContext().recordNull(offsetsFieldName, this);
+                context.getOffSetContext().recordNull(offsetsFieldName, OFFSETS_FALLBACK);
             }
         }
-    }
-
-    @Override
-    protected void writeRecordedOffsetValue(XContentBuilder builder, Comparable<?> value) throws IOException {
-        builder.value((Boolean) value);
     }
 
     private void indexValue(DocumentParserContext context, Boolean value) {

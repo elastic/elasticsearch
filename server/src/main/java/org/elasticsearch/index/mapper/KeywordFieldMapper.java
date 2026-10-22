@@ -50,6 +50,7 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.columnar.string.StringColumnOptions;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
@@ -1600,6 +1601,11 @@ public final class KeywordFieldMapper extends FieldMapper {
     private final boolean forceDocValuesSkipper;
     private final boolean storeIgnoredFieldsInBinaryDocValues;
     private final String offsetsFieldName;
+    // The recorded value is the raw UTF-8 value; write it back like the offsets-aware loader does.
+    private static final CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> OFFSETS_FALLBACK = (b, v) -> {
+        var utf8Bytes = (XContentString.UTF8Bytes) v;
+        b.utf8Value(utf8Bytes.bytes(), utf8Bytes.offset(), utf8Bytes.length());
+    };
     // The type the doc-values payload reports for a document that holds no value, or null when the field is not indexed;
     // see ColumnarBinaryDocValuesField#fieldType.
     private final FieldType payloadTypeWhenValueless;
@@ -2329,17 +2335,11 @@ public final class KeywordFieldMapper extends FieldMapper {
             }
         } else if (FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue())) {
             if (indexed) {
-                context.getOffSetContext().recordOffset(offsetsFieldName, value.bytes(), this);
+                context.getOffSetContext().recordOffset(offsetsFieldName, value.bytes(), OFFSETS_FALLBACK);
             } else if (value == null) {
-                context.getOffSetContext().recordNull(offsetsFieldName, this);
+                context.getOffSetContext().recordNull(offsetsFieldName, OFFSETS_FALLBACK);
             }
         }
-    }
-
-    @Override
-    protected void writeRecordedOffsetValue(XContentBuilder builder, Comparable<?> value) throws IOException {
-        var utf8Bytes = (XContentString.UTF8Bytes) value;
-        builder.utf8Value(utf8Bytes.bytes(), utf8Bytes.offset(), utf8Bytes.length());
     }
 
     @Override

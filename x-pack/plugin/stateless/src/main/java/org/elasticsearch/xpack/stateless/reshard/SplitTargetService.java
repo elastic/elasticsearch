@@ -253,6 +253,12 @@ public class SplitTargetService {
             advance(currentState);
         }
 
+        /// The state machine is cancelled when its shard closes, but only once that close has started. The shard itself is marked as closed
+        /// sooner than that, and the shard's cluster state listeners can run in between.
+        private boolean isCancelled() {
+            return cancelled.get() || shard.state() == IndexShardState.CLOSED;
+        }
+
         void cancel() {
             final boolean isFirstCancellation = cancelled.getAndSet(true) == false;
             assert isFirstCancellation : "split for " + shard.shardId() + " cancelled twice";
@@ -560,6 +566,9 @@ public class SplitTargetService {
                 new ClusterStateObserver.Listener() {
                     @Override
                     public void onNewClusterState(ClusterState state) {
+                        if (isCancelled()) {
+                            return;
+                        }
                         final Index index = shardId.getIndex();
                         final ProjectMetadata projectMetadata = state.metadata().lookupProject(index).orElse(null);
                         if (projectMetadata != null) {
@@ -577,12 +586,16 @@ public class SplitTargetService {
 
                     @Override
                     public void onTimeout(TimeValue timeout) {
+                        if (isCancelled()) {
+                            return;
+                        }
                         // After the timeout we proceed to SPLIT anyway.
                         // The timeout is just best effort to ensure search shards are running to prevent downtime.
                         advance(new State.SearchShardsOnline());
                     }
                 },
-                state -> searchShardsOnlineOrNewPrimaryTerm(state, shardId, split.targetPrimaryTerm()),
+                // A closed shard has nothing to wait for
+                state -> isCancelled() || searchShardsOnlineOrNewPrimaryTerm(state, shardId, split.targetPrimaryTerm()),
                 searchShardsOnlineTimeout,
                 logger
             );
@@ -1098,7 +1111,8 @@ public class SplitTargetService {
         }
     }
 
-    private static boolean searchShardsOnlineOrNewPrimaryTerm(ClusterState state, ShardId shardId, long primaryTerm) {
+    // package-private for testing
+    static boolean searchShardsOnlineOrNewPrimaryTerm(ClusterState state, ShardId shardId, long primaryTerm) {
         final Index index = shardId.getIndex();
         final ProjectMetadata projectMetadata = state.metadata().lookupProject(index).orElse(null);
         if (projectMetadata == null) {
@@ -1109,8 +1123,14 @@ public class SplitTargetService {
         return newPrimaryTerm(index, projectMetadata, shardId, primaryTerm) || isShardGreen(state, projectMetadata, shardId);
     }
 
-    private static boolean newPrimaryTerm(Index index, ProjectMetadata projectMetadata, ShardId shardId, long primaryTerm) {
-        long currentPrimaryTerm = projectMetadata.index(index).primaryTerm(shardId.id());
+    // package-private for testing
+    static boolean newPrimaryTerm(Index index, ProjectMetadata projectMetadata, ShardId shardId, long primaryTerm) {
+        final var indexMetadata = projectMetadata.index(index);
+        if (indexMetadata == null || shardId.id() >= indexMetadata.getNumberOfShards()) {
+            // The shard is gone, e.g. a restore replaced the index with one that has fewer shards. It is not the shard we are waiting for.
+            return true;
+        }
+        long currentPrimaryTerm = indexMetadata.primaryTerm(shardId.id());
         return currentPrimaryTerm > primaryTerm;
     }
 
@@ -1126,7 +1146,10 @@ public class SplitTargetService {
             return false;
         }
         var shardRoutingTable = indexRoutingTable.shard(shardId.id());
-        assert shardRoutingTable != null;
+        if (shardRoutingTable == null) {
+            // As above, this can be a state in which the shard no longer exists, e.g. after a restore over the index
+            return false;
+        }
         return new ClusterShardHealth(shardId.getId(), shardRoutingTable).getStatus() == ClusterHealthStatus.GREEN;
     }
 }

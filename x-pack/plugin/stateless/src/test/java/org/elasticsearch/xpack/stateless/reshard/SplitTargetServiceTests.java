@@ -15,15 +15,20 @@ import org.elasticsearch.action.admin.cluster.state.TransportAwaitClusterStateVe
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
@@ -353,6 +358,23 @@ public class SplitTargetServiceTests extends ESTestCase {
         assertEquals(0, requests.get());
         assertThat(failures, hasSize(1));
         assertThat(failures.get(0), instanceOf(CancellationException.class));
+    }
+
+    /// A target shard waits until its search shards are online, or its primary term has advanced. If a restore has replaced the index
+    /// with one that has fewer shards, the target shard is gone and there is nothing to wait for. Looking at its primary term or its
+    /// routing must not fail.
+    public void testWaitForSearchShardsStopsWhenTargetShardIsGone() {
+        var index = new Index("index", "uuid");
+        var restored = IndexMetadata.builder(index.getName())
+            .settings(indexSettings(IndexVersion.current(), 2, 1).put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID()))
+            .build();
+        var state = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .putProjectMetadata(ProjectMetadata.builder(ProjectId.DEFAULT).put(restored, false))
+            .build();
+
+        // The split target was shard 2 of a 4 shard index
+        assertTrue(SplitTargetService.searchShardsOnlineOrNewPrimaryTerm(state, new ShardId(index, 2), 1L));
+        assertTrue(SplitTargetService.searchShardsOnlineOrNewPrimaryTerm(state, new ShardId(index, 3), 1L));
     }
 
     /// A thread pool that runs everything immediately, on the calling thread

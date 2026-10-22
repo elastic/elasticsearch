@@ -1004,6 +1004,67 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
     }
 
     /**
+     * After the handoff a target shard waits for the search shards of its own to come online before it moves on to SPLIT. That wait
+     * inspects every cluster state it sees, and must cope with the restored one, in which the target shard may no longer exist.
+     */
+    public void testRestoreOverOpenIndexWhileTargetWaitsForSearchShards() throws Exception {
+        startMasterOnlyNode();
+        var indexNode = startIndexNode();
+        var searchNode = startSearchNode();
+        ensureStableCluster(3);
+
+        createRepository("test-repo", "fs");
+
+        final int shards = 1;
+        var indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, shards, 1);
+        ensureGreen();
+        final int numDocs = randomIntBetween(10, 100);
+        indexDocs(indexName, numDocs);
+
+        var preSplitSnapshotName = indexName + "-pre-split-snap";
+        createSnapshotAndAssertSuccess(preSplitSnapshotName, indexName);
+
+        var index = resolveIndex(indexName);
+        // The only search node is not allowed to hold the index, so the target's search shard cannot start and the target waits for it.
+        // The setting is replaced by the one in the snapshot when the index is restored.
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", searchNode), indexName);
+
+        try (var mockLog = MockLog.capture(ClusterApplierService.class); var targetLog = MockLog.capture(SplitTargetService.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "cluster state listener failed",
+                    ClusterApplierService.class.getCanonicalName(),
+                    Level.WARN,
+                    "failed to notify ClusterStateListener"
+                )
+            );
+            targetLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "target reached the wait for search shards",
+                    SplitTargetService.class.getCanonicalName(),
+                    Level.INFO,
+                    "Advancing split target shard state machine for shard * to Handoff[]"
+                )
+            );
+
+            client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+            // The handoff is done and the target shard has started, so the target is now waiting for its search shards. That the cluster
+            // state shows HANDOFF is not enough: the target's state machine only gets to the wait once its shard has started.
+            targetLog.awaitAllExpectationsMatched();
+
+            var restoreRequest = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, "test-repo", preSplitSnapshotName).indices(indexName)
+                .restoreOverExisting(true)
+                .waitForCompletion(true);
+            var restoreResponse = client().execute(TransportRestoreSnapshotAction.TYPE, restoreRequest).actionGet();
+            assertEquals(0, restoreResponse.getRestoreInfo().failedShards());
+
+            assertRestoredAndAbandonedSplitCleanedUp(indexName, shards, numDocs, indexNode);
+            mockLog.assertAllExpectationsMatched();
+        }
+    }
+
+    /**
      * Verifies that the index was restored to {@code shards} shards without any resharding metadata, still has all its documents, and
      * that the abandoned split left no state behind in the split services of any of {@code indexNodes}.
      */

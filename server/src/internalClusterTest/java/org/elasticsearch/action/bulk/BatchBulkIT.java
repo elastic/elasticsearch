@@ -1063,7 +1063,12 @@ public class BatchBulkIT extends ESIntegTestCase {
         String index = "test-mixed-ops";
         assertAcked(
             indicesAdmin().prepareCreate(index)
-                .setSettings(Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 1))
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 2)
+                        .put("index.number_of_replicas", 1)
+                        .put(IndexSettings.BATCH_INDEXING.getKey(), true)
+                )
                 .setMapping(getMapping())
         );
         ensureGreen(index);
@@ -1196,6 +1201,7 @@ public class BatchBulkIT extends ESIntegTestCase {
                         .put("index.number_of_shards", 1)
                         .put("index.number_of_replicas", 0)
                         .put("index.mapping.source.mode", "synthetic")
+                        .put(IndexSettings.BATCH_INDEXING.getKey(), true)
                 )
                 .setMapping(mapping)
         );
@@ -1359,7 +1365,12 @@ public class BatchBulkIT extends ESIntegTestCase {
 
         assertAcked(
             indicesAdmin().prepareCreate(index)
-                .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                        .put(IndexSettings.BATCH_INDEXING.getKey(), true)
+                )
                 .setMapping(mapping)
         );
         ensureGreen(index);
@@ -1444,6 +1455,7 @@ public class BatchBulkIT extends ESIntegTestCase {
                         .put("index.number_of_shards", 2)
                         .put("index.number_of_replicas", 1)
                         .put("index.mapping.source.mode", "synthetic")
+                        .put(IndexSettings.BATCH_INDEXING.getKey(), true)
                 )
                 .setMapping(mapping)
         );
@@ -1670,6 +1682,7 @@ public class BatchBulkIT extends ESIntegTestCase {
                         .put("index.number_of_shards", 1)
                         .put("index.number_of_replicas", 0)
                         .put("index.mapping.source.mode", "synthetic")
+                        .put(IndexSettings.BATCH_INDEXING.getKey(), true)
                 )
                 .setMapping(mapping)
         );
@@ -2147,6 +2160,7 @@ public class BatchBulkIT extends ESIntegTestCase {
                         .put("index.number_of_shards", 2)
                         .put("index.number_of_replicas", 1)
                         .put("index.mapping.source.mode", "synthetic")
+                        .put(IndexSettings.BATCH_INDEXING.getKey(), true)
                 )
                 .setMapping(mapping)
         );

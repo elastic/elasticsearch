@@ -216,7 +216,7 @@ public class StatelessResizeIT extends AbstractStatelessPluginIntegTestCase {
     private static Settings keepCommitsOnLocalDiskSettings() {
         return Settings.builder()
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
-            .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 100)
+            .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 10_000)
             .build();
     }
 

@@ -15,7 +15,7 @@ products:
 
 In the {{kib}} UI, you create and manage datasets from the **Datasets** tab under **Data management** > **{{esql}} Data Federation**.
 
-To use the UI, [enable it in {{kib}}](esql-data-federation.md#enable-the-feature) first. Before you add a dataset, [connect a data source](esql-data-federation-sources.md).
+To use the UI, [enable it in {{kib}}](esql-data-federation.md#enable-the-feature) first. Every dataset reads through a [data source](esql-data-federation-sources.md). If you haven't connected one yet, you can connect it from the **Add dataset** wizard: select **Connect new data source** in the **Data source** menu.
 
 ## View datasets
 

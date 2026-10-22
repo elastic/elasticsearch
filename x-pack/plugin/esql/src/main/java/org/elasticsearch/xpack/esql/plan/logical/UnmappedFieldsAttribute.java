@@ -94,7 +94,7 @@ public final class UnmappedFieldsAttribute extends TypedAttribute {
             out.writeString(name());
             dataType().writeTo(out);
             out.writeOptionalString(null); // qualifier, no longer used
-            out.writeEnum(nullable());
+            nullable().writeTo(out);
             id().writeTo(out);
             out.writeBoolean(synthetic());
             out.writeNamedWriteable(pattern);
@@ -107,7 +107,7 @@ public final class UnmappedFieldsAttribute extends TypedAttribute {
             stream.readString(); // attribute name, ignored in favor of ATTRIBUTE_NAME; older nodes write $$unmapped_fields
             DataType dataType = DataType.readFrom(stream);
             stream.readOptionalString(); // qualifier, no longer used
-            Nullability nullability = stream.readEnum(Nullability.class);
+            Nullability nullability = Nullability.readFrom(stream);
             NameId id = NameId.readFrom((PlanStreamInput) stream);
             boolean synthetic = stream.readBoolean();
             UnmappedFieldsPattern pattern = stream.readNamedWriteable(UnmappedFieldsPattern.class);

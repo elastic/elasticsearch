@@ -451,9 +451,6 @@ tests:
 - class: org.elasticsearch.xpack.ccr.index.engine.FollowingEngineTests
   method: testOptimizeMultipleVersions
   issue: https://github.com/elastic/elasticsearch/issues/162517
-- class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
-  method: testUnpromotableRegisterCommitForRecoveryTracksAllBlobsPessimisticallyAndWaitsUntilShardStarts
-  issue: https://github.com/elastic/elasticsearch/issues/162175
 - class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRelocationSourceThrottleIT
   method: testSourceNodeShutdown
   issue: https://github.com/elastic/elasticsearch/issues/162540
@@ -520,3 +517,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/162945
+- class: org.elasticsearch.xpack.downsample.DownsampleActionSingleNodeTests
+  method: testDownsampleResumesAfterPersistentTaskRemoved
+  issue: https://github.com/elastic/elasticsearch/issues/162858

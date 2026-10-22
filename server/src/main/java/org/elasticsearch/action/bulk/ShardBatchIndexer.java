@@ -51,7 +51,7 @@ public final class ShardBatchIndexer {
 
     public static boolean isBatchIndexingSupported(BatchIndexingEnabled batchIndexingEnabled, ClusterService clusterService) {
         return batchIndexingEnabled.isEnabled()
-            && clusterService.state().getMinTransportVersion().supports(BulkShardRequest.BULK_SHARD_BATCH);
+            && clusterService.state().getMinTransportVersion().supports(BulkShardRequest.BULK_SHARD_ESCF_BATCH);
     }
 
     /**

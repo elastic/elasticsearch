@@ -38,6 +38,11 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
         ReshardSplitAwareReplicationRequest {
 
     public static final TransportVersion BULK_SHARD_BATCH = TransportVersion.fromName("bulk_shard_batch");
+    /**
+     * The batch payload is encoded as ESCF. Nodes that only support {@link #BULK_SHARD_BATCH} expect the older EIRF layout
+     * and reject ESCF payloads, so coordinators must not build batches unless every node supports this version.
+     */
+    public static final TransportVersion BULK_SHARD_ESCF_BATCH = TransportVersion.fromName("bulk_shard_escf_batch");
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkShardRequest.class);
 

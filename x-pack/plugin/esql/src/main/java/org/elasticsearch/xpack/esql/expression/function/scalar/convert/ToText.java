@@ -104,6 +104,12 @@ public class ToText extends AbstractConvertFunction
         returnType = "text",
         briefSummary = "Converts a value to text.",
         description = "Converts an input value into text.",
+        detailedDescription = """
+            Use `TO_TEXT` to search a computed value as full text with `MATCH` or `MATCH_PHRASE`: string functions
+            such as `CONCAT` return `keyword`, which those functions match exactly, while `text` is analyzed.
+            The `analyzer` option declares how the values of the resulting column are analyzed when searched.
+            To learn more, refer to [runtime search](/reference/query-languages/esql/esql-runtime-search.md).
+            """,
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.5.0"),
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.6.0") },

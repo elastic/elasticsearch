@@ -6,6 +6,7 @@ applies_to:
   serverless: unavailable
 products:
   - id: elasticsearch
+  - id: kibana
 ---
 
 # Create and manage datasets in the {{kib}} UI

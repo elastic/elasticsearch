@@ -131,6 +131,11 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
     }
 
     @Override
+    public boolean isExhausted() {
+        return delegate.isExhausted();
+    }
+
+    @Override
     public void revokeOvershootOnPark() {
         delegate.revokeOvershootOnPark();
     }

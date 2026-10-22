@@ -161,10 +161,10 @@ public class JsonProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         jsonProcessor.execute(ingestDocument);
 
-        Map<String, Object> sourceAndMetadata = ingestDocument.getSourceAndMetadata();
-        assertEquals(1, sourceAndMetadata.get("a"));
-        assertEquals(2, sourceAndMetadata.get("b"));
-        assertEquals("see", sourceAndMetadata.get("c"));
+        Map<String, Object> source = ingestDocument.getSource();
+        assertEquals(1, source.get("a"));
+        assertEquals(2, source.get("b"));
+        assertEquals("see", source.get("c"));
     }
 
     public void testAddToRootNestedField() throws Exception {
@@ -183,10 +183,10 @@ public class JsonProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         ingestDocument = IngestPipelineTestUtils.runWithRandomAccessPattern(ingestDocument, jsonProcessor);
 
-        Map<String, Object> sourceAndMetadata = ingestDocument.getSourceAndMetadata();
-        assertEquals(1, sourceAndMetadata.get("a"));
-        assertEquals(2, sourceAndMetadata.get("b"));
-        assertEquals("see", sourceAndMetadata.get("c"));
+        Map<String, Object> source = ingestDocument.getSource();
+        assertEquals(1, source.get("a"));
+        assertEquals(2, source.get("b"));
+        assertEquals("see", source.get("c"));
     }
 
     public void testDuplicateKeys() throws Exception {
@@ -198,9 +198,9 @@ public class JsonProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>(document));
         lenientJsonProcessor.execute(ingestDocument);
 
-        Map<String, Object> sourceAndMetadata = ingestDocument.getSourceAndMetadata();
-        assertEquals(2, sourceAndMetadata.get("a"));
-        assertEquals("see", sourceAndMetadata.get("c"));
+        Map<String, Object> source = ingestDocument.getSource();
+        assertEquals(2, source.get("a"));
+        assertEquals("see", source.get("c"));
 
         JsonProcessor strictJsonProcessor = new JsonProcessor(processorTag, null, "a", null, true, REPLACE, false);
         Exception exception = expectThrows(

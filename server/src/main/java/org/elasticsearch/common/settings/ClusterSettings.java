@@ -138,6 +138,7 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.BoostProfileEnabled;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -250,6 +251,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
         DataStreamAutoShardingService.CLUSTER_AUTO_SHARDING_MIN_WRITE_THREADS,
         DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_INCREASE_SHARDS_LOAD_METRIC,
         DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_DECREASE_SHARDS_LOAD_METRIC,
+        DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_MIN_NUMBER_OF_SHARDS,
+        DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_TIME_SERIES_MIN_NUMBER_OF_SHARDS,
         DesiredBalanceComputer.PROGRESS_LOG_INTERVAL_SETTING,
         DesiredBalanceComputer.MAX_BALANCE_COMPUTATION_TIME_DURING_INDEX_CREATION_SETTING,
         DesiredBalanceReconciler.UNDESIRED_ALLOCATIONS_LOG_INTERVAL_SETTING,
@@ -592,6 +595,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         SearchService.FETCH_PHASE_MAX_IN_FLIGHT_CHUNKS,
         SearchService.FETCH_PHASE_CHUNKED_TARGET_CHUNK_BYTES,
         SearchService.MEMORY_ACCOUNTING_BUFFER_SIZE,
+        BoostProfileEnabled.BOOST_PROFILE_ENABLED_SETTING,
         ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING,
         ThreadPool.LATE_TIME_INTERVAL_WARN_THRESHOLD_SETTING,
         ThreadPool.SLOW_SCHEDULER_TASK_WARN_THRESHOLD_SETTING,

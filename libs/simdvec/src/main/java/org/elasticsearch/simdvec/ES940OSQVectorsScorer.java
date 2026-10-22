@@ -213,13 +213,12 @@ public class ES940OSQVectorsScorer {
      * Compute the quantize distance between the provided quantized query and the quantized vectors
      * that are read from the wrapped {@link IndexInput}. The number of quantized vectors to read is
      * determined by {@param count} and the results are stored in the provided {@param scores} array.
-     * Only the {@param offsetsCount} vectors that are indexed in the provided {@param offsets} are scored; the others are skipped.
+     * Only the vectors whose bit is set in {@param mask} (bit {@code i} for the {@code i}-th vector) are scored;
+     * the others are skipped.
      */
-    public void quantizeScoreBulkOffsets(byte[] q, int[] offsets, int offsetsCount, float[] scores, int count) throws IOException {
-        int offsetIndex = 0;
+    public void quantizeScoreBulkMasked(byte[] q, int mask, float[] scores, int count) throws IOException {
         for (int i = 0; i < count; i++) {
-            if (offsetIndex < offsetsCount && offsets[offsetIndex] == i) {
-                offsetIndex++;
+            if (BulkMask.isSelected(mask, i)) {
                 scores[i] = quantizeScore(q);
             } else {
                 scores[i] = 0.0f;
@@ -348,12 +347,11 @@ public class ES940OSQVectorsScorer {
      * Compute the distance between the provided quantized query and the quantized vectors that are
      * read from the wrapped {@link IndexInput}.
      * <p>
-     * Similar to {@link #scoreBulk}, but only the {@param offsetsCount} vectors indexed by the provided {@param offsets} are scored;
-     * the others are skipped.
+     * Similar to {@link #scoreBulk}, but only the vectors whose bit is set in {@param mask} are scored; the others are skipped.
      * <p>
      * The results are stored in the provided {@param scores} array.
      */
-    public float scoreBulkOffsets(
+    public float scoreBulkMasked(
         byte[] q,
         float queryLowerInterval,
         float queryUpperInterval,
@@ -361,39 +359,35 @@ public class ES940OSQVectorsScorer {
         float queryAdditionalCorrection,
         VectorSimilarityFunction similarityFunction,
         float centroidDp,
-        int[] offsets,
-        int offsetsCount,
+        int mask,
         float[] scores,
         int count
     ) throws IOException {
-        assert offsetsCount <= this.bulkSize : "supplied offsets length > this scorer's bulkSize";
         assert count <= this.bulkSize : "supplied count > this scorer's bulkSize";
-        quantizeScoreBulkOffsets(q, offsets, offsetsCount, scores, count);
+        assert BulkMask.validate(mask, count);
+        quantizeScoreBulkMasked(q, mask, scores, count);
         in.readFloats(lowerIntervals, 0, count);
         in.readFloats(upperIntervals, 0, count);
         in.readInts(targetComponentSums, 0, count);
         in.readFloats(additionalCorrections, 0, count);
         float maxScore = Float.NEGATIVE_INFINITY;
-        int offsetIndex = 0;
-        for (int i = 0; i < count; i++) {
-            if (offsetIndex < offsetsCount && offsets[offsetIndex] == i) {
-                offsetIndex++;
-                scores[i] = applyCorrectionsIndividually(
-                    queryLowerInterval,
-                    queryUpperInterval,
-                    queryComponentSum,
-                    queryAdditionalCorrection,
-                    similarityFunction,
-                    centroidDp,
-                    lowerIntervals[i],
-                    upperIntervals[i],
-                    targetComponentSums[i],
-                    additionalCorrections[i],
-                    scores[i]
-                );
-                if (scores[i] > maxScore) {
-                    maxScore = scores[i];
-                }
+        for (int m = mask; m != 0; m = BulkMask.deselectFirst(m)) {
+            int i = BulkMask.first(m);
+            scores[i] = applyCorrectionsIndividually(
+                queryLowerInterval,
+                queryUpperInterval,
+                queryComponentSum,
+                queryAdditionalCorrection,
+                similarityFunction,
+                centroidDp,
+                lowerIntervals[i],
+                upperIntervals[i],
+                targetComponentSums[i],
+                additionalCorrections[i],
+                scores[i]
+            );
+            if (scores[i] > maxScore) {
+                maxScore = scores[i];
             }
         }
         return maxScore;

@@ -1,0 +1,5 @@
+pr: 160036
+summary: Log the root cause of suppressed REST errors
+area: Infra/Logging
+type: enhancement
+issues: []

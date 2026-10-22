@@ -108,6 +108,22 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
         testFieldValueRange(false, IndexMode.LOGSDB_COLUMNAR);
     }
 
+    public void testFieldValueRangeForDocumentVectordbModeWithCFS() throws Exception {
+        testFieldValueRange(true, IndexMode.VECTORDB_DOCUMENT);
+    }
+
+    public void testFieldValueRangeForDocumentVectordbModeWithNoCFS() throws Exception {
+        testFieldValueRange(false, IndexMode.VECTORDB_DOCUMENT);
+    }
+
+    public void testFieldValueRangeForColumnarVectordbModeWithCFS() throws Exception {
+        testFieldValueRange(true, IndexMode.VECTORDB_COLUMNAR);
+    }
+
+    public void testFieldValueRangeForColumnarVectordbModeWithNoCFS() throws Exception {
+        testFieldValueRange(false, IndexMode.VECTORDB_COLUMNAR);
+    }
+
     public void testSoftDeletesAreAlmostAlwaysDisregardedForTimestampRange() throws Exception {
         IndexMode indexMode = randomFrom(IndexMode.availableModes());
         DocumentMapper mapper = getDocumentMapper(indexMode);

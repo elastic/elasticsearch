@@ -1182,15 +1182,16 @@ null                     | null         | prod            | three       | 8.375
 ;
 
 // Mirrors without_avg - exercises BY WITHOUT(...) grouping inside a TS
-// subquery. The implicit _timeseries column emitted by WITHOUT is a virtual
-// output column and is not addressable in subsequent EVAL/KEEP/outer query
-// stages, so the union surfaces only avg_cost from the subquery.
+// subquery. The grouping surfaces through the union under its final output
+// name, _timeseries - the same name a lone TS query shows - and the
+// sample_data branch null-fills it.
 subqueryInFromWithTsSubqueryWithoutGrouping
 skip_flattened_rewrite: subquery_bleed
 required_capability: subquery_in_from_command
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
 required_capability: esql_without_grouping
+required_capability: ts_without_grouping_named_at_resolution
 
 FROM sample_data,
      (TS k8s
@@ -1201,11 +1202,90 @@ FROM sample_data,
 | DROP event_duration, message
 ;
 
-@timestamp:datetime      | client_ip:ip | avg_cost:double | WITHOUT(pod, region):keyword
+@timestamp:datetime      | client_ip:ip | avg_cost:double | _timeseries:keyword
 null                     | null         | 5.291667        | "{""cluster"":""staging""}"
 null                     | null         | 6.208333        | "{""cluster"":""prod""}"
 null                     | null         | 8.833333        | "{""cluster"":""qa""}"
 2023-10-23T13:33:34.937Z | 172.21.0.5   | null            | null
+;
+
+// As above, but the outer query addresses the _timeseries column by name
+// in KEEP, confirming the WITHOUT grouping is usable after the union.
+subqueryInFromWithTsSubqueryWithoutGroupingKeep
+skip_flattened_rewrite: subquery_bleed
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: esql_without_grouping
+required_capability: ts_without_grouping_named_at_resolution
+
+FROM sample_data,
+     (TS k8s
+      | STATS avg_cost = ROUND(avg(network.cost), 6) BY WITHOUT(pod, region)
+      | SORT avg_cost)
+| WHERE avg_cost IS NOT NULL OR client_ip == "172.21.0.5"
+| SORT avg_cost, @timestamp
+| KEEP @timestamp, client_ip, avg_cost, _timeseries
+;
+
+@timestamp:datetime      | client_ip:ip | avg_cost:double | _timeseries:keyword
+null                     | null         | 5.291667        | "{""cluster"":""staging""}"
+null                     | null         | 6.208333        | "{""cluster"":""prod""}"
+null                     | null         | 8.833333        | "{""cluster"":""qa""}"
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null            | null
+;
+
+// A user alias on the WITHOUT grouping is the name the union aligns under and
+// surfaces, and the outer query can address it.
+subqueryInFromWithTsSubqueryWithoutGroupingAlias
+skip_flattened_rewrite: subquery_bleed
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: esql_without_grouping
+required_capability: ts_without_grouping_named_at_resolution
+
+FROM sample_data,
+     (TS k8s
+      | STATS avg_cost = ROUND(avg(network.cost), 6) BY dims = WITHOUT(pod, region)
+      | SORT avg_cost)
+| WHERE avg_cost IS NOT NULL OR client_ip == "172.21.0.5"
+| SORT avg_cost, @timestamp
+| KEEP @timestamp, client_ip, avg_cost, dims
+;
+
+@timestamp:datetime      | client_ip:ip | avg_cost:double | dims:keyword
+null                     | null         | 5.291667        | "{""cluster"":""staging""}"
+null                     | null         | 6.208333        | "{""cluster"":""prod""}"
+null                     | null         | 8.833333        | "{""cluster"":""qa""}"
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null            | null
+;
+
+// WITHOUT of an unmapped field under nullify mode inside a union branch: the
+// grouping resolves late, and must still surface as _timeseries.
+subqueryInFromWithTsSubqueryWithoutUnmappedDimensionNullify
+skip_flattened_rewrite: subquery_bleed
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: esql_without_grouping
+required_capability: optional_fields_nullify_tech_preview
+required_capability: ts_without_grouping_named_at_resolution
+
+SET unmapped_fields="nullify"\;
+FROM sample_data,
+     (TS k8s
+      | STATS max_cost = max(network.cost) BY WITHOUT(missing_dimension))
+| WHERE max_cost IS NOT NULL
+| KEEP max_cost, _timeseries
+| SORT max_cost
+| LIMIT 3
+;
+
+max_cost:double | _timeseries:keyword
+0.0             | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+1.75            | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
+4.625           | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
 ;
 
 // Mirrors irate_of_long_grouping - exercises IRATE inside a TS subquery.

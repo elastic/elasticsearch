@@ -57,7 +57,7 @@ public final class BulkRequestParser {
     private static final ParseField TYPE = new ParseField("_type");
     private static final ParseField ID = new ParseField("_id");
     private static final ParseField ROUTING = new ParseField("routing");
-    private static final ParseField SLICE = new ParseField(SliceIndexing.PARAM_NAME);
+    private static final ParseField SLICE = new ParseField(SliceIndexing.FIELD_NAME);
     private static final ParseField OP_TYPE = new ParseField("op_type");
     private static final ParseField VERSION = new ParseField("version");
     private static final ParseField VERSION_TYPE = new ParseField("version_type");
@@ -464,20 +464,20 @@ public final class BulkRequestParser {
                             } else if (ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
                                 if (sliceProvided || defaultRoutingFromSlice) {
                                     throw new IllegalArgumentException(
-                                        "Action/metadata line [" + line + "] contains both [routing] and [slice]"
+                                        "Action/metadata line [" + line + "] contains both [routing] and [_slice]"
                                     );
                                 }
                                 routing = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());
                                 routingProvided = true;
                             } else if (SLICE.match(currentFieldName, parser.getDeprecationHandler())) {
                                 if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
-                                    throw new IllegalArgumentException("request does not support [slice]");
+                                    throw new IllegalArgumentException("request does not support [_slice]");
                                 }
                                 final String sliceValue = parser.text();
                                 SliceIndexing.validateUserSliceValue(sliceValue);
                                 if (routingProvided) {
                                     throw new IllegalArgumentException(
-                                        "Action/metadata line [" + line + "] contains both [routing] and [slice]"
+                                        "Action/metadata line [" + line + "] contains both [routing] and [_slice]"
                                     );
                                 }
                                 routing = stringDeduplicator.computeIfAbsent(sliceValue, Function.identity());

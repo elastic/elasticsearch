@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AvgOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AvgSerializationTests;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Changes;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinctOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountOverTime;
@@ -70,6 +71,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
@@ -209,6 +211,7 @@ public class ApproximationSupportTests extends ESTestCase {
         AntiJoin.class,
         Dedup.class,
         Drop.class,
+        FillNull.class,
         InnerJoin.class,
         InlineStats.class,
         Keep.class,
@@ -282,6 +285,7 @@ public class ApproximationSupportTests extends ESTestCase {
         // Time series aggregates are not supported yet.
         AbsentOverTime.class,
         AvgOverTime.class,
+        Changes.class,
         CountDistinctOverTime.class,
         CountOverTime.class,
         DefaultTimeSeriesAggregateFunction.class,

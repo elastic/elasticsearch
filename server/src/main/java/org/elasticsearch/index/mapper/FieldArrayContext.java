@@ -87,6 +87,8 @@ public class FieldArrayContext {
         CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> fallbackWriter
     ) {
         var offsets = offsetsFor(field);
+        assert offsets.fallbackWriter == null || offsets.fallbackWriter == fallbackWriter
+            : "a field must always record offsets with the same fallback writer";
         offsets.fallbackWriter = fallbackWriter;
         offsets.recordOffset(value);
     }
@@ -101,6 +103,8 @@ public class FieldArrayContext {
      */
     public void recordNull(String field, CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> fallbackWriter) {
         var offsets = offsetsFor(field);
+        assert offsets.fallbackWriter == null || offsets.fallbackWriter == fallbackWriter
+            : "a field must always record offsets with the same fallback writer";
         offsets.fallbackWriter = fallbackWriter;
         offsets.recordNull();
     }

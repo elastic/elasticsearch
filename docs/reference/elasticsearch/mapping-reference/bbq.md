@@ -334,7 +334,7 @@ Boolean values are also accepted.
 `true` selects the default profile for the index, which is:
 
 - `iso_sizing` for indices created in 9.6 or later
-- `quality` otherwise
+- `quality` for indices created in 9.5
 
 :::{note}
 You can change the profile on an existing field.

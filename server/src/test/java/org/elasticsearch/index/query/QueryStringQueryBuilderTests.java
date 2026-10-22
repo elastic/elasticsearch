@@ -755,6 +755,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
     public void testToQueryRegExpQueryTooComplex() throws Exception {
         QueryStringQueryBuilder queryBuilder = queryStringQuery("/[ac]*a[ac]{200,500}/").defaultField(TEXT_FIELD_NAME);
+        // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/163000):
         // Lucene 11 RegexpQuery no longer determinizes at construct time. The work limit is
         // applied when the context has a circuit breaker (the _search path).
         SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), createCircuitBreakerService());
@@ -795,6 +796,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         builder.endObject();
 
         QueryBuilder queryBuilder = parseTopLevelQuery(createParser(builder));
+        // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/163000):
         // Lucene 11 RegexpQuery no longer determinizes at construct time. The work limit is
         // applied when the context has a circuit breaker (the _search path).
         SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), createCircuitBreakerService());

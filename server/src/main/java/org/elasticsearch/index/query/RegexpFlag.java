@@ -40,7 +40,8 @@ public enum RegexpFlag {
      * Historical Lucene {@code ~&lt;expression&gt;} complement flag. Lucene 11 no longer
      * supports that operator; the bit is kept so existing {@code flags} values still parse.
      */
-    // TODO: LUCENE11 remove COMPLEMENT from the public regexp flags API
+    // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/162974):
+    // remove COMPLEMENT from the public regexp flags API
     @UpdateForV10(owner = UpdateForV10.Owner.SEARCH_FOUNDATIONS)
     COMPLEMENT(0x0002),
 

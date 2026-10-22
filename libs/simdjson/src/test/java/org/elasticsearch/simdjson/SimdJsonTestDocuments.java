@@ -32,6 +32,7 @@ public final class SimdJsonTestDocuments {
             docs,
             """
                 {}""","""
+                { }""","""
                 {"a":1}""", """
                 {"s":"hello"}""", """
                 {"b":true}""", """
@@ -41,6 +42,12 @@ public final class SimdJsonTestDocuments {
                 {"sci":1.5e10}""",  """
                 {"neg":-42}""", """
                 {"arr":[1,"s",true,null,3.14]}""", """
+                {"a":[]}""", """
+                {"a":{}}""", """
+                {"a":[ ]}""", """
+                {"a":[[]]}""", """
+                {"a":[{}]}""", """
+                {"a":[[],{},[1],{"b":[]}],"c":{}}""", """
                 {"o":{"inner":"val"}}""", """
                 {"esc":"line1\\nline2"}""", """
                 {"q":"say \\"hi\\""}""", """
@@ -196,6 +203,19 @@ public final class SimdJsonTestDocuments {
                 {"a":1,,"b":2}""", """
                 {"a":1:"b":2}""", """
                 {"a":[1,2}""",
+            // Trailing commas: a comma must be followed by another member or element.
+            """
+                {"a":1,}""", """
+                {"a":[1,]}""", """
+                {"a":{"b":1,}}""", """
+                {"a":[{"b":1,}]}""", """
+                {"a":[{"b":1},]}""", """
+                {"a":[[1,2,]]}""", """
+                {"a":[1,],"b":2}""", """
+                {"a":1,"b":2,}""", """
+                {"a":["x",]}""", """
+                {"a":[{},]}""", """
+                {"a":[[],]}""",
             // Non-standard number tokens (JsonReadFeature-gated in Jackson; simdjson has no
             // equivalent opt-in).
             """

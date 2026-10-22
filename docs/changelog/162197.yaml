@@ -1,0 +1,5 @@
+area: Snapshot/Restore
+issues: []
+pr: 162197
+summary: Add `legacy_content_md5` S3 client setting
+type: enhancement

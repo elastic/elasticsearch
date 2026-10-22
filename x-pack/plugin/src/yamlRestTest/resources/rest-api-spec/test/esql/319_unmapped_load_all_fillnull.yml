@@ -1,0 +1,288 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities, warnings, contains ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_load_all_fillnull ]
+      reason: "FILLNULL is only allowed under unmapped_fields=\"LOAD_ALL\" with this capability"
+
+  - do:
+      indices.create:
+        index: la_fill_mapped
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: long
+              _unmapped_fields:
+                type: keyword
+
+  - do:
+      indices.create:
+        index: la_fill_source
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: long
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "la_fill_mapped", "_id": "1" } }
+          - { "id": 1, "_unmapped_fields": "mine", "other": "o" }
+          - { "index": { "_index": "la_fill_mapped", "_id": "2" } }
+          - { "id": 2, "other": "p" }
+          - { "index": { "_index": "la_fill_source", "_id": "1" } }
+          - { "id": 1, "_unmapped_fields": "src", "other": "o" }
+          - { "index": { "_index": "la_fill_source", "_id": "2" } }
+          - { "id": 2, "other": "p" }
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: la_fill_mapped,la_fill_source,la_fill_punk_mapped,la_fill_punk_source,la_fill_view_src
+        ignore_unavailable: true
+
+---
+'FILLNULL fills a mapped field named _unmapped_fields':
+  - do:
+      warnings:
+        - "The query has a column named [_unmapped_fields], so the unmapped fields are not returned in a column of that name; rename that column to get them"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_fill_mapped | FILLNULL "x" ON _unmapped_fields | SORT id | LIMIT 10'
+  - length: { columns: 2 }
+  - match: { columns.0.name: _unmapped_fields }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: id }
+  - match: { values: [ [ "mine", 1 ], [ "x", 2 ] ] }
+
+---
+'a FILLNULL pattern fills a mapped field named _unmapped_fields':
+  - do:
+      warnings:
+        - "The query has a column named [_unmapped_fields], so the unmapped fields are not returned in a column of that name; rename that column to get them"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_fill_mapped | FILLNULL "x" ON _unmapped_* | SORT id | LIMIT 10'
+  - length: { columns: 2 }
+  - match: { columns.0.name: _unmapped_fields }
+  - match: { values: [ [ "mine", 1 ], [ "x", 2 ] ] }
+
+---
+'FILLNULL ON * fills a mapped field named _unmapped_fields':
+  - do:
+      warnings:
+        - "The query has a column named [_unmapped_fields], so the unmapped fields are not returned in a column of that name; rename that column to get them"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_fill_mapped | FILLNULL DEFAULT ON * | SORT id | LIMIT 10'
+  - length: { columns: 2 }
+  - match: { columns.0.name: _unmapped_fields }
+  - match: { values: [ [ "mine", 1 ], [ "", 2 ] ] }
+
+---
+'FILLNULL on a source field named _unmapped_fields fills it as an ordinary unmapped field':
+  - do:
+      warnings:
+        - "The query has a column named [_unmapped_fields], so the unmapped fields are not returned in a column of that name; rename that column to get them"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_fill_source | FILLNULL "x" ON _unmapped_fields | SORT id | LIMIT 10'
+  - length: { columns: 2 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { columns.1.type: keyword }
+  - match: { values: [ [ 1, "src" ], [ 2, "x" ] ] }
+
+---
+'FILLNULL ON * leaves the _unmapped_fields column alone':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_fill_source | FILLNULL DEFAULT ON * | SORT id | LIMIT 10'
+  - length: { columns: 2 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { columns.1.type: _source }
+  - match: { values.0.0: 1 }
+  - match: { values.0.1: { _unmapped_fields: src, other: o } }
+  - match: { values.1.0: 2 }
+  - match: { values.1.1: { other: p } }
+
+---
+'a FILLNULL pattern does not match the _unmapped_fields column':
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_fill_source | FILLNULL "x" ON _unmapped_* | LIMIT 10'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'No matches found for pattern [_unmapped_*]' }
+
+---
+'FILLNULL cannot name _unmapped_fields after a KEEP drops it':
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_fill_source | KEEP id, oth* | FILLNULL "x" ON _unmapped_fields'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Unknown column [_unmapped_fields]' }
+
+---
+'FILLNULL ON * in a subquery is rejected':
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_fill_source, (FROM la_fill_source | FILLNULL DEFAULT ON *) | LIMIT 10'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'does not support [FILLNULL DEFAULT ON *] in a subquery yet; name the columns to fill' }
+
+---
+'FILLNULL ON * in a subquery next to a view is rejected':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ views_with_branching, optional_fields_load_all_views ]
+      reason: "LOAD_ALL over views is only available with this capability"
+  - do:
+      esql.put_view:
+        name: la_fill_src_view
+        body:
+          query: 'FROM la_fill_source'
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_fill_src_view, (FROM la_fill_source | FILLNULL DEFAULT ON *) | LIMIT 10'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'does not support [FILLNULL DEFAULT ON *] in a subquery yet; name the columns to fill' }
+
+---
+'FILLNULL ON * inside a view is not rejected':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ views_with_branching, optional_fields_load_all_views, settings_scoped_at_view_boundaries ]
+      reason: "LOAD_ALL over views is only available with this capability"
+  - do:
+      esql.put_view:
+        name: la_fill_view
+        body:
+          query: 'FROM la_fill_source | FILLNULL DEFAULT ON *'
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM (FROM la_fill_source | KEEP id), (FROM la_fill_view | WHERE id IS NOT NULL) | KEEP id | SORT id | LIMIT 10'
+  - length: { columns: 1 }
+  - match: { columns.0.name: id }
+  - match: { values: [ [ 1 ], [ 1 ], [ 2 ], [ 2 ] ] }
+
+---
+'FILLNULL on a loadable partially unmapped field fills only the rows with no such field in _source':
+  - do:
+      indices.create:
+        index: la_fill_punk_mapped
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+              n:
+                type: long
+
+  - do:
+      indices.create:
+        index: la_fill_punk_source
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "la_fill_punk_mapped", "_id": "1" } }
+          - { "id": "a1", "n": 1 }
+          - { "index": { "_index": "la_fill_punk_mapped", "_id": "2" } }
+          - { "id": "a2" }
+          - { "index": { "_index": "la_fill_punk_source", "_id": "1" } }
+          - { "id": "b1", "n": 5 }
+          - { "index": { "_index": "la_fill_punk_source", "_id": "2" } }
+          - { "id": "b2" }
+
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_fill_punk_mapped, la_fill_punk_source | FILLNULL 0 ON n | SORT id | LIMIT 10'
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: n }
+  - match: { columns.1.type: long }
+  - match: { values.0.1: 1 }
+  - match: { values.1.1: 0 }
+  - match: { values.2.1: 5 }
+  - match: { values.3.1: 0 }
+
+---
+'FILLNULL ON * inside a view without LOAD_ALL fills the view columns under an outer LOAD_ALL':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ views_with_branching, optional_fields_load_all_views, settings_scoped_at_view_boundaries ]
+      reason: "LOAD_ALL over views is only available with this capability"
+  - do:
+      indices.create:
+        index: la_fill_view_src
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              name:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "la_fill_view_src", "_id": "1" } }
+          - { "name": "a" }
+          - { "index": { "_index": "la_fill_view_src", "_id": "2" } }
+          - { "note": "o" }
+
+  - do:
+      esql.put_view:
+        name: la_fill_view_cols
+        body:
+          query: 'FROM la_fill_view_src | KEEP name, n* | FILLNULL "none" ON *'
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_fill_view_cols | SORT name | LIMIT 10'
+  - length: { columns: 1 }
+  - match: { columns.0.name: name }
+  - match: { columns.0.type: keyword }
+  - match: { values: [ [ "a" ], [ "none" ] ] }

@@ -22,7 +22,6 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
@@ -988,7 +987,7 @@ public class SearchExecutionContextTests extends ESTestCase {
                     );
 
                     // scoring a leaf releases what was accounted against it, well before the request ends
-                    searcher.search(new MatchAllDocsQuery(), new CountingCollectorManager());
+                    searcher.search(Queries.ALL_DOCS_INSTANCE, new CountingCollectorManager());
                     assertEquals("scoring the leaves must release the accounted memory", 0L, breaker.used);
 
                     // memory accounted against a leaf that is never scored again is released when the searcher closes

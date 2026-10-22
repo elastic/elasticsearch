@@ -23,6 +23,9 @@ import java.util.OptionalDouble;
 public class BccUploadMetrics {
 
     static final String BCC_TOTAL_SIZE_HISTOGRAM_METRIC = "es.bcc.total_size_in_megabytes.histogram";
+    static final String BCC_HEADER_SIZE_HISTOGRAM_METRIC = "es.bcc.size.header.histogram";
+    static final String BCC_REPLICATED_CONTENT_SIZE_HISTOGRAM_METRIC = "es.bcc.size.replicated_content.histogram";
+    static final String BCC_COPIED_GENERATIONAL_FILES_SIZE_HISTOGRAM_METRIC = "es.bcc.size.copied_generational_files.histogram";
     static final String BCC_NUMBER_COMMITS_HISTOGRAM_METRIC = "es.bcc.number_of_commits.histogram";
     static final String BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC = "es.bcc.elapsed_time_before_freeze.histogram";
     static final String BCC_TIMESTAMP_RANGE_HISTOGRAM_METRIC = "es.bcc.timestamp_range.histogram";

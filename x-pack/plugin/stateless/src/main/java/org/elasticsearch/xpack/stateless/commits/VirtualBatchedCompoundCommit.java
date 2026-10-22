@@ -123,6 +123,9 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     // Maps internal data (pending compound commits' headers, files, padding) to their offset in the virtual batched compound commit
     private final NavigableMap<Long, InternalDataReader> internalDataReadersByOffset = new ConcurrentSkipListMap<>();
     private final AtomicLong currentOffset = new AtomicLong();
+    private final AtomicLong headersSizeBytes = new AtomicLong();
+    private final AtomicLong replicatedContentSizeBytes = new AtomicLong();
+    private final AtomicLong copiedGenerationalFilesSizeBytes = new AtomicLong();
     private final AtomicReference<Thread> appendingCommitThread = new AtomicReference<>();
     private final BlobFile blobFile;
     private final PrimaryTermAndGeneration primaryTermAndGeneration;
@@ -341,6 +344,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             ? getReplicatedContent(ccTermAndGen, currentOffset.get(), internalFiles, internalFilesSize, reference.getDirectory())
             : ReplicatedContent.EMPTY;
         var replicatedContentHeader = replicatedContent.header();
+        replicatedContentSizeBytes.addAndGet(replicatedContentHeader.dataSizeInBytes());
 
         // We replicate referenced .si files into hollow commits as extra content appended after the internal files in the compound commit.
         final List<InternalFile> extraContentFiles = reference.isHollow() ? new ArrayList<>() : List.of();
@@ -364,6 +368,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             timestampFieldValueRange
         );
         final int headerLength = Math.toIntExact(headerReader.headerSize());
+        headersSizeBytes.addAndGet(headerLength);
 
         final long sizeInBytes = headerLength + replicatedContentHeader.dataSizeInBytes() + internalFilesSize + extraContentSize;
         if (logger.isDebugEnabled()) {
@@ -840,6 +845,14 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
 
     public long getTotalSizeInBytes() {
         return currentOffset.get();
+    }
+
+    public long copiedGenerationalFilesSizeInBytes() {
+        return copiedGenerationalFilesSizeBytes.get();
+    }
+
+    public long replicatedContentSizeInBytes() {
+        return replicatedContentSizeBytes.get();
     }
 
     public Map<String, BlobLocation> getInternalLocations() {

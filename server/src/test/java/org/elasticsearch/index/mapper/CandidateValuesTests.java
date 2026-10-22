@@ -358,6 +358,33 @@ public class CandidateValuesTests extends ESTestCase {
         assertEquals("one of them standing on its own is enough", CandidateValues.Answer.YES, candidates.held(values("catalog the cat")));
     }
 
+    /**
+     * A run longer than the longest token is cut at that length, so a stretch the run continues can be a token of
+     * its own. Where the run is that long the bytes before the stretch do not say.
+     */
+    public void testARunLongerThanTheLongestTokenIsCut() {
+        final Query query = new TermQuery(new Term(FIELD, "cat"));
+        final StandardAnalyzer shortTokens = new StandardAnalyzer();
+        shortTokens.setMaxTokenLength(5);
+        for (Analyzer analyzer : List.of(new StandardAnalyzer(), new SimpleAnalyzer(), shortTokens)) {
+            final String value = "x".repeat(analyzer == shortTokens ? 5 : 255) + "cat";
+            assertTrue(analyzer.toString(), matches(analyzer, List.of(value), query));
+            final CandidateValues candidates = CandidateValues.of(query, FIELD).readingTokensOf(analyzer);
+            assertEquals(analyzer.toString(), CandidateValues.Answer.MAYBE, candidates.held(values(value)));
+        }
+        final CandidateValues candidates = CandidateValues.of(query, FIELD).readingTokensOf(shortTokens);
+        assertEquals("a run shorter than the longest token is not cut", CandidateValues.Answer.NO, candidates.held(values("xxcat")));
+    }
+
+    /** A digit has no other case: the byte it differs from by the case bit is a control character, which spells nothing. */
+    public void testADigitIsNotSpelledByAControlCharacter() {
+        final Query query = new TermQuery(new Term(FIELD, "42"));
+        final CandidateValues candidates = readingTokens(query);
+        assertFalse(matches(new StandardAnalyzer(), List.of("\u0014\u0012"), query));
+        assertNotEquals(CandidateValues.Answer.YES, candidates.held(values("\u0014\u0012")));
+        assertEquals(CandidateValues.Answer.YES, candidates.held(values("the 42")));
+    }
+
     /** Where a byte between two words could hold them together, the value is analyzed rather than answered. */
     public void testWhatTheBytesAroundDoNotSay() {
         final CandidateValues candidates = readingTokens(new TermQuery(new Term(FIELD, "the")));
@@ -463,8 +490,11 @@ public class CandidateValuesTests extends ESTestCase {
     }
 
     private Analyzer randomAnalyzer() {
+        final StandardAnalyzer shortTokens = new StandardAnalyzer();
+        shortTokens.setMaxTokenLength(between(1, 8));
         return randomFrom(
             new StandardAnalyzer(),
+            shortTokens,
             new WhitespaceAnalyzer(),
             new SimpleAnalyzer(),
             new StopAnalyzer(EnglishAnalyzer.ENGLISH_STOP_WORDS_SET),
@@ -472,7 +502,7 @@ public class CandidateValuesTests extends ESTestCase {
         );
     }
 
-    private static final String[] WORDS = { "quick", "brown", "fox", "the", "a", "QUICK", "Fox", "café", "naïve", "x", "k", "k9" };
+    private static final String[] WORDS = { "quick", "brown", "fox", "the", "a", "QUICK", "Fox", "café", "naïve", "x", "k", "k9", "42" };
 
     /**
      * What sits between two words of a value. Each analyzer of the allowlist cuts its tokens differently here: an
@@ -486,7 +516,7 @@ public class CandidateValuesTests extends ESTestCase {
         for (int i = between(1, 3); i > 0; i--) {
             final StringBuilder value = new StringBuilder();
             for (int w = between(0, 6); w > 0; w--) {
-                value.append(value.isEmpty() ? "" : randomFrom(SEPARATORS)).append(randomFrom(WORDS));
+                value.append(value.isEmpty() ? "" : randomSeparator()).append(randomWord());
             }
             if (randomBoolean() && value.isEmpty() == false) {
                 // A value starting or ending on a separator, where a token sits against the edge of the value.
@@ -497,6 +527,31 @@ public class CandidateValuesTests extends ESTestCase {
             }
         }
         return values;
+    }
+
+    /**
+     * A word of {@link #WORDS}, or one of them as a folded compare reads it: its bytes with the case bit flipped,
+     * which is another case for a letter and a control character for a digit, or the word run on from a run as long
+     * as the longest token, where an analyzer cuts it.
+     */
+    private String randomWord() {
+        final String word = randomFrom(WORDS);
+        return switch (between(0, 9)) {
+            case 0 -> {
+                final StringBuilder flipped = new StringBuilder(word.length());
+                for (char c : word.toCharArray()) {
+                    flipped.append(c < 0x80 ? (char) (c ^ 0x20) : c);
+                }
+                yield flipped.toString();
+            }
+            case 1 -> "x".repeat(randomFrom(between(1, 9), between(250, 260))) + word;
+            default -> word;
+        };
+    }
+
+    /** One of {@link #SEPARATORS}, or any byte of ASCII. */
+    private String randomSeparator() {
+        return randomInt(4) == 0 ? String.valueOf((char) between(0, 0x7F)) : randomFrom(SEPARATORS);
     }
 
     /** A query over the terms the values could hold, lowercased as the analyzers of the allowlist leave them. */

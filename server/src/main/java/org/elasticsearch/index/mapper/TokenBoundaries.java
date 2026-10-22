@@ -14,6 +14,7 @@ import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.core.SimpleAnalyzer;
 import org.apache.lucene.analysis.core.StopAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.analysis.util.CharTokenizer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -73,10 +74,10 @@ final class TokenBoundaries {
             return new TokenBoundaries(WordBytes.LETTERS_AND_DIGITS, standard.getStopwordSet(), standard.getMaxTokenLength());
         }
         if (unwrapped instanceof StopAnalyzer stop) {
-            return new TokenBoundaries(WordBytes.LETTERS, stop.getStopwordSet(), Integer.MAX_VALUE);
+            return new TokenBoundaries(WordBytes.LETTERS, stop.getStopwordSet(), CharTokenizer.DEFAULT_MAX_WORD_LEN);
         }
         if (unwrapped instanceof SimpleAnalyzer) {
-            return new TokenBoundaries(WordBytes.LETTERS, CharArraySet.EMPTY_SET, Integer.MAX_VALUE);
+            return new TokenBoundaries(WordBytes.LETTERS, CharArraySet.EMPTY_SET, CharTokenizer.DEFAULT_MAX_WORD_LEN);
         }
         return null;
     }
@@ -104,7 +105,7 @@ final class TokenBoundaries {
 
     /**
      * What the bytes around the {@code length} bytes of {@code value} at {@code at} say about them, which is read
-     * from the two bytes before the stretch and the two after it.
+     * from the two bytes after the stretch and, before it, from the run the stretch continues.
      */
     Verdict verdictAt(BytesRef value, int at, int length) {
         final Verdict before = beforeStretch(value, at);
@@ -118,13 +119,33 @@ final class TokenBoundaries {
         return before == Verdict.TOKEN && after == Verdict.TOKEN ? Verdict.TOKEN : Verdict.UNKNOWN;
     }
 
-    /** What the bytes before the stretch starting at {@code at} say. */
+    /**
+     * What the bytes before the stretch starting at {@code at} say. A run the stretch continues makes it part of a
+     * longer token only where the run is shorter than the longest token: the analyzer cuts a longer run at that
+     * length, and a cut can fall where the stretch starts.
+     */
     private Verdict beforeStretch(BytesRef value, int at) {
         if (at == value.offset) {
             // Each value is analyzed on its own, so where one starts a token starts.
             return Verdict.TOKEN;
         }
-        return neighbour(value, at - 1, at - 2);
+        final Verdict verdict = neighbour(value, at - 1, at - 2);
+        if (verdict != Verdict.PART_OF_ONE) {
+            return verdict;
+        }
+        final int stop = Math.max(value.offset, at - longestToken + 1);
+        for (int i = at - 1; i >= stop; i--) {
+            final byte b = value.bytes[i];
+            if (b < 0) {
+                return Verdict.UNKNOWN;
+            }
+            if (isWordByte(b) == false && holdsRunsTogether(b) == false && joinsWords(b) == false) {
+                return Verdict.PART_OF_ONE;
+            }
+        }
+        // The token holding the byte before the stretch starts no nearer than this, so it is shorter than the
+        // longest token.
+        return stop == value.offset ? Verdict.PART_OF_ONE : Verdict.UNKNOWN;
     }
 
     /** What the bytes after the stretch ending at {@code to} say. */
@@ -193,13 +214,14 @@ final class TokenBoundaries {
 
     /**
      * Whether the {@code term.length} bytes of {@code value} at {@code at} spell {@code term} once lowercased,
-     * which is the comparison the analyzer's own lowercasing comes to for a term of ASCII.
+     * which is the comparison the analyzer's own lowercasing comes to for a term of ASCII. Only a letter has another
+     * case: the byte a digit differs from by the same bit is a control character.
      */
     static boolean spellsTerm(BytesRef value, int at, BytesRef term) {
         for (int i = 0; i < term.length; i++) {
             final byte of = value.bytes[at + i];
             final byte asked = term.bytes[term.offset + i];
-            if (of != asked && (of | 0x20) != asked) {
+            if (of != asked && (asked < 'a' || asked > 'z' || of != asked - ('a' - 'A'))) {
                 return false;
             }
         }

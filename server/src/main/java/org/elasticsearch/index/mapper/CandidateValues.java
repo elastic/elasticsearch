@@ -404,23 +404,22 @@ public final class CandidateValues {
     }
 
     /**
-     * What an occurrence of {@code needle} at {@code at} says. A needle is only read as a token where it spells one
-     * of the clause's terms as that term stands, since the search for it compares a little more than the term does.
+     * What an occurrence of {@code needle} at {@code at} says. The bytes around a needle are only read where it
+     * spells one of the clause's terms as that term stands and the term is one whose tokens they can be read for:
+     * the search for it compares a little more than the term does, and a term as long as the longest token is cut
+     * wherever its run is, so neither the bytes around it nor its own length say where its tokens end.
      */
     private TokenBoundaries.Verdict verdictOf(BytesRef value, int at, BytesRef needle, Clause clause) {
         if (boundaries == null) {
             return TokenBoundaries.Verdict.UNKNOWN;
         }
-        final TokenBoundaries.Verdict verdict = boundaries.verdictAt(value, at, needle.length);
-        if (verdict != TokenBoundaries.Verdict.TOKEN) {
-            return verdict;
-        }
         for (BytesRef term : clause.terms()) {
             if (term.length == needle.length && boundaries.canReadTokensOf(term) && TokenBoundaries.spellsTerm(value, at, term)) {
-                return TokenBoundaries.Verdict.TOKEN;
+                return boundaries.verdictAt(value, at, needle.length);
             }
         }
-        // A token, but one spelled by a character this reads as another, so what it holds is left to the analyzer.
+        // Spelled by a character this reads as another, or a term whose tokens are not read, so what it holds is left
+        // to the analyzer.
         return TokenBoundaries.Verdict.UNKNOWN;
     }
 

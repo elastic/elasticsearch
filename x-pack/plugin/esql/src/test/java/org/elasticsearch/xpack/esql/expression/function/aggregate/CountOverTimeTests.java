@@ -47,7 +47,7 @@ public class CountOverTimeTests extends AbstractAggregationTestCase {
         // TODO Use CountTests.parameters() once count over time allows for date_range, double_range, flattened, exponential_histogram,
         // tdigest
         var suppliers = new ArrayList<TestCaseSupplier>();
-        FunctionAppliesTo denseVectorAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.6.0", "", true);
+        FunctionAppliesTo denseVectorAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.7.0", "", true);
 
         Stream.of(
             MultiRowTestCaseSupplier.nullCases(1, 1000),

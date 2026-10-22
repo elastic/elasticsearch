@@ -42,7 +42,7 @@ public class PresentOverTimeTests extends AbstractAggregationTestCase {
         ArrayList<TestCaseSupplier> suppliers = new ArrayList<>();
         FunctionAppliesTo histogramPreviewAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);
         FunctionAppliesTo histogramGaAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.4.0", "", true);
-        FunctionAppliesTo denseVectorAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.6.0", "", true);
+        FunctionAppliesTo denseVectorAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.7.0", "", true);
 
         Stream.of(
             MultiRowTestCaseSupplier.nullCases(1, 1000),

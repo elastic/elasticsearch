@@ -86,12 +86,12 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         return args;
     }
 
-    protected static boolean isMappingKeepingOriginalSourceForArrays(Params params) {
+    protected static boolean indexKeepsArray(Params params) {
         var settings = getSettingsForParams(params).build();
-        return isMappingKeepingOriginalSourceForArrays(settings);
+        return indexKeepsArray(settings);
     }
 
-    protected static boolean isMappingKeepingOriginalSourceForArrays(Settings settings) {
+    protected static boolean indexKeepsArray(Settings settings) {
         return Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING.get(settings) == Mapper.SourceKeepMode.ARRAYS;
     }
 

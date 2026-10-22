@@ -125,9 +125,7 @@ public class TextFieldBlockLoaderTests extends BinaryDVBlockLoaderTestCase {
             }
         }
 
-        // In logsdb a text field within a multi-field gets no synthetic source fallback field (the parent is responsible for synthetic
-        // source), so unless it has doc values of its own it is loaded from _source, which keeps source order.
-        if (params.indexMode() == IndexMode.LOGSDB && testContext.isMultifield() && fieldMapping.containsKey("doc_values") == false) {
+        if (indexKeepsArray(params) && testContext.isMultifield() && params.syntheticSource()) {
             return valuesInSourceOrder(value);
         }
 

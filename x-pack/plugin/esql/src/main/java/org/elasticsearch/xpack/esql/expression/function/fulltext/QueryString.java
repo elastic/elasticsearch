@@ -391,7 +391,7 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
                 } catch (NumberFormatException e) {
                     throw new InvalidArgumentException(invalidFieldsMessage("invalid boost in [{}]", field));
                 }
-                if (parsed.values().stream().anyMatch(boost -> boost < 0)) {
+                if (parsed.values().stream().anyMatch(boost -> Float.compare(boost, 0f) < 0)) {
                     throw new InvalidArgumentException(invalidFieldsMessage("negative boost in [{}]", field));
                 }
             }

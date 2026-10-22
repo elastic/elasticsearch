@@ -3756,6 +3756,11 @@ public class VerifierTests extends AnalyzerTestCase {
             "FROM test | WHERE QSTR(\"Jean\", {\"fields\": [\"title^-1\"]})",
             allOf(containsString("Invalid option [fields]"), containsString("negative boost in [title^-1]"))
         );
+        // -0.0 is negative too, matching how the query_string query checks boosts
+        fullText().error(
+            "FROM test | WHERE QSTR(\"Jean\", {\"fields\": [\"title^-0\"]})",
+            allOf(containsString("Invalid option [fields]"), containsString("negative boost in [title^-0]"))
+        );
     }
 
     /**

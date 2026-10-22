@@ -13,6 +13,8 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.LicenseAware;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.analysis.rules.ViewUtils;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
@@ -160,6 +162,7 @@ public class Verifier {
 
         if (unmappedResolution.loadsAllUnmappedFields()) {
             checkLoadAllModeSupportedCommands(plan, failures);
+            checkLoadAllFillNullAllColumnsInSubqueries(plan, failures);
         }
 
         checkTStepIncompatibleWithTRange(plan, failures);
@@ -713,21 +716,23 @@ public class Verifier {
     private static void checkLoadAllModeSupportedCommands(LogicalPlan plan, Failures failures) {
         plan.forEachDown(p -> {
             if (supportedInLoadAllMode(p) == false) {
-                failures.add(
-                    fail(
-                        p,
-                        "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, IP_LOCATION, "
-                            + "REGISTERED_DOMAIN, URI_PARTS, USER_AGENT, MV_EXPAND, SAMPLE, CHANGE_POINT, DEDUP, WHERE, SORT, LIMIT, "
-                            + "LIMIT BY, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; [{}] is not supported yet",
-                        p instanceof EsRelation esr && esr.indexMode().isTsdb() ? "TS"
-                            : p instanceof BranchPlan ? "BranchPlan"
-                            : p instanceof NamedSubquery ? "NamedSubquery"
-                            : p instanceof TelemetryAware ta ? ta.telemetryLabel()
-                            : p.nodeName()
-                    )
-                );
+                String command = p instanceof EsRelation esr && esr.indexMode().isTsdb() ? "TS"
+                    : p instanceof BranchPlan ? "BranchPlan"
+                    : p instanceof NamedSubquery ? "NamedSubquery"
+                    : p instanceof TelemetryAware ta ? ta.telemetryLabel()
+                    : p.nodeName();
+                failures.add(fail(p, loadAllUnsupportedCommandMessage(command)));
             }
         });
+    }
+
+    static String loadAllUnsupportedCommandMessage(String command) {
+        return "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, IP_LOCATION, "
+            + (EsqlCapabilities.Cap.FILLNULL.isEnabled() ? "FILLNULL, " : "")
+            + "REGISTERED_DOMAIN, URI_PARTS, USER_AGENT, MV_EXPAND, SAMPLE, CHANGE_POINT, DEDUP, WHERE, SORT, LIMIT, "
+            + "LIMIT BY, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; ["
+            + command
+            + "] is not supported yet";
     }
 
     private static boolean supportedInLoadAllMode(LogicalPlan plan) {
@@ -737,6 +742,7 @@ public class Verifier {
             || plan instanceof Drop
             || plan instanceof Rename
             || plan instanceof Eval
+            || plan instanceof FillNull
             || plan instanceof Grok
             || plan instanceof Dissect
             || plan instanceof MvExpand
@@ -762,6 +768,30 @@ public class Verifier {
             || (plan instanceof UnionAll && plan instanceof BranchPlan == false)
             || (plan instanceof Subquery && plan instanceof NamedSubquery == false)
             || plan instanceof AbstractSubqueryJoin;
+    }
+
+    // Temporary: resolveMergePlan casts, by id, a loader it injects below a branch's FILLNULL; ON * would re-alias the loader and orphan
+    // the cast. See https://github.com/elastic/elasticsearch/issues/162866
+    private static void checkLoadAllFillNullAllColumnsInSubqueries(LogicalPlan plan, Failures failures) {
+        ViewUtils.forEachOutsideViews(plan, p -> {
+            if (p instanceof UnionAll union) {
+                for (int i = 0; i < union.children().size(); i++) {
+                    if (ViewUtils.isViewBody(union, i) == false) {
+                        ViewUtils.forEachOutsideViews(union.children().get(i), node -> {
+                            if (node instanceof FillNull fillNull && (fillNull.allColumns() || fillNull.targetFields().isEmpty())) {
+                                failures.add(
+                                    fail(
+                                        fillNull,
+                                        "unmapped_fields=\"LOAD_ALL\" does not support [{}] in a subquery yet; name the columns to fill",
+                                        fillNull.sourceText()
+                                    )
+                                );
+                            }
+                        });
+                    }
+                }
+            }
+        });
     }
 
     /**

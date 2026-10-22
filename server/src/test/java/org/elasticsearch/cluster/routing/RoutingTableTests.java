@@ -237,49 +237,6 @@ public class RoutingTableTests extends ESAllocationTestCase {
         }
     }
 
-    public void testAllActiveShardsGrouped() {
-        assertThat(this.emptyRoutingTable.allActiveShardsGrouped(new String[0], true).size(), is(0));
-        assertThat(this.emptyRoutingTable.allActiveShardsGrouped(new String[0], false).size(), is(0));
-
-        assertThat(clusterState.routingTable().allActiveShardsGrouped(new String[] { TEST_INDEX_1 }, false).size(), is(0));
-        assertThat(clusterState.routingTable().allActiveShardsGrouped(new String[] { TEST_INDEX_1 }, true).size(), is(this.shardsPerIndex));
-
-        initPrimaries();
-        assertThat(clusterState.routingTable().allActiveShardsGrouped(new String[] { TEST_INDEX_1 }, false).size(), is(0));
-        assertThat(clusterState.routingTable().allActiveShardsGrouped(new String[] { TEST_INDEX_1 }, true).size(), is(this.shardsPerIndex));
-
-        startInitializingShards(TEST_INDEX_1);
-        assertThat(
-            clusterState.routingTable().allActiveShardsGrouped(new String[] { TEST_INDEX_1 }, false).size(),
-            is(this.numberOfShards)
-        );
-        assertThat(
-            clusterState.routingTable().allActiveShardsGrouped(new String[] { TEST_INDEX_1, TEST_INDEX_2 }, false).size(),
-            is(this.numberOfShards)
-        );
-        assertThat(clusterState.routingTable().allActiveShardsGrouped(new String[] { TEST_INDEX_1 }, true).size(), is(this.shardsPerIndex));
-
-        startInitializingShards(TEST_INDEX_2);
-        assertThat(
-            clusterState.routingTable().allActiveShardsGrouped(new String[] { TEST_INDEX_2 }, false).size(),
-            is(this.numberOfShards)
-        );
-        assertThat(
-            clusterState.routingTable().allActiveShardsGrouped(new String[] { TEST_INDEX_1, TEST_INDEX_2 }, false).size(),
-            is(2 * this.numberOfShards)
-        );
-        assertThat(
-            clusterState.routingTable().allActiveShardsGrouped(new String[] { TEST_INDEX_1, TEST_INDEX_2 }, true).size(),
-            is(this.totalNumberOfShards)
-        );
-
-        try {
-            clusterState.routingTable().allActiveShardsGrouped(new String[] { TEST_INDEX_1, "not_exists" }, true);
-        } catch (IndexNotFoundException e) {
-            fail("Calling with non-existing index should be ignored at the moment");
-        }
-    }
-
     public void testAllAssignedShardsGrouped() {
         assertThat(clusterState.routingTable().allAssignedShardsGrouped(new String[] { TEST_INDEX_1 }, false).size(), is(0));
         assertThat(

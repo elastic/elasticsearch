@@ -58,6 +58,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.regex.Regex;
@@ -1330,6 +1331,38 @@ public final class RestoreService implements ClusterStateApplier {
             .build();
     }
 
+    /**
+     * Puts the data streams that are restored over back in the aliases that they were in before, with the filters and the write data
+     * stream flags that they had there. A data stream that is restored over is deleted and created again, and deleting a data stream
+     * removes it from all of its aliases. When the aliases of the snapshot are not restored, nothing else would put them back, and the
+     * aliases that exist are meant to be the ones that are in effect after the restore, like they are for an index that is restored over.
+     *
+     * @param before            the project before the data streams that are restored over were deleted
+     * @param replacedTargets   the data streams that are restored over
+     * @param restored          the project after the restore, which has the data streams that were restored
+     */
+    // visible for testing
+    static void keepAliasesOfReplacedDataStreams(
+        ProjectMetadata before,
+        Collection<DataStreamRestoreTarget> replacedTargets,
+        ProjectMetadata.Builder restored
+    ) {
+        for (DataStreamRestoreTarget target : replacedTargets) {
+            final String dataStream = target.destinationDataStream().getName();
+            for (DataStreamAlias alias : before.dataStreamAliases().values()) {
+                if (alias.getDataStreams().contains(dataStream)) {
+                    final CompressedXContent filter = alias.getFilter(dataStream);
+                    restored.put(
+                        alias.getName(),
+                        dataStream,
+                        dataStream.equals(alias.getWriteDataStream()),
+                        filter == null ? null : filter.string()
+                    );
+                }
+            }
+        }
+    }
+
     public static RestoreInProgress updateRestoreStateWithDeletedIndices(RestoreInProgress oldRestore, Set<Index> deletedIndices) {
         boolean changesMade = false;
         RestoreInProgress.Builder builder = new RestoreInProgress.Builder();
@@ -2208,6 +2241,9 @@ public final class RestoreService implements ClusterStateApplier {
             // Check if the snapshot to restore is currently being deleted
             ensureSnapshotNotDeleted(currentState);
 
+            // Deleting a data stream removes it from its aliases, so the aliases that the data streams that are restored over are in have
+            // to be taken from the project as it is before they are deleted.
+            final ProjectMetadata projectBeforeDeletingDataStreams = currentState.metadata().getProject(projectId);
             if (existingDataStreamTargets.isEmpty() == false) {
                 // Validate and delete the destination data streams and their backing/failure-store indices, in the same cluster-state
                 // update, before the ordinary per-index restore loop below runs. Once deleted, the restored backing/failure indices no
@@ -2400,6 +2436,13 @@ public final class RestoreService implements ClusterStateApplier {
             }
 
             applyDataStreamRestores(currentState, mdBuilder, projectId);
+            if (request.includeAliases() == false) {
+                keepAliasesOfReplacedDataStreams(
+                    projectBeforeDeletingDataStreams,
+                    existingDataStreamTargets,
+                    mdBuilder.getProject(projectId)
+                );
+            }
 
             // Restore global state if needed
             if (request.includeGlobalState()) {

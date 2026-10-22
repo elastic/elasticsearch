@@ -473,3 +473,9 @@ tests:
 - class: org.elasticsearch.index.codec.tsdb.ES819DocValuesDuelTests
   method: testDuel
   issue: https://github.com/elastic/elasticsearch/issues/162874
+- class: org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DivTests
+  method: testEvaluate {TestCase=<dense_vector>, <dense_vector>}
+  issue: https://github.com/elastic/elasticsearch/issues/162950
+- class: org.elasticsearch.xpack.ml.integration.RevertModelSnapshotIT
+  method: testRevertModelSnapshot_DeleteInterveningResults
+  issue: https://github.com/elastic/elasticsearch/issues/161086

@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 162297
+pr: 162833
+summary: Return 400 when an `intervals` query rule expands to too many terms
+type: bug

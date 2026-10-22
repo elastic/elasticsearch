@@ -47,6 +47,10 @@ final class ColumnarOrdinalTermsCollector extends LeafBucketCollectorBase {
      * The largest dictionary the cache covers. The cache is cleared for each segment, so the cost of a segment grows
      * with the dictionary and not with the documents that match. Past this size, the cost of clearing it can be more
      * than the hashing it saves.
+     *
+     * <p>This number is an estimate, not a measurement. It was chosen as a round, conservative size. The benchmark covers
+     * dictionaries of up to 5,000 terms only. At this size the cache is 2 MB, and a segment with few matched documents
+     * may spend more clearing it than it saves.
      */
     static final int MAX_DICTIONARY_SIZE = 1 << 18;
 

@@ -17,7 +17,7 @@ These settings are configured on a per-index basis and may be:
 * _Dynamic_
   They can be changed on a live index using the [update index settings API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-settings).
 
-To configure settings when you create an index, include a `settings` object in the [create index request](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-create). The following example creates `my-index` with a refresh interval of 30 seconds:
+To configure index settings at creation time, include a `settings` object in the [create index request](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-create). The following example creates `my-index` with a refresh interval of 30 seconds:
 
 ```console
 PUT /my-index

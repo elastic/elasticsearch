@@ -392,7 +392,10 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
                 )
             )
         );
-        if (randomBoolean()) {
+        // The relocation target cannot remain on node-1, either because node-1 is also shutting down or because of some
+        // other decider returning NO. Either way, it would be escalated if it weren't for the source node shutting down.
+        final boolean targetNodeShuttingDown = randomBoolean();
+        if (targetNodeShuttingDown) {
             shutdowns.put(
                 "node-1",
                 nodeShutdownMetadata(
@@ -414,9 +417,11 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
             .build();
 
         final var balance = new DesiredBalance(1, Map.of(shardId, new ShardAssignment(Set.of("node-0", "node-3"), 2, 0, 0)));
-        final var forbidRemain = forbidRemainDecider(shardId, "node-1", false);
+        final AllocationDecider forbidRemain = targetNodeShuttingDown
+            ? new NodeShutdownAllocationDecider()
+            : forbidRemainDecider(shardId, "node-1", false);
 
-        final var allocation = createRoutingAllocationFrom(clusterState, new NodeShutdownAllocationDecider(), forbidRemain);
+        final var allocation = createRoutingAllocationFrom(clusterState, forbidRemain);
         final var requests = RecoveryDirectCancellationService.computeUndesiredRecoveryCancellations(balance, allocation);
 
         assertThat(requests.entrySet(), hasSize(1));
@@ -447,7 +452,10 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
                 )
             )
         );
-        if (randomBoolean()) {
+        // The relocation target cannot remain on node-1, either because node-1 is also shutting down or because of some
+        // other decider. Either way, it would be escalated if it weren't for the source node shutting down.
+        final boolean targetNodeShuttingDown = randomBoolean();
+        if (targetNodeShuttingDown) {
             shutdowns.put(
                 "node-1",
                 nodeShutdownMetadata(
@@ -471,7 +479,9 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
             .build();
 
         final var balance = new DesiredBalance(1, Map.of(shardId, new ShardAssignment(Set.of("node-2"), 1, 0, 0)));
-        final var forbidRemain = forbidRemainDecider(shardId, "node-1", true);
+        final AllocationDecider forbidRemain = targetNodeShuttingDown
+            ? new NodeShutdownAllocationDecider()
+            : forbidRemainDecider(shardId, "node-1", true);
 
         final var allocation = createRoutingAllocationFrom(clusterState, forbidRemain);
         final var startedPrimary = allocation.routingNodes().node("node-0").getByShardId(shardId);

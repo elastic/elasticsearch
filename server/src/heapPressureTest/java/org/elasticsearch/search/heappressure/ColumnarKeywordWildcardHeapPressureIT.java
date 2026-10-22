@@ -67,8 +67,8 @@ public class ColumnarKeywordWildcardHeapPressureIT extends HeapPressureTestCase 
         .build();
 
     @Override
-    protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
+    protected ElasticsearchCluster cluster() {
+        return cluster;
     }
 
     @Before

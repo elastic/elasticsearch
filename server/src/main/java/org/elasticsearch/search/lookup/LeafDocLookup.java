@@ -131,13 +131,13 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
     /**
      * Accounts the decode buffer a newly opened reader retains, if it reports one, against the request circuit breaker.
-     * Called once per reader opened by this leaf lookup; the accounted memory is released when the request ends. See
-     * {@link ScriptFieldMemoryEstimator}.
+     * Called once per reader opened by this leaf lookup; the accounted memory is released when the leaf is done being
+     * collected, or at the latest when the request ends. See {@link ScriptFieldMemoryEstimator}.
      */
     private void accountDecodeMemory(String fieldName, FieldFactoryWrapper wrapper) {
         long decodeBytes = wrapper.factory.maxDecodeBytes();
         if (decodeBytes > 0) {
-            scriptFieldMemoryEstimator.account(decodeBytes, fieldName);
+            scriptFieldMemoryEstimator.account(decodeBytes, fieldName, reader);
         }
     }
 

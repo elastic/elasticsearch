@@ -8,15 +8,21 @@
  */
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
@@ -86,6 +92,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.DummyQueryBuilder;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.lookup.LeafDocLookup;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -99,6 +106,7 @@ import org.mockito.stubbing.Answer;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -950,6 +958,126 @@ public class SearchExecutionContextTests extends ESTestCase {
         return asInstanceOf(SharedAutomatonQuery.class, query).getSharedAutomaton();
     }
 
+    // ------------------------------------------------------------------
+    // script field decode-buffer accounting routing (see ScriptFieldMemoryEstimator)
+    // ------------------------------------------------------------------
+
+    public void testScriptFieldMemoryAttributedToSearcherLeavesAndReleasedPerLeaf() throws IOException {
+        try (Directory directory = newDirectory()) {
+            IndexWriterConfig config = new IndexWriterConfig(null).setMergePolicy(NoMergePolicy.INSTANCE);
+            try (IndexWriter writer = new IndexWriter(directory, config)) {
+                writer.addDocument(new Document());
+                writer.commit();
+                writer.addDocument(new Document());
+                writer.commit();
+            }
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                assertEquals("the fixture needs two leaves to show per-leaf attribution", 2, reader.leaves().size());
+                TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+                try (ContextIndexSearcher searcher = newContextIndexSearcher(reader)) {
+                    searcher.setCircuitBreaker(breaker);
+                    SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(searcher), breaker);
+
+                    context.accountScriptFieldMemory(100L, "field", reader.leaves().get(0));
+                    context.accountScriptFieldMemory(200L, "other", reader.leaves().get(1));
+                    assertEquals(300L, breaker.used);
+                    assertEquals(
+                        "the searcher's per-leaf accounting must take the memory, not the request-scoped pool",
+                        0L,
+                        context.getQueryConstructionMemoryUsed()
+                    );
+
+                    // scoring a leaf releases what was accounted against it, well before the request ends
+                    searcher.search(new MatchAllDocsQuery(), new CountingCollectorManager());
+                    assertEquals("scoring the leaves must release the accounted memory", 0L, breaker.used);
+
+                    // memory accounted against a leaf that is never scored again is released when the searcher closes
+                    context.accountScriptFieldMemory(100L, "field", reader.leaves().get(0));
+                    assertEquals(100L, breaker.used);
+                }
+                assertEquals("closing the searcher must release the residual accounted memory", 0L, breaker.used);
+            }
+        }
+    }
+
+    public void testScriptFieldMemoryFallsBackToRequestPoolWithoutSearcher() {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext("uuid", null), breaker);
+
+        context.accountScriptFieldMemory(100L, "field", null);
+        assertEquals(100L, breaker.used);
+        assertEquals("without a searcher the request-scoped pool must take the memory", 100L, context.getQueryConstructionMemoryUsed());
+
+        context.releaseQueryConstructionMemory();
+        assertEquals(0L, breaker.used);
+        assertEquals(0L, context.getQueryConstructionMemoryUsed());
+    }
+
+    public void testScriptFieldMemoryFallsBackToRequestPoolWhenSearcherHasNoBreaker() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(null))) {
+                writer.addDocument(new Document());
+            }
+            try (
+                DirectoryReader reader = DirectoryReader.open(directory);
+                ContextIndexSearcher searcher = newContextIndexSearcher(reader)
+            ) {
+                TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+                SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(searcher), breaker);
+
+                context.accountScriptFieldMemory(100L, "field", reader.leaves().get(0));
+                assertEquals(100L, breaker.used);
+                assertEquals(
+                    "a searcher without a breaker cannot release per leaf, so the pool must take the memory",
+                    100L,
+                    context.getQueryConstructionMemoryUsed()
+                );
+
+                context.releaseQueryConstructionMemory();
+                assertEquals(0L, breaker.used);
+            }
+        }
+    }
+
+    private static ContextIndexSearcher newContextIndexSearcher(DirectoryReader reader) throws IOException {
+        return new ContextIndexSearcher(
+            reader,
+            IndexSearcher.getDefaultSimilarity(),
+            null,
+            IndexSearcher.getDefaultQueryCachingPolicy(),
+            false
+        );
+    }
+
+    /** Counts hits per leaf; unlike {@link IndexSearcher#count} it always drives {@code searchLeaf} for every leaf. */
+    private static class CountingCollectorManager implements CollectorManager<Collector, Integer> {
+        @Override
+        public Collector newCollector() {
+            return new Collector() {
+                @Override
+                public LeafCollector getLeafCollector(LeafReaderContext context) {
+                    return new LeafCollector() {
+                        @Override
+                        public void setScorer(Scorable scorer) {}
+
+                        @Override
+                        public void collect(int doc) {}
+                    };
+                }
+
+                @Override
+                public ScoreMode scoreMode() {
+                    return ScoreMode.COMPLETE_NO_SCORES;
+                }
+            };
+        }
+
+        @Override
+        public Integer reduce(Collection<Collector> collectors) {
+            return collectors.size();
+        }
+    }
+
     /**
      * Minimal in-process breaker that tracks {@code used} and counts refund calls. Sufficient for
      * exercising the swap accounting in {@link SearchExecutionContext#addCircuitBreakerMemory(long, long, String)};
@@ -1059,6 +1187,39 @@ public class SearchExecutionContextTests extends ESTestCase {
         Map<String, Object> runtimeMappings
     ) {
         return createSearchExecutionContext(indexUuid, clusterAlias, mappingLookup, runtimeMappings, null);
+    }
+
+    /** For tests that need the context to hold a searcher, e.g. the script-field decode-buffer accounting routing. */
+    private static SearchExecutionContext createSearchExecutionContext(IndexSearcher searcher) {
+        IndexMetadata.Builder indexMetadataBuilder = new IndexMetadata.Builder("index");
+        indexMetadataBuilder.settings(indexSettings(IndexVersion.current(), 1, 1).put(IndexMetadata.SETTING_INDEX_UUID, "uuid"));
+        IndexMetadata indexMetadata = indexMetadataBuilder.build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        MapperService mapperService = createMapperServiceWithNamespaceValidator(indexSettings, MappingLookup.EMPTY, null);
+        return new SearchExecutionContext(
+            0,
+            0,
+            indexSettings,
+            null,
+            (mappedFieldType, fdc) -> mappedFieldType.fielddataBuilder(fdc).build(null, null),
+            mapperService,
+            MappingLookup.EMPTY,
+            null,
+            null,
+            XContentParserConfiguration.EMPTY,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            null,
+            searcher,
+            () -> 0L,
+            null,
+            null,
+            () -> true,
+            null,
+            Map.of(),
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
+        );
     }
 
     /** For tests that need to control index settings, e.g. the index mode or the default field. */

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.search.lookup;
 
+import org.apache.lucene.index.LeafReaderContext;
+
 /**
  * Accounts the heap a script's doc-values reader retains while it is live against a circuit breaker.
  *
@@ -18,18 +20,21 @@ package org.elasticsearch.search.lookup;
  * the request touches at once. Nothing bounds that fan-out, which can exhaust the heap — see
  * <a href="https://github.com/elastic/incident-management/issues/3404">incident-management #3404</a>.
  *
- * <p>{@link LeafDocLookup} calls {@link #account(long, String)} once per reader it opens, passing the reader's estimated
- * decode-buffer size. The implementation accounts the memory against the request circuit breaker (and may trip it,
- * aborting the request), and releases it when the request ends.
+ * <p>{@link LeafDocLookup} calls {@link #account(long, String, LeafReaderContext)} once per reader it opens, passing
+ * the reader's estimated decode-buffer size and the leaf it was opened against. The implementation accounts the memory
+ * against the request circuit breaker (and may trip it, aborting the request) and releases it later.
  *
- * <p>Note that although memory is accounted per leaf reader, it is released per request rather than per leaf reader.
- * {@link LeafDocLookup} has no close or end-of-life hook: it is created inside scorers and script factories that
- * Lucene drops without notice, so there is no point where "this leaf is done" is visible to the lookup. The accounted
- * bytes therefore stay on the breaker until the search context closes and drains them in one shot (see
- * {@code SearchExecutionContext#releaseQueryConstructionMemory()}), even though the underlying buffers may become
- * unreachable earlier. This makes the accounting deliberately conservative: it models the worst case where every
- * reader the request opened is live at once — exactly the situation of a {@code filters} aggregation that builds all
- * clause scorers per leaf up front — and overestimates for execution that processes leaves or clauses sequentially.
+ * <p>{@link LeafDocLookup} itself has no close or end-of-life hook — it is created inside scorers and script factories
+ * that Lucene drops without notice — so it cannot release what it accounted. Instead the leaf context passed to
+ * {@link #account(long, String, LeafReaderContext)} lets the implementation attribute the memory to the leaf through
+ * the per-leaf execution accounting of {@code ContextIndexSearcher}, which releases a leaf's memory as soon as the
+ * searcher finishes collecting it (or, for callers that score outside the searcher loop such as ES|QL's Lucene
+ * operators, when their scorer scope is dropped). When no such searcher drives the request the accounted memory simply
+ * stays on the breaker until the search context closes and drains it in one shot (see
+ * {@code SearchExecutionContext#releaseQueryConstructionMemory()}). Both models are conservative within a single leaf
+ * — every reader a leaf's clauses opened is accounted at once, exactly the situation of a {@code filters} aggregation
+ * that builds all clause scorers per leaf up front — but the per-leaf release stops the accounted memory from
+ * accumulating across leaves that are processed sequentially.
  */
 @FunctionalInterface
 public interface ScriptFieldMemoryEstimator {
@@ -37,14 +42,15 @@ public interface ScriptFieldMemoryEstimator {
     /**
      * A no-op estimator for contexts without a request circuit breaker (for example index-time lookups or tests).
      */
-    ScriptFieldMemoryEstimator NO_OP = (bytes, field) -> {};
+    ScriptFieldMemoryEstimator NO_OP = (bytes, field, ctx) -> {};
 
     /**
      * Account {@code bytes} of retained decode-buffer memory for {@code field} against the request circuit breaker.
      *
      * @param bytes the estimated decode-buffer size the reader retains; always positive when called
      * @param field the field whose reader was opened, used to label the accounted memory on the breaker
+     * @param ctx   the leaf the reader was opened against, so the memory can be released when the leaf is done
      * @throws org.elasticsearch.common.breaker.CircuitBreakingException if the accounting trips the breaker
      */
-    void account(long bytes, String field);
+    void account(long bytes, String field, LeafReaderContext ctx);
 }

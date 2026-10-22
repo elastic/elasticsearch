@@ -40,8 +40,9 @@ import static org.elasticsearch.test.MapMatcher.matchesMap;
  * {@code Scanning*BinaryDocValues*} query markers, not for a reader opened at run time through the doc lookup.
  *
  * <p>This test guards the fix: {@code LeafDocLookup} accounts each newly opened reader's
- * {@code maxDecodeBytes()} estimate on the request breaker (label {@code script_doc_values:<field>}), released at
- * request end. The breaker trips inside the Painless script, so the failure surfaces wrapped in a
+ * {@code maxDecodeBytes()} estimate on the request breaker (label {@code script_doc_values:<field>}), released when
+ * the leaf it was opened against is done being collected. The trip still happens because all clause readers of a
+ * single leaf are alive — and accounted — at once. The breaker trips inside the Painless script, so the failure surfaces wrapped in a
  * {@code script_exception} inside a {@code search_phase_execution_exception}, with status 429 because
  * {@code ScriptException#status()} recognizes a circuit-breaker cause.
  */

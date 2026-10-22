@@ -511,3 +511,6 @@ tests:
 - class: org.elasticsearch.xpack.downsample.DownsampleActionSingleNodeTests
   method: testDownsampleResumesAfterPersistentTaskRemoved
   issue: https://github.com/elastic/elasticsearch/issues/162858
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {yaml=indices.sort/30_multi_value/Index Sort with index.mapping.doc_values.multi_value false - keyword}
+  issue: https://github.com/elastic/elasticsearch/issues/163014

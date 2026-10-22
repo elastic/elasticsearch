@@ -19,19 +19,19 @@ import org.apache.lucene.store.FilterDirectory;
 public interface NoHardLinksDirectory {
 
     /**
-     * Returns {@code true} if files can be hard-linked into the given directory, i.e. if neither it nor any directory it wraps is a
+     * Returns {@code true} if the given directory or any directory it wraps is a
      * {@link NoHardLinksDirectory}.
      */
-    static boolean canHardLinkInto(Directory directory) {
+    static boolean hasNoHardLinksDirectory(Directory directory) {
         while (true) {
             if (directory instanceof NoHardLinksDirectory) {
-                return false;
+                return true;
             }
             if (directory instanceof FilterDirectory filterDirectory) {
                 // Walk one level at a time: FilterDirectory.unwrap would skip any marked directories in the middle of the chain.
                 directory = filterDirectory.getDelegate();
             } else {
-                return true;
+                return false;
             }
         }
     }

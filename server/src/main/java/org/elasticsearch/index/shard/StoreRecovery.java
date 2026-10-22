@@ -185,9 +185,9 @@ public final class StoreRecovery {
         assert sources.length > 0;
         final int luceneIndexCreatedVersionMajor = Lucene.readSegmentInfos(sources[0]).getIndexCreatedVersionMajor();
 
-        final Directory hardLinkOrCopyTarget = NoHardLinksDirectory.canHardLinkInto(target)
-            ? new HardlinkCopyDirectoryWrapper(target)
-            : target;
+        final Directory hardLinkOrCopyTarget = NoHardLinksDirectory.hasNoHardLinksDirectory(target)
+            ? target
+            : new HardlinkCopyDirectoryWrapper(target);
 
         IndexWriterConfig iwc = indexWriterConfigWithNoMerging(null).setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
             .setCommitOnClose(false)

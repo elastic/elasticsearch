@@ -397,6 +397,7 @@ public class ArrowResponseTests extends ESTestCase {
     }
 
     public void testDroppedUnsupportedColumnIsNotValidated() throws IOException {
+        assertFalse(ArrowResponse.ESQL_FORMATTERS.containsKey(DataType.DENSE_VECTOR));
         List<TestColumn> columns = List.of(
             new TestColumn("unsupported", DataType.DENSE_VECTOR, NULL_VALUES, false),
             TestColumn.create("retained", DataType.INTEGER, false)
@@ -563,6 +564,8 @@ public class ArrowResponseTests extends ESTestCase {
             builder.endPositionEntry();
             multivaluedBlock = builder.build();
         }
+        assertFalse(singleValueBlock.mayHaveMultivaluedFields());
+        assertTrue(multivaluedBlock.mayHaveMultivaluedFields());
 
         TestColumn column = TestColumn.create("some-field", DataType.INTEGER, true);
         TestCase testCase = new TestCase(

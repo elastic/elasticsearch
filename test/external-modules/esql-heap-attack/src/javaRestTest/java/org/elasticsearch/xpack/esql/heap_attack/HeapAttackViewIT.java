@@ -146,7 +146,7 @@ public class HeapAttackViewIT extends HeapAttackTestCase {
     }
 
     private void createView(String name, String query) throws IOException {
-        Request request = new Request("PUT", "/_query/view/" + name);
+        Request request = new Request("PUT", "/_query/view/" + name + "?validate=false");
         request.setJsonEntity("{\"query\": \"" + query + "\"}");
         client().performRequest(request);
     }

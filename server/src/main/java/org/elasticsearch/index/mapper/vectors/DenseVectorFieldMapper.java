@@ -3692,9 +3692,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             BytesRef[] sliceIds = null;
             if (context != null && context.getIndexSettings().isSliceEnabled()) {
                 final SliceSelection slices = context.sliceSelection();
-                if (slices.isSpecified() == false) {
+                if (slices.isRestricted() == false) {
                     throw new IllegalArgumentException(
-                        "to perform knn search on field [" + name() + "], the slices to search must be selected: its index is slice-enabled"
+                        "to perform knn search on field ["
+                            + name()
+                            + "], the slices to search must be selected by name: its index is slice-enabled"
                     );
                 }
                 if (indexOptions instanceof BBQIVFIndexOptions && resolved instanceof ResolvedVector.Bits == false) {
@@ -4062,7 +4064,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         /**
-         * The slices a slice-partitioned vector format searches. An empty array searches every slice.
+         * The slices a slice-partitioned vector format searches.
          */
         private static BytesRef[] toSliceIds(SliceSelection slices) {
             return slices.names().stream().map(BytesRef::new).toArray(BytesRef[]::new);
@@ -4070,13 +4072,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         /**
          * Adds the slice filter to the filter of a query whose vector format does not partition the vectors by slice.
-         * Either may be {@code null}: without a slice filter every slice is searched, without a filter only the slices restrict
-         * the search.
          */
-        private static Query filterBySlice(@Nullable Query filter, @Nullable Query sliceFilter) {
-            if (sliceFilter == null) {
-                return filter;
-            }
+        private static Query filterBySlice(@Nullable Query filter, Query sliceFilter) {
             if (filter == null) {
                 return sliceFilter;
             }

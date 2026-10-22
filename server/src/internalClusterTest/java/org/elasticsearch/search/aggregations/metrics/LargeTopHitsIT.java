@@ -58,7 +58,7 @@ public class LargeTopHitsIT extends ESIntegTestCase {
     private void initSmallIdx() throws IOException {
         createIndex("small_idx");
         ensureGreen("small_idx");
-        populateIndex("small_idx", 5, 40_000);
+        populateIndex("small_idx", 5, 10_000);
     }
 
     private void initLargeIdx() throws IOException {

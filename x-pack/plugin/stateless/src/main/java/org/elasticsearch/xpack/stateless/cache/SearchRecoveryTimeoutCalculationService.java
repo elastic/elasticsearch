@@ -13,11 +13,14 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings;
+import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
@@ -26,8 +29,25 @@ import java.util.Map;
 /// [#searchRecoveryTimeout].
 public class SearchRecoveryTimeoutCalculationService {
 
+    public static final String SEARCH_RECOVERY_DRAIN_TIMEOUT_HEURISTIC_TOTAL_METRIC =
+        "es.blob_cache_warming.search_recovery.drain_timeout_heuristic.total";
+    public static final String SEARCH_RECOVERY_DRAIN_TIMEOUT_HEURISTIC_ATTRIBUTE_KEY = "es_drain_timeout_heuristic";
+
+    /**
+     * When true, drain-path search recovery warming timeouts may use per-shard warm volumes fetched from the
+     * shutting-down source node.
+     */
+    public static final Setting<Boolean> SEARCH_OFFLINE_WARMING_WARM_VOLUMES_ENABLED_SETTING = Setting.boolSetting(
+        SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".warm_volumes.enabled",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private final StatelessSharedBlobCacheService cacheService;
     private final ThreadPool threadPool;
+    private final ShardWarmVolumes shardWarmVolumes;
+    private final LongCounter drainTimeoutHeuristicTotalMetric;
     private volatile int maxConcurrentRelocationRecoveries;
     private volatile TimeValue searchRecoveryWarmingRelocationWithShutdownTimeout;
     private volatile TimeValue searchRecoveryWarmingRelocationTimeout;
@@ -43,8 +63,28 @@ public class SearchRecoveryTimeoutCalculationService {
         ClusterSettings clusterSettings,
         ByteSizeValue maxHeap
     ) {
+        this(cacheService, threadPool, clusterSettings, maxHeap, ShardWarmVolumes.NOOP, TelemetryProvider.NOOP);
+    }
+
+    public SearchRecoveryTimeoutCalculationService(
+        StatelessSharedBlobCacheService cacheService,
+        ThreadPool threadPool,
+        ClusterSettings clusterSettings,
+        ByteSizeValue maxHeap,
+        ShardWarmVolumes shardWarmVolumes,
+        TelemetryProvider telemetryProvider
+    ) {
         this.cacheService = cacheService;
         this.threadPool = threadPool;
+        this.shardWarmVolumes = shardWarmVolumes;
+        this.drainTimeoutHeuristicTotalMetric = telemetryProvider.getMeterRegistry()
+            .registerLongCounter(
+                SEARCH_RECOVERY_DRAIN_TIMEOUT_HEURISTIC_TOTAL_METRIC,
+                "Drain-path search recovery warming timeouts, broken down by the ["
+                    + SEARCH_RECOVERY_DRAIN_TIMEOUT_HEURISTIC_ATTRIBUTE_KEY
+                    + "] heuristic that produced the timeout",
+                "count"
+            );
         DataNodeRecoveryThrottlingSettings.watchIncomingRecoveryLimits(
             clusterSettings,
             maxHeap,
@@ -90,7 +130,13 @@ public class SearchRecoveryTimeoutCalculationService {
             final String sourceNodeId = shardRouting.relocatingNodeId();
             assert sourceNodeId != null;
             if (state.metadata().nodeShutdowns().isNodeMarkedForRemoval(sourceNodeId)) {
-                return computeRelocationSourceShutdownWarmingTimeout(state, sourceNodeId, shardRouting.currentNodeId(), totalBytesToWarm);
+                return computeRelocationSourceShutdownWarmingTimeout(
+                    state,
+                    sourceNodeId,
+                    shardRouting.currentNodeId(),
+                    indexShard.shardId(),
+                    totalBytesToWarm
+                );
             }
             if (hasActiveShutdownForRemovalNodes(state)) {
                 return new SearchRecoveryTimeout(
@@ -144,23 +190,31 @@ public class SearchRecoveryTimeoutCalculationService {
         return false;
     }
 
-    /// Returns the warming timeout for a shard whose relocation source is shutting down, as the maximum of two heuristics:
+    /// Returns the warming timeout for a shard whose relocation source is shutting down. One per-shard heuristic is
+    /// chosen, multiplied by `concurrentRelocations`, and capped at the remaining grace period. Warm-volume is chosen
+    /// only when it is strictly larger than both of the others; otherwise data-volume is chosen when it is strictly
+    /// larger than equal-share, and equal-share wins the remaining ties:
     ///
     /// 1. _Equal-share_: `factor * (deadline - now) / shardsOnSource * concurrentRelocations`, ensuring every
     /// shard on the shutting-down source gets a fair slice of the remaining grace period.
     /// 2. _Data-volume-proportional_ (contributes only when `totalBytesToWarm` is greater than zero): the fraction of the
     /// node's warming cache budget consumed by this shard's data multiplied by the remaining time,
     /// i.e. `(totalBytesToWarm / (cacheSize * cacheRatio)) * remaining * concurrentRelocations`.
+    /// 3. _Warm-volume share_ (when [ShardWarmVolumes.CollectedWarmVolumes] exists for the current shutdown signal):
+    /// `(warm volume / sum of warm volumes still competing for this target) * remaining * concurrentRelocations`.
+    /// Copies already relocating to a different node are omitted from the sum. STARTED copies
+    /// (no target yet) stay in it. An unknown shard contributes 0.
     ///
     /// with `deadline = start + min(metadata grace, cap)`. The timeout is capped at the remaining grace period.
     ///
-    /// `concurrentRelocations` is this source's share of the target's, split between all relocations to the target from
-    /// any shutting-down source. It may be below one slot, so the timeout may round down to zero (skipping warming). This
-    /// is a rough estimate that ignores other recoveries competing for the target's slots.
+    /// `concurrentRelocations` is this source's share of the target's relocation slots, split between all relocations to
+    /// the target from any shutting-down source. It may be below one slot, so the timeout may round down to zero (skipping
+    /// warming). This is a rough estimate that ignores other recoveries competing for the target's slots.
     private SearchRecoveryTimeout computeRelocationSourceShutdownWarmingTimeout(
         ClusterState state,
         String sourceNodeId,
         String targetNodeId,
+        ShardId shardId,
         long totalBytesToWarm
     ) {
         final var shutdown = state.metadata().nodeShutdowns().get(sourceNodeId);
@@ -186,6 +240,8 @@ public class SearchRecoveryTimeoutCalculationService {
         // Instead, this uses the same fixed baseline (which itself is of dubious inspiration).
         // But it's hard to do the accounting of the bytes warmed for shards for all the relocations of a given node shutting down.
         final double dataVolumeMs = warmingCacheBytes > 0 ? ((double) totalBytesToWarm / warmingCacheBytes) * remaining : 0;
+        // Warm-volume shares use the source's current-commit prefixes; they can differ from this target's WarmTarget plan.
+        final double warmVolumeMs = warmVolumeShareMs(state, sourceNodeId, targetNodeId, shardId, remaining);
 
         // The current shard is itself one such relocation, floor at 1 in case it is not yet visible on the source's RoutingNode.
         final int relocationsFromSourceToTarget = Math.max(1, countRelocationsBetween(state, sourceNodeId, targetNodeId));
@@ -197,21 +253,69 @@ public class SearchRecoveryTimeoutCalculationService {
             (double) maxConcurrentRelocationRecoveries * relocationsFromSourceToTarget / allRelocationsToTarget
         );
 
-        final double timeoutMs;
-        final String context;
-        // The decision below is per-shard whereas the two heuristics above assume all shards opt with the same heuristic
-        // this is an inherent problem of the fact that, during relocation, we don't know apriori all the shards that are going
-        // to be relocated between two given nodes, so we can't know which of the two heuristics is more suitable overall.
+        // The decision below is per-shard whereas the three heuristics above assume all shards opt with the same heuristic.
+        // This is an inherent problem of the fact that, during relocation, we don't know apriori all the shards that are going
+        // to be relocated between two given nodes, so we can't know which of the three heuristics is more suitable overall.
         // Though the per-shard local decision here is OKish, because it's all relative to the remaining deadline and shards,
-        // so the impact of currently choosing a different heuristic from previous (or future) relocating shards is partially mitigated
-        if (dataVolumeMs > equalShareMs) {
-            timeoutMs = Math.min(remaining, dataVolumeMs * concurrentRelocations);
+        // so the impact of currently choosing a different heuristic from previous (or future) relocating shards is partially mitigated.
+        final double timeoutHeuristicMs;
+        final String context;
+        final String heuristic;
+        if (warmVolumeMs > equalShareMs && warmVolumeMs > dataVolumeMs) {
+            timeoutHeuristicMs = warmVolumeMs;
+            heuristic = "warm_volume";
+            context = "relocation source shutting down (warm volume share of remaining time to capped grace deadline)";
+        } else if (dataVolumeMs > equalShareMs) {
+            timeoutHeuristicMs = dataVolumeMs;
+            heuristic = "data_volume";
             context = "relocation source shutting down (data volume proportional share of remaining time to capped grace deadline)";
         } else {
-            timeoutMs = Math.min(remaining, equalShareMs * concurrentRelocations);
+            timeoutHeuristicMs = equalShareMs;
+            heuristic = "equal_share";
             context = "relocation source shutting down (equal share of remaining time to capped grace deadline)";
         }
-        return new SearchRecoveryTimeout(TimeValue.timeValueMillis(Math.round(timeoutMs)), context);
+        drainTimeoutHeuristicTotalMetric.incrementBy(1, Map.of(SEARCH_RECOVERY_DRAIN_TIMEOUT_HEURISTIC_ATTRIBUTE_KEY, heuristic));
+        return new SearchRecoveryTimeout(
+            TimeValue.timeValueMillis(Math.round(Math.min(remaining, timeoutHeuristicMs * concurrentRelocations))),
+            context
+        );
+    }
+
+    /**
+     * Per-shard warm-volume share of {@code remaining}, or {@code 0} when the map cannot be used for this shard.
+     * Copies already relocating from {@code sourceNodeId} to a node other than {@code targetNodeId} are left out of
+     * the denominator: they are committed elsewhere. STARTED copies remain in the sum until they get a target.
+     */
+    private double warmVolumeShareMs(ClusterState state, String sourceNodeId, String targetNodeId, ShardId shardId, long remaining) {
+        var entry = shardWarmVolumes.get(state, sourceNodeId);
+        if (entry == null) {
+            return 0;
+        }
+        final var sourceNode = state.getRoutingNodes().node(sourceNodeId);
+        if (sourceNode == null) {
+            return 0;
+        }
+        long sourceWarmVolumeSum = 0L;
+        Long thisShardVolume = null;
+        for (ShardRouting routing : sourceNode) {
+            assert routing.isSearchable();
+            // Skip shards that are relocating to a different target node than the one we're computing for.
+            if (routing.relocating() && targetNodeId.equals(routing.relocatingNodeId()) == false) {
+                continue;
+            }
+            Long volume = entry.volumes().get(routing.shardId());
+            if (volume == null) {
+                continue;
+            }
+            sourceWarmVolumeSum += volume;
+            if (routing.shardId().equals(shardId)) {
+                thisShardVolume = volume;
+            }
+        }
+        if (thisShardVolume == null || sourceWarmVolumeSum <= 0L) {
+            return 0;
+        }
+        return (thisShardVolume / (double) sourceWarmVolumeSum) * remaining;
     }
 
     /// Counts relocations whose source is `sourceNodeId` and whose target is `targetNodeId` (i.e. shards relocating

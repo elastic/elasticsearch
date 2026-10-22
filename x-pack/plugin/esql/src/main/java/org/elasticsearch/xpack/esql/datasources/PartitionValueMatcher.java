@@ -14,7 +14,9 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.PartitionFilterHint;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * The one comparison of a storage value against a filter literal, shared by the layers that prune by it:
@@ -172,6 +174,23 @@ public final class PartitionValueMatcher {
         return HivePartitionDetector.segmentValue(folderName);
     }
 
+    /**
+     * First-wins {@code key=value} bindings of directory segments. Same skip-if-already-bound fill as
+     * {@link HivePartitionDetector#fillPartitions}; keys use {@link #folderKey}, including reserved-name
+     * surfacing. Never binds a deeper repeated key.
+     */
+    public static Map<String, String> pathBindings(String path) {
+        LinkedHashMap<String, String> into = new LinkedHashMap<>();
+        for (String segment : HivePartitionDetector.directorySegments(path)) {
+            String key = folderKey(segment);
+            if (key == null || into.containsKey(key)) {
+                continue;
+            }
+            into.put(key, folderValue(segment));
+        }
+        return into;
+    }
+
     /** The hints naming {@code column}. */
     public static List<PartitionFilterHint> hintsFor(String column, List<PartitionFilterHint> hints) {
         List<PartitionFilterHint> matching = new ArrayList<>();
@@ -202,6 +221,38 @@ public final class PartitionValueMatcher {
             return compareNumbers(na, nb) == 0;
         }
         return stringOf(a).equals(stringOf(b));
+    }
+
+    /**
+     * Three-valued equality for the split matcher. A kind mismatch or {@link Kind#OTHER} (an
+     * {@link java.time.Instant} from a date column) is unknown — keep — rather than string-comparing
+     * {@code Instant.toString()} to a keyword folder. {@link #compareEquals} stays two-valued;
+     * {@link #matches} kind-guards before calling it.
+     */
+    @Nullable
+    static Boolean equalIfComparable(Object a, Object b) {
+        Kind ka = kindOf(a);
+        Kind kb = kindOf(b);
+        if (ka != kb || ka == Kind.OTHER) {
+            return null;
+        }
+        return compareEquals(a, b);
+    }
+
+    /**
+     * Ordered comparison for the split matcher. A kind mismatch or {@link Kind#OTHER} (an {@link java.time.Instant}
+     * from a date column, for example) is undecidable — keep the file — rather than ordering {@code Instant.toString()}
+     * against a keyword folder. {@link #compareValues} itself still coerces number-vs-text for callers that already
+     * know both sides are comparable.
+     */
+    @Nullable
+    static Integer orderedCompare(Object a, Object b) {
+        Kind ka = kindOf(a);
+        Kind kb = kindOf(b);
+        if (ka != kb || ka == Kind.OTHER) {
+            return null;
+        }
+        return compareValues(a, b);
     }
 
     static int compareValues(Object a, Object b) {

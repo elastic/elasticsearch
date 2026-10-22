@@ -7,7 +7,17 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.xpack.esql.core.QlException;
+
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.OptionalInt;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Base type for failures raised while reading from an external data source — an object store, a
@@ -29,8 +39,8 @@ import org.elasticsearch.xpack.esql.core.QlException;
  *     temporarily-unavailable condition (a remote-store transport failure, or a node-local admission
  *     condition such as permit exhaustion).</li>
  *     <li>{@link ExternalObjectChangedException} &rarr; 503, the object was rewritten mid-query so a
- *     resume would splice generations. Query-level retryable, but not retried as a storage resume
- *     (the generation pin will keep failing until the query restarts).</li>
+ *     resume would splice generations. The client retries the request; it is not retried as a storage
+ *     resume, since the generation pin would keep failing. The server does not retry the query.</li>
  * </ul>
  * Subtypes extend {@link QlException} (rather than {@code QlClientException}/{@code QlServerException})
  * so they can share this single umbrella while each pinning its own status.
@@ -51,6 +61,14 @@ public abstract class ExternalException extends QlException {
     public enum Condition {
         /** A transient, non-throttling store failure — connection error, 500/502/504. */
         STORE_UNAVAILABLE("External store unavailable reading [{}]", "External store unavailable"),
+        /**
+         * Node-local admission back-pressure: a read waited too long for one of this node's concurrency permits. Unlike
+         * {@link #STORE_UNAVAILABLE} the store is not at fault, so it must not be reported as a store outage.
+         */
+        LOCAL_CAPACITY(
+            "External read concurrency limit reached on this node reading [{}]",
+            "External read concurrency limit reached on this node"
+        ),
         /** Back-pressure / throttling from the store — 429 / 503. */
         STORE_THROTTLED("External store throttled reading [{}]", "External store throttled"),
         /** The object was replaced with a different generation mid-query. */
@@ -72,6 +90,11 @@ public abstract class ExternalException extends QlException {
         },
         /** The object's data is corrupt, truncated, or uses an unsupported format variant. */
         MALFORMED_DATA("Malformed data in [{}]", "Malformed external data"),
+        /**
+         * A file's schema, a declared schema, or a merged one has more columns than {@code schema_max_fields} allows. The
+         * detail names the limit to raise. Deterministic, unlike a breaker trip: the same request fails the same way.
+         */
+        SCHEMA_TOO_WIDE("Schema of [{}] has too many columns", "Schema has too many columns"),
         /** Object metadata (size, last-modified, ETag) could not be retrieved. */
         METADATA_UNAVAILABLE("Failed to get metadata for [{}]", "Failed to get external data metadata"),
         /** A listing call failed — the prefix could not be enumerated. */
@@ -175,29 +198,34 @@ public abstract class ExternalException extends QlException {
      * Only the object name (last path segment) is embedded — the bucket, prefix, and full URI
      * are never included. The {@code cause} parameter chains the low-level SDK or I/O exception.
      */
+    @SuppressWarnings("this-escape") // addMetadata only fills a map owned by ElasticsearchException; see recordConditionMetadata
     protected ExternalException(Condition condition, StoragePath path, String detailCode, String remedy, Throwable cause) {
         super(condition.render(path.objectName(), detailCode, remedy), cause);
         this.condition = condition;
         this.objectName = path.objectName();
         this.detailCode = detailCode != null ? detailCode : "";
         this.remedy = remedy != null ? remedy : "";
+        recordConditionMetadata();
     }
 
     /**
      * Structured constructor without a cause. See {@link #ExternalException(Condition, StoragePath, String, String, Throwable)}.
      */
+    @SuppressWarnings("this-escape") // addMetadata only fills a map owned by ElasticsearchException; see recordConditionMetadata
     protected ExternalException(Condition condition, StoragePath path, String detailCode, String remedy) {
         super(condition.render(path.objectName(), detailCode, remedy));
         this.condition = condition;
         this.objectName = path.objectName();
         this.detailCode = detailCode != null ? detailCode : "";
         this.remedy = remedy != null ? remedy : "";
+        recordConditionMetadata();
     }
 
     /**
      * Copy constructor backing {@link #withoutCause()}: same message, typed fields, detail and dataset
      * context, but no cause.
      */
+    @SuppressWarnings("this-escape") // addMetadata only fills a map owned by ElasticsearchException; see recordConditionMetadata
     protected ExternalException(ExternalException source) {
         super(source.baseMessage(), (Throwable) null);
         this.condition = source.condition;
@@ -206,6 +234,7 @@ public abstract class ExternalException extends QlException {
         this.remedy = source.remedy;
         this.detail = source.detail;
         this.datasetContext = source.datasetContext;
+        recordConditionMetadata();
     }
 
     /**
@@ -226,6 +255,86 @@ public abstract class ExternalException extends QlException {
      * and copy the subtype's own fields.
      */
     protected abstract ExternalException copyWithoutCause();
+
+    /**
+     * Name of the exception metadata entry that carries the {@link Condition}. {@code ExternalException} is not a registered
+     * {@link ElasticsearchException}, so when it crosses a node boundary it is rebuilt as a
+     * {@code NotSerializableExceptionWrapper}, which keeps the status and the metadata but not the typed fields. Keeping the
+     * condition in the metadata lets the coordinator still tell why a remote read failed (see {@link #conditionOf}), without
+     * any change to the wire format. The value is the closed, lower-case condition name, so it never embeds a storage URI.
+     * Like any metadata, it is also rendered in the REST error body, as {@code external_condition}. That field is a side effect
+     * of keeping the condition for telemetry, not a documented API: it is informational, and its name and values may change.
+     */
+    public static final String CONDITION_METADATA_KEY = "es.external_condition";
+
+    private void recordConditionMetadata() {
+        if (condition != null) {
+            addMetadata(CONDITION_METADATA_KEY, condition.name().toLowerCase(Locale.ROOT));
+        }
+    }
+
+    /** The {@code HTTP <code>} prefix of a {@code detailCode} recorded from an object-store response, with an optional reason. */
+    private static final Pattern HTTP_DETAIL = Pattern.compile("HTTP (\\d{3})(?: .*)?");
+
+    /**
+     * The HTTP status the object store returned for this failure, parsed from the {@code HTTP <code>} detail a provider
+     * records (for example {@code HTTP 429} or {@code HTTP 403 AccessDenied}). Empty when the failure was not an HTTP
+     * response, such as a socket timeout or a closed client, and when the code is outside the 1xx to 5xx range.
+     * <p>
+     * This is the store's status, not the status the REST layer reports for the exception ({@link #status()}).
+     */
+    public OptionalInt storeHttpStatus() {
+        Matcher m = HTTP_DETAIL.matcher(detailCode);
+        if (m.matches() == false) {
+            return OptionalInt.empty();
+        }
+        int code = Integer.parseInt(m.group(1));
+        return code >= 100 && code <= 599 ? OptionalInt.of(code) : OptionalInt.empty();
+    }
+
+    /**
+     * Whether {@code t} is an external-source failure, either the {@link ExternalException} itself or its stand-in after it
+     * crossed a node boundary (an {@link ElasticsearchException} carrying {@link #CONDITION_METADATA_KEY}).
+     */
+    public static boolean isExternalFailure(Throwable t) {
+        return t instanceof ExternalException || (t instanceof ElasticsearchException e && e.getMetadata(CONDITION_METADATA_KEY) != null);
+    }
+
+    /**
+     * The {@link Condition} of an external-source failure recognised by {@link #isExternalFailure}, read from the typed field
+     * or, for a failure that crossed a node boundary, from its metadata. {@code null} when there is none (a legacy free-text
+     * exception, or a value this node does not know, e.g. one added by a newer node).
+     */
+    public static Condition conditionOf(Throwable t) {
+        if (t instanceof ExternalException e) {
+            return e.condition;
+        }
+        if (t instanceof ElasticsearchException e) {
+            List<String> values = e.getMetadata(CONDITION_METADATA_KEY);
+            if (values != null && values.size() == 1) {
+                for (Condition c : Condition.values()) {
+                    if (c.name().toLowerCase(Locale.ROOT).equals(values.get(0))) {
+                        return c;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Whether {@code failure} or any throwable in its cause chain has the given {@link Condition}, as {@link #conditionOf}
+     * reports it. Unlike a class match, this still holds after the failure crossed a node boundary.
+     */
+    public static boolean hasCondition(Throwable failure, Condition condition) {
+        Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (Throwable t = failure; t != null && seen.add(t); t = t.getCause()) {
+            if (conditionOf(t) == condition) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     private String baseMessage() {
         return super.getMessage();

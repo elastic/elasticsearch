@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Mul
 import org.elasticsearch.xpack.esql.parser.promql.PromqlParserUtils;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.LetBinding;
 import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
@@ -67,6 +68,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
+import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
@@ -79,7 +81,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
-import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
@@ -107,6 +108,7 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.joni.exception.SyntaxException;
 
 import java.time.Duration;
@@ -160,6 +162,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     private int queryDepth = 0;
 
+    /** Commands seen so far in the main query and in all its subqueries, see {@link ParsingContext#maxCommandCount()} */
+    private int commandCount = 0;
+
     protected EsqlStatement statement(ParseTree ctx) {
         EsqlStatement p = typedParsing(this, ctx, EsqlStatement.class);
         return p;
@@ -189,8 +194,34 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             settings.add(visitSetCommand(setCommandContext));
         }
 
+        List<LetBinding> letBindings = new ArrayList<>(ctx.letCommand().size());
+        Set<String> seenNames = new HashSet<>();
+        for (EsqlBaseParser.LetCommandContext letCommandContext : ctx.letCommand()) {
+            LetBinding binding = visitLetCommand(letCommandContext);
+            if (seenNames.add(binding.name()) == false) {
+                throw new ParsingException(source(letCommandContext), "duplicate LET binding name [{}]", binding.name());
+            }
+            letBindings.add(binding);
+        }
+
         LogicalPlan query = visitSingleStatement(ctx.singleStatement());
-        return new EsqlStatement(query, settings);
+        return new EsqlStatement(query, settings, letBindings);
+    }
+
+    @Override
+    public LetBinding visitLetCommand(EsqlBaseParser.LetCommandContext ctx) {
+        return visitLetBinding(ctx.letBinding());
+    }
+
+    @Override
+    public LetBinding visitLetBinding(EsqlBaseParser.LetBindingContext ctx) {
+        Source source = source(ctx);
+        String name = ctx.UNQUOTED_IDENTIFIER().getText();
+        if (name.equals(name.toLowerCase(Locale.ROOT)) == false) {
+            throw new ParsingException(source, "LET binding name [{}] must be lowercase", name);
+        }
+        LogicalPlan plan = visitSubquery(ctx.subquery());
+        return new LetBinding(source, name, plan);
     }
 
     protected List<LogicalPlan> plans(List<? extends ParserRuleContext> ctxs) {
@@ -227,6 +258,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 "ES|QL statement exceeded the maximum query depth allowed ({}): [{}]",
                 MAX_QUERY_DEPTH,
                 ctx.getText()
+            );
+        }
+        commandCount++;
+        if (commandCount > context.maxCommandCount()) {
+            throw new ParsingException(
+                "ES|QL statement exceeded the maximum of [{}] commands allowed, including the commands in its subqueries",
+                context.maxCommandCount()
             );
         }
         try {
@@ -417,8 +455,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
             LogicalPlan inner;
             if (mainQueryAndSubqueries.size() == 1) {
-                // if there is only one child, return it directly, no need for UnionAll
-                inner = subqueries.get(0).plan();
+                Subquery only = subqueries.get(0);
+                // if there is only one child without metadata - return it directly, no need for UnionAll
+                inner = metadataFields.isEmpty() ? only.plan() : only;
             } else {
                 // the output of UnionAll is resolved by analyzer
                 inner = new UnionAll(source(ctxs.getFirst(), ctxs.getLast()), mainQueryAndSubqueries, List.of());
@@ -448,6 +487,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public LogicalPlan visitSubquery(EsqlBaseParser.SubqueryContext ctx) {
+        // Subquery commands are parsed as a flat list rather than through visitCompositeQuery, so the limits are enforced here.
+        commandCount += ctx.processingCommand().size();
+        if (commandCount > context.maxCommandCount()) {
+            throw new ParsingException(
+                source(ctx),
+                "ES|QL statement exceeded the maximum of [{}] commands allowed, including the commands in its subqueries",
+                context.maxCommandCount()
+            );
+        }
         LogicalPlan plan = visitSubquerySourceCommand(ctx.subquerySourceCommand());
         List<PlanFactory> processingCommands = visitList(this, ctx.processingCommand(), PlanFactory.class);
         for (PlanFactory processingCommand : processingCommands) {
@@ -495,6 +543,44 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitDedupCommand(EsqlBaseParser.DedupCommandContext ctx) {
         Source source = source(ctx);
         return input -> new Dedup(source, input);
+    }
+
+    @Override
+    public PlanFactory visitFillNullCommand(EsqlBaseParser.FillNullCommandContext ctx) {
+        var source = source(ctx);
+        EsqlBaseParser.FillNullValueContext valueCtx = ctx.fillNullValue();
+        final Expression fillValue;
+        // DEFAULT -> type-appropriate default (represented as a null fill value); NULL -> explicit no-op.
+        if (valueCtx.DEFAULT() != null) {
+            fillValue = null;
+        } else if (valueCtx.NULL() != null) {
+            fillValue = new Literal(source(valueCtx), null, DataType.NULL);
+        } else {
+            fillValue = expression(valueCtx);
+            // Only the NULL keyword is the explicit no-op: a null-bound ?param would otherwise be indistinguishable from it. A missing
+            // param is skipped because its "Unknown query parameter" error is already recorded.
+            if (valueCtx.parameter() != null && fillValue instanceof Literal lit && lit.value() == null && fillValue != MISSING_PARAMETER) {
+                throw new ParsingException(
+                    source(valueCtx),
+                    "Query parameter [{}] is null, cannot be used as a FILLNULL value; use FILLNULL NULL to leave nulls unchanged",
+                    valueCtx.getText()
+                );
+            }
+        }
+
+        final Holder<Boolean> hasSeenStar = new Holder<>(false);
+        List<NamedExpression> patterns = visitQualifiedNamePatterns(ctx.qualifiedNamePatterns(), ne -> {
+            if (ne instanceof UnresolvedStar) {
+                hasSeenStar.set(Boolean.TRUE);
+            }
+        });
+        // `*` sweeps up every user column. A co-listed name/pattern is kept, not discarded: it still has to resolve (so a
+        // typo is an error), it is still requested from field-caps, and it can name something `*` does not cover.
+        boolean allColumns = hasSeenStar.get();
+        List<NamedExpression> targetFields = allColumns
+            ? patterns.stream().filter(ne -> ne instanceof UnresolvedStar == false).toList()
+            : patterns;
+        return input -> new FillNull(source, input, fillValue, targetFields, allColumns);
     }
 
     @Override
@@ -1320,8 +1406,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @SuppressWarnings("unchecked")
     public PlanFactory visitForkCommand(EsqlBaseParser.ForkCommandContext ctx) {
         List<PlanFactory> subQueries = visitForkSubQueries(ctx.forkSubQueries());
-        if (subQueries.size() > MergePlan.MAX_BRANCHES) {
-            throw new ParsingException(source(ctx), "Fork supports up to " + MergePlan.MAX_BRANCHES + " branches");
+        // Hard ceiling: the setting maxValue. The configured cluster setting or pragma is enforced later in Fork.checkBranchCount.
+        int maxBranches = QueryPragmas.MAX_BRANCH_COUNT_PER_MERGE_MAX;
+        if (subQueries.size() > maxBranches) {
+            throw new ParsingException(source(ctx), "FORK supports up to " + maxBranches + " branches");
         }
 
         return input -> {
@@ -1344,6 +1432,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return list;
     }
 
+    // TODO: FORK branch commands are not added to commandCount, so they do not count towards ParsingContext#maxCommandCount.
+    // See https://github.com/elastic/esql-planning/issues/2322
     @Override
     public PlanFactory visitForkSubQuery(EsqlBaseParser.ForkSubQueryContext ctx) {
         var subCtx = ctx.forkSubQueryCommand();

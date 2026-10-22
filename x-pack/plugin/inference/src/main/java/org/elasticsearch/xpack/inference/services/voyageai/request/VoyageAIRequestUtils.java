@@ -7,17 +7,14 @@
 
 package org.elasticsearch.xpack.inference.services.voyageai.request;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
-import org.elasticsearch.xcontent.XContentType;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIModel;
 
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 
 public final class VoyageAIRequestUtils {
 
-    public static void decorateWithHeaders(HttpPost request, VoyageAIModel model) {
-        request.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
+    public static void decorateWithHeaders(SimpleHttpRequest request, VoyageAIModel model) {
         request.setHeader(createAuthBearerHeader(model.getSecretSettings().apiKey()));
         request.setHeader(VoyageAIUtils.createRequestSourceHeader());
     }

@@ -28,6 +28,8 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceSelection;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
@@ -94,6 +96,7 @@ abstract class DataNodeRequestSender {
     private final String clusterAlias;
     private final OriginalIndices originalIndices;
     private final QueryBuilder requestFilter;
+    private final SliceSelection slices;
 
     private final boolean allowPartialResults;
     private final Semaphore concurrentRequests;
@@ -114,6 +117,7 @@ abstract class DataNodeRequestSender {
         CancellableTask rootTask,
         OriginalIndices originalIndices,
         QueryBuilder requestFilter,
+        SliceSelection slices,
         String clusterAlias,
         boolean allowPartialResults,
         int concurrentRequests,
@@ -126,6 +130,7 @@ abstract class DataNodeRequestSender {
         this.rootTask = rootTask;
         this.originalIndices = originalIndices;
         this.requestFilter = requestFilter;
+        this.slices = slices;
         this.clusterAlias = clusterAlias;
         this.allowPartialResults = allowPartialResults;
         this.concurrentRequests = concurrentRequests > 0 ? new Semaphore(concurrentRequests) : null;
@@ -527,23 +532,50 @@ abstract class DataNodeRequestSender {
             }
             return new TargetShards(shards, totalShards, skippedShards);
         });
-        var searchShardsRequest = new SearchShardsRequest(
-            originalIndices.indices(),
-            originalIndices.indicesOptions(),
-            requestFilter,
-            null,
-            null,
-            true, // unavailable_shards will be handled by the sender
-            clusterAlias
-        );
         transportService.sendChildRequest(
             transportService.getLocalNode(),
             EsqlSearchShardsAction.TYPE.name(),
-            searchShardsRequest,
+            searchShardsRequest(anySliceEnabled(concreteIndices)),
             rootTask,
             TransportRequestOptions.EMPTY,
             new ActionListenerResponseHandler<>(searchShardsListener, SearchShardsResponse::new, searchExecutor)
         );
+    }
+
+    /**
+     * The request that resolves the shards to query. A slice is the routing value of its documents, so the slices only
+     * target the shards that hold them. Shard resolution rejects slices when no index is slice-enabled, so they are left
+     * out then: the filter on {@code _slice} matches nothing on such an index.
+     */
+    SearchShardsRequest searchShardsRequest(boolean anySliceEnabled) {
+        final boolean routeBySlice = anySliceEnabled && slices.isRestricted();
+        return new SearchShardsRequest(
+            originalIndices.indices(),
+            originalIndices.indicesOptions(),
+            requestFilter,
+            routeBySlice ? slices.toRouting() : null,
+            routeBySlice,
+            null,
+            true, // unavailable_shards will be handled by the sender
+            clusterAlias
+        );
+    }
+
+    /**
+     * Whether any of the indices is slice-enabled.
+     */
+    private boolean anySliceEnabled(Set<String> concreteIndices) {
+        if (slices.isRestricted() == false) {
+            return false;
+        }
+        var project = projectResolver.getProjectMetadata(clusterService.state());
+        for (String concreteIndex : concreteIndices) {
+            var indexMetadata = project.index(concreteIndex);
+            if (indexMetadata != null && IndexSettings.SLICE_ENABLED.get(indexMetadata.getSettings())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

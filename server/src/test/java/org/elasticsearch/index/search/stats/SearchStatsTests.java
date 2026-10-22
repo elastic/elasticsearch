@@ -9,10 +9,15 @@
 
 package org.elasticsearch.index.search.stats;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.index.search.stats.SearchStats.Stats;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 
+import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class SearchStatsTests extends ESTestCase {
@@ -22,9 +27,9 @@ public class SearchStatsTests extends ESTestCase {
         // let's create two dummy search stats with groups
         Map<String, Stats> groupStats1 = new HashMap<>();
         Map<String, Stats> groupStats2 = new HashMap<>();
-        groupStats2.put("group1", new Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1.0));
-        SearchStats searchStats1 = new SearchStats(new Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1.0), 0, groupStats1);
-        SearchStats searchStats2 = new SearchStats(new Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1.0), 0, groupStats2);
+        groupStats2.put("group1", new Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1.0, 1.0));
+        SearchStats searchStats1 = new SearchStats(new Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1.0, 1.0), 0, groupStats1);
+        SearchStats searchStats2 = new SearchStats(new Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1.0, 1.0), 0, groupStats2);
 
         // adding these two search stats and checking group stats are correct
         searchStats1.add(searchStats2);
@@ -55,6 +60,19 @@ public class SearchStatsTests extends ESTestCase {
         assertEquals(equalTo, stats.getSuggestCount());
         assertEquals(equalTo, stats.getSuggestTimeInMillis());
         assertEquals(equalTo, stats.getSuggestCurrent());
+        assertEquals(equalTo, stats.getSearchLoadRate(), 0d);
+        assertEquals(equalTo, stats.getSearchWaitingRate(), 0d);
+    }
+
+    public void testSerialization() throws IOException {
+        Stats stats = new Stats(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 1.5, 2.5);
+        NamedWriteableRegistry registry = new NamedWriteableRegistry(List.of());
+        assertEquals(stats, copyWriteable(stats, registry, Stats::readStats));
+
+        TransportVersion beforeWaiting = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("search_query_waiting"));
+        Stats old = copyWriteable(stats, registry, Stats::readStats, beforeWaiting);
+        assertEquals(1.5, old.getSearchLoadRate(), 0d);
+        assertEquals(0.0, old.getSearchWaitingRate(), 0d);
     }
 
 }

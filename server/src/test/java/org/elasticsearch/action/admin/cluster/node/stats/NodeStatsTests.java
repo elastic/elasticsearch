@@ -627,6 +627,7 @@ public class NodeStatsTests extends ESTestCase {
             ++iota,
             ++iota,
             ++iota,
+            ++iota,
             ++iota
         );
         Map<String, SearchStats.Stats> groupStats = new HashMap<>();

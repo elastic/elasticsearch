@@ -1,0 +1,48 @@
+---
+setup:
+  - requires:
+      cluster_features: ["search.stats.recent_search_waiting"]
+      reason: Search waiting stats were introduced in 9.7
+---
+"Search waiting is tracked at shard level":
+  - do:
+      indices.create:
+        index: index
+        body:
+          mappings:
+            properties:
+              name:
+                type: text
+
+  - do:
+      indices.stats:
+        index: "index"
+        level: shards
+        metric: [ search ]
+
+  - match: { _all.total.search.recent_search_waiting: 0.0 }
+  - match: { indices.index.total.search.recent_search_waiting: 0.0 }
+  - match: { indices.index.shards.0.0.search.recent_search_waiting: 0.0 }
+
+  - do:
+      index:
+        index: index
+        refresh: true
+        body: { "name": "specialty coffee" }
+
+  - do:
+      search:
+        index: index
+        body:
+          query:
+            match: { name: "specialty coffee" }
+
+  - do:
+      indices.stats:
+        index: "index"
+        level: shards
+        metric: [ search ]
+
+  - gte: { _all.total.search.recent_search_waiting: 0.0 }
+  - gte: { indices.index.total.search.recent_search_waiting: 0.0 }
+  - gte: { indices.index.shards.0.0.search.recent_search_waiting: 0.0 }

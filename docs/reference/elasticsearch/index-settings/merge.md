@@ -25,11 +25,8 @@ Merges are disk IO throttled so that bursts, while merging activity is otherwise
 There is no limit on the number of merges that can be enqueued for execution on the thread pool.
 However, beyond a certain per-shard limit, after merging is completely disk IO un-throttled, indexing for the shard will itself be throttled until merging catches up.
 
-The available disk space is periodically monitored, such that no new merge tasks are scheduled for execution when the available disk space is low.
-This is in order to prevent that the temporary disk space, which is required while merges are executed, completely fills up the disk space on the node.
-
 :::{note}
-The disk space check and the size of the `merge` thread pool are controlled by node-level settings that apply to all indices on a node, not by index settings. Refer to [](/reference/elasticsearch/configuration-reference/merge-settings.md) for more information.
+The `merge` thread pool and the periodic disk space check, which prevents new merges from starting when the available disk space is low, apply to all shards on a node. They are controlled by node-level settings. Refer to [](/reference/elasticsearch/configuration-reference/merge-settings.md).
 :::
 
 The merge scheduler supports the following *dynamic* index settings:

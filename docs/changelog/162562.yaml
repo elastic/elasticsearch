@@ -1,5 +1,0 @@
-pr: 162562
-summary: Hash configurable dimensions into the second and third tsid bytes
-area: TSDB
-type: enhancement
-issues: []

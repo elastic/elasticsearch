@@ -360,9 +360,9 @@ public final class SliceIndexing {
 
     /**
      * Validates request-level slice/routing requirements and resolves effective routing for search-style APIs.
-     * When {@code anySliceEnabled} is true and no {@code _slice} parameter was provided, the request is treated
-     * as {@code _slice=_all} (routing is left unrestricted, covering all slices). A {@code _slice} is accepted even when no
-     * targeted index is slice-enabled: indices without slices hold no document of any slice, so they match nothing.
+     * When {@code anySliceEnabled} is true and no {@code _slice} parameter was provided, routing is left unrestricted,
+     * covering all slices. A {@code _slice} is accepted even when no targeted index is slice-enabled: indices without slices
+     * hold no document of any slice, so they match nothing.
      */
     public static String validateAndResolveSliceRoutingRequirement(
         boolean anySliceEnabled,

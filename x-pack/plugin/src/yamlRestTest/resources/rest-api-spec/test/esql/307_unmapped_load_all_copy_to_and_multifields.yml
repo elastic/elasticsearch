@@ -112,6 +112,11 @@ setup:
           - { "index": { "_index": "la_dyn_template", "_id": "1" } }
           - { "id": "1", "blob_payload": { "deep": { "leaf": "kept" } }, "indexed": 3 }
 
+  # Dynamic mapping updates are not acknowledged by every node, so wait until all nodes have applied them.
+  - do:
+      cluster.health:
+        wait_for_events: languid
+
 ---
 teardown:
   - do:

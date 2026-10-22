@@ -292,7 +292,7 @@ A data source authenticates to its store with one of the following models. The m
 |---|---|---|
 | Static credentials | `static_credentials` | A fixed access key and secret key. The common form for a service account. To set one up, refer to [connect with static credentials](esql-data-federation-static-credentials.md). |
 | Anonymous | `anonymous` | For public data that needs no credentials. The [quickstart](esql-data-federation-quickstart.md) walks through this method. |
-| Federated identity | `federated_identity` | Keyless. {{es}} exchanges a short-lived OIDC token for temporary AWS credentials via STS, so no static keys are stored. Available on Elastic Cloud Hosted and serverless only. Operator-gated by a [cluster setting](esql-data-federation-cluster-settings.md).<br>{applies_to}`stack: experimental 9.6+` `esql.external.federated_identity.enabled`<br>{applies_to}`stack: deprecated 9.6+, experimental =9.5` `esql.datasource.federated_identity.enabled`<br>To set it up, refer to [connect with federated identity](esql-data-federation-federated-identity.md). |
+| Federated identity | `federated_identity` | Keyless. {{es}} exchanges a short-lived OIDC token for temporary AWS credentials via STS, so no static keys are stored. Available on {{ech}}, except in some special environments such as AWS GovCloud. Not available on self-managed, {{ece}}, or {{eck}}. To set it up, refer to [connect with federated identity](esql-data-federation-federated-identity.md). |
 | Managed identity | `managed_identity` | Keyless. Uses the {{es}} node's own cloud identity, for example an EC2 instance IAM role. Operator-only and API-only, and not available in serverless. Requires a [cluster setting](esql-data-federation-cluster-settings.md).<br>{applies_to}`stack: experimental 9.6+` `esql.external.managed_identity.enabled`<br>{applies_to}`stack: deprecated 9.6+, experimental =9.5` `esql.datasource.managed_identity.enabled` |
 
 :::{warning}
@@ -308,6 +308,13 @@ The identity needs permission to read the files in every dataset that uses the d
 To grant read access for each data source type, refer to:
 
 - **Amazon S3**: Allow `s3:GetObject` on the dataset's objects, and `s3:ListBucket` on the bucket when a dataset's resource is a prefix or a glob pattern. For a complete policy and troubleshooting, refer to [grant read access in Amazon S3](esql-data-federation-s3.md#s3-permissions).
+
+## Audit logging
+
+With [audit logging enabled](docs-content://deploy-manage/security/logging-configuration/enabling-audit-logs.md),
+creating, updating, and deleting data sources generates `security_config_change` events. Refer to
+[put_data_source](../../elasticsearch/elasticsearch-audit-events.md#event-put-data-source), and
+[delete_data_source](../../elasticsearch/elasticsearch-audit-events.md#event-delete-data-source).
 
 ## Next steps
 

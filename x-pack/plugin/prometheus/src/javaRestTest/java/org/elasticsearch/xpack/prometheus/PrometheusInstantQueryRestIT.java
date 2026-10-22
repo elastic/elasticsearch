@@ -694,6 +694,22 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertBinopInstantValues("count without (host) (sum by (host) (tx) / sum by (host) (rx))", 3);
     }
 
+    /**
+     * Prometheus reads {@code {__name__="tx",host="a"}} the same as {@code tx{host="a"}}: the position of the {@code __name__}
+     * matcher among the label matchers does not change which labels the other matchers filter on.
+     */
+    public void testInstantNameMatcherPositionDoesNotChangeTheResult() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        for (String query : List.of(
+            "tx{host=\"a\"}",
+            "{host=\"a\",__name__=\"tx\"}",
+            "{__name__=\"tx\",host=\"a\"}",
+            "{\"tx\",host=\"a\"}"
+        )) {
+            assertBinopInstantValues(query, 10);
+        }
+    }
+
     /** Prometheus converts k with an integer cast: {@code topk(1.5, tx)} keeps one series and {@code topk(0.5, tx)} none. */
     public void testInstantFractionalKIsTruncated() throws Exception {
         ingestTestDataUsingRemoteWrite(QUERY_TIME);
@@ -701,5 +717,28 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertBinopInstantValues("bottomk(1.5, tx)", 10);
         assertBinopInstantValues("topk(2.9, tx)", 30, 12);
         assertBinopInstantValues("topk(0.5, tx)");
+    }
+
+    /**
+     * A count over no element is no element, not 0: {@code count by (cluster) (rx{host="a"})} has no {@code qa} group, so the
+     * operator has no {@code qa} pair; two counts over nothing pair nothing.
+     */
+    public void testInstantCountOverNothingIsNoElement() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantGroups("count by (cluster) (tx) - count by (cluster) (rx{host=\"a\"})", "cluster", Map.of("prod", 1.0));
+        assertBinopInstantValues("count(tx{host=~\"nope\"}) - count(rx{host=~\"nope\"})");
+        assertBinopInstantValues("count by (cluster) (tx{cluster=~\"nope\"}) - count by (cluster) (rx{cluster=~\"nope\"})");
+        assertBinopInstantValues("count_over_time(tx{host=~\"nope\"}[5m]) - count_over_time(tx{cluster=~\"nope\"}[5m])");
+    }
+
+    /**
+     * A series without a partner leaves the operator's result before an enclosing aggregate sees it: host c has no
+     * {@code rx{host!="c"}} partner, so {@code count by (cluster)} has no {@code qa} group rather than a count of 0.
+     */
+    public void testInstantUnmatchedPairsNeverReachTheEnclosingCount() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        String pairs = "sum by (host, cluster) (tx) / sum by (host, cluster) (rx{host!=\"c\"})";
+        assertBinopInstantGroups("count by (cluster) (" + pairs + ")", "cluster", Map.of("prod", 2.0));
+        assertBinopInstantValues("count(sum by (host) (tx) / sum by (host) (rx{host=~\"nope\"}))");
     }
 }

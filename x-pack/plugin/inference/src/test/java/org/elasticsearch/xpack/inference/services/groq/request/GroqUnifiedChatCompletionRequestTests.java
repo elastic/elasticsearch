@@ -7,12 +7,10 @@
 
 package org.elasticsearch.xpack.inference.services.groq.request;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -32,40 +30,38 @@ import java.util.Map;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.services.groq.completion.GroqChatCompletionModel.buildDefaultUri;
 import static org.hamcrest.Matchers.aMapWithSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class GroqUnifiedChatCompletionRequestTests extends ESTestCase {
 
     private static final String ORG_HEADER = GroqUtils.createOrgHeader("org").getName();
 
-    public void testCreateRequestWithUrlOrganizationAndHeaders() throws IOException {
+    public void testCreateRequestWithUrlOrganizationAndHeaders() throws IOException, URISyntaxException {
         var request = createRequest("https://example.org/custom", "org-1", "api-key", "hello", "model", "user", true);
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        assertThat(httpPost.getURI().toString(), is("https://example.org/custom"));
-        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        assertThat(httpPost.getUri().toString(), is("https://example.org/custom"));
+        assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer api-key"));
         assertThat(httpPost.getLastHeader(ORG_HEADER).getValue(), is("org-1"));
         assertThat(httpPost.getLastHeader("X-Test").getValue(), is("1"));
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertRequestWithUser(requestMap, "user", "hello", true);
     }
 
     public void testCreateRequestUsesDefaultUrl() throws URISyntaxException, IOException {
         var request = createRequest(null, null, "api-key", "hello", "model", null, false);
         var httpRequest = RequestTests.getHttpRequestSync(request);
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        assertThat(httpPost.getURI().toString(), is(buildDefaultUri().toString()));
+        assertThat(httpPost.getUri().toString(), is(buildDefaultUri().toString()));
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer api-key"));
         assertNull(httpPost.getLastHeader(ORG_HEADER));
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertRequestWithoutUser(requestMap, "hello", false);
     }
 

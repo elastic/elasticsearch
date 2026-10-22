@@ -292,7 +292,8 @@ public final class Automatons {
                 );
             }
             String regex = pattern.substring(1, pattern.length() - 1);
-            // TODO: LUCENE11 stop-gap (#113465): rewrite shipped /regex/ privileges so they
+            // TODO: LUCENE11 stop-gap (https://github.com/elastic/elasticsearch/issues/162974):
+            // rewrite shipped /regex/ privileges so they
             // do not use ~, then compile with new RegExp(regex, ALL) and delete RegexpComplement.
             return Operations.determinize(RegexpComplement.toAutomaton(regex, maxDeterminizedStates), DEFAULT_DETERMINIZE_WORK_LIMIT);
         } else if (pattern.equals("*")) {

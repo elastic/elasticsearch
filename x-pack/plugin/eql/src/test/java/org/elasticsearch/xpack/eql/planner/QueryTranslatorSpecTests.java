@@ -41,7 +41,8 @@ public class QueryTranslatorSpecTests extends AbstractQueryTranslatorTestCase {
     // TODO: LUCENE11 ALL dropped DEPRECATED_COMPLEMENT (0x10000); muted spec cases
     // regexSingleArgInsensitive / regexMultiArgInsensitive /
     // regexMultiMultiArgVariantInsensitive still expect flags_value 65791. Unmute
-    // when the expected value is Lucene 11 ALL (255) or ES restores the bit (#113465).
+    // when the expected value is Lucene 11 ALL (255) or ES restores the bit
+    // (https://github.com/elastic/elasticsearch/issues/162974).
     public void test() {
         PhysicalPlan p = plan(query);
         assertEquals(EsQueryExec.class, p.getClass());

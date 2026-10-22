@@ -802,7 +802,8 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, SystemResourc
         final String patternAsRegex = patternToRegex(pattern);
         final String aliasAsRegex = alias == null ? null : patternToRegex(alias);
 
-        // TODO: LUCENE11 stop-gap (#113465): rewrite system-index patterns so they do not use
+        // TODO: LUCENE11 stop-gap (https://github.com/elastic/elasticsearch/issues/162974): rewrite
+        // system-index patterns so they do not use
         // ~ (e.g. .fleet-actions~(-results*)), then compile with new RegExp(..., ALL) and
         // delete RegexpComplement.
         final Automaton patternAutomaton = RegexpComplement.toAutomaton(patternAsRegex, DEFAULT_DETERMINIZE_WORK_LIMIT);

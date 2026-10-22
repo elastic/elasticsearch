@@ -2935,7 +2935,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     // TODO: LUCENE11 ALL dropped DEPRECATED_COMPLEMENT (0x10000); this still expects
     // flags_value 65791. Unmute when the expected value is Lucene 11 ALL (255) or ES
-    // restores the bit (#113465).
+    // restores the bit (https://github.com/elastic/elasticsearch/issues/162974).
     public void testPushDownLowerCaseChangeRLike() {
         doTestPushDownCaseChangeRegexMatch("""
             FROM test
@@ -2963,7 +2963,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     // TODO: LUCENE11 ALL dropped DEPRECATED_COMPLEMENT (0x10000); this still expects
     // flags_value 65791. Unmute when the expected value is Lucene 11 ALL (255) or ES
-    // restores the bit (#113465).
+    // restores the bit (https://github.com/elastic/elasticsearch/issues/162974).
     public void testPushDownUpperCaseChangeRLike() {
         doTestPushDownCaseChangeRegexMatch("""
             FROM test

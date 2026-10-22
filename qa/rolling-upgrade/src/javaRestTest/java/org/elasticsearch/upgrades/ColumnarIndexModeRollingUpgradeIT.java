@@ -90,6 +90,8 @@ public class ColumnarIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTes
         docs += DOCS_PER_BULK;
         verify(DATA_STREAM, 0, docs);
         if (isUpgradedCluster()) {
+            // TODO: LUCENE11 force-merge packs .cfs; index.compound_format: false is a no-op
+            // until CompoundFormat is wired, so _stats file_sizes hide cnd.
             mergeRolloverAndVerify(docs);
         }
     }

@@ -293,21 +293,21 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/159154
 # Lucene 11 ALL dropped DEPRECATED_COMPLEMENT (0x10000). Search/EQL/ES|QL still
 # serialize flags_value/syntaxFlags 65791; ~(X) in wildcard-field random regex
-# is the query path, not Automatons (#113465).
+# is the query path, not Automatons (https://github.com/elastic/elasticsearch/issues/162974).
 - class: org.elasticsearch.xpack.wildcard.mapper.WildcardFieldMapperTests
   method: testSearchResultsVersusKeywordField
-  issue: https://github.com/elastic/elasticsearch/issues/113465
+  issue: https://github.com/elastic/elasticsearch/issues/162974
 - class: org.elasticsearch.xpack.eql.planner.QueryTranslatorSpecTests
   methods:
     - test {regexSingleArgInsensitive}
     - test {regexMultiArgInsensitive}
     - test {regexMultiMultiArgVariantInsensitive}
-  issue: https://github.com/elastic/elasticsearch/issues/113465
+  issue: https://github.com/elastic/elasticsearch/issues/162974
 - class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
   methods:
     - testPushDownLowerCaseChangeRLike
     - testPushDownUpperCaseChangeRLike
-  issue: https://github.com/elastic/elasticsearch/issues/113465
+  issue: https://github.com/elastic/elasticsearch/issues/162974
 - class: org.elasticsearch.xpack.esql.qa.single_node.PushQueriesStringIT
   methods:
     - testRLike {WILDCARD}
@@ -318,7 +318,7 @@ tests:
     - testOrNotCaseInsensitiveRLike {WILDCARD}
     - testAndNotRLike {WILDCARD}
     - testAndNotCaseInsensitiveRLike {WILDCARD}
-  issue: https://github.com/elastic/elasticsearch/issues/113465
+  issue: https://github.com/elastic/elasticsearch/issues/162974
 # Lucene 11 LRUQueryCache fires onQueryCache/onDocIdSetCache per (segment, query)
 # (lucene#15558). Shard QueryCacheStats / close asserts still expect the old hooks.
 - class: org.elasticsearch.indices.IndicesQueryCacheTests
@@ -378,6 +378,11 @@ tests:
 # listings when the maps are updated.
 - class: org.elasticsearch.xpack.stateless.lucene.GenerationalDocValuesIT
   method: testBackgroundMergeCanRetainDeletedGenerationalFile
+  issue: https://github.com/elastic/elasticsearch/issues/XXXX
+# Lucene 11 force-merge packs .cfs; index.compound_format: false is a no-op until
+# CompoundFormat is wired, so _stats file_sizes hide cnd (6734).
+- class: org.elasticsearch.upgrades.ColumnarIndexModeRollingUpgradeIT
+  method: testColumnarDataStream {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/XXXX
 
 - class: org.elasticsearch.xpack.security.apikey.ApiKeyRestIT

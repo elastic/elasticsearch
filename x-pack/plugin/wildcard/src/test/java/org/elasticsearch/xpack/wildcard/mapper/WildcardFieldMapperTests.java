@@ -425,7 +425,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
 
     // TODO: LUCENE11 ~ is a literal; the random regex generator can emit @&~(doesnotexist.+)
     // (old complement). Unmute when ES restores ~(X) via Operations.complement or that
-    // generator branch is removed (#113465).
+    // generator branch is removed (https://github.com/elastic/elasticsearch/issues/162974).
     public void testSearchResultsVersusKeywordField() throws IOException {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig(WildcardFieldMapper.WILDCARD_ANALYZER_7_10);

@@ -449,7 +449,7 @@ public class PushQueriesStringIT extends ESRestTestCase {
 
     // TODO: LUCENE11 ALL dropped DEPRECATED_COMPLEMENT (0x10000); WILDCARD still expects
     // syntaxFlags=65791. Unmute when that is Lucene 11 ALL (255) or ES restores the bit
-    // (#113465).
+    // (https://github.com/elastic/elasticsearch/issues/162974).
     public void testRLike() throws IOException {
         String value = "v".repeat(between(1, 256));
         String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.length()));
@@ -492,7 +492,7 @@ public class PushQueriesStringIT extends ESRestTestCase {
         testPushQuery(value, differentValue, esqlQuery, List.of(luceneQuery), dataNodeSignature, hasItem(List.of(value)));
     }
 
-    // TODO: LUCENE11 see testRLike — WILDCARD syntaxFlags 65791 (#113465).
+    // TODO: LUCENE11 see testRLike — WILDCARD syntaxFlags 65791 (https://github.com/elastic/elasticsearch/issues/162974).
     public void testCaseInsensitiveRLike() throws IOException {
         String value = "v".repeat(between(1, 256));
         String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.length()));
@@ -560,7 +560,7 @@ public class PushQueriesStringIT extends ESRestTestCase {
         testPushQuery(value, differentValue, esqlQuery, List.of(luceneQuery), dataNodeSignature, hasItem(List.of(value)));
     }
 
-    // TODO: LUCENE11 see testRLike — WILDCARD syntaxFlags 65791 (#113465).
+    // TODO: LUCENE11 see testRLike — WILDCARD syntaxFlags 65791 (https://github.com/elastic/elasticsearch/issues/162974).
     public void testNotRLike() throws IOException {
         String value = "v".repeat(between(1, 256));
         String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.length()));
@@ -582,7 +582,7 @@ public class PushQueriesStringIT extends ESRestTestCase {
         testPushQuery(value, differentValue, esqlQuery, List.of(luceneQuery), dataNodeSignature, hasItem(List.of(value)));
     }
 
-    // TODO: LUCENE11 see testRLike — WILDCARD syntaxFlags 65791 (#113465).
+    // TODO: LUCENE11 see testRLike — WILDCARD syntaxFlags 65791 (https://github.com/elastic/elasticsearch/issues/162974).
     public void testNotCaseInsensitiveRLike() throws IOException {
         String value = "v".repeat(between(1, 256));
         // Must be lowercase so TO_LOWER(test) rlike "differentValue.*" is not statically folded to false
@@ -625,7 +625,7 @@ public class PushQueriesStringIT extends ESRestTestCase {
         testPushQuery(value, differentValue, esqlQuery, luceneQuery, dataNodeSignature, hasItem(List.of(value)));
     }
 
-    // TODO: LUCENE11 see testRLike — WILDCARD syntaxFlags 65791 (#113465).
+    // TODO: LUCENE11 see testRLike — WILDCARD syntaxFlags 65791 (https://github.com/elastic/elasticsearch/issues/162974).
     public void testOrNotRLike() throws IOException {
         String value = "v".repeat(between(1, 256));
         String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.length()));
@@ -650,7 +650,7 @@ public class PushQueriesStringIT extends ESRestTestCase {
         testPushQuery(value, differentValue, esqlQuery, luceneQuery, dataNodeSignature, hasItem(List.of(value)));
     }
 
-    // TODO: LUCENE11 see testRLike — WILDCARD syntaxFlags 65791 (#113465).
+    // TODO: LUCENE11 see testRLike — WILDCARD syntaxFlags 65791 (https://github.com/elastic/elasticsearch/issues/162974).
     public void testOrNotCaseInsensitiveRLike() throws IOException {
         String value = "v".repeat(between(1, 256));
         // Must be lowercase so TO_LOWER(test) rlike "differentValue.*" is not statically folded to false
@@ -704,7 +704,7 @@ public class PushQueriesStringIT extends ESRestTestCase {
         testPushQuery(value, differentValue, esqlQuery, luceneQuery, dataNodeSignature, hasItem(List.of(value)));
     }
 
-    // TODO: LUCENE11 see testRLike — WILDCARD syntaxFlags 65791 (#113465).
+    // TODO: LUCENE11 see testRLike — WILDCARD syntaxFlags 65791 (https://github.com/elastic/elasticsearch/issues/162974).
     public void testAndNotRLike() throws IOException {
         String value = "v".repeat(between(1, 256));
         String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.length()));
@@ -756,7 +756,7 @@ public class PushQueriesStringIT extends ESRestTestCase {
         testPushQuery(value, differentValue, esqlQuery, luceneQuery, dataNodeSignature, hasItem(List.of(value)));
     }
 
-    // TODO: LUCENE11 see testRLike — WILDCARD syntaxFlags 65791 (#113465).
+    // TODO: LUCENE11 see testRLike — WILDCARD syntaxFlags 65791 (https://github.com/elastic/elasticsearch/issues/162974).
     public void testAndNotCaseInsensitiveRLike() throws IOException {
         String value = "v".repeat(between(1, 256));
         // Must be lowercase so TO_LOWER(test) rlike "differentValue.*" is not statically folded to false

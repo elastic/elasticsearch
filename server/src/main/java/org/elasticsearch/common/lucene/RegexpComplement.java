@@ -24,12 +24,12 @@ import java.util.Map;
  * privileges and system-index patterns. Named-automaton placeholders ({@code <id>}) are
  * substituted for each complement so the rest of the pattern can go through Lucene's parser.
  * <p>
- * TODO: LUCENE11 stop-gap for #113465. Drop this class once reserved roles, {@code _xpack},
+ * TODO: LUCENE11 stop-gap for
+ * <a href="https://github.com/elastic/elasticsearch/issues/162974">#162974</a>.
+ * Drop this class once reserved roles, {@code _xpack},
  * and system-index patterns no longer use {@code ~}, and the public {@code /regex/} / regexp
  * docs no longer promise complement. Search {@code regexp} / query_string still parse {@code ~}
  * as a literal.
- *
- * @see <a href="https://github.com/elastic/elasticsearch/issues/113465">#113465</a>
  */
 public final class RegexpComplement {
 

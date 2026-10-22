@@ -74,11 +74,12 @@ Use the REST API to create, update, delete, and list views:
 ### Query validation [esql-views-validation]
 `PUT /_query/view/<name>` rejects a query that cannot be parsed.
 
-{applies_to}`stack: ga 9.7+` It also analyzes the query without running it. If the query uses an index or column that does not exist, the response carries a `Warning` header. {{es}} still saves the view, so you can create a view before the index it reads from. Earlier versions only check that the query can be parsed and return no warning.
+{applies_to}`stack: ga 9.7+` The create or update view API also analyzes the query without running it:
 
-The analysis uses your privileges. An index you cannot read is reported as unknown. Failures unrelated to the query, such as an overloaded cluster, produce no warning.
-
-To skip the analysis, set the `validate` query parameter to `false`.
+* If the query uses an index or column that does not exist, the response carries a `Warning` header. {{es}} still saves the view, so you can create a view before the index it reads from.
+* The analysis uses your privileges. An index you cannot read is reported as unknown.
+* Failures unrelated to the query, such as an overloaded cluster, produce no warning.
+* To skip the analysis, set the `validate` query parameter to `false`.
 
 ### Reserved views [esql-views-reserved]
 Some views are reserved. {{es}} or its components create them, not users. A reserved view is marked with `"reserved": true` in the [get view](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-get-view) response.

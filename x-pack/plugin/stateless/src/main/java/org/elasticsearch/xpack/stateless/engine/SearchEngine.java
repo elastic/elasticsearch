@@ -564,6 +564,32 @@ public class SearchEngine extends Engine {
     }
 
     /**
+     * Explains where each entry of {@link #getAcquiredPrimaryTermAndGenerations()} comes from: the acquired generational files, and for
+     * every open reader (current reader, PIT / scroll / in-flight search readers) the BCCs its commit depends on. Meant for diagnostics
+     * of BCCs that are retained longer than expected.
+     */
+    public String describeAcquiredPrimaryTermAndGenerations() {
+        final var sb = new StringBuilder();
+        sb.append("generationalFiles=").append(new TreeSet<>(searchDirectory.getAcquiredGenerationalFileTermAndGenerations()));
+        synchronized (openReaders) {
+            sb.append(" openReaders=").append(openReaders.size()).append(" [");
+            int i = 0;
+            for (var entry : openReaders.entrySet()) {
+                sb.append(i++ == 0 ? "" : "; ")
+                    .append("reader refCount=")
+                    .append(entry.getKey().getRefCount())
+                    .append(" files=")
+                    .append(entry.getValue().files().size())
+                    .append(" referencedBCCs=")
+                    .append(new TreeSet<>(entry.getValue().referencedBCCs()));
+            }
+            sb.append(']');
+        }
+        sb.append(" currentCommit=").append(currentPrimaryTermGeneration);
+        return sb.toString();
+    }
+
+    /**
      * Process a new commit notification from the primary, and complete the provided {@code listener} when this commit (or a later commit)
      * is visible to searches.
      */

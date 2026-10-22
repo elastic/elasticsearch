@@ -43,7 +43,6 @@ import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -2465,10 +2464,11 @@ public class BatchBulkIT extends ESIntegTestCase {
             assertTrue("batch path lost document [" + id + "]", fromBatch[i].getResponse().isExists());
             final Map<String, Object> batchSource = fromBatch[i].getResponse().getSourceAsMap();
             assertThat("source of [" + id + "]", batchSource, equalTo(fromRow[i].getResponse().getSourceAsMap()));
-            // Synthetic source renders absorbed leaves under _unmapped. env is in every document, so two empty sinks cannot pass as equal.
+            // Synthetic source renders absorbed leaves under their own paths. env is in every document, so two empty sinks cannot pass as
+            // equal.
             assertThat(
                 "unmapped leaf of [" + id + "]",
-                XContentMapValues.extractValue(FlattenedFieldMapper.UNMAPPED_SINK_NAME + ".env", batchSource),
+                XContentMapValues.extractValue("env", batchSource),
                 equalTo(sources.get(id).get("env"))
             );
         }
@@ -2517,12 +2517,8 @@ public class BatchBulkIT extends ESIntegTestCase {
                     mapping.startObject("field");
                     {
                         mapping.field("type", "keyword");
-                        mapping.startObject("doc_values");
-                        {
-                            mapping.field("multi_value", false);
-                            mapping.field("on_failure", "ignore");
-                        }
-                        mapping.endObject();
+                        mapping.field("multi_value", false);
+                        mapping.field("on_failure", "ignore");
                     }
                     mapping.endObject();
                 }
@@ -3051,7 +3047,6 @@ public class BatchBulkIT extends ESIntegTestCase {
      * seen once, so the column is written over the shapes its layout is chosen from rather than one of them.
      */
     public void testColumnarCodecBatchMatchesRowPath() throws IOException {
-        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
         final String batched = "test-columnar-codec-batched";
         final String sequential = "test-columnar-codec-sequential";
 
@@ -3209,15 +3204,10 @@ public class BatchBulkIT extends ESIntegTestCase {
                         .put("index.number_of_shards", 1)
                         .put("index.number_of_replicas", 0)
                         .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-                        .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), true)
                 )
                 .setMapping(mapping)
         );
         ensureGreen(index);
-        // The cluster kill switch overrules the request setting, and an index that came back without the codec
-        // would read back the same on both paths while saying nothing about the format this test is here for.
-        final Settings created = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, index).get().getIndexToSettings().get(index);
-        assumeTrue("columnar codec is disabled for [" + index + "]", IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.get(created));
     }
 
     /**

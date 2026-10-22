@@ -18,7 +18,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.ClassRule;
@@ -60,10 +59,11 @@ public class ColumnarIndexModesFullClusterRestartIT extends ParameterizedFullClu
     /**
      * The license of the cluster, which columnar indices react to: under basic they keep a stored source. It is picked when the cluster
      * starts, as static initializers run before there is a random seed, and kept so the upgraded cluster has the license of the old one.
+     * FIPS mode does not allow a basic license, and the test cluster setup forces a trial one there, so that is what is expected.
      */
     private static synchronized String licenseType() {
         if (licenseType == null) {
-            licenseType = randomFrom("basic", "trial");
+            licenseType = Boolean.getBoolean("tests.fips.enabled") ? "trial" : randomFrom("basic", "trial");
         }
         return licenseType;
     }
@@ -72,8 +72,6 @@ public class ColumnarIndexModesFullClusterRestartIT extends ParameterizedFullClu
     public static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .version(OLD_CLUSTER_VERSION, isOldClusterDetachedVersion())
-        // Temporary: upgrade tests turn the flag off by default, but the codec has to be on for the upgraded cluster to write ColumNAR
-        .feature(FeatureFlag.COLUMNAR_CODEC)
         .setting("xpack.security.enabled", "true")
         .setting("xpack.license.self_generated.type", ColumnarIndexModesFullClusterRestartIT::licenseType)
         .setting("xpack.ml.enabled", "false")

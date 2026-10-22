@@ -116,6 +116,22 @@ public abstract class BucketedSort implements Releasable {
         }
     };
 
+    /**
+     * An {@link ExtraData} that also decides which of two entries wins when their sort values are equal. Without one, which
+     * of several tied entries stays in a full bucket is arbitrary, because it depends on where they sit in the heap.
+     * <p>
+     * A caller that has to match the tie-breaking of a Lucene {@code TopFieldCollector}, which keeps the lower doc id, stores the
+     * doc id as extra data and implements this interface over it. Sorts whose extra data does not implement it behave exactly
+     * as before.
+     * </p>
+     */
+    public interface TieBreakingExtraData extends ExtraData {
+        /**
+         * {@code true} if the entry at index {@code lhs} beats the entry at index {@code rhs} when their sort values are equal.
+         */
+        boolean betterOnTie(long lhs, long rhs);
+    }
+
     protected final BigArrays bigArrays;
     private final SortOrder order;
     private final DocValueFormat format;
@@ -249,6 +265,14 @@ public abstract class BucketedSort implements Releasable {
      * {@link SortOrder#ASC} and "higher" for {@link SortOrder#DESC}.
      */
     protected abstract boolean betterThan(long lhs, long rhs);
+
+    /**
+     * Break a tie between two entries with equal sort values. Only does anything if the {@link ExtraData} is a
+     * {@link TieBreakingExtraData}.
+     */
+    protected final boolean tieBreak(long lhs, long rhs) {
+        return extra instanceof TieBreakingExtraData tieBreaker && tieBreaker.betterOnTie(lhs, rhs);
+    }
 
     /**
      * Swap the data at two indices.
@@ -485,7 +509,8 @@ public abstract class BucketedSort implements Releasable {
 
         @Override
         protected final boolean betterThan(long lhs, long rhs) {
-            return getOrder().reverseMul() * Double.compare(values.get(lhs), values.get(rhs)) < 0;
+            int cmp = getOrder().reverseMul() * Double.compare(values.get(lhs), values.get(rhs));
+            return cmp < 0 || (cmp == 0 && tieBreak(lhs, rhs));
         }
 
         @Override
@@ -588,7 +613,8 @@ public abstract class BucketedSort implements Releasable {
 
         @Override
         protected final boolean betterThan(long lhs, long rhs) {
-            return getOrder().reverseMul() * Float.compare(values.get(lhs), values.get(rhs)) < 0;
+            int cmp = getOrder().reverseMul() * Float.compare(values.get(lhs), values.get(rhs));
+            return cmp < 0 || (cmp == 0 && tieBreak(lhs, rhs));
         }
 
         @Override
@@ -677,7 +703,8 @@ public abstract class BucketedSort implements Releasable {
 
         @Override
         protected final boolean betterThan(long lhs, long rhs) {
-            return getOrder().reverseMul() * Long.compare(values.get(lhs), values.get(rhs)) < 0;
+            int cmp = getOrder().reverseMul() * Long.compare(values.get(lhs), values.get(rhs));
+            return cmp < 0 || (cmp == 0 && tieBreak(lhs, rhs));
         }
 
         @Override
@@ -766,7 +793,8 @@ public abstract class BucketedSort implements Releasable {
 
         @Override
         protected final boolean betterThan(long lhs, long rhs) {
-            return getOrder().reverseMul() * Integer.compare(values.get(lhs), values.get(rhs)) < 0;
+            int cmp = getOrder().reverseMul() * Integer.compare(values.get(lhs), values.get(rhs));
+            return cmp < 0 || (cmp == 0 && tieBreak(lhs, rhs));
         }
 
         @Override

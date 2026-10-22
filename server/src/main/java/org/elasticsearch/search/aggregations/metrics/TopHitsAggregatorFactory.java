@@ -9,6 +9,8 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -23,6 +25,7 @@ import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.sort.SortAndFormats;
+import org.elasticsearch.search.sort.SortBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -38,6 +41,12 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
     private final boolean seqNoAndPrimaryTerm;
     private final boolean trackScores;
     private final Optional<SortAndFormats> sort;
+    /**
+     * The sorts the {@link #sort} was built from, or {@code null} if there are none. A {@link BucketedTopHits} is built from the
+     * sort builders and not from the built sort.
+     */
+    @Nullable
+    private final List<SortBuilder<?>> sortBuilders;
     private final HighlightBuilder highlightBuilder;
     private final StoredFieldsContext storedFieldsContext;
     private final List<FieldAndFormat> docValueFields;
@@ -54,6 +63,7 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
         boolean seqNoAndPrimaryTerm,
         boolean trackScores,
         Optional<SortAndFormats> sort,
+        @Nullable List<SortBuilder<?>> sortBuilders,
         HighlightBuilder highlightBuilder,
         StoredFieldsContext storedFieldsContext,
         List<FieldAndFormat> docValueFields,
@@ -76,6 +86,7 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
         this.seqNoAndPrimaryTerm = seqNoAndPrimaryTerm;
         this.trackScores = trackScores;
         this.sort = sort;
+        this.sortBuilders = sortBuilders;
         this.highlightBuilder = highlightBuilder;
         this.storedFieldsContext = storedFieldsContext;
         this.docValueFields = docValueFields;
@@ -120,7 +131,17 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
         if (highlightBuilder != null) {
             subSearchContext.highlight(highlightBuilder.build(subSearchContext.getSearchExecutionContext()));
         }
-        return new TopHitsAggregator(subSearchContext, name, context, parent, metadata);
+        BucketedTopHits bucketedTopHits = BucketedTopHits.tryCreate(context, subSearchContext, sortBuilders);
+        boolean success = false;
+        try {
+            TopHitsAggregator aggregator = new TopHitsAggregator(subSearchContext, name, context, parent, metadata, bucketedTopHits);
+            success = true;
+            return aggregator;
+        } finally {
+            if (success == false) {
+                Releasables.close(bucketedTopHits);
+            }
+        }
     }
 
 }

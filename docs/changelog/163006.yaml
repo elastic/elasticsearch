@@ -1,0 +1,5 @@
+area: Authorization
+issues: []
+pr: 163006
+summary: Updating permissions for alertZeroEndpointAnalysis role - allow write access to attacks and alerts
+type: enhancement

@@ -1552,12 +1552,7 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
             Arrays.fill(v, Byte.MIN_VALUE);
         }
 
-        int[] expected = new int[rows];
-        for (int i = 0; i < rows; i++) {
-            for (int j = 0; j < cols; j++) {
-                expected[i] += a[i * cols + j] * v[j];
-            }
-        }
+        int[] expected = basicMatrixVectorMultiply(a, rows, cols, v);
 
         int[] scalarResult = new int[rows];
         defaultedProvider.getVectorUtilSupport().matrixVectorMultiply(a, rows, cols, v, scalarResult);
@@ -1576,6 +1571,17 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
             int aBase = i * cols;
             for (int j = 0; j < cols; j++) {
                 result[i] = Math.fma(a[aBase + j], v[j], result[i]);
+            }
+        }
+        return result;
+    }
+
+    private static int[] basicMatrixVectorMultiply(byte[] a, int rows, int cols, byte[] v) {
+        int[] result = new int[rows];
+        for (int i = 0; i < rows; i++) {
+            int aBase = i * cols;
+            for (int j = 0; j < cols; j++) {
+                result[i] += a[aBase + j] * v[j];
             }
         }
         return result;

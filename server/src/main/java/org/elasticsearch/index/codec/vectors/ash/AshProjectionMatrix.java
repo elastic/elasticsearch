@@ -125,8 +125,7 @@ public final class AshProjectionMatrix {
             for (int j = 0; j < nDims; j++) {
                 rowScales[j] = AshUtils.quantizeInt8(wT, j * originalDim, originalDim, values, j * originalDim);
             }
-            quantized = new Quantized(values, rowScales);
-            this.quantized = quantized;
+            this.quantized = quantized = new Quantized(values, rowScales);
         }
         return quantized;
     }

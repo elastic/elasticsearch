@@ -211,16 +211,14 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
         int queryBitsPerDim,
         CheckedIntFunction<float[], IOException> centroidReader
     ) throws IOException {
-        int nDims = matrix.nDims();
-
         // Precompute query projection: queryTransformed = W^T @ query
         float[] queryTransformed = matrix.projectQuery(query);
 
         if (queryBitsPerDim > 0) {
-            QuantizedQuery qq = quantizeQuery(queryTransformed, nDims, queryBitsPerDim, bitsPerDim);
-            AshScorer<byte[]> scorer = ESVectorUtil.getAshIntegerVectorsScorer(indexInput, nDims, bitsPerDim, queryBitsPerDim);
+            QuantizedQuery qq = quantizeQuery(queryTransformed, matrix.nDims(), queryBitsPerDim, bitsPerDim);
+            AshScorer<byte[]> scorer = ESVectorUtil.getAshIntegerVectorsScorer(indexInput, matrix.nDims(), bitsPerDim, queryBitsPerDim);
             return new AshPostingsVisitor<>(
-                nDims,
+                matrix.nDims(),
                 query,
                 similarityFunction,
                 scorer,
@@ -232,9 +230,9 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
                 centroidReader
             );
         } else {
-            AshScorer<float[]> scorer = ESVectorUtil.getAshFloatVectorsScorer(indexInput, nDims, bitsPerDim);
+            AshScorer<float[]> scorer = ESVectorUtil.getAshFloatVectorsScorer(indexInput, matrix.nDims(), bitsPerDim);
             return new AshPostingsVisitor<>(
-                nDims,
+                matrix.nDims(),
                 query,
                 similarityFunction,
                 scorer,

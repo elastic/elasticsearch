@@ -49,6 +49,7 @@ final class AshUtils {
         }
         float inverseScale = INT8_MAX / max;
         for (int i = 0; i < length; i++) {
+            // map floats to [-127, 127] so it's symmetric
             out[outOffset + i] = (byte) Math.clamp(Math.round(v[offset + i] * inverseScale), -INT8_MAX, INT8_MAX);
         }
         return max / INT8_MAX;

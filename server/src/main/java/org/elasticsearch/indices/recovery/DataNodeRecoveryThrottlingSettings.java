@@ -75,7 +75,7 @@ public final class DataNodeRecoveryThrottlingSettings {
     /// Includes both recoveries of unassigned shards and relocations.
     ///
     /// Note that the effective max concurrent recoveries limit also takes into account the heap-based throttle
-    /// [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING] when applicable (see [#appliesHeapBasedLimit]).
+    /// [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING] when applicable (see [#appliesIncomingHeapBasedLimit]).
     /// See [#incomingRecoveryLimits] and [ThrottlingRecoveryService].
     ///
     /// See also [#INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING] which imposes an additional
@@ -222,7 +222,7 @@ public final class DataNodeRecoveryThrottlingSettings {
             consumer.accept(IncomingRecoveryLimits.UNBOUNDED);
             return;
         }
-        final boolean applyHeapBasedLimit = appliesHeapBasedLimit(nodeSettings);
+        final boolean applyHeapBasedLimit = appliesIncomingHeapBasedLimit(nodeSettings);
         consumer.accept(
             incomingRecoveryLimits(
                 clusterSettings.get(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING),
@@ -246,14 +246,13 @@ public final class DataNodeRecoveryThrottlingSettings {
         );
     }
 
-    /// The heap-based recovery limit does not apply to stateless search nodes. This matches master behavior which only
+    /// The heap-based incoming recovery limit does not apply to stateless search nodes. This matches master behavior which only
     /// applies its heap-based limit to indexing shards (see `StatelessThrottlingConcurrentRecoveriesAllocationDecider`).
     ///
-    /// Note that only [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING] consults this.
-    /// [#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING] only bounds primary relocations out
-    /// of stateless indexing nodes, so it never applies to search nodes either.
+    /// There is no outgoing equivalent helper: [#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING]
+    /// only bounds primary relocations out of stateless indexing nodes, so it never applies to search nodes either.
     // visible for testing
-    static boolean appliesHeapBasedLimit(Settings nodeSettings) {
+    static boolean appliesIncomingHeapBasedLimit(Settings nodeSettings) {
         return DiscoveryNode.hasRole(nodeSettings, DiscoveryNodeRole.SEARCH_ROLE) == false;
     }
 
@@ -277,7 +276,8 @@ public final class DataNodeRecoveryThrottlingSettings {
             effectiveMaxConcurrentRecoveries(
                 clusterSettings.get(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING),
                 clusterSettings.get(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING),
-                maxHeap
+                maxHeap,
+                true
             )
         );
         clusterSettings.addSettingsUpdateConsumer(
@@ -285,7 +285,8 @@ public final class DataNodeRecoveryThrottlingSettings {
                 effectiveMaxConcurrentRecoveries(
                     INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.get(settings),
                     INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING.get(settings),
-                    maxHeap
+                    maxHeap,
+                    true
                 )
             ),
             OUTGOING_RECOVERY_LIMIT_SETTINGS
@@ -300,17 +301,19 @@ public final class DataNodeRecoveryThrottlingSettings {
         ByteSizeValue maxHeap,
         boolean applyHeapBasedLimit
     ) {
-        final int maxConcurrentRecoveries = applyHeapBasedLimit
-            ? effectiveMaxConcurrentRecoveries(maxConcurrent, perHeapGb, maxHeap)
-            : maxConcurrent;
+        final int maxConcurrentRecoveries = effectiveMaxConcurrentRecoveries(maxConcurrent, perHeapGb, maxHeap, applyHeapBasedLimit);
         final int maxConcurrentRelocationRecoveries = (int) Math.ceil(maxConcurrentRecoveries * relocationProportion.getAsRatio());
         return new IncomingRecoveryLimits(maxConcurrentRecoveries, maxConcurrentRelocationRecoveries);
     }
 
     /// Computes the effective max concurrent recoveries, on either the target or the source side, as
-    /// `min(maxConcurrent, ceil(heapGb * perHeapGb))`. Falls back to `maxConcurrent` if the heap size is unknown.
+    /// `min(maxConcurrent, ceil(heapGb * perHeapGb))`. Falls back to `maxConcurrent` if the heap-based limit does not
+    /// apply (`applyHeapBasedLimit` is false) or if the heap size is unknown.
     // visible for testing
-    static int effectiveMaxConcurrentRecoveries(int maxConcurrent, double perHeapGb, ByteSizeValue maxHeap) {
+    static int effectiveMaxConcurrentRecoveries(int maxConcurrent, double perHeapGb, ByteSizeValue maxHeap, boolean applyHeapBasedLimit) {
+        if (applyHeapBasedLimit == false) {
+            return maxConcurrent;
+        }
         final double heapInGb = maxHeap.getGbFrac();
         assert heapInGb >= 0;
         if (heapInGb == 0) { // Heap size is unknown (JvmInfo may report 0)

@@ -90,7 +90,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
     ) {
         final var cacheService = Mockito.mock(StatelessSharedBlobCacheService.class);
         when(cacheService.getCacheSize()).thenReturn(cacheSize);
-        // Unknown heap size, so that only the static incoming recovery limit applies.
+        // The heap-based limit does not apply to search nodes, so only the static incoming recovery limit applies.
         return new SearchRecoveryTimeoutCalculationService(
             cacheService,
             threadPool,

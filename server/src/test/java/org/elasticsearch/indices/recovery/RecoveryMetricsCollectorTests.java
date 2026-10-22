@@ -119,10 +119,18 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
     }
 
     public void testIncomingRecoveryLimitsMetrics() {
+        doTestIncomingRecoveryLimitsMetrics(randomFrom(Settings.EMPTY, onlyRole(DiscoveryNodeRole.INDEX_ROLE)), true);
+    }
+
+    public void testIncomingRecoveryLimitsMetricsOnSearchNode() {
+        // The heap-based limit does not apply to search nodes.
+        doTestIncomingRecoveryLimitsMetrics(onlyRole(DiscoveryNodeRole.SEARCH_ROLE), false);
+    }
+
+    private void doTestIncomingRecoveryLimitsMetrics(Settings nodeSettings, boolean expectHeapBasedLimit) {
         final var telemetryPlugin = new TestTelemetryPlugin();
         final var clusterSettings = new ClusterSettings(Settings.EMPTY, Set.copyOf(DataNodeRecoveryThrottlingSettings.settings()));
         final int heapGb = between(1, 64);
-        final boolean searchNode = randomBoolean();
         try (
             var collector = new RecoveryMetricsCollector(
                 telemetryPlugin.getTelemetryProvider(Settings.EMPTY),
@@ -130,7 +138,7 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
                 () -> 0L,
                 () -> 0L,
                 clusterSettings,
-                searchNode ? onlyRole(DiscoveryNodeRole.SEARCH_ROLE) : randomFrom(Settings.EMPTY, onlyRole(DiscoveryNodeRole.INDEX_ROLE)),
+                nodeSettings,
                 ByteSizeValue.ofGb(heapGb)
             )
         ) {
@@ -160,8 +168,9 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
                         )
                         .build()
                 );
-                // The heap-based limit does not apply to search nodes.
-                final int expectedMaxConcurrentRecoveries = searchNode ? maxConcurrent : Math.min(maxConcurrent, heapGb * perHeapGb);
+                final int expectedMaxConcurrentRecoveries = expectHeapBasedLimit
+                    ? Math.min(maxConcurrent, heapGb * perHeapGb)
+                    : maxConcurrent;
                 assertIncomingRecoveryLimitsMetrics(
                     telemetryPlugin,
                     expectedMaxConcurrentRecoveries,

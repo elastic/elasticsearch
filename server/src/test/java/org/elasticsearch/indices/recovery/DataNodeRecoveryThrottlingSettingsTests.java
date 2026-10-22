@@ -27,7 +27,7 @@ import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSetti
 import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING;
 import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING;
 import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING;
-import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.appliesHeapBasedLimit;
+import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.appliesIncomingHeapBasedLimit;
 import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.effectiveMaxConcurrentRecoveries;
 import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.incomingRecoveryLimits;
 import static org.elasticsearch.test.NodeRoles.addRoles;
@@ -42,17 +42,31 @@ public class DataNodeRecoveryThrottlingSettingsTests extends ESTestCase {
         final int maxConcurrent = randomIntBetween(1, 100);
         // Unknown heap size, only the static limit applies.
         assertThat(
-            effectiveMaxConcurrentRecoveries(maxConcurrent, randomDoubleBetween(0.1, 10, true), ByteSizeValue.ZERO),
+            effectiveMaxConcurrentRecoveries(maxConcurrent, randomDoubleBetween(0.1, 10, true), ByteSizeValue.ZERO, true),
             equalTo(maxConcurrent)
         );
 
-        assertThat(effectiveMaxConcurrentRecoveries(100, 1.25, ByteSizeValue.ofGb(4)), equalTo(5));
-        assertThat(effectiveMaxConcurrentRecoveries(3, 1.25, ByteSizeValue.ofGb(4)), equalTo(3));
+        assertThat(effectiveMaxConcurrentRecoveries(100, 1.25, ByteSizeValue.ofGb(4), true), equalTo(5));
+        assertThat(effectiveMaxConcurrentRecoveries(3, 1.25, ByteSizeValue.ofGb(4), true), equalTo(3));
 
         // The heap-based limit rounds up, so the smallest allowed ratio still allows one recovery.
-        assertThat(effectiveMaxConcurrentRecoveries(100, Double.MIN_NORMAL, ByteSizeValue.ofGb(4)), equalTo(1));
+        assertThat(effectiveMaxConcurrentRecoveries(100, Double.MIN_NORMAL, ByteSizeValue.ofGb(4), true), equalTo(1));
         assertThat(
-            effectiveMaxConcurrentRecoveries(maxConcurrent, Double.MAX_VALUE, ByteSizeValue.ofGb(randomIntBetween(1, 64))),
+            effectiveMaxConcurrentRecoveries(maxConcurrent, Double.MAX_VALUE, ByteSizeValue.ofGb(randomIntBetween(1, 64)), true),
+            equalTo(maxConcurrent)
+        );
+    }
+
+    public void testEffectiveMaxConcurrentRecoveriesWithoutHeapBasedLimit() {
+        final int maxConcurrent = randomIntBetween(1, 100);
+        // Only the static limit applies, whatever the heap and ratio.
+        assertThat(
+            effectiveMaxConcurrentRecoveries(
+                maxConcurrent,
+                randomFrom(Double.MIN_NORMAL, randomDoubleBetween(0.1, 10, true)),
+                randomFrom(ByteSizeValue.ZERO, ByteSizeValue.ofGb(randomIntBetween(1, 64))),
+                false
+            ),
             equalTo(maxConcurrent)
         );
     }
@@ -68,27 +82,31 @@ public class DataNodeRecoveryThrottlingSettingsTests extends ESTestCase {
             equalTo(new IncomingRecoveryLimits(32, 16))
         );
         assertThat(
-            incomingRecoveryLimits(10, Double.MAX_VALUE, RatioValue.ofPercent(Double.MIN_NORMAL), ByteSizeValue.ZERO, randomBoolean()),
+            incomingRecoveryLimits(10, Double.MAX_VALUE, RatioValue.ofPercent(Double.MIN_NORMAL), ByteSizeValue.ZERO, true),
             equalTo(new IncomingRecoveryLimits(10, 1))
         );
-        // Default settings are unbounded.
-        assertThat(
-            incomingRecoveryLimits(
-                INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getDefault(Settings.EMPTY),
-                INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getDefault(Settings.EMPTY),
-                INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.getDefault(Settings.EMPTY),
-                randomBoolean() ? ByteSizeValue.ZERO : ByteSizeValue.ofGb(randomIntBetween(1, 64)),
-                randomBoolean()
-            ),
-            equalTo(IncomingRecoveryLimits.UNBOUNDED)
-        );
+        // Default settings are unbounded, whether the heap-based limit applies or not, and whether the heap size is known or not.
+        for (final var maxHeap : List.of(ByteSizeValue.ZERO, ByteSizeValue.ofGb(randomIntBetween(1, 64)))) {
+            for (final boolean applyHeapBasedLimit : new boolean[] { true, false }) {
+                assertThat(
+                    incomingRecoveryLimits(
+                        INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getDefault(Settings.EMPTY),
+                        INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getDefault(Settings.EMPTY),
+                        INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.getDefault(Settings.EMPTY),
+                        maxHeap,
+                        applyHeapBasedLimit
+                    ),
+                    equalTo(IncomingRecoveryLimits.UNBOUNDED)
+                );
+            }
+        }
     }
 
     public void testAppliesIncomingHeapBasedLimit() {
-        assertTrue(appliesHeapBasedLimit(Settings.EMPTY));
-        assertTrue(appliesHeapBasedLimit(indexOnlyNode(Settings.EMPTY)));
-        assertFalse(appliesHeapBasedLimit(onlyRole(DiscoveryNodeRole.SEARCH_ROLE)));
-        assertFalse(appliesHeapBasedLimit(addRoles(Set.of(DiscoveryNodeRole.SEARCH_ROLE))));
+        assertTrue(appliesIncomingHeapBasedLimit(Settings.EMPTY));
+        assertTrue(appliesIncomingHeapBasedLimit(indexOnlyNode(Settings.EMPTY)));
+        assertFalse(appliesIncomingHeapBasedLimit(onlyRole(DiscoveryNodeRole.SEARCH_ROLE)));
+        assertFalse(appliesIncomingHeapBasedLimit(addRoles(Set.of(DiscoveryNodeRole.SEARCH_ROLE))));
     }
 
     public void testWatchIncomingRecoveryLimits() {

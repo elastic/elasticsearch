@@ -136,6 +136,7 @@ class ImplClassWriter {
     private static final MethodTypeDesc MTD_LinkerHelper_readString = MethodTypeDesc.of(CD_String, CD_MemorySegment);
     private static final MethodTypeDesc MTD_LinkerHelper_rawAddress = MethodTypeDesc.of(CD_long, CD_MemorySegment);
     private static final MethodTypeDesc MTD_LinkerHelper_assertNative = MethodTypeDesc.of(CD_void, CD_MemorySegment);
+    private static final MethodTypeDesc MTD_LinkerHelper_assertLive = MethodTypeDesc.of(CD_void, CD_MemorySegment);
     private static final MethodTypeDesc MTD_Reference_reachabilityFence = MethodTypeDesc.of(CD_void, CD_Object);
     private static final MethodTypeDesc MTD_Arena_ofConfined = MethodTypeDesc.of(CD_Arena);
     private static final MethodTypeDesc MTD_Arena_close = MethodTypeDesc.of(CD_void);
@@ -861,9 +862,12 @@ class ImplClassWriter {
             tryBlock.getstatic(generatedDesc, fieldName, CD_MethodHandle);
             emitCaptureStateSegment(tryBlock, nm.capturedError());
             slot = 1;
+            int[] slots = new int[paramTypes.size()];
             marshaledSlot = arenaSlot + 1;
             paramIndex = 0;
-            for (NativeType paramType : paramTypes) {
+            for (int i = 0; i < paramTypes.size(); ++i) {
+                NativeType paramType = paramTypes.get(i);
+                slots[i] = slot;
                 if (paramType == NativeType.STRING) {
                     tryBlock.aload(marshaledSlot);
                     marshaledSlot++;
@@ -880,6 +884,7 @@ class ImplClassWriter {
                 paramIndex++;
             }
             tryBlock.invokevirtual(CD_MethodHandle, "invokeExact", buildInvokeExactDesc(nm));
+            emitRawAddressLivenessAssert(nm, tryBlock, slots);
 
             // Store return value before closing the arena (avoids having a live value on the
             // stack when we call arena.close()).
@@ -910,6 +915,16 @@ class ImplClassWriter {
             catchBlock.invokespecial(CD_AssertionError, "<init>", MethodTypeDesc.of(CD_void, CD_Object));
             catchBlock.athrow();
         }));
+    }
+
+    private static void emitRawAddressLivenessAssert(MethodModel nm, CodeBuilder codeBuilder, int[] slots) {
+        for (int i = 0; i < nm.paramTypes().size(); i++) {
+            var rawAddress = nm.rawAddressParamIndices().contains(i);
+            if (rawAddress) {
+                codeBuilder.aload(slots[i]);
+                codeBuilder.invokestatic(CD_LinkerHelper, "assertLive", MTD_LinkerHelper_assertLive);
+            }
+        }
     }
 
     /**
@@ -998,12 +1013,16 @@ class ImplClassWriter {
         emitCaptureStateSegment(cb, nm.capturedError());
 
         int slot = 1;
+        int[] slots = new int[nm.paramTypes().size()];
         for (int i = 0; i < nm.paramTypes().size(); i++) {
             NativeType paramType = nm.paramTypes().get(i);
+            slots[i] = slot;
             slot += emitLoadParam(cb, paramType, slot, nm.rawAddressParamIndices().contains(i), nm.isCritical() == false);
         }
 
         cb.invokevirtual(CD_MethodHandle, "invokeExact", buildInvokeExactDesc(nm));
+
+        emitRawAddressLivenessAssert(nm, cb, slots);
     }
 
     private static void emitRawAddressReachabilityFences(CodeBuilder cb, MethodModel nm) {

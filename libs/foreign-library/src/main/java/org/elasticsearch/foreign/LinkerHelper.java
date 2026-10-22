@@ -85,6 +85,14 @@ public class LinkerHelper {
     }
 
     /**
+     * Asserts that a segment is alive.
+     */
+    public static void assertLive(MemorySegment segment) {
+        assert segment.scope().isAlive()
+            : "raw address requires its memory segment to be kept alive. " + "Avoid closing or dropping references to its Arena";
+    }
+
+    /**
      * Shared capture-state buffer for {@code @CaptureSystemError} calls. A single segment is enough on
      * any platform: {@link Linker.Option#captureStateLayout()} spans every capture state the platform
      * supports, and only one system-error mechanism ({@code errno} on POSIX, {@code GetLastError} on

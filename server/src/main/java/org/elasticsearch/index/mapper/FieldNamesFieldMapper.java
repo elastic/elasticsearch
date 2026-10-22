@@ -22,7 +22,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.transport.BytesRefRecycler;
 
 import java.util.Collections;
 
@@ -214,7 +213,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         if (acc == null || acc.isEmpty()) {
             return;
         }
-        final EscfColumnData data = acc.finish(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        final EscfColumnData data = acc.finish(ctx.recycler());
         ctx.addColumn(LuceneBinaryColumn.of(data, NAME, StringField.TYPE_NOT_STORED), data);
     }
 

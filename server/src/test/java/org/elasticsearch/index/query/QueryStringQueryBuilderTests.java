@@ -15,6 +15,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.spans.SpanNearQuery;
 import org.apache.lucene.queries.spans.SpanOrQuery;
 import org.apache.lucene.queries.spans.SpanTermQuery;
+import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
@@ -44,6 +45,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -81,9 +83,12 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBool
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.startsWith;
 
 public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStringQueryBuilder> {
 
@@ -775,6 +780,68 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             () -> queryStringQuery(queryString).defaultField(TEXT_FIELD_NAME).toQuery(createSearchExecutionContext())
         );
         assertThat(e.getMessage(), containsString("too deeply nested"));
+    }
+
+    /**
+     * A large malformed query must not be copied in full into the error: a shard failure keeps the error of each failed shard.
+     */
+    public void testToQueryLargeMalformedQueryTruncatesError() {
+        int length = randomIntBetween(100_000, 200_000);
+        String queryString = "(" + "a".repeat(length);
+        QueryShardException e = expectThrows(
+            QueryShardException.class,
+            () -> queryStringQuery(queryString).defaultField(TEXT_FIELD_NAME).toQuery(createSearchExecutionContext())
+        );
+        String truncatedQuery = queryString.substring(0, QueryStringQueryBuilder.MAX_QUERY_LENGTH_IN_ERROR);
+        assertEquals("Failed to parse query [" + truncatedQuery + "]", e.getMessage());
+        assertThat(e.getCause(), instanceOf(ParseException.class));
+        assertThat(e.getCause().getMessage(), startsWith("Cannot parse '" + truncatedQuery + "': Encountered \"<EOF>\""));
+        assertThat(e.getCause().getMessage(), containsString("at line 1, column " + (length + 1) + "."));
+        // The bound allows for the fixed text around the truncated parts
+        assertThat(e.getCause().getMessage().length(), lessThanOrEqualTo(2 * QueryStringQueryBuilder.MAX_QUERY_LENGTH_IN_ERROR + 20));
+        assertThat(e.getCause().getStackTrace().length, greaterThan(0));
+        assertNull(e.getCause().getCause());
+        // A shard failure keeps the stack trace as its reason, which held the query at least twice without the truncation
+        assertThat(new ShardSearchFailure(e).reason().length(), lessThan(queryString.length()));
+    }
+
+    /**
+     * A lexical error repeats the query in its own message too, so its detail is truncated as well.
+     */
+    public void testToQueryLargeLexicalErrorTruncatesError() {
+        String queryString = "\"" + "a".repeat(randomIntBetween(10_000, 100_000));
+        QueryShardException e = expectThrows(
+            QueryShardException.class,
+            () -> queryStringQuery(queryString).defaultField(TEXT_FIELD_NAME).toQuery(createSearchExecutionContext())
+        );
+        // The bounds allow for the fixed text around the truncated parts
+        assertThat(e.getMessage().length(), lessThanOrEqualTo(QueryStringQueryBuilder.MAX_QUERY_LENGTH_IN_ERROR + 30));
+        assertThat(e.getCause().getMessage(), containsString("Lexical error at line 1"));
+        assertThat(e.getCause().getMessage().length(), lessThanOrEqualTo(2 * QueryStringQueryBuilder.MAX_QUERY_LENGTH_IN_ERROR + 20));
+        assertNull(e.getCause().getCause());
+    }
+
+    /**
+     * A short parse error is kept as Lucene built it.
+     */
+    public void testToQueryShortMalformedQueryKeepsError() {
+        QueryShardException e = expectThrows(
+            QueryShardException.class,
+            () -> queryStringQuery("(foo").defaultField(TEXT_FIELD_NAME).toQuery(createSearchExecutionContext())
+        );
+        assertEquals("Failed to parse query [(foo]", e.getMessage());
+        assertThat(e.getCause().getMessage(), startsWith("Cannot parse '(foo': Encountered \"<EOF>\" at line 1, column 4."));
+        assertNotNull(e.getCause().getCause());
+    }
+
+    /**
+     * A long error with no cause falls back to its own message.
+     */
+    public void testTruncateParseExceptionWithoutCause() {
+        ParseException e = new ParseException("x".repeat(10_000));
+        ParseException truncated = QueryStringQueryBuilder.truncateParseException(e, "q");
+        assertEquals("Cannot parse 'q': " + "x".repeat(QueryStringQueryBuilder.MAX_QUERY_LENGTH_IN_ERROR), truncated.getMessage());
+        assertArrayEquals(e.getStackTrace(), truncated.getStackTrace());
     }
 
     /**

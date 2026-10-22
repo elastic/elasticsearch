@@ -304,7 +304,7 @@ The sweep covers:
 If calibration fails for any reason, {{es}} falls back to the codec default encoding for that segment.
 
 :::{note}
-{applies_to}`stack: ga 9.6+` The encodings that are actually considered depend on the [auto-calibration profile](#bbq-auto-calibration-profiles).
+{applies_to}`stack: ga 9.6+` The encodings that are considered depend on the [auto-calibration profile](#bbq-auto-calibration-profiles).
 :::
 
 ### Auto-calibration profiles [bbq-auto-calibration-profiles]
@@ -365,7 +365,7 @@ stack: ga 9.6
 You can turn auto-calibration on or off, or switch to a different [profile](#bbq-auto-calibration-profiles), on an existing `bbq_disk` field with the [update mapping API]({{es-apis}}operation/operation-indices-put-mapping).
 Existing segments are not rewritten, so the new value applies from the next merge:
 
-- If you turn it on, for example by changing `false` or `disabled` to `true`, `iso_sizing`, or `quality`, later merges that produce at least 10,000 vectors are calibrated.
+- If you turn it on by setting `auto_calibrate` to `true`, `iso_sizing`, or `quality`, later merges that produce at least 10,000 vectors are calibrated.
   Segments written before the change are calibrated when they are merged.
 - If you turn it off, later merges use the mapping settings.
   When you search, segments no longer use their calibrated oversampling factor. They use the query-time `rescore_vector.oversample` if set, otherwise the mapping value (default 3.0).
@@ -377,7 +377,9 @@ Existing segments are not rewritten, so the new value applies from the next merg
 
 ### Examples
 
-#### Enabling/disabling auto-calibration
+The following examples show how to configure auto-calibration and inspect the result.
+
+#### Enable or disable auto-calibration
 
 To explicitly enable auto-calibration:
 
@@ -453,7 +455,7 @@ PUT my-quality-calibrated-index
 stack: ga 9.6
 ```
 
-You can inspect the active configuration for each segment using the [Index Segments API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-segments).
+You can inspect the active configuration for each segment using the [index segments API]({{es-apis}}operation/operation-indices-segments).
 Set the `include_auto_calibration` query parameter to `true` to include the calibration details:
 
 ```console

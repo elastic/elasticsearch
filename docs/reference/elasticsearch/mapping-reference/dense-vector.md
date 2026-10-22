@@ -625,7 +625,7 @@ $$$dense-vector-index-options$$$
 
 :::{applies-item} stack: ga 9.6+
 - `auto_calibrate` accepts a boolean or a [valid profile name](/reference/elasticsearch/mapping-reference/bbq.md#bbq-auto-calibration-profiles).
-- Auto-calibration is enabled by default for indices created in 9.6 or later, using [the `iso-sizing` profile](/reference/elasticsearch/mapping-reference/bbq.md#bbq-auto-calibration-profiles).
+- Auto-calibration is enabled by default for indices created in 9.6 or later, using [the `iso_sizing` profile](/reference/elasticsearch/mapping-reference/bbq.md#bbq-auto-calibration-profiles).
   Indices created before 9.6 keep the previous default, which is disabled.
 - The value can be changed on an existing field with the [update mapping API]({{es-apis}}operation/operation-indices-put-mapping).
   Refer to [Changing `auto_calibrate` on an existing field](/reference/elasticsearch/mapping-reference/bbq.md#bbq-auto-calibration-update) for details.

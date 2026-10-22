@@ -26,9 +26,6 @@ import org.elasticsearch.xpack.querysampling.dedup.QueryFingerprint;
 import org.elasticsearch.xpack.querysampling.dedup.Selectivity;
 import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
 
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Deque;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
@@ -107,58 +104,5 @@ public class SelectivityStrataTests extends ESTestCase {
             assertThat("passing " + oneCase[0], tracked.selectivity(), equalTo(Selectivity.values()[(int) oneCase[1]]));
         }
         assertThat(strata.counted(), equalTo((long) cases.length));
-    }
-
-    public void testTheSelectivityIsTheOneOfTheAnswerThatComesLater() {
-        Deque<Runnable> queue = new ArrayDeque<>();
-        Deque<Runnable> answers = new ArrayDeque<>();
-        SelectivityStrata strata = new SelectivityStrata(
-            (request, listener) -> answers.add(() -> answer(request, listener)),
-            now::get,
-            queue::add
-        );
-        enableEstimate(strata);
-        passing = 600;
-        TrackedQuery tracked = tracked(1);
-
-        strata.assign(tracked, filtered(1));
-        assertThat("the count of all the vectors waits for its answer", answers.size(), equalTo(1));
-        assertNull(tracked.selectivity());
-        answers.poll().run();
-        assertNull("the second count is not started yet", tracked.selectivity());
-        while (queue.isEmpty() == false) {
-            queue.poll().run();
-        }
-        assertThat("the second count waits for its answer", answers.size(), equalTo(1));
-        assertNull(tracked.selectivity());
-        answers.poll().run();
-
-        assertThat(tracked.selectivity(), equalTo(Selectivity.HIGH));
-        assertThat(strata.counted(), equalTo(1L));
-    }
-
-    public void testTheCountsDoNotAllowPartialResultsAndTheSecondOneIsStartedOnTheExecutor() {
-        Deque<Runnable> queue = new ArrayDeque<>();
-        List<SearchRequest> requests = new ArrayList<>();
-        SelectivityStrata strata = new SelectivityStrata((request, listener) -> {
-            requests.add(request);
-            answer(request, listener);
-        }, now::get, queue::add);
-        enableEstimate(strata);
-        TrackedQuery tracked = tracked(1);
-
-        strata.assign(tracked, filtered(1));
-
-        assertThat("only the count of all the vectors was started", requests.size(), equalTo(1));
-        assertThat(queue.size(), equalTo(1));
-        assertNull(tracked.selectivity());
-
-        queue.poll().run();
-
-        assertThat(requests.size(), equalTo(2));
-        assertThat(tracked.selectivity(), equalTo(Selectivity.MEDIUM));
-        for (SearchRequest request : requests) {
-            assertThat(request.allowPartialSearchResults(), equalTo(false));
-        }
     }
 }

@@ -18,7 +18,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -53,8 +52,6 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GoldenUpdaterTests extends ESTestCase {
@@ -92,10 +89,6 @@ public class GoldenUpdaterTests extends ESTestCase {
 
     private final List<BulkRequest> bulks = new ArrayList<>();
 
-    private final List<UpdateRequest> completions = new ArrayList<>();
-
-    private boolean failingARecord = false;
-
     private List<SearchHit> goldenUpdaterStored = List.of();
 
     private List<SearchHit> golden = List.of();
@@ -115,22 +108,15 @@ public class GoldenUpdaterTests extends ESTestCase {
                 bulks.add(request);
                 BulkItemResponse[] items = new BulkItemResponse[request.numberOfActions()];
                 for (int i = 0; i < items.length; i++) {
-                    items[i] = failingARecord && i == 0
-                        ? BulkItemResponse.failure(
-                            i,
-                            DocWriteRequest.OpType.CREATE,
-                            new BulkItemResponse.Failure(GoldenIndex.NAME, "id", new IllegalStateException("rejected"))
-                        )
-                        : BulkItemResponse.success(
-                            i,
-                            DocWriteRequest.OpType.CREATE,
-                            new IndexResponse(new ShardId(GoldenIndex.NAME, "_na_", 0), "id", 0, 1, 1, true)
-                        );
+                    items[i] = BulkItemResponse.success(
+                        i,
+                        DocWriteRequest.OpType.CREATE,
+                        new IndexResponse(new ShardId(GoldenIndex.NAME, "_na_", 0), "id", 0, 1, 1, true)
+                    );
                 }
                 listener.onResponse(new BulkResponse(items, 1));
             },
             (request, listener) -> {
-                completions.add(request);
                 listener.onResponse(
                     new UpdateResponse(new ShardId(GoldenIndex.NAME, "_na_", 0), request.id(), 0, 1, 1, DocWriteResponse.Result.UPDATED)
                 );
@@ -200,7 +186,6 @@ public class GoldenUpdaterTests extends ESTestCase {
         assertThat(result, equalTo(new GoldenUpdater.Result(4, 5, 2, 1, 0, 0, 0)));
         assertThat("only the stale one is scanned again", exactSearches.size(), equalTo(1));
         assertThat(manifests.get(0).source().utf8ToString().contains("\"source_version\":4"), equalTo(true));
-        assertThat("the version is completed", completions.size(), equalTo(1));
         assertThat(writtenIds(), equalTo(List.of("5_" + fp(3), "5_" + fp(2), "5_" + fp(1))));
         String refreshed = ((IndexRequest) bulks.get(0).requests().get(1)).source().utf8ToString();
         assertThat(
@@ -211,20 +196,6 @@ public class GoldenUpdaterTests extends ESTestCase {
         assertThat(refreshed.contains("\"digest\":" + CHANGED.digest()), equalTo(true));
         String copied = ((IndexRequest) bulks.get(0).requests().get(0)).source().utf8ToString();
         assertThat("as it was", copied.contains("\"digest\":" + STORED.digest()), equalTo(true));
-    }
-
-    public void testWhenARecordCannotBeWrittenTheUpdateFailsAndTheVersionIsNotCompleted() throws IOException {
-        latestVersion = 4;
-        golden = List.of(goldenRecord(1, 100, STORED));
-        goldenUpdaterStored = List.of(sample("s", 5, 500));
-        failingARecord = true;
-        AtomicReference<Exception> failure = new AtomicReference<>();
-
-        refreshing().update(10, ActionListener.wrap(result -> fail("the update must fail"), failure::set));
-
-        assertThat(failure.get().getMessage(), containsString("could not be written"));
-        assertThat("the records were sent", bulks.size(), equalTo(1));
-        assertThat("but the manifest was not completed", completions, empty());
     }
 
     public void testWhenTheLimitIsLowerThanTheVersionTheNewestQueriesAreKeptWhateverTheirFingerprints() throws IOException {

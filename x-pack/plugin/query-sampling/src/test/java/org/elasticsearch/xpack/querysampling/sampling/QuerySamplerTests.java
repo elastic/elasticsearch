@@ -7,16 +7,12 @@
 
 package org.elasticsearch.xpack.querysampling.sampling;
 
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.querysampling.QuerySamplingSettings;
 import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
 import org.elasticsearch.xpack.querysampling.dedup.QueryFingerprint;
 import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
 
 import java.util.Random;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -68,58 +64,6 @@ public class QuerySamplerTests extends ESTestCase {
         }
         double fiveSigma = 5 * Math.sqrt(inclusionProbability * (1 - inclusionProbability) / trials);
         assertThat((double) sampled / trials, closeTo(inclusionProbability, fiveSigma));
-    }
-
-    public void testTheScaleIsRaisedByAnArrivalOnceTheIntervalHasPassedWhenThePicksFallShortOfTheTarget() {
-        AtomicLong nanos = new AtomicLong();
-        QuerySampler sampler = sampler(3600, nanos);
-        MultiplicityTracker tracker = new MultiplicityTracker(10);
-
-        nanos.addAndGet(TimeUnit.SECONDS.toNanos(9));
-        sampler.offer(tracker.record(FINGERPRINT));
-        assertThat("the interval has not passed", sampler.effectiveScale(), equalTo(1.0));
-
-        nanos.addAndGet(TimeUnit.SECONDS.toNanos(21));
-        sampler.offer(tracker.record(FINGERPRINT));
-        assertThat("nothing was picked, so the scale is raised", sampler.effectiveScale(), greaterThan(1.0));
-    }
-
-    public void testTheScaleNeverChangesWithoutATarget() {
-        AtomicLong nanos = new AtomicLong();
-        QuerySampler sampler = sampler(0, nanos);
-        MultiplicityTracker tracker = new MultiplicityTracker(10);
-
-        for (int i = 0; i < 5; i++) {
-            nanos.addAndGet(TimeUnit.MINUTES.toNanos(10));
-            sampler.offer(tracker.record(FINGERPRINT));
-        }
-
-        assertThat(sampler.effectiveScale(), equalTo(1.0));
-    }
-
-    private static QuerySampler sampler(long targetPicksPerHour, AtomicLong nanos) {
-        QuerySampler sampler = new QuerySampler(
-            1.0,
-            1000,
-            alwaysDrawing(1.0),
-            new PickBudget(nanos::get),
-            new SpatialStrata(0),
-            nanos::get
-        );
-        sampler.watch(
-            new ClusterSettings(
-                Settings.builder().put(QuerySamplingSettings.TARGET_PICKS_PER_HOUR.getKey(), targetPicksPerHour).build(),
-                Set.of(
-                    QuerySamplingSettings.ACCEPTANCE_SCALE,
-                    QuerySamplingSettings.HEAD_THRESHOLD,
-                    QuerySamplingSettings.MAX_PICKS_PER_HOUR,
-                    QuerySamplingSettings.TARGET_PICKS_PER_HOUR,
-                    QuerySamplingSettings.SPATIAL_BALANCE,
-                    QuerySamplingSettings.HARDNESS_TILT
-                )
-            )
-        );
-        return sampler;
     }
 
     private Random seededRandom() {

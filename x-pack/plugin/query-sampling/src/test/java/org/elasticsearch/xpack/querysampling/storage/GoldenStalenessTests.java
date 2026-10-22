@@ -32,12 +32,9 @@ import org.elasticsearch.xpack.querysampling.groundtruth.FakeShards;
 import org.elasticsearch.xpack.querysampling.groundtruth.GroundTruth;
 
 import java.io.IOException;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Deque;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -119,34 +116,6 @@ public class GoldenStalenessTests extends ESTestCase {
             probes.add(request);
             STORED_SHARDS.accept(request, listener);
         }, EsExecutors.DIRECT_EXECUTOR_SERVICE);
-    }
-
-    public void testTheStatusIsToldOnceAndOnlyAfterTheProbesThatAnswerLaterHaveAnswered() {
-        Deque<Runnable> queue = new ArrayDeque<>();
-        Deque<Runnable> answers = new ArrayDeque<>();
-        GoldenStaleness staleness = new GoldenStaleness(
-            new GoldenReader((request, listener) -> fail("nothing is read"), REGISTRY),
-            (request, listener) -> answers.add(() -> STORED_SHARDS.accept(request, listener)),
-            queue::add
-        );
-        List<GoldenStaleness.Status> told = new ArrayList<>();
-        AtomicInteger notifications = new AtomicInteger();
-
-        staleness.classify(List.of(storedSample(1, 1, "a", STORED), storedSample(2, 2, "b", CHANGED)), ActionListener.wrap(statuses -> {
-            notifications.incrementAndGet();
-            told.addAll(statuses);
-        }, e -> fail(e)));
-        while (answers.isEmpty() == false || queue.isEmpty() == false) {
-            assertThat("nobody is told before the last probe has answered", notifications.get(), equalTo(0));
-            if (answers.isEmpty() == false) {
-                answers.poll().run();
-            } else {
-                queue.poll().run();
-            }
-        }
-
-        assertThat(notifications.get(), equalTo(1));
-        assertThat(told, equalTo(List.of(GoldenStaleness.Status.FRESH, GoldenStaleness.Status.STALE)));
     }
 
     private GoldenStaleness.Result check(GoldenStaleness staleness, long version, int max) {

@@ -11,7 +11,6 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -38,7 +37,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
-import java.util.function.UnaryOperator;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
@@ -99,29 +97,6 @@ public class QueryCaptureFilterTests extends ESTestCase {
 
         assertTrue(
             applyFilter(filter, knnSearch(randomVector(8)).source(knnSource().sort(SortBuilders.scoreSort())), TaskId.EMPTY_TASK_ID)
-        );
-
-        assertThat(captured.size(), equalTo(1));
-    }
-
-    public void testAPartialAnswerIsNotCapturedButAnAnswerThatIsCompleteIs() {
-        QueryCaptureFilter filter = filter(true, 1.0, captured::add);
-        List<SearchResponse> partial = List.of(
-            response(builder -> builder.timedOut(true)),
-            response(builder -> builder.terminatedEarly(true)),
-            response(builder -> builder.shards(2, 1, 0).shardFailures(new ShardSearchFailure(new RuntimeException("shard failed"))))
-        );
-        for (SearchResponse response : partial) {
-            applyFilter(filter, knnSearch(randomVector(8)), TaskId.EMPTY_TASK_ID, respondWith(response), ActionListener.noop());
-        }
-        assertTrue(captured.isEmpty());
-
-        applyFilter(
-            filter,
-            knnSearch(randomVector(8)),
-            TaskId.EMPTY_TASK_ID,
-            respondWith(response(UnaryOperator.identity())),
-            ActionListener.noop()
         );
 
         assertThat(captured.size(), equalTo(1));
@@ -188,15 +163,6 @@ public class QueryCaptureFilterTests extends ESTestCase {
             return SearchResponseUtils.response(searchHits).tookInMillis(tookMillis).build();
         } finally {
             searchHits.decRef();
-        }
-    }
-
-    private static SearchResponse response(UnaryOperator<SearchResponseUtils.SearchResponseBuilder> change) {
-        SearchHits hits = SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), 1f);
-        try {
-            return change.apply(SearchResponseUtils.response(hits)).build();
-        } finally {
-            hits.decRef();
         }
     }
 

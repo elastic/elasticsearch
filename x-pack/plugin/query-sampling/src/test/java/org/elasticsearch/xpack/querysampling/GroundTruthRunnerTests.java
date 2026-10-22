@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.querysampling;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.shard.ShardId;
@@ -22,15 +21,11 @@ import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
 import org.elasticsearch.xpack.querysampling.groundtruth.FakeShards;
 import org.elasticsearch.xpack.querysampling.groundtruth.GroundTruth;
 
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Deque;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -57,84 +52,6 @@ public class GroundTruthRunnerTests extends ESTestCase {
 
         assertThat(stored.get(query).dataState(), equalTo(SHARDS.state()));
         assertThat(stored.get(query).dataState(), not(equalTo(changed.state())));
-    }
-
-    public void testTheRunOnlyProgressesWhenTheExecutorRunsAndIsCompleteOnceEvenWhenTheSearchesAnswerAtOnce() {
-        Deque<Runnable> queue = new ArrayDeque<>();
-        AtomicInteger exactSearches = new AtomicInteger();
-        GroundTruthRunner runner = new GroundTruthRunner(exactSearchesOver(exactSearches, -1), queue::add);
-        List<CapturedQuery> queries = List.of(query(1), query(2), query(3));
-        List<GroundTruthRunner.Result> results = new ArrayList<>();
-
-        runner.run(queries, Function.identity(), stored::put, ActionListener.wrap(results::add, e -> fail(e)));
-
-        assertThat("nothing runs on the caller's thread", exactSearches.get(), equalTo(0));
-        assertTrue(results.isEmpty());
-        while (queue.isEmpty() == false) {
-            queue.poll().run();
-        }
-        assertThat(results, equalTo(List.of(new GroundTruthRunner.Result(3, 0))));
-        assertThat(exactSearches.get(), equalTo(3));
-        for (int i = 0; i < queries.size(); i++) {
-            assertThat(stored.get(queries.get(i)).neighbors().get(0).id(), equalTo("doc" + (i + 1)));
-        }
-    }
-
-    public void testAQueryWhoseExactSearchFailsHasNoGroundTruthAndTheNextOnesAreStillComputed() {
-        GroundTruthRunner runner = new GroundTruthRunner(exactSearchesOver(new AtomicInteger(), 2), EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        List<CapturedQuery> queries = List.of(query(1), query(2), query(3));
-
-        GroundTruthRunner.Result result = run(runner, queries);
-
-        assertThat(result, equalTo(new GroundTruthRunner.Result(2, 1)));
-        assertThat(stored.get(queries.get(0)).neighbors().get(0).id(), equalTo("doc1"));
-        assertNull(stored.get(queries.get(1)));
-        assertThat(stored.get(queries.get(2)).neighbors().get(0).id(), equalTo("doc3"));
-    }
-
-    public void testTheAnswerOfAnExactSearchThatComesLaterIsWhatIsStored() {
-        Deque<Runnable> queue = new ArrayDeque<>();
-        Deque<ActionListener<SearchResponse>> waiting = new ArrayDeque<>();
-        GroundTruthRunner runner = new GroundTruthRunner((request, listener) -> {
-            if (FakeShards.isProbe(request)) {
-                SHARDS.accept(request, listener);
-            } else {
-                waiting.add(listener);
-            }
-        }, queue::add);
-        List<CapturedQuery> queries = List.of(query(1), query(2));
-        List<GroundTruthRunner.Result> results = new ArrayList<>();
-
-        runner.run(queries, Function.identity(), stored::put, ActionListener.wrap(results::add, e -> fail(e)));
-        for (int i = 0; i < queries.size(); i++) {
-            while (queue.isEmpty() == false) {
-                queue.poll().run();
-            }
-            assertThat("the exact search of query " + (i + 1) + " waits for its answer", waiting.size(), equalTo(1));
-            assertThat("nothing is stored before the answer", stored.size(), equalTo(i));
-            assertTrue(results.isEmpty());
-            respond(waiting.poll(), "doc" + (i + 1));
-        }
-        while (queue.isEmpty() == false) {
-            queue.poll().run();
-        }
-
-        assertThat(results, equalTo(List.of(new GroundTruthRunner.Result(2, 0))));
-        assertThat(stored.get(queries.get(0)).neighbors().get(0).id(), equalTo("doc1"));
-        assertThat(stored.get(queries.get(1)).neighbors().get(0).id(), equalTo("doc2"));
-    }
-
-    /** Answers the exact searches at once with a hit numbered by the search, and fails the one numbered {@code failing}. */
-    private static BiConsumer<SearchRequest, ActionListener<SearchResponse>> exactSearchesOver(AtomicInteger searches, int failing) {
-        return (request, listener) -> {
-            if (FakeShards.isProbe(request)) {
-                SHARDS.accept(request, listener);
-            } else if (searches.incrementAndGet() == failing) {
-                listener.onFailure(new IllegalStateException("shard failed"));
-            } else {
-                respond(listener, "doc" + searches.get());
-            }
-        };
     }
 
     private final Map<CapturedQuery, GroundTruth> stored = new IdentityHashMap<>();

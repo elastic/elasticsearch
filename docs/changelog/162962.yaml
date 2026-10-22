@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 162694
+pr: 162962
+summary: Resolve the nested level of knn filters from the fields they read
+type: bug

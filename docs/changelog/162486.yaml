@@ -2,4 +2,4 @@ area: ES|QL
 issues: []
 pr: 162486
 summary: Keep `AsyncOperator` blocked after finish
-type: enhancement
+type: bug

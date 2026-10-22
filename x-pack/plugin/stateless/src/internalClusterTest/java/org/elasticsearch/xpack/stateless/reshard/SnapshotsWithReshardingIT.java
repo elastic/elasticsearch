@@ -12,12 +12,14 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.TransportRestoreSnapshotAction;
 import org.elasticsearch.action.support.master.MasterNodeRequestHelper;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterApplierService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -52,10 +54,12 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -863,6 +867,140 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
             releaseResponse.countDown();
             releaseClose.countDown();
         }
+    }
+
+    /**
+     * An index keeps its UUID through a restore, so the object store paths of its shards, which include the primary term, are shared by
+     * every incarnation of a shard id. A shard id that disappears (the restore has fewer shards) and comes back (a reshard, or a restore
+     * with more shards) must therefore never be given a primary term that an earlier incarnation of the id might have written under.
+     * <p>
+     * This follows the primary terms the master publishes through a series of restores and reshards that remove and re-add shard 1, and
+     * checks that the terms of the shards that are created or re-created are always higher than every term seen before.
+     */
+    public void testPrimaryTermsAreNotReusedWhenShardsComeAndGoThroughRestoreAndReshard() throws Exception {
+        startMasterAndIndexNode();
+        startSearchNode();
+        ensureStableCluster(2);
+
+        createRepository("test-repo", "fs");
+
+        var indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        // Need a search replica so that the index is searchable
+        createIndex(indexName, 1, 1);
+        ensureGreen();
+        final int numDocs = randomIntBetween(10, 100);
+        indexDocs(indexName, numDocs);
+        var index = resolveIndex(indexName);
+
+        // The highest primary term that has been published for each shard id, including shard ids that have since been removed
+        final Map<Integer, Long> highestTerms = new ConcurrentHashMap<>();
+        final var masterClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        final ClusterStateListener termRecorder = event -> {
+            var metadata = event.state().metadata().findIndex(index).orElse(null);
+            if (metadata != null) {
+                for (int shard = 0; shard < metadata.getNumberOfShards(); shard++) {
+                    highestTerms.merge(shard, metadata.primaryTerm(shard), Math::max);
+                }
+            }
+        };
+        masterClusterService.addListener(termRecorder);
+        try {
+            final var oneShardSnapshot = indexName + "-one-shard";
+            createSnapshotAndAssertSuccess(oneShardSnapshot, indexName);
+
+            // 1 -> 2 shards. Shard 1 is created.
+            reshardAndAwaitCompletion(index, indexName);
+            ensureGreen(indexName);
+            final var twoShardSnapshot = indexName + "-two-shards";
+            createSnapshotAndAssertSuccess(twoShardSnapshot, indexName);
+            assertEquals(2, numberOfShards(index));
+
+            // Restore back to 1 shard: shard 1 is removed, and shard 0 must have a higher term than either shard ever had.
+            var highestBeforeShrink = Map.copyOf(highestTerms);
+            restoreOverExisting(oneShardSnapshot, indexName);
+            assertEquals(1, numberOfShards(index));
+            assertTermsAreAbove(index, highestBeforeShrink, Collections.max(highestBeforeShrink.values()), "restore to fewer shards");
+
+            // Reshard again. Shard 1 is re-created and must not reuse a term of its first incarnation.
+            var highestBeforeSecondReshard = Map.copyOf(highestTerms);
+            reshardAndAwaitCompletion(index, indexName);
+            ensureGreen(indexName);
+            assertEquals(2, numberOfShards(index));
+            assertThat(
+                "re-created shard 1 must have a term above its first incarnation",
+                primaryTerm(index, 1),
+                greaterThan(highestBeforeSecondReshard.get(1))
+            );
+
+            // Restore the snapshot of the 2 shard index over the 2 shard index (same shard count): all terms go up
+            var highestBeforeSameCount = Map.copyOf(highestTerms);
+            restoreOverExisting(twoShardSnapshot, indexName);
+            assertEquals(2, numberOfShards(index));
+            assertTermsAreAbove(index, highestBeforeSameCount, Collections.max(highestBeforeSameCount.values()), "restore to same shards");
+
+            // Shrink again, then restore the 2 shard snapshot: shard 1 comes back through the restore this time.
+            restoreOverExisting(oneShardSnapshot, indexName);
+            assertEquals(1, numberOfShards(index));
+            var highestBeforeGrow = Map.copyOf(highestTerms);
+            restoreOverExisting(twoShardSnapshot, indexName);
+            assertEquals(2, numberOfShards(index));
+            assertTermsAreAbove(index, highestBeforeGrow, Collections.max(highestBeforeGrow.values()), "restore to more shards");
+
+            assertResponse(
+                prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery())
+                    .setTrackTotalHits(true)
+                    .setAllowPartialSearchResults(false),
+                searchResponse -> assertEquals(numDocs, searchResponse.getHits().getTotalHits().value())
+            );
+        } finally {
+            masterClusterService.removeListener(termRecorder);
+        }
+    }
+
+    /**
+     * Asserts that every shard of the index has a primary term above all the terms seen before the operation. This includes the shards that
+     * existed above their own earlier terms, and all shards above {@code highestOfAnyShard}, which is what a restore has to guarantee for
+     * the ids it removes or re-creates, since those no longer have a term of their own to build on.
+     */
+    private void assertTermsAreAbove(Index index, Map<Integer, Long> highestBefore, long highestOfAnyShard, String operation) {
+        for (int shard = 0; shard < numberOfShards(index); shard++) {
+            final long term = primaryTerm(index, shard);
+            assertThat(operation + ": term of shard " + shard, term, greaterThan(highestBefore.getOrDefault(shard, 0L)));
+            assertThat(operation + ": term of shard " + shard + " compared with every shard", term, greaterThan(highestOfAnyShard));
+        }
+    }
+
+    private int numberOfShards(Index index) {
+        return clusterService().state().metadata().projectFor(index).index(index.getName()).getNumberOfShards();
+    }
+
+    private long primaryTerm(Index index, int shard) {
+        return clusterService().state().metadata().projectFor(index).index(index.getName()).primaryTerm(shard);
+    }
+
+    private void createSnapshotAndAssertSuccess(String snapshotName, String indexName) {
+        var snapshot = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", snapshotName)
+            .setWaitForCompletion(true)
+            .setIndices(indexName)
+            .get();
+        assertEquals(SnapshotState.SUCCESS, snapshot.getSnapshotInfo().state());
+    }
+
+    private void reshardAndAwaitCompletion(Index index, String indexName) {
+        client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+        awaitClusterState(state -> state.metadata().projectFor(index).index(indexName).getReshardingMetadata() != null);
+        waitForReshardCompletion(index);
+    }
+
+    private void restoreOverExisting(String snapshotName, String indexName) {
+        var restoreRequest = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, "test-repo", snapshotName).indices(indexName)
+            .restoreOverExisting(true)
+            .waitForCompletion(true);
+        var response = client().execute(TransportRestoreSnapshotAction.TYPE, restoreRequest).actionGet();
+        assertEquals(0, response.getRestoreInfo().failedShards());
+        ensureGreen(indexName);
     }
 
     /**

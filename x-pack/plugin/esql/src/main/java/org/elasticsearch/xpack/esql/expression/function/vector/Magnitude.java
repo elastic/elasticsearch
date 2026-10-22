@@ -155,6 +155,8 @@ public class Magnitude extends UnaryScalarFunction implements AnyNullIsNull, Eva
                     }
                 }
                 if (dimensions == 0) {
+                    // dimensions is 0 if and only if every position is null
+                    // (a non-null dense_vector always has at least one value)
                     return blockFactory.newConstantNullBlock(positionCount);
                 }
 

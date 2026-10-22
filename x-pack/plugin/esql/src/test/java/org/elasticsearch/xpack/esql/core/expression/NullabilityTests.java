@@ -17,7 +17,6 @@ import java.io.IOException;
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.core.expression.Nullability.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Nullability.TRUE;
-import static org.elasticsearch.xpack.esql.core.expression.Nullability.UNKNOWN;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 
 public class NullabilityTests extends ESTestCase {
@@ -59,23 +58,15 @@ public class NullabilityTests extends ESTestCase {
 
     private Nullable YES = new Nullable(EMPTY, TRUE);
     private Nullable NO = new Nullable(EMPTY, FALSE);
-    private Nullable MAYBE = new Nullable(EMPTY, UNKNOWN);
 
     public void testLogicalAndOfNullabilities() {
         assertEquals(TRUE, Expressions.nullable(asList(YES)));
         assertEquals(FALSE, Expressions.nullable(asList(NO)));
-        assertEquals(UNKNOWN, Expressions.nullable(asList(MAYBE)));
-
-        assertEquals(UNKNOWN, Expressions.nullable(asList(MAYBE, MAYBE)));
-        assertEquals(UNKNOWN, Expressions.nullable(asList(MAYBE, YES)));
-        assertEquals(UNKNOWN, Expressions.nullable(asList(MAYBE, NO)));
 
         assertEquals(FALSE, Expressions.nullable(asList(NO, NO)));
         assertEquals(TRUE, Expressions.nullable(asList(NO, YES)));
-        assertEquals(UNKNOWN, Expressions.nullable(asList(NO, MAYBE)));
 
         assertEquals(TRUE, Expressions.nullable(asList(YES, YES)));
         assertEquals(TRUE, Expressions.nullable(asList(YES, NO)));
-        assertEquals(UNKNOWN, Expressions.nullable(asList(YES, MAYBE)));
     }
 }

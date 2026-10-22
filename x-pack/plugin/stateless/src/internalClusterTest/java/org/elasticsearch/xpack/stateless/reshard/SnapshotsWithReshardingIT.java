@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.action.admin.cluster.snapshots.restore.TransportRestoreSnapshotAction;
 import org.elasticsearch.action.support.master.MasterNodeRequestHelper;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -1061,6 +1062,84 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
 
             assertRestoredAndAbandonedSplitCleanedUp(indexName, shards, numDocs, indexNode);
             mockLog.assertAllExpectationsMatched();
+        }
+    }
+
+    /**
+     * A reshard requested while a restore over the index is still in progress. The restore has been applied, but cannot complete because
+     * the old shard cannot finish closing. Nothing rejects the reshard, so it is accepted. It then has to wait: shards are only created
+     * once the shards of earlier cluster states have closed, so neither the restored shard nor the split's target starts until the old
+     * one has closed. Both then run to completion, and the index ends up with all its documents and the shard count of the reshard.
+     */
+    public void testReshardRequestedWhileRestoreIsInProgress() throws Exception {
+        startMasterOnlyNode();
+        var indexNode = startIndexNode();
+        startSearchNode();
+        ensureStableCluster(3);
+
+        createRepository("test-repo", "fs");
+
+        final int shards = 1;
+        var indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, shards, 1);
+        ensureGreen();
+        final int numDocs = randomIntBetween(10, 100);
+        indexDocs(indexName, numDocs);
+        var index = resolveIndex(indexName);
+
+        var snapshotName = indexName + "-snap";
+        createSnapshotAndAssertSuccess(snapshotName, indexName);
+
+        var plugin = findPlugin(indexNode, CustomSnapshotCommitSupplierPlugin.class);
+        var releaseClose = new CountDownLatch(1);
+        plugin.holdEngineClose.set(releaseClose);
+        try (var mockLog = MockLog.capture(ClusterApplierService.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "cluster state listener failed",
+                    ClusterApplierService.class.getCanonicalName(),
+                    Level.WARN,
+                    "failed to notify ClusterStateListener"
+                )
+            );
+
+            var restoreRequest = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, "test-repo", snapshotName).indices(indexName)
+                .restoreOverExisting(true)
+                .waitForCompletion(true);
+            var restore = client().execute(TransportRestoreSnapshotAction.TYPE, restoreRequest);
+            // The restore has been applied, but cannot complete while the old shard cannot close
+            awaitClusterState(indexNode, state -> RestoreInProgress.get(state).isEmpty() == false);
+            assertFalse(restore.isDone());
+
+            client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+            awaitClusterState(
+                indexNode,
+                state -> state.metadata().projectFor(index).index(indexName).getReshardingMetadata() != null
+                    || state.metadata().projectFor(index).index(indexName).getNumberOfShards() == 2
+            );
+            safeSleep(TimeValue.timeValueMillis(500));
+            assertFalse("the restore cannot complete while the old shard cannot close", restore.isDone());
+
+            releaseClose.countDown();
+            var restoreResponse = restore.actionGet();
+            assertEquals(0, restoreResponse.getRestoreInfo().failedShards());
+
+            // The reshard runs to completion on the restored shard
+            awaitClusterState(
+                indexNode,
+                state -> state.metadata().projectFor(index).index(indexName).getReshardingMetadata() == null
+                    && state.metadata().projectFor(index).index(indexName).getNumberOfShards() == 2
+            );
+            ensureGreen(indexName);
+            assertResponse(
+                prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery())
+                    .setTrackTotalHits(true)
+                    .setAllowPartialSearchResults(false),
+                searchResponse -> assertEquals(numDocs, searchResponse.getHits().getTotalHits().value())
+            );
+            mockLog.assertAllExpectationsMatched();
+        } finally {
+            releaseClose.countDown();
         }
     }
 

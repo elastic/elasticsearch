@@ -50,7 +50,7 @@ public class CountOverTime extends TimeSeriesAggregateFunction
         .ternary(CountOverTime::new)
         .name("count_over_time");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
-        .withinSeries(CountOverTime::new)
+        .withinSeries((source, field, window, timestamp) -> new CountOverTime(source, promqlSample(field), window, timestamp))
         .description("Returns the count of all values in the specified time range.")
         .example("count_over_time(http_requests_total[5m])")
         .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
@@ -157,6 +157,17 @@ public class CountOverTime extends TimeSeriesAggregateFunction
             );
         }
         return null;
+    }
+
+    /**
+     * PromQL counts a histogram as one sample, not as the observations it holds. The count component has a value exactly
+     * where the histogram does, so counting it counts the histograms.
+     */
+    static Expression promqlSample(Expression field) {
+        if (field.resolved() && (field.dataType() == EXPONENTIAL_HISTOGRAM || field.dataType() == DataType.TDIGEST)) {
+            return ExtractHistogramComponent.create(field.source(), field, HistogramBlock.Component.COUNT);
+        }
+        return field;
     }
 
     @Override

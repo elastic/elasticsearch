@@ -42,7 +42,7 @@ directly for the following two cases:
 
 ## Limitations
 
-`DEDUP` cannot be used when any column in scope has one of the following types: `aggregate_metric_double`, counter types (`counter_long`, `counter_integer`, `counter_double`), or `date_range`. Attempting to do so results in a validation error.
+`DEDUP` cannot be used when any column in scope has one of the following types: `aggregate_metric_double`, counter types (`counter_long`, `counter_integer`, `counter_double`), `date_range`, `exponential_histogram`, `tdigest`, `date_period`, or `time_duration`. Attempting to do so results in a validation error. Use `KEEP` or `DROP` before `DEDUP` to remove such columns.
 
 Columns of an `unsupported` type are ignored when comparing rows, and `DEDUP` does not fail because of them. This includes fields mapped to incompatible types across the indices of a `FROM` (a union type): such a field is returned as `null` until it is converted, so it cannot tell rows apart. For example, if `emp_no` is `integer` in one index and `long` in another, `FROM employees, employees_incompatible | KEEP emp_no | DEDUP` returns a single row. A later conversion such as `EVAL e = emp_no::long` does not bring the removed rows back. To deduplicate on the value of such a field, convert it first and then `DEDUP`: `EVAL e = emp_no::long | DROP emp_no | DEDUP`.
 

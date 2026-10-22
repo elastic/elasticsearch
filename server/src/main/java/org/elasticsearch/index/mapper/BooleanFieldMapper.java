@@ -364,7 +364,11 @@ public class BooleanFieldMapper extends FieldMapper {
             return switch (sValue) {
                 case "true" -> Values.TRUE;
                 case "false" -> Values.FALSE;
-                default -> throw new IllegalArgumentException("Can't parse boolean value [" + sValue + "], expected [true] or [false]");
+                default -> throw new IllegalArgumentException(
+                    "Can't parse boolean value ["
+                        + Strings.cleanTruncate(sValue, Strings.MAX_INPUT_LENGTH_IN_ERROR)
+                        + "], expected [true] or [false]"
+                );
             };
         }
 

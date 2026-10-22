@@ -11,6 +11,7 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -209,6 +210,12 @@ public class DocValueFormatTests extends ESTestCase {
         assertEquals("Cannot parse boolean [0], expected either [true] or [false]", e.getMessage());
         e = expectThrows(IllegalArgumentException.class, () -> DocValueFormat.BOOLEAN.parseLong("False", randomBoolean(), null));
         assertEquals("Cannot parse boolean [False], expected either [true] or [false]", e.getMessage());
+        String value = "x".repeat(randomIntBetween(10_000, 100_000));
+        e = expectThrows(IllegalArgumentException.class, () -> DocValueFormat.BOOLEAN.parseLong(value, randomBoolean(), null));
+        assertEquals(
+            "Cannot parse boolean [" + value.substring(0, Strings.MAX_INPUT_LENGTH_IN_ERROR) + "], expected either [true] or [false]",
+            e.getMessage()
+        );
     }
 
     public void testIPParse() {

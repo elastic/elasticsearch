@@ -47,6 +47,9 @@ public class Strings {
 
     public static final String[] EMPTY_ARRAY = new String[0];
 
+    /** Maximum length of user input echoed in an error message. */
+    public static final int MAX_INPUT_LENGTH_IN_ERROR = 1024;
+
     // ---------------------------------------------------------------------
     // General convenience methods for working with Strings
     // ---------------------------------------------------------------------

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.stateless.cache;
 
 import org.elasticsearch.core.TimeValue;
 
-/// Search shard recovery warming for the internal replicated-files path: [#timeout()] drives the race in
+/// Search shard recovery warming for the internal replicated-files path: [#timeout()] drives the recovery wait in
 /// [SharedBlobCacheWarmingService#searchRecoveryWarmingListener]; [TimeValue#ZERO] means do not await warming.
 /// Use [#awaitWarming()] to branch.
 ///
@@ -28,9 +28,9 @@ public record SearchRecoveryTimeout(TimeValue timeout, TimeoutContext timeoutCon
     /// The situation a plan was computed for. Its [#description()] is what gets logged.
     ///
     /// [#extendable()]: whether the slice of a plan with this context may be followed by another one. When `false`, the re-evaluation loop
-    /// fires the race immediately on first expiry without re-reading the cluster state or rescheduling, regardless of the node-level
-    /// re-evaluation setting. Whether a given re-evaluated plan may follow the previous one is decided separately, see
-    /// [SearchRecoveryTimeout#shouldExtendAfter].
+    /// completes the recovery wait with a timeout immediately on first expiry without re-reading the cluster state or rescheduling,
+    /// regardless of the node-level re-evaluation setting. Whether a given re-evaluated plan may follow the previous one is decided
+    /// separately, see [SearchRecoveryTimeout#shouldExtendAfter].
     public enum TimeoutContext {
         SKIP("", false),
         NON_RELOCATION_ANOTHER_ACTIVE_COPY("not a relocation, another active shard copy", true),

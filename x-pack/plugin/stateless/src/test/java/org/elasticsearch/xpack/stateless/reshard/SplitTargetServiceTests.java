@@ -16,6 +16,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -35,16 +36,22 @@ import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportException;
 
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.fail;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class SplitTargetServiceTests extends ESTestCase {
@@ -273,6 +280,100 @@ public class SplitTargetServiceTests extends ESTestCase {
         );
 
         action.run();
+    }
+
+    /// Once the state machine of a target shard has been cancelled (its shard closed, e.g. for a restore over the index), the retrying
+    /// action that deletes unowned documents must do nothing, and in particular must not look up a shard by its id, since a different
+    /// shard with the same id may have replaced the closed one.
+    public void testDeleteUnownedDoesNothingOnceCancelled() {
+        var threadPool = directThreadPool();
+        var clusterService = mock(ClusterService.class);
+        when(clusterService.threadPool()).thenReturn(threadPool);
+        var reshardIndexService = mock(ReshardIndexService.class);
+        var sts = new SplitTargetService(Settings.EMPTY, new NoOpClient(threadPool), clusterService, reshardIndexService);
+
+        var failures = new ArrayList<Exception>();
+        var action = sts.createDeleteUnownedAction(mock(IndexShard.class), new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                fail("a cancelled action must not succeed");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                failures.add(e);
+            }
+        }, new AtomicBoolean(true));
+        action.run();
+
+        verify(reshardIndexService, never()).deleteUnownedDocuments(any(ShardId.class), any());
+        verify(reshardIndexService, never()).deleteUnownedDocuments(any(IndexShard.class), any());
+        assertThat(failures, hasSize(1));
+        assertThat(failures.get(0), instanceOf(CancellationException.class));
+    }
+
+    /// As above, a cancelled action that moves the target to a new state must not send the request: the shard it is for has been
+    /// closed, and the request would be a stale one for the master to reject.
+    public void testChangeStateSendsNothingOnceCancelled() {
+        var threadPool = directThreadPool();
+        var clusterService = mock(ClusterService.class);
+        when(clusterService.threadPool()).thenReturn(threadPool);
+        var requests = new AtomicInteger(0);
+        var countingClient = new NoOpClient(threadPool) {
+            @Override
+            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                requests.incrementAndGet();
+            }
+        };
+        var sts = new SplitTargetService(Settings.EMPTY, countingClient, clusterService, mock(ReshardIndexService.class));
+
+        var failures = new ArrayList<Exception>();
+        var action = sts.createChangeStateAction(
+            dummySplit(),
+            IndexReshardingState.Split.TargetShardState.DONE,
+            new AtomicBoolean(true),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(ActionResponse response) {
+                    fail("a cancelled action must not succeed");
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    failures.add(e);
+                }
+            }
+        );
+        action.run();
+
+        assertEquals(0, requests.get());
+        assertThat(failures, hasSize(1));
+        assertThat(failures.get(0), instanceOf(CancellationException.class));
+    }
+
+    /// A thread pool that runs everything immediately, on the calling thread
+    private static ThreadPool directThreadPool() {
+        return new ThreadPool() {
+            @Override
+            public long relativeTimeInMillis() {
+                return 0;
+            }
+
+            @Override
+            public ExecutorService generic() {
+                return EsExecutors.DIRECT_EXECUTOR_SERVICE;
+            }
+
+            @Override
+            public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
+                executor.execute(command);
+                return null;
+            }
+        };
     }
 
     private static SplitTargetService.Split dummySplit() {

@@ -674,7 +674,7 @@ public class SplitTargetService {
             var deleteUnowned = new DeleteUnowned(
                 clusterService,
                 reshardIndexService,
-                shard.shardId(),
+                shard,
                 new StateAdvancingListener<>(new State.UnownedDataDeleted()),
                 cancelled
             );
@@ -920,6 +920,7 @@ public class SplitTargetService {
         public void tryAction(ActionListener<ActionResponse> listener) {
             if (cancelled.get()) {
                 listener.onFailure(new CancellationException());
+                return;
             }
 
             var request = new SplitStateRequest(split.shardId(), state, split.sourcePrimaryTerm(), split.targetPrimaryTerm());
@@ -934,6 +935,21 @@ public class SplitTargetService {
             boolean isCancelled = cancelled.get();
             return isCancelled == false;
         }
+    }
+
+    // visible for tests
+    RetryableAction<Void> createDeleteUnownedAction(IndexShard shard, ActionListener<Void> listener, AtomicBoolean cancelled) {
+        return new DeleteUnowned(clusterService, reshardIndexService, shard, listener, cancelled);
+    }
+
+    // visible for tests
+    RetryableAction<ActionResponse> createChangeStateAction(
+        Split split,
+        IndexReshardingState.Split.TargetShardState state,
+        AtomicBoolean cancelled,
+        ActionListener<ActionResponse> listener
+    ) {
+        return new ChangeState(clusterService, client, split, state, cancelled, listener);
     }
 
     // visible for tests
@@ -1031,13 +1047,13 @@ public class SplitTargetService {
     // If something unexpected happens on this code path it would (likely) fail the engine and lead to shard being closed anyway.
     private static class DeleteUnowned extends RetryableAction<Void> {
         private final ReshardIndexService reshardIndexService;
-        private final ShardId shardId;
+        private final IndexShard shard;
         private final AtomicBoolean cancelled;
 
         DeleteUnowned(
             ClusterService clusterService,
             ReshardIndexService reshardIndexService,
-            ShardId shardId,
+            IndexShard shard,
             ActionListener<Void> listener,
             AtomicBoolean cancelled
         ) {
@@ -1052,7 +1068,7 @@ public class SplitTargetService {
                 clusterService.threadPool().generic()
             );
             this.reshardIndexService = reshardIndexService;
-            this.shardId = shardId;
+            this.shard = shard;
             this.cancelled = cancelled;
         }
 
@@ -1060,8 +1076,11 @@ public class SplitTargetService {
         public void tryAction(ActionListener<Void> listener) {
             if (cancelled.get()) {
                 listener.onFailure(new CancellationException());
+                return;
             }
-            reshardIndexService.deleteUnownedDocuments(shardId, listener);
+            // Work on this action's own shard instance. If the shard has been closed and replaced (e.g. by a restore over the index) the
+            // shard with the same id must not be touched, and this fails because the shard is closed.
+            reshardIndexService.deleteUnownedDocuments(shard, listener);
         }
 
         @Override

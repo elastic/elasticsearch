@@ -753,9 +753,9 @@ public class IndexRoutingTests extends ESTestCase {
     }
 
     /**
-     * Series with dimensions under the default tsid dimensions prefix: the prefixed-dimensions hash changes the tsid, and
-     * with it the shard, of indices created on or after {@link IndexVersions#TSID_PREFIXED_DIMENSIONS_HASH}, while series
-     * without such dimensions keep the shard of the previous layout.
+     * Series with dimensions matching the OTel templates' tsid prefixed dimensions: the prefixed-dimensions hash changes the
+     * tsid, and with it the shard, of indices created on or after {@link IndexVersions#TSID_PREFIXED_DIMENSIONS_HASH}, while
+     * series without such dimensions keep the shard of the previous layout.
      */
     public void testRoutingWithPrefixedDimensionsHash() throws IOException {
         TimeSeriesRoutingFixture before = indexRoutingForTimeSeriesDimensions(
@@ -771,13 +771,11 @@ public class IndexRoutingTests extends ESTestCase {
             IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TSID_PREFIXED_DIMENSIONS_HASH),
             8,
             "resource.attributes.*,attributes.*,_metric_names_hash",
-            randomBoolean()
+            randomBoolean(),
+            Settings.builder().putList(IndexSettings.TIME_SERIES_TSID_PREFIXED_DIMENSIONS.getKey(), "resource.attributes.*").build()
         );
-        assertNull(((IndexRouting.ExtractFromSource.ForIndexDimensions) before.routing()).tsidLayout.effectiveDimensionsPrefix());
-        assertThat(
-            ((IndexRouting.ExtractFromSource.ForIndexDimensions) after.routing()).tsidLayout.effectiveDimensionsPrefix(),
-            equalTo("resource.attributes.")
-        );
+        assertNull(((IndexRouting.ExtractFromSource.ForIndexDimensions) before.routing()).tsidLayout.prefixedDimensionMatcher());
+        assertNotNull(((IndexRouting.ExtractFromSource.ForIndexDimensions) after.routing()).tsidLayout.prefixedDimensionMatcher());
         /*
          * These are the expected shards. If these values change time series will be routed to unexpected shards.
          * You may modify them with a new index created version, but when you do you must copy this test and patch
@@ -841,8 +839,8 @@ public class IndexRoutingTests extends ESTestCase {
         assertIndexShard(after, withoutResource, 1);
     }
 
-    /** The tsid dimensions prefix setting is honored by routing, so a non-default prefix changes the shard. */
-    public void testRoutingHonorsTsidDimensionsPrefixSetting() throws IOException {
+    /** The tsid prefixed dimensions setting is honored by routing, so the patterns select the shard. */
+    public void testRoutingHonorsTsidPrefixedDimensionsSetting() throws IOException {
         IndexVersion version = IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TSID_PREFIXED_DIMENSIONS_HASH);
         String dimensions = "resource.attributes.*,attributes.*,_metric_names_hash";
         Map<String, Object> source = Map.of(
@@ -853,24 +851,43 @@ public class IndexRoutingTests extends ESTestCase {
             "attributes.operation",
             "op-1"
         );
-        TimeSeriesRoutingFixture defaultPrefix = indexRoutingForTimeSeriesDimensions(version, 8, dimensions, randomBoolean());
-        TimeSeriesRoutingFixture customPrefix = indexRoutingForTimeSeriesDimensions(
+        TimeSeriesRoutingFixture disabled = indexRoutingForTimeSeriesDimensions(version, 8, dimensions, randomBoolean());
+        TimeSeriesRoutingFixture otel = indexRoutingForTimeSeriesDimensions(
             version,
             8,
             dimensions,
             randomBoolean(),
-            Settings.builder().put(IndexSettings.TIME_SERIES_TSID_DIMENSIONS_PREFIX.getKey(), "attributes.").build()
+            Settings.builder().putList(IndexSettings.TIME_SERIES_TSID_PREFIXED_DIMENSIONS.getKey(), "resource.attributes.*").build()
         );
-        TimeSeriesRoutingFixture disabledPrefix = indexRoutingForTimeSeriesDimensions(
+        TimeSeriesRoutingFixture exact = indexRoutingForTimeSeriesDimensions(
             version,
             8,
             dimensions,
             randomBoolean(),
-            Settings.builder().put(IndexSettings.TIME_SERIES_TSID_DIMENSIONS_PREFIX.getKey(), "").build()
+            Settings.builder()
+                .putList(IndexSettings.TIME_SERIES_TSID_PREFIXED_DIMENSIONS.getKey(), "resource.attributes.host.name", "labels.job")
+                .build()
         );
-        assertIndexShard(defaultPrefix, source, 2);
-        assertIndexShard(customPrefix, source, 7);
-        assertIndexShard(disabledPrefix, source, 6);
+        TimeSeriesRoutingFixture custom = indexRoutingForTimeSeriesDimensions(
+            version,
+            8,
+            dimensions,
+            randomBoolean(),
+            Settings.builder().putList(IndexSettings.TIME_SERIES_TSID_PREFIXED_DIMENSIONS.getKey(), "attributes.*").build()
+        );
+        TimeSeriesRoutingFixture explicitlyDisabled = indexRoutingForTimeSeriesDimensions(
+            version,
+            8,
+            dimensions,
+            randomBoolean(),
+            Settings.builder().putList(IndexSettings.TIME_SERIES_TSID_PREFIXED_DIMENSIONS.getKey(), List.of()).build()
+        );
+        assertIndexShard(disabled, source, 6);
+        assertIndexShard(otel, source, 2);
+        // The exact path selects the same dimension as the pattern, so the tsid, and with it the shard, is the same.
+        assertIndexShard(exact, source, 2);
+        assertIndexShard(custom, source, 7);
+        assertIndexShard(explicitlyDisabled, source, 6);
     }
 
     public void testRoutingPathReadWithInvalidString() {

@@ -397,19 +397,19 @@ public class ColumnarTsidCalculatorTests extends ESTestCase {
     }
 
     /**
-     * @param tsidDimensionsPrefix the {@link IndexSettings#TIME_SERIES_TSID_DIMENSIONS_PREFIX} value, or null to leave the default
+     * @param prefixedDimensions the {@link IndexSettings#TIME_SERIES_TSID_PREFIXED_DIMENSIONS} value, or null to leave the default
      */
     private static IndexRouting.ExtractFromSource.ForIndexDimensions forIndexDimensions(
         IndexVersion version,
-        @Nullable String tsidDimensionsPrefix,
+        @Nullable List<String> prefixedDimensions,
         String... dimensionPaths
     ) {
         Settings.Builder settings = Settings.builder()
             .put(SETTING_INDEX_VERSION_CREATED.getKey(), version)
             .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), dimensionPaths)
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES);
-        if (tsidDimensionsPrefix != null) {
-            settings.put(IndexSettings.TIME_SERIES_TSID_DIMENSIONS_PREFIX.getKey(), tsidDimensionsPrefix);
+        if (prefixedDimensions != null) {
+            settings.putList(IndexSettings.TIME_SERIES_TSID_PREFIXED_DIMENSIONS.getKey(), prefixedDimensions);
         }
         IndexMetadata md = IndexMetadata.builder("test").settings(settings).numberOfShards(8).numberOfReplicas(0).build();
         return (IndexRouting.ExtractFromSource.ForIndexDimensions) IndexRouting.fromIndexMetadata(md);
@@ -417,7 +417,8 @@ public class ColumnarTsidCalculatorTests extends ESTestCase {
 
     /**
      * Parity under every layout: the legacy multi-byte prefix, the single prefix byte alone, and the single prefix byte with
-     * the prefixed-dimensions hash under the default prefix, under a custom prefix, and disabled by an empty prefix.
+     * the prefixed-dimensions hash disabled by the default empty setting, over the OTel pattern, over a custom pattern, and
+     * over exact paths.
      */
     private static void assertParityForBothLayouts(List<BytesReference> sources, String... dimensionPaths) throws IOException {
         IndexVersion multiBytePrefixVersion = IndexVersionUtils.randomVersionBetween(
@@ -433,24 +434,32 @@ public class ColumnarTsidCalculatorTests extends ESTestCase {
             forIndexDimensions(multiBytePrefixVersion, dimensionPaths),
             forIndexDimensions(singleBytePrefixVersion, dimensionPaths),
             forIndexDimensions(prefixedDimensionsHashVersion, dimensionPaths),
-            forIndexDimensions(prefixedDimensionsHashVersion, CUSTOM_DIMENSIONS_PREFIX, dimensionPaths),
-            forIndexDimensions(prefixedDimensionsHashVersion, "", dimensionPaths)
+            forIndexDimensions(prefixedDimensionsHashVersion, OTEL_PREFIXED_DIMENSIONS, dimensionPaths),
+            forIndexDimensions(prefixedDimensionsHashVersion, CUSTOM_PREFIXED_DIMENSIONS, dimensionPaths),
+            forIndexDimensions(prefixedDimensionsHashVersion, EXACT_PREFIXED_DIMENSIONS, dimensionPaths)
         );
         assertFalse(strategies.get(0).tsidLayout.singleBytePrefix());
         assertTrue(strategies.get(1).tsidLayout.singleBytePrefix());
-        assertNull(strategies.get(1).tsidLayout.effectiveDimensionsPrefix());
-        assertThat(strategies.get(2).tsidLayout.effectiveDimensionsPrefix(), equalTo("resource.attributes."));
-        assertThat(strategies.get(3).tsidLayout.effectiveDimensionsPrefix(), equalTo(CUSTOM_DIMENSIONS_PREFIX));
-        assertNull(strategies.get(4).tsidLayout.effectiveDimensionsPrefix());
+        assertNull(strategies.get(1).tsidLayout.prefixedDimensionMatcher());
+        assertNull(strategies.get(2).tsidLayout.prefixedDimensionMatcher());
+        assertThat(strategies.get(3).tsidLayout.prefixedDimensions(), equalTo(OTEL_PREFIXED_DIMENSIONS));
+        assertThat(strategies.get(4).tsidLayout.prefixedDimensions(), equalTo(CUSTOM_PREFIXED_DIMENSIONS));
+        assertThat(strategies.get(5).tsidLayout.prefixedDimensions(), equalTo(EXACT_PREFIXED_DIMENSIONS));
         for (IndexRouting.ExtractFromSource.ForIndexDimensions strategy : strategies) {
             assertColumnarMatchesSourceParser(sources, strategy);
         }
     }
 
-    /** A prefix that matches some of the {@code dim.*} paths these tests use, unlike the default one. */
-    private static final String CUSTOM_DIMENSIONS_PREFIX = "dim.resource.";
+    /** The value the OTel metrics templates use. */
+    private static final List<String> OTEL_PREFIXED_DIMENSIONS = List.of("resource.attributes.*");
 
-    /** Dimensions under the default prefix, with and without the OTel metric field claiming the prefix byte. */
+    /** A pattern that matches some of the {@code dim.*} paths these tests use, unlike the OTel one. */
+    private static final List<String> CUSTOM_PREFIXED_DIMENSIONS = List.of("dim.resource.*");
+
+    /** Exact paths, as the Prometheus templates use; they match some of the {@code dim.*} paths these tests use. */
+    private static final List<String> EXACT_PREFIXED_DIMENSIONS = List.of("dim.resource.host", "dim.resource.str", "dim.host");
+
+    /** Dimensions matching the OTel pattern, with and without the OTel metric field claiming the prefix byte. */
     public void testPrefixedDimensionsParity() throws IOException {
         List<BytesReference> sources = List.of(
             toJson(Map.of("resource.attributes.host.name", "h1", "resource.attributes.service.name", "s1", "dim.host", "n1")),
@@ -460,7 +469,7 @@ public class ColumnarTsidCalculatorTests extends ESTestCase {
         assertParityForBothLayouts(sources, "resource.attributes.*", TsidBuilder.OTEL_METRIC_FIELD, "dim.*");
     }
 
-    /** Dimensions under the custom prefix only, so the default-prefix layout leaves the full hash in place. */
+    /** Dimensions matching the custom and exact patterns only, so the OTel layout leaves the full hash in place. */
     public void testCustomPrefixedDimensionsParity() throws IOException {
         List<BytesReference> sources = List.of(
             toJson(Map.of("dim.resource.host", "h1", "dim.resource.region", "us", "dim.host", "n1")),

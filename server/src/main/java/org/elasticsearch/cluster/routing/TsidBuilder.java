@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentString;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Predicate;
 
 /**
  * A builder for creating time series identifiers (TSIDs) based on dimensions.
@@ -249,10 +250,10 @@ public class TsidBuilder {
     }
 
     /**
-     * Builds the tsid of an index created at {@code indexVersion} with default index settings. Production callers have the
+     * Builds the tsid of an index created at {@code indexVersion} with default index settings, that is without
+     * {@link org.elasticsearch.index.IndexSettings#TIME_SERIES_TSID_PREFIXED_DIMENSIONS}. Production callers have the
      * {@link org.elasticsearch.cluster.metadata.IndexMetadata} and must go through {@link #buildTsid(TsidLayout)} with
-     * {@link TsidLayout#forIndex} so that a non-default {@link org.elasticsearch.index.IndexSettings#TIME_SERIES_TSID_DIMENSIONS_PREFIX}
-     * is honored.
+     * {@link TsidLayout#forIndex} so that the setting is honored.
      */
     public final BytesRef buildTsid(IndexVersion indexVersion) {
         return buildTsid(TsidLayout.forVersion(indexVersion));
@@ -261,7 +262,7 @@ public class TsidBuilder {
     /** Builds the tsid in the layout of the index the document is indexed into. */
     public final BytesRef buildTsid(TsidLayout layout) {
         if (layout.singleBytePrefix()) {
-            return buildSingleBytePrefixTsid(layout.effectiveDimensionsPrefix());
+            return buildSingleBytePrefixTsid(layout.prefixedDimensionMatcher());
         } else {
             return buildMultiBytePrefixTsid();
         }
@@ -273,8 +274,8 @@ public class TsidBuilder {
     }
 
     /**
-     * Whether the single-prefix-byte layout also carries the hash of the dimensions under
-     * {@link org.elasticsearch.index.IndexSettings#TIME_SERIES_TSID_DIMENSIONS_PREFIX} in its second and third bytes. Implies
+     * Whether the single-prefix-byte layout also carries the hash of the dimensions matching
+     * {@link org.elasticsearch.index.IndexSettings#TIME_SERIES_TSID_PREFIXED_DIMENSIONS} in its second and third bytes. Implies
      * {@link #useSingleBytePrefixLayout}.
      */
     public static boolean usePrefixedDimensionsHash(IndexVersion indexVersion) {
@@ -352,9 +353,9 @@ public class TsidBuilder {
      *         see {@link #computeSingleBytePrefix}.
      *     </li>
      *     <li>
-     *         Bytes 1-2: the low bytes of a hash over the names and values of the dimensions whose path starts with
-     *         {@code dimensionsPrefix}, so that the series of one metric are clustered by resource. Only written when
-     *         {@code dimensionsPrefix} is non-null and at least one dimension matches it; otherwise, and for indices created
+     *         Bytes 1-2: the low bytes of a hash over the names and values of the dimensions whose path matches
+     *         {@code isPrefixedDimension}, so that the series of one metric are clustered by resource. Only written when
+     *         {@code isPrefixedDimension} is non-null and at least one dimension matches it; otherwise, and for indices created
      *         before {@link IndexVersions#TSID_PREFIXED_DIMENSIONS_HASH}, these bytes keep the full hash and the layout is the
      *         original single-prefix-byte one.
      *     </li>
@@ -363,10 +364,10 @@ public class TsidBuilder {
      * Bytes 1-2 are a hash, so a given metric still spreads over the partitions the codec derives from the first bytes of the
      * tsid, but no further than the number of distinct resources it is reported from.
      *
-     * @param dimensionsPrefix the path prefix of the dimensions hashed into bytes 1-2, or null to leave the full hash there,
-     *                         see {@link TsidLayout#effectiveDimensionsPrefix()}
+     * @param isPrefixedDimension matches the paths of the dimensions hashed into bytes 1-2, or null to leave the full hash there,
+     *                            see {@link TsidLayout#prefixedDimensionMatcher()}
      */
-    private BytesRef buildSingleBytePrefixTsid(@Nullable String dimensionsPrefix) {
+    private BytesRef buildSingleBytePrefixTsid(@Nullable Predicate<String> isPrefixedDimension) {
         throwIfEmpty();
         Collections.sort(dimensions);
 
@@ -380,7 +381,7 @@ public class TsidBuilder {
         murmur3Hasher.digestHash(hashBuffer);
         writeHash128(hashBuffer, tsid, 0);
         // The full hash is already written, so the buffer is free to hold the prefixed-dimensions hash.
-        MurmurHash3.Hash128 prefixedDimensionsHash = computePrefixedDimensionsHash(dimensionsPrefix, hashBuffer);
+        MurmurHash3.Hash128 prefixedDimensionsHash = computePrefixedDimensionsHash(isPrefixedDimension, hashBuffer);
         if (prefixedDimensionsHash != null) {
             writePrefixedDimensionsHash(prefixedDimensionsHash, tsid);
         }
@@ -389,18 +390,18 @@ public class TsidBuilder {
     }
 
     /**
-     * Hashes the names and values of the dimensions under {@code dimensionsPrefix}, in sorted order, or returns null when there is
-     * no prefix or no dimension matches it. The dimensions must be sorted. {@code out} receives the hash.
+     * Hashes the names and values of the dimensions matching {@code isPrefixedDimension}, in sorted order, or returns null when
+     * there is no matcher or no dimension matches it. The dimensions must be sorted. {@code out} receives the hash.
      */
     @Nullable
-    private MurmurHash3.Hash128 computePrefixedDimensionsHash(@Nullable String dimensionsPrefix, MurmurHash3.Hash128 out) {
-        if (dimensionsPrefix == null) {
+    private MurmurHash3.Hash128 computePrefixedDimensionsHash(@Nullable Predicate<String> isPrefixedDimension, MurmurHash3.Hash128 out) {
+        if (isPrefixedDimension == null) {
             return null;
         }
         murmur3Hasher.reset();
         int matched = 0;
         for (Dimension dim : dimensions) {
-            if (isPrefixedDimension(dim.path, dimensionsPrefix)) {
+            if (isPrefixedDimension(dim.path, isPrefixedDimension)) {
                 murmur3Hasher.addLongs(dim.pathHash.h1, dim.pathHash.h2, dim.valueHash.h1, dim.valueHash.h2);
                 matched++;
             }
@@ -535,19 +536,19 @@ public class TsidBuilder {
 
     /**
      * Whether a dimension at {@code path} contributes to the prefixed-dimensions hash of a layout whose
-     * {@link TsidLayout#effectiveDimensionsPrefix()} is {@code dimensionsPrefix}. Order-independent, so the columnar path resolves
-     * it once per column.
+     * {@link TsidLayout#prefixedDimensionMatcher()} is {@code isPrefixedDimension}. Order-independent, so the columnar path
+     * resolves it once per column.
      */
-    static boolean isPrefixedDimension(String path, @Nullable String dimensionsPrefix) {
-        return dimensionsPrefix != null && path.startsWith(dimensionsPrefix);
+    static boolean isPrefixedDimension(String path, @Nullable Predicate<String> isPrefixedDimension) {
+        return isPrefixedDimension != null && isPrefixedDimension.test(path);
     }
 
     /**
      * The single-prefix-byte layout, mirroring the tail of {@link #buildSingleBytePrefixTsid}. The
      * prefix bytes are written last because they deliberately clobber the low bytes of {@code h2}.
      *
-     * @param prefixedDimensionsHash hash over the row's dimensions under the layout's dimensions prefix, folded like the full
-     *                               hash, or null when the layout has no such prefix or the row has no dimension under it
+     * @param prefixedDimensionsHash hash over the row's dimensions matching the layout's prefixed dimensions, folded like the
+     *                               full hash, or null when the layout has none or the row has no matching dimension
      */
     static BytesRef writeSingleBytePrefixTsid(
         byte prefixByte,

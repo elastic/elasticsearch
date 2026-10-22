@@ -87,13 +87,13 @@ public final class ColumnarTsidCalculator {
         EscfBatch escfBatch = (EscfBatch) batch;
 
         // Hoisted out of the scan: the layout is a property of the index, not of a row.
-        String dimensionsPrefix = layout.effectiveDimensionsPrefix();
-        List<DimColumn> dimColumns = resolveDimColumns(escfBatch, isDimension, dimensionsPrefix);
+        Predicate<String> isPrefixedDimension = layout.prefixedDimensionMatcher();
+        List<DimColumn> dimColumns = resolveDimColumns(escfBatch, isDimension, isPrefixedDimension);
         ColumnarTsidAccumulator accumulator = ColumnarTsidAccumulator.create(
             batch.docCount(),
             rows,
             layout.singleBytePrefix(),
-            dimensionsPrefix != null
+            isPrefixedDimension != null
         );
 
         MurmurHash3.Hash128 valueHash = new MurmurHash3.Hash128();
@@ -112,7 +112,11 @@ public final class ColumnarTsidCalculator {
         return accumulator.build();
     }
 
-    private static List<DimColumn> resolveDimColumns(EscfBatch batch, Predicate<String> isDimension, @Nullable String dimensionsPrefix) {
+    private static List<DimColumn> resolveDimColumns(
+        EscfBatch batch,
+        Predicate<String> isDimension,
+        @Nullable Predicate<String> isPrefixedDimension
+    ) {
         SourceSchema schema = batch.schema();
         int leafCount = schema.leafCount();
         List<DimColumn> result = new ArrayList<>();
@@ -137,7 +141,7 @@ public final class ColumnarTsidCalculator {
                         pathHash.h1,
                         pathHash.h2,
                         TsidBuilder.prefixByteRank(path),
-                        TsidBuilder.isPrefixedDimension(path, dimensionsPrefix)
+                        TsidBuilder.isPrefixedDimension(path, isPrefixedDimension)
                     )
                 );
             }

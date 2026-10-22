@@ -65,7 +65,7 @@ abstract class ColumnarTsidAccumulator {
      * @param docCount               total number of rows in the batch
      * @param singleBytePrefixLayout selects the tsid layout, see {@link TsidLayout#singleBytePrefix()}
      * @param prefixedDimensionsHash whether the single-prefix-byte layout carries the prefixed-dimensions hash, which is the case
-     *                               when {@link TsidLayout#effectiveDimensionsPrefix()} is non-null
+     *                               when {@link TsidLayout#prefixedDimensionMatcher()} is non-null
      */
     static ColumnarTsidAccumulator create(int docCount, boolean singleBytePrefixLayout, boolean prefixedDimensionsHash) {
         return create(docCount, null, singleBytePrefixLayout, prefixedDimensionsHash);
@@ -86,7 +86,7 @@ abstract class ColumnarTsidAccumulator {
      * @param rows                   batch row indices in the subset, or null for all rows
      * @param singleBytePrefixLayout selects the tsid layout, see {@link TsidLayout#singleBytePrefix()}
      * @param prefixedDimensionsHash whether the single-prefix-byte layout carries the prefixed-dimensions hash, which is the case
-     *                               when {@link TsidLayout#effectiveDimensionsPrefix()} is non-null
+     *                               when {@link TsidLayout#prefixedDimensionMatcher()} is non-null
      */
     static ColumnarTsidAccumulator create(
         int docCount,

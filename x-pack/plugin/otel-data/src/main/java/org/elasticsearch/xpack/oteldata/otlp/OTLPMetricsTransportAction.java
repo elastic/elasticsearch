@@ -39,7 +39,6 @@ import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfBatchBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
@@ -378,8 +377,8 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
     }
 
     /**
-     * The tsid layout of the backing index the group's timestamp falls into, or that of a new index with default settings when
-     * the data stream does not exist yet.
+     * The tsid layout of the backing index the group's timestamp falls into, or that of the index the matching template would
+     * create when the data stream does not exist yet.
      */
     private static TsidLayout resolveTsidLayout(ProjectMetadata projectMetadata, DataPointGroupingContext.DataPointGroup group) {
         String dataStreamName = group.targetIndex().index();
@@ -391,7 +390,7 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
             }
         }
         if (dataStream == null) {
-            return TsidLayout.forVersion(IndexVersion.current());
+            return TsidLayout.forNewIndex(projectMetadata, dataStreamName);
         }
         Instant ts = Instant.ofEpochMilli(group.getTimestampUnixNano() / 1_000_000L);
         Index index = dataStream.selectTimeSeriesWriteIndex(ts, projectMetadata);
@@ -493,8 +492,8 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
     }
 
     /**
-     * The tsid layout of the data stream's write index, or that of a new index with default settings when the data stream does
-     * not exist yet.
+     * The tsid layout of the data stream's write index, or that of the index the matching template would create when the data
+     * stream does not exist yet.
      */
     private static TsidLayout resolveTsidLayout(ProjectMetadata projectMetadata, String dataStreamName) {
         DataStream dataStream = projectMetadata.dataStreams().get(dataStreamName);
@@ -507,7 +506,7 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
         if (dataStream != null && dataStream.getWriteIndex() != null) {
             return TsidLayout.forIndex(projectMetadata.getIndexSafe(dataStream.getWriteIndex()));
         }
-        return TsidLayout.forVersion(IndexVersion.current());
+        return TsidLayout.forNewIndex(projectMetadata, dataStreamName);
     }
 
     private record ExemplarIdentity(String index, BytesRef tsid, long timestamp) {}

@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.hash.MurmurHash3;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.ESTestCase;
@@ -50,6 +51,14 @@ public class TsidBuilderTests extends ESTestCase {
         return IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TSID_PREFIXED_DIMENSIONS_HASH);
     }
 
+    /** The value the OTel metrics templates set {@link IndexSettings#TIME_SERIES_TSID_PREFIXED_DIMENSIONS} to. */
+    private static final List<String> OTEL_PREFIXED_DIMENSIONS = List.of("resource.attributes.*");
+
+    /** The layout of an OTel metrics index created at {@code version}. */
+    private static TsidLayout otelLayout(IndexVersion version) {
+        return new TsidLayout(version, OTEL_PREFIXED_DIMENSIONS);
+    }
+
     private static String hex(BytesRef tsid) {
         return HexFormat.of().formatHex(tsid.bytes, tsid.offset, tsid.length);
     }
@@ -67,6 +76,15 @@ public class TsidBuilderTests extends ESTestCase {
             .addStringDimension("attributes.operation", operation)
             .addStringDimension("scope.name", "scope")
             .addIntDimension("attributes.port", 8080);
+    }
+
+    /** A Prometheus-shaped series: the metric name label, the scrape target labels, and another label. */
+    private static TsidBuilder prometheusSeries(String job, String instance, String method) {
+        return TsidBuilder.newBuilder()
+            .addStringDimension(TsidBuilder.PROMETHEUS_LABEL_FIELD, "http_requests_total")
+            .addStringDimension("labels.job", job)
+            .addStringDimension("labels.instance", instance)
+            .addStringDimension("labels.method", method);
     }
 
     /**
@@ -311,7 +329,7 @@ public class TsidBuilderTests extends ESTestCase {
     public void testPrefixedDimensionsHashLayout() {
         TsidBuilder builder = otelSeries("host-1", "service-a", "op-1");
         BytesRef before = builder.buildTsid(randomSinglePrefixByteOnlyVersion());
-        BytesRef after = builder.buildTsid(randomPrefixedDimensionsHashVersion());
+        BytesRef after = builder.buildTsid(otelLayout(randomPrefixedDimensionsHashVersion()));
         assertThat(after.length, equalTo(16));
         assertThat(after.bytes[after.offset], equalTo(before.bytes[before.offset]));
         assertThat(slice(after, 3, 16), equalTo(slice(before, 3, 16)));
@@ -324,7 +342,7 @@ public class TsidBuilderTests extends ESTestCase {
 
     /** Series of one metric and resource sort next to each other; series of another resource do not. */
     public void testPrefixedDimensionsHashClustersSeriesByResource() {
-        TsidLayout layout = TsidLayout.forVersion(randomPrefixedDimensionsHashVersion());
+        TsidLayout layout = otelLayout(randomPrefixedDimensionsHashVersion());
         BytesRef sameResource1 = otelSeries("host-1", "service-a", "op-1").buildTsid(layout);
         BytesRef sameResource2 = otelSeries("host-1", "service-a", "op-2").buildTsid(layout);
         BytesRef otherResource = otelSeries("host-2", "service-a", "op-1").buildTsid(layout);
@@ -342,7 +360,7 @@ public class TsidBuilderTests extends ESTestCase {
 
     /** Bytes 1-2 depend on the prefixed dimensions only, and on both their names and values. */
     public void testPrefixedDimensionsHashCoversNamesAndValuesUnderThePrefixOnly() {
-        TsidLayout layout = TsidLayout.forVersion(randomPrefixedDimensionsHashVersion());
+        TsidLayout layout = otelLayout(randomPrefixedDimensionsHashVersion());
         BytesRef base = TsidBuilder.newBuilder()
             .addStringDimension("resource.attributes.host.name", "host-1")
             .addStringDimension("attributes.operation", "op-1")
@@ -378,7 +396,7 @@ public class TsidBuilderTests extends ESTestCase {
 
     /** Values of an array-valued prefixed dimension are hashed in source order, as in the full hash. */
     public void testPrefixedDimensionsHashKeepsArrayOrder() {
-        TsidLayout layout = TsidLayout.forVersion(randomPrefixedDimensionsHashVersion());
+        TsidLayout layout = otelLayout(randomPrefixedDimensionsHashVersion());
         BytesRef ab = TsidBuilder.newBuilder()
             .addStringDimension("resource.attributes.tags", "a")
             .addStringDimension("resource.attributes.tags", "b")
@@ -392,7 +410,7 @@ public class TsidBuilderTests extends ESTestCase {
         assertThat(slice(ab, 1, 3), not(equalTo(slice(ba, 1, 3))));
     }
 
-    /** Without a dimension under the prefix, bytes 1-2 keep the full hash, so the tsid is the one of the previous layout. */
+    /** Without a matching dimension, bytes 1-2 keep the full hash, so the tsid is the one of the previous layout. */
     public void testPrefixedDimensionsHashWithoutMatchingDimensionKeepsFullHash() {
         TsidBuilder builder = TsidBuilder.newBuilder()
             .addStringDimension(TsidBuilder.OTEL_METRIC_FIELD, "random1")
@@ -400,66 +418,101 @@ public class TsidBuilderTests extends ESTestCase {
             .addStringDimension("resource_attributes.host", "not under the prefix")
             .addStringDimension("resource.attribute", "not under the prefix either");
         assertThat(
-            builder.buildTsid(randomPrefixedDimensionsHashVersion()),
+            builder.buildTsid(otelLayout(randomPrefixedDimensionsHashVersion())),
             equalTo(builder.buildTsid(randomSinglePrefixByteOnlyVersion()))
         );
     }
 
-    /** The prefix is a literal path prefix: no implicit path separator is required after it. */
-    public void testPrefixedDimensionsPrefixIsLiteral() {
+    /** A pattern is a literal path with wildcards: {@code resource.attributes.*} does not match {@code resource.attributes_extra}. */
+    public void testPrefixedDimensionPatternsAreLiteral() {
         IndexVersion version = randomPrefixedDimensionsHashVersion();
         TsidBuilder builder = TsidBuilder.newBuilder()
             .addStringDimension("resource.attributes.host", "h")
             .addStringDimension("resource.attributes_extra", "x")
             .addStringDimension("attributes.operation", "op-1");
-        BytesRef withDot = builder.buildTsid(new TsidLayout(version, "resource.attributes."));
-        BytesRef withoutDot = builder.buildTsid(new TsidLayout(version, "resource.attributes"));
+        BytesRef withDot = builder.buildTsid(new TsidLayout(version, List.of("resource.attributes.*")));
+        BytesRef withoutDot = builder.buildTsid(new TsidLayout(version, List.of("resource.attributes*")));
         assertThat(slice(withDot, 1, 3), not(equalTo(slice(withoutDot, 1, 3))));
         assertThat(slice(withDot, 3, 16), equalTo(slice(withoutDot, 3, 16)));
-        assertTrue(TsidBuilder.isPrefixedDimension("resource.attributes_extra", "resource.attributes"));
-        assertFalse(TsidBuilder.isPrefixedDimension("resource.attributes_extra", "resource.attributes."));
+        assertTrue(TsidBuilder.isPrefixedDimension("resource.attributes_extra", path -> path.startsWith("resource.attributes")));
         assertFalse(TsidBuilder.isPrefixedDimension("resource.attributes.host", null));
-        assertTrue(TsidBuilder.isPrefixedDimension("anything", ""));
     }
 
-    /** An empty prefix setting disables the prefixed-dimensions hash rather than matching every dimension. */
-    public void testEmptyPrefixDisablesPrefixedDimensionsHash() {
+    /**
+     * Exact paths, as the Prometheus templates use for {@code labels.job} and {@code labels.instance}: only those dimensions
+     * are hashed, so series of one scrape target cluster regardless of their other labels.
+     */
+    public void testExactPrefixedDimensions() {
+        TsidLayout layout = new TsidLayout(randomPrefixedDimensionsHashVersion(), List.of("labels.job", "labels.instance"));
+        BytesRef base = prometheusSeries("api", "host-1:9100", "GET").buildTsid(layout);
+        BytesRef otherLabel = prometheusSeries("api", "host-1:9100", "POST").buildTsid(layout);
+        BytesRef otherInstance = prometheusSeries("api", "host-2:9100", "GET").buildTsid(layout);
+        BytesRef otherJob = prometheusSeries("db", "host-1:9100", "GET").buildTsid(layout);
+        assertThat(slice(base, 0, 3), equalTo(slice(otherLabel, 0, 3)));
+        assertThat(slice(base, 3, 16), not(equalTo(slice(otherLabel, 3, 16))));
+        assertThat(slice(base, 1, 3), not(equalTo(slice(otherInstance, 1, 3))));
+        assertThat(slice(base, 1, 3), not(equalTo(slice(otherJob, 1, 3))));
+        // An exact path does not match longer paths under it, nor shorter ones.
+        BytesRef prefixedOnly = TsidBuilder.newBuilder()
+            .addStringDimension(TsidBuilder.PROMETHEUS_LABEL_FIELD, "up")
+            .addStringDimension("labels.job_name", "api")
+            .addStringDimension("labels.instance.id", "host-1:9100")
+            .addStringDimension("labels", "x")
+            .buildTsid(layout);
+        BytesRef prefixedOnlyDisabled = TsidBuilder.newBuilder()
+            .addStringDimension(TsidBuilder.PROMETHEUS_LABEL_FIELD, "up")
+            .addStringDimension("labels.job_name", "api")
+            .addStringDimension("labels.instance.id", "host-1:9100")
+            .addStringDimension("labels", "x")
+            .buildTsid(new TsidLayout(layout.indexVersion(), List.of()));
+        assertThat(prefixedOnly, equalTo(prefixedOnlyDisabled));
+    }
+
+    /** By default, and with an empty list, the prefixed-dimensions hash is off and the tsid is that of the previous layout. */
+    public void testNoPrefixedDimensionsByDefault() {
         TsidBuilder builder = otelSeries("host-1", "service-a", "op-1");
         IndexVersion version = randomPrefixedDimensionsHashVersion();
-        TsidLayout disabled = new TsidLayout(version, "");
-        assertNull(disabled.effectiveDimensionsPrefix());
+        TsidLayout disabled = new TsidLayout(version, List.of());
+        assertNull(disabled.prefixedDimensionMatcher());
+        assertThat(TsidLayout.forVersion(version), equalTo(disabled));
         assertThat(builder.buildTsid(disabled), equalTo(builder.buildTsid(randomSinglePrefixByteOnlyVersion())));
-        assertThat(builder.buildTsid(disabled), not(equalTo(builder.buildTsid(version))));
+        assertThat(builder.buildTsid(version), equalTo(builder.buildTsid(randomSinglePrefixByteOnlyVersion())));
+        assertThat(builder.buildTsid(disabled), not(equalTo(builder.buildTsid(otelLayout(version)))));
     }
 
-    /** A custom prefix selects other dimensions than the default one; the rest of the tsid is unaffected. */
-    public void testCustomPrefix() {
+    /** Other patterns select other dimensions than the OTel ones; the rest of the tsid is unaffected. */
+    public void testCustomPrefixedDimensions() {
         IndexVersion version = randomPrefixedDimensionsHashVersion();
         TsidBuilder builder = otelSeries("host-1", "service-a", "op-1");
-        BytesRef defaultPrefix = builder.buildTsid(TsidLayout.forVersion(version));
-        BytesRef customPrefix = builder.buildTsid(new TsidLayout(version, "attributes."));
-        assertThat(slice(defaultPrefix, 0, 1), equalTo(slice(customPrefix, 0, 1)));
-        assertThat(slice(defaultPrefix, 1, 3), not(equalTo(slice(customPrefix, 1, 3))));
-        assertThat(slice(defaultPrefix, 3, 16), equalTo(slice(customPrefix, 3, 16)));
-        // Under the custom prefix, series sharing attributes.* cluster regardless of their resource.
-        BytesRef otherResource = otelSeries("host-2", "service-b", "op-1").buildTsid(new TsidLayout(version, "attributes."));
+        BytesRef otel = builder.buildTsid(otelLayout(version));
+        TsidLayout custom = new TsidLayout(version, List.of("attributes.*"));
+        BytesRef customPrefix = builder.buildTsid(custom);
+        assertThat(slice(otel, 0, 1), equalTo(slice(customPrefix, 0, 1)));
+        assertThat(slice(otel, 1, 3), not(equalTo(slice(customPrefix, 1, 3))));
+        assertThat(slice(otel, 3, 16), equalTo(slice(customPrefix, 3, 16)));
+        // Under the custom patterns, series sharing attributes.* cluster regardless of their resource.
+        BytesRef otherResource = otelSeries("host-2", "service-b", "op-1").buildTsid(custom);
         assertThat(slice(customPrefix, 0, 3), equalTo(slice(otherResource, 0, 3)));
+        // Listing the same dimensions as exact paths gives the same tsid as the wildcard pattern.
+        TsidLayout exact = new TsidLayout(version, List.of("resource.attributes.service.name", "resource.attributes.host.name"));
+        assertThat(builder.buildTsid(exact), equalTo(otel));
     }
 
-    /** The layouts predating the prefixed-dimensions hash ignore the prefix setting entirely. */
-    public void testPrefixIgnoredByEarlierLayouts() {
+    /** The layouts predating the prefixed-dimensions hash ignore the setting entirely. */
+    public void testPrefixedDimensionsIgnoredByEarlierLayouts() {
         TsidBuilder builder = otelSeries("host-1", "service-a", "op-1");
         for (IndexVersion version : List.of(randomMultiplePrefixBytesVersion(), randomSinglePrefixByteOnlyVersion())) {
             BytesRef expected = builder.buildTsid(version);
-            assertThat(builder.buildTsid(new TsidLayout(version, "attributes.")), equalTo(expected));
-            assertThat(builder.buildTsid(new TsidLayout(version, "")), equalTo(expected));
-            assertNull(TsidLayout.forVersion(version).effectiveDimensionsPrefix());
+            assertThat(builder.buildTsid(otelLayout(version)), equalTo(expected));
+            assertThat(builder.buildTsid(new TsidLayout(version, List.of("attributes.*"))), equalTo(expected));
+            assertThat(builder.buildTsid(new TsidLayout(version, List.of())), equalTo(expected));
+            assertNull(otelLayout(version).prefixedDimensionMatcher());
         }
     }
 
     /** A reused builder must produce what a fresh builder would under the prefixed-dimensions layout as well. */
     public void testReusedBuilderMatchesFreshBuilderWithPrefixedDimensions() {
-        TsidLayout layout = TsidLayout.forVersion(randomPrefixedDimensionsHashVersion());
+        TsidLayout layout = otelLayout(randomPrefixedDimensionsHashVersion());
         TsidBuilder reused = otelSeries("host-1", "service-a", "op-1");
         BytesRef first = reused.buildTsid(layout);
         reused.reset();
@@ -501,7 +554,7 @@ public class TsidBuilderTests extends ESTestCase {
      * path does, given the same inputs: hashing the prefixed dimensions through the builder's own 4-words-per-dimension stream.
      */
     public void testWriteSingleBytePrefixTsidMatchesRowPath() {
-        TsidLayout layout = TsidLayout.forVersion(randomPrefixedDimensionsHashVersion());
+        TsidLayout layout = otelLayout(randomPrefixedDimensionsHashVersion());
         TsidBuilder builder = otelSeries("host-1", "service-a", "op-1");
         BytesRef expected = builder.buildTsid(layout);
 

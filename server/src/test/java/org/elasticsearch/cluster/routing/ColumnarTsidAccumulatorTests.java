@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.TreeSet;
+import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -47,27 +48,28 @@ public class ColumnarTsidAccumulatorTests extends ESTestCase {
         return IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TSID_PREFIXED_DIMENSIONS_HASH);
     }
 
-    /** The dimensions prefix of the rows these tests build; the default setting value is unrelated to their paths. */
+    /** The path prefix of the prefixed dimensions of the rows these tests build. */
     private static final String DIMENSIONS_PREFIX = "dim.resource.";
 
     /**
      * Every layout: the legacy multi-byte prefix, the single prefix byte alone, and the single prefix byte with the
-     * prefixed-dimensions hash under the test prefix, under the default prefix (which no test path matches), and disabled
-     * by an empty prefix.
+     * prefixed-dimensions hash over the test prefix, over exact paths, over patterns no test path matches, and disabled by
+     * the default empty setting.
      */
     private static List<TsidLayout> allLayouts() {
         return List.of(
             TsidLayout.forVersion(multiBytePrefixVersion()),
             TsidLayout.forVersion(singleBytePrefixVersion()),
-            new TsidLayout(prefixedDimensionsHashVersion(), DIMENSIONS_PREFIX),
-            TsidLayout.forVersion(prefixedDimensionsHashVersion()),
-            new TsidLayout(prefixedDimensionsHashVersion(), "")
+            new TsidLayout(prefixedDimensionsHashVersion(), List.of(DIMENSIONS_PREFIX + "*")),
+            new TsidLayout(prefixedDimensionsHashVersion(), List.of(DIMENSIONS_PREFIX + "host", DIMENSIONS_PREFIX + "attr0")),
+            new TsidLayout(prefixedDimensionsHashVersion(), List.of("resource.attributes.*", "labels.job")),
+            TsidLayout.forVersion(prefixedDimensionsHashVersion())
         );
     }
 
     private static void assertAccumulatorMatchesTsidBuilder(List<List<Dim>> rows) {
         for (TsidLayout layout : allLayouts()) {
-            String dimensionsPrefix = layout.effectiveDimensionsPrefix();
+            Predicate<String> isPrefixedDimension = layout.prefixedDimensionMatcher();
             BufferedMurmur3Hasher hasher = new BufferedMurmur3Hasher(0L);
 
             // Reference: row-major through TsidBuilder, dimensions added in source order.
@@ -91,14 +93,14 @@ public class ColumnarTsidAccumulatorTests extends ESTestCase {
             ColumnarTsidAccumulator accumulator = ColumnarTsidAccumulator.create(
                 rows.size(),
                 layout.singleBytePrefix(),
-                dimensionsPrefix != null
+                isPrefixedDimension != null
             );
             int pathGroup = TsidBuilder.NO_PATH_GROUP;
             for (String path : sortedPaths) {
                 pathGroup++;
                 MurmurHash3.Hash128 pathHash = TsidBuilder.hashPath(hasher, path);
                 int prefixRank = TsidBuilder.prefixByteRank(path);
-                boolean prefixedDimension = TsidBuilder.isPrefixedDimension(path, dimensionsPrefix);
+                boolean prefixedDimension = TsidBuilder.isPrefixedDimension(path, isPrefixedDimension);
                 for (int r = 0; r < rows.size(); r++) {
                     for (Dim d : rows.get(r)) {
                         if (d.path().equals(path)) {

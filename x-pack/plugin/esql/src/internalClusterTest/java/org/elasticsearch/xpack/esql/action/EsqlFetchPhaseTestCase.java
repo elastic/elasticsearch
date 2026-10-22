@@ -21,6 +21,8 @@ import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -608,6 +610,122 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
         assertFetched(run, 6);
         assertLoadedOnlyBeforeTheCut(run, "unique_sort");
         assertFetchedOnly(run, "union_value");
+    }
+
+    /**
+     * {@code HIGHLIGHT} after the cut highlights the text the fetch loaded for the winners. The text is not loaded before
+     * the cut.
+     */
+    public void testHighlightsTheFetchedText() {
+        String index = createTextIndex();
+        Run run = runBoth(
+            "FROM "
+                + index
+                + " | SORT unique_sort DESC | LIMIT 3 | HIGHLIGHT \"fox jumps\" ON content | KEEP unique_sort, highlight_content"
+        );
+        assertThat(
+            run.rows(),
+            equalTo(
+                List.of(
+                    List.of(63L, "The quick brown <em>fox</em> number 63 sleeps"),
+                    List.of(62L, "The quick brown <em>fox</em> number 62 <em>jumps</em>"),
+                    List.of(61L, "The quick brown <em>fox</em> number 61 sleeps")
+                )
+            )
+        );
+        assertFetched(run, 3);
+        assertLoadedOnlyBeforeTheCut(run, "unique_sort");
+        assertFetchedOnly(run, "content");
+    }
+
+    /**
+     * {@code HIGHLIGHT} without a query highlights the fetched text with the full-text functions of the {@code WHERE}
+     * before the cut.
+     */
+    public void testHighlightsTheFetchedTextWithTheQueryOfTheWhere() {
+        String index = createTextIndex();
+        Run run = runBoth(
+            "FROM "
+                + index
+                + " | WHERE MATCH(content, \"jumps\") | SORT unique_sort DESC | LIMIT 3 | HIGHLIGHT ON content"
+                + " | KEEP unique_sort, highlight_content"
+        );
+        assertThat(
+            run.rows(),
+            equalTo(
+                List.of(
+                    List.of(62L, "The quick brown fox number 62 <em>jumps</em>"),
+                    List.of(60L, "The quick brown fox number 60 <em>jumps</em>"),
+                    List.of(58L, "The quick brown fox number 58 <em>jumps</em>")
+                )
+            )
+        );
+        assertFetched(run, 3);
+        assertFetchedOnly(run, "content");
+    }
+
+    /**
+     * When the highlighted field has another analyzer in each index, {@code HIGHLIGHT} reads the index of each row as
+     * well, and the fetch loads it with the text. Every row is highlighted with the analyzer of its own index.
+     */
+    public void testHighlightsWithTheAnalyzerOfEachIndex() {
+        String standard = indexName + "_standard";
+        String whitespace = indexName + "_whitespace";
+        for (String index : List.of(standard, whitespace)) {
+            assertAcked(
+                indicesAdmin().prepareCreate(index)
+                    .setSettings(indexSettings(1, 0))
+                    .setMapping(
+                        "unique_sort",
+                        "type=long",
+                        "content",
+                        "type=text,analyzer=" + (index.equals(standard) ? "standard" : "whitespace")
+                    )
+            );
+        }
+        BulkRequestBuilder bulk = client().prepareBulk();
+        for (int i = 0; i < 4; i++) {
+            bulk.add(prepareIndex(standard).setSource("unique_sort", i, "content", "The Fox jumps " + i));
+            bulk.add(prepareIndex(whitespace).setSource("unique_sort", i + 4, "content", "The Fox jumps " + (i + 4)));
+        }
+        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+        Run run = runBoth(
+            "FROM "
+                + standard
+                + ","
+                + whitespace
+                + " | SORT unique_sort ASC | LIMIT 8 | HIGHLIGHT \"fox\" ON content | KEEP unique_sort, highlight_content"
+        );
+        List<List<Object>> expected = new ArrayList<>();
+        for (long i = 0; i < 8; i++) {
+            // the whitespace analyzer keeps "Fox" as it is, so "fox" doesn't match it
+            expected.add(Arrays.asList(i, i < 4 ? "The <em>Fox</em> jumps " + i : null));
+        }
+        assertThat(run.rows(), equalTo(expected));
+        assertFetched(run, 8);
+        assertFetchedOnly(run, "content");
+        assertFetchedOnly(run, "_index");
+    }
+
+    /**
+     * Creates an index of 64 documents, on 4 shards, with a {@code content} text field that names the fox of each document,
+     * and says that every even one jumps and every odd one sleeps.
+     */
+    private String createTextIndex() {
+        String index = indexName + "_text";
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(indexSettings(4, 0))
+                .setMapping("unique_sort", "type=long", "content", "type=text")
+        );
+        BulkRequestBuilder bulk = client().prepareBulk();
+        for (int i = 0; i < 64; i++) {
+            String verb = i % 2 == 0 ? "jumps" : "sleeps";
+            bulk.add(prepareIndex(index).setSource("unique_sort", i, "content", "The quick brown fox number " + i + " " + verb));
+        }
+        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        return index;
     }
 
     /**

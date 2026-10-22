@@ -1,0 +1,10 @@
+ProjectExec[[book_no{f}#0, title{f}#1, highlight_description{r}#2]]
+\_HighlightExec[highlight_,MATCH(description{f}#3,ring[KEYWORD]),[description{f}#3],null,[highlight_description{r}#2],null,{}]
+  \_FetchExec[_doc{f}#4,[description{f}#3, title{f}#1],books,[],null]
+    \_TopNExec[[Order[book_no{f}#0,ASC,LAST]],5[INTEGER],null]
+      \_ExchangeExec[[_doc{f}#4, book_no{f}#0],false]
+        \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+Project[[_doc{f}#4, book_no{f}#0]]
+\_TopN[[Order[book_no{f}#0,ASC,LAST]],5[INTEGER],false]
+  \_Filter[MATCH(description{f}#3,ring[KEYWORD])]
+    \_EsRelation[books][_doc{f}#4, author{f}#5, author.keyword{f}#6, book_no{f}#0, collection{f}#7, description{f}#3, publisher{f}#8, ratings{f}#9, title{f}#1, year{f}#10]<>]]

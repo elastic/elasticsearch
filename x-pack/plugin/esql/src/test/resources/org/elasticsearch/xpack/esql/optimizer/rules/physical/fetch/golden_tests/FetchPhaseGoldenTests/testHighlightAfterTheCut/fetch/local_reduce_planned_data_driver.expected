@@ -1,0 +1,6 @@
+ExchangeSinkExec[[_doc{f}#0, book_no{f}#1],false]
+\_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+Project[[_doc{f}#0, book_no{f}#1]]
+\_TopN[[Order[book_no{f}#1,ASC,LAST]],5[INTEGER],false]
+  \_Filter[MATCH(description{f}#2,ring[KEYWORD])]
+    \_EsRelation[books][_doc{f}#0, author{f}#3, author.keyword{f}#4, book_no{f}#1, collection{f}#5, description{f}#2, publisher{f}#6, ratings{f}#7, title{f}#8, year{f}#9]<>]]

@@ -1,0 +1,6 @@
+pr: 162949
+summary: Apply `min_score` on the `rrf` retriever
+area: Ranking
+type: bug
+issues:
+ - 162069

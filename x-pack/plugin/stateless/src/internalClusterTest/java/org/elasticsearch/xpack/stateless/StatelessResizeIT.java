@@ -61,48 +61,59 @@ public class StatelessResizeIT extends AbstractStatelessPluginIntegTestCase {
     public void testShrinkIndex() throws Exception {
         startMasterOnlyNode();
         final int indexNodesNumber = randomIntBetween(1, 3);
-        final var indexNodes = startIndexNodes(indexNodesNumber);
+        final boolean holdSourceFiles = randomBoolean();
+        final var indexNodes = startIndexNodes(indexNodesNumber, holdSourceFiles ? keepCommitsOnLocalDiskSettings() : Settings.EMPTY);
         final var searchNode = startSearchNode();
+        final var indexNode = randomFrom(indexNodes);
         int sourceShards = randomFrom(2, 4, 8);
         int targetShards = sourceShards / 2;
         String sourceIndex = "source";
         String targetIndex = "target";
 
-        createIndex(sourceIndex, indexSettings(sourceShards, 1).build());
+        final var sourceSettings = Settings.builder().put(sourceIndexSettings(sourceShards, holdSourceFiles));
+        if (holdSourceFiles) {
+            // Colocate the source shards before indexing: relocating them later would upload their local commits.
+            sourceSettings.put("index.routing.allocation.include._name", String.join(",", indexNode, searchNode));
+        }
+        createIndex(sourceIndex, sourceSettings.build());
         ensureGreen(sourceIndex);
 
         int numDocs = randomIntBetween(0, 50);
         if (numDocs > 0) {
             indexDocsAndRefresh(sourceIndex, numDocs);
         }
-        if (randomBoolean()) {
-            flush(sourceIndex);
-        }
+        try (Releasable ignored = holdSourceFiles ? holdCommitFilesOnLocalDisk(sourceIndex, sourceShards) : () -> {}) {
+            if (randomBoolean()) {
+                flush(sourceIndex);
+            }
 
-        // Block writes and relocate all indexing shards to one indexing node
-        final var indexNode = randomFrom(indexNodes);
-        updateIndexSettings(
-            Settings.builder()
-                .put("index.routing.allocation.include._name", String.join(",", indexNode, searchNode))
-                .put("index.blocks.write", true),
-            sourceIndex
-        );
-        ensureGreen(sourceIndex);
-
-        // Shrink
-        assertAcked(
-            executeResize(
-                ResizeType.SHRINK,
-                sourceIndex,
-                targetIndex,
+            // Block writes and relocate all indexing shards to one indexing node
+            updateIndexSettings(
                 Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, targetShards)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                    .putNull("index.blocks.write")
-                    .putNull("index.routing.allocation.include._name")
-            )
-        );
-        ensureGreen(targetIndex);
+                    .put("index.routing.allocation.include._name", String.join(",", indexNode, searchNode))
+                    .put("index.blocks.write", true),
+                sourceIndex
+            );
+            ensureGreen(sourceIndex);
+
+            // Shrink
+            assertAcked(
+                executeResize(
+                    ResizeType.SHRINK,
+                    sourceIndex,
+                    targetIndex,
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, targetShards)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                        .putNull("index.blocks.write")
+                        .putNull("index.routing.allocation.include._name")
+                )
+            );
+            ensureGreen(targetIndex);
+        }
+        if (holdSourceFiles && numDocs > 0) {
+            assertFilesCopiedNotHardLinked(targetIndex, targetShards);
+        }
 
         checkIndicesAfterResize(sourceIndex, targetIndex, sourceShards, targetShards, numDocs);
     }

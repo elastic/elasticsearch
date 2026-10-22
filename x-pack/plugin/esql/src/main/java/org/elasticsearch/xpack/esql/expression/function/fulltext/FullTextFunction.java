@@ -305,6 +305,7 @@ public abstract class FullTextFunction extends Function
             || hasFilterPushdownTarget(plan) == false;
         if (checkCommandsBeforeExpression) {
             if (isLookupJoinOnCondition == false) {
+                Set<String> indexedNames = indexedFieldNames(plan);
                 List.of(QueryString.class, Kql.class).forEach(functionClass -> {
                     // QSTR/KQL need a Lucene index to search, so they can't follow a source without one. They also can't follow
                     // INLINE STATS: they have no attribute references, so the optimizer pushes them into the aggregate's input
@@ -319,9 +320,9 @@ public abstract class FullTextFunction extends Function
                             || lp instanceof InlineStats
                             || lp instanceof InlineJoin) == false,
                         fullTextFunction -> "[" + fullTextFunction.functionName() + "] " + fullTextFunction.functionType(),
+                        lp -> asShadowingCommand(lp, indexedNames),
                         failures
                     );
-                    checkFieldShadowing(plan, condition, functionClass, failures);
                 });
             }
 
@@ -384,17 +385,9 @@ public abstract class FullTextFunction extends Function
     }
 
     /**
-     * Rejects QSTR/KQL after a command that introduces a name colliding with a field of the index. They name their fields
-     * inside an opaque string, so the optimizer can push them below such a command, where the string would silently resolve
-     * against the raw indexed field instead of the redefined column. Separate from {@link #checkCommandsBeforeExpression}
-     * because that method's predicate can't say which field was shadowed.
+     * Names of the fields of the index (or indices) the plan reads from, which a QSTR/KQL query string resolves against.
      */
-    private static void checkFieldShadowing(
-        LogicalPlan plan,
-        Expression condition,
-        Class<? extends FullTextFunction> typeToken,
-        Failures failures
-    ) {
+    private static Set<String> indexedFieldNames(LogicalPlan plan) {
         Set<String> indexedNames = new HashSet<>();
         plan.forEachDown(EsRelation.class, r -> {
             // A LOOKUP JOIN's right-hand index is itself an EsRelation, just with indexMode() == LOOKUP. Its fields
@@ -410,47 +403,7 @@ public abstract class FullTextFunction extends Function
                 }
             }
         });
-
-        Set<String> inheritedSourceTexts = inheritedSourceTexts(plan);
-        condition.forEachDown(typeToken, exp -> {
-            // No early exit: forEachDown always walks the full subtree (Node#forEachDown has no short-circuit),
-            // and checkCommandsBeforeExpression's existing walk reports every violating ancestor rather than just
-            // the first, e.g. both LIMIT and MV_EXPAND each get their own failure if both precede the function.
-            // Match that behavior here instead of stopping at the first shadowing ancestor found.
-            plan.forEachDown(LogicalPlan.class, lp -> {
-                ShadowingCommand hit = asShadowingCommand(lp, indexedNames);
-                if (hit != null && inheritedSourceTexts.contains(lp.sourceText())) {
-                    // An alignment node the analyzer inserted into a UnionAll branch has no command of its own, e.g.
-                    // `TOLONG(counter) AS counter`, added because counter metrics can't flow through a UnionAll. It inherits
-                    // the whole FROM clause as its source text, the signal checkCommandsBeforeExpression already uses. Naming
-                    // it "EVAL" would point the user at a command they never wrote and a field they never mentioned, so
-                    // report the FROM clause instead, as the old allow-list did.
-                    failures.add(
-                        fail(
-                            plan,
-                            "[{}] {} cannot be used after {}",
-                            exp.functionName(),
-                            exp.functionType(),
-                            abbreviateSource(lp.sourceText())
-                        )
-                    );
-                } else if (hit != null) {
-                    // Anchored at `plan` (the Filter/LookupJoin itself), matching checkCommandsBeforeExpression's own
-                    // convention - its failures are all `fail(plan, ...)`, never `fail(lp, ...)`, even though `lp` is
-                    // the specific ancestor that triggered the check.
-                    failures.add(
-                        fail(
-                            plan,
-                            "[{}] {} cannot be used after {} because [{}] redefines a field used by the index",
-                            exp.functionName(),
-                            exp.functionType(),
-                            hit.commandName(),
-                            hit.fieldName()
-                        )
-                    );
-                }
-            });
-        });
+        return indexedNames;
     }
 
     private record ShadowingCommand(String commandName, String fieldName) {}
@@ -520,6 +473,26 @@ public abstract class FullTextFunction extends Function
         java.util.function.Function<E, String> typeErrorMsgProvider,
         Failures failures
     ) {
+        checkCommandsBeforeExpression(plan, condition, typeToken, commandCheck, typeErrorMsgProvider, lp -> null, failures);
+    }
+
+    /**
+     * Like the overload above, and additionally rejects a command that {@code shadowCheck} says introduces a name
+     * colliding with a field of the index. QSTR/KQL name their fields inside an opaque string, so the optimizer can push
+     * them below such a command, where the string would silently resolve against the raw indexed field instead of the
+     * redefined column. A command that fails {@code commandCheck} is reported once, without also being checked for shadowing.
+     *
+     * @param shadowCheck returns the shadowing command and field for a plan node, or {@code null} if it shadows nothing
+     */
+    private static <E extends Expression> void checkCommandsBeforeExpression(
+        LogicalPlan plan,
+        Expression condition,
+        Class<E> typeToken,
+        Predicate<LogicalPlan> commandCheck,
+        java.util.function.Function<E, String> typeErrorMsgProvider,
+        java.util.function.Function<LogicalPlan, ShadowingCommand> shadowCheck,
+        Failures failures
+    ) {
         Set<String> inheritedSourceTexts = inheritedSourceTexts(plan);
         condition.forEachDown(typeToken, exp -> {
             // A runtime search is evaluated row by row over the values already in the page (see RuntimeSearch) instead
@@ -563,6 +536,30 @@ public abstract class FullTextFunction extends Function
                         ? " when it targets an indexed field"
                         : "";
                     failures.add(fail(plan, "{} cannot be used after {}{}", typeErrorMsgProvider.apply(exp), errorMessage, qualifier));
+                    return;
+                }
+                ShadowingCommand shadowing = shadowCheck.apply(lp);
+                if (shadowing == null) {
+                    return;
+                }
+                if (inheritedSourceTexts.contains(lp.sourceText())) {
+                    // An alignment node the analyzer inserted into a UnionAll branch has no command of its own, e.g.
+                    // `TOLONG(counter) AS counter`, added because counter metrics can't flow through a UnionAll. It inherits
+                    // the whole FROM clause as its source text. Naming it "EVAL" would point the user at a command they never
+                    // wrote and a field they never mentioned, so report the FROM clause instead, as the old allow-list did.
+                    failures.add(
+                        fail(plan, "{} cannot be used after {}", typeErrorMsgProvider.apply(exp), abbreviateSource(lp.sourceText()))
+                    );
+                } else {
+                    failures.add(
+                        fail(
+                            plan,
+                            "{} cannot be used after {} because [{}] redefines a field used by the index",
+                            typeErrorMsgProvider.apply(exp),
+                            shadowing.commandName(),
+                            shadowing.fieldName()
+                        )
+                    );
                 }
             });
         });

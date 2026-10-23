@@ -458,9 +458,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/162565
 - class: org.elasticsearch.search.heappressure.TopHitsLeafCollectorHeapPressureIT
   issue: https://github.com/elastic/elasticsearch/issues/162932
-- class: org.elasticsearch.painless.heappressure.RuntimeFieldHighlightHeapPressureIT
-  method: testDoubleRuntimeFieldFromFreeTextSearch
-  issue: https://github.com/elastic/elasticsearch/issues/162593
 - class: org.elasticsearch.xpack.enrich.heappressure.EnrichDistinctKeysHeapPressureIT
   issue: https://github.com/elastic/incident-management/issues/2018
 - class: org.elasticsearch.xpack.enrich.heappressure.EnrichRepeatedKeyColdHeapPressureIT

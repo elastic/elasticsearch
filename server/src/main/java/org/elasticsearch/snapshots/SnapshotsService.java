@@ -189,6 +189,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
     private final MasterServiceTaskQueue<SnapshotTask> masterServiceTaskQueue;
 
+    private final MasterServiceTaskQueue<UpdateNodeIdsForRemovalTask> updateNodeIdsToRemoveQueue;
+
     private final SnapshotExternalChangesBatcher externalChangesBatcher;
 
     private final ShardSnapshotUpdateCompletionHandler shardSnapshotUpdateCompletionHandler;
@@ -1510,8 +1512,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             return clusterState;
         }
     }
-
-    private final MasterServiceTaskQueue<UpdateNodeIdsForRemovalTask> updateNodeIdsToRemoveQueue;
 
     private boolean assertConsistentWithClusterState(ClusterState currentState) {
         // submit the assertion to the master because it has to run when the publication has completely finished

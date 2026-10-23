@@ -147,7 +147,7 @@ public class NumericColumnTests extends ESTestCase {
 
             try (IndexOutput meta = dir.createOutput("num.cnm", IOContext.DEFAULT)) {
                 ColumnarCodecUtil.writeHeader(meta, "ColumNARMeta", FormatVersion.CURRENT, segmentId, "");
-                written.writeTo(meta);
+                written.writeTo(meta, FormatVersion.CURRENT);
                 ColumnarCodecUtil.writeFooter(meta);
             }
             final NumericColumnMetadata read = readNumericMeta(dir, "num.cnm", segmentId, docValues.length);
@@ -201,7 +201,7 @@ public class NumericColumnTests extends ESTestCase {
 
         final byte[] buf = new byte[256];
         final ByteArrayDataOutput out = new ByteArrayDataOutput(buf);
-        meta.writeTo(out);
+        meta.writeTo(out, FormatVersion.CURRENT);
         final ByteArrayDataInput in = new ByteArrayDataInput(buf, 0, out.getPosition());
         final NumericColumnMetadata roundTripped = NumericColumnMetadata.readFrom(in, numDocsWithField, FormatVersion.CURRENT);
 
@@ -246,7 +246,7 @@ public class NumericColumnTests extends ESTestCase {
 
             try (IndexOutput meta = dir.createOutput("num.cnm", IOContext.DEFAULT)) {
                 ColumnarCodecUtil.writeHeader(meta, "ColumNARMeta", FormatVersion.CURRENT, segmentId, "");
-                written.writeTo(meta);
+                written.writeTo(meta, FormatVersion.CURRENT);
                 ColumnarCodecUtil.writeFooter(meta);
             }
 

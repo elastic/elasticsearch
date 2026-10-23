@@ -9,18 +9,23 @@
 
 package org.elasticsearch.index.codec.columnar;
 
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.columnar.ColumnarFormat;
+import org.elasticsearch.columnar.FormatVersion;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -46,6 +51,7 @@ import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
 
@@ -442,6 +448,78 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
             bytes.get("ascending-with-missing")
         );
         assertTrue("a secondary sort key writes none: " + bytes, bytes.get("descending-secondary") + oneEntry <= bytes.get("descending"));
+    }
+
+    public void testAnIndexCreatedBeforeThePlainSkipperKeepsTheBaselineLayout() throws IOException {
+        final Map<String, String> values = new LinkedHashMap<>();
+        for (int doc = 0; doc < 3000; doc++) {
+            values.put(Integer.toString(doc), Strings.format("v-%06d", doc));
+        }
+        final Map<IndexVersion, Long> bytes = new LinkedHashMap<>();
+        final Map<IndexVersion, Integer> formatVersions = new LinkedHashMap<>();
+        for (IndexVersion created : List.of(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG, IndexVersions.COLUMNAR_PLAIN_SKIP_INDEX)) {
+            final String index = INDEX + "-created-" + created.id();
+            final Settings.Builder settings = Settings.builder()
+                .put(columnarSettings(IndexMode.COLUMNAR, true))
+                .put(IndexMetadata.SETTING_VERSION_CREATED, created)
+                .put("index.compound_format", false)
+                .put("index.sort.field", "kw");
+            indicesAdmin().prepareCreate(index).setSettings(settings).setMapping("""
+                {
+                  "properties": {
+                    "kw": { "type": "keyword", "index": false, "doc_values": { "multi_value": false } }
+                  }
+                }""").get();
+            for (int batch = 0; batch < 2; batch++) {
+                final BulkRequestBuilder bulk = client().prepareBulk();
+                final int firstDoc = batch * values.size() / 2;
+                for (int doc = firstDoc; doc < firstDoc + values.size() / 2; doc++) {
+                    bulk.add(prepareIndex(index).setId(Integer.toString(doc)).setSource("kw", values.get(Integer.toString(doc))));
+                }
+                final var response = bulk.get();
+                assertFalse(response.buildFailureMessage(), response.hasFailures());
+                indicesAdmin().prepareRefresh(index).get();
+            }
+            indicesAdmin().prepareForceMerge(index).setMaxNumSegments(1).get();
+            indicesAdmin().prepareRefresh(index).get();
+            assertKeywordFieldUsesColumnarFormat(index);
+            assertQueriesMatch(index, values);
+            bytes.put(created, skipIndexBytes(index));
+            formatVersions.put(created, columnarFormatVersion(index));
+        }
+        final String both = INDEX + "-created-*";
+        assertHitCount(client().prepareSearch(both).setSize(0), 2L * values.size());
+        assertHitCount(
+            client().prepareSearch(both).setQuery(QueryBuilders.termQuery("kw", values.get(Integer.toString(between(0, 2999))))),
+            2
+        );
+        assertEquals(FormatVersion.BASELINE.version(), (int) formatVersions.get(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG));
+        assertEquals(FormatVersion.CURRENT.version(), (int) formatVersions.get(IndexVersions.COLUMNAR_PLAIN_SKIP_INDEX));
+        assertThat(
+            "only the newer index writes the bounds of its primary sort: " + bytes,
+            bytes.get(IndexVersions.COLUMNAR_PLAIN_SKIP_INDEX),
+            greaterThan(bytes.get(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG))
+        );
+    }
+
+    private int columnarFormatVersion(String index) throws IOException {
+        final IndexShard shard = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex(index)).getShard(0);
+        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+            final Set<Integer> versions = new HashSet<>();
+            for (LeafReaderContext leaf : searcher.getLeafContexts()) {
+                for (String file : Lucene.segmentReader(leaf.reader()).getSegmentInfo().files()) {
+                    if (file.endsWith(".cnm")) {
+                        try (IndexInput in = shard.store().directory().openInput(file, IOContext.READONCE)) {
+                            CodecUtil.readBEInt(in);
+                            in.readString();
+                            versions.add(CodecUtil.readBEInt(in));
+                        }
+                    }
+                }
+            }
+            assertEquals("one format version across the segments of [" + index + "] ", 1, versions.size());
+            return versions.iterator().next();
+        }
     }
 
     private void assertQueriesMatch(String index, Map<String, String> values) {

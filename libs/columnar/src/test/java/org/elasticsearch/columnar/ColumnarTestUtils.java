@@ -223,7 +223,8 @@ public final class ColumnarTestUtils {
                 (fieldName, type) -> NumericPipeline::defaultPipeline,
                 field -> ColumnarFieldType.STRING,
                 ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
-                StringColumnOptionsSelector.always(StringColumnOptions.DEFAULT.withSingleValued(true))
+                StringColumnOptionsSelector.always(StringColumnOptions.DEFAULT.withSingleValued(true)),
+                FormatVersion.CURRENT
             )
         );
     }

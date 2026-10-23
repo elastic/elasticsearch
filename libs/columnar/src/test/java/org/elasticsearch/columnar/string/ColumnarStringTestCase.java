@@ -445,7 +445,7 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         }
         try (IndexOutput meta = dir.createOutput(META_FILE, IOContext.DEFAULT)) {
             ColumnarCodecUtil.writeHeader(meta, META_CODEC, FormatVersion.CURRENT, segmentId, "");
-            written.writeTo(meta);
+            written.writeTo(meta, FormatVersion.CURRENT);
             ColumnarCodecUtil.writeFooter(meta);
         }
         try (ChecksumIndexInput in = dir.openChecksumInput(META_FILE)) {

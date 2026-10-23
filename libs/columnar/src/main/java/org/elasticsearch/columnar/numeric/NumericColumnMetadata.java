@@ -155,7 +155,7 @@ public record NumericColumnMetadata(
     }
 
     @Override
-    public void writeTo(DataOutput out) throws IOException {
+    public void writeTo(DataOutput out, FormatVersion formatVersion) throws IOException {
         iterator.writeTo(out);
         out.writeVInt(numDocsWithField);
         if (numDocsWithField == 0) {

@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec.columnar;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.columnar.FormatVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -40,6 +41,24 @@ public class ColumnarDocValuesFormatSelectorTests extends ESTestCase {
         assertTrue(
             ColumnarDocValuesFormatSelector.useColumnarCodec(
                 indexSettings(IndexMode.COLUMNAR, IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG)
+            )
+        );
+    }
+
+    public void testWriteVersionFollowsTheIndexVersionCreated() {
+        final IndexVersion justBefore = IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_PLAIN_SKIP_INDEX);
+        assertEquals(FormatVersion.BASELINE, ColumnarDocValuesFormatSelector.writeVersion(justBefore));
+        assertEquals(FormatVersion.CURRENT, ColumnarDocValuesFormatSelector.writeVersion(IndexVersions.COLUMNAR_PLAIN_SKIP_INDEX));
+        assertEquals(
+            FormatVersion.CURRENT,
+            ColumnarDocValuesFormatSelector.writeVersion(
+                IndexVersionUtils.randomVersionBetween(IndexVersions.COLUMNAR_PLAIN_SKIP_INDEX, IndexVersion.current())
+            )
+        );
+        assertEquals(
+            FormatVersion.BASELINE,
+            ColumnarDocValuesFormatSelector.writeVersion(
+                IndexVersionUtils.randomVersionBetween(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG, justBefore)
             )
         );
     }

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.columnar.string;
 
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
@@ -22,9 +23,12 @@ import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.ColumnarFieldType;
+import org.elasticsearch.columnar.FormatVersion;
 import org.elasticsearch.columnar.numeric.MultiLevelSkipIndexCodec;
 import org.elasticsearch.columnar.numeric.NumericPipeline;
 import org.elasticsearch.columnar.substrate.ChunkBounds;
@@ -34,6 +38,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.columnar.ColumnarTestUtils.columnarBinaryFieldType;
 import static org.elasticsearch.columnar.ColumnarTestUtils.columnarCodec;
@@ -57,7 +62,7 @@ public class PlainStringColumnLifecycleTests extends ESTestCase {
         }
         for (StringColumnOptions mergeOptions : List.of(plain(true), plain(false), dictionary())) {
             try (Directory dir = newDirectory()) {
-                final int[] starts = writeSegments(dir, docSlots, segments, perSegment);
+                final int[] starts = writeSegments(dir, docSlots, segments, perSegment, FormatVersion.CURRENT);
                 try (DirectoryReader reader = DirectoryReader.open(dir)) {
                     assertEquals(segments, reader.leaves().size());
                     checkLeaves(reader, docSlots, starts, pool);
@@ -65,7 +70,7 @@ public class PlainStringColumnLifecycleTests extends ESTestCase {
                 try (DirectoryReader reopened = DirectoryReader.open(dir)) {
                     checkLeaves(reopened, docSlots, starts, pool);
                 }
-                final BytesRef[][] kept = merge(dir, mergeOptions, docSlots, deleted);
+                final BytesRef[][] kept = merge(dir, mergeOptions, docSlots, deleted, FormatVersion.CURRENT);
                 try (DirectoryReader merged = DirectoryReader.open(dir)) {
                     assertEquals(1, merged.leaves().size());
                     checkLeaves(merged, kept, new int[] { 0 }, pool);
@@ -86,7 +91,7 @@ public class PlainStringColumnLifecycleTests extends ESTestCase {
         docSlots[10] = new BytesRef[] { outlier };
         final Counter seeks = new Counter();
         try (Directory dir = new SeekCountingDirectory(newDirectory(), seeks)) {
-            writeSegments(dir, docSlots, 2, List.of(plain(true)));
+            writeSegments(dir, docSlots, 2, List.of(plain(true)), FormatVersion.CURRENT);
             long before = 0;
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 for (LeafReaderContext leaf : reader.leaves()) {
@@ -100,7 +105,7 @@ public class PlainStringColumnLifecycleTests extends ESTestCase {
             assertThat("the outlier forces its interval to be read", before, greaterThan(0L));
             final boolean[] deleted = new boolean[count];
             deleted[10] = true;
-            merge(dir, plain(true), docSlots, deleted);
+            merge(dir, plain(true), docSlots, deleted, FormatVersion.CURRENT);
             try (DirectoryReader merged = DirectoryReader.open(dir)) {
                 final long start = seeks.get();
                 assertEquals(List.of(), StringMatchOracle.matched(columnOf(merged.leaves().get(0)).matchTerm(outlier)));
@@ -118,14 +123,50 @@ public class PlainStringColumnLifecycleTests extends ESTestCase {
         final List<StringColumnOptions> inputs = List.of(plain(true), plain(true), plain(true), plain(false));
         for (int i = 0; i < merges.size(); i++) {
             try (Directory dir = newDirectory()) {
-                writeSegments(dir, docSlots, 3, List.of(inputs.get(i)));
-                merge(dir, merges.get(i), docSlots, deleted);
+                writeSegments(dir, docSlots, 3, List.of(inputs.get(i)), FormatVersion.CURRENT);
+                merge(dir, merges.get(i), docSlots, deleted, FormatVersion.CURRENT);
                 bytes[i] = skipFileBytes(dir);
             }
         }
         assertThat("a plain merge with bounds writes them", bytes[0], greaterThan(bytes[1]));
         assertThat("a merge into a dictionary writes the ordinal index, not plain bounds", bytes[2], greaterThan(0L));
         assertEquals("inputs with and without bounds merge into the same dictionary", bytes[2], bytes[3]);
+    }
+
+    public void testABaselineSegmentWritesNoBoundsAndMergesIntoTheCurrentFormat() throws IOException {
+        final int segments = between(2, 4);
+        final BytesRef[] pool = PlainSkipTestValues.sortedPool(between(8, 40));
+        final BytesRef[][] docSlots = descendingColumn(segments * (INTERVAL + between(1, INTERVAL / 2)), pool);
+        final boolean[] deleted = new boolean[docSlots.length];
+        for (int doc = 0; doc < deleted.length; doc++) {
+            deleted[doc] = randomInt(9) == 0;
+        }
+        try (Directory baseline = newDirectory(); Directory withoutBounds = newDirectory(); Directory current = newDirectory()) {
+            final int[] starts = writeSegments(baseline, docSlots, segments, List.of(plain(true)), FormatVersion.BASELINE);
+            writeSegments(withoutBounds, docSlots, segments, List.of(plain(false)), FormatVersion.BASELINE);
+            writeSegments(current, docSlots, segments, List.of(plain(true)), FormatVersion.CURRENT);
+
+            assertHeaderVersions(baseline, FormatVersion.BASELINE);
+            assertHeaderVersions(current, FormatVersion.CURRENT);
+            assertEquals(
+                "a baseline segment has no room for the bounds it was asked for",
+                skipFileBytes(withoutBounds),
+                skipFileBytes(baseline)
+            );
+            assertThat("the current format writes them", skipFileBytes(current), greaterThan(skipFileBytes(baseline)));
+
+            try (DirectoryReader reader = DirectoryReader.open(baseline)) {
+                assertEquals(segments, reader.leaves().size());
+                checkLeaves(reader, docSlots, starts, pool);
+            }
+            final BytesRef[][] kept = merge(baseline, plain(true), docSlots, deleted, FormatVersion.CURRENT);
+            assertHeaderVersions(baseline, FormatVersion.CURRENT);
+            assertThat("the merge writes the bounds the baseline segments lacked", skipFileBytes(baseline), greaterThan(0L));
+            try (DirectoryReader merged = DirectoryReader.open(baseline)) {
+                assertEquals(1, merged.leaves().size());
+                checkLeaves(merged, kept, new int[] { 0 }, pool);
+            }
+        }
     }
 
     private static void checkLeaves(DirectoryReader reader, BytesRef[][] docSlots, int[] starts, BytesRef[] pool) throws IOException {
@@ -140,14 +181,24 @@ public class PlainStringColumnLifecycleTests extends ESTestCase {
         return ((ColumnarStringBinaryDocValues) leaf.reader().getBinaryDocValues(FIELD)).reader();
     }
 
-    private static int[] writeSegments(Directory dir, BytesRef[][] docSlots, int segments, List<StringColumnOptions> options)
-        throws IOException {
+    private static int[] writeSegments(
+        Directory dir,
+        BytesRef[][] docSlots,
+        int segments,
+        List<StringColumnOptions> options,
+        FormatVersion formatVersion
+    ) throws IOException {
         final int[] starts = new int[segments];
         final int size = docSlots.length / segments;
         for (int segment = 0; segment < segments; segment++) {
             starts[segment] = segment * size;
             final int end = segment == segments - 1 ? docSlots.length : (segment + 1) * size;
-            try (IndexWriter writer = new IndexWriter(dir, config(NoMergePolicy.INSTANCE, options.get(segment % options.size())))) {
+            try (
+                IndexWriter writer = new IndexWriter(
+                    dir,
+                    config(NoMergePolicy.INSTANCE, options.get(segment % options.size()), formatVersion)
+                )
+            ) {
                 for (int doc = starts[segment]; doc < end; doc++) {
                     writer.addDocument(document(doc, docSlots[doc]));
                 }
@@ -156,11 +207,16 @@ public class PlainStringColumnLifecycleTests extends ESTestCase {
         return starts;
     }
 
-    private static BytesRef[][] merge(Directory dir, StringColumnOptions options, BytesRef[][] docSlots, boolean[] deleted)
-        throws IOException {
+    private static BytesRef[][] merge(
+        Directory dir,
+        StringColumnOptions options,
+        BytesRef[][] docSlots,
+        boolean[] deleted,
+        FormatVersion formatVersion
+    ) throws IOException {
         final LogDocMergePolicy policy = new LogDocMergePolicy();
         policy.setNoCFSRatio(0.0);
-        try (IndexWriter writer = new IndexWriter(dir, config(policy, options))) {
+        try (IndexWriter writer = new IndexWriter(dir, config(policy, options, formatVersion))) {
             final List<BytesRef[]> kept = new ArrayList<>();
             for (int doc = 0; doc < docSlots.length; doc++) {
                 if (deleted[doc]) {
@@ -189,6 +245,22 @@ public class PlainStringColumnLifecycleTests extends ESTestCase {
         return document;
     }
 
+    private static void assertHeaderVersions(Directory dir, FormatVersion expected) throws IOException {
+        int checked = 0;
+        for (String file : dir.listAll()) {
+            final String extension = IndexFileNames.getExtension(file);
+            if (extension != null && Set.of("cnd", "cna", "cnl", "cnn", "cnm", "cns").contains(extension)) {
+                try (IndexInput in = dir.openInput(file, IOContext.READONCE)) {
+                    CodecUtil.readBEInt(in);
+                    in.readString();
+                    assertEquals(file, expected.version(), CodecUtil.readBEInt(in));
+                    checked++;
+                }
+            }
+        }
+        assertThat("the files of every segment were checked", checked, greaterThan(0));
+    }
+
     private static long skipFileBytes(Directory dir) throws IOException {
         long bytes = 0;
         for (String file : dir.listAll()) {
@@ -214,12 +286,13 @@ public class PlainStringColumnLifecycleTests extends ESTestCase {
         return docSlots;
     }
 
-    private static IndexWriterConfig config(MergePolicy mergePolicy, StringColumnOptions options) {
+    private static IndexWriterConfig config(MergePolicy mergePolicy, StringColumnOptions options, FormatVersion formatVersion) {
         final ColumNARDocValuesFormat format = new ColumNARDocValuesFormat(
             (field, type) -> NumericPipeline::defaultPipeline,
             field -> ColumnarFieldType.STRING,
             ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
-            StringColumnOptionsSelector.always(options)
+            StringColumnOptionsSelector.always(options),
+            formatVersion
         );
         return new IndexWriterConfig().setCodec(columnarCodec(format)).setUseCompoundFile(false).setMergePolicy(mergePolicy);
     }

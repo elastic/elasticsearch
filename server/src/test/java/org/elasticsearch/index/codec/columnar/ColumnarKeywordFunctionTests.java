@@ -27,6 +27,7 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.ColumnarFieldType;
+import org.elasticsearch.columnar.FormatVersion;
 import org.elasticsearch.columnar.numeric.NumericPipeline;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.columnar.string.StringColumnOptions;
@@ -445,7 +446,8 @@ public class ColumnarKeywordFunctionTests extends ESTestCase {
             (fieldName, type) -> NumericPipeline::defaultPipeline,
             field -> ColumnarFieldType.STRING,
             ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
-            StringColumnOptionsSelector.always(StringColumnOptions.DEFAULT.withSingleValued(singleValued))
+            StringColumnOptionsSelector.always(StringColumnOptions.DEFAULT.withSingleValued(singleValued)),
+            FormatVersion.CURRENT
         );
         return new FilterCodec(base.getName(), base) {
             private final DocValuesFormat perField = new PerFieldDocValuesFormat() {

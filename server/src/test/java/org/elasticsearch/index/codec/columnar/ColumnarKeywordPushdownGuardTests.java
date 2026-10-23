@@ -35,6 +35,7 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.ColumnarFieldType;
+import org.elasticsearch.columnar.FormatVersion;
 import org.elasticsearch.columnar.numeric.NumericPipeline;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.columnar.string.StringColumnOptions;
@@ -684,7 +685,8 @@ public class ColumnarKeywordPushdownGuardTests extends ESTestCase {
             (fieldName, type) -> NumericPipeline::defaultPipeline,
             field -> ColumnarFieldType.STRING,
             ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
-            StringColumnOptionsSelector.always(StringColumnOptions.DEFAULT.withSingleValued(framing == Framing.SINGLE_VALUED))
+            StringColumnOptionsSelector.always(StringColumnOptions.DEFAULT.withSingleValued(framing == Framing.SINGLE_VALUED)),
+            FormatVersion.CURRENT
         );
         return new FilterCodec(base.getName(), base) {
             private final DocValuesFormat perField = new PerFieldDocValuesFormat() {

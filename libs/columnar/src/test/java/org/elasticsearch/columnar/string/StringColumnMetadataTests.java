@@ -9,6 +9,7 @@
 
 package org.elasticsearch.columnar.string;
 
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.BytesRef;
@@ -16,11 +17,18 @@ import org.elasticsearch.columnar.FormatVersion;
 import org.elasticsearch.columnar.substrate.MonotonicWriter;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
+import static org.hamcrest.Matchers.containsString;
 
 /** What a string column records about itself, written and read back on its own. */
 public class StringColumnMetadataTests extends ColumnarStringTestCase {
+
+    private static final StringColumnOptions NO_SUMMARY = StringColumnOptions.DEFAULT.withPolicies(
+        DictionaryPolicy.NONE,
+        SummaryPolicy.NONE
+    );
 
     /** Everything a column records survives the round trip, over a column that was really written. */
     public void testRoundTrip() throws IOException {
@@ -187,6 +195,143 @@ public class StringColumnMetadataTests extends ColumnarStringTestCase {
         );
     }
 
+    public void testABaselinePlainColumnEndsWhereTheNextFieldBegins() throws IOException {
+        final BytesRef[] docValues = uniqueValues(between(50, 400));
+        withColumnWithSummary(docValues, (metadata, reader) -> {
+            assertEquals(StringColumnLayout.PLAIN, metadata.layout());
+            assertTrue("the column recorded a summary that follows its body", metadata.hasSummary());
+            final long sentinel = randomLong();
+            final byte[] buffer = new byte[1 << 16];
+            final ByteArrayDataOutput out = new ByteArrayDataOutput(buffer);
+            metadata.writeTo(out, FormatVersion.BASELINE);
+            metadata.writeTo(out, FormatVersion.BASELINE);
+            out.writeLong(sentinel);
+            final ByteArrayDataInput in = new ByteArrayDataInput(buffer, 0, out.getPosition());
+            for (int column = 0; column < 2; column++) {
+                final StringColumnMetadata read = StringColumnMetadata.readFrom(in, docValues.length, FormatVersion.BASELINE);
+                assertNull(plainOf(read).skipper());
+                assertSameSummary(metadata.summary(), read.summary());
+                assertEquals(metadata.numValues(), read.numValues());
+            }
+            assertEquals(sentinel, in.readLong());
+            assertTrue(in.eof());
+        });
+    }
+
+    public void testTheCurrentLayoutAddsOnlyTheSkipperPresenceByte() throws IOException {
+        final BytesRef[] docValues = uniqueValues(between(50, 400));
+        withColumn(singleValued(docValues), NO_SUMMARY, (metadata, reader) -> {
+            assertFalse(metadata.hasSummary());
+            assertNull(plainOf(metadata).skipper());
+            final byte[] baseline = written(metadata, FormatVersion.BASELINE);
+            final byte[] current = written(metadata, FormatVersion.CURRENT);
+            final int presence = presenceOffset(baseline);
+            assertEquals(baseline.length + 1, current.length);
+            assertEquals("no skipper", 0, current[presence]);
+            assertArrayEquals(Arrays.copyOfRange(baseline, 0, presence), Arrays.copyOfRange(current, 0, presence));
+            assertArrayEquals(
+                Arrays.copyOfRange(baseline, presence, baseline.length),
+                Arrays.copyOfRange(current, presence + 1, current.length)
+            );
+        });
+    }
+
+    public void testACurrentPlainColumnRoundTripsWithAndWithoutASkipper() throws IOException {
+        final BytesRef[] docValues = uniqueValues(between(50, 400));
+        withColumnWithSummary(docValues, (metadata, reader) -> {
+            final StringColumnMetadata.Plain.Skipper skipper = new StringColumnMetadata.Plain.Skipper(
+                randomLongBetween(0, 1L << 40),
+                between(1, docValues.length),
+                randomLongBetween(0, 1L << 30)
+            );
+            final StringColumnMetadata with = plainOf(metadata).withSkipper(skipper);
+            assertEquals(skipper, plainOf(roundTrip(with, docValues.length)).skipper());
+            assertNull(plainOf(roundTrip(plainOf(metadata).withSkipper(null), docValues.length)).skipper());
+            assertSameSummary(metadata.summary(), roundTrip(with, docValues.length).summary());
+        });
+    }
+
+    public void testTheBaselineLayoutHasNoRoomForAPlainSkipper() throws IOException {
+        final BytesRef[] docValues = uniqueValues(between(50, 400));
+        withColumnWithSummary(docValues, (metadata, reader) -> {
+            final StringColumnMetadata with = plainOf(metadata).withSkipper(new StringColumnMetadata.Plain.Skipper(0, 1, 1));
+            expectThrows(IllegalStateException.class, () -> written(with, FormatVersion.BASELINE));
+        });
+    }
+
+    public void testAnUnknownSkipperPresenceByteIsCorrupt() throws IOException {
+        final BytesRef[] docValues = uniqueValues(between(50, 400));
+        withColumn(singleValued(docValues), NO_SUMMARY, (metadata, reader) -> {
+            assertFalse(metadata.hasSummary());
+            final byte[] current = written(metadata, FormatVersion.CURRENT);
+            final int presence = presenceOffset(written(metadata, FormatVersion.BASELINE));
+            final byte unknown = randomFrom((byte) 2, (byte) 3, (byte) 127, (byte) -1);
+            current[presence] = unknown;
+            final CorruptIndexException e = expectThrows(
+                CorruptIndexException.class,
+                () -> StringColumnMetadata.readFrom(new ByteArrayDataInput(current), docValues.length, FormatVersion.CURRENT)
+            );
+            assertThat(e.getMessage(), containsString("invalid plain skipper presence [" + unknown + "]"));
+        });
+    }
+
+    public void testADictionaryColumnIsTheSameInBothVersions() throws IOException {
+        final BytesRef[] docValues = new BytesRef[between(50, 400)];
+        for (int d = 0; d < docValues.length; d++) {
+            docValues[d] = new BytesRef(randomBoolean() ? "head" : "tail");
+        }
+        withColumn(
+            docValues,
+            randomValidBlockSize(),
+            randomChunkCodec(),
+            randomTargetChunkBytes(),
+            new DictionaryPolicy(512 * 1024, 0.0, Double.MAX_VALUE),
+            (metadata, reader) -> {
+                assertEquals(StringColumnLayout.DICTIONARY, metadata.layout());
+                assertArrayEquals(written(metadata, FormatVersion.BASELINE), written(metadata, FormatVersion.CURRENT));
+            }
+        );
+    }
+
+    private void withColumnWithSummary(BytesRef[] docValues, ColumnCheck check) throws IOException {
+        withColumn(
+            docValues,
+            randomValidBlockSize(),
+            randomChunkCodec(),
+            randomTargetChunkBytes(),
+            StringColumnOptions.DEFAULT_DICTIONARY,
+            check
+        );
+    }
+
+    private static BytesRef[] uniqueValues(int count) {
+        final BytesRef[] values = new BytesRef[count];
+        for (int d = 0; d < count; d++) {
+            values[d] = new BytesRef("value-" + d + "-" + randomAlphaOfLength(12));
+        }
+        return values;
+    }
+
+    private static byte[] written(StringColumnMetadata metadata, FormatVersion formatVersion) throws IOException {
+        final byte[] buffer = new byte[1 << 16];
+        final ByteArrayDataOutput out = new ByteArrayDataOutput(buffer);
+        metadata.writeTo(out, formatVersion);
+        return Arrays.copyOf(buffer, out.getPosition());
+    }
+
+    /** Where the current layout puts the presence byte of a column with no summary: just ahead of the flag that says so. */
+    private static int presenceOffset(byte[] baselineWithoutSummary) {
+        return baselineWithoutSummary.length - 1;
+    }
+
+    private static void assertSameSummary(StringColumnMetadata.Summary expected, StringColumnMetadata.Summary actual) {
+        assertEquals(expected.countsOffset(), actual.countsOffset());
+        assertEquals(expected.countsLength(), actual.countsLength());
+        assertEquals(expected.numValues(), actual.numValues());
+        assertEquals(expected.bestCoverage(), actual.bestCoverage());
+        assertEquals(expected.terms() == null, actual.terms() == null);
+    }
+
     private static void assertRoundTrips(StringColumnMetadata metadata, int maxDoc) throws IOException {
         final StringColumnMetadata read = roundTrip(metadata, maxDoc);
         assertEquals("numDocsWithField", metadata.numDocsWithField(), read.numDocsWithField());
@@ -226,7 +371,7 @@ public class StringColumnMetadataTests extends ColumnarStringTestCase {
     private static StringColumnMetadata roundTrip(StringColumnMetadata metadata, int maxDoc) throws IOException {
         final byte[] buffer = new byte[1 << 16];
         final ByteArrayDataOutput out = new ByteArrayDataOutput(buffer);
-        metadata.writeTo(out);
+        metadata.writeTo(out, FormatVersion.CURRENT);
         final ByteArrayDataInput in = new ByteArrayDataInput(buffer, 0, out.getPosition());
         return StringColumnMetadata.readFrom(in, Math.max(maxDoc, 1), FormatVersion.CURRENT);
     }

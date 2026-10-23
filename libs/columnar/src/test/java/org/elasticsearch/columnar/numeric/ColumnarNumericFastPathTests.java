@@ -374,7 +374,7 @@ public class ColumnarNumericFastPathTests extends ESTestCase {
         }
         try (IndexOutput meta = dir.createOutput("num.cnm", IOContext.DEFAULT)) {
             ColumnarCodecUtil.writeHeader(meta, "ColumNARMeta", FormatVersion.CURRENT, segmentId, "");
-            written.writeTo(meta);
+            written.writeTo(meta, FormatVersion.CURRENT);
             ColumnarCodecUtil.writeFooter(meta);
         }
         return open(dir, values.length);
@@ -549,7 +549,7 @@ public class ColumnarNumericFastPathTests extends ESTestCase {
         }
         try (IndexOutput meta = dir.createOutput("num.cnm", IOContext.DEFAULT)) {
             ColumnarCodecUtil.writeHeader(meta, "ColumNARMeta", FormatVersion.CURRENT, segmentId, "");
-            written.writeTo(meta);
+            written.writeTo(meta, FormatVersion.CURRENT);
             ColumnarCodecUtil.writeFooter(meta);
         }
         return open(dir, values.length);

@@ -155,7 +155,8 @@ public class ColumnarStringQueryConsistencyTests extends ESTestCase {
             ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
             StringColumnOptionsSelector.always(
                 StringColumnOptions.DEFAULT.withPolicies(policy, SummaryPolicy.NONE).withSingleValued(singleValued)
-            )
+            ),
+            FormatVersion.CURRENT
         );
         final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(format))
             .setMaxBufferedDocs(between(500, 8000))

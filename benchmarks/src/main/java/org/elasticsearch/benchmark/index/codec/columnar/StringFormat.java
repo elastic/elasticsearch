@@ -45,6 +45,7 @@ import org.elasticsearch.columnar.ColumnarFieldType;
 import org.elasticsearch.columnar.ColumnarStringAnyOfQuery;
 import org.elasticsearch.columnar.ColumnarStringRangeQuery;
 import org.elasticsearch.columnar.ColumnarStringTermQuery;
+import org.elasticsearch.columnar.FormatVersion;
 import org.elasticsearch.columnar.ScanBudget;
 import org.elasticsearch.columnar.string.ColumnarStringBinaryDocValues;
 import org.elasticsearch.columnar.string.DictionaryPolicy;
@@ -273,7 +274,8 @@ public enum StringFormat {
             StringColumnOptionsSelector.always(
                 StringColumnOptions.DEFAULT.withPolicies(dictionaryPolicy(), summaryPolicy())
                     .withPlainSkipIndex(this == COLUMNAR_PLAIN_BOUNDED)
-            )
+            ),
+            FormatVersion.CURRENT
         );
     }
 

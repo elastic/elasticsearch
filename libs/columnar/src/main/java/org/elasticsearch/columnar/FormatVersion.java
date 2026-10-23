@@ -17,8 +17,8 @@ package org.elasticsearch.columnar;
  * The returned {@link FormatVersion} is then passed into every {@code readFrom} method, which
  * branches on a named constant to read fields added in a later layout version:
  * <pre>{@code
- * if (formatVersion.onOrAfter(FormatVersion.V1_EXTRA_FLAGS)) {
- *     flags = in.readVInt();
+ * if (formatVersion.onOrAfter(FormatVersion.VERSION_SKIP_INDEX_PLAIN)) {
+ *     skipper = Plain.Skipper.readOptionally(in, numValues);
  * }
  * }</pre>
  *
@@ -46,8 +46,15 @@ public record FormatVersion(int version) {
     /** First shipped format: numeric long/double columns, adaptive pipeline, multi-level skip index. */
     public static final FormatVersion BASELINE = new FormatVersion(0);
 
-    /** Equals {@link #BASELINE} until the first format bump; update this when a new layout version ships. */
-    public static final FormatVersion CURRENT = BASELINE;
+    /**
+     * A plain string column's metadata records whether it wrote the bounds of the values each chunk owns to the skip
+     * index: a presence byte, followed by the location of those bounds when it is {@code 1}. {@link #BASELINE} metadata
+     * has neither, so a plain column read from it has no such bounds.
+     */
+    public static final FormatVersion VERSION_SKIP_INDEX_PLAIN = new FormatVersion(1);
+
+    /** The layout a new segment is written in. */
+    public static final FormatVersion CURRENT = VERSION_SKIP_INDEX_PLAIN;
 
     public FormatVersion {
         if (version < 0) {

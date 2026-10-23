@@ -341,7 +341,8 @@ public class PayloadColumnMergeTests extends ESTestCase {
                 (fieldName, type) -> NumericPipeline::defaultPipeline,
                 field -> ColumnarFieldType.STRING,
                 ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
-                StringColumnOptionsSelector.always(options)
+                StringColumnOptionsSelector.always(options),
+                FormatVersion.CURRENT
             )
         );
     }
@@ -352,7 +353,8 @@ public class PayloadColumnMergeTests extends ESTestCase {
             (fieldName, type) -> NumericPipeline::defaultPipeline,
             field -> ColumnarFieldType.STRING,
             ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
-            StringColumnOptionsSelector.always(options)
+            StringColumnOptionsSelector.always(options),
+            FormatVersion.CURRENT
         );
         final org.apache.lucene.codecs.DocValuesFormat fallback = new Lucene90DocValuesFormat();
         final org.apache.lucene.codecs.Codec base = TestUtil.getDefaultCodec();

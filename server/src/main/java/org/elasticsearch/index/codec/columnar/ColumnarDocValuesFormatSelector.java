@@ -12,10 +12,12 @@ package org.elasticsearch.index.codec.columnar;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.ColumnarFieldType;
+import org.elasticsearch.columnar.FormatVersion;
 import org.elasticsearch.columnar.numeric.NumericPipeline;
 import org.elasticsearch.columnar.string.StringColumnOptionsSelector;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 
 /**
@@ -47,8 +49,19 @@ public final class ColumnarDocValuesFormatSelector {
             // Only string columns are routed here, so the column type is settled without asking the mapper.
             field -> ColumnarFieldType.STRING,
             ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
-            stringOptions
+            stringOptions,
+            writeVersion(indexSettings.getIndexVersionCreated())
         );
+    }
+
+    /**
+     * The layout new segments of an index are written in. An index created before {@link IndexVersions#COLUMNAR_PLAIN_SKIP_INDEX}
+     * keeps the layout its nodes could all read when it was created, so a node that does not know the newer one never receives it.
+     */
+    static FormatVersion writeVersion(final IndexVersion indexVersionCreated) {
+        return indexVersionCreated.onOrAfter(IndexVersions.COLUMNAR_PLAIN_SKIP_INDEX)
+            ? FormatVersion.VERSION_SKIP_INDEX_PLAIN
+            : FormatVersion.BASELINE;
     }
 
     /**

@@ -393,7 +393,7 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
     private static StringColumnMetadata roundTrip(final StringColumnMetadata metadata, final int maxDoc) throws IOException {
         final byte[] buffer = new byte[1 << 16];
         final org.apache.lucene.store.ByteArrayDataOutput out = new org.apache.lucene.store.ByteArrayDataOutput(buffer);
-        metadata.writeTo(out);
+        metadata.writeTo(out, FormatVersion.CURRENT);
         final org.apache.lucene.store.ByteArrayDataInput in = new org.apache.lucene.store.ByteArrayDataInput(buffer, 0, out.getPosition());
         return StringColumnMetadata.readFrom(in, Math.max(maxDoc, 1), org.elasticsearch.columnar.FormatVersion.CURRENT);
     }
@@ -788,7 +788,7 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
 
             final byte[] buffer = new byte[1 << 16];
             final ByteArrayDataOutput out = new ByteArrayDataOutput(buffer);
-            metadata.writeTo(out);
+            metadata.writeTo(out, FormatVersion.CURRENT);
             final ByteArrayDataInput in = new ByteArrayDataInput(buffer, 0, out.getPosition());
             final StringColumnMetadata read = StringColumnMetadata.readFrom(in, docSlots.length, FormatVersion.CURRENT);
             assertEquals("everything after the rank block has to line up", metadata.numValues(), read.numValues());

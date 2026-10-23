@@ -103,7 +103,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
     StringColumnMetadata withSummary(Summary summary);
 
     /** Writes what this layout has, after the fields both layouts share. */
-    void writeBody(DataOutput out) throws IOException;
+    void writeBody(DataOutput out, FormatVersion formatVersion) throws IOException;
 
     /** Whether this column recorded what it surveyed. */
     default boolean hasSummary() {
@@ -254,12 +254,16 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         }
 
         @Override
-        public void writeBody(DataOutput out) throws IOException {
+        public void writeBody(DataOutput out, FormatVersion formatVersion) throws IOException {
             values.writeTo(out);
             out.writeByte((byte) (valuesWorthNaming ? 1 : 0));
-            out.writeByte((byte) (skipper == null ? 0 : 1));
-            if (skipper != null) {
-                skipper.writeTo(out);
+            if (formatVersion.onOrAfter(FormatVersion.VERSION_SKIP_INDEX_PLAIN)) {
+                out.writeByte((byte) (skipper == null ? 0 : 1));
+                if (skipper != null) {
+                    skipper.writeTo(out);
+                }
+            } else if (skipper != null) {
+                throw new IllegalStateException("format version [" + formatVersion.version() + "] has no room for a plain skipper");
             }
         }
     }
@@ -344,10 +348,10 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         }
 
         @Override
-        public void writeBody(DataOutput out) throws IOException {
+        public void writeBody(DataOutput out, FormatVersion formatVersion) throws IOException {
             out.writeVInt(dictionarySize);
             dictionary.writeTo(out);
-            ordinals.writeTo(out);
+            ordinals.writeTo(out, formatVersion);
             escapes.writeTo(out);
             if (escapes.numValues() > 0) {
                 out.writeVInt(escapeRankBlockSize);
@@ -430,7 +434,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
     }
 
     @Override
-    default void writeTo(DataOutput out) throws IOException {
+    default void writeTo(DataOutput out, FormatVersion formatVersion) throws IOException {
         iterator().writeTo(out);
         out.writeVInt(numDocsWithField());
         if (numDocsWithField() == 0) {
@@ -451,7 +455,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
             addressing().writeTo(out);
         }
         out.writeByte(layout().id());
-        writeBody(out);
+        writeBody(out, formatVersion);
         final Summary summary = summary();
         out.writeByte((byte) (summary == null ? 0 : 1));
         if (summary != null) {
@@ -475,8 +479,8 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
      * {@link org.elasticsearch.columnar.substrate.ColumnarCodecUtil#checkHeader}. Fields added in a later
      * layout version are gated on it:
      * <pre>{@code
-     * if (formatVersion.onOrAfter(FormatVersion.V1_EXTRA_FLAGS)) {
-     *     flags = in.readVInt();
+     * if (formatVersion.onOrAfter(FormatVersion.VERSION_SKIP_INDEX_PLAIN)) {
+     *     skipper = Plain.Skipper.readOptionally(in, numValues);
      * }
      * }</pre>
      */
@@ -498,7 +502,9 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
             case PLAIN -> {
                 final PlainValues.Metadata values = PlainValues.Metadata.readFrom(in);
                 final boolean valuesWorthNaming = in.readByte() != 0;
-                final Plain.Skipper skipper = Plain.Skipper.readOptionally(in, values.numValues());
+                final Plain.Skipper skipper = formatVersion.onOrAfter(FormatVersion.VERSION_SKIP_INDEX_PLAIN)
+                    ? Plain.Skipper.readOptionally(in, values.numValues())
+                    : null;
                 yield plain(
                     iterator,
                     numDocsWithField,

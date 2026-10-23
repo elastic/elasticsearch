@@ -223,6 +223,23 @@ public class CircuitBreakingRegExpTests extends ESTestCase {
     }
 
     /**
+     * A complement copies the whole DFA it is given, and nested complements each copy the last, so how many fit is bounded
+     * by the work left. The operand is parenthesised because {@code ~} binds tighter than a repeat: {@code ~x{2}} is
+     * {@code (~x){2}}.
+     */
+    public void testNestedComplementsAreBoundedByTheWorkLeft() {
+        String operand = "((a{100}){100})";
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofGb(1));
+        new CircuitBreakingRegExp("~~" + operand, FLAGS, 0).toAutomaton(breaker, "test", 20_000_000);
+        assertEquals(0L, breaker.getUsed());
+        expectThrows(
+            TooComplexToDeterminizeException.class,
+            () -> new CircuitBreakingRegExp("~".repeat(20) + operand, FLAGS, 0).toAutomaton(breaker, "test", 20_000_000)
+        );
+        assertEquals(0L, breaker.getUsed());
+    }
+
+    /**
      * A product that trims away to nothing still took the time to build, so the walk counts what was built before trimming.
      * Each product here pairs strings of {@code x} with strings that must end in {@code y}: every pair is reachable and none
      * accepts. Under the lowered limit one such product fits and three do not.

@@ -217,7 +217,8 @@ public final class CircuitBreakingRegExp {
          *   <li>Lucene's operations, called unchanged. Their peak is predicted from the operands' shapes and reserved before
          *       they run, and their predicted work is counted against the limit: {@link #predicted}.</li>
          *   <li>Intersection and complement, whose size is only known once built. They run through the ports in
-         *       {@link CircuitBreakingOperations}, which charge as they allocate.</li>
+         *       {@link CircuitBreakingOperations}, which charge as they allocate, and their work is counted by what they
+         *       build: {@link #intersection} and {@link #complement}.</li>
          *   <li>Leaves, built directly: {@link CircuitBreakingRegExp#leaf}. A leaf is no larger than the pattern text that
          *       names it, a string of its characters or a class of its ranges, so nothing is reserved while it builds.</li>
          * </ul>
@@ -237,16 +238,11 @@ public final class CircuitBreakingRegExp {
                     repeatCost(Shape.of(in[0]), re.min, re.max),
                     () -> Operations.repeat(in[0], re.min, re.max)
                 );
-                // Our port, charged as it allocates
+                // Our ports, charged as they allocate
                 case REGEXP_INTERSECTION -> intersection(in[0], in[1]);
                 // Lucene complements a negated character class with no work limit, and any other complement with the default
-                case REGEXP_COMPLEMENT -> CircuitBreakingOperations.complement(in[0], Integer.MAX_VALUE, breaker, label);
-                case REGEXP_DEPRECATED_COMPLEMENT -> CircuitBreakingOperations.complement(
-                    in[0],
-                    Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
-                    breaker,
-                    label
-                );
+                case REGEXP_COMPLEMENT -> complement(in[0], Integer.MAX_VALUE);
+                case REGEXP_DEPRECATED_COMPLEMENT -> complement(in[0], Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
                 // A leaf, no larger than the pattern text that names it
                 case REGEXP_CHAR, REGEXP_CHAR_RANGE, REGEXP_CHAR_CLASS, REGEXP_ANYCHAR, REGEXP_EMPTY, REGEXP_STRING, REGEXP_ANYSTRING,
                     REGEXP_AUTOMATON, REGEXP_INTERVAL -> leaf(re);
@@ -285,6 +281,22 @@ public final class CircuitBreakingRegExp {
             }
             work = addSaturating(work, multiplySaturating(product.builtItems(), WORK_PER_BUILT_STATE_OR_TRANSITION));
             return product.automaton();
+        }
+
+        /**
+         * A complement, charged as it allocates like any other and counted as work by what it builds before it runs:
+         * totalizing copies the whole DFA with at most one transition added per gap, so at most 2(S + T) + 2 states and
+         * transitions ({@link CircuitBreakingOperations#complement}). The determinize limit does not bound this: a
+         * deterministic operand skips determinization, and each nested complement copies the whole of the last.
+         */
+        private Automaton complement(Automaton a, int determinizeWorkLimit) {
+            Shape shape = Shape.of(a);
+            long built = addSaturating(multiplySaturating(2, addSaturating(shape.states(), shape.transitions())), 2);
+            work = addSaturating(work, multiplySaturating(built, WORK_PER_BUILT_STATE_OR_TRANSITION));
+            if (work > workLimit) {
+                throw tooComplex();
+            }
+            return CircuitBreakingOperations.complement(a, determinizeWorkLimit, breaker, label);
         }
 
         /** Refers to no operand, so the exception keeps nothing large alive once the breaker has released it. */

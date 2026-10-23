@@ -101,6 +101,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexingMemoryLimits;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
@@ -301,6 +302,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final IndexingStatsSettings indexStatsSettings;
     private final SearchStatsSettings searchStatsSettings;
     private final MergeMetrics mergeMetrics;
+    private final IndexingMemoryLimits indexingMemoryLimits;
     private final PluggableDirectoryMetricsHolder<StoreMetrics> storeMetricHolder;
     private final Map<String, PluggableDirectoryMetricsHolder<?>> directoryMetricHolderMap;
     private final ThrottlingRecoveryService throttlingRecoveryService;
@@ -329,8 +331,10 @@ public class IndicesService extends AbstractLifecycleComponent
         this.indicesQueryCache = new IndicesQueryCache(settings);
         this.mapperRegistry = builder.mapperRegistry;
         this.namedWriteableRegistry = builder.namedWriteableRegistry;
+        this.indexingMemoryLimits = builder.indexingMemoryLimits;
         indexingMemoryController = new IndexingMemoryController(
             settings,
+            indexingMemoryLimits,
             threadPool,
             // ensure we pull an iter with new shards - flatten makes a copy
             () -> Iterables.flatten(this).iterator()
@@ -846,6 +850,7 @@ public class IndicesService extends AbstractLifecycleComponent
             indexStatsSettings,
             searchStatsSettings,
             mergeMetrics,
+            indexingMemoryLimits,
             storeMetricHolder
         );
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
@@ -947,6 +952,7 @@ public class IndicesService extends AbstractLifecycleComponent
             indexStatsSettings,
             searchStatsSettings,
             mergeMetrics,
+            indexingMemoryLimits,
             storeMetricHolder
         );
         pluginsService.forEach(p -> p.onIndexModule(indexModule));

@@ -49,6 +49,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.MapperTestUtils;
+import org.elasticsearch.index.SettingsIndexingMemoryLimits;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.query.DisabledQueryCache;
@@ -738,7 +739,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 MapperMetrics.NOOP,
                 new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
                 new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
-                MergeMetrics.NOOP
+                MergeMetrics.NOOP,
+                new SettingsIndexingMemoryLimits(Settings.EMPTY)
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             success = true;

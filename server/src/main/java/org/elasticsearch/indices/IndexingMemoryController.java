@@ -20,6 +20,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexingMemoryLimits;
+import org.elasticsearch.index.SettingsIndexingMemoryLimits;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.shard.IndexShard;
@@ -128,24 +130,12 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
     private final Deque<IndexShard> pendingWriteIndexingBufferQueue = new ConcurrentLinkedDeque<>();
 
     IndexingMemoryController(Settings settings, ThreadPool threadPool, Iterable<IndexShard> indexServices) {
+        this(settings, new SettingsIndexingMemoryLimits(settings), threadPool, indexServices);
+    }
+
+    IndexingMemoryController(Settings settings, IndexingMemoryLimits limits, ThreadPool threadPool, Iterable<IndexShard> indexServices) {
         this.indexShards = indexServices;
-
-        ByteSizeValue indexingBuffer = INDEX_BUFFER_SIZE_SETTING.get(settings);
-
-        String indexingBufferSetting = settings.get(INDEX_BUFFER_SIZE_SETTING.getKey());
-        // null means we used the default (10%)
-        if (indexingBufferSetting == null || indexingBufferSetting.endsWith("%")) {
-            // We only apply the min/max when % value was used for the index buffer:
-            ByteSizeValue minIndexingBuffer = MIN_INDEX_BUFFER_SIZE_SETTING.get(settings);
-            ByteSizeValue maxIndexingBuffer = MAX_INDEX_BUFFER_SIZE_SETTING.get(settings);
-            if (indexingBuffer.getBytes() < minIndexingBuffer.getBytes()) {
-                indexingBuffer = minIndexingBuffer;
-            }
-            if (maxIndexingBuffer.getBytes() != -1 && indexingBuffer.getBytes() > maxIndexingBuffer.getBytes()) {
-                indexingBuffer = maxIndexingBuffer;
-            }
-        }
-        this.indexingBuffer = indexingBuffer.getBytes();
+        this.indexingBuffer = limits.indexBufferBytes();
 
         this.inactiveTime = SHARD_INACTIVE_TIME_SETTING.get(settings);
         // we need to have this relatively small to free up heap quickly enough

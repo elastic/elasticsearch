@@ -177,6 +177,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final IndexingStatsSettings indexingStatsSettings;
     private final SearchStatsSettings searchStatsSettings;
     private final MergeMetrics mergeMetrics;
+    private final IndexingMemoryLimits indexingMemoryLimits;
     private final PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder;
     private final Function<String, FieldPredicate> fieldFilter;
 
@@ -220,6 +221,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexingStatsSettings indexingStatsSettings,
         SearchStatsSettings searchStatsSettings,
         MergeMetrics mergeMetrics,
+        IndexingMemoryLimits indexingMemoryLimits,
         PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder
     ) {
         super(indexSettings);
@@ -317,6 +319,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.indexingStatsSettings = indexingStatsSettings;
         this.searchStatsSettings = searchStatsSettings;
         this.mergeMetrics = mergeMetrics;
+        this.indexingMemoryLimits = indexingMemoryLimits;
         this.metricHolder = metricHolder;
         updateFsyncTaskIfNecessary();
     }
@@ -617,7 +620,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 mapperMetrics,
                 indexingStatsSettings,
                 searchStatsSettings,
-                mergeMetrics
+                mergeMetrics,
+                indexingMemoryLimits
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);

@@ -104,6 +104,12 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
         Property.NodeScope
     );
 
+    /**
+     * Indexing is throttled once the bytes held in indexing buffers and the bytes still being written to disk exceed this multiple of
+     * the indexing buffer size. The indexing buffer therefore bounds the heap used by indexing at this multiple of its size.
+     */
+    public static final double THROTTLE_THRESHOLD_FACTOR = 1.5;
+
     private final ThreadPool threadPool;
 
     private final Iterable<IndexShard> indexShards;
@@ -444,7 +450,7 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
 
             // If we are using more than 50% of our budget across both indexing buffer and bytes we are still moving to disk, then we now
             // throttle the top shards to send back-pressure to ongoing indexing:
-            boolean doThrottle = (totalBytesWriting + totalBytesUsed) > 1.5 * indexingBuffer;
+            boolean doThrottle = (totalBytesWriting + totalBytesUsed) > THROTTLE_THRESHOLD_FACTOR * indexingBuffer;
 
             if (totalBytesUsed > indexingBuffer) {
                 // OK we are now over-budget; fill the priority queue and ask largest shard(s) to refresh:

@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 163033
+summary: Bound the input in boolean and ip parse errors
+type: bug

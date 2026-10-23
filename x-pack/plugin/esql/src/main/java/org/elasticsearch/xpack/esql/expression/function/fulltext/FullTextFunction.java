@@ -304,7 +304,8 @@ public abstract class FullTextFunction extends Function
             || checkFullTextFunctionsAboveSubqueries
             || hasFilterPushdownTarget(plan) == false;
         if (checkCommandsBeforeExpression) {
-            if (isLookupJoinOnCondition == false) {
+            // Most filters have no QSTR/KQL, so skip collecting the indexed field names for them.
+            if (isLookupJoinOnCondition == false && condition.anyMatch(e -> e instanceof QueryString || e instanceof Kql)) {
                 Set<String> indexedNames = indexedFieldNames(plan);
                 List.of(QueryString.class, Kql.class).forEach(functionClass -> {
                     // QSTR/KQL need a Lucene index to search, so they can't follow a source without one. They also can't follow
@@ -426,7 +427,7 @@ public abstract class FullTextFunction extends Function
             // EVAL, ENRICH, GROK, DISSECT, URI_PARTS, USER_AGENT, IP_LOCATION, REGISTERED_DOMAIN, COMPLETION, RERANK and
             // HIGHLIGHT all append their output columns, and PushDownAndCombineFilters pushes a reference-free filter past each
             // of them. Their keywords are one word, so the first token of the source text names the command.
-            commandName = lp.sourceText().split(" ")[0].toUpperCase(Locale.ROOT);
+            commandName = commandKeyword(lp.sourceText());
             introducedNames = generating.generatedAttributes().stream().map(Attribute::name).toList();
         } else if (lp instanceof Project project) {
             // KEEP/DROP projections are plain Attribute references and introduce nothing; only a renaming
@@ -532,7 +533,7 @@ public abstract class FullTextFunction extends Function
                         // clause instead of its misleading first token.
                         errorMessage = abbreviateSource(sourceText);
                     } else {
-                        errorMessage = sourceText.split(" ")[0].toUpperCase(Locale.ROOT);
+                        errorMessage = commandKeyword(sourceText);
                     }
                     // Name the reason for functions that could have searched an expression instead, since for them the
                     // restriction is not about the command at all. For the rest there is no alternative to point at.
@@ -580,6 +581,14 @@ public abstract class FullTextFunction extends Function
         // UnionAll is no longer visible from this subtree. Such a filter inherits the UnionAll branch source.
         inheritedSourceTexts.add(plan.sourceText());
         return inheritedSourceTexts;
+    }
+
+    /**
+     * The keyword that starts a command's source text, such as {@code EVAL}. Splits on any whitespace, since the keyword can
+     * be followed by a line break.
+     */
+    private static String commandKeyword(String sourceText) {
+        return sourceText.split("\\s+", 2)[0].toUpperCase(Locale.ROOT);
     }
 
     private static String abbreviateSource(String sourceText) {

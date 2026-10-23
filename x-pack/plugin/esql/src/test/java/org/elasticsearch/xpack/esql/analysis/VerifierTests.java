@@ -2534,6 +2534,16 @@ public class VerifierTests extends AnalyzerTestCase {
     }
 
     /**
+     * The command is named from the first word of its source text, which can be followed by a line break.
+     */
+    public void testNonFieldBasedFullTextFunctionsShadowMessageNamesCommandAcrossLineBreak() throws Exception {
+        fullText().error(
+            "from test | eval\n title = \"constant\" | where qstr(\"title: Meditation\")",
+            containsString("[QSTR] function cannot be used after EVAL because [title] redefines a field used by the index")
+        );
+    }
+
+    /**
      * COMPLETION (like RERANK) appends its output as a column named by the user, which collides with an indexed field of
      * that name.
      */

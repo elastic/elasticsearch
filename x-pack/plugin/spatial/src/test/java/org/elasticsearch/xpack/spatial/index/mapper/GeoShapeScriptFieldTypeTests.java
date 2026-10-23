@@ -104,12 +104,12 @@ public class GeoShapeScriptFieldTypeTests extends AbstractNonTextScriptFieldType
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": \"LINESTRING(0.0 0.0, 1.0 1.0)\" }"))));
             addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": \"LINESTRING(45.0 45.0, 3.0 3.0)\" }"))));
-            List<Object> results = new ArrayList<>();
+            List<Object> results = Collections.synchronizedList(new ArrayList<>());
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 GeoShapeScriptFieldType ft = build("fromWKT", Map.of(), OnScriptError.FAIL);
                 GeoShapeScriptFieldData ifd = ft.fielddataBuilder(mockFielddataContext()).build(null, null);
-                searcher.search(Queries.ALL_DOCS_INSTANCE, new Collector() {
+                searcher.search(Queries.ALL_DOCS_INSTANCE, collectorManager(() -> new Collector() {
                     @Override
                     public ScoreMode scoreMode() {
                         return ScoreMode.COMPLETE_NO_SCORES;
@@ -130,7 +130,7 @@ public class GeoShapeScriptFieldTypeTests extends AbstractNonTextScriptFieldType
                             }
                         };
                     }
-                });
+                }));
                 assertEquals(2, results.size());
             }
         }

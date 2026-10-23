@@ -34,8 +34,12 @@ public class TsidBuilderTests extends ESTestCase {
         return IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG);
     }
 
+    /** A version whose default tsid layout is the single prefix byte one: before the grouped sort made the plain hash the default. */
     private static IndexVersion randomSinglePrefixByteVersion() {
-        return IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG);
+        return IndexVersionUtils.randomVersionBetween(
+            IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_DIMENSION_GROUP_SORT)
+        );
     }
 
     /**
@@ -248,20 +252,14 @@ public class TsidBuilderTests extends ESTestCase {
             HexFormat.of().formatHex(oldTsid.bytes, oldTsid.offset, oldTsid.length),
             equalTo("afe3a0a8d67821311bea0fc3c9cbd40c8047c484aa")
         );
-        IndexVersion version = randomSinglePrefixByteVersion();
-        BytesRef newTsid = builder.buildTsid(version);
-        switch (TsidLayout.forVersion(version).kind()) {
-            case SINGLE_BYTE_PREFIX -> assertThat(
-                HexFormat.of().formatHex(newTsid.bytes, newTsid.offset, newTsid.length),
-                equalTo("e321311bea0fc3c9cbd40c8047c484aa")
-            );
-            // the grouped sort (the default of indices created at the latest versions) leaves the full hash untouched
-            case NO_PREFIX -> assertThat(
-                HexFormat.of().formatHex(newTsid.bytes, newTsid.offset, newTsid.length),
-                equalTo("7821311bea0fc3c9cbd40c8047c484aa")
-            );
-            case MULTI_BYTE_PREFIX -> assertThat(newTsid, equalTo(oldTsid));
-        }
+        BytesRef newTsid = builder.buildTsid(randomSinglePrefixByteVersion());
+        assertThat(HexFormat.of().formatHex(newTsid.bytes, newTsid.offset, newTsid.length), equalTo("e321311bea0fc3c9cbd40c8047c484aa"));
+        // the grouped sort (the default of indices created at the latest versions) leaves the full hash untouched
+        BytesRef noPrefixTsid = builder.buildTsid(new TsidLayout(IndexVersion.current(), true));
+        assertThat(
+            HexFormat.of().formatHex(noPrefixTsid.bytes, noPrefixTsid.offset, noPrefixTsid.length),
+            equalTo("7821311bea0fc3c9cbd40c8047c484aa")
+        );
     }
 
     public void testEnableSinglePrefixByte() {

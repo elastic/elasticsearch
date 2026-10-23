@@ -732,8 +732,12 @@ public class IndexRoutingTests extends ESTestCase {
     }
 
     public void testRoutingPathWithSingleBytePrefixTsid() throws IOException {
+        // Versions before the grouped sort, whose default settings build no-prefix tsids
         TimeSeriesRoutingFixture fixture = indexRoutingForTimeSeriesDimensions(
-            IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG),
+            IndexVersionUtils.randomVersionBetween(
+                IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_DIMENSION_GROUP_SORT)
+            ),
             8,
             "dim.*,other.*,top",
             randomBoolean()

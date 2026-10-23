@@ -32,6 +32,7 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.bloomfilter.SyntheticIdBloomFilterSettings;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MetricNameHashFieldMapper;
 import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -739,8 +740,14 @@ public final class IndexSettings {
      * or after {@link IndexVersions#TIME_SERIES_DIMENSION_GROUP_SORT} and {@link #TIME_SERIES_DIMENSION_GROUP_FIELD} is non-empty.
      */
     public static boolean timeSeriesDimensionGroupSortEnabled(IndexVersion creationVersion, Settings settings) {
-        return creationVersion.onOrAfter(IndexVersions.TIME_SERIES_DIMENSION_GROUP_SORT)
-            && TIME_SERIES_DIMENSION_GROUP_FIELD.get(settings).isEmpty() == false;
+        if (creationVersion.before(IndexVersions.TIME_SERIES_DIMENSION_GROUP_SORT)
+            || TIME_SERIES_DIMENSION_GROUP_FIELD.get(settings).isEmpty()) {
+            return false;
+        }
+        // An explicitly configured index sort that does not lead with the metric name hash keeps the time series sort. The raw
+        // value is read, as this is also called while computing the default of index.sort.field.
+        List<String> sortFields = settings.getAsList(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey());
+        return sortFields.isEmpty() || MetricNameHashFieldMapper.NAME.equals(sortFields.getFirst());
     }
 
     /**

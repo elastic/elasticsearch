@@ -41,10 +41,11 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  * <p><strong>Shapes.</strong> {@code shape=analytics} (the default) generates wide analytics documents with
  * a realistic field count, string mix and escape density, see {@link AnalyticsDocs}. {@code doParseString}
  * only runs for strings that contain an escape, and in those documents they are mostly URLs with
- * {@code \/} escapes a few bytes apart, so this is the shape to use when optimising it. {@code shape=synthetic} is the original 11-field document where
- * {@code escapePercent} of the strings carry a single {@code \n} in the middle; it mostly exercises the
- * long clean runs of the vector loop. Set {@code dataFile} to a newline-delimited JSON file (for
- * example a real sample) to replay real documents instead; it overrides {@code shape}.
+ * {@code \/} escapes a few bytes apart, so this is the shape to use when optimising it.
+ * {@code shape=synthetic} is an 11-field document where {@code escapePercent} of the strings carry a
+ * single {@code \n} in the middle; it mostly exercises the long clean runs of the vector loop.
+ * Set {@code dataFile} to a newline-delimited JSON file (for example a real sample) to replay real
+ * documents instead; it overrides {@code shape}.
  *
  * <p><strong>Running.</strong>
  * <pre>{@code

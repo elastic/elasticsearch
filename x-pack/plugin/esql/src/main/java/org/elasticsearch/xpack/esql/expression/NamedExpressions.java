@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression;
 
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeList;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 
@@ -18,7 +19,9 @@ import java.util.Map;
 
 public class NamedExpressions {
     /**
-     * Calculates the actual output of a command given the new attributes plus the existing inputs that are emitted as outputs
+     * Calculates the actual output of a command given the new attributes plus the existing inputs that are emitted as outputs.
+     * The result shares storage with {@code childOutput} when it is an {@link AttributeList} and no field has the name or
+     * id of one of its attributes, see {@link AttributeList#merge}.
      * @param fields the fields added by the command
      * @param childOutput the command input that has to be propagated as output
      * @return
@@ -27,7 +30,9 @@ public class NamedExpressions {
         List<? extends NamedExpression> fields,
         List<? extends NamedExpression> childOutput
     ) {
-        return Expressions.asAttributes(mergeOutputExpressions(fields, childOutput));
+        List<? extends Attribute> added = fields instanceof AttributeList list ? list : Expressions.asAttributes(fields);
+        List<? extends Attribute> child = childOutput instanceof AttributeList list ? list : Expressions.asAttributes(childOutput);
+        return AttributeList.merge(added, child);
     }
 
     /**

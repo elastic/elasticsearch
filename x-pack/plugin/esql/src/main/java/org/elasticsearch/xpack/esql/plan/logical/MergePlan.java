@@ -67,8 +67,7 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
             return false;
         }
 
-        if (children().stream()
-            .anyMatch(p -> p.outputSet().names().contains(Analyzer.NO_FIELDS_NAME) || output.size() != p.output().size())) {
+        if (children().stream().anyMatch(p -> p.outputSet().containsName(Analyzer.NO_FIELDS_NAME) || output.size() != p.output().size())) {
             return false;
         }
 

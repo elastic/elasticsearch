@@ -57,7 +57,6 @@ public class UpgradeKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     private void assertKeystoreUpgrade(String file, int version) throws Exception {
-        assumeFalse("Legacy unprotected keystore cannot be read on a FIPS JVM", inFipsJvm());
         assertKeystoreUpgrade(file, version, null);
     }
 

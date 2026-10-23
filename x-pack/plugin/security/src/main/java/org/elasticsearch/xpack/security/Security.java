@@ -1157,7 +1157,8 @@ public class Security extends Plugin
             getClock(),
             client,
             systemIndices.getProfileIndexManager(),
-            realms
+            realms,
+            projectResolver
         );
         components.add(profileService);
 
@@ -1274,7 +1275,8 @@ public class Security extends Plugin
             authorizedProjectsResolver,
             crossProjectModeDecider,
             projectRoutingResolver,
-            usageService
+            usageService,
+            profileService
         );
 
         components.add(nativeRolesStore); // used by roles actions

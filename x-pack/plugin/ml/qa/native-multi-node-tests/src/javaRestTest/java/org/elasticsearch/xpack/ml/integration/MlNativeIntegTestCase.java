@@ -301,7 +301,9 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
                 "ai-index-ds-managed",
                 "ai-index@mappings",
                 "ai-index-managed@mappings",
-                "ai-index@ds-settings"
+                "ai-index@ds-settings",
+                "ai-memory-managed",
+                "ai-memory@mappings"
             )
         );
     }

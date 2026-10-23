@@ -35,9 +35,13 @@ import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.cache.Cache;
+import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -45,6 +49,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -70,10 +75,13 @@ import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesRespo
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
 import org.elasticsearch.xpack.core.security.action.service.ServiceAccountAuthor;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.DomainConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.Subject;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
+import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.Realms;
@@ -110,7 +118,7 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Avai
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.SEARCH_SHARDS;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_PROFILE_ALIAS;
 
-public class ProfileService {
+public class ProfileService implements ProfileUidResolver {
 
     public static final Setting<ByteSizeValue> MAX_SIZE_SETTING = Setting.byteSizeSetting(
         "xpack.security.profile.max_size",
@@ -125,6 +133,8 @@ public class ProfileService {
     private static final BackoffPolicy DEFAULT_BACKOFF = BackoffPolicy.exponentialBackoff();
     private static final int DIFFERENTIATOR_UPPER_LIMIT = 9;
     private static final long ACTIVATE_INTERVAL_IN_MS = TimeValue.timeValueSeconds(30).millis();
+    private static final TimeValue PROFILE_UID_CACHE_TTL = TimeValue.timeValueMinutes(5);
+    private static final TimeValue PROFILE_UID_MISS_CACHE_TTL = TimeValue.timeValueSeconds(15);
 
     private final Settings settings;
     private final Clock clock;
@@ -133,8 +143,18 @@ public class ProfileService {
     private final Function<String, DomainConfig> domainConfigLookup;
     private final Function<RealmConfig.RealmIdentifier, Authentication.RealmRef> realmRefLookup;
     private final ByteSizeValue maxProfileSize;
+    private final ProjectResolver projectResolver;
+    private final Cache<ProfileUidCacheKey, String> profileUidCache;
+    private final Cache<ProfileUidCacheKey, Boolean> profileUidMissCache;
 
-    public ProfileService(Settings settings, Clock clock, Client client, SecurityIndexManager profileIndex, Realms realms) {
+    public ProfileService(
+        Settings settings,
+        Clock clock,
+        Client client,
+        SecurityIndexManager profileIndex,
+        Realms realms,
+        ProjectResolver projectResolver
+    ) {
         this.settings = settings;
         this.clock = clock;
         this.client = client;
@@ -142,6 +162,103 @@ public class ProfileService {
         this.domainConfigLookup = realms::getDomainConfig;
         this.realmRefLookup = realms::getRealmRef;
         this.maxProfileSize = MAX_SIZE_SETTING.get(settings);
+        this.projectResolver = projectResolver;
+        this.profileUidCache = CacheBuilder.<ProfileUidCacheKey, String>builder()
+            .setExpireAfterWrite(PROFILE_UID_CACHE_TTL)
+            .setMaximumWeight(100_000)
+            .build();
+        this.profileUidMissCache = CacheBuilder.<ProfileUidCacheKey, Boolean>builder()
+            .setExpireAfterWrite(PROFILE_UID_MISS_CACHE_TTL)
+            .setMaximumWeight(100_000)
+            .build();
+    }
+
+    /** Profiles live in a per-project index, so one realm user can map to different uids in different projects. */
+    private record ProfileUidCacheKey(ProjectId projectId, String realmType, String realmName, String principal) {}
+
+    /**
+     * Resolves the profile uid that DLS role query templates read as {@code _user.profile_uid}. A realm user resolves to
+     * its own profile and an API key to its owner's, the same identity {@link #resolveProfileUidsForApiKeys} answers
+     * with. Service accounts, internal and anonymous users, run-as targets and keys owned by a service account resolve
+     * to {@code null} without a lookup, as does a user whose profile has not been activated. Found uids are cached per
+     * project and subject for {@link #PROFILE_UID_CACHE_TTL} and misses for {@link #PROFILE_UID_MISS_CACHE_TTL}, so a
+     * profile activated on another node is picked up within seconds. A lookup failure resolves to {@code null} rather
+     * than failing authorization.
+     */
+    @Override
+    public void resolve(Authentication authentication, ActionListener<String> listener) {
+        final Subject subject = profileSubject(authentication);
+        if (subject == null) {
+            listener.onResponse(null);
+            return;
+        }
+        final ProfileUidCacheKey cacheKey = profileUidCacheKey(subject);
+        final String cached = profileUidCache.get(cacheKey);
+        if (cached != null) {
+            listener.onResponse(cached);
+            return;
+        }
+        if (profileUidMissCache.get(cacheKey) != null) {
+            listener.onResponse(null);
+            return;
+        }
+        searchVersionedDocumentForSubject(subject, ActionListener.wrap(versionedDocument -> {
+            final String uid = versionedDocument == null ? null : versionedDocument.doc.uid();
+            if (uid == null) {
+                profileUidMissCache.put(cacheKey, Boolean.TRUE);
+            } else {
+                profileUidCache.put(cacheKey, uid);
+            }
+            listener.onResponse(uid);
+        }, e -> {
+            logger.debug(() -> format("failed to resolve profile uid for user [%s]", subject.getUser().principal()), e);
+            listener.onResponse(null);
+        }));
+    }
+
+    private ProfileUidCacheKey profileUidCacheKey(Subject subject) {
+        return new ProfileUidCacheKey(
+            projectResolver.getProjectId(),
+            subject.getRealm().getType(),
+            subject.getRealm().getName(),
+            subject.getUser().principal()
+        );
+    }
+
+    /** The subject whose profile backs the authentication: the user itself, the owner of an API key, or none. */
+    @Nullable
+    private Subject profileSubject(Authentication authentication) {
+        if (authentication.isRunAs()) {
+            return null;
+        }
+        final Subject subject = authentication.getEffectiveSubject();
+        return switch (subject.getType()) {
+            case USER -> subject.getUser() instanceof InternalUser || subject.getUser() instanceof AnonymousUser ? null : subject;
+            case API_KEY -> getApiKeyOwnerSubject(subject);
+            case CLOUD_API_KEY, CLOUD_SERVICE_ACCOUNT, SERVICE_ACCOUNT, CROSS_CLUSTER_ACCESS -> null;
+        };
+    }
+
+    /** As {@link #getApiKeyCreatorSubject}, from the creator realm an authenticated API key carries in its metadata. */
+    @Nullable
+    private Subject getApiKeyOwnerSubject(Subject apiKeySubject) {
+        final Map<String, Object> metadata = apiKeySubject.getMetadata();
+        final String realmName = (String) metadata.get(AuthenticationField.API_KEY_CREATOR_REALM_NAME);
+        final String realmType = (String) metadata.get(AuthenticationField.API_KEY_CREATOR_REALM_TYPE);
+        if (realmName == null || realmType == null || ServiceAccountSettings.REALM_TYPE.equals(realmType)) {
+            return null;
+        }
+        final Authentication.RealmRef realmRef = realmRefLookup.apply(new RealmConfig.RealmIdentifier(realmType, realmName));
+        if (realmRef == null) {
+            logger.debug(
+                "api key owner [{}] belongs to realm [{}/{}], which is not configured on the local node",
+                apiKeySubject.getUser().principal(),
+                realmType,
+                realmName
+            );
+            return null;
+        }
+        return new Subject(new User(apiKeySubject.getUser().principal(), Strings.EMPTY_ARRAY), realmRef);
     }
 
     public void getProfiles(List<String> uids, Set<String> dataKeys, ActionListener<ResultsAndErrors<Profile>> listener) {

@@ -210,6 +210,7 @@ import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
+import org.elasticsearch.xpack.security.profile.ProfileUidResolver;
 import org.elasticsearch.xpack.sql.action.SqlQueryAction;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.junit.Before;
@@ -253,6 +254,7 @@ import static org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.Pr
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_VALUE;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_VALUE;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ORIGINATING_ACTION_VALUE;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.PROFILE_UID_VALUE;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES;
 import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
@@ -300,6 +302,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     private AuthorizedProjectsResolver authorizedProjectsResolver;
     private CrossProjectModeDecider crossProjectModeDecider;
     private ProjectRoutingResolver projectRoutingResolver;
+    private ProfileUidResolver profileUidResolver = ProfileUidResolver.NONE;
 
     @SuppressWarnings("unchecked")
     @Before
@@ -391,7 +394,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             authorizedProjectsResolver,
             crossProjectModeDecider,
             projectRoutingResolver,
-            new UsageService()
+            new UsageService(),
+            (authentication, listener) -> profileUidResolver.resolve(authentication, listener)
         );
     }
 
@@ -1319,6 +1323,75 @@ public class AuthorizationServiceTests extends ESTestCase {
         }
     }
 
+    /**
+     * A role whose DLS query is a template over {@code _user.profile_uid} has the uid resolved during authorization and
+     * exposed, for the duration of the action, as the {@code PROFILE_UID_VALUE} transient.
+     */
+    public void testSearchAgainstIndexWithProfileUidTemplateResolvesProfileUid() {
+        final String profileUid = "u_" + randomAlphaOfLength(20) + "_0";
+        final AtomicInteger resolutions = new AtomicInteger();
+        profileUidResolver = (authentication, listener) -> {
+            resolutions.incrementAndGet();
+            listener.onResponse(profileUid);
+        };
+        final RoleDescriptor role = new RoleDescriptor(
+            "scoped_memory_reader",
+            null,
+            new IndicesPrivileges[] {
+                IndicesPrivileges.builder()
+                    .indices("index-*")
+                    .privileges("read")
+                    .query("{\"template\":{\"source\":{\"term\":{\"scope_id\":\"user://{{_user.profile_uid}}\"}}}}")
+                    .build() },
+            null
+        );
+        roleMap.put(role.getName(), role);
+        final Authentication authentication = createAuthentication(new User("test search user", role.getName()));
+        AuditUtil.getOrGenerateRequestId(threadContext);
+        final String indexName = "index-" + randomAlphaOfLengthBetween(1, 5);
+        mockClusterState(ProjectMetadata.builder(projectId).put(createIndexMetadata(indexName), true).build());
+
+        final SearchRequest searchRequest = new SearchRequest(indexName).allowPartialSearchResults(false);
+        this.setFakeOriginatingAction = false;
+        authorize(
+            authentication,
+            TransportSearchAction.TYPE.name(),
+            searchRequest,
+            true,
+            () -> assertThat(PROFILE_UID_VALUE.get(threadContext), equalTo(profileUid))
+        );
+        assertThat(resolutions.get(), equalTo(1));
+        // The transient is scoped to the authorized action and does not outlive it.
+        assertThat(PROFILE_UID_VALUE.get(threadContext), nullValue());
+    }
+
+    /** Plain DLS, with no reference to the profile uid, never triggers a resolution. */
+    public void testSearchAgainstIndexWithPlainDlsDoesNotResolveProfileUid() {
+        profileUidResolver = (authentication, listener) -> fail("profile uid should not be resolved for a query that does not need it");
+        final RoleDescriptor role = new RoleDescriptor(
+            "plain_dls_reader",
+            null,
+            new IndicesPrivileges[] {
+                IndicesPrivileges.builder().indices("index-*").privileges("read").query("{\"term\":{\"field\":\"value\"}}").build() },
+            null
+        );
+        roleMap.put(role.getName(), role);
+        final Authentication authentication = createAuthentication(new User("test search user", role.getName()));
+        AuditUtil.getOrGenerateRequestId(threadContext);
+        final String indexName = "index-" + randomAlphaOfLengthBetween(1, 5);
+        mockClusterState(ProjectMetadata.builder(projectId).put(createIndexMetadata(indexName), true).build());
+
+        final SearchRequest searchRequest = new SearchRequest(indexName).allowPartialSearchResults(false);
+        this.setFakeOriginatingAction = false;
+        authorize(
+            authentication,
+            TransportSearchAction.TYPE.name(),
+            searchRequest,
+            true,
+            () -> assertThat(PROFILE_UID_VALUE.get(threadContext), nullValue())
+        );
+    }
+
     public void testSearchAgainstIndex() {
         RoleDescriptor role = new RoleDescriptor(
             "search_index",
@@ -1436,7 +1509,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             authorizedProjectsResolver,
             crossProjectModeDecider,
             projectRoutingResolver,
-            new UsageService()
+            new UsageService(),
+            ProfileUidResolver.NONE
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -1523,7 +1597,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             authorizedProjectsResolver,
             crossProjectModeDecider,
             originOnlyRoutingResolver,
-            new UsageService()
+            new UsageService(),
+            ProfileUidResolver.NONE
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -1580,7 +1655,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             authorizedProjectsResolver,
             crossProjectModeDecider,
             projectRoutingResolver,
-            new UsageService()
+            new UsageService(),
+            ProfileUidResolver.NONE
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -2161,7 +2237,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(settings),
             projectRoutingResolver,
-            new UsageService()
+            new UsageService(),
+            ProfileUidResolver.NONE
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -2216,7 +2293,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(settings),
             projectRoutingResolver,
-            new UsageService()
+            new UsageService(),
+            ProfileUidResolver.NONE
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -3814,7 +3892,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(Settings.EMPTY),
             projectRoutingResolver,
-            new UsageService()
+            new UsageService(),
+            ProfileUidResolver.NONE
         );
 
         Subject subject = new Subject(new User("test", "a role"), mock(RealmRef.class));
@@ -3979,7 +4058,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(Settings.EMPTY),
             projectRoutingResolver,
-            new UsageService()
+            new UsageService(),
+            ProfileUidResolver.NONE
         );
         Authentication authentication;
         try (StoredContext ignore = threadContext.stashContext()) {
@@ -4331,7 +4411,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             authorizedProjectsResolver,
             crossProjectModeDecider,
             routingResolver,
-            usageService
+            usageService,
+            ProfileUidResolver.NONE
         );
     }
 

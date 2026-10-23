@@ -90,7 +90,13 @@ public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryRead
             DirectoryReader wrappedReader = reader;
             DocumentPermissions documentPermissions = permissions.getDocumentPermissions();
             if (documentPermissions.hasDocumentLevelPermissions()) {
-                BooleanQuery filterQuery = documentPermissions.filter(getUser(), scriptService, shardId, searchExecutionContextProvider);
+                BooleanQuery filterQuery = documentPermissions.filter(
+                    getUser(),
+                    AuthorizationServiceField.PROFILE_UID_VALUE.get(securityContext.getThreadContext()),
+                    scriptService,
+                    shardId,
+                    searchExecutionContextProvider
+                );
                 if (filterQuery != null) {
                     wrappedReader = DocumentSubsetReader.wrap(wrappedReader, bitsetCache, new ConstantScoreQuery(filterQuery));
                 }

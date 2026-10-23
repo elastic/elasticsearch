@@ -85,6 +85,36 @@ public class SecurityQueryTemplateEvaluatorTests extends ESTestCase {
         assertThat(usedScript.getParams().get("_user"), equalTo(userModel));
     }
 
+    public void testDocLevelSecurityTemplateWithProfileUid() throws Exception {
+        final User user = new User("alice", "role1");
+
+        final MustacheScriptEngine mustache = new MustacheScriptEngine(Settings.EMPTY);
+        when(scriptService.compile(any(Script.class), eq(TemplateScript.CONTEXT))).thenAnswer(inv -> {
+            Script script = (Script) inv.getArguments()[0];
+            return mustache.compile(script.getIdOrCode(), script.getIdOrCode(), TemplateScript.CONTEXT, script.getOptions());
+        });
+
+        String template = """
+            {
+              "template": {
+                "source": {
+                  "term": {
+                    "scope_id": "user://{{_user.profile_uid}}"
+                  }
+                }
+              }
+            }""";
+
+        String evaluated = SecurityQueryTemplateEvaluator.evaluateTemplate(template, scriptService, user, "u_alice_0");
+        assertThat(evaluated, equalTo("""
+            {"term":{"scope_id":"user://u_alice_0"}}"""));
+
+        // Without a resolved profile uid the variable renders empty, so a scope term can match nothing.
+        String unresolved = SecurityQueryTemplateEvaluator.evaluateTemplate(template, scriptService, user, null);
+        assertThat(unresolved, equalTo("""
+            {"term":{"scope_id":"user://"}}"""));
+    }
+
     public void testDocLevelSecurityTemplateWithOpenIdConnectStyleMetadata() throws Exception {
         User user = new User(
             randomAlphaOfLength(8),

@@ -1692,6 +1692,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
             ".ai-index-ds-" + randomAlphaOfLength(randomIntBetween(1, 13))
         ).forEach(index -> assertOnlyReadAllowed(kibanaRole, index));
 
+        // Context Engine memory storage: Elastic-managed memory AI indices written on behalf of users.
+        assertReadWriteAndManage(kibanaRole, ".ai-memory-" + randomAlphaOfLength(randomIntBetween(0, 13)));
+
         // Context Engine feedback-loop signals: per-space, regular (non-system)
         // user indices that Kibana creates and manages via the storage adapter.
         assertReadWriteAndManage(kibanaRole, "context-engine-signals-" + randomAlphaOfLength(randomIntBetween(0, 13)));

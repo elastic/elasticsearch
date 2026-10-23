@@ -795,6 +795,10 @@ class KibanaOwnedReservedRoleDescriptors {
                     .indices("ai-index-idx-*", "ai-index-ds-*", ".ai-index-idx-*", ".ai-index-ds-*")
                     .privileges("read")
                     .build(),
+                // Context Engine memory storage. Elastic-managed memory AI indices that Kibana
+                // writes on behalf of the user, stamping scope_id server-side; users only read
+                // them through the memory implicit privilege provider's DLS grant.
+                RoleDescriptor.IndicesPrivileges.builder().indices(".ai-memory-*").privileges("all").build(),
                 // Context Engine feedback-loop signals. Per-space, regular (non-system)
                 // user indices that Kibana creates and manages via the storage adapter
                 // (one index per Kibana space: context-engine-signals-<space>).

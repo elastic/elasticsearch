@@ -110,6 +110,7 @@ import org.elasticsearch.xpack.security.authz.accesscontrol.wrapper.DlsFlsFeatur
 import org.elasticsearch.xpack.security.authz.interceptor.RequestInterceptor;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
+import org.elasticsearch.xpack.security.profile.ProfileUidResolver;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -129,6 +130,7 @@ import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ACTION_SCOPE_AUTHORIZATION_KEYS;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_VALUE;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ORIGINATING_ACTION_VALUE;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.PROFILE_UID_VALUE;
 import static org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl.allowAll;
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authorizationError;
 import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
@@ -168,6 +170,7 @@ public class AuthorizationService {
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
     private final DlsFlsFeatureTrackingIndicesAccessControlWrapper indicesAccessControlWrapper;
+    private final ProfileUidResolver profileUidResolver;
     private final AuthorizedProjectsResolver authorizedProjectsResolver;
     private final ProjectRoutingResolver projectRoutingResolver;
     private final UsageService usageService;
@@ -193,7 +196,8 @@ public class AuthorizationService {
         AuthorizedProjectsResolver authorizedProjectsResolver,
         CrossProjectModeDecider crossProjectModeDecider,
         ProjectRoutingResolver projectRoutingResolver,
-        UsageService usageService
+        UsageService usageService,
+        ProfileUidResolver profileUidResolver
     ) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
@@ -227,6 +231,7 @@ public class AuthorizationService {
         this.projectResolver = projectResolver;
         this.authorizedProjectsResolver = authorizedProjectsResolver;
         this.usageService = usageService;
+        this.profileUidResolver = profileUidResolver;
     }
 
     public void checkPrivileges(
@@ -765,9 +770,58 @@ public class AuthorizationService {
         final ActionListener<Void> listener
     ) {
         final IndicesAccessControl indicesAccessControl = indicesAccessControlWrapper.wrap(result.getIndicesAccessControl());
+        securityContext.putIndicesAccessControl(indicesAccessControl);
+
+        final Runnable proceed = () -> continueIndexActionAuthorization(
+            indicesAccessControl,
+            requestInfo,
+            requestId,
+            authzInfo,
+            authzEngine,
+            resolvedIndicesAsyncSupplier,
+            projectMetadata,
+            listener
+        );
+        // The unwrapped access control is inspected because the wrapper tracks DLS feature usage on every access. The uid is
+        // resolved only for actions whose DLS refers to it, and the transient is action-scoped like the access control itself.
+        if (requiresProfileUid(result.getIndicesAccessControl())) {
+            profileUidResolver.resolve(requestInfo.getAuthentication(), ActionListener.runAfter(ActionListener.wrap(profileUid -> {
+                if (profileUid != null) {
+                    PROFILE_UID_VALUE.set(threadContext, profileUid);
+                }
+            }, e -> logger.debug(() -> Strings.format("failed to resolve profile uid for [%s]", requestInfo.getAuthentication()), e)),
+                proceed
+            ));
+        } else {
+            proceed.run();
+        }
+    }
+
+    /** Whether any DLS query that applies to this action is a template over the profile uid. */
+    private static boolean requiresProfileUid(IndicesAccessControl indicesAccessControl) {
+        if (indicesAccessControl == null) {
+            return false;
+        }
+        for (String index : indicesAccessControl.getIndicesWithDocumentLevelSecurity()) {
+            if (indicesAccessControl.getIndexPermissions(index).getDocumentPermissions().requiresProfileUid()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void continueIndexActionAuthorization(
+        final IndicesAccessControl indicesAccessControl,
+        final RequestInfo requestInfo,
+        final String requestId,
+        final AuthorizationInfo authzInfo,
+        final AuthorizationEngine authzEngine,
+        final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier,
+        final ProjectMetadata projectMetadata,
+        final ActionListener<Void> listener
+    ) {
         final TransportRequest request = requestInfo.getRequest();
         final String action = requestInfo.getAction();
-        securityContext.putIndicesAccessControl(indicesAccessControl);
 
         final AuthorizationContext authzContext = new AuthorizationContext(action, authzInfo, indicesAccessControl);
         PreAuthorizationUtils.maybeSkipChildrenActionAuthorization(securityContext, authzContext);

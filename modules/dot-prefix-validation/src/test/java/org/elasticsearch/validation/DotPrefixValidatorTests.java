@@ -134,6 +134,8 @@ public class DotPrefixValidatorTests extends ESTestCase {
         assertIgnored(Set.of("<.ai-index-foo-{M{yyyy-MM-dd|UTC}}>"));
         assertFails(Set.of(".ai-index"));
         assertFails(Set.of(".ai-indexes"));
+        assertIgnored(Set.of(".ai-memory-puggles"));
+        assertFails(Set.of(".ai-memory"));
         assertIgnored(Set.of(".monitoring-es-8-thing"));
         assertIgnored(Set.of("<.monitoring-es-8-thing>"));
         assertIgnored(Set.of(".monitoring-logstash-8-thing"));

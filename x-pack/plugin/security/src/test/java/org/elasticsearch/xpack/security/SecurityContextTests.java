@@ -12,9 +12,15 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.search.internal.ReaderContext;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -27,6 +33,7 @@ import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.ParentActionAuthorization;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
+import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
@@ -40,12 +47,16 @@ import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_API_KEY_ROLES_AS_BYTES;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SecurityContextTests extends ESTestCase {
 
@@ -58,6 +69,42 @@ public class SecurityContextTests extends ESTestCase {
         settings = Settings.builder().put("path.home", createTempDir()).build();
         threadContext = new ThreadContext(settings);
         securityContext = new SecurityContext(settings, threadContext);
+    }
+
+    public void testReaderContextCarriesIndicesAccessControlAndProfileUid() {
+        final IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.getThreadPool()).thenReturn(mock(ThreadPool.class));
+        final ReaderContext readerContext = new ReaderContext(
+            new ShardSearchContextId("session", 1L),
+            mock(IndexService.class),
+            indexShard,
+            new Engine.SearcherSupplier(Function.identity()) {
+                @Override
+                protected Engine.Searcher acquireSearcherInternal(String source) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                protected void doClose() {}
+            },
+            0L,
+            false,
+            0L
+        );
+        try {
+            final IndicesAccessControl indicesAccessControl = IndicesAccessControl.allowAll();
+            AuthorizationServiceField.INDICES_PERMISSIONS_VALUE.set(threadContext, indicesAccessControl);
+            AuthorizationServiceField.PROFILE_UID_VALUE.set(threadContext, "u_alice");
+            securityContext.copyIndicesAccessControlToReaderContext(readerContext);
+
+            try (StoredContext ignored = threadContext.stashContext()) {
+                securityContext.copyIndicesAccessControlFromReaderContext(readerContext);
+                assertThat(AuthorizationServiceField.INDICES_PERMISSIONS_VALUE.get(threadContext), sameInstance(indicesAccessControl));
+                assertThat(AuthorizationServiceField.PROFILE_UID_VALUE.get(threadContext), equalTo("u_alice"));
+            }
+        } finally {
+            readerContext.close();
+        }
     }
 
     public void testGetAuthenticationAndUserInEmptyContext() throws IOException {

@@ -40,8 +40,11 @@ import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_IDX
 import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_IDX_TEMPLATE_NAME;
 import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_MANAGED_MAPPINGS_COMPONENT_NAME;
 import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_MAPPINGS_COMPONENT_NAME;
+import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_MEMORY_MANAGED_TEMPLATE_NAME;
+import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_MEMORY_MAPPINGS_COMPONENT_NAME;
 import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.DOT_AI_INDEX_DS_PATTERN;
 import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.DOT_AI_INDEX_IDX_PATTERN;
+import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.DOT_AI_MEMORY_PATTERN;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -89,7 +92,8 @@ public class AiIndexTemplateRegistryTests extends ESTestCase {
             containsInAnyOrder(
                 AI_INDEX_MAPPINGS_COMPONENT_NAME,
                 AI_INDEX_DS_SETTINGS_COMPONENT_NAME,
-                AI_INDEX_MANAGED_MAPPINGS_COMPONENT_NAME
+                AI_INDEX_MANAGED_MAPPINGS_COMPONENT_NAME,
+                AI_MEMORY_MAPPINGS_COMPONENT_NAME
             )
         );
         assertThat(
@@ -98,7 +102,8 @@ public class AiIndexTemplateRegistryTests extends ESTestCase {
                 AI_INDEX_IDX_TEMPLATE_NAME,
                 AI_INDEX_DS_TEMPLATE_NAME,
                 AI_INDEX_IDX_MANAGED_TEMPLATE_NAME,
-                AI_INDEX_DS_MANAGED_TEMPLATE_NAME
+                AI_INDEX_DS_MANAGED_TEMPLATE_NAME,
+                AI_MEMORY_MANAGED_TEMPLATE_NAME
             )
         );
     }
@@ -232,6 +237,29 @@ public class AiIndexTemplateRegistryTests extends ESTestCase {
         );
         assertThat(template.getIgnoreMissingComponentTemplates(), nullValue());
         assertThat(template.getDataStreamTemplate(), notNullValue());
+    }
+
+    public void testMemoryMappingsComponentDefinesScopeId() throws IOException {
+        registry = createRegistry(Settings.EMPTY);
+        ComponentTemplate mappings = registry.getComponentTemplateConfigs().get(AI_MEMORY_MAPPINGS_COMPONENT_NAME);
+        assertThat(mappings, notNullValue());
+
+        Map<String, Object> properties = mappingProperties(mappings);
+        // Keyword, not nested: the memory implicit privilege provider's DLS filter runs a root-level exists/term on it.
+        assertThat(propertyType(properties, "scope_id"), equalTo("keyword"));
+    }
+
+    public void testManagedMemoryTemplateComposition() {
+        registry = createRegistry(Settings.EMPTY);
+        ComposableIndexTemplate template = registry.getComposableTemplateConfigs().get(AI_MEMORY_MANAGED_TEMPLATE_NAME);
+        assertThat(template, notNullValue());
+        assertThat(template.indexPatterns(), contains(DOT_AI_MEMORY_PATTERN));
+        assertThat(
+            template.composedOf(),
+            contains(AI_INDEX_MAPPINGS_COMPONENT_NAME, AI_INDEX_MANAGED_MAPPINGS_COMPONENT_NAME, AI_MEMORY_MAPPINGS_COMPONENT_NAME)
+        );
+        assertThat(template.getIgnoreMissingComponentTemplates(), nullValue());
+        assertThat(template.getDataStreamTemplate(), nullValue());
     }
 
     public void testRegistryIsUpToDate() throws Exception {

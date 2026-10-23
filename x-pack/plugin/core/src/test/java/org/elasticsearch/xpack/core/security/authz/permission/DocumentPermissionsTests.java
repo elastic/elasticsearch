@@ -121,6 +121,26 @@ public class DocumentPermissionsTests extends ESTestCase {
         assertThat(Arrays.equals(BytesReference.toBytes(out1.bytes()), BytesReference.toBytes(out2.bytes())), is(false));
     }
 
+    public void testRequiresProfileUidFollowsTheQueries() {
+        final BytesReference plain = new BytesArray("{\"term\":{\"field\":\"value\"}}");
+        final BytesReference templated = new BytesArray(
+            "{\"template\":{\"source\":{\"term\":{\"scope_id\":\"user://{{_user.profile_uid}}\"}}}}"
+        );
+        final BytesReference stored = new BytesArray("{\"template\":{\"id\":\"dls\"}}");
+        assertThat(DocumentPermissions.allowAll().requiresProfileUid(), is(false));
+        assertThat(DocumentPermissions.filteredBy(Set.of(plain)).requiresProfileUid(), is(false));
+        assertThat(DocumentPermissions.filteredBy(Set.of(plain, templated)).requiresProfileUid(), is(true));
+        assertThat(DocumentPermissions.filteredBy(Set.of(stored)).requiresProfileUid(), is(false));
+
+        // Limiting composes the flag from both sides.
+        final DocumentPermissions plainOnly = DocumentPermissions.filteredBy(Set.of(plain));
+        final DocumentPermissions withTemplate = DocumentPermissions.filteredBy(Set.of(templated));
+        assertThat(plainOnly.limitDocumentPermissions(plainOnly).requiresProfileUid(), is(false));
+        assertThat(plainOnly.limitDocumentPermissions(withTemplate).requiresProfileUid(), is(true));
+        assertThat(withTemplate.limitDocumentPermissions(DocumentPermissions.allowAll()).requiresProfileUid(), is(true));
+        assertThat(DocumentPermissions.allowAll().limitDocumentPermissions(withTemplate).requiresProfileUid(), is(true));
+    }
+
     public void testHasStoredScript() throws IOException {
         final Set<BytesReference> queries = new HashSet<>();
         if (randomBoolean()) {

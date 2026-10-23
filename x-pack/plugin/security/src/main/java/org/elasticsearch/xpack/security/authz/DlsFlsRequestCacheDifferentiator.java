@@ -16,6 +16,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.support.SecurityQueryTemplateEvaluator;
 
@@ -61,7 +62,11 @@ public class DlsFlsRequestCacheDifferentiator implements CheckedBiConsumer<Shard
             );
             indexAccessControl.buildCacheKey(
                 out,
-                SecurityQueryTemplateEvaluator.wrap(securityContext.getUser(), scriptServiceReference.get())
+                SecurityQueryTemplateEvaluator.wrap(
+                    securityContext.getUser(),
+                    AuthorizationServiceField.PROFILE_UID_VALUE.get(securityContext.getThreadContext()),
+                    scriptServiceReference.get()
+                )
             );
         }
     }

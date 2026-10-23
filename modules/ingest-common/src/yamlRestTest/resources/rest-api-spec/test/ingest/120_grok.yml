@@ -7,6 +7,9 @@ teardown:
 
 ---
 "Test Grok Pipeline":
+  - requires:
+      test_runner_features: close_to
+
   - do:
       ingest.put_pipeline:
         id: "my_pipeline"
@@ -35,7 +38,7 @@ teardown:
       get:
         index: test
         id: "1"
-  - match: { _source.val: 123.42 }
+  - close_to: { _source.val: { value: 123.42, error: 0.01 }}
   - match: { _source.status: 400 }
   - match: { _source.msg: "foo" }
 

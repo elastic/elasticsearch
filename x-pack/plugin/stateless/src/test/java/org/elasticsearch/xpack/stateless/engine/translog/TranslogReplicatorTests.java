@@ -325,15 +325,13 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         int docCount = randomIntBetween(2, 5);
         List<Map<String, Object>> docs = new ArrayList<>(docCount);
-        long[] seqNos = new long[docCount];
         for (int i = 0; i < docCount; i++) {
             docs.add(Map.of("k", "v" + i));
-            seqNos[i] = i;
         }
         IndexOperationBatch.TranslogRecord batch = buildBatch(docs, 0L, primaryTerm);
         Translog.Serialized serializedBatch = serializeBatch(batch);
         Translog.Location location = new Translog.Location(0, 0, serializedBatch.length());
-        translogReplicator.addRecord(shardId, serializedBatch, seqNos, location);
+        translogReplicator.addRecord(shardId, serializedBatch, batch.operationSeqNos(), location);
 
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         translogReplicator.sync(shardId, location, future);
@@ -358,7 +356,6 @@ public class TranslogReplicatorTests extends ESTestCase {
             batchData = new BytesArray(escf.data().toBytesRef(), true);
         }
         final int docCount = docs.size();
-        final byte[] statuses = new byte[docCount]; // all ROW_INDEXED
         final long[] seqNos = new long[docCount];
         final long[] versions = new long[docCount];
         final long[] timestamps = new long[docCount];
@@ -371,9 +368,10 @@ public class TranslogReplicatorTests extends ESTestCase {
             types[i] = XContentType.JSON;
             uids[i] = Uid.encodeId("doc-" + i);
         }
+        // all rows indexed: no sparse no-op row array
         return new IndexOperationBatch.TranslogRecord(
             primaryTerm,
-            statuses,
+            docCount,
             seqNos,
             versions,
             timestamps,

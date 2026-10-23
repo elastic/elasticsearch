@@ -345,8 +345,8 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
     }
 
     /**
-     * Adds a record carrying one or more operations ({@code seqNos} has one entry per operation).
-     * Calls {@link NodeTranslogBuffer#writeToBuffer}.
+     * Adds a record carrying one or more operations, one seqNo per operation in row order. Calls
+     * {@link NodeTranslogBuffer#writeToBuffer}.
      */
     public void addRecord(
         final ShardId shardId,

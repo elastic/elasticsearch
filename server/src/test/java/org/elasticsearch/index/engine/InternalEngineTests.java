@@ -8692,4 +8692,47 @@ public class InternalEngineTests extends EngineTestCase {
             throw new AssertionError("Failed to release IndexCommitRef for commit generation " + generation, e);
         }
     }
+
+    public void testIndexBatchOnReplicaWithNonContiguousSeqNos() throws IOException {
+        IOUtils.close(engine, store);
+        final Path translogPath = createTempDir();
+        store = createStore();
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        engine = createEngine(config(defaultSettings, store, translogPath, newMergePolicy(), globalCheckpoint::get));
+
+        final List<Engine.Index> ops = new ArrayList<>();
+
+        // Add non-contiguous seqnos to the replica for indexing
+        for (long seqNo : new long[] { 0, 1, 2, 5, 6 }) {
+            ops.add(replicaIndexForDoc(createParsedDoc("d" + seqNo, null), 1, seqNo, false));
+        }
+        final List<Engine.IndexResult> results = engine.indexBatch(engineBatch(ops, encodeAsEscfBatch(ops)));
+        for (Engine.IndexResult result : results) {
+            assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+        }
+
+        engine.syncTranslog();
+        // both checkpoints stop at the last seqNo before the gap; the translog holds every op that was written
+        assertThat(engine.getProcessedLocalCheckpoint(), equalTo(2L));
+        assertThat(engine.getPersistedLocalCheckpoint(), equalTo(2L));
+        assertThat(engine.getTranslog().getMaxSeqNo(), equalTo(6L));
+
+        // the ops that fill the gap belong to another bulk and arrive through its own replication request
+        indexDoc(engine, replicaIndexForDoc(createParsedDoc("d3", null), 1, 3, false));
+        indexDoc(engine, replicaIndexForDoc(createParsedDoc("d4", null), 1, 4, false));
+        engine.syncTranslog();
+
+        // At this point, the local checkpoint should go to the highest seqno
+        assertThat(engine.getProcessedLocalCheckpoint(), equalTo(6L));
+        assertThat(engine.getPersistedLocalCheckpoint(), equalTo(6L));
+        assertThat(engine.getTranslog().getMaxSeqNo(), equalTo(6L));
+        final Map<Long, String> replayed = new HashMap<>();
+        try (Translog.Snapshot snapshot = engine.getTranslog().newSnapshot()) {
+            Translog.Operation op;
+            while ((op = snapshot.next()) != null) {
+                replayed.put(op.seqNo(), Uid.decodeId(((Translog.Index) op).uid()));
+            }
+        }
+        assertThat(replayed, equalTo(Map.of(0L, "d0", 1L, "d1", 2L, "d2", 3L, "d3", 4L, "d4", 5L, "d5", 6L, "d6")));
+    }
 }

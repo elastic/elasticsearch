@@ -247,14 +247,13 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
      */
     public Translog.Location addBatch(final Translog.Serialized operation, final IndexOperationBatch.TranslogRecord batch)
         throws IOException {
-        // TODO: Pass startSeqNo and operationCount as args. That will fully remove the need for the long[]
-        // since single operations and batches are always continuous ranges.
-        return addRecord(operation, batch.getSeqNos(), batch);
+        return addRecord(operation, batch.operationSeqNos(), batch);
     }
 
     /**
      * Shared implementation for {@link #add} and {@link #addBatch}: {@link IndexOperationBatch.TranslogRecord} is null for a
-     * single operation
+     * single operation. {@code seqNos} holds one entry per operation the record carries, in row order; for a batch these are
+     * the rows that consumed a seqNo, and they need not be contiguous.
      */
     private Translog.Location addRecord(
         final Translog.Serialized operation,

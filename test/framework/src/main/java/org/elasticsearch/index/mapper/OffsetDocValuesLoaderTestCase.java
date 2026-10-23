@@ -16,6 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -24,6 +25,7 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 
@@ -264,6 +266,171 @@ public abstract class OffsetDocValuesLoaderTestCase extends MapperServiceTestCas
         } else {
             assertThat(source.get("field"), Matchers.instanceOf(List.class));
             assertThat((List<?>) source.get("field"), Matchers.containsInAnyOrder(values.toArray()));
+        }
+    }
+
+    /**
+     * Like {@link #testOversizedOffsetArrayFallsBackToIgnoredSource()}, but the field is not mapped at the root. The
+     * {@code _ignored_source} entry records where the leaf name starts within the full path, which is only non-zero for such
+     * fields. With {@code subobjects: false} on the enclosing object the leaf name itself contains a dot, so it cannot be derived
+     * from the full path alone.
+     */
+    public void testOversizedOffsetArrayOnNonRootFieldFallsBackToIgnoredSource() throws Exception {
+        List<Object> values = randomOversizedValues();
+        boolean subobjectsFalse = randomBoolean();
+
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("obj");
+        if (subobjectsFalse) {
+            mapping.field("subobjects", false);
+            mapping.startObject("properties").startObject("inner.field");
+            minimalMapping(mapping);
+            mapping.endObject().endObject();
+        } else {
+            mapping.startObject("properties").startObject("inner").startObject("properties").startObject("field");
+            minimalMapping(mapping);
+            mapping.endObject().endObject().endObject().endObject();
+        }
+        mapping.endObject().endObject().endObject().endObject();
+
+        CheckedConsumer<XContentBuilder, IOException> document = b -> {
+            b.startObject("obj");
+            if (subobjectsFalse) {
+                b.field("inner.field", values);
+            } else {
+                b.startObject("inner").field("field", values).endObject();
+            }
+            b.endObject();
+        };
+        try (var mapperService = createMapperService(mapping)) {
+            var mapper = mapperService.documentMapper();
+
+            var doc = mapper.parse(source(document));
+            assertThat(doc.rootDoc().getFields("obj.inner.field.offsets"), Matchers.empty());
+            assertThat(syntheticSource(mapper, document), Matchers.equalTo(toJson(document)));
+        }
+    }
+
+    /**
+     * Like {@link #testOversizedOffsetArrayFallsBackToIgnoredSource()}, but the oversized array has regular siblings in the same
+     * object: a single value sorting before it and a small array, with regular offsets, sorting after it. The
+     * {@code _ignored_source} entry for the oversized field must not hide a sibling, and the keys keep the sorted order that
+     * synthetic source uses, regardless of the order in the document.
+     */
+    public void testOversizedOffsetArrayWithSiblingsFallsBackToIgnoredSource() throws Exception {
+        List<Object> values = randomOversizedValues();
+        Object before = randomValue();
+        List<Object> after = List.of(randomValue(), randomValue(), randomValue());
+        List<CheckedConsumer<XContentBuilder, IOException>> fields = new ArrayList<>(
+            List.of(b -> b.field("a_before", before), b -> b.field("field", values), b -> b.field("z_after", after))
+        );
+        Collections.shuffle(fields, random());
+        CheckedConsumer<XContentBuilder, IOException> expected = b -> {
+            b.field("a_before", before);
+            b.field("field", values);
+            b.field("z_after", after);
+        };
+        assertOversizedArraysWithSiblingsFallBackToIgnoredSource(List.of("a_before", "field", "z_after"), fields, expected, "field");
+    }
+
+    /**
+     * Like {@link #testOversizedOffsetArrayWithSiblingsFallsBackToIgnoredSource()}, but with two oversized arrays in the same
+     * object, so two {@code _ignored_source} entries with the same parent.
+     */
+    public void testTwoOversizedOffsetArraysInSameObjectFallBackToIgnoredSource() throws Exception {
+        List<Object> values = randomOversizedValues();
+        List<Object> otherValues = randomOversizedValues();
+        List<CheckedConsumer<XContentBuilder, IOException>> fields = new ArrayList<>(
+            List.of(b -> b.field("field", values), b -> b.field("other", otherValues))
+        );
+        Collections.shuffle(fields, random());
+        CheckedConsumer<XContentBuilder, IOException> expected = b -> {
+            b.field("field", values);
+            b.field("other", otherValues);
+        };
+        assertOversizedArraysWithSiblingsFallBackToIgnoredSource(List.of("field", "other"), fields, expected, "field", "other");
+    }
+
+    /**
+     * Maps {@code fieldNames} with the field type under test, randomly at the root or in an object, parses a document holding
+     * {@code fields} in the given order, and asserts that no offsets were written for the {@code oversized} fields and that the
+     * synthetic source is {@code expected}.
+     */
+    private void assertOversizedArraysWithSiblingsFallBackToIgnoredSource(
+        List<String> fieldNames,
+        List<CheckedConsumer<XContentBuilder, IOException>> fields,
+        CheckedConsumer<XContentBuilder, IOException> expected,
+        String... oversized
+    ) throws Exception {
+        boolean inObject = randomBoolean();
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties");
+        if (inObject) {
+            mapping.startObject("obj").startObject("properties");
+        }
+        for (String fieldName : fieldNames) {
+            mapping.startObject(fieldName);
+            minimalMapping(mapping);
+            mapping.endObject();
+        }
+        if (inObject) {
+            mapping.endObject().endObject();
+        }
+        mapping.endObject().endObject().endObject();
+
+        CheckedConsumer<XContentBuilder, IOException> document = inObject ? b -> {
+            b.startObject("obj");
+            for (var field : fields) {
+                field.accept(b);
+            }
+            b.endObject();
+        } : b -> {
+            for (var field : fields) {
+                field.accept(b);
+            }
+        };
+        CheckedConsumer<XContentBuilder, IOException> expectedDocument = inObject ? b -> {
+            b.startObject("obj");
+            expected.accept(b);
+            b.endObject();
+        } : expected;
+        try (var mapperService = createMapperService(mapping)) {
+            var mapper = mapperService.documentMapper();
+
+            var doc = mapper.parse(source(document));
+            for (String fieldName : oversized) {
+                assertThat(doc.rootDoc().getFields((inObject ? "obj." : "") + fieldName + ".offsets"), Matchers.empty());
+            }
+            assertThat(syntheticSource(mapper, document), Matchers.equalTo(toJson(expectedDocument)));
+        }
+    }
+
+    /**
+     * Values for an array with so many elements that its encoded offsets exceed {@link IndexWriter#MAX_TERM_LENGTH}, with
+     * duplicates and nulls, like in {@link #testOversizedOffsetArrayFallsBackToIgnoredSource()}.
+     */
+    private List<Object> randomOversizedValues() {
+        int numSlots = IndexWriter.MAX_TERM_LENGTH + between(1, 500);
+        List<Object> values = new ArrayList<>(numSlots);
+        List<Object> pool = new ArrayList<>();
+        for (int i = 0; i < numSlots; i++) {
+            if (randomInt(10) == 1) {
+                values.add(null);
+            } else if (randomInt(10) == 1 && pool.isEmpty() == false) {
+                values.add(randomFrom(pool));
+            } else {
+                Object value = randomValue();
+                pool.add(value);
+                values.add(value);
+            }
+        }
+        return values;
+    }
+
+    private static String toJson(CheckedConsumer<XContentBuilder, IOException> document) throws IOException {
+        try (XContentBuilder b = XContentBuilder.builder(XContentType.JSON.xContent())) {
+            b.startObject();
+            document.accept(b);
+            b.endObject();
+            return Strings.toString(b);
         }
     }
 

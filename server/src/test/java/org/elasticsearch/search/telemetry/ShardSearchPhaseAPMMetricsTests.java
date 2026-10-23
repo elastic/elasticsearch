@@ -11,23 +11,31 @@ package org.elasticsearch.search.telemetry;
 
 import org.elasticsearch.action.search.SearchRequestAttributesExtractor;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.script.MockScriptEngine;
+import org.elasticsearch.script.MockScriptPlugin;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.retriever.RescorerRetrieverBuilder;
 import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
+import org.elasticsearch.telemetry.metric.MetricAttributes;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -38,12 +46,15 @@ import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
 import static org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics.CAN_MATCH_SEARCH_PHASE_METRIC;
 import static org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics.DFS_SEARCH_PHASE_METRIC;
+import static org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics.FETCH_SEARCH_PHASE_FAILURE_METRIC;
 import static org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics.FETCH_SEARCH_PHASE_METRIC;
+import static org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics.QUERY_SEARCH_PHASE_FAILURE_METRIC;
 import static org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics.QUERY_SEARCH_PHASE_METRIC;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -56,7 +67,8 @@ import static org.hamcrest.Matchers.hasSize;
 public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
 
     private static final String indexName = "test_search_metrics2";
-    private final int num_primaries = randomIntBetween(2, 7);
+    // three or more shards so the two docs never cover every shard; the failure tests need a surviving shard with partial results allowed
+    private final int num_primaries = randomIntBetween(3, 7);
 
     @Override
     protected boolean resetNodeAfterTest() {
@@ -94,7 +106,7 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(TestTelemetryPlugin.class, TestSystemIndexPlugin.class);
+        return pluginList(TestTelemetryPlugin.class, TestSystemIndexPlugin.class, ThrowingScriptPlugin.class);
     }
 
     public void testMetricsDfsQueryThenFetch() {
@@ -169,7 +181,7 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
             int systemTarget = 0;
             for (Measurement measurement : queryMeasurements) {
                 Map<String, Object> attributes = measurement.attributes();
-                assertEquals(4, attributes.size());
+                assertEquals(5, attributes.size());
 
                 String target = attributes.get("target").toString();
                 if (target.equals("user")) {
@@ -191,7 +203,7 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
             int systemTarget = 0;
             for (Measurement measurement : fetchMeasurements) {
                 Map<String, Object> attributes = measurement.attributes();
-                assertEquals(4, attributes.size());
+                assertEquals(5, attributes.size());
 
                 String target = attributes.get("target").toString();
                 if (target.equals("user")) {
@@ -288,7 +300,7 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
     private static void assertAttributes(List<Measurement> measurements, boolean isSystem, boolean isScroll) {
         for (Measurement measurement : measurements) {
             Map<String, Object> attributes = measurement.attributes();
-            assertEquals(isScroll ? 5 : 4, attributes.size());
+            assertEquals(isScroll ? 6 : 5, attributes.size());
             if (isSystem) {
                 assertEquals(".others", attributes.get("target"));
             } else {
@@ -300,6 +312,63 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
                 assertEquals("scroll", attributes.get("pit_scroll"));
             }
             assertEquals(isSystem, attributes.get(SearchRequestAttributesExtractor.SYSTEM_THREAD_ATTRIBUTE_NAME));
+            assertEquals(IndexMode.STANDARD.getName(), attributes.get(MetricAttributes.ES_INDEX_MODE));
+        }
+    }
+
+    public void testQueryPhaseFailure() {
+        // the script only runs against docs, so only the shards that hold one of the two docs fail; the empty shards succeed.
+        // Partial results stay allowed: disallowing them makes the coordinator cancel the search on the first shard failure, and a
+        // sibling shard still running would then fail with TaskCancelledException and be counted under that error type instead
+        assertResponse(
+            client().prepareSearch(indexName)
+                .setQuery(
+                    QueryBuilders.scriptQuery(new Script(ScriptType.INLINE, MockScriptEngine.NAME, ThrowingScriptPlugin.THROW, Map.of()))
+                ),
+            response -> {
+                final List<Measurement> failures = getTestTelemetryPlugin().getLongCounterMeasurement(QUERY_SEARCH_PHASE_FAILURE_METRIC);
+                assertFailureMeasurements(failures, response.getShardFailures());
+                final List<Measurement> successes = getTestTelemetryPlugin().getLongHistogramMeasurement(QUERY_SEARCH_PHASE_METRIC);
+                assertEquals(num_primaries, successes.size() + failures.size());
+                assertThat(getTestTelemetryPlugin().getLongCounterMeasurement(FETCH_SEARCH_PHASE_FAILURE_METRIC), Matchers.empty());
+            }
+        );
+    }
+
+    public void testFetchPhaseFailure() {
+        // script fields only run in the fetch phase and only over hits, so every query phase succeeds and every fetch fails.
+        // Partial results stay allowed for the same reason as in testQueryPhaseFailure
+        assertResponse(
+            client().prepareSearch(indexName)
+                .setQuery(QueryBuilders.matchAllQuery())
+                .addScriptField(
+                    randomAlphanumericOfLength(8),
+                    new Script(ScriptType.INLINE, MockScriptEngine.NAME, ThrowingScriptPlugin.THROW, Map.of())
+                ),
+            response -> {
+                final List<Measurement> failures = getTestTelemetryPlugin().getLongCounterMeasurement(FETCH_SEARCH_PHASE_FAILURE_METRIC);
+                assertFailureMeasurements(failures, response.getShardFailures());
+                assertThat(getTestTelemetryPlugin().getLongHistogramMeasurement(FETCH_SEARCH_PHASE_METRIC), Matchers.empty());
+                assertThat(getTestTelemetryPlugin().getLongHistogramMeasurement(QUERY_SEARCH_PHASE_METRIC), hasSize(num_primaries));
+                assertThat(getTestTelemetryPlugin().getLongCounterMeasurement(QUERY_SEARCH_PHASE_FAILURE_METRIC), Matchers.empty());
+            }
+        );
+    }
+
+    private static void assertFailureMeasurements(List<Measurement> failures, ShardSearchFailure[] shardFailures) {
+        assertThat(failures, hasSize(shardFailures.length));
+        assertThat(failures, hasSize(Matchers.greaterThanOrEqualTo(1)));
+        for (Measurement measurement : failures) {
+            assertEquals(1L, measurement.getLong());
+            assertEquals(
+                Map.of(
+                    MetricAttributes.ES_INDEX_MODE,
+                    IndexMode.STANDARD.getName(),
+                    MetricAttributes.ERROR_TYPE,
+                    IllegalStateException.class.getSimpleName()
+                ),
+                measurement.attributes()
+            );
         }
     }
 
@@ -350,7 +419,7 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
     private static void assertTimeRangeAttributes(List<Measurement> measurements, String target, boolean isSystem, boolean isPit) {
         for (Measurement measurement : measurements) {
             Map<String, Object> attributes = measurement.attributes();
-            assertEquals(isPit ? 7 : 6, attributes.size());
+            assertEquals(isPit ? 8 : 7, attributes.size());
             assertEquals(target, attributes.get("target"));
             assertEquals("hits_only", attributes.get("query_type"));
             assertEquals("_score", attributes.get("sort"));
@@ -392,7 +461,7 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
         assertThat(queryMeasurements.size(), Matchers.lessThanOrEqualTo(2));
         for (Measurement measurement : queryMeasurements) {
             Map<String, Object> attributes = measurement.attributes();
-            assertEquals(5, attributes.size());
+            assertEquals(6, attributes.size());
             assertEquals("user", attributes.get("target"));
             assertEquals("hits_only", attributes.get("query_type"));
             assertEquals("_score", attributes.get("sort"));
@@ -405,7 +474,7 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
         // in this case, each shard queried has results to be fetched
         for (Measurement measurement : fetchMeasurements) {
             Map<String, Object> attributes = measurement.attributes();
-            assertEquals(5, attributes.size());
+            assertEquals(6, attributes.size());
             assertEquals("user", attributes.get("target"));
             assertEquals("hits_only", attributes.get("query_type"));
             assertEquals("_score", attributes.get("sort"));
@@ -477,6 +546,15 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
 
     private TestTelemetryPlugin getTestTelemetryPlugin() {
         return getInstanceFromNode(PluginsService.class).filterPlugins(TestTelemetryPlugin.class).toList().get(0);
+    }
+
+    public static class ThrowingScriptPlugin extends MockScriptPlugin {
+        static final String THROW = "throw";
+
+        @Override
+        protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
+            return Map.of(THROW, vars -> { throw new IllegalStateException("simulated script failure"); });
+        }
     }
 
     public static class TestSystemIndexPlugin extends Plugin implements SystemIndexPlugin {

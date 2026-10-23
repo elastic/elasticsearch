@@ -258,9 +258,10 @@ The `knn` query can be used inside a nested query. The behaviour here is similar
 {{es}} evaluates each filter at the nesting level of the fields it reads. A vector passes the filter when its own nested object matches, or when its enclosing object at that level matches.
 
 :::{note}
-The level of runtime fields, scripts and fields copied with `include_in_parent` or `include_in_root` cannot be
-inferred, so a filter that only reads such fields behaves as in previous versions. A `combined_fields` or
-`cross_fields` `multi_match` query over fields of several levels is not split per level.
+The following filters keep the 9.6 and earlier behavior:
+
+- Filters that only read runtime fields, scripts, or fields copied with `include_in_parent` or `include_in_root`. {{es}} can't determine their nesting level.
+- `combined_fields` queries and `cross_fields` `multi_match` queries over fields from several levels. These aren't split by level.
 :::
 
 To ensure correct results: each individual filter must be either over: {applies_to}`stack: ga 9.2-9.6`

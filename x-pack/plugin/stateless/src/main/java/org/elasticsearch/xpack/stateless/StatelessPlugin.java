@@ -862,6 +862,7 @@ public class StatelessPlugin extends Plugin
             cacheService,
             threadPool,
             clusterService.getClusterSettings(),
+            clusterService.getSettings(),
             JvmInfo.jvmInfo().getMem().getHeapMax()
         );
         components.add(searchRecoveryTimeoutCalculationService);

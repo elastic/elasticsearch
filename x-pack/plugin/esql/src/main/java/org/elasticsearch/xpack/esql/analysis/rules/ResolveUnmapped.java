@@ -386,6 +386,7 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
      */
     private static LogicalPlan withoutMergeAlignment(LogicalPlan branch) {
         LogicalPlan plan = branch;
+        // TODO: This use of source() for decision making is not ideal and can lead to problems. Source is for logging only.
         while ((plan.getClass() == Project.class || plan instanceof Eval) && plan.source().equals(((UnaryPlan) plan).child().source())) {
             plan = ((UnaryPlan) plan).child();
         }

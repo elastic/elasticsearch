@@ -980,6 +980,18 @@ public class InnerHitsIT extends ESIntegTestCase {
             e.getCause().getMessage(),
             containsString("the inner hit definition's [_name]'s from + size must be less than or equal to: [100] but was [110]")
         );
+        e = expectThrows(
+            SearchPhaseExecutionException.class,
+            prepareSearch("index2").setQuery(
+                nestedQuery("nested", matchQuery("nested.field", "value1"), ScoreMode.Avg).innerHit(
+                    new InnerHitBuilder().setFrom(Integer.MAX_VALUE).setSize(1).setName("_name")
+                )
+            )
+        );
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("the inner hit definition's [_name]'s from + size must be less than or equal to: [100] but was [2147483648]")
+        );
 
         updateIndexSettings(Settings.builder().put(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), 110), "index2");
         assertNoFailures(

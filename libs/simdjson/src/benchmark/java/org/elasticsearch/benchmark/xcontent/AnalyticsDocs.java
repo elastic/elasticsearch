@@ -9,14 +9,15 @@
 
 package org.elasticsearch.benchmark.xcontent;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 
+import static java.nio.charset.StandardCharsets.ISO_8859_1;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
@@ -195,15 +196,14 @@ final class AnalyticsDocs {
      * The bytes are used as they are: the sample is not always valid UTF-8, and decoding it would change the lengths.
      */
     static byte[][] load(Path file, int count) throws IOException {
-        byte[] all = Files.readAllBytes(file);
         List<byte[]> docs = new ArrayList<>(count);
-        int start = 0;
-        for (int i = 0; i < all.length && docs.size() < count; i++) {
-            if (all[i] == '\n') {
-                if (i > start) {
-                    docs.add(Arrays.copyOfRange(all, start, i));
+        // ISO-8859-1 maps every byte to one char and back, so the lines keep their exact bytes.
+        try (BufferedReader reader = Files.newBufferedReader(file, ISO_8859_1)) {
+            String line;
+            while (docs.size() < count && (line = reader.readLine()) != null) {
+                if (line.isEmpty() == false) {
+                    docs.add(line.getBytes(ISO_8859_1));
                 }
-                start = i + 1;
             }
         }
         if (docs.size() < count) {

@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 162643
+pr: 163004
+summary: "`QSTR` now accepts the `fields` option to search specific fields"
+type: bug

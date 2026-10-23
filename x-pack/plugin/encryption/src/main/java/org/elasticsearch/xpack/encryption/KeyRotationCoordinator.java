@@ -268,7 +268,7 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         }
         long retireCutoff = now - GRACE_TICKS * checkInterval.millis();
         if (metadata.findRetireableKeyIds(retireCutoff).isEmpty() == false) {
-            submitTaskIfOpen("retire-project-encryption-keys", new RetireKeysTask(retireCutoff));
+            submitTaskIfOpen("retire-project-encryption-keys", new RetireKeysTask(retireCutoff, metadata.getActiveKeyId()));
         }
     }
 
@@ -563,7 +563,7 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         }
     }
 
-    record RetireKeysTask(long cutoffDeactivationMillis) implements KeyRotationTask {
+    record RetireKeysTask(long cutoffDeactivationMillis, String expectedActiveKeyId) implements KeyRotationTask {
         @Override
         public String description() {
             return "project encryption key retire (cutoff=" + cutoffDeactivationMillis + ")";
@@ -614,12 +614,7 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
             return switch (task) {
                 case InstallKeyTask install -> executeInstallInitial(clusterState, projectState, existing, install);
                 case BeginRotationTask begin -> executeBeginRotation(clusterState, projectState, existing, begin);
-                case RetireKeysTask retireKeysTask -> executeRetireKeys(
-                    clusterState,
-                    projectState,
-                    existing,
-                    retireKeysTask.cutoffDeactivationMillis()
-                );
+                case RetireKeysTask retireKeysTask -> executeRetireKeys(clusterState, projectState, existing, retireKeysTask);
                 case UpdatePasswordIdTask updatePasswordId -> executeUpdatePasswordId(
                     clusterState,
                     projectState,
@@ -677,12 +672,21 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
             ClusterState clusterState,
             ProjectState projectState,
             ProjectEncryptionKeyMetadata existing,
-            long cutoffDeactivationMillis
+            RetireKeysTask task
         ) {
             if (existing == null) {
                 return Tuple.tuple(clusterState, null);
             }
-            Set<String> retiredIds = existing.findRetireableKeyIds(cutoffDeactivationMillis);
+            // a rotation since the tick makes handlers pending again; retiring now would skip their pass over the new active key
+            if (existing.getActiveKeyId().equals(task.expectedActiveKeyId()) == false) {
+                logger.debug(
+                    "dropping retire task: activeKeyId drifted from [{}] to [{}]",
+                    task.expectedActiveKeyId(),
+                    existing.getActiveKeyId()
+                );
+                return Tuple.tuple(clusterState, null);
+            }
+            Set<String> retiredIds = existing.findRetireableKeyIds(task.cutoffDeactivationMillis());
             if (retiredIds.isEmpty()) {
                 return Tuple.tuple(clusterState, null);
             }

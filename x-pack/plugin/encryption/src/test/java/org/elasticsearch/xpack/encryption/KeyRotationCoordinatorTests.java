@@ -605,7 +605,7 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
 
         verify(taskQueue).submitTask(
             eq("retire-project-encryption-keys"),
-            eq(new KeyRotationCoordinator.RetireKeysTask(now - graceMillis)),
+            eq(new KeyRotationCoordinator.RetireKeysTask(now - graceMillis, "active")),
             any()
         );
     }

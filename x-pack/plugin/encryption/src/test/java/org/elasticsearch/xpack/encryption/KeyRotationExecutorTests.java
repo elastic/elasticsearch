@@ -177,7 +177,7 @@ public class KeyRotationExecutorTests extends ESTestCase {
         );
         ClusterState state = stateWith(existing);
 
-        Tuple<ClusterState, Void> result = executor.executeTask(new KeyRotationCoordinator.RetireKeysTask(420L), state);
+        Tuple<ClusterState, Void> result = executor.executeTask(new KeyRotationCoordinator.RetireKeysTask(420L, "active"), state);
 
         ProjectEncryptionKeyMetadata metadata = metadataOf(result.v1());
         assertEquals("only 'old' should have been retired", Set.of("active", "lastDeactivated", "recent"), metadata.getKeys().keySet());
@@ -199,7 +199,7 @@ public class KeyRotationExecutorTests extends ESTestCase {
         ClusterState state = stateWith(existing);
 
         long cutoff = 200L;
-        Tuple<ClusterState, Void> result = executor.executeTask(new KeyRotationCoordinator.RetireKeysTask(cutoff), state);
+        Tuple<ClusterState, Void> result = executor.executeTask(new KeyRotationCoordinator.RetireKeysTask(cutoff, "active"), state);
 
         ProjectEncryptionKeyMetadata metadata = metadataOf(result.v1());
         assertEquals(Set.of("active", "previous"), metadata.getKeys().keySet());
@@ -216,13 +216,36 @@ public class KeyRotationExecutorTests extends ESTestCase {
         );
         ClusterState state = stateWith(existing);
 
-        Tuple<ClusterState, Void> result = executor.executeTask(new KeyRotationCoordinator.RetireKeysTask(500L), state);
+        Tuple<ClusterState, Void> result = executor.executeTask(new KeyRotationCoordinator.RetireKeysTask(500L, "active"), state);
         assertSame(state, result.v1());
+    }
+
+    /**
+     * A retire task submitted in the same tick as a rotation applies after it. Handlers are then pending on the new key, so retiring
+     * would remove k1 before their pass moves any late write still under it.
+     */
+    public void testRetireKeysDropsWhenRotationAppliedSinceSubmit() {
+        ProjectEncryptionKeyMetadata existing = new ProjectEncryptionKeyMetadata(
+            Map.of("k0", entry(100L), "k1", entry(200L), "k2", entry(300L)),
+            "k2",
+            PASSWORD_ID,
+            Map.of("handler", "k2"),
+            NO_OP_ENCRYPTION
+        );
+        ClusterState rotated = executor.executeTask(
+            new KeyRotationCoordinator.BeginRotationTask("k3", randomKey(), 400L, new AtomicBoolean()),
+            stateWith(existing)
+        ).v1();
+
+        Tuple<ClusterState, Void> result = executor.executeTask(new KeyRotationCoordinator.RetireKeysTask(350L, "k2"), rotated);
+
+        assertSame(rotated, result.v1());
+        assertEquals(Set.of("k0", "k1", "k2", "k3"), metadataOf(result.v1()).getKeys().keySet());
     }
 
     public void testRetireKeysIsNoopWhenNoMetadata() {
         ClusterState state = stateWith(null);
-        Tuple<ClusterState, Void> result = executor.executeTask(new KeyRotationCoordinator.RetireKeysTask(100L), state);
+        Tuple<ClusterState, Void> result = executor.executeTask(new KeyRotationCoordinator.RetireKeysTask(100L, "active"), state);
         assertSame(state, result.v1());
     }
 }

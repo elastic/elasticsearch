@@ -1,0 +1,8 @@
+pr: 136398
+summary: "ESQL: Push down `MvExpand` past `Project`"
+area: ES|QL
+type: enhancement
+issues:
+  - 136292
+  - 136596
+  - 119074

@@ -68,25 +68,22 @@ public class LinkerHelper {
         return LINKER.downcallHandle(functionAddress, functionDescriptor, options);
     }
 
-    /**
-     * Returns a segment's native address for a binding that passes raw pointers to native code.
-     */
-    public static long rawAddress(MemorySegment segment) {
+    public static void assertRawAddressNative(MemorySegment segment) {
         assert segment.isNative() : "raw address requires a native memory segment";
-        assert segment.scope().isAlive() : "raw address requires a live memory segment";
-        return segment.address();
     }
 
-    /**
-     * Asserts that a segment passed to a non-critical binding is native.
-     */
     public static void assertNative(MemorySegment segment) {
         assert segment.isNative() : "non-critical bindings require native memory segments";
     }
 
     /**
-     * Asserts that a segment is alive.
+     * Returns a segment's native address for a binding that passes raw pointers to native code.
      */
+    public static long rawAddress(MemorySegment segment) {
+        assert segment.scope().isAlive() : "raw address requires a live memory segment";
+        return segment.address();
+    }
+
     public static void assertLive(MemorySegment segment) {
         assert segment.scope().isAlive()
             : "raw address requires its memory segment to be kept alive. Avoid closing or dropping references to its Arena";

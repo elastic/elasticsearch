@@ -106,7 +106,8 @@ public class CriticalGeneratedClassBehaviorTests extends ProcessorTestCase {
             assertEquals(0, (int) lib.call("memcmp", nativeSegment, other, 8L));
 
             MemorySegment heapSegment = MemorySegment.ofArray(new byte[8]);
-            lib.expectThrows(AssertionError.class, "memcmp", heapSegment, other, 8L);
+            AssertionError e = lib.expectThrows(AssertionError.class, "memcmp", heapSegment, other, 8L);
+            assertEquals("non-critical bindings require native memory segments", e.getMessage());
         }
     }
 }

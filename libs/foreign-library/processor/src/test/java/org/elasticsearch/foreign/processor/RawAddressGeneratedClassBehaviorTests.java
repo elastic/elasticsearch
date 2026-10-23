@@ -48,7 +48,8 @@ public class RawAddressGeneratedClassBehaviorTests extends ProcessorTestCase {
             assertEquals(0, (int) lib.call("memcmp", nativeSegment, other, 8L));
 
             MemorySegment heapSegment = MemorySegment.ofArray(new byte[8]);
-            lib.expectThrows(AssertionError.class, "memcmp", heapSegment, other, 8L);
+            AssertionError e = lib.expectThrows(AssertionError.class, "memcmp", heapSegment, other, 8L);
+            assertEquals("raw address requires a native memory segment", e.getMessage());
         }
     }
 
@@ -59,7 +60,9 @@ public class RawAddressGeneratedClassBehaviorTests extends ProcessorTestCase {
         MemorySegment closedSegment = closedArena.allocate(8);
         closedArena.close();
         try (Arena arena = Arena.ofConfined()) {
-            lib.expectThrows(AssertionError.class, "memcmp", closedSegment, arena.allocate(8), 8L);
+            AssertionError e = lib.expectThrows(AssertionError.class, "memcmp", closedSegment, arena.allocate(8), 8L);
+            assertTrue(e.getCause() instanceof AssertionError);
+            assertEquals("raw address requires a live memory segment", e.getCause().getMessage());
         }
     }
 

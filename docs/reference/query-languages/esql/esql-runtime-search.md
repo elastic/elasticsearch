@@ -36,9 +36,8 @@ Runtime search is useful to:
 Other search functions, such as [`QSTR`](/reference/query-languages/esql/functions-operators/search-functions/qstr.md)
 and [`KQL`](/reference/query-languages/esql/functions-operators/search-functions/kql.md), need an indexed field.
 
-:::{note}
+:::{dropdown} Runtime search in 9.5
 :applies_to: stack: preview =9.5
-In 9.5, runtime search is more limited than described on this page:
 
 * Only `MATCH` and the `:` operator support it, not `MATCH_PHRASE`.
 * It is subject to the same [position restriction](/reference/query-languages/esql/limitations.md#esql-limitations-full-text-search-position)
@@ -106,9 +105,9 @@ as in the examples on this page.
 
 ## Multivalued columns [esql-runtime-search-multivalued]
 
-The values of a [multivalued](/reference/query-languages/esql/esql-multivalued-fields.md) column are searched
-together, the same way an indexed multivalued field is. A row matches when its values together match the query, and
-a phrase cannot span the end of one value and the start of the next.
+For a [multivalued](/reference/query-languages/esql/esql-multivalued-fields.md) `text` column, query terms can match
+across different values in the same row. Phrase matching uses a position gap between values, so a phrase does not
+cross value boundaries with the default `slop`. A sufficiently large `slop` can allow a cross-value match.
 
 ## Analyzers [esql-runtime-search-analyzers]
 
@@ -216,6 +215,9 @@ contributes to the relevance score. There are no index statistics for an express
 
 These scores are added to `_score` like any other search's, so in a query that also searches indexed fields they add
 to BM25 scores, which are on a different scale.
+
+A runtime search after `FORK` or a `FROM` with subqueries filters rows but does not contribute to `_score` unless
+it can be pushed into the branches. Refer to [#161746](https://github.com/elastic/elasticsearch/issues/161746).
 
 A runtime search contributes to `_score` only after it runs. Filtering on `_score` after the search sees its score:
 

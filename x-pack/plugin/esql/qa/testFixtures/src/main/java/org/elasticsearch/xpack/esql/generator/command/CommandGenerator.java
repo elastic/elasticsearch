@@ -143,10 +143,6 @@ public interface CommandGenerator {
             return VALIDATION_OK;
         }
 
-        // known bug https://github.com/elastic/elasticsearch/issues/121741
-        previousColumns = previousColumns.stream().filter(x -> x.name().contains("<all-fields-projected>") == false).toList();
-        columns = columns.stream().filter(x -> x.name().contains("<all-fields-projected>") == false).toList();
-
         if (previousColumns.size() != columns.size()) {
             List<String> prevNames = previousColumns.stream().map(Column::name).toList();
             List<String> newNames = columns.stream().map(Column::name).toList();
@@ -172,10 +168,6 @@ public interface CommandGenerator {
      * The command doesn't have to produce LESS columns than the previous query
      */
     static ValidationResult expectAtLeastSameNumberOfColumns(List<Column> previousColumns, List<Column> columns) {
-        // known bug https://github.com/elastic/elasticsearch/issues/121741
-        previousColumns = previousColumns.stream().filter(x -> x.name().contains("<all-fields-projected>") == false).toList();
-        columns = columns.stream().filter(x -> x.name().contains("<all-fields-projected>") == false).toList();
-
         if (previousColumns.size() > columns.size()) {
             return new ValidationResult(false, "Expecting at least [" + previousColumns.size() + "] columns, got [" + columns.size() + "]");
         }

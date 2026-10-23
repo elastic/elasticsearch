@@ -91,6 +91,8 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
             runEsql(builder),
             anyOf(
                 // current response allowing no matching indices
+                matchesList(),
+                // response of a coordinator that predates the removal of the <no-fields> placeholder column
                 matchesList().item(matchesMap().entry("name", "<no-fields>").entry("type", "null")),
                 // prior response seeing more fields as it run additional resolution with no filter
                 matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))

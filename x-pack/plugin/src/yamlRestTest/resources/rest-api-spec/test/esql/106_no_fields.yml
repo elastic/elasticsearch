@@ -1,0 +1,198 @@
+---
+setup:
+  - requires:
+      test_runner_features: [capabilities, allowed_warnings_regex]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [drop_no_fields_attribute]
+      reason: "a source without fields has no columns, instead of the <no-fields> placeholder column"
+
+  - do:
+      indices.create:
+        index: no_fields_empty
+
+  # explicit (dynamic:false) empty mapping: the documents exist, but none of their fields is mapped
+  - do:
+      indices.create:
+        index: no_fields_unmapped
+        body:
+          mappings:
+            dynamic: false
+
+  - do:
+      bulk:
+        index: no_fields_unmapped
+        refresh: true
+        body:
+          - { "index": {} }
+          - { "a": 1 }
+          - { "index": {} }
+          - { "a": 2 }
+          - { "index": {} }
+          - { "a": 3 }
+
+---
+'empty index has no columns':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM no_fields_empty'
+  - length: { columns: 0 }
+  - length: { values: 0 }
+
+---
+'keep star on empty index has no columns':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM no_fields_empty | KEEP *'
+  - length: { columns: 0 }
+  - length: { values: 0 }
+
+---
+'eval on empty index returns only the computed column':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM no_fields_empty | EVAL x = 1'
+  - length: { columns: 1 }
+  - match: { columns.0.name: x }
+  - match: { columns.0.type: integer }
+  - length: { values: 0 }
+
+---
+'drop null columns on empty index':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        drop_null_columns: true
+        body:
+          query: 'FROM no_fields_empty | EVAL x = 1'
+  - length: { all_columns: 1 }
+  - match: { all_columns.0.name: x }
+  - length: { columns: 0 }
+
+---
+'stats on empty index':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM no_fields_empty | STATS c = COUNT(*)'
+  - length: { columns: 1 }
+  - match: { columns.0.name: c }
+  - match: { values: [[0]] }
+
+---
+'index with documents but an empty mapping returns its rows':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM no_fields_unmapped'
+  - length: { columns: 0 }
+  - length: { values: 3 }
+
+---
+'drop null columns on an empty index without computed columns':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        drop_null_columns: true
+        body:
+          query: 'FROM no_fields_empty'
+  - length: { all_columns: 0 }
+  - length: { columns: 0 }
+  - length: { values: 0 }
+
+---
+'stats on an index with documents but an empty mapping':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM no_fields_unmapped | STATS c = COUNT(*)'
+  - length: { columns: 1 }
+  - match: { columns.0.name: c }
+  - match: { values: [[3]] }
+
+---
+'eval on an index with documents but an empty mapping':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM no_fields_unmapped | EVAL x = 1 | KEEP x'
+  - length: { columns: 1 }
+  - match: { columns.0.name: x }
+  - match: { values: [[1], [1], [1]] }
+
+---
+'unmapped fields load on an index with an empty mapping':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [optional_fields_fix_unmapped_load_empty_mapping_no_fields]
+      reason: "unmapped_fields=load on an empty mapping"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM no_fields_unmapped | KEEP a | SORT a'
+  - length: { columns: 1 }
+  - match: { columns.0.name: a }
+  - match: { columns.0.type: keyword }
+  - match: { values: [["1"], ["2"], ["3"]] }
+
+---
+'subqueries over empty indices have no columns':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [subquery_in_from_command_prune_no_fields]
+      reason: "subqueries over empty indices"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM no_fields_empty, (FROM no_fields_empty)'
+  - length: { columns: 0 }
+  - length: { values: 0 }
+
+---
+'count over subqueries over empty indices':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [subquery_in_from_command_prune_no_fields]
+      reason: "subqueries over empty indices"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM no_fields_empty, (FROM no_fields_empty) | STATS c = COUNT(*)'
+  - match: { columns.0.name: c }
+  - match: { values: [[0]] }

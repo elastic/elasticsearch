@@ -11,7 +11,6 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.List;
 import java.util.Map;
@@ -303,10 +302,7 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractCrossClusterT
                 )
             ) {
                 List<ColumnInfoImpl> columns = resp.columns();
-                assertThat(columns.size(), equalTo(1));
-                // column from an empty result should be {"name":"<no-fields>","type":"null"}
-                assertThat(columns.get(0).name(), equalTo("<no-fields>"));
-                assertThat(columns.get(0).type(), equalTo(DataType.NULL));
+                assertThat(columns.size(), equalTo(0));
 
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values, hasSize(0));
@@ -346,10 +342,7 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractCrossClusterT
                 )
             ) {
                 List<ColumnInfoImpl> columns = resp.columns();
-                assertThat(columns.size(), equalTo(1));
-                // column from an empty result should be {"name":"<no-fields>","type":"null"}
-                assertThat(columns.get(0).name(), equalTo("<no-fields>"));
-                assertThat(columns.get(0).type(), equalTo(DataType.NULL));
+                assertThat(columns.size(), equalTo(0));
 
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values, hasSize(0));
@@ -404,9 +397,7 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractCrossClusterT
                 subscriber
             );
 
-            assertThat(resultStream.columns(), hasSize(1));
-            assertThat(resultStream.columns().get(0).name(), equalTo("<no-fields>"));
-            assertThat(resultStream.columns().get(0).type(), equalTo(DataType.NULL));
+            assertThat(resultStream.columns(), hasSize(0));
 
             assertThat("no rows expected for empty-result CCS stream", subscriber.rowCount.get(), equalTo(0));
 

@@ -12,7 +12,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 
 import java.io.IOException;
@@ -93,10 +92,7 @@ public class CrossClusterEnrichUnavailableClustersIT extends AbstractEnrichBased
                 String query = "FROM *:events | eval ip= TO_STR(host) | " + enrichHosts(mode) + " | stats c = COUNT(*) by os | SORT os";
                 try (EsqlQueryResponse resp = runQuery(query, requestIncludeMeta)) {
                     List<ColumnInfoImpl> columns = resp.columns();
-                    assertThat(columns.size(), equalTo(1));
-                    // column from an empty result should be {"name":"<no-fields>","type":"null"}
-                    assertThat(columns.get(0).name(), equalTo("<no-fields>"));
-                    assertThat(columns.get(0).type(), equalTo(DataType.NULL));
+                    assertThat(columns.size(), equalTo(0));
 
                     List<List<Object>> rows = getValuesList(resp);
                     assertThat(rows.size(), equalTo(0));
@@ -313,10 +309,7 @@ public class CrossClusterEnrichUnavailableClustersIT extends AbstractEnrichBased
             } else {
                 try (EsqlQueryResponse resp = runQuery(query, requestIncludeMeta)) {
                     List<ColumnInfoImpl> columns = resp.columns();
-                    assertThat(columns.size(), equalTo(1));
-                    // column from an empty result should be {"name":"<no-fields>","type":"null"}
-                    assertThat(columns.get(0).name(), equalTo("<no-fields>"));
-                    assertThat(columns.get(0).type(), equalTo(DataType.NULL));
+                    assertThat(columns.size(), equalTo(0));
 
                     assertThat(getValuesList(resp).size(), equalTo(0));
                     EsqlExecutionInfo executionInfo = resp.getExecutionInfo();

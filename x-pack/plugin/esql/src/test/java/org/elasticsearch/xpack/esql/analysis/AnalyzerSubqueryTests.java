@@ -314,12 +314,9 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
     /*
      * Limit[1000[INTEGER],false,false]
      * \_UnionAll[[]]
-     *   |_Project[[]]
-     *   | \_EsRelation[no_fields_index][<no-fields>{r$}#2]
-     *   |_Project[[]]
-     *   | \_EsRelation[no_fields_index][<no-fields>{r$}#2]
-     *   \_Project[[]]
-     *     \_EsRelation[no_fields_index][<no-fields>{r$}#2]
+     *   |_EsRelation[no_fields_index][]
+     *   |_EsRelation[no_fields_index][]
+     *   \_EsRelation[no_fields_index][]
      */
     public void testSubqueryInFromWithNoFieldsIndices() {
         assertNoFieldUnionAll(analyzer().addNoFieldsIndex(), """
@@ -334,12 +331,9 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
     /*
      * Limit[1000[INTEGER],false,false]
      * \_UnionAll[[]]
-     *   |_Project[[]]
-     *   | \_EsRelation[empty_index][<no-fields>{r$}#2]
-     *   |_Project[[]]
-     *   | \_EsRelation[empty_index][<no-fields>{r$}#2]
-     *   \_Project[[]]
-     *     \_EsRelation[empty_index][<no-fields>{r$}#2]
+     *   |_EsRelation[empty_index][]
+     *   |_EsRelation[empty_index][]
+     *   \_EsRelation[empty_index][]
      */
     public void testSubqueryInFromWithEmptyIndex() {
         assertNoFieldUnionAll(analyzer().addEmptyIndex(), """
@@ -355,12 +349,9 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
     /*
      * Limit[1000[INTEGER],false,false]
      * \_UnionAll[[]]
-     *   |_Project[[]]
-     *   | \_EsRelation[no_fields_index][<no-fields>{r$}#2]
-     *   |_Project[[]]
-     *   | \_EsRelation[no_fields_index][<no-fields>{r$}#2]
-     *   \_Project[[]]
-     *     \_EsRelation[empty_index][<no-fields>{r$}#2]
+     *   |_EsRelation[no_fields_index][]
+     *   |_EsRelation[no_fields_index][]
+     *   \_EsRelation[empty_index][]
      */
     public void testSubqueryInFromWithNoFieldsAndEmptyIndex() {
         assertNoFieldUnionAll(analyzer().addNoFieldsIndex().addEmptyIndex(), """
@@ -375,10 +366,8 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
      * Limit[1000[INTEGER],false,false]
      * \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count()#2367]]
      *   \_UnionAll[[]]
-     *     |_Project[[]]
-     *     | \_EsRelation[no_fields_index][<no-fields>{r$}#2]
-     *     \_Project[[]]
-     *       \_EsRelation[no_fields_index][<no-fields>{r$}#2]
+     *     |_EsRelation[no_fields_index][]
+     *     \_EsRelation[no_fields_index][]
      */
     public void testCountWithSubqueryWithNoFields() {
         assertCountOverNoFieldSubqueries(analyzer().addNoFieldsIndex(), "no_fields_index", "no_fields_index");
@@ -388,10 +377,8 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
      * Limit[1000[INTEGER],false,false]
      * \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count()#171]]
      *   \_UnionAll[[]]
-     *     |_Project[[]]
-     *     | \_EsRelation[empty_index][<no-fields>{r$}#2]
-     *     \_Project[[]]
-     *       \_EsRelation[empty_index][<no-fields>{r$}#2]
+     *     |_EsRelation[empty_index][]
+     *     \_EsRelation[empty_index][]
      */
     public void testCountWithSubqueryWithEmptyIndex() {
         assertCountOverNoFieldSubqueries(analyzer().addEmptyIndex(), "empty_index", "empty_index");
@@ -401,10 +388,8 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
      * Limit[1000[INTEGER],false,false]
      * \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count()#885]]
      *   \_UnionAll[[]]
-     *     |_Project[[]]
-     *     | \_EsRelation[no_fields_index][<no-fields>{r$}#2]
-     *     \_Project[[]]
-     *       \_EsRelation[empty_index][<no-fields>{r$}#2]
+     *     |_EsRelation[no_fields_index][]
+     *     \_EsRelation[empty_index][]
      */
     public void testCountWithSubqueryWithNoFieldsAndEmptyIndex() {
         assertCountOverNoFieldSubqueries(analyzer().addEmptyIndex().addNoFieldsIndex(), "no_fields_index", "empty_index");
@@ -2133,16 +2118,14 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         assertEquals(0, unionAll.output().size());
         assertEquals(indices.length, unionAll.children().size());
         for (int i = 0; i < indices.length; i++) {
-            Project project = as(unionAll.children().get(i), Project.class);
-            assertTrue(project.projections().isEmpty());
-            EsRelation relation = as(project.child(), EsRelation.class);
+            EsRelation relation = as(unionAll.children().get(i), EsRelation.class);
             assertEquals(indices[i], relation.indexPattern());
         }
     }
 
     /**
      * Asserts that {@code STATS <count>} over subqueries of the given no-field {@code indices} analyzes to
-     * {@code Limit -> Aggregate -> UnionAll}, with one empty {@code Project([]) -> EsRelation} branch per
+     * {@code Limit -> Aggregate -> UnionAll}, with one {@code EsRelation} branch per
      * index. Runs the check for {@code count()}, {@code count(*)} and {@code count(1)}.
      */
     private static void assertCountOverNoFieldSubqueries(TestAnalyzer analyzer, String... indices) {
@@ -2159,9 +2142,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
             assertEquals(0, unionAll.output().size());
             assertEquals(indices.length, unionAll.children().size());
             for (int i = 0; i < indices.length; i++) {
-                Project project = as(unionAll.children().get(i), Project.class);
-                assertEquals(0, project.projections().size());
-                EsRelation relation = as(project.child(), EsRelation.class);
+                EsRelation relation = as(unionAll.children().get(i), EsRelation.class);
                 assertEquals(indices[i], relation.indexPattern());
             }
         }

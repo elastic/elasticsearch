@@ -7,14 +7,19 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -23,7 +28,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.rule.Rule;
+import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -31,21 +36,59 @@ import java.util.List;
 import static java.lang.Boolean.FALSE;
 import static java.lang.Boolean.TRUE;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 
 /**
  * Adds an explicit project to minimize the amount of attributes sent from the local plan to the coordinator.
  * This is done here to localize the project close to the data source and simplify the upcoming field
  * extraction.
  */
-public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
-    public static String ALL_FIELDS_PROJECTED = "<all-fields-projected>";
+public class ProjectAwayColumns extends ParameterizedRule<PhysicalPlan, PhysicalPlan, PhysicalOptimizerContext> {
+    /**
+     * Name of the placeholder column that is added when all the fields of a fragment are projected away, as long as some node
+     * that runs the fragment cannot handle pages without blocks. Data nodes still have to accept (and ignore) it when it comes
+     * from a coordinator that predates {@link #ZERO_COLUMN_FRAGMENTS}.
+     */
+    public static final String ALL_FIELDS_PROJECTED = "<all-fields-projected>";
+
+    /**
+     * From this version on every node can run a fragment that returns no columns, i.e. pages with zero blocks. Older nodes fail
+     * on them, for example in {@code LimitOperator} (#143463), so they need {@link #ALL_FIELDS_PROJECTED}.
+     */
+    public static final TransportVersion ZERO_COLUMN_FRAGMENTS = TransportVersion.fromName("esql_zero_column_fragments");
+
+    /**
+     * Name of the placeholder attribute that stands in for the output of an {@link EsRelation} without fields, as long as some node
+     * that runs the fragment predates {@link #PLAN_WITH_NO_COLUMNS}. Such nodes (before 9.3, #133405) replace every plan with an empty
+     * output by an empty relation, so {@code FROM idx | LIMIT 2} over a relation without fields returns no rows. Newer nodes must not
+     * get it: they do not know how to produce it and fail with "optimized incorrectly due to missing references" (#125866).
+     */
+    private static final String NO_FIELDS_NAME = "<no-fields>";
+
+    private static final TransportVersion PLAN_WITH_NO_COLUMNS = TransportVersion.fromName("esql_plan_with_no_columns");
 
     @Override
-    public PhysicalPlan apply(PhysicalPlan plan) {
-        return apply(plan, false);
+    public PhysicalPlan apply(PhysicalPlan plan, PhysicalOptimizerContext context) {
+        if (context.minimumVersion().supports(PLAN_WITH_NO_COLUMNS) == false) {
+            plan = plan.transformUp(
+                FragmentExec.class,
+                fragment -> fragment.withFragment(
+                    fragment.fragment()
+                        .transformUp(
+                            EsRelation.class,
+                            relation -> relation.output().isEmpty()
+                                ? relation.withAttributes(
+                                    List.of(new ReferenceAttribute(Source.EMPTY, null, NO_FIELDS_NAME, NULL, Nullability.TRUE, null, true))
+                                )
+                                : relation
+                        )
+                )
+            );
+        }
+        return apply(plan, context, false);
     }
 
-    private PhysicalPlan apply(PhysicalPlan plan, boolean isMergeBranch) {
+    private PhysicalPlan apply(PhysicalPlan plan, PhysicalOptimizerContext context, boolean isMergeBranch) {
         Holder<Boolean> keepTraversing = new Holder<>(TRUE);
         // Invariant: if we add a projection with these attributes after the current plan node, the plan remains valid
         // and the overall output will not change.
@@ -64,7 +107,7 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
                 boolean changed = false;
 
                 for (var child : mergeExec.children()) {
-                    var newChild = apply(child, true);
+                    var newChild = apply(child, context, true);
 
                     if (newChild != child) {
                         changed = true;
@@ -74,8 +117,7 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
                 }
                 if (changed) {
                     // Preserve the original MergeExec output (which uses the merge's NameIds) unless it is
-                    // empty — that happens when all branches had only the <no-fields> marker, which was
-                    // stripped by PruneColumns. In that case adopt the children's output (ALL_FIELDS_PROJECTED).
+                    // empty — that happens when all branches have no output columns. In that case adopt the children's output.
                     var newOutput = mergeExec.output().isEmpty() ? newChildren.getFirst().output() : mergeExec.output();
                     return new MergeExec(mergeExec.source(), newChildren, newOutput, mergeExec.kind());
                 }
@@ -108,11 +150,12 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
                         // TODO: stop adding the remaining required attributes once remote ENRICH is fixed.
                         output.addAll(requiredAttrBuilder.build());
 
-                        // if all the fields are filtered out, it's only the count that matters
-                        // however until a proper fix (see https://github.com/elastic/elasticsearch/issues/98703)
-                        // add a synthetic field (so it doesn't clash with the user defined one) to return a constant
-                        // to avoid the block from being trimmed
-                        if (output.isEmpty() && isMergeBranch == false) {
+                        // If all the fields are filtered out, it's only the count that matters. Nodes that cannot handle pages with
+                        // zero blocks need a synthetic field (so it doesn't clash with the user defined one) that returns a constant,
+                        // see https://github.com/elastic/elasticsearch/issues/98703
+                        if (output.isEmpty()
+                            && isMergeBranch == false
+                            && context.minimumVersion().supports(ZERO_COLUMN_FRAGMENTS) == false) {
                             var alias = new Alias(logicalFragment.source(), ALL_FIELDS_PROJECTED, Literal.NULL, null, true);
                             List<Alias> fields = singletonList(alias);
                             logicalFragment = new Eval(logicalFragment.source(), logicalFragment, fields);

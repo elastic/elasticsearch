@@ -782,7 +782,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
         resp = runESQLCommand("user1", "SET wildcards_match_views=false; FROM view-user*");
         // matches no views, returns empty result
-        assertThat(entityAsMap(resp).get("columns"), equalTo(List.of(Map.of("name", "<no-fields>", "type", "null"))));
+        assertThat(entityAsMap(resp).get("columns"), equalTo(List.of()));
     }
 
     public void testNestedViewResolutionAuthorized() throws Exception {
@@ -874,7 +874,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
         var response = runESQLCommand("view_dls_user", "SET wildcards_match_views=false; FROM view-user*");
         // matches no views, returns empty result
-        assertThat(entityAsMap(response).get("columns"), equalTo(List.of(Map.of("name", "<no-fields>", "type", "null"))));
+        assertThat(entityAsMap(response).get("columns"), equalTo(List.of()));
     }
 
     /**

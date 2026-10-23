@@ -67,9 +67,8 @@ public abstract class PostOptimizationPhasePlanVerifier<P extends QueryPlan<P>> 
             return;
         }
         if (dataTypeEquals(expectedOutputAttributes, optimizedPlan.output()) == false) {
-            // If the output level is empty we add a column called ProjectAwayColumns.ALL_FIELDS_PROJECTED
-            // We will ignore such cases for output verification
-            // TODO: this special casing is required due to https://github.com/elastic/elasticsearch/issues/121741, remove when fixed.
+            // A coordinator that predates zero column fragments adds a column called ProjectAwayColumns.ALL_FIELDS_PROJECTED when
+            // all the fields are projected away. We will ignore such cases for output verification.
             boolean hasProjectAwayColumns = optimizedPlan.output()
                 .stream()
                 .anyMatch(x -> x.name().equals(ProjectAwayColumns.ALL_FIELDS_PROJECTED));

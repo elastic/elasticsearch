@@ -4625,6 +4625,16 @@ public class EsqlCapabilities {
          */
         SCORE_IN_OR_SEES_OTHER_SEARCHES,
 
+        /**
+         * The {@code <no-fields>} and {@code <all-fields-projected>} placeholder columns are gone. A source that has no fields (e.g. an
+         * index with an empty mapping, or a cluster skipped during cross-cluster search) has no columns instead of a single
+         * {@code null}-typed {@code <no-fields>} column, and a query whose data node fragment has nothing to return (e.g. {@code FROM}
+         * an index with documents but an empty mapping) returns its rows with no columns instead of a {@code null}-typed
+         * {@code <all-fields-projected>} column. The placeholders no longer show up next to other columns
+         * either (e.g. after an {@code EVAL}).
+         */
+        DROP_NO_FIELDS_ATTRIBUTE,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

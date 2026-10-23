@@ -807,9 +807,7 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
             assertThat(columnsLine, hasKey("columns"));
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> columns = (List<Map<String, Object>>) columnsLine.get("columns");
-            assertThat(columns, hasSize(1));
-            assertThat(columns.get(0).get("name"), equalTo("<no-fields>"));
-            assertThat(columns.get(0).get("type"), equalTo("null"));
+            assertThat(columns, hasSize(0));
 
             Map<String, Object> footer = records.get(1);
             assertThat(footer, hasKey("took"));

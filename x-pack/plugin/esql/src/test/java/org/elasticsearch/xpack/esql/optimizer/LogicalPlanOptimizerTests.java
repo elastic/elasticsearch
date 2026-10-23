@@ -204,7 +204,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.relation;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION;
-import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.NULL;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
@@ -5436,7 +5435,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var plan = logicalOptimizer.optimize(emptyAnalyzer.query("from empty_test"));
         as(plan, LocalRelation.class);
-        assertThat(plan.output(), equalTo(NO_FIELDS));
+        assertThat(plan.output(), hasSize(0));
+
+        plan = logicalOptimizer.optimize(emptyAnalyzer.query("from empty_test | eval x = 1"));
+        as(plan, LocalRelation.class);
+        assertThat(Expressions.names(plan.output()), contains("x"));
 
         plan = logicalOptimizer.optimize(emptyAnalyzer.query("from empty_test metadata _id | eval x = 1"));
         as(plan, LocalRelation.class);

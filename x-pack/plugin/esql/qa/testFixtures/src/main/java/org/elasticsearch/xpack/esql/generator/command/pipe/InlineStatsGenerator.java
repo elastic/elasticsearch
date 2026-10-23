@@ -36,11 +36,6 @@ public class InlineStatsGenerator extends StatsGenerator {
 
         int prevCols = previousColumns.size();
 
-        if (previousColumns.stream().anyMatch(x -> x.name().equals("<all-fields-projected>"))) {
-            // known bug https://github.com/elastic/elasticsearch/issues/121741
-            prevCols--;
-        }
-
         if (prevCols > columns.size()) {
             return new ValidationResult(false, "Expecting at least [" + prevCols + "] columns, got [" + columns.size() + "]");
         }

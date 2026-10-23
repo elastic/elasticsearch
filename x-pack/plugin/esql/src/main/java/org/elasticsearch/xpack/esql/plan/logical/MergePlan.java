@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -29,7 +28,6 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.keepExistingUnsupportedAttributes;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferenceAttributesPreservingIds;
 
@@ -67,8 +65,7 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
             return false;
         }
 
-        if (children().stream()
-            .anyMatch(p -> p.outputSet().names().contains(Analyzer.NO_FIELDS_NAME) || output.size() != p.output().size())) {
+        if (children().stream().anyMatch(p -> output.size() != p.output().size())) {
             return false;
         }
 
@@ -204,7 +201,7 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
                     continue;
                 }
 
-                if (names.contains(attr.name()) == false && attr != NO_FIELDS.getFirst()) {
+                if (names.contains(attr.name()) == false) {
                     names.add(attr.name());
                     output.add(attr);
                 }

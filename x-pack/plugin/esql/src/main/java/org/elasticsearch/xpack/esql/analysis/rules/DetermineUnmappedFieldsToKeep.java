@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.analysis.rules;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -234,22 +233,15 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         if (project instanceof ResolvingProject rp && rp.unmappedFieldsPattern().isNone()) {
             return project;
         }
-        var noStaleFields = dropStaleNoFields(project);
-        List<UnmappedFieldsAttribute> unmapped = CollectionUtils.collect(noStaleFields.child().output(), UnmappedFieldsAttribute.class);
+        List<UnmappedFieldsAttribute> unmapped = CollectionUtils.collect(project.child().output(), UnmappedFieldsAttribute.class);
         if (unmapped.isEmpty()) {
-            return noStaleFields;
+            return project;
         }
-        Set<String> names = new HashSet<>(Expressions.names(noStaleFields.projections()));
+        Set<String> names = new HashSet<>(Expressions.names(project.projections()));
         List<UnmappedFieldsAttribute> missing = unmapped.stream()
             .filter(attr -> names.contains(attr.name()) == false)
             .collect(Collectors.toList());
-        return noStaleFields.withAdditionalProjections(missing);
-    }
-
-    /** Drop {@code <no-fields>} from a KEEP * once the relation has real columns. */
-    private static Project dropStaleNoFields(Project project) {
-        var kept = project.projections().stream().filter(projection -> Analyzer.NO_FIELDS_NAME.equals(projection.name()) == false).toList();
-        return kept.size() < project.projections().size() ? project.withProjections(kept) : project;
+        return project.withAdditionalProjections(missing);
     }
 
     /**

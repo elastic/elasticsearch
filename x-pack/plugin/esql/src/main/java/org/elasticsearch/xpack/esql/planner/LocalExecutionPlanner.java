@@ -2282,7 +2282,7 @@ public class LocalExecutionPlanner {
             projectedColumns.add(attr.name());
         }
 
-        // ProjectAwayColumns inserts a single synthetic attribute when all real columns are pruned.
+        // A coordinator that predates zero column fragments inserts a single synthetic attribute when all real columns are pruned.
         // Treat it the same as empty, so the decoder takes the row-count-only fast path.
         if (projectedColumns.size() == 1 && ProjectAwayColumns.ALL_FIELDS_PROJECTED.equals(projectedColumns.getFirst())) {
             projectedColumns = List.of();

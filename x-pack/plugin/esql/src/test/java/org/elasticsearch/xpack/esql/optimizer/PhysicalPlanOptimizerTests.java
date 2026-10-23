@@ -3849,6 +3849,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     public void testProjectAwayColumns() {
         var rule = new ProjectAwayColumns();
+        var context = new PhysicalOptimizerContext(config, TransportVersion.current());
 
         // FROM test | limit 10000
         //
@@ -3885,7 +3886,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         );
 
         // All the relation's fields are required.
-        PhysicalPlan plan = rule.apply(limitThenFragment);
+        PhysicalPlan plan = rule.apply(limitThenFragment, context);
         Project project = as(
             as(as(as(plan, LimitExec.class).child(), ExchangeExec.class).child(), FragmentExec.class).fragment(),
             Project.class
@@ -3894,7 +3895,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         // FROM test | limit 10000 | keep some_field1
         ProjectExec projectLimitThenFragment = new ProjectExec(Source.EMPTY, limitThenFragment, List.of(some_field1));
-        plan = rule.apply(projectLimitThenFragment);
+        plan = rule.apply(projectLimitThenFragment, context);
         project = as(
             as(as(as(as(plan, ProjectExec.class).child(), LimitExec.class).child(), ExchangeExec.class).child(), FragmentExec.class)
                 .fragment(),
@@ -3905,7 +3906,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         // FROM test | limit 10000 | eval x = to_lower(some_field1)
         Alias x = new Alias(Source.EMPTY, "x", new ToLower(Source.EMPTY, some_field1, config));
         EvalExec evalLimitThenFragment = new EvalExec(Source.EMPTY, limitThenFragment, List.of(x));
-        plan = rule.apply(evalLimitThenFragment);
+        plan = rule.apply(evalLimitThenFragment, context);
         project = as(
             as(as(as(as(plan, EvalExec.class).child(), LimitExec.class).child(), ExchangeExec.class).child(), FragmentExec.class)
                 .fragment(),
@@ -3915,7 +3916,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         // FROM test | limit 10000 | eval x = to_lower(some_field1) | keep x
         ProjectExec projectEvalLimitThenFragment = new ProjectExec(Source.EMPTY, evalLimitThenFragment, List.of(x.toAttribute()));
-        plan = rule.apply(projectEvalLimitThenFragment);
+        plan = rule.apply(projectEvalLimitThenFragment, context);
         project = as(
             as(
                 as(as(as(as(plan, ProjectExec.class).child(), EvalExec.class).child(), LimitExec.class).child(), ExchangeExec.class)
@@ -3932,7 +3933,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             limitThenFragment,
             List.of(new Alias(Source.EMPTY, some_field2.name(), some_field1))
         );
-        plan = rule.apply(renameLimitThenFragment);
+        plan = rule.apply(renameLimitThenFragment, context);
         project = as(
             as(as(as(as(plan, ProjectExec.class).child(), LimitExec.class).child(), ExchangeExec.class).child(), FragmentExec.class)
                 .fragment(),
@@ -3944,7 +3945,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         Alias y = new Alias(Source.EMPTY, "y", new ToUpper(Source.EMPTY, x.toAttribute(), config));
         EvalExec evalTwiceLimitThenFragment = new EvalExec(Source.EMPTY, limitThenFragment, List.of(x, y));
         ProjectExec projectEvalTwiceLimitThenFragment = new ProjectExec(Source.EMPTY, evalTwiceLimitThenFragment, List.of(y.toAttribute()));
-        plan = rule.apply(projectEvalTwiceLimitThenFragment);
+        plan = rule.apply(projectEvalTwiceLimitThenFragment, context);
         project = as(
             as(
                 as(as(as(as(plan, ProjectExec.class).child(), EvalExec.class).child(), LimitExec.class).child(), ExchangeExec.class)
@@ -3991,9 +3992,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * \_EvalExec[[1[INTEGER] AS x]]
      *   \_LimitExec[10000[INTEGER]]
      *     \_ExchangeExec[[],false]
-     *       \_ProjectExec[[&lt;all-fields-projected&gt;{r}#12]]
-     *         \_EvalExec[[null[NULL] AS &lt;all-fields-projected&gt;]]
-     *           \_EsQueryExec[test], query[{"esql_single_value":{"field":"emp_no","next":{"range":{"emp_no":{"gt":10,"boost":1.0}}}}}]
+     *       \_ProjectExec[[]]
+     *         \_EsQueryExec[test], query[{"esql_single_value":{"field":"emp_no","next":{"range":{"emp_no":{"gt":10,"boost":1.0}}}}}]
      *            [_doc{f}#13], limit[10000], sort[] estimatedRowSize[8]
      */
     public void testProjectAwayAllColumnsWhenOnlyTheCountMatters() {
@@ -4008,13 +4008,20 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var eval = as(project.child(), EvalExec.class);
         var limit = as(eval.child(), LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
-        var nullField = "<all-fields-projected>";
         project = as(exchange.child(), ProjectExec.class);
-        assertThat(Expressions.names(project.projections()), contains(nullField));
-        eval = as(project.child(), EvalExec.class);
-        assertThat(Expressions.names(eval.fields()), contains(nullField));
-        var source = source(eval.child());
-        assertThat(Expressions.names(source.attrs()), contains("_doc"));
+        if (testData.minimumVersion().supports(ProjectAwayColumns.ZERO_COLUMN_FRAGMENTS)) {
+            assertThat(project.projections(), empty());
+            var source = source(project.child());
+            assertThat(Expressions.names(source.attrs()), contains("_doc"));
+        } else {
+            // some node cannot run a fragment with zero columns: a placeholder column is returned instead
+            var nullField = ProjectAwayColumns.ALL_FIELDS_PROJECTED;
+            assertThat(Expressions.names(project.projections()), contains(nullField));
+            eval = as(project.child(), EvalExec.class);
+            assertThat(Expressions.names(eval.fields()), contains(nullField));
+            var source = source(eval.child());
+            assertThat(Expressions.names(source.attrs()), contains("_doc"));
+        }
     }
 
     /**
@@ -4023,10 +4030,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * LimitExec[10000[INTEGER]]
      * \_AggregateExec[[],[COUNT([2a][KEYWORD]) AS count(*)],SINGLE,[count{r}#13, seen{r}#14],8]
      *     \_LimitExec[10[INTEGER]]
-     *       \_ExchangeExec[[&lt;all-fields-projected&gt;{r:s}#28],false]
-     *         \_ProjectExec[[&lt;all-fields-projected&gt;{r:s}#28]]
-     *           \_EvalExec[[null[NULL] AS &lt;all-fields-projected&gt;]]
-     *             \_EsQueryExec[test], indexMode[standard], query[][_doc{f}#29], limit[10], sort[] estimatedRowSize[4]
+     *       \_ExchangeExec[[],false]
+     *         \_ProjectExec[[]]
+     *           \_EsQueryExec[test], indexMode[standard], query[][_doc{f}#29], limit[10], sort[] estimatedRowSize[4]
      */
     public void testProjectAwayAllColumnsWhenOnlyTheCountMattersInStats() {
         var plan = optimizedPlan(physicalPlan("""
@@ -4042,13 +4048,52 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var exchange = as(limit10.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);
-        var eval = as(project.child(), EvalExec.class);
-        EsQueryExec esQuery = as(eval.child(), EsQueryExec.class);
+        if (testData.minimumVersion().supports(ProjectAwayColumns.ZERO_COLUMN_FRAGMENTS)) {
+            EsQueryExec esQuery = as(project.child(), EsQueryExec.class);
+            assertThat(project.projections(), empty());
+            assertThat(Expressions.names(esQuery.attrs()), contains("_doc"));
+        } else {
+            // some node cannot run a fragment with zero columns: a placeholder column is returned instead
+            var nullField = ProjectAwayColumns.ALL_FIELDS_PROJECTED;
+            var eval = as(project.child(), EvalExec.class);
+            EsQueryExec esQuery = as(eval.child(), EsQueryExec.class);
+            assertThat(Expressions.names(project.projections()), contains(nullField));
+            assertThat(Expressions.names(eval.fields()), contains(nullField));
+            assertThat(Expressions.names(esQuery.attrs()), contains("_doc"));
+        }
+    }
 
-        var nullField = "<all-fields-projected>";
-        assertThat(Expressions.names(project.projections()), contains(nullField));
-        assertThat(Expressions.names(eval.fields()), contains(nullField));
-        assertThat(Expressions.names(esQuery.attrs()), contains("_doc"));
+    /**
+     * Every node can run a fragment with zero columns, so the fragment returns no columns and nothing is added to it.
+     */
+    public void testProjectAwayAllColumnsWithZeroColumnFragmentsSupport() {
+        var plan = physicalPlan("""
+            from test
+            | limit 10
+            | stats count(*)
+            """);
+        var optimized = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config, TransportVersion.current())).optimize(plan);
+
+        var exchange = optimized.collect(ExchangeExec.class).getFirst();
+        assertThat(exchange.output(), empty());
+    }
+
+    /**
+     * Some node is too old to run a fragment with zero columns (pages with zero blocks), e.g. a remote cluster, so a constant
+     * placeholder column is returned instead.
+     */
+    public void testProjectAwayAllColumnsWithoutZeroColumnFragmentsSupport() {
+        var plan = physicalPlan("""
+            from test
+            | limit 10
+            | stats count(*)
+            """);
+        var optimized = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config, TransportVersion.minimumCompatible())).optimize(
+            plan
+        );
+
+        var exchange = optimized.collect(ExchangeExec.class).getFirst();
+        assertThat(Expressions.names(exchange.output()), contains(ProjectAwayColumns.ALL_FIELDS_PROJECTED));
     }
 
     /**

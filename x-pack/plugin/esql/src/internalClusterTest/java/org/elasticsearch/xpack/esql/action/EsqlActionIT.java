@@ -2134,7 +2134,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
         try (EsqlQueryResponse resp = run(from)) {
             assertFalse(resp.values().hasNext());
-            assertThat(resp.columns(), equalTo(List.of(new ColumnInfoImpl("<no-fields>", "null", null))));
+            assertThat(resp.columns(), equalTo(List.of()));
         }
     }
 

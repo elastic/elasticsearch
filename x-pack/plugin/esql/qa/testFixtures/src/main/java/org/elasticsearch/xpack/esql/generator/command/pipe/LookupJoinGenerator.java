@@ -120,11 +120,6 @@ public class LookupJoinGenerator implements CommandGenerator {
         // this is for the additional RENAME, that could drop columns
         int prevCols = previousColumns.size() - (Integer) commandDescription.context().get("nKeys");
 
-        if (previousColumns.stream().anyMatch(x -> x.name().equals("<all-fields-projected>"))) {
-            // known bug https://github.com/elastic/elasticsearch/issues/121741
-            prevCols--;
-        }
-
         // todo: awaits fix https://github.com/elastic/elasticsearch/issues/142636
         // if (prevCols > columns.size()) {
         // return new ValidationResult(false, "Expecting at least [" + prevCols + "] columns, got [" + columns.size() + "]");

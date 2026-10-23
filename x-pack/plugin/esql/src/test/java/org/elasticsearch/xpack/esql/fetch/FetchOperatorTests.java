@@ -41,6 +41,10 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.fetch.FetchResponse.ShardResult;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.junit.After;
@@ -48,8 +52,12 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -58,7 +66,10 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.sameInstance;
 
 /**
@@ -84,8 +95,7 @@ public class FetchOperatorTests extends ComputeTestCase {
     }
 
     /**
-     * The rows keep their order and their columns, and get the values of their own documents appended. Each page of the
-     * cut sends one request to each node that holds some of its documents.
+     * The rows keep their order and their columns, and get the values of their own documents appended.
      */
     public void testAppendsTheFetchedColumnsInTheOrderOfTheCut() throws Exception {
         BlockFactory blockFactory = blockFactory();
@@ -98,15 +108,398 @@ public class FetchOperatorTests extends ComputeTestCase {
         } finally {
             output.forEach(Page::releaseBlocks);
         }
-        List<String> nodes = new ArrayList<>();
-        for (List<Ref> page : input) {
-            page.stream().map(ref -> ref.origin().nodeId()).distinct().forEach(nodes::add);
+    }
+
+    /**
+     * A page leaves at once, alone, when no batch fetches: the first page of the cut, and a page that arrives once the
+     * driver has the output of every batch before it.
+     */
+    public void testAPageLeavesAtOnceWhenNoBatchFetches() throws Exception {
+        BlockFactory blockFactory = blockFactory();
+        FakeClient client = new FakeClient(blockFactory);
+        client.holdResponses = new CountDownLatch(1);
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        Operator operator = factory(client, batching(between(1, FetchOperator.MAX_BATCHES_IN_FLIGHT), 100)).get(driverContext);
+        try {
+            List<Ref> first = List.of(new Ref(ORIGINS.get(0), 0, 1), new Ref(ORIGINS.get(2), 0, 2));
+            operator.addInput(page(blockFactory, first));
+            assertThat(requestedDocuments(client), containsInAnyOrder(Set.of(first.get(0)), Set.of(first.get(1))));
+            client.holdResponses.countDown();
+            assertThat(releasedRows(takeOutput(operator, 1)), equalTo(first));
+
+            client.holdResponses = new CountDownLatch(1);
+            List<Ref> next = List.of(new Ref(ORIGINS.get(3), 0, 3));
+            operator.addInput(page(blockFactory, next));
+            assertThat(client.requests, hasSize(3));
+            assertThat(requestedDocuments(client).getLast(), equalTo(Set.of(next.getFirst())));
+            client.holdResponses.countDown();
+            assertThat(releasedRows(takeOutput(operator, 1)), equalTo(next));
+        } finally {
+            client.holdResponses.countDown();
+            operator.close();
+            awaitResponses(driverContext);
+        }
+    }
+
+    /**
+     * While a batch fetches, the small pages that arrive wait. Once it ends they leave together as one batch, with one
+     * request per node.
+     */
+    public void testPagesThatWaitLeaveTogetherWhenABatchEnds() throws Exception {
+        BlockFactory blockFactory = blockFactory();
+        FakeClient client = new FakeClient(blockFactory);
+        client.holdResponses = new CountDownLatch(1);
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        Operator operator = factory(client, batching(between(1, FetchOperator.MAX_BATCHES_IN_FLIGHT), 100)).get(driverContext);
+        try {
+            List<Ref> first = List.of(new Ref(ORIGINS.get(3), 0, 1));
+            List<Ref> second = List.of(new Ref(ORIGINS.get(0), 0, 2), new Ref(ORIGINS.get(2), 0, 3));
+            List<Ref> third = List.of(new Ref(ORIGINS.get(1), 0, 4), new Ref(ORIGINS.get(2), 0, 5));
+            operator.addInput(page(blockFactory, first));
+            operator.addInput(page(blockFactory, second));
+            operator.addInput(page(blockFactory, third));
+            assertThat(
+                "the later pages wait for the first batch",
+                client.requests.stream().map(Request::nodeId).toList(),
+                equalTo(List.of("n3"))
+            );
+
+            client.holdResponses.countDown();
+            List<Ref> rows = releasedRows(takeOutput(operator, 3));
+            assertThat(rows, equalTo(concat(first, second, third)));
+            List<Request> secondBatch = client.requests.subList(1, client.requests.size());
+            assertThat(secondBatch.stream().map(Request::nodeId).toList(), containsInAnyOrder("n1", "n2"));
+            for (Request request : secondBatch) {
+                Set<Ref> expected = request.nodeId().equals("n1")
+                    ? Set.of(second.get(0), third.get(0))
+                    : Set.of(second.get(1), third.get(1));
+                assertThat(documents(request), equalTo(expected));
+            }
+        } finally {
+            client.holdResponses.countDown();
+            operator.close();
+            awaitResponses(driverContext);
+        }
+    }
+
+    /**
+     * While a batch fetches, the pages that wait leave as soon as they fill the row budget of a batch, so full pages
+     * fetch side by side.
+     */
+    public void testPagesThatFillABatchLeaveWhileAnotherFetches() throws Exception {
+        BlockFactory blockFactory = blockFactory();
+        FakeClient client = new FakeClient(blockFactory);
+        client.holdResponses = new CountDownLatch(1);
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        Operator operator = factory(client, batching(between(2, FetchOperator.MAX_BATCHES_IN_FLIGHT), 2)).get(driverContext);
+        try {
+            List<Ref> first = List.of(new Ref(ORIGINS.get(0), 0, 1));
+            List<Ref> second = List.of(new Ref(ORIGINS.get(2), 0, 2));
+            List<Ref> third = List.of(new Ref(ORIGINS.get(2), 0, 3));
+            operator.addInput(page(blockFactory, first));
+            operator.addInput(page(blockFactory, second));
+            assertThat("one row waits, below the row budget", requestedDocuments(client), equalTo(List.of(Set.copyOf(first))));
+            operator.addInput(page(blockFactory, third));
+            assertThat(
+                "two rows fill a batch, which leaves while the first one fetches",
+                requestedDocuments(client),
+                equalTo(List.of(Set.copyOf(first), Set.of(second.getFirst(), third.getFirst())))
+            );
+
+            client.holdResponses.countDown();
+            assertThat(releasedRows(takeOutput(operator, 3)), equalTo(concat(first, second, third)));
+        } finally {
+            client.holdResponses.countDown();
+            operator.close();
+            awaitResponses(driverContext);
+        }
+    }
+
+    /**
+     * However many full pages wait, no more batches fetch at once than the batching allows.
+     */
+    public void testNoMoreBatchesFetchAtOnceThanAllowed() throws Exception {
+        BlockFactory blockFactory = blockFactory();
+        FakeClient client = new FakeClient(blockFactory);
+        client.holdResponses = new CountDownLatch(1);
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        int maxBatchesInFlight = between(1, FetchOperator.MAX_BATCHES_IN_FLIGHT);
+        // a page of one row fills a batch
+        Operator operator = factory(client, batching(maxBatchesInFlight, 1)).get(driverContext);
+        try {
+            List<List<Ref>> input = new ArrayList<>();
+            for (int p = 0; p < maxBatchesInFlight + between(1, 3); p++) {
+                input.add(List.of(new Ref(ORIGINS.get(0), 0, p)));
+            }
+            for (List<Ref> page : input) {
+                operator.addInput(page(blockFactory, page));
+            }
+            assertThat(client.requests, hasSize(maxBatchesInFlight));
+
+            client.holdResponses.countDown();
+            assertThat(releasedRows(takeOutput(operator, input.size())), equalTo(input.stream().flatMap(List::stream).toList()));
+            assertThat("a batch per page in the end", client.requests, hasSize(input.size()));
+        } finally {
+            client.holdResponses.countDown();
+            operator.close();
+            awaitResponses(driverContext);
+        }
+    }
+
+    /**
+     * A batch takes the pages that wait, in order, while their rows fit its row budget. The next page starts the next batch.
+     */
+    public void testABatchTakesPagesUpToItsRowBudget() throws Exception {
+        BlockFactory blockFactory = blockFactory();
+        FakeClient client = new FakeClient(blockFactory);
+        client.holdResponses = new CountDownLatch(1);
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        Operator operator = factory(client, batching(1, 5)).get(driverContext);
+        try {
+            List<Ref> first = List.of(new Ref(ORIGINS.get(0), 0, 1));
+            List<Ref> second = List.of(new Ref(ORIGINS.get(0), 0, 10), new Ref(ORIGINS.get(0), 0, 11));
+            List<Ref> third = List.of(new Ref(ORIGINS.get(0), 0, 20), new Ref(ORIGINS.get(0), 0, 21));
+            List<Ref> fourth = List.of(new Ref(ORIGINS.get(0), 0, 30), new Ref(ORIGINS.get(0), 0, 31));
+            for (List<Ref> page : List.of(first, second, third, fourth)) {
+                operator.addInput(page(blockFactory, page));
+            }
+
+            client.holdResponses.countDown();
+            assertThat(releasedRows(takeOutput(operator, 4)), equalTo(concat(first, second, third, fourth)));
+            assertThat(
+                "the second and third pages fit five rows, the fourth doesn't",
+                requestedDocuments(client),
+                equalTo(List.of(Set.copyOf(first), Set.copyOf(concat(second, third)), Set.copyOf(fourth)))
+            );
+        } finally {
+            client.holdResponses.countDown();
+            operator.close();
+            awaitResponses(driverContext);
+        }
+    }
+
+    /**
+     * A page with more rows than the row budget still leaves, alone.
+     */
+    public void testAPageAboveTheRowBudgetLeavesAlone() throws Exception {
+        BlockFactory blockFactory = blockFactory();
+        FakeClient client = new FakeClient(blockFactory);
+        client.holdResponses = new CountDownLatch(1);
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        Operator operator = factory(client, batching(1, 2)).get(driverContext);
+        try {
+            List<Ref> first = List.of(new Ref(ORIGINS.get(0), 0, 1));
+            List<Ref> large = new ArrayList<>();
+            for (int d = 10; d < 15; d++) {
+                large.add(new Ref(ORIGINS.get(0), 0, d));
+            }
+            List<Ref> last = List.of(new Ref(ORIGINS.get(0), 0, 20));
+            for (List<Ref> page : List.of(first, large, last)) {
+                operator.addInput(page(blockFactory, page));
+            }
+
+            client.holdResponses.countDown();
+            assertThat(releasedRows(takeOutput(operator, 3)), equalTo(concat(first, large, last)));
+            assertThat(requestedDocuments(client), equalTo(List.of(Set.copyOf(first), Set.copyOf(large), Set.copyOf(last))));
+        } finally {
+            client.holdResponses.countDown();
+            operator.close();
+            awaitResponses(driverContext);
+        }
+    }
+
+    /**
+     * Each page of a batch comes out as its own page, with its own rows, in the order of the cut.
+     */
+    public void testThePagesOfABatchComeOutOneByOneInOrder() throws Exception {
+        BlockFactory blockFactory = blockFactory();
+        FakeClient client = new FakeClient(blockFactory);
+        client.holdResponses = new CountDownLatch(1);
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        Operator operator = factory(client, batching(1, 1000)).get(driverContext);
+        try {
+            List<List<Ref>> input = new ArrayList<>();
+            // the first page fetches while the others wait, so they leave in one batch, with at least two later pages
+            input.add(List.of(new Ref(randomFrom(ORIGINS), 0, 0)));
+            int batched = between(3, 6);
+            int empty = between(1, batched);
+            for (int p = 1; p <= batched; p++) {
+                List<Ref> refs = new ArrayList<>();
+                int rows = p == empty ? 0 : between(1, 10);
+                for (int r = 0; r < rows; r++) {
+                    refs.add(new Ref(randomFrom(ORIGINS), between(0, 3), between(0, 500)));
+                }
+                input.add(refs);
+            }
+            for (List<Ref> page : input) {
+                operator.addInput(page(blockFactory, page));
+            }
+
+            client.holdResponses.countDown();
+            List<Page> output = takeOutput(operator, input.size());
+            try {
+                for (int p = 0; p < input.size(); p++) {
+                    assertThat("page " + p, rows(List.of(output.get(p))), equalTo(input.get(p)));
+                }
+            } finally {
+                output.forEach(Page::releaseBlocks);
+            }
+            List<String> secondBatch = client.requests.stream().skip(1).map(Request::nodeId).toList();
+            assertThat("one request per node for the batched pages", Set.copyOf(secondBatch), hasSize(secondBatch.size()));
+        } finally {
+            client.holdResponses.countDown();
+            operator.close();
+            awaitResponses(driverContext);
+        }
+    }
+
+    /**
+     * With partial results, the failed fetch of a shard drops its rows from every page of the batch.
+     */
+    public void testAFailedShardDropsItsRowsFromEveryPageOfTheBatch() throws Exception {
+        BlockFactory blockFactory = blockFactory();
+        FakeClient client = new FakeClient(blockFactory);
+        DocOrigin failed = ORIGINS.get(1);
+        client.failingShard = failed.contextId();
+        client.holdResponses = new CountDownLatch(1);
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        FetchFailures failures = new FetchFailures(true);
+        Operator operator = factory(client, failures, batching(1, 100)).get(driverContext);
+        try {
+            List<Ref> first = List.of(new Ref(ORIGINS.get(3), 0, 1));
+            List<Ref> second = List.of(new Ref(ORIGINS.get(0), 0, 2), new Ref(failed, 0, 3), new Ref(ORIGINS.get(2), 0, 4));
+            List<Ref> third = List.of(new Ref(failed, 0, 5), new Ref(ORIGINS.get(0), 0, 6));
+            for (List<Ref> page : List.of(first, second, third)) {
+                operator.addInput(page(blockFactory, page));
+            }
+
+            client.holdResponses.countDown();
+            List<Page> output = takeOutput(operator, 3);
+            try {
+                assertThat(rows(List.of(output.get(0))), equalTo(first));
+                assertThat(rows(List.of(output.get(1))), equalTo(without(second, failed)));
+                assertThat(rows(List.of(output.get(2))), equalTo(without(third, failed)));
+            } finally {
+                output.forEach(Page::releaseBlocks);
+            }
+        } finally {
+            client.holdResponses.countDown();
+            operator.close();
+            awaitResponses(driverContext);
+        }
+        EsqlExecutionInfo.Cluster reported = reported(failures);
+        assertThat(reported.getFailedShards(), equalTo(1));
+        assertThat(listedShards(reported), equalTo(List.of(failed.shardId())));
+    }
+
+    /**
+     * A batch that fails the query fails every page of it, and the pages that wait, which never leave. Not even once
+     * another batch that was in flight ends.
+     */
+    public void testAFailedBatchFailsThePagesThatWait() throws Exception {
+        BlockFactory blockFactory = blockFactory();
+        FakeClient client = new FakeClient(blockFactory);
+        client.failingNode = "n2";
+        CountDownLatch holdN1 = new CountDownLatch(1);
+        CountDownLatch holdN2 = new CountDownLatch(1);
+        client.holdResponsesOf.put("n1", holdN1);
+        client.holdResponsesOf.put("n2", holdN2);
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        // a page of one row fills a batch, so the first two pages fetch side by side and the third waits
+        Operator operator = factory(client, batching(2, 1)).get(driverContext);
+        try {
+            operator.addInput(page(blockFactory, List.of(new Ref(ORIGINS.get(0), 0, 1))));
+            operator.addInput(page(blockFactory, List.of(new Ref(ORIGINS.get(2), 0, 2))));
+            operator.addInput(page(blockFactory, List.of(new Ref(ORIGINS.get(0), 0, 3))));
+            operator.finish();
+            assertThat(client.requests.stream().map(Request::nodeId).toList(), equalTo(List.of("n1", "n2")));
+
+            holdN2.countDown();
+            awaitUnblocked(operator);
+            Exception e = expectThrows(Exception.class, operator::getOutput);
+            assertThat(e.getMessage(), equalTo("rejected by [n2]"));
+            holdN1.countDown();
+            // the batch of n1 ends after the failure, and would send the page that waited if it still waited
+            awaitResponses(driverContext);
+            assertThat(
+                "the page that waited never left",
+                client.requests.stream().map(Request::nodeId).toList(),
+                equalTo(List.of("n1", "n2"))
+            );
+        } finally {
+            holdN1.countDown();
+            holdN2.countDown();
+            operator.close();
+            awaitResponses(driverContext);
+        }
+    }
+
+    /**
+     * Closing the operator fails the pages that wait, so their driver can complete, and releases the pages gathered for
+     * the later pages of a batch that never came out.
+     */
+    public void testClosingReleasesThePagesThatWaitAndThoseGathered() throws Exception {
+        BlockFactory blockFactory = blockFactory();
+        FakeClient client = new FakeClient(blockFactory);
+        client.holdResponses = new CountDownLatch(1);
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        Operator operator = factory(client, batching(1, 100)).get(driverContext);
+        try {
+            List<Ref> first = List.of(new Ref(ORIGINS.get(0), 0, 1));
+            List<Ref> second = List.of(new Ref(ORIGINS.get(0), 0, 2));
+            List<Ref> third = List.of(new Ref(ORIGINS.get(0), 0, 3));
+            for (List<Ref> page : List.of(first, second, third)) {
+                operator.addInput(page(blockFactory, page));
+            }
+            client.holdResponses.countDown();
+            // the second page is the first of its batch, so the operator gathers the third one with it and keeps it
+            assertThat(releasedRows(takeOutput(operator, 2)), equalTo(concat(first, second)));
+
+            client.holdResponses = new CountDownLatch(1);
+            operator.addInput(page(blockFactory, List.of(new Ref(ORIGINS.get(0), 0, 4))));
+            operator.addInput(page(blockFactory, List.of(new Ref(ORIGINS.get(0), 0, 5))));
+            assertThat("the fifth page waits for the fourth", client.requests, hasSize(3));
+        } finally {
+            operator.close();
+            client.holdResponses.countDown();
+            awaitResponses(driverContext);
+        }
+        assertThat("the page that waited never left", client.requests, hasSize(3));
+        // the test case checks that closing released the pages
+    }
+
+    /**
+     * A batch takes the rows whose fetched columns fill about one target page, and at least the minimum page size.
+     */
+    public void testTheRowBudgetFillsAboutOneTargetPage() {
+        List<Attribute> narrow = List.of(attribute("payload", DataType.KEYWORD), attribute("count", DataType.LONG));
+        int rowSize = DataType.KEYWORD.estimatedSize() + DataType.LONG.estimatedSize();
+        int maxBatchRows = FetchOperator.Batching.forFetched(narrow).maxBatchRows();
+        assertThat("the rows fit a target page", (long) maxBatchRows * rowSize, lessThanOrEqualTo((long) Operator.TARGET_PAGE_SIZE));
+        assertThat("one more row doesn't", (long) (maxBatchRows + 1) * rowSize, greaterThan((long) Operator.TARGET_PAGE_SIZE));
+
+        List<Attribute> wide = new ArrayList<>();
+        for (int i = 0; i < 16; i++) {
+            wide.add(attribute("text_" + i, DataType.TEXT));
         }
         assertThat(
-            "one request per node and page",
-            client.requests.stream().map(Request::nodeId).toList(),
-            containsInAnyOrder(nodes.toArray())
+            "fewer rows fill the target page",
+            Operator.TARGET_PAGE_SIZE / (16 * DataType.TEXT.estimatedSize()),
+            lessThan(Operator.MIN_TARGET_PAGE_SIZE)
         );
+        assertThat(FetchOperator.Batching.forFetched(wide).maxBatchRows(), equalTo(Operator.MIN_TARGET_PAGE_SIZE));
+    }
+
+    /**
+     * Batching limits under which no batch could leave, or no page could wait, are rejected.
+     */
+    public void testBatchingRejectsLimitsThatCantFetch() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new FetchOperator.Batching(4, 0, 10));
+        assertThat(e.getMessage(), equalTo("maxBatchesInFlight must be positive but was [0]"));
+        e = expectThrows(IllegalArgumentException.class, () -> new FetchOperator.Batching(1, 2, 10));
+        assertThat(e.getMessage(), equalTo("maxPagesHeld [1] must be at least maxBatchesInFlight [2]"));
+        e = expectThrows(IllegalArgumentException.class, () -> new FetchOperator.Batching(4, 2, 0));
+        assertThat(e.getMessage(), equalTo("maxBatchRows must be positive but was [0]"));
     }
 
     /**
@@ -606,7 +999,88 @@ public class FetchOperatorTests extends ComputeTestCase {
     }
 
     private static FetchOperator.Factory factory(FetchOperator.Client client, FetchFailures failures) {
-        return new FetchOperator.Factory(0, FETCHED_TYPES, null, between(1, FetchOperator.MAX_OUTSTANDING_PAGES), client, failures);
+        return factory(client, failures, randomBatching());
+    }
+
+    private static FetchOperator.Factory factory(FetchOperator.Client client, FetchOperator.Batching batching) {
+        return factory(client, new FetchFailures(false), batching);
+    }
+
+    private static FetchOperator.Factory factory(FetchOperator.Client client, FetchFailures failures, FetchOperator.Batching batching) {
+        return new FetchOperator.Factory(0, FETCHED_TYPES, null, batching, client, failures);
+    }
+
+    private static FetchOperator.Batching randomBatching() {
+        int maxBatchesInFlight = between(1, FetchOperator.MAX_BATCHES_IN_FLIGHT);
+        return new FetchOperator.Batching(between(maxBatchesInFlight, FetchOperator.MAX_PAGES_HELD), maxBatchesInFlight, between(1, 100));
+    }
+
+    /**
+     * Batching with room for every page a test holds.
+     */
+    private static FetchOperator.Batching batching(int maxBatchesInFlight, int maxBatchRows) {
+        return new FetchOperator.Batching(FetchOperator.MAX_PAGES_HELD, maxBatchesInFlight, maxBatchRows);
+    }
+
+    /**
+     * Takes the next {@code count} pages out of the operator, and waits for each one like a driver does.
+     */
+    private static List<Page> takeOutput(Operator operator, int count) {
+        List<Page> output = new ArrayList<>();
+        boolean success = false;
+        try {
+            while (output.size() < count) {
+                awaitUnblocked(operator);
+                Page page = operator.getOutput();
+                if (page != null) {
+                    output.add(page);
+                }
+            }
+            success = true;
+            return output;
+        } finally {
+            if (success == false) {
+                output.forEach(Page::releaseBlocks);
+            }
+        }
+    }
+
+    /**
+     * The documents of each request, in the order the requests went out.
+     */
+    private static List<Set<Ref>> requestedDocuments(FakeClient client) {
+        return client.requests.stream().map(FetchOperatorTests::documents).toList();
+    }
+
+    /**
+     * The documents one request asked for.
+     */
+    private static Set<Ref> documents(Request request) {
+        Set<Ref> documents = new HashSet<>();
+        for (FetchRequest.ShardDocs shard : request.shards()) {
+            DocOrigin origin = originOf(shard);
+            for (int d = 0; d < shard.docCount(); d++) {
+                documents.add(new Ref(origin, shard.segments()[d], shard.docs()[d]));
+            }
+        }
+        return documents;
+    }
+
+    private static DocOrigin originOf(FetchRequest.ShardDocs shard) {
+        return ORIGINS.stream().filter(o -> o.contextId().equals(shard.contextId())).findFirst().orElseThrow();
+    }
+
+    @SafeVarargs
+    private static List<Ref> concat(List<Ref>... pages) {
+        List<Ref> rows = new ArrayList<>();
+        for (List<Ref> page : pages) {
+            rows.addAll(page);
+        }
+        return rows;
+    }
+
+    private static Attribute attribute(String name, DataType type) {
+        return new ReferenceAttribute(Source.EMPTY, name, type);
     }
 
     /**
@@ -682,6 +1156,8 @@ public class FetchOperatorTests extends ComputeTestCase {
         private String missingResultNode;
         private boolean completeTwice;
         private CountDownLatch holdResponses;
+        /** The responses of each node in the map wait for its latch. */
+        private final Map<String, CountDownLatch> holdResponsesOf = new ConcurrentHashMap<>();
         /** Each node answers with this response header, its id as the value. */
         private String responseHeader;
 
@@ -715,6 +1191,10 @@ public class FetchOperatorTests extends ComputeTestCase {
                 try {
                     if (holdResponses != null) {
                         holdResponses.await(10, TimeUnit.SECONDS);
+                    }
+                    CountDownLatch holdNode = holdResponsesOf.get(node.getId());
+                    if (holdNode != null) {
+                        holdNode.await(10, TimeUnit.SECONDS);
                     }
                     if (responseHeader != null) {
                         threadPool.getThreadContext().addResponseHeader(responseHeader, node.getId());
@@ -753,7 +1233,7 @@ public class FetchOperatorTests extends ComputeTestCase {
                     results.add(ShardResult.failed(shard.shardId(), failure));
                     continue;
                 }
-                DocOrigin origin = ORIGINS.stream().filter(o -> o.contextId().equals(shard.contextId())).findFirst().orElseThrow();
+                DocOrigin origin = originOf(shard);
                 try (
                     BytesRefBlock.Builder ids = blockFactory.newBytesRefBlockBuilder(shard.docCount());
                     LongBlock.Builder values = blockFactory.newLongBlockBuilder(shard.docCount())
@@ -803,6 +1283,17 @@ public class FetchOperatorTests extends ComputeTestCase {
             }
             // rows may share a document
             return new Page(builder.build(DocVector.config().origins(DocOrigins.of(origins)).mayContainDuplicates()));
+        }
+    }
+
+    /**
+     * The rows of {@code pages}, which it releases.
+     */
+    private static List<Ref> releasedRows(List<Page> pages) {
+        try {
+            return rows(pages);
+        } finally {
+            pages.forEach(Page::releaseBlocks);
         }
     }
 

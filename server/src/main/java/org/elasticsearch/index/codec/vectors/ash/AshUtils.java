@@ -30,6 +30,31 @@ final class AshUtils {
         return v;
     }
 
+    private static final float INT8_MAX = Byte.MAX_VALUE;
+
+    /**
+     * Quantizes {@code v[offset..offset+length)} to symmetric int8 in {@code out[outOffset..]}, so that the
+     * largest magnitude maps to ±127. -128 is never written, so negating a value cannot overflow.
+     *
+     * @return the scale that maps the int8 values back to {@code v}, or 0 if every value is 0
+     */
+    static float quantizeInt8(float[] v, int offset, int length, byte[] out, int outOffset) {
+        float max = 0;
+        for (int i = 0; i < length; i++) {
+            max = Math.max(max, Math.abs(v[offset + i]));
+        }
+        if (max == 0) {
+            Arrays.fill(out, outOffset, outOffset + length, (byte) 0);
+            return 0;
+        }
+        float inverseScale = INT8_MAX / max;
+        for (int i = 0; i < length; i++) {
+            // map floats to [-127, 127] so it's symmetric
+            out[outOffset + i] = (byte) Math.clamp(Math.round(v[offset + i] * inverseScale), -INT8_MAX, INT8_MAX);
+        }
+        return max / INT8_MAX;
+    }
+
     /**
      * Computes the nearest orthogonal matrix to M (k x k) using Newton-Schulz iteration
      * for the polar decomposition. Computes U @ Vt from the exact SVD of M

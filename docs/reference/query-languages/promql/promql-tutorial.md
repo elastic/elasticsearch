@@ -43,7 +43,7 @@ export API_KEY="your-api-key"
 ```
 ::::
 
-This tutorial uses fixed sample timestamps on 2026-10-22 so that every query returns the same result whenever you run it. To accept those timestamps, it stores the samples in a dedicated time series index with explicit time bounds instead of the default Prometheus data stream. Metrics that you ingest with [Prometheus remote write](#promql-tutorial-remote-write) use current timestamps and don't need this setup.
+This tutorial uses fixed sample timestamps on 2026-10-22 so that every query returns the same result whenever you run it. To accept those timestamps, it stores the samples in a dedicated time series index with explicit time bounds instead of the default Prometheus data stream. The index mapping is a reduced version of the built-in `metrics-prometheus@mappings` component template that remote write uses: it only maps `_total` metrics as counters and omits the gauge and other counter mappings, so don't reuse it for production data. Metrics that you ingest with [Prometheus remote write](#promql-tutorial-remote-write) use current timestamps and don't need this setup.
 
 ## Step 0: Add sample Prometheus metrics
 
@@ -181,9 +181,7 @@ EOF
 
 ::::
 
-### Result
-
-The response confirms that all six documents were created, with `"errors": false` and a `created` result for each item.
+**Result:** The response confirms that all six documents were created, with `"errors": false` and a `created` result for each item.
 
 ::::{dropdown} Example response (truncated)
 ```json
@@ -278,7 +276,7 @@ Use label matchers to select specific series. The following query only returns t
 :::{tab-item} Console
 :sync: console
 ```console
-GET /_prometheus/promql-tutorial/api/v1/query?query=requests_total{instance="us-east-1"}&time=1792670839
+GET /_prometheus/promql-tutorial/api/v1/query?query=requests_total%7Binstance%3D%22us-east-1%22%7D&time=1792670839
 ```
 :::
 
@@ -306,7 +304,7 @@ Aggregate values across instances with `sum()`. The `by(job)` clause groups the 
 :::{tab-item} Console
 :sync: console
 ```console
-GET /_prometheus/promql-tutorial/api/v1/query?query=sum by(job)(requests_total)&time=1792670839
+GET /_prometheus/promql-tutorial/api/v1/query?query=sum%20by(job)(requests_total)&time=1792670839
 ```
 :::
 
@@ -326,7 +324,7 @@ curl -G "${ELASTICSEARCH_URL}/_prometheus/promql-tutorial/api/v1/query" \
 
 ### Select the largest series with `topk()` [promql-tutorial-topk]
 
-{applies_to}`stack: ga 9.6` {applies_to}`serverless: ga`
+{applies_to}`stack: ga 9.5` {applies_to}`serverless: ga`
 
 Use `topk()` to select the series with the largest values. The following query returns the instance with the highest request count:
 
@@ -380,7 +378,7 @@ curl -G "${ELASTICSEARCH_URL}/_prometheus/promql-tutorial/api/v1/query" \
 
 ::::
 
-**Result:** The response contains one series with an empty label set and a value of approximately `0.094`, the combined request rate in requests per second.
+**Result:** The response contains one series with an empty label set and a value of `0.1`, the combined request rate in requests per second.
 
 ::::{dropdown} Example response
 ```json
@@ -391,7 +389,7 @@ curl -G "${ELASTICSEARCH_URL}/_prometheus/promql-tutorial/api/v1/query" \
     "result": [
       {
         "metric": {},
-        "value": [1.792670839E9, "0.09444444444444448"]
+        "value": [1.792670839E9, "0.1"]
       }
     ]
   }
@@ -403,7 +401,7 @@ curl -G "${ELASTICSEARCH_URL}/_prometheus/promql-tutorial/api/v1/query" \
 
 You can also run PromQL as an {{esql}} source command. Unlike the HTTP API, which returns Prometheus-compatible JSON, the [`PROMQL` command](/reference/query-languages/esql/commands/promql.md) returns tabular results that you can process with standard {{esql}} commands.
 
-The following query calculates the combined request rate every minute for a twelve-minute range that ends with the last sample. The `start` and `end` options set the range, `step` sets the resolution, and `http_rate` names the result column:
+The following query calculates the combined request rate every minute for a twelve-minute range that ends thirty seconds after the last sample. The `start` and `end` options set the range, `step` sets the resolution, and `http_rate` names the result column:
 
 ::::{tab-set}
 :group: api-examples
@@ -416,6 +414,7 @@ POST /_query?format=txt
   "query": """
     PROMQL index=promql-tutorial start=1792670119 end=1792670839 step=60s
       http_rate=(sum(rate(requests_total[5m])))
+    | SORT step DESC
     """
 }
 ```
@@ -428,7 +427,7 @@ curl -X POST "${ELASTICSEARCH_URL}/_query?format=txt" \
      -H "Authorization: ApiKey ${API_KEY}" \
      -H "Content-Type: application/json" \
      -d '{
-       "query": "PROMQL index=promql-tutorial start=1792670119 end=1792670839 step=60s http_rate=(sum(rate(requests_total[5m])))"
+       "query": "PROMQL index=promql-tutorial start=1792670119 end=1792670839 step=60s http_rate=(sum(rate(requests_total[5m]))) | SORT step DESC"
      }'
 ```
 :::
@@ -439,10 +438,10 @@ curl -X POST "${ELASTICSEARCH_URL}/_query?format=txt" \
 
 ::::{dropdown} Example response
 ```text
-     http_rate      |          step
---------------------+------------------------
-0.09444444444444448 |2026-10-22T12:07:19.000Z
-0.058333333333333334|2026-10-22T12:06:19.000Z
+     http_rate     |          step
+-------------------+------------------------
+0.1                |2026-10-22T12:07:19.000Z
+0.06666666666666667|2026-10-22T12:06:19.000Z
 ```
 ::::
 
@@ -459,7 +458,7 @@ POST /_query
   "query": """
     PROMQL index=promql-tutorial start=1792670119 end=1792670839 step=60s
       http_rate=(sum(rate(requests_total[5m])))
-    | WHERE http_rate > 0.05
+    | WHERE http_rate > 0.07
     | STATS avg_rate = AVG(http_rate), peak_rate = MAX(http_rate)
   """
 }
@@ -473,14 +472,14 @@ curl -X POST "${ELASTICSEARCH_URL}/_query" \
      -H "Authorization: ApiKey ${API_KEY}" \
      -H "Content-Type: application/json" \
      -d '{
-       "query": "PROMQL index=promql-tutorial start=1792670119 end=1792670839 step=60s http_rate=(sum(rate(requests_total[5m]))) | WHERE http_rate > 0.05 | STATS avg_rate = AVG(http_rate), peak_rate = MAX(http_rate)"
+       "query": "PROMQL index=promql-tutorial start=1792670119 end=1792670839 step=60s http_rate=(sum(rate(requests_total[5m]))) | WHERE http_rate > 0.07 | STATS avg_rate = AVG(http_rate), peak_rate = MAX(http_rate)"
      }'
 ```
 :::
 
 ::::
 
-**Result:** The response contains one row with `avg_rate` and `peak_rate` columns. For the sample data, the average rate is approximately `0.076` requests per second and the peak rate is approximately `0.094` requests per second.
+**Result:** The response contains one row with `avg_rate` and `peak_rate` columns. For the sample data, the filter drops the `0.0667` row at 12:06:19, so both the average and the peak rate are `0.1` requests per second.
 
 ::::{dropdown} Example response (truncated)
 ```json
@@ -490,7 +489,7 @@ curl -X POST "${ELASTICSEARCH_URL}/_query" \
     { "name": "peak_rate", "type": "double" }
   ],
   "values": [
-    [0.07638888888888891, 0.09444444444444448]
+    [0.1, 0.1]
   ]
 }
 ```
@@ -522,7 +521,7 @@ remote_write:
       credentials: "<api-key>"
 ```
 
-This configuration writes to `metrics-tutorial.prometheus-default`. The PromQL queries from the previous steps work against remote-write metrics without an index segment in the URL, because the HTTP API queries `metrics-*` by default. For example, use `/_prometheus/api/v1/query` instead of `/_prometheus/promql-tutorial/api/v1/query`, and omit `time` to query at the current time. For more information, refer to [Ingest data with Prometheus remote write](docs-content://manage-data/data-store/data-streams/tsds-ingest-prometheus-remote-write.md).
+This configuration writes to `metrics-tutorial.prometheus-default`. The query shapes from the previous steps work against remote-write metrics with your own metric names in place of `requests_total`, and without an index segment in the URL, because the HTTP API queries `metrics-*` by default. For example, use `/_prometheus/api/v1/query` instead of `/_prometheus/promql-tutorial/api/v1/query`, and omit `time` to query at the current time. For more information, refer to [Ingest data with Prometheus remote write](docs-content://manage-data/data-store/data-streams/tsds-ingest-prometheus-remote-write.md).
 
 ## Clean up resources (optional) [promql-tutorial-clean-up]
 

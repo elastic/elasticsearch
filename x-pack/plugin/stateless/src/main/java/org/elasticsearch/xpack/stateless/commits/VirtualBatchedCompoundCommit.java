@@ -124,6 +124,8 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     private final NavigableMap<Long, InternalDataReader> internalDataReadersByOffset = new ConcurrentSkipListMap<>();
     private final AtomicLong currentOffset = new AtomicLong();
     private final AtomicLong logicalSize = new AtomicLong();
+    // Size fields technically don't need to be atomic since they are written under a lock.
+    // But having them volatile produces a warning in the IDE, and there is pretty much no logical difference between the two anyway.
     private final AtomicLong headersSizeBytes = new AtomicLong();
     private final AtomicLong replicatedContentSizeBytes = new AtomicLong();
     private final AtomicLong copiedGenerationalFilesSizeBytes = new AtomicLong();
@@ -349,6 +351,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
                 referencedFiles.put(commitFile, blobLocation);
             }
         }
+        copiedGenerationalFilesSizeBytes.addAndGet(copiedGenerationalFilesSize);
 
         var replicatedContent = useInternalFilesReplicatedContent
             ? getReplicatedContent(ccTermAndGen, currentOffset.get(), internalFiles, internalFilesSize, reference.getDirectory())
@@ -864,6 +867,10 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     /// and would trigger frequent uploads resulting in write amplification.
     public long sizeInBytesExcludingCopiedGenerationalFiles() {
         return logicalSize.get();
+    }
+
+    public long headersSizeInBytes() {
+        return headersSizeBytes.get();
     }
 
     public long copiedGenerationalFilesSizeInBytes() {

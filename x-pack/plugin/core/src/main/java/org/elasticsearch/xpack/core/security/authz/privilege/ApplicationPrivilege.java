@@ -73,6 +73,20 @@ public final class ApplicationPrivilege extends Privilege {
     }
 
     /**
+     * The action patterns granted by this privilege (the expanded actions of a named privilege, or the
+     * bespoke action patterns of an inline privilege). Exposed so that a resolved role can surface the
+     * actions a user holds — e.g. to a document-level-security query template. Patterns may contain
+     * wildcards (including a bare {@code "*"}); callers that compare against literal actions must account
+     * for that. Returns a fresh set; a (theoretically) duplicated pattern is de-duplicated rather than an
+     * error, since {@code patterns} comes from a package-private constructor with no dedup guarantee.
+     */
+    public Set<String> getActions() {
+        final Set<String> actions = new HashSet<>();
+        Collections.addAll(actions, patterns);
+        return actions;
+    }
+
+    /**
      * Validate that the provided application name is valid, and throws an exception otherwise
      *
      * @throws IllegalArgumentException if the name is not valid

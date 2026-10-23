@@ -540,3 +540,8 @@ tests:
   - :qa:full-cluster-restart:v9.6.0#bwcTest
   method: testLogsdbColumnar {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/163091
+- class: org.elasticsearch.upgrades.ColumnarIndexModesFullClusterRestartIT
+  tasks:
+  - :qa:full-cluster-restart:v9.6.0#bwcTest
+  method: testColumnar {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/163093

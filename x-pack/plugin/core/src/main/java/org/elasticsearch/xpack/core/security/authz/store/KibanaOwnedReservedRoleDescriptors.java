@@ -945,7 +945,15 @@ class KibanaOwnedReservedRoleDescriptors {
                 .build(),
             RoleDescriptor.IndicesPrivileges.builder()
                 .indices(".alerts-security.alerts-*")
-                .privileges("read", "view_index_metadata")
+                .privileges("read", "view_index_metadata", "index", "maintenance")
+                .build(),
+            RoleDescriptor.IndicesPrivileges.builder()
+                .indices(".internal.alerts-security.alerts-*")
+                .privileges("index", "maintenance")
+                .build(),
+            RoleDescriptor.IndicesPrivileges.builder()
+                .indices("ai-index-idx-security-attack-fingerprints")
+                .privileges("read", "view_index_metadata", "index", "auto_configure")
                 .build(),
             RoleDescriptor.IndicesPrivileges.builder()
                 .indices(".kibana-elastic-ai-assistant-anonymization-fields-*")
@@ -1017,7 +1025,8 @@ class KibanaOwnedReservedRoleDescriptors {
                     "winlogbeat-*"
                 )
                 .privileges("read")
-                .build()
+                .build(),
+            RoleDescriptor.IndicesPrivileges.builder().indices("metrics-endpoint.metadata_current_*").privileges("read").build()
         );
     }
 

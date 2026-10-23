@@ -23,7 +23,6 @@ import org.elasticsearch.logging.Logger;
 import java.lang.foreign.MemorySegment;
 import java.util.Optional;
 
-import static org.elasticsearch.simdvec.SimdVecChecks.validateBulkOffsets;
 import static org.elasticsearch.simdvec.SimdVecChecks.validateBulkSparse;
 
 /**
@@ -197,32 +196,32 @@ public abstract class SimdVecLibrary {
         @VectorSegment(countParam = "count", elementBits = Float.SIZE) MemorySegment scores
     );
 
-    @Function("vec_doti7u_bulk_offsets")
+    @Function("vec_doti7u_bulk_masked")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
-    protected abstract void dotProductI7uBulkWithOffsets_raw(
+    protected abstract void dotProductI7uBulkMasked_raw(
         @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
         int length,
         int pitch,
-        @VectorSegment(countParam = "count", elementBits = Integer.SIZE, aligned = true) MemorySegment offsets,
+        int mask,
         int count,
         @VectorSegment(countParam = "count", elementBits = Float.SIZE, aligned = true) MemorySegment scores
     );
 
-    public void dotProductI7uBulkWithOffsets(
+    public void dotProductI7uBulkMasked(
         MemorySegment dataset,
         MemorySegment query,
         int length,
         int pitch,
-        MemorySegment offsets,
+        int mask,
         int count,
         MemorySegment scores
     ) {
         if (pitch < length) {
             throw new IllegalArgumentException("Pitch needs to be at least " + length);
         }
-        assert validateBulkOffsets(dataset, offsets, count, pitch, length);
-        dotProductI7uBulkWithOffsets_raw(dataset, query, length, pitch, offsets, count, scores);
+        assert BulkMask.validate(mask, count);
+        dotProductI7uBulkMasked_raw(dataset, query, length, pitch, mask, count, scores);
     }
 
     @Function("vec_doti7u_bulk_sparse")
@@ -257,34 +256,6 @@ public abstract class SimdVecLibrary {
         int count,
         @VectorSegment(countParam = "count", elementBits = Float.SIZE) MemorySegment scores
     );
-
-    @Function("vec_sqri7u_bulk_offsets")
-    @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
-    protected abstract void squareDistanceI7uBulkWithOffsets_raw(
-        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
-        int length,
-        int pitch,
-        @VectorSegment(countParam = "count", elementBits = Integer.SIZE, aligned = true) MemorySegment offsets,
-        int count,
-        @VectorSegment(countParam = "count", elementBits = Float.SIZE, aligned = true) MemorySegment scores
-    );
-
-    public void squareDistanceI7uBulkWithOffsets(
-        MemorySegment dataset,
-        MemorySegment query,
-        int length,
-        int pitch,
-        MemorySegment offsets,
-        int count,
-        MemorySegment scores
-    ) {
-        if (pitch < length) {
-            throw new IllegalArgumentException("Pitch needs to be at least " + length);
-        }
-        assert validateBulkOffsets(dataset, offsets, count, pitch, length);
-        squareDistanceI7uBulkWithOffsets_raw(dataset, query, length, pitch, offsets, count, scores);
-    }
 
     @Function("vec_sqri7u_bulk_sparse")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
@@ -326,32 +297,32 @@ public abstract class SimdVecLibrary {
         @VectorSegment(countParam = "count", elementBits = Float.SIZE) MemorySegment scores
     );
 
-    @Function("vec_doti4_bulk_offsets")
+    @Function("vec_doti4_bulk_masked")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
-    protected abstract void dotProductI4BulkWithOffsets_raw(
+    protected abstract void dotProductI4BulkMasked_raw(
         @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "documentBytes", elementBits = 2 * Byte.SIZE) MemorySegment query,
         int documentBytes,
         int pitch,
-        @VectorSegment(countParam = "count", elementBits = Integer.SIZE, aligned = true) MemorySegment offsets,
+        int mask,
         int count,
         @VectorSegment(countParam = "count", elementBits = Float.SIZE, aligned = true) MemorySegment scores
     );
 
-    public void dotProductI4BulkWithOffsets(
+    public void dotProductI4BulkMasked(
         MemorySegment dataset,
         MemorySegment query,
         int documentBytes,
         int pitch,
-        MemorySegment offsets,
+        int mask,
         int count,
         MemorySegment scores
     ) {
         if (pitch < documentBytes) {
             throw new IllegalArgumentException("Pitch needs to be at least " + documentBytes);
         }
-        assert validateBulkOffsets(dataset, offsets, count, pitch, documentBytes);
-        dotProductI4BulkWithOffsets_raw(dataset, query, documentBytes, pitch, offsets, count, scores);
+        assert BulkMask.validate(mask, count);
+        dotProductI4BulkMasked_raw(dataset, query, documentBytes, pitch, mask, count, scores);
     }
 
     @Function("vec_doti4_bulk_sparse")
@@ -391,34 +362,6 @@ public abstract class SimdVecLibrary {
         @VectorSegment(countParam = "count", elementBits = Float.SIZE) MemorySegment scores
     );
 
-    @Function("vec_cosi8_bulk_offsets")
-    @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
-    protected abstract void cosineI8BulkWithOffsets_raw(
-        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
-        int length,
-        int pitch,
-        @VectorSegment(countParam = "count", elementBits = Integer.SIZE, aligned = true) MemorySegment offsets,
-        int count,
-        @VectorSegment(countParam = "count", elementBits = Float.SIZE, aligned = true) MemorySegment scores
-    );
-
-    public void cosineI8BulkWithOffsets(
-        MemorySegment dataset,
-        MemorySegment query,
-        int length,
-        int pitch,
-        MemorySegment offsets,
-        int count,
-        MemorySegment scores
-    ) {
-        if (pitch < length) {
-            throw new IllegalArgumentException("Pitch needs to be at least " + length);
-        }
-        assert validateBulkOffsets(dataset, offsets, count, pitch, length);
-        cosineI8BulkWithOffsets_raw(dataset, query, length, pitch, offsets, count, scores);
-    }
-
     @Function("vec_cosi8_bulk_sparse")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     protected abstract void cosineI8BulkSparse_raw(
@@ -452,34 +395,6 @@ public abstract class SimdVecLibrary {
         @VectorSegment(countParam = "count", elementBits = Float.SIZE) MemorySegment scores
     );
 
-    @Function("vec_doti8_bulk_offsets")
-    @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
-    protected abstract void dotProductI8BulkWithOffsets_raw(
-        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
-        int length,
-        int pitch,
-        @VectorSegment(countParam = "count", elementBits = Integer.SIZE, aligned = true) MemorySegment offsets,
-        int count,
-        @VectorSegment(countParam = "count", elementBits = Float.SIZE, aligned = true) MemorySegment scores
-    );
-
-    public void dotProductI8BulkWithOffsets(
-        MemorySegment dataset,
-        MemorySegment query,
-        int length,
-        int pitch,
-        MemorySegment offsets,
-        int count,
-        MemorySegment scores
-    ) {
-        if (pitch < length) {
-            throw new IllegalArgumentException("Pitch needs to be at least " + length);
-        }
-        assert validateBulkOffsets(dataset, offsets, count, pitch, length);
-        dotProductI8BulkWithOffsets_raw(dataset, query, length, pitch, offsets, count, scores);
-    }
-
     @Function("vec_doti8_bulk_sparse")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     protected abstract void dotProductI8BulkSparse_raw(
@@ -512,34 +427,6 @@ public abstract class SimdVecLibrary {
         int count,
         @VectorSegment(countParam = "count", elementBits = Float.SIZE) MemorySegment scores
     );
-
-    @Function("vec_sqri8_bulk_offsets")
-    @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
-    protected abstract void squareDistanceI8BulkWithOffsets_raw(
-        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
-        int length,
-        int pitch,
-        @VectorSegment(countParam = "count", elementBits = Integer.SIZE, aligned = true) MemorySegment offsets,
-        int count,
-        @VectorSegment(countParam = "count", elementBits = Float.SIZE, aligned = true) MemorySegment scores
-    );
-
-    public void squareDistanceI8BulkWithOffsets(
-        MemorySegment dataset,
-        MemorySegment query,
-        int length,
-        int pitch,
-        MemorySegment offsets,
-        int count,
-        MemorySegment scores
-    ) {
-        if (pitch < length) {
-            throw new IllegalArgumentException("Pitch needs to be at least " + length);
-        }
-        assert validateBulkOffsets(dataset, offsets, count, pitch, length);
-        squareDistanceI8BulkWithOffsets_raw(dataset, query, length, pitch, offsets, count, scores);
-    }
 
     @Function("vec_sqri8_bulk_sparse")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
@@ -617,35 +504,6 @@ public abstract class SimdVecLibrary {
         dotProductF32BulkSparseOffHeap_raw(addresses, query, length, count, scores);
     }
 
-    @Function("vec_dotf32_bulk_offsets")
-    @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
-    protected abstract void dotProductF32BulkWithOffsets_raw(
-        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
-        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment query,
-        int length,
-        int pitch,
-        @VectorSegment(countParam = "count", elementBits = Integer.SIZE, aligned = true) MemorySegment offsets,
-        int count,
-        @VectorSegment(countParam = "count", elementBits = Float.SIZE, aligned = true) MemorySegment scores
-    );
-
-    public void dotProductF32BulkWithOffsets(
-        MemorySegment dataset,
-        MemorySegment query,
-        int length,
-        int pitch,
-        MemorySegment offsets,
-        int count,
-        MemorySegment scores
-    ) {
-        long rowBytes = (long) length * Float.BYTES;
-        if (pitch < rowBytes) {
-            throw new IllegalArgumentException("Pitch needs to be at least " + rowBytes);
-        }
-        assert validateBulkOffsets(dataset, offsets, count, pitch, rowBytes);
-        dotProductF32BulkWithOffsets_raw(dataset, query, length, pitch, offsets, count, scores);
-    }
-
     @Function("vec_sqrf32")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract float squareDistanceF32(
@@ -663,35 +521,6 @@ public abstract class SimdVecLibrary {
         int count,
         @VectorSegment(countParam = "count", elementBits = Float.SIZE) MemorySegment scores
     );
-
-    @Function("vec_sqrf32_bulk_offsets")
-    @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
-    protected abstract void squareDistanceF32BulkWithOffsets_raw(
-        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
-        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment query,
-        int length,
-        int pitch,
-        @VectorSegment(countParam = "count", elementBits = Integer.SIZE, aligned = true) MemorySegment offsets,
-        int count,
-        @VectorSegment(countParam = "count", elementBits = Float.SIZE, aligned = true) MemorySegment scores
-    );
-
-    public void squareDistanceF32BulkWithOffsets(
-        MemorySegment dataset,
-        MemorySegment query,
-        int length,
-        int pitch,
-        MemorySegment offsets,
-        int count,
-        MemorySegment scores
-    ) {
-        long rowBytes = (long) length * Float.BYTES;
-        if (pitch < rowBytes) {
-            throw new IllegalArgumentException("Pitch needs to be at least " + rowBytes);
-        }
-        assert validateBulkOffsets(dataset, offsets, count, pitch, rowBytes);
-        squareDistanceF32BulkWithOffsets_raw(dataset, query, length, pitch, offsets, count, scores);
-    }
 
     @Function("vec_sqrf32_bulk_sparse")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
@@ -773,35 +602,6 @@ public abstract class SimdVecLibrary {
         dotProductDBF16QF32BulkSparse_raw(addresses, query, length, count, scores);
     }
 
-    @Function("vec_dotDbf16Qf32_bulk_offsets")
-    @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
-    protected abstract void dotProductDBF16QF32BulkWithOffsets_raw(
-        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
-        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment query,
-        int length,
-        int pitch,
-        @VectorSegment(countParam = "count", elementBits = Integer.SIZE, aligned = true) MemorySegment offsets,
-        int count,
-        @VectorSegment(countParam = "count", elementBits = Float.SIZE, aligned = true) MemorySegment scores
-    );
-
-    public void dotProductDBF16QF32BulkWithOffsets(
-        MemorySegment dataset,
-        MemorySegment query,
-        int length,
-        int pitch,
-        MemorySegment offsets,
-        int count,
-        MemorySegment scores
-    ) {
-        long rowBytes = (long) length * Short.BYTES;
-        if (pitch < rowBytes) {
-            throw new IllegalArgumentException("Pitch needs to be at least " + rowBytes);
-        }
-        assert validateBulkOffsets(dataset, offsets, count, pitch, rowBytes);
-        dotProductDBF16QF32BulkWithOffsets_raw(dataset, query, length, pitch, offsets, count, scores);
-    }
-
     @Function("vec_sqrDbf16Qf32")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract float squareDistanceDBF16QF32(
@@ -841,35 +641,6 @@ public abstract class SimdVecLibrary {
         squareDistanceDBF16QF32BulkSparse_raw(addresses, query, length, count, scores);
     }
 
-    @Function("vec_sqrDbf16Qf32_bulk_offsets")
-    @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
-    protected abstract void squareDistanceDBF16QF32BulkWithOffsets_raw(
-        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
-        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment query,
-        int length,
-        int pitch,
-        @VectorSegment(countParam = "count", elementBits = Integer.SIZE, aligned = true) MemorySegment offsets,
-        int count,
-        @VectorSegment(countParam = "count", elementBits = Float.SIZE, aligned = true) MemorySegment scores
-    );
-
-    public void squareDistanceDBF16QF32BulkWithOffsets(
-        MemorySegment dataset,
-        MemorySegment query,
-        int length,
-        int pitch,
-        MemorySegment offsets,
-        int count,
-        MemorySegment scores
-    ) {
-        long rowBytes = (long) length * Short.BYTES;
-        if (pitch < rowBytes) {
-            throw new IllegalArgumentException("Pitch needs to be at least " + rowBytes);
-        }
-        assert validateBulkOffsets(dataset, offsets, count, pitch, rowBytes);
-        squareDistanceDBF16QF32BulkWithOffsets_raw(dataset, query, length, pitch, offsets, count, scores);
-    }
-
     @Function("vec_dotDbf16Qbf16")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract float dotProductDBF16QBF16(
@@ -889,7 +660,6 @@ public abstract class SimdVecLibrary {
     );
 
     @Function("vec_dotDbf16Qbf16_bulk_sparse")
-    @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     protected abstract void dotProductDBF16QBF16BulkSparse_raw(
         @VectorSegment(countParam = "count", elementBits = Long.SIZE, aligned = true) MemorySegment addresses,
         @VectorSegment(countParam = "length", elementBits = Short.SIZE) MemorySegment query,
@@ -900,36 +670,8 @@ public abstract class SimdVecLibrary {
 
     public void dotProductDBF16QBF16BulkSparse(MemorySegment addresses, MemorySegment query, int length, int count, MemorySegment scores) {
         assert validateBulkSparse(addresses, count);
+        assert addresses.isNative() && query.isNative() && scores.isNative();
         dotProductDBF16QBF16BulkSparse_raw(addresses, query, length, count, scores);
-    }
-
-    @Function("vec_dotDbf16Qbf16_bulk_offsets")
-    @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
-    protected abstract void dotProductDBF16QBF16BulkWithOffsets_raw(
-        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
-        @VectorSegment(countParam = "length", elementBits = Short.SIZE) MemorySegment query,
-        int length,
-        int pitch,
-        @VectorSegment(countParam = "count", elementBits = Integer.SIZE, aligned = true) MemorySegment offsets,
-        int count,
-        @VectorSegment(countParam = "count", elementBits = Float.SIZE, aligned = true) MemorySegment scores
-    );
-
-    public void dotProductDBF16QBF16BulkWithOffsets(
-        MemorySegment dataset,
-        MemorySegment query,
-        int length,
-        int pitch,
-        MemorySegment offsets,
-        int count,
-        MemorySegment scores
-    ) {
-        long rowBytes = (long) length * Short.BYTES;
-        if (pitch < rowBytes) {
-            throw new IllegalArgumentException("Pitch needs to be at least " + rowBytes);
-        }
-        assert validateBulkOffsets(dataset, offsets, count, pitch, rowBytes);
-        dotProductDBF16QBF16BulkWithOffsets_raw(dataset, query, length, pitch, offsets, count, scores);
     }
 
     @Function("vec_sqrDbf16Qbf16")
@@ -951,7 +693,6 @@ public abstract class SimdVecLibrary {
     );
 
     @Function("vec_sqrDbf16Qbf16_bulk_sparse")
-    @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     protected abstract void squareDistanceDBF16QBF16BulkSparse_raw(
         @VectorSegment(countParam = "count", elementBits = Long.SIZE, aligned = true) MemorySegment addresses,
         @VectorSegment(countParam = "length", elementBits = Short.SIZE) MemorySegment query,
@@ -968,36 +709,8 @@ public abstract class SimdVecLibrary {
         MemorySegment scores
     ) {
         assert validateBulkSparse(addresses, count);
+        assert addresses.isNative() && query.isNative() && scores.isNative();
         squareDistanceDBF16QBF16BulkSparse_raw(addresses, query, length, count, scores);
-    }
-
-    @Function("vec_sqrDbf16Qbf16_bulk_offsets")
-    @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
-    protected abstract void squareDistanceDBF16QBF16BulkWithOffsets_raw(
-        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
-        @VectorSegment(countParam = "length", elementBits = Short.SIZE) MemorySegment query,
-        int length,
-        int pitch,
-        @VectorSegment(countParam = "count", elementBits = Integer.SIZE, aligned = true) MemorySegment offsets,
-        int count,
-        @VectorSegment(countParam = "count", elementBits = Float.SIZE, aligned = true) MemorySegment scores
-    );
-
-    public void squareDistanceDBF16QBF16BulkWithOffsets(
-        MemorySegment dataset,
-        MemorySegment query,
-        int length,
-        int pitch,
-        MemorySegment offsets,
-        int count,
-        MemorySegment scores
-    ) {
-        long rowBytes = (long) length * Short.BYTES;
-        if (pitch < rowBytes) {
-            throw new IllegalArgumentException("Pitch needs to be at least " + rowBytes);
-        }
-        assert validateBulkOffsets(dataset, offsets, count, pitch, rowBytes);
-        squareDistanceDBF16QBF16BulkWithOffsets_raw(dataset, query, length, pitch, offsets, count, scores);
     }
 
     // --- BBQ: dot product for all BBQ types ---
@@ -1024,32 +737,32 @@ public abstract class SimdVecLibrary {
         @VectorSegment(countParam = "count", elementBits = Float.SIZE) MemorySegment scores
     );
 
-    @Function("vec_dotd1q1_bulk_offsets")
+    @Function("vec_dotd1q1_bulk_masked")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
-    protected abstract void dotProductD1Q1BulkWithOffsets_raw(
+    protected abstract void dotProductD1Q1BulkMasked_raw(
         @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment query,
         int documentBytes,
         int pitch,
-        @VectorSegment(countParam = "count", elementBits = Integer.SIZE, aligned = true) MemorySegment offsets,
+        int mask,
         int count,
         @VectorSegment(countParam = "count", elementBits = Float.SIZE, aligned = true) MemorySegment scores
     );
 
-    public void dotProductD1Q1BulkWithOffsets(
+    public void dotProductD1Q1BulkMasked(
         MemorySegment dataset,
         MemorySegment query,
         int documentBytes,
         int pitch,
-        MemorySegment offsets,
+        int mask,
         int count,
         MemorySegment scores
     ) {
         if (pitch < documentBytes) {
             throw new IllegalArgumentException("Pitch needs to be at least " + documentBytes);
         }
-        assert validateBulkOffsets(dataset, offsets, count, pitch, documentBytes);
-        dotProductD1Q1BulkWithOffsets_raw(dataset, query, documentBytes, pitch, offsets, count, scores);
+        assert BulkMask.validate(mask, count);
+        dotProductD1Q1BulkMasked_raw(dataset, query, documentBytes, pitch, mask, count, scores);
     }
 
     @Function("vec_dotd1q4")
@@ -1070,32 +783,32 @@ public abstract class SimdVecLibrary {
         @VectorSegment(countParam = "count", elementBits = Float.SIZE) MemorySegment scores
     );
 
-    @Function("vec_dotd1q4_bulk_offsets")
+    @Function("vec_dotd1q4_bulk_masked")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
-    protected abstract void dotProductD1Q4BulkWithOffsets_raw(
+    protected abstract void dotProductD1Q4BulkMasked_raw(
         @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "documentBytes", elementBits = 4 * Byte.SIZE) MemorySegment query,
         int documentBytes,
         int pitch,
-        @VectorSegment(countParam = "count", elementBits = Integer.SIZE, aligned = true) MemorySegment offsets,
+        int mask,
         int count,
         @VectorSegment(countParam = "count", elementBits = Float.SIZE, aligned = true) MemorySegment scores
     );
 
-    public void dotProductD1Q4BulkWithOffsets(
+    public void dotProductD1Q4BulkMasked(
         MemorySegment dataset,
         MemorySegment query,
         int documentBytes,
         int pitch,
-        MemorySegment offsets,
+        int mask,
         int count,
         MemorySegment scores
     ) {
         if (pitch < documentBytes) {
             throw new IllegalArgumentException("Pitch needs to be at least " + documentBytes);
         }
-        assert validateBulkOffsets(dataset, offsets, count, pitch, documentBytes);
-        dotProductD1Q4BulkWithOffsets_raw(dataset, query, documentBytes, pitch, offsets, count, scores);
+        assert BulkMask.validate(mask, count);
+        dotProductD1Q4BulkMasked_raw(dataset, query, documentBytes, pitch, mask, count, scores);
     }
 
     @Function("vec_dotd1q4_bulk_sparse")
@@ -1131,32 +844,32 @@ public abstract class SimdVecLibrary {
         @VectorSegment(countParam = "count", elementBits = Float.SIZE) MemorySegment scores
     );
 
-    @Function("vec_dotd2q2_bulk_offsets")
+    @Function("vec_dotd2q2_bulk_masked")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
-    protected abstract void dotProductD2Q2BulkWithOffsets_raw(
+    protected abstract void dotProductD2Q2BulkMasked_raw(
         @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment query,
         int documentBytes,
         int pitch,
-        @VectorSegment(countParam = "count", elementBits = Integer.SIZE, aligned = true) MemorySegment offsets,
+        int mask,
         int count,
         @VectorSegment(countParam = "count", elementBits = Float.SIZE, aligned = true) MemorySegment scores
     );
 
-    public void dotProductD2Q2BulkWithOffsets(
+    public void dotProductD2Q2BulkMasked(
         MemorySegment dataset,
         MemorySegment query,
         int documentBytes,
         int pitch,
-        MemorySegment offsets,
+        int mask,
         int count,
         MemorySegment scores
     ) {
         if (pitch < documentBytes) {
             throw new IllegalArgumentException("Pitch needs to be at least " + documentBytes);
         }
-        assert validateBulkOffsets(dataset, offsets, count, pitch, documentBytes);
-        dotProductD2Q2BulkWithOffsets_raw(dataset, query, documentBytes, pitch, offsets, count, scores);
+        assert BulkMask.validate(mask, count);
+        dotProductD2Q2BulkMasked_raw(dataset, query, documentBytes, pitch, mask, count, scores);
     }
 
     @Function("vec_dotd2q4")
@@ -1177,32 +890,32 @@ public abstract class SimdVecLibrary {
         @VectorSegment(countParam = "count", elementBits = Float.SIZE) MemorySegment scores
     );
 
-    @Function("vec_dotd2q4_bulk_offsets")
+    @Function("vec_dotd2q4_bulk_masked")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
-    protected abstract void dotProductD2Q4BulkWithOffsets_raw(
+    protected abstract void dotProductD2Q4BulkMasked_raw(
         @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "documentBytes", elementBits = 2 * Byte.SIZE) MemorySegment query,
         int documentBytes,
         int pitch,
-        @VectorSegment(countParam = "count", elementBits = Integer.SIZE, aligned = true) MemorySegment offsets,
+        int mask,
         int count,
         @VectorSegment(countParam = "count", elementBits = Float.SIZE, aligned = true) MemorySegment scores
     );
 
-    public void dotProductD2Q4BulkWithOffsets(
+    public void dotProductD2Q4BulkMasked(
         MemorySegment dataset,
         MemorySegment query,
         int documentBytes,
         int pitch,
-        MemorySegment offsets,
+        int mask,
         int count,
         MemorySegment scores
     ) {
         if (pitch < documentBytes) {
             throw new IllegalArgumentException("Pitch needs to be at least " + documentBytes);
         }
-        assert validateBulkOffsets(dataset, offsets, count, pitch, documentBytes);
-        dotProductD2Q4BulkWithOffsets_raw(dataset, query, documentBytes, pitch, offsets, count, scores);
+        assert BulkMask.validate(mask, count);
+        dotProductD2Q4BulkMasked_raw(dataset, query, documentBytes, pitch, mask, count, scores);
     }
 
     @Function("vec_dotd2q4_packed")
@@ -1223,32 +936,32 @@ public abstract class SimdVecLibrary {
         @VectorSegment(countParam = "count", elementBits = Float.SIZE) MemorySegment scores
     );
 
-    @Function("vec_dotd2q4_packed_bulk_offsets")
+    @Function("vec_dotd2q4_packed_bulk_masked")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
-    protected abstract void dotProductD2Q4PackedBulkWithOffsets_raw(
+    protected abstract void dotProductD2Q4PackedBulkMasked_raw(
         @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "documentBytes", elementBits = 4 * Byte.SIZE) MemorySegment query,
         int documentBytes,
         int pitch,
-        @VectorSegment(countParam = "count", elementBits = Integer.SIZE, aligned = true) MemorySegment offsets,
+        int mask,
         int count,
         @VectorSegment(countParam = "count", elementBits = Float.SIZE, aligned = true) MemorySegment scores
     );
 
-    public void dotProductD2Q4PackedBulkWithOffsets(
+    public void dotProductD2Q4PackedBulkMasked(
         MemorySegment dataset,
         MemorySegment query,
         int documentBytes,
         int pitch,
-        MemorySegment offsets,
+        int mask,
         int count,
         MemorySegment scores
     ) {
         if (pitch < documentBytes) {
             throw new IllegalArgumentException("Pitch needs to be at least " + documentBytes);
         }
-        assert validateBulkOffsets(dataset, offsets, count, pitch, documentBytes);
-        dotProductD2Q4PackedBulkWithOffsets_raw(dataset, query, documentBytes, pitch, offsets, count, scores);
+        assert BulkMask.validate(mask, count);
+        dotProductD2Q4PackedBulkMasked_raw(dataset, query, documentBytes, pitch, mask, count, scores);
     }
 
     @Function("vec_dotd4q4")
@@ -1269,32 +982,32 @@ public abstract class SimdVecLibrary {
         @VectorSegment(countParam = "count", elementBits = Float.SIZE) MemorySegment scores
     );
 
-    @Function("vec_dotd4q4_bulk_offsets")
+    @Function("vec_dotd4q4_bulk_masked")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
-    protected abstract void dotProductD4Q4BulkWithOffsets_raw(
+    protected abstract void dotProductD4Q4BulkMasked_raw(
         @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment query,
         int documentBytes,
         int pitch,
-        @VectorSegment(countParam = "count", elementBits = Integer.SIZE, aligned = true) MemorySegment offsets,
+        int mask,
         int count,
         @VectorSegment(countParam = "count", elementBits = Float.SIZE, aligned = true) MemorySegment scores
     );
 
-    public void dotProductD4Q4BulkWithOffsets(
+    public void dotProductD4Q4BulkMasked(
         MemorySegment dataset,
         MemorySegment query,
         int documentBytes,
         int pitch,
-        MemorySegment offsets,
+        int mask,
         int count,
         MemorySegment scores
     ) {
         if (pitch < documentBytes) {
             throw new IllegalArgumentException("Pitch needs to be at least " + documentBytes);
         }
-        assert validateBulkOffsets(dataset, offsets, count, pitch, documentBytes);
-        dotProductD4Q4BulkWithOffsets_raw(dataset, query, documentBytes, pitch, offsets, count, scores);
+        assert BulkMask.validate(mask, count);
+        dotProductD4Q4BulkMasked_raw(dataset, query, documentBytes, pitch, mask, count, scores);
     }
 
     // --- Corrections (DiskBBQ) ---

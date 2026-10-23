@@ -15,12 +15,16 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.search.profile.Timer;
+import org.elasticsearch.search.profile.rescore.RescoreProfiler;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.Rescorer;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
+import org.elasticsearch.xpack.ml.inference.ltr.LearningToRankProfileBreakdown.TimingType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -70,7 +74,22 @@ public class LearningToRankRescorer implements Rescorer {
         List<LeafReaderContext> leaves = ltrRescoreContext.executionContext.searcher().getIndexReader().leaves();
         LeafReaderContext currentSegment = null;
         boolean changedSegment = true;
-        List<FeatureExtractor> featureExtractors = ltrRescoreContext.buildFeatureExtractors(searcher);
+        LearningToRankProfileBreakdown profileBreakdown = null;
+        RescoreProfiler profiler = rescoreContext.profiler();
+        if (profiler != null) {
+            profileBreakdown = new LearningToRankProfileBreakdown();
+            profiler.setBreakdown(profileBreakdown);
+        }
+        Timer buildTimer = newTimer(profileBreakdown, TimingType.BUILD_FEATURE_EXTRACTORS);
+        Timer featureExtractionTimer = newTimer(profileBreakdown, TimingType.FEATURE_EXTRACTION);
+        Timer inferenceTimer = newTimer(profileBreakdown, TimingType.INFERENCE);
+        List<FeatureExtractor> featureExtractors;
+        start(buildTimer);
+        try {
+            featureExtractors = ltrRescoreContext.buildFeatureExtractors(searcher);
+        } finally {
+            stop(buildTimer);
+        }
         List<Map<String, Object>> docFeatures = new ArrayList<>(topDocIDs.size());
         int featureSize = featureExtractors.stream().mapToInt(fe -> fe.featureNames().size()).sum();
         int count = 0;
@@ -79,37 +98,43 @@ public class LearningToRankRescorer implements Rescorer {
                 rescoreContext.checkCancellation();
             }
             count++;
-            final ScoreDoc hit = hitsToRescore[hitUpto];
-            final int docID = hit.doc;
-            while (docID >= endDoc) {
-                readerUpto++;
-                currentSegment = leaves.get(readerUpto);
-                endDoc = currentSegment.docBase + currentSegment.reader().maxDoc();
-                changedSegment = true;
-            }
-            assert currentSegment != null : "Unexpected null segment";
-            if (changedSegment) {
-                // We advanced to another segment and update our document value fetchers
-                docBase = currentSegment.docBase;
-                for (FeatureExtractor featureExtractor : featureExtractors) {
-                    featureExtractor.setNextReader(currentSegment);
+            start(featureExtractionTimer);
+            try {
+                final ScoreDoc hit = hitsToRescore[hitUpto];
+                final int docID = hit.doc;
+                while (docID >= endDoc) {
+                    readerUpto++;
+                    currentSegment = leaves.get(readerUpto);
+                    endDoc = currentSegment.docBase + currentSegment.reader().maxDoc();
+                    changedSegment = true;
                 }
-                changedSegment = false;
+                assert currentSegment != null : "Unexpected null segment";
+                if (changedSegment) {
+                    // We advanced to another segment and update our document value fetchers
+                    docBase = currentSegment.docBase;
+                    for (FeatureExtractor featureExtractor : featureExtractors) {
+                        featureExtractor.setNextReader(currentSegment);
+                    }
+                    changedSegment = false;
+                }
+                int targetDoc = docID - docBase;
+                Map<String, Object> features = Maps.newMapWithExpectedSize(featureSize);
+                for (FeatureExtractor featureExtractor : featureExtractors) {
+                    featureExtractor.addFeatures(features, targetDoc);
+                }
+                logger.debug(() -> Strings.format("doc [%d] has features [%s]", targetDoc, features));
+                docFeatures.add(features);
+                hitUpto++;
+            } finally {
+                stop(featureExtractionTimer);
             }
-            int targetDoc = docID - docBase;
-            Map<String, Object> features = Maps.newMapWithExpectedSize(featureSize);
-            for (FeatureExtractor featureExtractor : featureExtractors) {
-                featureExtractor.addFeatures(features, targetDoc);
-            }
-            logger.debug(() -> Strings.format("doc [%d] has features [%s]", targetDoc, features));
-            docFeatures.add(features);
-            hitUpto++;
         }
         for (int i = 0; i < hitsToRescore.length; i++) {
             if (i % MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK == 0) {
                 rescoreContext.checkCancellation();
             }
             Map<String, Object> features = docFeatures.get(i);
+            start(inferenceTimer);
             try {
                 InferenceResults results = definition.inferLtr(features, ltrRescoreContext.learningToRankConfig);
                 if (results instanceof WarningInferenceResults warningInferenceResults) {
@@ -121,6 +146,8 @@ public class LearningToRankRescorer implements Rescorer {
                 }
             } catch (Exception ex) {
                 logger.warn("Failure rescoring doc...", ex);
+            } finally {
+                stop(inferenceTimer);
             }
         }
         assert rescoreContext.getWindowSize() >= hitsToRescore.length
@@ -128,6 +155,23 @@ public class LearningToRankRescorer implements Rescorer {
 
         Arrays.sort(topDocs.scoreDocs, SCORE_DOC_COMPARATOR);
         return topDocs;
+    }
+
+    @Nullable
+    private static Timer newTimer(@Nullable LearningToRankProfileBreakdown profileBreakdown, TimingType timingType) {
+        return profileBreakdown == null ? null : profileBreakdown.getNewTimer(timingType);
+    }
+
+    private static void start(@Nullable Timer timer) {
+        if (timer != null) {
+            timer.start();
+        }
+    }
+
+    private static void stop(@Nullable Timer timer) {
+        if (timer != null) {
+            timer.stop();
+        }
     }
 
     @Override

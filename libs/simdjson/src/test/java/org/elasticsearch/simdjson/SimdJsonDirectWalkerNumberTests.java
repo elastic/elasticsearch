@@ -460,4 +460,46 @@ public class SimdJsonDirectWalkerNumberTests extends SimdJsonTestCase {
 
         assertTrue(walkJson("{\"n\":1.5e-5}").get(0).startsWith("double(n=1.5E-5,"));
     }
+
+    // ---- Bytes between '9' and 'A' (':' to '?') are not digits ----
+
+    // Verifies json is rejected at every buffer padding. ':' is a structural character, so the number
+    // itself ends there and the walker rejects it at the separator instead, with a different message;
+    // the other bytes in the range are not structural and are rejected as part of the number.
+    private void assertNonDigitRejected(char junk, String json) {
+        if (junk == ':') {
+            for (int padding : new int[] { 0, 32, 64, 128 }) {
+                expectThrows(JsonParsingException.class, () -> walkAndRecord(json, padding));
+            }
+        } else {
+            assertInvalidNumberRejected(json, "Unexpected character after number");
+        }
+    }
+
+    // The SWAR digit check must reject ':' ';' '<' '=' '>' '?' (0x3A..0x3F) wherever they fall in
+    // the 8-byte word: they have a zero high nibble once 0x30 is subtracted, which a nibble-only
+    // test mistakes for a digit. Lengths 1..9 put the byte at every position of the first word
+    // (1 and 2 digits exercise the short fast path, 7 the all-digits-but-one word) and just past it.
+    public void testNonDigitBetweenNineAndLetterAfterDigitsRejected() {
+        for (char junk : new char[] { ':', ';', '<', '=', '>', '?' }) {
+            for (int digits = 1; digits <= 9; digits++) {
+                String number = "1234567890".substring(0, digits) + junk;
+                assertNonDigitRejected(junk, "{\"n\":" + number + "}");
+                assertNonDigitRejected(junk, "{\"n\":" + number + ",\"m\":1}");
+                assertNonDigitRejected(junk, "{\"n\":-" + number + "}");
+                assertNonDigitRejected(junk, "{\"a\":[" + number + "]}");
+                assertNonDigitRejected(junk, "{\"a\":[1," + number + "]}");
+            }
+        }
+    }
+
+    // The same byte followed by more digits must not be absorbed into the value either.
+    public void testNonDigitBetweenNineAndLetterInsideDigitsRejected() {
+        for (char junk : new char[] { ':', ';', '<', '=', '>', '?' }) {
+            assertNonDigitRejected(junk, "{\"n\":12345678" + junk + "9}");
+            assertNonDigitRejected(junk, "{\"n\":1234567" + junk + "89}");
+            assertNonDigitRejected(junk, "{\"a\":[1234567" + junk + "89]}");
+            assertNonDigitRejected(junk, "{\"n\":1" + junk + "2,\"m\":3}");
+        }
+    }
 }

@@ -25,6 +25,7 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StoredValue;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
+import org.apache.lucene.document.column.ColumnBatch;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexReader;
@@ -95,6 +96,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
@@ -4058,6 +4060,7 @@ public class InternalEngineTests extends EngineTestCase {
 
     private static class ThrowingIndexWriter extends IndexWriter {
         private AtomicReference<Supplier<Exception>> failureToThrow = new AtomicReference<>();
+        private final AtomicReference<Throwable> tragicException = new AtomicReference<>();
 
         ThrowingIndexWriter(Directory d, IndexWriterConfig conf) throws IOException {
             super(d, conf);
@@ -4095,6 +4098,22 @@ public class InternalEngineTests extends EngineTestCase {
         public long softUpdateDocument(Term term, Iterable<? extends IndexableField> doc, Field... softDeletes) throws IOException {
             maybeThrowFailure();
             return super.softUpdateDocument(term, doc, softDeletes);
+        }
+
+        @Override
+        public long addBatch(ColumnBatch columnBatch) throws IOException {
+            maybeThrowFailure();
+            return super.addBatch(columnBatch);
+        }
+
+        public void setTragicException(Throwable tragic) {
+            tragicException.set(tragic);
+        }
+
+        @Override
+        public Throwable getTragicException() {
+            final Throwable tragic = tragicException.get();
+            return tragic != null ? tragic : super.getTragicException();
         }
 
         @Override
@@ -8561,6 +8580,107 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat(results.get(1).getSeqNo(), equalTo(checkpointBefore + 1));
         // processed checkpoint advances by exactly one (the one real op)
         assertThat(engine.getProcessedLocalCheckpoint(), equalTo(checkpointBefore + 1));
+    }
+
+    public void testPlanningFailureFailsRemainingOpsAndKeepsEngineOpen() throws IOException {
+        engine.close();
+        final EngineException lookupFailure = new EngineException(shardId, "simulated version lookup failure");
+        final AtomicInteger luceneLookups = new AtomicInteger();
+        engine = new InternalEngine(engine.config()) {
+            @Override
+            // non-tragic exception
+            protected <T> T performActionWithDirectoryReader(SearcherScope scope, CheckedFunction<DirectoryReader, T, IOException> action)
+                throws EngineException {
+                if (luceneLookups.incrementAndGet() == 2) {
+                    throw lookupFailure;
+                }
+                return super.performActionWithDirectoryReader(scope, action);
+            }
+        };
+        engine.skipTranslogRecovery();
+
+        // "1" and "2" form the first sub-batch and are resolved with one Lucene lookup.
+        // The duplicate "1" cannot join it.
+        // "1" and "3" form a second sub-batch whose planning needs a second lookup, for "3".
+        // At this point, our override will invoke the failure.
+        List<Engine.Index> ops = List.of(
+            indexForDoc(createParsedDoc("1", null)),
+            indexForDoc(createParsedDoc("2", null)),
+            indexForDoc(createParsedDoc("1", null)),
+            indexForDoc(createParsedDoc("3", null))
+        );
+        List<Engine.IndexResult> results = engine.indexBatch(engineBatch(ops, encodeAsEscfBatch(ops)));
+
+        assertThat(results, hasSize(4));
+        assertThat(results.get(0).getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+        assertThat(results.get(0).getSeqNo(), equalTo(0L));
+        assertThat(results.get(1).getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+        assertThat(results.get(1).getSeqNo(), equalTo(1L));
+        for (int i = 2; i < 4; i++) {
+            assertThat(results.get(i).getResultType(), equalTo(Engine.Result.Type.FAILURE));
+            assertThat(results.get(i).getFailure(), sameInstance(lookupFailure));
+            assertThat(results.get(i).getSeqNo(), equalTo(UNASSIGNED_SEQ_NO));
+            assertThat(results.get(i).getTranslogLocation(), nullValue());
+        }
+        assertThat(engine.failedEngine.get(), nullValue());
+        assertThat(engine.getMaxSeqNo(), equalTo(1L));
+        assertThat(engine.getProcessedLocalCheckpoint(), equalTo(1L));
+
+        // the engine keeps indexing, and the next sequence number follows the last one that was actually used
+        Engine.IndexResult next = engine.index(indexForDoc(createParsedDoc("3", null)));
+        assertThat(next.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+        assertThat(next.getSeqNo(), equalTo(2L));
+        engine.refresh("test");
+        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+            assertThat(searcher.getIndexReader().numDocs(), equalTo(3));
+        }
+    }
+
+    public void testPlanningFailureOnReplicaFailsEngine() throws IOException {
+        engine.close();
+        final EngineException lookupFailure = new EngineException(shardId, "simulated seq_no lookup failure");
+        engine = new InternalEngine(engine.config()) {
+            @Override
+            public Searcher acquireSearcher(String source, SearcherScope scope) throws EngineException {
+                if ("load_seq_no".equals(source)) {
+                    throw lookupFailure;
+                }
+                return super.acquireSearcher(source, scope);
+            }
+        };
+        engine.skipTranslogRecovery();
+        // make the replica resolve the op against Lucene instead of taking the append-only shortcut
+        engine.advanceMaxSeqNoOfUpdatesOrDeletes(10);
+
+        List<Engine.Index> ops = List.of(replicaIndexForDoc(createParsedDoc("1", null), 1, 0, false));
+        EngineBatch batch = engineBatch(ops, encodeAsEscfBatch(ops));
+        batch.columns().setSeqNo(0, 0); // the test batch builder does not copy the op's seq#, the engine reads it from the columns
+        EngineException e = expectThrows(EngineException.class, () -> engine.indexBatch(batch));
+        assertThat(e, sameInstance(lookupFailure));
+        assertThat(engine.failedEngine.get(), sameInstance(lookupFailure));
+        assertTrue(engine.isClosed.get());
+    }
+
+    public void testIndexBatchFailureAfterSeqNoReservationFailsEngine() throws IOException {
+        engine.close();
+        final AtomicReference<ThrowingIndexWriter> iw = new AtomicReference<>();
+        try (Store store = createStore(); InternalEngine engine = createEngine((dir, iwc) -> {
+            // ThrowingIndexWriter simulates a Lucene IndexWriter after reserving seqnos.
+            iw.set(new ThrowingIndexWriter(dir, iwc));
+            return iw.get();
+        }, config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE))) {
+            final IOException writeFailure = new IOException("simulated write failure");
+            iw.get().setThrowFailure(() -> writeFailure);
+            iw.get().setTragicException(new IOException("tragic event recorded by another thread"));
+
+            List<Engine.Index> ops = List.of(indexForDoc(createParsedDoc("1", null)), indexForDoc(createParsedDoc("2", null)));
+
+            // indexBatch will now throw a tragic exception
+            IOException e = expectThrows(IOException.class, () -> engine.indexBatch(engineBatch(ops, encodeAsEscfBatch(ops))));
+            assertThat(e, sameInstance(writeFailure));
+            assertThat(engine.failedEngine.get(), sameInstance(writeFailure));
+            assertTrue(engine.isClosed.get());
+        }
     }
 
     public void testBatchIndexRecordsRowIndex() throws IOException {

@@ -1132,7 +1132,9 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                 // the synthetic source loader skips the slots of the other fields as it decodes them
                 assertThat(slots, instanceOf(KeyFilteredSlots.class));
                 assertThat(slots.nextDoc(), equalTo(0));
+                assertThat(slotKeys(slots.binaryValue(), 6), equalTo(List.of("visible", "obj.hidden", "obj.shown", "arr", "arr", "arr")));
                 assertThat(slots.nextDoc(), equalTo(2));
+                assertThat(slotKeys(slots.binaryValue(), 1), equalTo(List.of("visible")));
                 assertThat(slots.nextDoc(), equalTo(DocIdSetIterator.NO_MORE_DOCS));
                 NumericDocValues counts = leaf.getNumericDocValues(
                     keyed + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX
@@ -1218,6 +1220,17 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
             .put(IndexSettings.FLATTENED_UNMAPPED_FIELDS_ENABLED.getKey(), true)
             .build();
         return createMapperService(settings, mapping(b -> b.startObject("name").field("type", "keyword").endObject())).documentMapper();
+    }
+
+    /** The keys of the {@code count} slots of {@code slots}, in the order they are stored. */
+    private static List<String> slotKeys(BytesRef slots, int count) throws IOException {
+        var reader = new MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull.SlotReader();
+        reader.reset(slots, count);
+        List<String> keys = new ArrayList<>();
+        while (reader.next()) {
+            keys.add(reader.key());
+        }
+        return keys;
     }
 
     /** Three documents: unmapped fields of every shape, only the hidden field {@code k}, and only the field {@code visible}. */

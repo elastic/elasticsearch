@@ -39,7 +39,6 @@ import org.apache.lucene.util.IOBooleanSupplier;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -62,7 +61,6 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -158,6 +156,10 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
 
     /** List of filtered fields */
     private final FieldInfos fieldInfos;
+    /**
+     * The keyed values of the {@code _unmapped} field, one slot for each value of an unmapped field, and their slot counts. The field is
+     * always granted, as every field whose name starts with {@code _} is, so the unmapped fields it holds are filtered on their own name.
+     */
     private static final String UNMAPPED_SINK_KEYED = FlattenedFieldMapper.UNMAPPED_SINK_NAME + FlattenedFieldMapper.KEYED_FIELD_SUFFIX;
     private static final String UNMAPPED_SINK_COUNTS = UNMAPPED_SINK_KEYED
         + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
@@ -410,7 +412,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
             return null;
         }
         NumericDocValues dv = super.getNumericDocValues(field);
-        if (dv != null && UNMAPPED_SINK_COUNTS.equals(field) && keepsUnmappedFields()) {
+        if (dv != null && UNMAPPED_SINK_COUNTS.equals(field)) {
             BinaryDocValues slots = super.getBinaryDocValues(UNMAPPED_SINK_KEYED);
             return slots == null ? dv : new GrantedUnmappedFieldCounts(new GrantedUnmappedFields(slots, dv, filter));
         }
@@ -427,20 +429,11 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         if (isIgnoredSourceDocValues(dv, field)) {
             return new FilteredIgnoredSourceDocValues(in, dv, ignoredSourceFormat, filter);
         }
-        if (dv != null && UNMAPPED_SINK_KEYED.equals(field) && keepsUnmappedFields()) {
+        if (dv != null && UNMAPPED_SINK_KEYED.equals(field)) {
             NumericDocValues counts = super.getNumericDocValues(UNMAPPED_SINK_COUNTS);
             return counts == null ? dv : new GrantedUnmappedFieldSlots(new GrantedUnmappedFields(dv, counts, filter));
         }
         return dv;
-    }
-
-    /**
-     * Whether this segment keeps unmapped fields in the {@code _unmapped} field: its keyed values, one slot for each value of an
-     * unmapped field, with the slot count in a {@code .counts} companion. The {@code _unmapped} field is always granted, as every
-     * field whose name starts with {@code _} is, so the unmapped fields it holds are filtered one by one on their own name.
-     */
-    private boolean keepsUnmappedFields() {
-        return in.getFieldInfos().fieldInfo(UNMAPPED_SINK_COUNTS) != null;
     }
 
     /**
@@ -490,7 +483,8 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         private final BinaryDocValues slots;
         private final NumericDocValues counts;
         private final CharacterRunAutomaton filter;
-        private final ByteArrayStreamInput input = new ByteArrayStreamInput();
+        private final MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull.SlotReader reader =
+            new MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull.SlotReader();
         private final BytesRefBuilder granted = new BytesRefBuilder();
         private int grantedCount;
 
@@ -507,23 +501,13 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
             if (counts.advanceExact(doc) == false || slots.advanceExact(doc) == false) {
                 return false;
             }
-            int count = Math.toIntExact(counts.longValue());
             BytesRef blob = slots.binaryValue();
-            input.reset(blob.bytes, blob.offset, blob.length);
-            for (int i = 0; i < count; i++) {
-                int slotStart = input.getPosition();
-                int prefix = input.readVInt();
-                int keyStart = input.getPosition();
-                int keyLength = 0;
-                while (blob.bytes[keyStart + keyLength] != 0) {
-                    keyLength++;
-                }
-                int slotEnd = keyStart + keyLength + 1 + (prefix == 0 ? 0 : prefix - 1);
-                if (filter.run(new String(blob.bytes, keyStart, keyLength, StandardCharsets.UTF_8))) {
-                    granted.append(blob.bytes, slotStart, slotEnd - slotStart);
+            reader.reset(blob, Math.toIntExact(counts.longValue()));
+            while (reader.next()) {
+                if (filter.run(reader.key())) {
+                    granted.append(blob.bytes, reader.slotStart(), reader.slotEnd() - reader.slotStart());
                     grantedCount++;
                 }
-                input.setPosition(slotEnd);
             }
             return grantedCount > 0;
         }
@@ -552,6 +536,8 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         @Override
         public boolean advanceExactStored(int target) throws IOException {
             doc = target;
+            fields.granted.clear();
+            fields.grantedCount = 0;
             return fields.counts.advanceExact(target) && fields.slots.advanceExact(target);
         }
 

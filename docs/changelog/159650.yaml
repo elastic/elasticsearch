@@ -1,0 +1,5 @@
+area: Query Languages
+issues: []
+pr: 159650
+summary: "Bound RLIKE, LIKE and wildcard compilation"
+type: bug

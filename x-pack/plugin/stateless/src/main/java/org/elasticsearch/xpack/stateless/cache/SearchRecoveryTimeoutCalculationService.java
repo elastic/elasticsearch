@@ -11,9 +11,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -259,16 +257,6 @@ public class SearchRecoveryTimeoutCalculationService {
         return sourceNode.size() - relocatingElsewhere;
     }
 
-    /// Counts shards in [ShardRoutingState#STARTED] state on `nodeId`: those that have not begun relocating yet, and are therefore
-    /// still waiting for their turn to get a slice of the grace period.
-    private static int countPendingShardsOnNode(ClusterState clusterState, String nodeId) {
-        final RoutingNode node = clusterState.getRoutingNodes().node(nodeId);
-        if (node == null) {
-            return 0;
-        }
-        return node.numberOfShardsWithState(ShardRoutingState.STARTED);
-    }
-
     private static boolean hasActiveShutdownForRemovalNodes(ClusterState state) {
         for (Map.Entry<String, SingleNodeShutdownMetadata> entry : state.metadata().nodeShutdowns().getAll().entrySet()) {
             if (entry.getValue().getType().isRemovalType() && state.nodes().nodeExists(entry.getKey())) {
@@ -295,8 +283,7 @@ public class SearchRecoveryTimeoutCalculationService {
     /// The heuristics above decide the first plan of the shutdown phase. Only equal-share plans are
     /// [SearchRecoveryTimeout#extendable]. A re-evaluation of an equal-share plan (`previousPlan`) always yields an equal-share
     /// plan that only extends the wait by the time saved since then, regardless of which heuristic would win, see [#searchRecoveryTimeout].
-    /// When no shard on the source is pending (not relocating yet), nobody waits behind this one, so the extension is all the remaining
-    /// grace instead.
+    /// When all shards fit in the target's recovery slots, nobody waits behind this one, so the extension is all the remaining grace.
     private SearchRecoveryTimeout computeRelocationSourceShutdownWarmingTimeout(
         ClusterState state,
         String sourceNodeId,
@@ -347,9 +334,10 @@ public class SearchRecoveryTimeoutCalculationService {
             // when the previous plan was computed, so only the part of the fresh share above that is time saved by shards that finished
             // early. When none did, the fresh share is not larger and there is nothing to extend by. The data-volume heuristic is
             // deliberately not consulted: it only decides the first plan of the shutdown phase, afterwards only saved time is handed out.
-            // The exception is when no shard is pending on the source: nobody is waiting for a slice behind this one and the shards that
-            // are already relocating wait concurrently, so the remaining grace would be wasted if not used.
-            final double extensionMs = countPendingShardsOnNode(state, sourceNodeId) == 0
+            // The exception is when all shards fit in the target's slots: nobody is queued behind this one, so the remaining grace would be
+            // wasted if not used. RELOCATING does not imply running, under recovery throttling a shard may still be queued for a slot.
+            final boolean noShardWaitingForRelocationSlot = shardsOnSource <= concurrentRelocations;
+            final double extensionMs = noShardWaitingForRelocationSlot
                 ? remaining
                 : Math.max(0.0, equalShareMs - previousPlan.perShardShareMs()) * concurrentRelocations;
             return new SearchRecoveryTimeout(

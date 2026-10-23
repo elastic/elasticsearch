@@ -82,6 +82,10 @@ public class AzureHttpHandler implements HttpHandler {
         this.mockAzureBlobStore = new MockAzureBlobStore(leaseExpiryPredicate);
     }
 
+    public void setCopiesStayPending(boolean copiesStayPending) {
+        mockAzureBlobStore.setCopiesStayPending(copiesStayPending);
+    }
+
     private static List<String> getAuthHeader(HttpExchange exchange) {
         return exchange.getRequestHeaders().get("Authorization");
     }
@@ -202,6 +206,9 @@ public class AzureHttpHandler implements HttpHandler {
                         );
                     }
                 }
+            } else if (Regex.simpleMatch("PUT /" + account + "/" + container + "/*comp=copy*", request)) {
+                // Abort Copy Blob (https://learn.microsoft.com/en-us/rest/api/storageservices/abort-copy-blob)
+                exchange.sendResponseHeaders(RestStatus.NO_CONTENT.getStatus(), -1);
             } else if (Regex.simpleMatch("PUT /" + account + "/" + container + "/*", request)) {
                 // PUT Blob (see https://docs.microsoft.com/en-us/rest/api/storageservices/put-blob)
                 final Headers requestHeaders = exchange.getRequestHeaders();
@@ -222,7 +229,8 @@ public class AzureHttpHandler implements HttpHandler {
                         accessTier(exchange)
                     );
                     exchange.getResponseHeaders().add("x-ms-copy-id", copyInfo.copyId());
-                    exchange.getResponseHeaders().add("x-ms-copy-status", "success");
+                    exchange.getResponseHeaders()
+                        .add("x-ms-copy-status", mockAzureBlobStore.getBlob(blobPath(exchange), null).copyStatus());
                     exchange.getResponseHeaders().add("ETag", "\"mock-etag\"");
                     exchange.sendResponseHeaders(RestStatus.ACCEPTED.getStatus(), -1);
                 } else {
@@ -262,7 +270,7 @@ public class AzureHttpHandler implements HttpHandler {
                 final MockAzureBlobStore.CopyInfo copyInfo = blob.copyInfo();
                 if (copyInfo != null) {
                     // Copy status polling requires these fields
-                    responseHeaders.add("x-ms-copy-status", "success");
+                    responseHeaders.add("x-ms-copy-status", blob.copyStatus());
                     responseHeaders.add("x-ms-copy-id", copyInfo.copyId());
                     responseHeaders.add(X_MS_COPY_SOURCE, "source");
                     responseHeaders.add("ETag", "\"mock-etag\"");

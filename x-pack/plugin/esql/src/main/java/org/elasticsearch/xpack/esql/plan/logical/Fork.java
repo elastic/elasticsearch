@@ -20,11 +20,15 @@ import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -158,6 +162,52 @@ public final class Fork extends MergePlan implements TelemetryAware {
                 )
             );
         }
+    }
+
+    /**
+     * The rule of {@code checkForUnseparatedFork}, for a plan whose FORK branches still share their input by reference, as they do
+     * before analysis. Walking such a plan as a tree, or hashing a node in it through {@link Failures}, costs one visit per path, which
+     * grows exponentially with the number of FORKs. This walk remembers the flag each node's children were walked with, so a shared node
+     * is walked again only when a FORK above it has been seen since, and it returns the first offending FORK without hashing anything.
+     * An IN subquery still held in an expression is a query scope of its own and is walked as such.
+     */
+    @Nullable
+    public static Failure findUnseparatedFork(LogicalPlan plan) {
+        return findUnseparatedFork(plan, false, new IdentityHashMap<>());
+    }
+
+    private static Failure findUnseparatedFork(LogicalPlan plan, boolean forkSeen, Map<LogicalPlan, Boolean> walked) {
+        boolean seen = forkSeen;
+        if (plan instanceof UnionAll) {
+            seen = false;
+        } else if (plan.getClass() == Fork.class) {
+            if (forkSeen) {
+                return Failure.fail(plan, "Only a single FORK command is supported, but found multiple");
+            }
+            seen = true;
+        }
+        Boolean walkedWith = walked.get(plan);
+        if (walkedWith != null && (walkedWith || seen == false)) {
+            return null;
+        }
+        List<LogicalPlan> children = plan instanceof AbstractSubqueryJoin join ? List.of(join.left()) : plan.children();
+        for (LogicalPlan child : children) {
+            Failure failure = findUnseparatedFork(child, seen, walked);
+            if (failure != null) {
+                return failure;
+            }
+        }
+        List<LogicalPlan> subqueries = new ArrayList<>();
+        plan.forEachExpression(InSubquery.class, in -> subqueries.add(in.subquery()));
+        plan.forEachExpression(MultiColumnInSubquery.class, in -> subqueries.add(in.subquery()));
+        for (LogicalPlan subquery : subqueries) {
+            Failure failure = findUnseparatedFork(subquery, false, walked);
+            if (failure != null) {
+                return failure;
+            }
+        }
+        walked.put(plan, seen);
+        return null;
     }
 
     /**

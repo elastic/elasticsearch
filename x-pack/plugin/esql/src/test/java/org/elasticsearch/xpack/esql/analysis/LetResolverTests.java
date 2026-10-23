@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InS
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -181,6 +182,63 @@ public class LetResolverTests extends ESTestCase {
             containsString("Forward reference in LET bindings: [a] cannot be referenced before its declaration"),
             () -> parseAndResolveLet("LET a = (FROM base | WHERE (x, y) IN (FROM a) | LIMIT 1); FROM a")
         );
+    }
+
+    // -----------------------------------------------------------------------
+    // FORKs that only share a pipeline once a binding is substituted
+    // -----------------------------------------------------------------------
+
+    /**
+     * Each binding body is a FORK scope of its own while parsing, so a FORK in a body and a FORK over the name that references it
+     * both parse. Once substituted they sit on one pipeline and must be rejected before view resolution multiplies the plan.
+     */
+    public void testForkInBindingAndForkOverReferenceRejected() {
+        String error = "Only a single FORK command is supported, but found multiple";
+        expectThrows(
+            VerificationException.class,
+            containsString(error),
+            () -> parseAndResolveLet("LET q = (FROM a | FORK (WHERE x > 0) (WHERE x < 0)); FROM q | FORK (WHERE y > 0) (WHERE y < 0)")
+        );
+        expectThrows(
+            VerificationException.class,
+            containsString(error),
+            () -> parseAndResolveLet(
+                "LET q = (FROM a | FORK (WHERE x > 0) (WHERE x < 0)); LET r = (FROM q | FORK (WHERE y > 0) (WHERE y < 0)); FROM r"
+            )
+        );
+        expectThrows(
+            VerificationException.class,
+            containsString(error),
+            () -> parseAndResolveLet(
+                "LET q = (FROM a | FORK (WHERE x > 0) (WHERE x < 0)); FROM b | WHERE x IN (FROM q | FORK (WHERE y > 0) (WHERE y < 0))"
+            )
+        );
+    }
+
+    /** Each binding adds a FORK over the previous one, so the substituted plan has 2^40 paths over a few dozen nodes. */
+    public void testChainedForkBindingsRejectedWithoutWalkingEveryPath() {
+        StringBuilder query = new StringBuilder("LET f0 = (FROM a | FORK (WHERE x > 0) (WHERE x < 0));");
+        for (int i = 1; i < 40; i++) {
+            query.append(" LET f").append(i).append(" = (FROM f").append(i - 1).append(" | FORK (WHERE x > 0) (WHERE x < 0));");
+        }
+        query.append(" FROM f39");
+        expectThrows(
+            VerificationException.class,
+            containsString("Only a single FORK command is supported, but found multiple"),
+            () -> parseAndResolveLet(query.toString())
+        );
+    }
+
+    /** A binding referenced next to another source becomes one branch of a UNION ALL, which starts a new FORK segment. */
+    public void testForkInBindingSeparatedByUnionAllAccepted() {
+        LogicalPlan result = parseAndResolveLet(
+            "LET q = (FROM a | FORK (WHERE x > 0) (WHERE x < 0)); FROM q, b | FORK (WHERE y > 0) (WHERE y < 0)"
+        );
+        assertThat(result, instanceOf(Fork.class));
+        result = parseAndResolveLet(
+            "LET q = (FROM a | FORK (WHERE x > 0) (WHERE x < 0)); FROM b | WHERE x IN (FROM q) | FORK (WHERE y > 0) (WHERE y < 0)"
+        );
+        assertThat(result, instanceOf(Fork.class));
     }
 
     // -----------------------------------------------------------------------

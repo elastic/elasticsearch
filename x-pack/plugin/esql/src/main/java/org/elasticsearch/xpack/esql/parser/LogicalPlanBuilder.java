@@ -24,7 +24,9 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.useragent.api.UserAgentParsedInfo;
 import org.elasticsearch.useragent.api.UserAgentParserRegistry;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
@@ -161,6 +163,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     private int queryDepth = 0;
+    private boolean forkSeenInScope = false;
 
     /** Commands seen so far in the main query and in all its subqueries, see {@link ParsingContext#maxCommandCount()} */
     private int commandCount = 0;
@@ -496,11 +499,14 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 context.maxCommandCount()
             );
         }
+        boolean forkSeenInEnclosingScope = forkSeenInScope;
+        forkSeenInScope = false;
         LogicalPlan plan = visitSubquerySourceCommand(ctx.subquerySourceCommand());
         List<PlanFactory> processingCommands = visitList(this, ctx.processingCommand(), PlanFactory.class);
         for (PlanFactory processingCommand : processingCommands) {
             plan = processingCommand.apply(plan);
         }
+        forkSeenInScope = forkSeenInEnclosingScope;
         return plan;
     }
 
@@ -1405,6 +1411,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     @SuppressWarnings("unchecked")
     public PlanFactory visitForkCommand(EsqlBaseParser.ForkCommandContext ctx) {
+        boolean duplicate = forkSeenInScope;
+        forkSeenInScope = true;
         List<PlanFactory> subQueries = visitForkSubQueries(ctx.forkSubQueries());
         // Hard ceiling: the setting maxValue. The configured cluster setting or pragma is enforced later in Fork.checkBranchCount.
         int maxBranches = QueryPragmas.MAX_BRANCH_COUNT_PER_MERGE_MAX;
@@ -1414,7 +1422,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         return input -> {
             List<LogicalPlan> subPlans = subQueries.stream().map(planFactory -> planFactory.apply(input)).toList();
-            return new Fork(source(ctx), subPlans, List.of());
+            Fork fork = new Fork(source(ctx), subPlans, List.of());
+            if (duplicate) {
+                throw new VerificationException(List.of(Failure.fail(fork, "Only a single FORK command is supported, but found multiple")));
+            }
+            return fork;
         };
     }
 

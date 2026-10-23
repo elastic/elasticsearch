@@ -3665,63 +3665,6 @@ public class FieldNameUtilsTests extends ESTestCase {
         );
     }
 
-    /** Field collection traverses directly nested FORKs and analyzer rejects this shape later. */
-    public void testNestedForksInMainQuery() {
-        assertFieldNames(
-            """
-                FROM employees
-                | FORK (WHERE salary > 50000
-                        | FORK (WHERE languages > 1 | KEEP emp_no)
-                               (WHERE first_name IS NOT NULL | KEEP first_name))
-                       (WHERE last_name IS NOT NULL | KEEP last_name)
-                | KEEP emp_no, first_name, last_name
-                """,
-            Set.of(
-                "_index",
-                "emp_no",
-                "emp_no.*",
-                "first_name",
-                "first_name.*",
-                "languages",
-                "languages.*",
-                "last_name",
-                "last_name.*",
-                "salary",
-                "salary.*"
-            )
-        );
-    }
-
-    /** Directly nested FORKs in an IN subquery use the subquery's independent field-collection state. */
-    public void testNestedForksInInSubquery() {
-        assertFieldNames(
-            """
-                FROM employees
-                | WHERE emp_no IN (
-                    FROM employees
-                    | FORK (WHERE salary > 50000
-                            | FORK (WHERE languages > 1 | KEEP emp_no)
-                                   (WHERE first_name IS NOT NULL | KEEP emp_no))
-                           (WHERE last_name IS NOT NULL | KEEP emp_no)
-                    | KEEP emp_no)
-                | KEEP emp_no
-                """,
-            Set.of(
-                "_index",
-                "emp_no",
-                "emp_no.*",
-                "first_name",
-                "first_name.*",
-                "languages",
-                "languages.*",
-                "last_name",
-                "last_name.*",
-                "salary",
-                "salary.*"
-            )
-        );
-    }
-
     public void testForkInsideUnionAllSubqueryInMainQuery() {
         assertFieldNames("""
             FROM (FROM employees

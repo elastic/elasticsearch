@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.analysis.LetResolver;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
@@ -270,6 +272,24 @@ public class LetParserTests extends AbstractStatementParserTests {
         );
         assertThat(stmt.letBindings().size(), is(1));
         assertThat(stmt.letBindings().get(0).name(), is("x"));
+    }
+
+    /** A view body goes through parseView and then LetResolver, the two steps the session applies to it. */
+    public void testSecondForkOnOnePipelineInViewBodyRejected() {
+        assumeLet();
+        var parser = new EsqlParser(new EsqlConfig(org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY));
+        var stmt = parser.parseView(
+            "LET x = (FROM a | FORK (WHERE p > 0) (WHERE p < 0)); FROM x | FORK (WHERE q > 0) (WHERE q < 0)",
+            new QueryParams(),
+            new org.elasticsearch.xpack.esql.inference.InferenceSettings(org.elasticsearch.common.settings.Settings.EMPTY),
+            "my_view",
+            ViewResolver.DEFAULT_MAX_PLAN_NODES_COUNT
+        );
+        expectThrows(
+            VerificationException.class,
+            containsString("Only a single FORK command is supported, but found multiple"),
+            () -> LetResolver.resolve(stmt.plan(), stmt.letBindings(), ViewResolver.DEFAULT_MAX_PLAN_NODES_COUNT)
+        );
     }
 
     // -----------------------------------------------------------------------

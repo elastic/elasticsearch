@@ -34,17 +34,9 @@ import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 
 /**
- * Opens a node's log together with every file log4j rolled it into, so that a line written just before a rollover is
- * still found.
- * <p>
- * Log4j rolls a log by renaming the live file, creating a new live file right after, and gzipping the renamed file on
- * another thread before deleting it. Logs that keep a fixed window of rolled files also delete the oldest file and rename
- * the others down one slot once the window is full. A reader can therefore see the live file missing, a rolled file
- * disappear between listing and opening it, or a {@code .gz} that is still being written. A rollover while the files are
- * being opened would also drop or repeat lines, so the rolled files are listed again once everything is open and the open
- * is repeated if any of them changed. An opened file keeps its content when log4j later renames or deletes it, so the
- * returned stream stays consistent while it is read. These states last milliseconds, so the open is retried a few times
- * before giving up.
+ * Opens a node's log together with the files log4j rolled it into, so that a line written just before a rollover is still
+ * found. Log4j can rename, compress or delete those files while they are being opened, so the rolled files are listed
+ * again once everything is open and the open is retried if any of them changed.
  */
 final class RolledLogReader {
 
@@ -136,11 +128,8 @@ final class RolledLogReader {
     }
 
     /**
-     * Matches the files log4j rolls the given log into, following the {@code filePattern} of its appender in
-     * {@code log4j2.properties}: {@code <prefix>-yyyy-MM-dd-N.<ext>.gz} for logs that also roll at midnight and
-     * {@code <prefix>-N.<ext>.gz} for logs that only roll by size. The {@code .gz} suffix is optional because log4j
-     * renames the file first and compresses it afterwards. Captures the named groups {@code date} ({@code null} for
-     * logs rolled by size only), {@code index} and {@code gz}.
+     * Matches the files log4j rolls the given log into, per its {@code filePattern} in {@code log4j2.properties}. The
+     * {@code date} group is {@code null} for logs that only roll by size, and {@code gz} until log4j compresses the file.
      */
     static Pattern rolledFilenamePattern(String clusterName, LogType logType) {
         return switch (logType) {

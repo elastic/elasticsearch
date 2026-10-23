@@ -239,6 +239,7 @@ public class IngestModelMemoryServiceTests extends ESTestCase {
             assertThat(modelSize, notNullValue());
             assertThat(modelSize.isPresent(), is(false));
             assertThat(service.getRequiredHeapBytes().isExact(), is(false));
+            assertThat(service.isFetchScheduledForTests("model-a"), is(false));
         });
 
         service.clusterChanged(new ClusterChangedEvent("test", current, current));

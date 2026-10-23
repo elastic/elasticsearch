@@ -138,7 +138,9 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
                     }
 
                     @Override
-                    public void setScorer(Scorable scorer) {
+                    public void setScorer(Scorable scorer) throws IOException {
+                        // the base class feeds the scorer to the competitive iterator builder, which skipping relies on
+                        super.setScorer(scorer);
                         LongValuesComparatorSource.this.setScorer(context, scorer);
                     }
 

@@ -136,6 +136,7 @@ public class MapperFeatures implements FeatureSpecification {
     );
     public static final NodeFeature DOC_VALUES_NULLABILITY = new NodeFeature("mapper.doc_values.nullability");
     public static final NodeFeature DOC_VALUES_ON_FAILURE = new NodeFeature("mapper.doc_values.on_failure");
+    public static final NodeFeature DOC_VALUES_TOP_LEVEL_ATTRIBUTES = new NodeFeature("mapper.doc_values.top_level_attributes");
     public static final NodeFeature COLUMNAR_BARE_NULL_IS_ABSENCE = new NodeFeature("mapper.columnar.bare_null_is_absence");
     public static final NodeFeature DENSE_VECTOR_DYNAMIC_TEMPLATE_NESTED_OBJECT_FIX = new NodeFeature(
         "mapper.dense_vector.dynamic_template_nested_object_fix"
@@ -174,6 +175,7 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature COLUMNAR_DROPS_DYNAMIC_FALSE_FIELDS = new NodeFeature("mapper.columnar.drops_dynamic_false_fields");
     public static final NodeFeature COLUMNAR_SUPPORTS_SHAPE_FIELDS = new NodeFeature("mapper.columnar.supports_shape_fields");
     public static final NodeFeature COLUMNAR_IGNORE_ABOVE_NO_OP = new NodeFeature("mapper.columnar.ignore_above_no_op");
+    public static final NodeFeature COLUMNAR_STORED_SOURCE_FILTER_FIX = new NodeFeature("mapper.columnar_stored.source_filter_fix");
     public static final NodeFeature TEXT_SEARCH_WITHOUT_TERMS = new NodeFeature("mapper.text.search_without_terms");
     public static final NodeFeature TSDB_METRIC_TEMPORALITY_SUPPORT = new NodeFeature("mapper.tsdb.metric_temporality_support");
     public static final NodeFeature COMBINE_DYNAMIC_MAPPING_UPDATES = new NodeFeature("mapper.combine_dynamic_updates");
@@ -189,10 +191,18 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature MULTI_VALUED_BINARY_INDEX_SORT_SPARSE_FIX = new NodeFeature(
         "mapper.multi_valued_binary_index_sort_sparse_fix"
     );
+    public static final NodeFeature BBQ_DISK_UPDATABLE_AUTO_CALIBRATE = new NodeFeature(
+        "mapper.dense_vector.bbq_disk.updatable_auto_calibrate"
+    );
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(TSDB_METRIC_TEMPORALITY_SUPPORT, DenseVectorAutoCalibrate.AUTO_CALIBRATE_PROFILES, COMBINE_DYNAMIC_MAPPING_UPDATES);
+        return Set.of(
+            TSDB_METRIC_TEMPORALITY_SUPPORT,
+            DenseVectorAutoCalibrate.AUTO_CALIBRATE_PROFILES,
+            COMBINE_DYNAMIC_MAPPING_UPDATES,
+            BBQ_DISK_UPDATABLE_AUTO_CALIBRATE
+        );
     }
 
     @Override
@@ -284,6 +294,7 @@ public class MapperFeatures implements FeatureSpecification {
             COLUMNAR_DROPS_DYNAMIC_FALSE_FIELDS,
             COLUMNAR_SUPPORTS_SHAPE_FIELDS,
             COLUMNAR_IGNORE_ABOVE_NO_OP,
+            COLUMNAR_STORED_SOURCE_FILTER_FIX,
             DOC_VALUES_MULTI_VALUE_INDEX_SETTING,
             DOC_VALUES_MULTI_VALUE_FALSE_ALIAS,
             DOC_VALUES_EXTENDED_FORM_ONLY_IN_COLUMNAR,
@@ -292,6 +303,7 @@ public class MapperFeatures implements FeatureSpecification {
             BBQ_DISK_BYTE_SUPPORT,
             ASH_QUANTIZATION_TYPE_SUPPORT,
             DOC_VALUES_ON_FAILURE,
+            DOC_VALUES_TOP_LEVEL_ATTRIBUTES,
             COLUMNAR_BARE_NULL_IS_ABSENCE,
             DISK_BBQ_STABLE_FORMAT_SELECTION,
             PUT_MAPPING_NO_TYPES_CHECK,

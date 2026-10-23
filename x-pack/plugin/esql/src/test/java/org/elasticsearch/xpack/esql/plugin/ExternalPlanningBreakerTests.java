@@ -667,7 +667,17 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
             mock(PlannerSettings.Holder.class),
             null
         );
-        return new ComputeService(transport, null, null, threadPool, BigArrays.NON_RECYCLING_INSTANCE, blockFactory, operators, readers);
+        return new ComputeService(
+            transport,
+            null,
+            null,
+            threadPool,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            blockFactory,
+            operators,
+            readers,
+            null
+        );
     }
 
     private static FormatReaderRegistry parquetRegistry() {

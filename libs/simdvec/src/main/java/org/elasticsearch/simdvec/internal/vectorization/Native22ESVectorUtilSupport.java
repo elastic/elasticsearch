@@ -27,7 +27,7 @@ import java.util.concurrent.Callable;
 
 public final class Native22ESVectorUtilSupport extends PanamaESVectorUtilSupport {
 
-    private static final SimdVecLibrary DISTANCE_FUNCS = SimdVecLibrary.instance().orElseThrow(AssertionError::new);
+    private static final SimdVecLibrary SIMDVEC = SimdVecLibrary.instance().orElseThrow(AssertionError::new);
 
     /**
      * Columns of the result computed per task. This is a multiple of the native panel width, and wide enough
@@ -43,12 +43,17 @@ public final class Native22ESVectorUtilSupport extends PanamaESVectorUtilSupport
 
     @Override
     public float dotProduct(float[] a, float[] b) {
-        return DISTANCE_FUNCS.dotProductF32(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length);
+        return SIMDVEC.dotProductF32(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length);
+    }
+
+    @Override
+    public void matrixVectorMultiply(byte[] a, int rows, int cols, byte[] v, int[] result) {
+        SIMDVEC.sgemvI8(MemorySegment.ofArray(a), MemorySegment.ofArray(v), rows, cols, MemorySegment.ofArray(result));
     }
 
     @Override
     public float dotProduct(float[] a, int aOffset, float[] b, int bOffset, int length) {
-        return DISTANCE_FUNCS.dotProductF32(
+        return SIMDVEC.dotProductF32(
             MemorySegment.ofArray(a).asSlice((long) aOffset * Float.BYTES, (long) length * Float.BYTES),
             MemorySegment.ofArray(b).asSlice((long) bOffset * Float.BYTES, (long) length * Float.BYTES),
             length
@@ -57,12 +62,12 @@ public final class Native22ESVectorUtilSupport extends PanamaESVectorUtilSupport
 
     @Override
     public float squareDistance(float[] a, float[] b) {
-        return DISTANCE_FUNCS.squareDistanceF32(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length);
+        return SIMDVEC.squareDistanceF32(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length);
     }
 
     @Override
     public float squareDistance(float[] a, float[] b, int offset, int length) {
-        return DISTANCE_FUNCS.squareDistanceF32(
+        return SIMDVEC.squareDistanceF32(
             MemorySegment.ofArray(a).asSlice((long) offset * Float.BYTES, (long) length * Float.BYTES),
             MemorySegment.ofArray(b).asSlice((long) offset * Float.BYTES, (long) length * Float.BYTES),
             length
@@ -71,17 +76,17 @@ public final class Native22ESVectorUtilSupport extends PanamaESVectorUtilSupport
 
     @Override
     public float cosine(byte[] a, byte[] b) {
-        return DISTANCE_FUNCS.cosineI8(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length);
+        return SIMDVEC.cosineI8(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length);
     }
 
     @Override
     public float dotProduct(byte[] a, byte[] b) {
-        return DISTANCE_FUNCS.dotProductI8(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length);
+        return SIMDVEC.dotProductI8(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length);
     }
 
     @Override
     public float dotProduct(byte[] a, byte[] b, int offset, int length) {
-        return DISTANCE_FUNCS.dotProductI8(
+        return SIMDVEC.dotProductI8(
             MemorySegment.ofArray(a).asSlice(offset, length),
             MemorySegment.ofArray(b).asSlice(offset, length),
             length
@@ -90,12 +95,12 @@ public final class Native22ESVectorUtilSupport extends PanamaESVectorUtilSupport
 
     @Override
     public float squareDistance(byte[] a, byte[] b) {
-        return DISTANCE_FUNCS.squareDistanceI8(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length);
+        return SIMDVEC.squareDistanceI8(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length);
     }
 
     @Override
     public float squareDistance(byte[] a, byte[] b, int offset, int length) {
-        return DISTANCE_FUNCS.squareDistanceI8(
+        return SIMDVEC.squareDistanceI8(
             MemorySegment.ofArray(a).asSlice(offset, length),
             MemorySegment.ofArray(b).asSlice(offset, length),
             length
@@ -113,7 +118,7 @@ public final class Native22ESVectorUtilSupport extends PanamaESVectorUtilSupport
 
         final int numTasks = (n + MATRIX_TASK_COLUMNS - 1) / MATRIX_TASK_COLUMNS;
         if (executor == null || numTasks < 2) {
-            DISTANCE_FUNCS.sgemmI8(aSegment, bSegment, m, k, n, resultSegment, 0, n);
+            SIMDVEC.sgemmI8(aSegment, bSegment, m, k, n, resultSegment, 0, n);
             return;
         }
 
@@ -122,7 +127,7 @@ public final class Native22ESVectorUtilSupport extends PanamaESVectorUtilSupport
             final int start = colStart;
             final int end = Math.min(start + MATRIX_TASK_COLUMNS, n);
             tasks.add(() -> {
-                DISTANCE_FUNCS.sgemmI8(aSegment, bSegment, m, k, n, resultSegment, start, end);
+                SIMDVEC.sgemmI8(aSegment, bSegment, m, k, n, resultSegment, start, end);
                 return null;
             });
         }
@@ -144,7 +149,7 @@ public final class Native22ESVectorUtilSupport extends PanamaESVectorUtilSupport
             final MemorySegment scoresSegment = MemorySegment.ofArray(scoresScratch);
             float sum = 0f;
             for (float[] floats : query) {
-                DISTANCE_FUNCS.dotProductF32Bulk(
+                SIMDVEC.dotProductF32Bulk(
                     vectorsSegment,
                     MemorySegment.ofArray(floats),
                     source.vectorDims(),
@@ -167,7 +172,7 @@ public final class Native22ESVectorUtilSupport extends PanamaESVectorUtilSupport
             final MemorySegment scoresSegment = MemorySegment.ofArray(scoresScratch);
             float sum = 0f;
             for (float[] floats : query) {
-                DISTANCE_FUNCS.dotProductDBF16QF32Bulk(
+                SIMDVEC.dotProductDBF16QF32Bulk(
                     vectorsSegment,
                     MemorySegment.ofArray(floats),
                     source.vectorDims(),
@@ -190,7 +195,7 @@ public final class Native22ESVectorUtilSupport extends PanamaESVectorUtilSupport
             final MemorySegment scoresSegment = MemorySegment.ofArray(scoresScratch);
             float sum = 0f;
             for (byte[] bytes : query) {
-                DISTANCE_FUNCS.dotProductI8Bulk(
+                SIMDVEC.dotProductI8Bulk(
                     vectorsSegment,
                     MemorySegment.ofArray(bytes),
                     source.vectorDims(),

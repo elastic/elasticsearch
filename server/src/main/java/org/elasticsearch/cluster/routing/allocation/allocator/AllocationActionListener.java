@@ -50,7 +50,9 @@ public class AllocationActionListener<T> {
     }
 
     private void notifyListenerFailed(Exception e) {
-        executeInContext(() -> delegate.onFailure(e));
+        if (listenersExecuted.getAndSet(0) != 0) {
+            executeInContext(() -> delegate.onFailure(e));
+        }
     }
 
     private void executeInContext(Runnable action) {

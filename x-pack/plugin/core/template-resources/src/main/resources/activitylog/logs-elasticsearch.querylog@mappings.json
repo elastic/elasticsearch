@@ -103,6 +103,10 @@
                     }
                   }
                 },
+                "settings": {
+                  "dynamic": true,
+                  "type": "object"
+                },
                 "esql": {
                   "properties": {
                     "profile": {

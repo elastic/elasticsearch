@@ -52,6 +52,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -98,12 +99,12 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
             addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [2, 1]}"))));
-            List<Long> results = new ArrayList<>();
+            List<Long> results = Collections.synchronizedList(new ArrayList<>());
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 LongScriptFieldType ft = build("add_param", Map.of("param", 1), OnScriptError.FAIL);
                 LongScriptFieldData ifd = ft.fielddataBuilder(mockFielddataContext()).build(null, null);
-                searcher.search(Queries.ALL_DOCS_INSTANCE, new Collector() {
+                searcher.search(Queries.ALL_DOCS_INSTANCE, collectorManager(() -> new Collector() {
                     @Override
                     public ScoreMode scoreMode() {
                         return ScoreMode.COMPLETE_NO_SCORES;
@@ -126,7 +127,7 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                             }
                         };
                     }
-                });
+                }));
                 assertThat(results, containsInAnyOrder(2L, 2L, 3L));
             }
         }

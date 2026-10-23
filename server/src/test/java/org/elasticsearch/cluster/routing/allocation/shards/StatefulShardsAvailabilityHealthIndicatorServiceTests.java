@@ -155,6 +155,10 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
         .put(ShardsAvailabilityHealthIndicatorService.REPLICA_INACTIVE_BUFFER_TIME.getKey(), TimeValue.ZERO)
         .build();
 
+    private static final Settings PRIMARY_GRACE_PERIOD_20S_SETTINGS = Settings.builder()
+        .put(ShardsAvailabilityHealthIndicatorService.PRIMARY_INACTIVE_BUFFER_TIME.getKey(), "20s")
+        .build();
+
     private boolean multiProject;
     private Set<ProjectId> projectIds;
 
@@ -2953,7 +2957,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
         final var clusterState = clusterStateWith(
             () -> List.of(index(indexName, new ShardAllocation(nodeId, INITIALIZING, expectedTransientUnassignedInfoWithinGracePeriod())))
         );
-        final var service = createShardsAvailabilityIndicatorService(PRIMARY_INACTIVE_BUFFER_20S_SETTINGS, clusterState, Map.of());
+        final var service = createShardsAvailabilityIndicatorService(PRIMARY_GRACE_PERIOD_20S_SETTINGS, clusterState, Map.of());
 
         assertThat(service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO).status(), equalTo(GREEN));
 
@@ -2980,7 +2984,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
         final var clusterState = clusterStateWith(
             () -> List.of(index(indexName, new ShardAllocation(nodeId, INITIALIZING, expectedTransientUnassignedInfoWithinGracePeriod())))
         );
-        final var service = createShardsAvailabilityIndicatorService(PRIMARY_INACTIVE_BUFFER_20S_SETTINGS, clusterState, Map.of());
+        final var service = createShardsAvailabilityIndicatorService(PRIMARY_GRACE_PERIOD_20S_SETTINGS, clusterState, Map.of());
 
         final var otherShard = new ShardId(indexName, "_na_", 1);
         final var otherIndexShard = new ShardId(randomAlphaOfLength(8), "_na_", 0);
@@ -3000,7 +3004,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
         final var clusterState = clusterStateWith(
             () -> List.of(indexNewlyCreated(indexName, new ShardAllocation(null, CREATING), new ShardAllocation(null, CREATING)))
         );
-        final var service = createShardsAvailabilityIndicatorService(PRIMARY_INACTIVE_BUFFER_20S_SETTINGS, clusterState, Map.of());
+        final var service = createShardsAvailabilityIndicatorService(PRIMARY_GRACE_PERIOD_20S_SETTINGS, clusterState, Map.of());
 
         final var expected = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
         final var actual = service.calculate(true, healthInfoWithLocalRecoveryRetries(randomNodeId(), shardId(indexName), 1));
@@ -3067,10 +3071,6 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
         assertThat(withoutRetries.status(), not(equalTo(RED)));
         assertThat(withRetries, equalTo(withoutRetries));
     }
-
-    private static final Settings PRIMARY_INACTIVE_BUFFER_20S_SETTINGS = Settings.builder()
-        .put(ShardsAvailabilityHealthIndicatorService.PRIMARY_INACTIVE_BUFFER_TIME.getKey(), "20s")
-        .build();
 
     private static UnassignedInfo expectedTransientUnassignedInfoWithinGracePeriod() {
         return unassignedInfo(

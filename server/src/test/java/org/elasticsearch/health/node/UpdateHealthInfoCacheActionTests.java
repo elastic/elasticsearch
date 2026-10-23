@@ -40,6 +40,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.health.node.HealthInfoTests.randomDataRecoveryHealthInfo;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.equalTo;
@@ -125,15 +126,15 @@ public class UpdateHealthInfoCacheActionTests extends ESTestCase {
     public void testOlderTransportVersionOmitsLocalRecoveryRetriesHealthInfo() throws Exception {
         Request request = new Request.Builder().nodeId(randomAlphaOfLength(10))
             .dlmFrozenTransitionsHealthInfo(HealthInfoTests.randomDlmFrozenTransitionsHealthInfo())
-            .localRecoveryRetriesHealthInfo(HealthInfoTests.randomLocalRecoveryRetriesHealthInfo())
+            .dataRecoveryHealthInfo(randomDataRecoveryHealthInfo())
             .build();
-        // Version that supports dlm_frozen_transitions_health_info but not local_recovery_retries_health_info.
+        // Version that supports data_recovery_health_info but not local_recovery_retries_health_info:
         TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(
             TransportVersion.fromName("local_recovery_retries_health_info")
         );
         Request copy = copyWriteable(request, writableRegistry(), Request::new, oldVersion);
         assertThat(copy.getLocalRecoveryRetriesHealthInfo(), nullValue());
-        assertThat(copy.getDlmFrozenTransitionsHealthInfo(), equalTo(request.getDlmFrozenTransitionsHealthInfo()));
+        assertThat(copy.getDataRecoveryHealthInfo(), equalTo(request.getDataRecoveryHealthInfo()));
         assertThat(copy.getNodeId(), equalTo(request.getNodeId()));
     }
 
@@ -152,7 +153,7 @@ public class UpdateHealthInfoCacheActionTests extends ESTestCase {
 
     public void testOlderTransportVersionOmitsDataRecoveryHealthInfo() throws Exception {
         Request request = new Request.Builder().nodeId(randomAlphaOfLength(10))
-            .dataRecoveryHealthInfo(HealthInfoTests.randomDataRecoveryHealthInfo())
+            .dataRecoveryHealthInfo(randomDataRecoveryHealthInfo())
             .build();
         // Version that supports dlm_frozen_transitions_health_info but not data_recovery_health_info.
         TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("data_recovery_health_info"));

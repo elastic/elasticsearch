@@ -265,7 +265,7 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
                 0,
                 5,
                 () -> tuple(
-                    new ShardId(randomAlphaOfLength(8), UUIDs.randomBase64UUID(random()), randomIntBetween(0, 5)),
+                    new ShardId(randomAlphaOfLength(8), randomUUID(), randomIntBetween(0, 5)),
                     randomIntBetween(1, 10)
                 )
             )

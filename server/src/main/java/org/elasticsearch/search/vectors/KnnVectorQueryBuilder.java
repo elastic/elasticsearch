@@ -34,6 +34,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.ToChildBlockJoinQueryBuilder;
+import org.elasticsearch.index.query.support.AutoPrefilteringScope;
 import org.elasticsearch.index.query.support.AutoPrefilteringScope.ScopedPrefilter;
 import org.elasticsearch.index.query.support.AutoPrefilteringUtils;
 import org.elasticsearch.index.search.NestedHelper;
@@ -532,11 +533,15 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
         DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) fieldType;
 
         List<Query> filtersInitial = doFiltersToQuery(context);
+        Query aliasFilter = buildAliasFilterQuery(context);
 
         String parentPath = context.nestedLookup().getNestedParent(fieldName);
         BitSetProducer parentBitSet = null;
         Query filterQuery;
         if (parentPath == null) {
+            if (aliasFilter != null) {
+                filtersInitial.add(aliasFilter);
+            }
             filterQuery = buildFilterQuery(filtersInitial);
         } else {
             final Query parentFilter;
@@ -567,6 +572,11 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
                     f = new ToChildBlockJoinQuery(f, parentBitSet);
                 }
                 filterAdjusted.add(f);
+            }
+            if (aliasFilter != null) {
+                // Alias filters match root documents, so join them from the root level, not the immediate parent.
+                Query nonNested = Queries.newNonNestedFilter(context.indexVersionCreated());
+                filterAdjusted.add(new ToChildBlockJoinQuery(Queries.filtered(aliasFilter, nonNested), context.bitsetFilter(nonNested)));
             }
             filterQuery = buildFilterQuery(filterAdjusted);
         }
@@ -605,14 +615,23 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
         final List<Query> allFilters = new ArrayList<>(
             filterQueries.size() + autoPrefilters.size() + (context.getAliasFilter() == null ? 0 : 1)
         );
+
         allFilters.addAll(autoPrefilters);
         for (QueryBuilder queryBuilder : filterQueries) {
             allFilters.add(queryBuilder.toQuery(context));
         }
-        if (context.getAliasFilter() != null) {
-            allFilters.add(context.getAliasFilter().toQuery(context));
-        }
         return allFilters;
+    }
+
+    private static Query buildAliasFilterQuery(SearchExecutionContext context) throws IOException {
+        if (context.getAliasFilter() == null) {
+            return null;
+        }
+
+        // Alias filters target root documents, so they must not be built in this knn query's nested scope.
+        try (Releasable ignored = context.nestedScope().unwindTo(null)) {
+            return context.getAliasFilter().toQuery(context);
+        }
     }
 
     private List<Query> applyAutoPrefilteringIfEnabled(SearchExecutionContext context) throws IOException {
@@ -633,7 +652,12 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
                 // sit above this knn query's nested level. Building it here without unwinding would give block join
                 // queries - such as an exists query on a semantic_text field - a child level as their parent filter,
                 // leaving the prefilter matching nothing. The filters are joined down to child documents in doToQuery.
-                try (Releasable ignored = context.nestedScope().unwindTo(scopedPrefilter.nestedLevel())) {
+                // Auto-prefiltering is suspended while building the prefilter query so that knn queries contained in it do not cause
+                // infinite recursion (see https://github.com/elastic/elasticsearch/issues/162295)
+                try (
+                    Releasable ignored = context.nestedScope().unwindTo(scopedPrefilter.nestedLevel());
+                    AutoPrefilteringScope suspended = context.autoPrefilteringScope().suspend()
+                ) {
                     autoPrefilters.add(pruned.get().toQuery(context));
                 }
             }

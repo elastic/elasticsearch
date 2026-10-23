@@ -182,6 +182,14 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
     }
 
     /**
+     * Whether no streamed hits are queued for this shard, which is the case before any chunk arrives and again after the hits
+     * are handed to a result.
+     */
+    boolean isEmpty() {
+        return queue.isEmpty();
+    }
+
+    /**
      * Tracks circuit breaker bytes without checking. Used when coordinator processes the embedded last chunk.
      */
     void trackBreakerBytes(long bytes) {

@@ -1048,6 +1048,10 @@ public class WildcardFieldMapper extends FieldMapper {
         @Override
         public Query termQueryCaseInsensitive(Object value, SearchExecutionContext context) {
             String searchTerm = BytesRefs.toString(value);
+            // an empty pattern builds an automaton that matches nothing, but an empty string has no case to fold
+            if (searchTerm.isEmpty()) {
+                return termQuery(value, context);
+            }
             return wildcardQuery(escapeWildcardSyntax(searchTerm), MultiTermQuery.CONSTANT_SCORE_REWRITE, true, context);
         }
 

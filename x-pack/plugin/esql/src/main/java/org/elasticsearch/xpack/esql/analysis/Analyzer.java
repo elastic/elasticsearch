@@ -105,6 +105,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.function.inference.CompletionFunction;
 import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -1224,12 +1225,79 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // trying to globally resolve unresolved attributes will lead to some being marked as unresolvable
             List<Expression> newGroupings = maybeResolveGroupings(aggregate, childrenOutput);
             List<? extends NamedExpression> newAggregates = maybeResolveAggregates(aggregate, newGroupings, childrenOutput);
+            if (aggregate instanceof TimeSeriesAggregate) {
+                Map<NameId, Alias> renames = timeSeriesWithoutRenames(newGroupings);
+                if (renames.isEmpty() == false) {
+                    newGroupings = renameTimeSeriesWithoutGroupings(newGroupings, renames);
+                    newAggregates = renameTimeSeriesWithoutAggregates(newAggregates, renames);
+                }
+            }
             boolean changed = newGroupings != aggregate.groupings() || newAggregates != aggregate.aggregates();
             LogicalPlan maybeNewAggregate = changed ? aggregate.with(aggregate.child(), newGroupings, newAggregates) : aggregate;
 
             return maybeNewAggregate instanceof TimeSeriesAggregate ts && ts.timestamp() instanceof UnresolvedAttribute unresolvedTimestamp
                 ? ts.withTimestamp(maybeResolveAttribute(unresolvedTimestamp, childrenOutput))
                 : maybeNewAggregate;
+        }
+
+        /**
+         * Renames an unaliased {@code BY WITHOUT(...)} grouping from its parser-given sourceText name to its final output
+         * name, {@code _timeseries}, the moment the aggregate resolves. The Finish-Analysis lowering
+         * ({@code TranslateTimeSeriesWithout}) replaces the grouping with a {@code _timeseries}-named metadata attribute
+         * under the <em>same name id</em>; renaming here means that replacement no longer changes any output name after
+         * resolution. That matters because resolution-time consumers capture output names: union-branch alignment
+         * mints the union's columns by name, so a branch aligned under the sourceText name
+         * would silently change names once the optimizer's project-combining normalizes attribute instances by id,
+         * failing the post-optimization merge consistency check. It also makes {@code FROM idx, (TS ... BY WITHOUT(...))}
+         * surface the column as {@code _timeseries} — the same name a lone TS query (and the WITHOUT docs) show.
+         * <p>
+         * Two groupings are left alone. A user alias ({@code BY dims = WITHOUT(...)}) keeps its name, so downstream
+         * commands can refer to it; the lowering preserves the alias over the lowered attribute. An unresolved grouping
+         * (e.g. {@code WITHOUT(unmapped)} under {@code unmapped_fields="nullify"}) is not renamed yet: the parser exports
+         * it into the aggregates as an attribute <em>by name</em>, and only once the grouping resolves does
+         * {@link #maybeResolveAggregates} bind that export to the grouping's id. Renaming earlier would orphan the export,
+         * which {@code ResolveUnmapped} would then nullify as an input field.
+         */
+        private static Map<NameId, Alias> timeSeriesWithoutRenames(List<Expression> groupings) {
+            Map<NameId, Alias> renames = new HashMap<>();
+            for (Expression grouping : groupings) {
+                if (grouping instanceof Alias a
+                    && a.resolved()
+                    && a.child() instanceof TimeSeriesWithout
+                    && a.name().equals(a.child().sourceText())) {
+                    renames.put(a.id(), new Alias(a.source(), MetadataAttribute.TIMESERIES, a.child(), a.id(), a.synthetic()));
+                }
+            }
+            return renames;
+        }
+
+        private static List<Expression> renameTimeSeriesWithoutGroupings(List<Expression> groupings, Map<NameId, Alias> renames) {
+            List<Expression> renamed = new ArrayList<>(groupings.size());
+            for (Expression grouping : groupings) {
+                Alias rename = grouping instanceof Alias a ? renames.get(a.id()) : null;
+                renamed.add(rename != null ? rename : grouping);
+            }
+            return renamed;
+        }
+
+        /** The grouping rides in the aggregates list either as its {@link Alias} or as a plain attribute reference. */
+        private static List<NamedExpression> renameTimeSeriesWithoutAggregates(
+            List<? extends NamedExpression> aggregates,
+            Map<NameId, Alias> renames
+        ) {
+            List<NamedExpression> renamed = new ArrayList<>(aggregates.size());
+            for (NamedExpression agg : aggregates) {
+                Alias rename = agg instanceof Alias a && a.child() instanceof TimeSeriesWithout ? renames.get(a.id()) : null;
+                if (rename != null) {
+                    renamed.add(rename);
+                } else {
+                    renamed.add((NamedExpression) agg.transformUp(Attribute.class, attr -> {
+                        Alias r = renames.get(attr.id());
+                        return r != null ? r.toAttribute() : attr;
+                    }));
+                }
+            }
+            return renamed;
         }
 
         private List<Expression> maybeResolveGroupings(Aggregate aggregate, List<Attribute> childrenOutput) {
@@ -3463,13 +3531,31 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
+    /**
+     * Upper bound on the field names listed in {@link #nonLoadablePunksWarning}; any further fields are only counted. Wide index patterns
+     * can have hundreds of such fields, and listing them all makes the {@code Warning} header too large for some clients.
+     */
+    static final int MAX_LISTED_NON_LOADABLE_PUNKS = 20;
+
     // visible for testing
-    static String nonLoadablePunkWarning(String fieldName, String mappedTypeName) {
+    static String nonLoadablePunksWarning(List<String> fieldNames) {
+        assert fieldNames.isEmpty() == false : "no fields to warn about";
+        int listed = Math.min(fieldNames.size(), MAX_LISTED_NON_LOADABLE_PUNKS);
+        StringBuilder fields = new StringBuilder();
+        for (int i = 0; i < listed; i++) {
+            fields.append(i == 0 ? "[" : ", [").append(fieldNames.get(i)).append("]");
+        }
+        if (fieldNames.size() > listed) {
+            fields.append(" and [").append(fieldNames.size() - listed).append("] more");
+        }
+        boolean one = fieldNames.size() == 1;
         return Strings.format(
-            "Field [%s] of type [%s] is unmapped in some indices and has no implicit "
-                + "conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices",
-            fieldName,
-            mappedTypeName
+            "Field%s %s %s unmapped in some indices and %s no implicit conversion from KEYWORD; %s null in those indices",
+            one ? "" : "s",
+            fields,
+            one ? "is" : "are",
+            one ? "has" : "have",
+            one ? "it is" : "they are"
         );
     }
 
@@ -3491,7 +3577,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             if (context.unmappedResolution() == UnmappedResolution.LOAD && cleanPlan.resolved()) {
                 // A single-type PUNK that survives to here has neither an implicit nor an explicit KEYWORD conversion (those turn it into a
-                // UnionTypeEsField earlier), so it falls back to null where unmapped. Warn once for each such field whose value the user
+                // UnionTypeEsField earlier), so it falls back to null where unmapped. Warn once about all such fields whose value the user
                 // can actually observe (it reaches the final output or is consumed by some, non-conversion expression).
                 warnObservedNonLoadablePunks(cleanPlan, context);
             }
@@ -3561,13 +3647,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             plan.forEachDown(p -> observed.addAll(p.references()));
             AttributeSet observedFields = observed.build();
 
-            Set<NameId> warned = new HashSet<>();
+            // A single warning listing all affected fields: one warning per field can exceed the clients' maximum header size.
+            Set<String> nonLoadable = new LinkedHashSet<>();
             plan.forEachExpressionDown(FieldAttribute.class, fa -> {
-                if (fa.field() instanceof PotentiallyUnmappedSingleTypeEsField punk && observedFields.contains(fa) && warned.add(fa.id())) {
-                    DataType mappedType = punk.mappedField().getDataType();
-                    context.deferredHeaderWarnings().add(nonLoadablePunkWarning(fa.name(), mappedType.typeName()));
+                if (observedFields.contains(fa) && fa.field() instanceof PotentiallyUnmappedSingleTypeEsField) {
+                    nonLoadable.add(fa.name());
                 }
             });
+
+            if (nonLoadable.isEmpty() == false) {
+                context.deferredHeaderWarnings().add(nonLoadablePunksWarning(List.copyOf(nonLoadable)));
+            }
         }
 
         private static LogicalPlan planWithoutSyntheticAttributes(LogicalPlan plan) {

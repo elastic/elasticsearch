@@ -4153,6 +4153,15 @@ public class EsqlCapabilities {
         PROMQL_SORT(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
+         * Fix PromQL {@code count_over_time} and {@code present_over_time} over a series without a sample in the window,
+         * and {@code count} over a group without a valued series: like Prometheus, they emit no element rather than
+         * {@code 0}. {@code absent_over_time} likewise emits no element for a series with a sample, nor for a series its
+         * operand does not select. {@code count} and {@code count_over_time} of histograms count the histograms, not their
+         * observations.
+         */
+        FIX_PROMQL_EMPTY_RANGE_IS_NO_ELEMENT(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Fix mixing of millisecond roundings with nanosecond timestamps in time-series aggregations over
          * {@code date_nanos} indices. This covers window bucket expansion, the window merge in the final
          * aggregation, the window row filter for windows smaller than the time bucket, and the neighbor-bucket
@@ -4280,6 +4289,12 @@ public class EsqlCapabilities {
          * Support for the FILLNULL command that replaces null values with defaults or with user-specified value.
          */
         FILLNULL(Build.current().isSnapshot()),
+
+        /**
+         * {@code FILLNULL} under {@code unmapped_fields="LOAD_ALL"}, where {@code ON *} leaves {@code _unmapped_fields} alone, and filled
+         * columns that keep their ids when a field below is rewritten in place (e.g. {@code text} in some indices, unmapped in others).
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_FILLNULL(FILLNULL.isEnabled()),
 
         /**
          * {@link org.elasticsearch.xpack.esql.session.IndexResolver} applies {@code -nested} on the
@@ -4578,6 +4593,18 @@ public class EsqlCapabilities {
          * into one bucket.
          */
         FIX_ROUND_TO_PUSHDOWN_SINGLE_POINT_NULL_BUCKET,
+
+        /**
+         * Simplify / fix null folding
+         */
+        FIX_FOLD_NULL,
+
+        /**
+         * A {@code _score} predicate that shares an {@code OR} with a search sees the score of the {@code WHERE}'s other
+         * searches, whether they are runtime searches or searches on indexed fields that aren't pushed to Lucene, rather
+         * than the score from before the {@code WHERE}.
+         */
+        SCORE_IN_OR_SEES_OTHER_SEARCHES,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

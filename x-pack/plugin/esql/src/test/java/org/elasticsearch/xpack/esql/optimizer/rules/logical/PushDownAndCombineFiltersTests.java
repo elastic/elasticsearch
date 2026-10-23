@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
@@ -2395,6 +2396,90 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         var firstSubPlanFilter = as(firstSubPlanAggregate.child(), Filter.class);
         // important bit below: the filter that is executed in the right hand side is the same as the one in the left hand side
         assertEquals(left, firstSubPlanFilter);
+    }
+
+    public void testDontPushDown_AggFilter_FirstSeenShape_PastInlineJoin() {
+        var plan = plan("""
+            FROM employees
+            | INLINE STATS first_hired = MIN(hire_date) BY languages
+            | WHERE hire_date == first_hired AND first_hired >= "1990-01-01"
+            | KEEP emp_no, languages, hire_date
+            """);
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var commonFilter = as(limit.child(), Filter.class);
+        var conjunctions = Predicates.splitAnd(commonFilter.condition());
+        assertThat(conjunctions.size(), is(2));
+        var equals = as(conjunctions.get(0), Equals.class);
+        assertEquals("hire_date", as(equals.left(), FieldAttribute.class).name());
+        assertEquals("first_hired", as(equals.right(), ReferenceAttribute.class).name());
+        var gte = as(conjunctions.get(1), GreaterThanOrEqual.class);
+        assertEquals("first_hired", as(gte.left(), ReferenceAttribute.class).name());
+
+        var ij = as(commonFilter.child(), InlineJoin.class);
+        as(ij.left(), EsRelation.class);
+        var aggregate = as(ij.right(), Aggregate.class);
+        as(aggregate.child(), StubRelation.class);
+
+        var firstSubPlan = InlineJoin.firstSubPlan(plan, new HashSet<LocalRelation>()).stubReplacedSubPlan();
+        var firstSubPlanAggregate = as(firstSubPlan, Aggregate.class);
+        as(firstSubPlanAggregate.child(), EsRelation.class);
+    }
+
+    public void testDontPushDown_IsNullAggFilter_PastInlineJoin() {
+        var condition = nullAcceptingAggFilterAboveInlineJoin("max_salary IS NULL");
+        var isNull = as(condition, IsNull.class);
+        assertEquals("max_salary", as(isNull.field(), ReferenceAttribute.class).name());
+    }
+
+    public void testDontPushDown_CoalesceAggFilter_PastInlineJoin() {
+        var condition = nullAcceptingAggFilterAboveInlineJoin("COALESCE(max_salary, 0) < 70000");
+        var lessThan = as(condition, LessThan.class);
+        var coalesce = as(lessThan.left(), Coalesce.class);
+        assertEquals("max_salary", as(coalesce.children().get(0), ReferenceAttribute.class).name());
+    }
+
+    /**
+     * The filter stays above the join, where left rows whose group the right side dropped get a null aggregate. A filter that is
+     * true on null would keep those rows, so pushing it into the right side would change the result.
+     * Returns the condition of the filter above the {@link InlineJoin}.
+     */
+    private Expression nullAcceptingAggFilterAboveInlineJoin(String condition) {
+        var plan = plan(Strings.format("""
+            FROM employees
+            | INLINE STATS max_salary = MAX(salary) BY languages
+            | WHERE %s
+            | KEEP emp_no, languages, max_salary
+            """, condition));
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var commonFilter = as(limit.child(), Filter.class);
+        var ij = as(commonFilter.child(), InlineJoin.class);
+        as(ij.left(), EsRelation.class);
+        var aggregate = as(ij.right(), Aggregate.class);
+        as(aggregate.child(), StubRelation.class);
+        return commonFilter.condition();
+    }
+
+    public void testDontPushDown_AggFilter_PastInlineJoinWithoutGrouping() {
+        var plan = plan("""
+            FROM employees
+            | INLINE STATS max_salary = MAX(salary)
+            | WHERE max_salary > 70000
+            | KEEP emp_no, max_salary
+            """);
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var commonFilter = as(limit.child(), Filter.class);
+        var gt = as(commonFilter.condition(), GreaterThan.class);
+        assertEquals("max_salary", as(gt.left(), ReferenceAttribute.class).name());
+        var ij = as(commonFilter.child(), InlineJoin.class);
+        assertThat(ij.config().leftFields(), is(emptyList()));
+        var aggregate = as(ij.right(), Aggregate.class);
+        as(aggregate.child(), StubRelation.class);
     }
 
     public void testPushDownFilterPastUriParts() {

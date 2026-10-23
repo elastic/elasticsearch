@@ -43,14 +43,14 @@ The merge scheduler supports the following settings:
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), [time value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) The time interval for checking the available disk space. Defaults to `5s`.
 
 `indices.merge.disk.watermark.high`
-:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Controls the disk usage watermark, which defaults to `95%`, beyond which no merge tasks can start execution.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Controls the disk usage watermark, beyond which no merge tasks can start execution. Defaults to the value of [`cluster.routing.allocation.disk.watermark.flood_stage`](/reference/elasticsearch/configuration-reference/cluster-level-shard-allocation-routing-settings.md#cluster-routing-flood-stage), which is `95%` by default.
 The disk usage tally includes the estimated temporary disk space still required by all the currently executing merge tasks.
 Any merge task scheduled *before* the limit is reached continues execution, even if the limit is exceeded while executing
 (merge tasks are not aborted).
 
 `indices.merge.disk.watermark.high.max_headroom`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Controls the max headroom for the merge disk usage watermark, in case it is specified as percentage or ratio values.
-Defaults to `100GB` when `indices.merge.disk.watermark.high` is not explicitly set.
+When `indices.merge.disk.watermark.high` is not explicitly set, it defaults to the value of [`cluster.routing.allocation.disk.watermark.flood_stage.max_headroom`](/reference/elasticsearch/configuration-reference/cluster-level-shard-allocation-routing-settings.md#cluster-routing-flood-stage), which is `100GB` by default.
 This caps the amount of free disk space before merge scheduling is blocked.
 
 ## Merge thread pool settings [merge-thread-pool-settings]

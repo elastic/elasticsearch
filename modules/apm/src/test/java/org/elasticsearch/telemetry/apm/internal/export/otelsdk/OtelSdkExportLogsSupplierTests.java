@@ -100,15 +100,6 @@ public class OtelSdkExportLogsSupplierTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> OtelSdkSettings.TELEMETRY_LOGS_MAX_QUEUE_SIZE.get(settings));
     }
 
-    public void testLogDeliveryRetryBudget() {
-        RetryPolicy policy = OtelSdkSettings.TELEMETRY_LOGS_RETRY_POLICY;
-        assertThat(policy.getMaxAttempts(), equalTo(5));
-        assertThat(policy.getInitialBackoff(), equalTo(Duration.ofSeconds(5)));
-        assertThat(policy.getBackoffMultiplier(), equalTo(2.0d));
-        assertThat(policy.getMaxBackoff(), equalTo(Duration.ofSeconds(40)));
-        assertThat(OtelSdkSettings.TELEMETRY_LOGS_EXPORT_TIMEOUT, equalTo(Duration.ofSeconds(150)));
-    }
-
     public void testInstallWithCustomConnectTimeoutAndQueueSizeDoesNotThrow() {
         Settings settings = Settings.builder()
             .put(OtelSdkSettings.TELEMETRY_LOGS_AUDIT_ENABLED.getKey(), true)

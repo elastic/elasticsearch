@@ -346,7 +346,7 @@ public class SimdVecLibraryInt4Tests extends SimdVecLibraryTests {
     }
 
     int similarity(MemorySegment unpacked, MemorySegment packed, int packedLen) {
-        return getVectorDistance().dotProductI4(unpacked, packed, packedLen);
+        return getVectorDistance().dotProductI4(packed, unpacked, packedLen);
     }
 
     void similarityBulk(MemorySegment packedDocs, MemorySegment unpackedQuery, int packedLen, int count, MemorySegment result) {

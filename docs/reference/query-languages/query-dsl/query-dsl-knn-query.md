@@ -264,7 +264,7 @@ The following filters keep the 9.6 and earlier behavior:
 - `combined_fields` queries and `cross_fields` `multi_match` queries over fields from several levels. These aren't split by level.
 :::
 
-To ensure correct results: each individual filter must be either over: {applies_to}`stack: ga 9.2-9.6`
+{applies_to}`stack: ga 9.2-9.6` Each filter must target only one of the following:
 
 - Top-level metadata
 - `nested` metadata {applies_to}`stack: ga 9.2`

@@ -20,6 +20,7 @@ public record ReshardMetrics(
     LongHistogram indexingBlockedDurationHistogram,
     DoubleHistogram targetCloneDurationHistogram,
     LongHistogram targetHandoffDurationHistogram,
+    DoubleHistogram targetHandoffThrottleWaitDurationHistogram,
     LongHistogram targetSplitDurationHistogram,
     LongCounter targetShardFailureCounter,
     LongCounter targetShardRecoveryFailureCounter,
@@ -33,6 +34,7 @@ public record ReshardMetrics(
     public static final String RESHARD_INDEXING_BLOCKED_DURATION = "es.reshard.indexing_blocked_time.histogram";
     public static final String RESHARD_TARGET_CLONE_DURATION = "es.reshard.target.clone.duration.histogram";
     public static final String RESHARD_TARGET_HANDOFF_DURATION = "es.reshard.target.handoff.duration.histogram";
+    public static final String RESHARD_TARGET_HANDOFF_THROTTLE_WAIT_DURATION = "es.reshard.target.handoff_throttle_wait.duration.histogram";
     public static final String RESHARD_TARGET_SPLIT_DURATION = "es.reshard.target.split.duration.histogram";
     public static final String RESHARD_TARGET_FAILURE_COUNT = "es.reshard.target.failed.total";
     public static final String RESHARD_TARGET_RECOVERY_FAILURE_COUNT = "es.reshard.target.recovery.failed.total";
@@ -44,6 +46,11 @@ public record ReshardMetrics(
             meterRegistry.registerLongHistogram(RESHARD_INDEXING_BLOCKED_DURATION, "indexing blocked duration", "ms"),
             meterRegistry.registerDoubleHistogram(RESHARD_TARGET_CLONE_DURATION, "reshard target clone duration", "s"),
             meterRegistry.registerLongHistogram(RESHARD_TARGET_HANDOFF_DURATION, "reshard target handoff duration", "ms"),
+            meterRegistry.registerDoubleHistogram(
+                RESHARD_TARGET_HANDOFF_THROTTLE_WAIT_DURATION,
+                "time a reshard target shard waited for a handoff slot",
+                "s"
+            ),
             meterRegistry.registerLongHistogram(RESHARD_TARGET_SPLIT_DURATION, "reshard target split duration", "ms"),
             meterRegistry.registerLongCounter(RESHARD_TARGET_FAILURE_COUNT, "reshard target shard failure count", "count"),
             meterRegistry.registerLongCounter(

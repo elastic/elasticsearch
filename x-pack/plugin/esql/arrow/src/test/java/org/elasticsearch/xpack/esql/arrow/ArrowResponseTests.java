@@ -30,14 +30,12 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -81,11 +79,6 @@ import java.util.stream.Stream;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class ArrowResponseTests extends ESTestCase {
-
-    private static final BlockFactory BLOCK_FACTORY = BlockFactory.getInstance(
-        new NoopCircuitBreaker("test-noop"),
-        BigArrays.NON_RECYCLING_INSTANCE
-    );
 
     private static final RootAllocator ALLOCATOR = new RootAllocator();
 

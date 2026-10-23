@@ -12,7 +12,6 @@ package org.elasticsearch.simdvec;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.util.CollectionUtils;
-import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.lang.foreign.MemorySegment;
@@ -44,11 +43,6 @@ public class SimdVecLibraryInt7uTests extends SimdVecLibraryTests {
         SimdVecLibraryTests.setup();
     }
 
-    @AfterClass
-    public static void afterClass() {
-        SimdVecLibraryTests.cleanup();
-    }
-
     public void testInt7BinaryVectors() {
         assumeTrue(notSupportedMsg(), supported());
         final int dims = size;
@@ -70,7 +64,7 @@ public class SimdVecLibraryInt7uTests extends SimdVecLibraryTests {
             float expected = ScalarOperations.similarity(function, values[first], values[second]);
             assertEquals(expected, similarity(nativeSeg1, nativeSeg2, dims), 0f);
             var heapSeg1 = MemorySegment.ofArray(values[first]);
-            assertEquals(expected, similarity(heapSeg1, nativeSeg2, dims), 0f);
+            assertEquals(expected, similarity(nativeSeg2, heapSeg1, dims), 0f);
 
             // trivial bulk with a single vector
             float[] bulkScore = new float[1];
@@ -312,10 +306,10 @@ public class SimdVecLibraryInt7uTests extends SimdVecLibraryTests {
         assertThat(ex.getMessage(), containsString("out of bounds for length"));
     }
 
-    int similarity(MemorySegment a, MemorySegment b, int length) {
+    int similarity(MemorySegment document, MemorySegment query, int length) {
         return switch (function) {
-            case DOT_PRODUCT -> getVectorDistance().dotProductI7u(a, b, length);
-            case SQUARE_DISTANCE -> getVectorDistance().squareDistanceI7u(a, b, length);
+            case DOT_PRODUCT -> getVectorDistance().dotProductI7u(document, query, length);
+            case SQUARE_DISTANCE -> getVectorDistance().squareDistanceI7u(document, query, length);
             default -> throw new UnsupportedOperationException(function.toString());
         };
     }

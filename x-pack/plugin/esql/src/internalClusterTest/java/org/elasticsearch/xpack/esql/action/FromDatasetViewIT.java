@@ -898,22 +898,33 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * Like the caller's {@code SET}, the cluster default of {@code wildcards_match_datasets} applies to the caller's own wildcards
-     * and not to a view body's: the view returns the same rows whatever the cluster is configured with.
+     * Unlike the caller's {@code SET}, the cluster default of {@code wildcards_match_datasets} reaches a view body whose definition
+     * does not {@code SET} it: it is the operator's default for every query, inside views too.
      */
-    public void testClusterDefaultOfWildcardsMatchDatasetsDoesNotReachViewBody() {
+    public void testClusterDefaultOfWildcardsMatchDatasetsReachesViewBody() throws Exception {
         registerEmployees();
         registerEmployeesAlt();
         createView("emp_star_view", "FROM employees*");
         String key = "esql.query.settings.wildcards_match_datasets";
         updateClusterSettings(Settings.builder().put(key, true));
         try {
+            List<List<Object>> both = List.of(List.of(1), List.of(2), List.of(3), List.of(10), List.of(11));
             try (var response = run(syncEsqlQueryRequest("FROM employees* | KEEP emp_no | SORT emp_no"))) {
-                assertThat(getValuesList(response), equalTo(List.of(List.of(1), List.of(2), List.of(3), List.of(10), List.of(11))));
+                assertThat(getValuesList(response), equalTo(both));
             }
-            try (var response = run(syncEsqlQueryRequest("FROM emp_star_view | STATS c = COUNT(*)"))) {
-                assertThat(getValuesList(response), equalTo(List.of(List.of(0L))));
+            try (var response = run(syncEsqlQueryRequest("FROM emp_star_view | KEEP emp_no | SORT emp_no"))) {
+                assertThat(getValuesList(response), equalTo(both));
             }
+            // The caller's SET does not reach inside, so turning it off at the caller does not change the view.
+            try (
+                var response = run(
+                    syncEsqlQueryRequest("SET wildcards_match_datasets = false; FROM emp_star_view | KEEP emp_no | SORT emp_no")
+                )
+            ) {
+                assertThat(getValuesList(response), equalTo(both));
+            }
+            // The caller and the view body agree, so no boundary stopped anything and nothing is reported.
+            assertThat(warningHeaders("FROM emp_star_view"), not(hasItem(containsString("does not affect the contents of view"))));
         } finally {
             updateClusterSettings(Settings.builder().putNull(key));
         }

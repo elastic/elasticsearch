@@ -377,7 +377,7 @@ public final class QuerySettingDef<T> {
      * reachable only for cluster state arriving over the wire, since yml is validated at startup and recovered state
      * is archived rather than applied.
      */
-    T effectiveDefault(Settings clusterState, Settings nodeSettings) {
+    public T effectiveDefault(Settings clusterState, Settings nodeSettings) {
         return operatorValue(clusterState, nodeSettings).value();
     }
 

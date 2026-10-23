@@ -446,23 +446,37 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * A view body is not subject to the cluster default either: inside it a wildcard never matches views, so the view returns the
-     * same rows whatever the cluster is configured with.
+     * Unlike the caller's {@code SET}, the cluster default reaches a view body whose definition does not {@code SET} the flag:
+     * it is the operator's default for every query, inside views too. The view's own {@code SET} still overrides it.
      */
-    public void testClusterDefaultOfWildcardsMatchViewsDoesNotReachViewBody() {
+    public void testClusterDefaultOfWildcardsMatchViewsReachesViewBody() throws Exception {
         setupWildcardViewsData();
-        assertAcked(createView("body_view", "FROM wcv_* | WHERE id > 0"));
+        assertAcked(createView("body_view", "FROM wcv_* | WHERE id > 0 | KEEP id"));
+        assertAcked(createView("opted_out_view", """
+            SET wildcards_match_views=false;
+            FROM wcv_* | WHERE id > 0 | KEEP id
+            """));
         String key = "esql.query.settings.wildcards_match_views";
         updateClusterSettings(org.elasticsearch.common.settings.Settings.builder().put(key, true));
         try {
-            // The cluster default does apply to the caller's own wildcard: the index and the matched view.
+            // The cluster default applies to the caller's own wildcard: the index and the matched view.
             try (var resp = run("FROM wcv_* | KEEP id | SORT id")) {
                 assertThat(getValuesList(resp), equalTo(List.of(List.of(1), List.of(2), List.of(101), List.of(102))));
             }
+            // And to the view body's: the same rows as the body run on its own.
             try (var resp = run("FROM body_view | SORT id")) {
-                assertThat(columnNames(resp), not(hasItem("marker")));
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(1), List.of(2), List.of(101), List.of(102))));
+            }
+            // The caller's SET does not reach inside, so turning it off at the caller does not change the view.
+            try (var resp = run("SET wildcards_match_views=false; FROM body_view | SORT id")) {
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(1), List.of(2), List.of(101), List.of(102))));
+            }
+            // The view's own SET beats the cluster default.
+            try (var resp = run("FROM opted_out_view | SORT id")) {
                 assertThat(getValuesList(resp), equalTo(List.of(List.of(1), List.of(2))));
             }
+            // The caller and the view body agree, so no boundary stopped anything and nothing is reported.
+            assertThat(warningHeaders("FROM body_view"), not(hasItem(containsString("does not affect the contents of view"))));
         } finally {
             updateClusterSettings(org.elasticsearch.common.settings.Settings.builder().putNull(key));
         }
@@ -558,11 +572,11 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * A cluster default of {@code unmapped_fields=nullify} applies to a query run on its own. The same text stored as a
-     * view does not pick it up: a definition that does not {@code SET} the mode keeps the registry default, so the
-     * view does not change if the cluster default later changes.
+     * A cluster default of {@code unmapped_fields} applies to a query run on its own, and the same text stored as a view
+     * picks it up too: a definition that does not {@code SET} the mode takes the cluster default, like a query that does not.
+     * The caller's own {@code SET} still stops at the view boundary.
      */
-    public void testClusterDefaultOfUnmappedFieldsDoesNotReachViewBody() {
+    public void testClusterDefaultOfUnmappedFieldsReachesViewBody() throws Exception {
         setupUnmappedIndices();
         assertAcked(createView("plain_view", "FROM view_source | KEEP id, extra"));
         String key = "esql.query.settings.unmapped_fields";
@@ -571,7 +585,31 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
             try (var resp = run("FROM view_source | KEEP id, extra | SORT id")) {
                 assertThat(getValuesList(resp), equalTo(List.of(Arrays.asList(1, null), Arrays.asList(2, null))));
             }
-            expectThrows(VerificationException.class, containsString("Unknown column [extra]"), () -> run("FROM plain_view").close());
+            try (var resp = run("FROM plain_view | SORT id")) {
+                assertThat(getValuesList(resp), equalTo(List.of(Arrays.asList(1, null), Arrays.asList(2, null))));
+            }
+            // The caller's SET does not reach inside: the view keeps the cluster default.
+            try (var resp = run("SET unmapped_fields=\"default\"; FROM plain_view | SORT id")) {
+                assertThat(getValuesList(resp), equalTo(List.of(Arrays.asList(1, null), Arrays.asList(2, null))));
+            }
+            try (var resp = run("SET unmapped_fields=\"load\"; FROM plain_view | SORT id")) {
+                assertThat(getValuesList(resp), equalTo(List.of(Arrays.asList(1, null), Arrays.asList(2, null))));
+            }
+
+            updateClusterSettings(org.elasticsearch.common.settings.Settings.builder().put(key, "load"));
+            try (var resp = run("FROM view_source | KEEP id, extra | SORT id")) {
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(1, "e1"), List.of(2, "e2"))));
+            }
+            try (var resp = run("FROM plain_view | SORT id")) {
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(1, "e1"), List.of(2, "e2"))));
+            }
+            // The caller and the view body agree, so no boundary stopped anything and nothing is reported.
+            assertThat(warningHeaders("FROM plain_view"), not(hasItem(containsString("does not affect the contents of view"))));
+            // As with a view's own SET unmapped_fields="load", the body loads only the fields it references itself.
+            assertAcked(createView("pass_view", "FROM view_source"));
+            try (var resp = run("FROM pass_view | KEEP id, extra | SORT id")) {
+                assertThat(getValuesList(resp), equalTo(List.of(Arrays.asList(1, null), Arrays.asList(2, null))));
+            }
         } finally {
             updateClusterSettings(org.elasticsearch.common.settings.Settings.builder().putNull(key));
         }

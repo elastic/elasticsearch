@@ -12,8 +12,11 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.View;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.ConfigurationTestUtils;
@@ -33,7 +36,10 @@ import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.optimizer.LogicalVerifier;
 import org.elasticsearch.xpack.esql.parser.AbstractStatementParserTests;
+import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelationSerializationTests;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -62,7 +68,9 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -73,10 +81,13 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiPredicate;
+import java.util.function.Consumer;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalToIgnoringIds;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -86,6 +97,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -240,7 +252,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addIndex("data-view-extra");
         addView("data-view-origin", "FROM data-index-origin");
         LogicalPlan plan = query("FROM match-nothing-*,-*-view-*,data-view-*");
-        assertThat(replaceViews(plan), matchesPlan(query("FROM data-index-origin,-*-view-*,data-view-*")));
+        assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM -*-view-*,data-view-*),(FROM data-index-origin)")));
     }
 
     /**
@@ -270,17 +282,34 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM index-a*),(FROM index-b*,-*2)")));
     }
 
+    public void testOuterExclusionNotAppliedToViewBody() {
+        addIndex("view-index");
+        addIndex("test-index");
+        addView("test-view", "FROM view-index");
+        LogicalPlan plan = query("FROM test-*,-view-index");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM view-index),(FROM test-*,-view-index)")));
+    }
+
+    public void testOuterConcreteExclusionNotAppliedToViewBody() {
+        addIndex("emp1");
+        addIndex("emp2");
+        addView("view1", "FROM emp1");
+        LogicalPlan plan = query("FROM emp2,view1,-emp1");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM emp1),(FROM emp2,-emp1)")));
+    }
+
     /**
      * Reproduces the bug where an inner view's exclusion leaks to an outer view's sibling indices
      * across multiple levels of nesting.
      * <p>
-     * Setup:
+     * Setup (views compose by exact name — a wildcard inside a view body only matches indices, see
+     * {@code SETTINGS_SCOPED_AT_VIEW_BOUNDARIES}):
      * <pre>
      *   indices:    index-1-a, index-1-b, index-2-a, index-2-b,
      *               view-1-r-a, view-1-r-b, view-2-r-a, view-2-r-b
-     *   view-2-l:   FROM index-2-*,-*a          (resolves to index-2-b)
-     *   view-1-l:   FROM view-2-*,index-1-*,-*b (matches view-2-l + view-2-r-*, index-1-*; excludes *b)
-     *   view-0-l:   FROM view-1-*               (matches view-1-l + view-1-r-*)
+     *   view-2-l:   FROM index-2-*,-*a                   (resolves to index-2-b)
+     *   view-1-l:   FROM view-2-l,view-2-r-*,index-1-*,-*b (composes view-2-l; excludes *b)
+     *   view-0-l:   FROM view-1-l,view-1-r-*
      * </pre>
      * Query: {@code FROM view-0-l}
      * <p>
@@ -305,12 +334,12 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addIndex("view-2-r-a");
         addIndex("view-2-r-b");
         addView("view-2-l", "FROM index-2-*,-*a");
-        addView("view-1-l", "FROM view-2-*,index-1-*,-*b");
-        addView("view-0-l", "FROM view-1-*");
+        addView("view-1-l", "FROM view-2-l,view-2-r-*,index-1-*,-*b");
+        addView("view-0-l", "FROM view-1-l,view-1-r-*");
         LogicalPlan plan = query("FROM view-0-l");
         // The inner -*b exclusion must stay scoped to view-1-l's body, not widen to view-0-l's
         // sibling view-1-r-* indices. Each scope-carrying UnresolvedRelation stays in its own branch.
-        assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM view-1-*),(FROM index-2-*,-*a),(FROM view-2-*,index-1-*,-*b)")));
+        assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM view-1-r-*),(FROM index-2-*,-*a),(FROM view-2-r-*,index-1-*,-*b)")));
     }
 
     /**
@@ -450,7 +479,8 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
             addView("view1", "FROM emp1", customViewService);
             customViewService.addDataset(projectId, "view_ds");
             PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-            customViewService.getViewResolver().replaceViews(query("FROM view*"), null, true, true, this::parse, false, future);
+            customViewService.getViewResolver()
+                .replaceViews(query("FROM view*"), null, true, true, this::parse, ViewBoundaryPreservation.NONE, future);
             assertThat(COMPACTION.apply(future.actionGet().plan()), matchesPlan(query("FROM emp1")));
         } catch (Exception e) {
             throw new AssertionError("unexpected exception", e);
@@ -461,7 +491,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addIndex("viewX");
         addView("view1", "FROM emp1");
         LogicalPlan plan = query("FROM view*, -donotexist");
-        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1,view*,-donotexist")));
+        assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM emp1),(FROM view*,-donotexist)")));
     }
 
     public void testFailureSelector() {
@@ -630,6 +660,18 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(replaceViews(plan), matchesPlan(query("FROM emp1,emp2,emp3,view*")));
     }
 
+    /**
+     * A wildcard exclusion is a wildcard like any other: with {@code wildcards_match_views} off, it matches no view and so excludes
+     * none, not even one that is named exactly. This is also what holds inside every view body, whatever the caller SET.
+     */
+    public void testWildcardsMatchViewsFalseWildcardExclusionDoesNotExcludeViews() {
+        addView("view1", "FROM emp1");
+        addView("view2", "FROM emp2");
+        assertThat(replaceViews(query("FROM view1,-view*"), false), matchesPlan(query("FROM emp1")));
+        // With the setting on, the exclusion matches view1 and removes it.
+        assertThat(replaceViews(query("FROM view1,-view*"), true), matchesPlan(query("FROM -view*")));
+    }
+
     public void testWildcardsMatchViewsFalseDoesNotExpandWildcard() {
         addView("view1", "FROM emp1");
         addView("view2", "FROM emp2");
@@ -642,6 +684,140 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         // (this test), no view matches `*:view1` (remote pattern), so the relation is returned unchanged.
         // In CPS mode the resolver would create a REQUIRED shadow for the linked-project lookup.
         assertThat(replaceViews(query("FROM *:view1"), false), matchesPlan(query("FROM *:view1")));
+    }
+
+    /**
+     * A wildcard matches views one level at a time. The outer query's {@code wildcards_match_views} resolves the first
+     * view; that view's own {@code SET} resolves the next; a definition without the {@code SET} stops there, whatever
+     * the level above it asked for.
+     */
+    public void testWildcardsMatchViewsInsideViewDefinitionsResolveOneMoreLevel() {
+        addIndex("abc");
+        addIndex("bcd");
+        addIndex("cde");
+        addIndex("c_only");
+        addView("c_view", "FROM c_only");
+        addView("b_view", "FROM c*");
+        addView("a_view", "FROM b*");
+
+        // No SET anywhere: the outer wildcard matches the index pattern only, not a_view.
+        assertThat(relationPatterns(replaceViews(query("FROM a*"), false)), equalTo(Set.of("a*")));
+        // An exact name still resolves the view, and that view's body still does not match further views.
+        assertThat(relationPatterns(replaceViews(query("FROM a_view"), false)), equalTo(Set.of("b*")));
+
+        // The outer SET resolves a_view. a_view did not SET the flag, so b* matches the index pattern and not b_view.
+        assertThat(relationPatterns(replaceViews(query("FROM a*"), true)), equalTo(Set.of("a*", "b*")));
+        assertWarnings(wildcardsStoppedWarning("a_view", "view [b_view]"));
+
+        // a_view opts in. b* now matches b_view, whose own body (no SET) matches c* and not c_view.
+        addView("a_view", "SET wildcards_match_views=true; FROM b*");
+        assertThat(relationPatterns(replaceViews(query("FROM a*"), true)), equalTo(Set.of("a*", "b*", "c*")));
+        assertWarnings(wildcardsStoppedWarning("a_view", "b_view", "view [c_view]"));
+        // The outer SET is what opened a_view. Turning it off hides a_view again, even though a_view itself opted in.
+        assertThat(relationPatterns(replaceViews(query("FROM a*"), false)), equalTo(Set.of("a*")));
+
+        // b_view opts in too, so c* matches c_view and contributes c_only. Each definition stands alone.
+        addView("b_view", "SET wildcards_match_views=true; FROM c*");
+        assertThat(relationPatterns(replaceViews(query("FROM a*"), true)), equalTo(Set.of("a*", "b*", "c*", "c_only")));
+    }
+
+    public void testWildcardsStoppedWarningReportsViewCircularOnAnyPathOnlyAsCircular() {
+        addIndex("cy_data");
+        addView("cy_other", "FROM cy_data");
+        addView("s_inner", "FROM cy_*");
+        addView("t_outer", "SET wildcards_match_views=true; FROM s_inner");
+        addView("cy_u", "FROM t_outer");
+        // s_inner is reached both directly through t_outer and through cy_u, which encloses it on the second path.
+        replaceViews(query("FROM t_outer, cy_u"), true);
+        assertWarnings(
+            wildcardsStoppedWarning("t_outer", "s_inner", "view [cy_other]")
+                + ", excluding view [cy_u] from its wildcards since matching it would be a circular reference"
+        );
+    }
+
+    /**
+     * A {@code ::data} selector reads a view as its bare name does, while a {@code ::failures} selector reads no view, so a body
+     * wildcard with a selector is reported with what normal resolution with the setting would read.
+     */
+    public void testWildcardsStoppedWarningMatchesWildcardWithSelector() {
+        addIndex("sel_data");
+        addView("sel_one", "FROM sel_data");
+        addView("sel_two", "FROM sel_data");
+        addView("data_body", "FROM sel_*::data");
+        addView("failures_body", "FROM sel_*::failures");
+
+        replaceViews(query("FROM data_body"), true);
+        assertWarnings(wildcardsStoppedWarning("data_body", "views [sel_one], [sel_two]"));
+        replaceViews(query("FROM failures_body"), true);
+        ensureNoWarnings();
+    }
+
+    /** A view named exactly with {@code ::data} is read, so it is not missed; with {@code ::failures} its data is not read. */
+    public void testWildcardsStoppedWarningCountsViewNamedWithDataSelectorAsRead() {
+        addIndex("sel_data");
+        addView("sel_one", "FROM sel_data");
+        addView("sel_two", "FROM sel_data");
+        addView("named_body", "FROM sel_one::data, sel_*");
+        addView("failures_named_body", "FROM sel_one::failures, sel_*");
+
+        replaceViews(query("FROM named_body"), true);
+        assertWarnings(wildcardsStoppedWarning("named_body", "view [sel_two]"));
+        replaceViews(query("FROM failures_named_body"), true);
+        assertWarnings(wildcardsStoppedWarning("failures_named_body", "views [sel_one], [sel_two]"));
+    }
+
+    private static String wildcardsStoppedWarning(String viewName, String matched) {
+        return wildcardsStoppedWarning(null, viewName, matched);
+    }
+
+    private static String wildcardsStoppedWarning(@Nullable String settingView, String viewName, String matched) {
+        return "SET wildcards_match_views=true"
+            + (settingView == null ? "" : " in view [" + settingView + "]")
+            + " does not affect the contents of view ["
+            + viewName
+            + "], so its wildcards did not match "
+            + matched
+            + "; use that setting inside the view definition if you wish to change the view behaviour";
+    }
+
+    public void testViewDefinitionAllowsOnlyBoundaryScopedSettings() {
+        ParsingException rejected = expectThrows(ParsingException.class, () -> parse("SET time_zone=\"UTC\"; FROM idx", "v"));
+        assertThat(rejected.getMessage(), containsString("SET [time_zone] is not allowed in views"));
+        assertThat(rejected.getMessage(), containsString("unmapped_fields"));
+
+        ParsingException both = expectThrows(
+            ParsingException.class,
+            () -> parse("SET time_zone=\"UTC\"; SET project_routing=\"_alias:us\"; FROM idx", "v")
+        );
+        assertThat(both.getMessage(), containsString("SET [project_routing, time_zone] is not allowed in views"));
+        assertThat(both.getMessage(), containsString("unmapped_fields"));
+
+        ParsingException loadAll = expectThrows(ParsingException.class, () -> parse("SET unmapped_fields=\"LOAD_ALL\"; FROM idx", "v"));
+        assertThat(loadAll.getMessage(), containsString("not supported in views"));
+        assertErrorAt(loadAll, 1, 1);
+
+        // The error points at the offending SET statement, also when it is not the first one.
+        ParsingException secondSet = expectThrows(
+            ParsingException.class,
+            () -> parse("SET wildcards_match_views=true; SET unmapped_fields=\"LOAD_ALL\"; FROM idx", "v")
+        );
+        assertThat(secondSet.getMessage(), containsString("not supported in views"));
+        assertErrorAt(secondSet, 1, 33);
+        assertErrorAt(rejected, 1, 1);
+
+        // Allowed settings still get the normal value validation.
+        ParsingException bogusMode = expectThrows(ParsingException.class, () -> parse("SET unmapped_fields=\"bogus\"; FROM idx", "v"));
+        assertThat(bogusMode.getMessage(), containsString("Error validating setting [unmapped_fields]"));
+        assertErrorAt(bogusMode, 1, 1);
+        ParsingException notBoolean = expectThrows(ParsingException.class, () -> parse("SET wildcards_match_views=\"yes\"; FROM idx", "v"));
+        assertThat(notBoolean.getMessage(), containsString("Setting [wildcards_match_views] must be of type"));
+        assertErrorAt(notBoolean, 1, 1);
+
+        parse("SET unmapped_fields=\"load\"; FROM idx", "v");
+        parse("SET unmapped_fields=\"nullify\"; FROM idx", "v");
+        parse("SET wildcards_match_views=true; FROM idx", "v");
+        parse("SET wildcards_match_datasets=false; FROM idx", "v");
+        parse("FROM idx", "v");
     }
 
     public void testMixedViewAndIndexMergedUnresolvedRelation() {
@@ -969,6 +1145,261 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(viewChains("FROM missing, v1", "missing"), nullValue());
     }
 
+    private static String pipes(int count) {
+        return " | WHERE a > 0".repeat(count);
+    }
+
+    private static final String MAX_PLAN_NODES_ERROR =
+        "ES|QL query exceeded the maximum of [500] plan nodes allowed after expanding views, subqueries and FORKs.";
+
+    public void testMaxPlanNodesCountWithDeepView() {
+        addView("long_view", "FROM emp" + pipes(300));
+        String q = "FROM long_view" + pipes(150);
+        replaceViews(query(q));
+        expectThrows(VerificationException.class, startsWith(MAX_PLAN_NODES_ERROR), () -> replaceViews(query(q + pipes(50))));
+    }
+
+    /**
+     * The limit only applies to queries that expand views or IN subqueries. A FORK repeats its upstream plan in every branch, so this
+     * query has more than the maximum number of nodes, but nothing is expanded.
+     */
+    public void testMaxPlanNodesCountDoesNotApplyWithoutViewsOrSubqueries() {
+        replaceViews(query("FROM emp" + pipes(400) + " | FORK (WHERE a > 0) (WHERE a > 1)"));
+    }
+
+    public void testMaxPlanNodesCountWithNestedDeepViews() {
+        addView("view_c", "FROM emp" + pipes(100));
+        addView("view_b", "FROM view_c" + pipes(100));
+        addView("view_a", "FROM view_b" + pipes(100));
+        replaceViews(query("FROM view_a" + pipes(150)));
+        expectThrows(VerificationException.class, startsWith(MAX_PLAN_NODES_ERROR), () -> replaceViews(query("FROM view_a" + pipes(200))));
+    }
+
+    public void testMaxPlanNodesCountWithDeepSubqueriesAndViews() {
+        addView("long_view", "FROM emp" + pipes(300));
+        replaceViews(query("FROM emp1, (FROM long_view" + pipes(50) + ")" + pipes(100)));
+        expectThrows(
+            VerificationException.class,
+            startsWith(MAX_PLAN_NODES_ERROR),
+            () -> replaceViews(query("FROM emp1, (FROM long_view" + pipes(50) + ")" + pipes(150)))
+        );
+        expectThrows(
+            VerificationException.class,
+            startsWith(MAX_PLAN_NODES_ERROR),
+            () -> replaceViews(query("FROM emp1, (FROM long_view" + pipes(200) + ")" + pipes(50)))
+        );
+
+        addView("inner_view", "FROM emp" + pipes(200));
+        addView("outer_view", "FROM emp1, (FROM inner_view" + pipes(100) + ")" + pipes(100));
+        replaceViews(query("FROM outer_view" + pipes(50)));
+        expectThrows(
+            VerificationException.class,
+            startsWith(MAX_PLAN_NODES_ERROR),
+            () -> replaceViews(query("FROM outer_view" + pipes(100)))
+        );
+    }
+
+    public void testMaxPlanNodesCountWithDeepInSubqueriesAndViews() {
+        addView("long_view", "FROM emp" + pipes(300));
+        replaceViews(query("FROM emp1 | WHERE x IN (FROM long_view" + pipes(150) + ")"));
+        expectThrows(VerificationException.class, () -> replaceViews(query("FROM emp1 | WHERE x IN (FROM long_view" + pipes(200) + ")")));
+        expectThrows(
+            VerificationException.class,
+            startsWith(MAX_PLAN_NODES_ERROR),
+            () -> replaceViews(query("FROM emp1 | WHERE x IN (FROM long_view" + pipes(100) + ")" + pipes(100)))
+        );
+
+        addView("inner_view", "FROM emp" + pipes(150));
+        addView("outer_view", "FROM emp1 | WHERE x IN (FROM inner_view" + pipes(100) + ")" + pipes(50));
+        replaceViews(query("FROM outer_view" + pipes(150)));
+        expectThrows(
+            VerificationException.class,
+            startsWith(MAX_PLAN_NODES_ERROR),
+            () -> replaceViews(query("FROM outer_view" + pipes(200)))
+        );
+
+        addView("view_1", "FROM emp2" + pipes(200));
+        addView("view_2", "FROM emp3" + pipes(250));
+        replaceViews(query("FROM emp1 | WHERE x IN (FROM view_1) | WHERE y IN (FROM view_2)"));
+
+        addView("bigger_view_1", "FROM emp2" + pipes(250));
+        expectThrows(
+            VerificationException.class,
+            startsWith(MAX_PLAN_NODES_ERROR),
+            () -> replaceViews(query("FROM emp1 | WHERE x IN (FROM bigger_view_1) | WHERE y IN (FROM view_2)"))
+        );
+    }
+
+    public void testMaxPlanNodesCountWithDeepMarkInSubqueries() {
+        addView("long_view", "FROM emp" + pipes(300));
+        String first = "FROM emp1 | WHERE x IN (FROM long_view %s) OR y IN (FROM emp2)";
+        replaceViews(query(Strings.format(first, pipes(100))));
+        expectThrows(
+            VerificationException.class,
+            startsWith(MAX_PLAN_NODES_ERROR),
+            () -> replaceViews(query(Strings.format(first, pipes(200))))
+        );
+
+        String second = "FROM emp1 | WHERE x IN (FROM emp2) OR y IN (FROM long_view %s)";
+        replaceViews(query(Strings.format(second, pipes(100))));
+        expectThrows(
+            VerificationException.class,
+            startsWith(MAX_PLAN_NODES_ERROR),
+            () -> replaceViews(query(Strings.format(second, pipes(200))))
+        );
+    }
+
+    public void testMaxPlanNodesCountWithDeepInSubqueries() {
+        addView("view_with_in_subquery", "FROM emp | WHERE x IN (FROM emp2" + pipes(300) + ")");
+        replaceViews(query("FROM view_with_in_subquery" + pipes(150)));
+        expectThrows(
+            VerificationException.class,
+            startsWith(MAX_PLAN_NODES_ERROR),
+            () -> replaceViews(query("FROM view_with_in_subquery" + pipes(200)))
+        );
+    }
+
+    /**
+     * The nodes of sibling views are all added up
+     */
+    public void testMaxPlanNodesCountWithSiblingViews() {
+        addView("view_a", "FROM emp" + pipes(100));
+        addView("view_b", "FROM emp" + pipes(100));
+        addView("view_c", "FROM emp" + pipes(100));
+        replaceViews(query("FROM view_a, view_b" + pipes(150)));
+        replaceViews(query("FROM view_a, (FROM view_b), (FROM view_c" + pipes(75) + ")" + pipes(75)));
+        expectThrows(
+            VerificationException.class,
+            startsWith(MAX_PLAN_NODES_ERROR),
+            () -> replaceViews(query("FROM view_a, view_b" + pipes(300)))
+        );
+        expectThrows(
+            VerificationException.class,
+            startsWith(MAX_PLAN_NODES_ERROR),
+            () -> replaceViews(query("FROM view_a, (FROM view_b), (FROM view_c" + pipes(100) + ")" + pipes(100)))
+        );
+    }
+
+    public void testMaxPlanNodesCountWithViewAndFork() {
+        addView("long_view", "FROM emp" + pipes(100));
+        // Fork duplicates the full query for both branches so we need to be careful to count after that duplication
+        String fork = " | FORK (WHERE a > 0 | WHERE a > 1 | WHERE a > 2) (WHERE a > 3)";
+        replaceViews(query("FROM long_view" + pipes(100) + fork));
+        expectThrows(
+            VerificationException.class,
+            startsWith(MAX_PLAN_NODES_ERROR),
+            () -> replaceViews(query("FROM long_view" + pipes(150) + fork))
+        );
+    }
+
+    public void testMaxQueryDepthOfViewWithoutRelation() {
+        addView("row_view", "ROW a = 1" + pipes(300));
+        addView("outer_view", "FROM row_view" + pipes(150));
+        addView("too_long_outer_view", "FROM row_view" + pipes(200));
+        replaceViews(query("FROM outer_view"));
+        expectThrows(VerificationException.class, startsWith(MAX_PLAN_NODES_ERROR), () -> replaceViews(query("FROM too_long_outer_view")));
+    }
+
+    public void testMaxPlanNodesCountWithExponentialViewsAndSubqueries() {
+        int maxDepth = 50;
+        for (int k = 1; k <= maxDepth; k++) {
+            addView("growing_view_" + k, "FROM emp" + pipes(k));
+        }
+        // about 5,000 nodes, four for each pipe: the command, the comparison, and its two operands
+        expectThrows(
+            VerificationException.class,
+            startsWith(MAX_PLAN_NODES_ERROR),
+            () -> replaceViews(query(inSubqueriesOfGrowingViews(maxDepth)))
+        );
+    }
+
+    public void testMaxPlanNodesCountDoesNotApplyWithoutViews() {
+        // far over MAX_COMMAND_COUNT in expression nodes, but no view is involved so nothing is checked
+        replaceViews(query("FROM emp | EVAL y = COALESCE(" + String.join(", ", Collections.nCopies(20_000, "a")) + ")"));
+    }
+
+    private static String inSubqueriesOfGrowingViews(int count) {
+        StringBuilder query = new StringBuilder("FROM emp1");
+        for (int k = 1; k <= count; k++) {
+            query.append(" | WHERE x IN (FROM growing_view_").append(k).append(")");
+        }
+        return query.toString();
+    }
+
+    public void testMaxPlanNodesIsConfigurable() {
+        addView("long_view", "FROM emp" + pipes(10));
+        // 5 pipes in the query plus 10 in the view
+        replaceViewsWithMaxPlanNodesCount(query("FROM long_view" + pipes(5)), 20);
+        expectThrows(
+            VerificationException.class,
+            startsWith("ES|QL query exceeded the maximum of [15] plan nodes allowed after expanding views, subqueries and FORKs"),
+            () -> replaceViewsWithMaxPlanNodesCount(query("FROM long_view" + pipes(5)), 15)
+        );
+    }
+
+    /**
+     * The parser does not count the commands of a bare {@code (FROM emp2)} subquery, so the plan node limit is the only bound on how
+     * many IN subqueries one command can hold. Each rewrite adds at least two nodes, so these cross the limit within a single
+     * EVAL and must be rejected.
+     */
+    public void testMaxPlanNodesCountWithWideInSubqueries() {
+        addView("some_view", "FROM emp");
+        int count = 30_000;
+        int maxPlanNodesCount = 500;
+
+        StringBuilder eval = new StringBuilder("FROM emp1 | EVAL ");
+        for (int i = 0; i < count; i++) {
+            eval.append(i == 0 ? "" : ", ").append("a").append(i).append(" = x IN (FROM emp2)");
+        }
+        var e = expectThrows(
+            VerificationException.class,
+            startsWith(MAX_PLAN_NODES_ERROR),
+            () -> replaceViewsWithMaxPlanNodesCount(query(eval.toString()), maxPlanNodesCount)
+        );
+        assertExpansionStaysCloseToMaxNodes(e, maxPlanNodesCount);
+    }
+
+    public void testMaxPlanNodesCountWithWideInSubqueriesInFilter() {
+        addView("some_view", "FROM emp");
+        int count = 280;
+        int maxPlanNodesCount = 500;
+
+        String filter = "FROM emp1 | WHERE " + String.join(" AND ", Collections.nCopies(count, "x IN (FROM emp2)"));
+        var e = expectThrows(
+            VerificationException.class,
+            startsWith(MAX_PLAN_NODES_ERROR),
+            () -> replaceViewsWithMaxPlanNodesCount(query(filter), maxPlanNodesCount)
+        );
+        assertExpansionStaysCloseToMaxNodes(e, maxPlanNodesCount);
+    }
+
+    public void testMaxPlanNodesCountWithWideInSubqueriesInStats() {
+        addView("some_view", "FROM emp");
+        int count = 10_000;
+        int maxPlanNodesCount = 500;
+
+        StringBuilder stats = new StringBuilder("FROM emp1 | STATS ");
+        for (int i = 0; i < count; i++) {
+            stats.append(i == 0 ? "" : ", ").append("c").append(i).append(" = COUNT(*) WHERE x IN (FROM emp2)");
+        }
+        var e = expectThrows(
+            VerificationException.class,
+            startsWith(MAX_PLAN_NODES_ERROR),
+            () -> replaceViewsWithMaxPlanNodesCount(query(stats.toString()), maxPlanNodesCount)
+        );
+        assertExpansionStaysCloseToMaxNodes(e, maxPlanNodesCount);
+    }
+
+    // To check when expanding the views / subqueries we do not go massively over the max number of allowed planning nodes
+    private static void assertExpansionStaysCloseToMaxNodes(VerificationException e, int maxPlanNodesCount) {
+        var foundNodesPattern = Pattern.compile("Found at least \\[(\\d+)\\] plan nodes").matcher(e.getMessage());
+        assertTrue(e.getMessage(), foundNodesPattern.find());
+        var numExpandedNodes = Integer.parseInt(foundNodesPattern.group(1));
+        // We check when expanding the query inside InSubqueryResolver we don't blow up the planning tree exponentially
+        // The bound <= 2 * MaxPlanNodesCount is quite generous so the tests using this are not frail.
+        assertThat(numExpandedNodes, lessThanOrEqualTo(2 * maxPlanNodesCount));
+    }
+
     public void testCircularViewSelfReference() {
         addView("view_a", "FROM view_a");
         Exception e = expectThrows(VerificationException.class, () -> replaceViews(query("FROM view_a")));
@@ -993,16 +1424,19 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     public void testCircularViewViaWildcard() {
+        // A wildcard inside a view body never matches views (SETTINGS_SCOPED_AT_VIEW_BOUNDARIES): the caller's
+        // wildcards_match_views must not change which sources a stored definition resolves to. The body's v_*
+        // therefore cannot match v_1 itself, so no circular reference can arise through it; the pass-through body
+        // collapses into the caller's own identical kept wildcard.
         addView("v_1", "FROM v_*");
-        Exception e = expectThrows(VerificationException.class, () -> replaceViews(query("FROM v_*")));
-        assertThat(e.getMessage(), containsString("circular view reference 'v_1'"));
+        assertThat(replaceViews(query("FROM v_*")), matchesPlan(query("FROM v_*")));
     }
 
     public void testCircularViewViaWildcardWithIndex() {
         addIndex("v_idx");
         addView("v_1", "FROM v_*");
-        Exception e = expectThrows(VerificationException.class, () -> replaceViews(query("FROM v_*")));
-        assertThat(e.getMessage(), containsString("circular view reference 'v_1'"));
+        // Same as testCircularViewViaWildcard: the body wildcard matches indices only, so no circularity.
+        assertThat(replaceViews(query("FROM v_*")), matchesPlan(query("FROM v_*,(FROM v_*)")));
     }
 
     public void testNonCircularViewInMultiSource() {
@@ -1105,10 +1539,12 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     public void testViewBodyUsingTsToReferenceAnotherViewIsRejected() {
         assumeTrue("Requires fix for mixing TS with non-TS sources", EsqlCapabilities.Cap.FIX_TS_MIXED_WITH_NON_TS_SOURCES.isEnabled());
         addView("inner_view", "FROM emp");
-        addView("outer_view", "TS inner_view");
-        Exception e = expectThrows(VerificationException.class, () -> replaceViews(query("FROM outer_view")));
-        assertThat(e.getMessage(), containsString("Views are not supported in TS command"));
-        assertThat(e.getMessage(), containsString("inner_view"));
+        addView("outer_view", "TS inner_view | STATS max(emp_no)");
+        expectThrows(
+            VerificationException.class,
+            allOf(containsString("Views are not supported in TS command"), containsString("inner_view")),
+            () -> replaceViews(query("FROM outer_view"))
+        );
     }
 
     /**
@@ -1265,7 +1701,10 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("v_1", "FROM v_*,-v_1");
         addView("v_2", "FROM emp");
         LogicalPlan plan = query("FROM v_1");
-        assertThat(replaceViews(plan), matchesPlan(query("FROM emp")));
+        // The body wildcard no longer matches the sibling view v_2 (SETTINGS_SCOPED_AT_VIEW_BOUNDARIES), so v_1
+        // resolves to the index pattern as written — same as the sibling self-exclusion tests above.
+        assertThat(replaceViews(plan), matchesPlan(query("FROM v_*")));
+        assertWarnings(wildcardsStoppedWarning("v_1", "view [v_2]"));
     }
 
     public void testWildcardNonCircularReferenceFromViewSibling() {
@@ -1345,10 +1784,10 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         LogicalPlan result = replaceViews(query("FROM dashboard"));
         assertNotNull("dashboard should resolve without circular reference errors", result);
 
-        // The wildcard svc-auth-* inside error_view's subquery matches the view svc-auth-failures,
-        // creating a nested BranchPlan inside the pipeline chain. Nested branching views are valid;
-        // this also confirms that the wildcard match was not mistaken for a circular reference.
-        assertTrue("Expected a nested branching view in: " + result, containsNestedBranchPlan(result));
+        // The wildcard svc-auth-* inside error_view's subquery no longer matches the view svc-auth-failures at
+        // all (SETTINGS_SCOPED_AT_VIEW_BOUNDARIES): a wildcard inside a view body only matches indices, so no
+        // nested branching view appears and no wildcard match can be mistaken for a circular reference.
+        assertFalse("Expected no nested branching view in: " + result, containsNestedBranchPlan(result));
         assertNoPlanConsistencyFailures(result, "dashboard");
     }
 
@@ -1360,11 +1799,16 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
         addIndex("svc-auth-logs");
 
-        // svc-auth-failures queries FROM svc-auth-* which matches itself — genuine self-reference
+        // svc-auth-failures queries FROM svc-auth-*, which matches its own name — but a wildcard inside a view
+        // body only matches indices (SETTINGS_SCOPED_AT_VIEW_BOUNDARIES), so no self-reference arises: the body
+        // resolves to the svc-auth-* index pattern as written. Self-reference remains detected for exact names
+        // (see testCircularViewSelfReference).
         addView("svc-auth-failures", "FROM svc-auth-* | STATS attempts = COUNT(*) BY source_ip");
 
-        Exception e = expectThrows(VerificationException.class, () -> replaceViews(query("FROM svc-auth-failures")));
-        assertThat(e.getMessage(), containsString("circular view reference 'svc-auth-failures'"));
+        assertThat(
+            replaceViews(query("FROM svc-auth-failures")),
+            matchesPlan(query("FROM svc-auth-* | STATS attempts = COUNT(*) BY source_ip"))
+        );
     }
 
     /**
@@ -1410,7 +1854,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
             InMemoryViewResolver customViewResolver = customViewService.getViewResolver();
             {
                 PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-                customViewResolver.replaceViews(query("FROM view2"), null, true, false, this::parse, false, future);
+                customViewResolver.replaceViews(query("FROM view2"), null, true, false, this::parse, ViewBoundaryPreservation.NONE, future);
                 // FROM view2 should fail
                 Exception e = expectThrows(VerificationException.class, future::actionGet);
                 assertThat(e.getMessage(), startsWith("The maximum allowed view depth of 1 has been exceeded"));
@@ -1418,7 +1862,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
             // But FROM view1 should work
             {
                 PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-                customViewResolver.replaceViews(query("FROM view1"), null, true, false, this::parse, false, future);
+                customViewResolver.replaceViews(query("FROM view1"), null, true, false, this::parse, ViewBoundaryPreservation.NONE, future);
                 // Run the same compaction (and ViewShadowRelation strip) the production pipeline does.
                 LogicalPlan rewritten = COMPACTION.apply(future.actionGet().plan());
                 assertThat(rewritten, matchesPlan(query("FROM emp")));
@@ -2910,14 +3354,56 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         return COMPACTION.apply(replaceViewsWithoutCompaction(plan, resolver));
     }
 
+    private LogicalPlan replaceViewsWithMaxPlanNodesCount(LogicalPlan plan, int maxPlanNodesCount) {
+        var result = resolve(
+            listener -> viewResolver.replaceViews(
+                plan,
+                null,
+                true,
+                false,
+                this::parse,
+                ViewBoundaryPreservation.NONE,
+                maxPlanNodesCount,
+                listener
+            )
+        );
+        return COMPACTION.apply(result.plan());
+    }
+
     private LogicalPlan replaceViews(LogicalPlan plan, boolean wildcardsMatchViews) {
         return replaceViews(plan, wildcardsMatchViews, false);
     }
 
     private LogicalPlan replaceViews(LogicalPlan plan, boolean wildcardsMatchViews, boolean wildcardsMatchDatasets) {
-        PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-        viewResolver.replaceViews(plan, null, wildcardsMatchViews, wildcardsMatchDatasets, this::parse, false, future);
-        return COMPACTION.apply(future.actionGet().plan());
+        var result = resolve(
+            listener -> viewResolver.replaceViews(
+                plan,
+                null,
+                wildcardsMatchViews,
+                wildcardsMatchDatasets,
+                this::parse,
+                ViewBoundaryPreservation.NONE,
+                listener
+            )
+        );
+        return COMPACTION.apply(result.plan());
+    }
+
+    /**
+     * Runs {@code resolution} and returns its result. {@link InMemoryViewResolver} completes view lookups on a SEARCH thread, so
+     * the warnings the resolver adds before completing land in that thread's context; they are moved to the test thread, where
+     * {@link #assertWarnings} and the end-of-test check read them.
+     */
+    private ViewResolver.ViewResolutionResult resolve(Consumer<ActionListener<ViewResolver.ViewResolutionResult>> resolution) {
+        PlainActionFuture<Tuple<ViewResolver.ViewResolutionResult, List<String>>> future = new PlainActionFuture<>();
+        resolution.accept(future.map(result -> {
+            List<String> warnings = threadContext.getResponseHeaders().getOrDefault("Warning", List.of());
+            threadContext.stashContext();
+            return Tuple.tuple(result, warnings);
+        }));
+        var resolved = future.actionGet();
+        resolved.v2().forEach(warning -> threadContext.addResponseHeader("Warning", warning));
+        return resolved.v1();
     }
 
     /**
@@ -2940,15 +3426,14 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     private LogicalPlan replaceViewsWithoutCompaction(LogicalPlan plan, ViewResolver resolver) {
-        PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-        resolver.replaceViews(plan, null, true, false, this::parse, false, future);
-        return future.actionGet().plan();
+        return resolve(listener -> resolver.replaceViews(plan, null, true, false, this::parse, ViewBoundaryPreservation.NONE, listener))
+            .plan();
     }
 
     private IndexViewOrigins indexViewOrigins(String query) {
-        PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-        viewResolver.replaceViews(query(query), null, true, false, this::parse, false, future);
-        return future.actionGet().indexViewOrigins();
+        return resolve(
+            listener -> viewResolver.replaceViews(query(query), null, true, false, this::parse, ViewBoundaryPreservation.NONE, listener)
+        ).indexViewOrigins();
     }
 
     private Set<List<String>> viewChains(String query, String index) {
@@ -2965,6 +3450,17 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     private static final ViewCompaction COMPACTION = new ViewCompaction();
+
+    /** Every index-pattern token named by an {@link UnresolvedRelation} in {@code plan}. */
+    private static Set<String> relationPatterns(LogicalPlan plan) {
+        Set<String> patterns = new HashSet<>();
+        plan.forEachDown(UnresolvedRelation.class, ur -> {
+            for (String pattern : ur.indexPattern().indexPattern().split(",")) {
+                patterns.add(pattern.trim());
+            }
+        });
+        return patterns;
+    }
 
     private void addIndex(String name) {
         viewService.addIndex(projectId, name);
@@ -3015,8 +3511,13 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         }
     }
 
-    private LogicalPlan parse(String query, String viewName) {
-        return TEST_PARSER.parseView(query, queryParams, EMPTY_INFERENCE_SETTINGS, viewName).plan();
+    private static void assertErrorAt(ParsingException e, int line, int column) {
+        assertThat(e.getMessage(), e.getLineNumber(), equalTo(line));
+        assertThat(e.getMessage(), e.getColumnNumber(), equalTo(column));
+    }
+
+    private EsqlStatement parse(String query, String viewName) {
+        return TEST_PARSER.parseView(query, queryParams, EMPTY_INFERENCE_SETTINGS, viewName, EsqlParser.DEFAULT_MAX_COMMAND_COUNT);
     }
 
     /**

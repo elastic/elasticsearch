@@ -18,10 +18,12 @@ import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.elasticsearch.lucene.store.IndexInputUtils;
 import org.elasticsearch.lucene.store.MemorySegmentAccessInputAccess;
+import org.elasticsearch.lucene.store.SegmentBufferScratch;
 import org.elasticsearch.simdvec.SimdVecLibrary;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.util.Optional;
 
 public abstract sealed class Int8VectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
@@ -35,6 +37,7 @@ public abstract sealed class Int8VectorScorer extends RandomVectorScorer.Abstrac
     final FixedSizeSegmentScratch scratch;
     final AddressesScratch addrsScratch = new AddressesScratch();
     final OffsetsScratch offsetsScratch = new OffsetsScratch();
+    final SegmentBufferScratch scoresScratch = new SegmentBufferScratch();
 
     public static Optional<RandomVectorScorer> create(VectorSimilarityFunction sim, ByteVectorValues values, byte[] queryVector) {
         checkDimensions(queryVector.length, values.dimension());
@@ -82,7 +85,7 @@ public abstract sealed class Int8VectorScorer extends RandomVectorScorer.Abstrac
      * the sparse scoring function. Returns true if addresses were resolved
      * (via mmap or DirectAccessInput), false if fallback scoring is needed.
      */
-    final boolean bulkScoreWithSparse(int[] nodes, float[] scores, int numNodes, SparseScorer sparseScorer) throws IOException {
+    final boolean bulkScoreWithSparse(int[] nodes, MemorySegment scores, int numNodes, SparseScorer sparseScorer) throws IOException {
         if (numNodes == 0) {
             return false;
         }
@@ -96,7 +99,7 @@ public abstract sealed class Int8VectorScorer extends RandomVectorScorer.Abstrac
             vectorByteSize,
             numNodes,
             addrsScratch,
-            a -> sparseScorer.score(a, query, dimensions, numNodes, MemorySegment.ofArray(scores))
+            a -> sparseScorer.score(a, query, dimensions, numNodes, scores)
         );
     }
 
@@ -120,16 +123,17 @@ public abstract sealed class Int8VectorScorer extends RandomVectorScorer.Abstrac
                 input,
                 vectorByteSize,
                 scratch,
-                seg -> normalize(DISTANCE_FUNCS.dotProductI8(query, seg, dimensions))
+                seg -> normalize(DISTANCE_FUNCS.dotProductI8(seg, query, dimensions))
             );
         }
 
         @Override
         public float bulkScore(int[] nodes, float[] scores, int numNodes) throws IOException {
-            if (bulkScoreWithSparse(nodes, scores, numNodes, DISTANCE_FUNCS::dotProductI8BulkSparse)) {
+            MemorySegment segment = scoresScratch.apply(numNodes * Float.BYTES);
+            if (bulkScoreWithSparse(nodes, segment, numNodes, DISTANCE_FUNCS::dotProductI8BulkSparse)) {
                 float max = Float.NEGATIVE_INFINITY;
                 for (int i = 0; i < numNodes; ++i) {
-                    scores[i] = normalize(scores[i]);
+                    scores[i] = normalize(segment.getAtIndex(ValueLayout.JAVA_FLOAT, i));
                     max = Math.max(max, scores[i]);
                 }
                 return max;
@@ -154,17 +158,18 @@ public abstract sealed class Int8VectorScorer extends RandomVectorScorer.Abstrac
             long byteOffset = (long) node * vectorByteSize;
             input.seek(byteOffset);
             return IndexInputUtils.withFloatSlice(input, vectorByteSize, scratch, seg -> {
-                float cos = DISTANCE_FUNCS.cosineI8(query, seg, dimensions);
+                float cos = DISTANCE_FUNCS.cosineI8(seg, query, dimensions);
                 return normalize(cos);
             });
         }
 
         @Override
         public float bulkScore(int[] nodes, float[] scores, int numNodes) throws IOException {
-            if (bulkScoreWithSparse(nodes, scores, numNodes, DISTANCE_FUNCS::cosineI8BulkSparse)) {
+            MemorySegment segment = scoresScratch.apply(numNodes * Float.BYTES);
+            if (bulkScoreWithSparse(nodes, segment, numNodes, DISTANCE_FUNCS::cosineI8BulkSparse)) {
                 float max = Float.NEGATIVE_INFINITY;
                 for (int i = 0; i < numNodes; ++i) {
-                    scores[i] = normalize(scores[i]);
+                    scores[i] = normalize(segment.getAtIndex(ValueLayout.JAVA_FLOAT, i));
                     max = Math.max(max, scores[i]);
                 }
                 return max;
@@ -185,17 +190,18 @@ public abstract sealed class Int8VectorScorer extends RandomVectorScorer.Abstrac
             long byteOffset = (long) node * vectorByteSize;
             input.seek(byteOffset);
             return IndexInputUtils.withFloatSlice(input, vectorByteSize, scratch, seg -> {
-                float sqDist = DISTANCE_FUNCS.squareDistanceI8(query, seg, dimensions);
+                float sqDist = DISTANCE_FUNCS.squareDistanceI8(seg, query, dimensions);
                 return VectorUtil.normalizeDistanceToUnitInterval(sqDist);
             });
         }
 
         @Override
         public float bulkScore(int[] nodes, float[] scores, int numNodes) throws IOException {
-            if (bulkScoreWithSparse(nodes, scores, numNodes, DISTANCE_FUNCS::squareDistanceI8BulkSparse)) {
+            MemorySegment segment = scoresScratch.apply(numNodes * Float.BYTES);
+            if (bulkScoreWithSparse(nodes, segment, numNodes, DISTANCE_FUNCS::squareDistanceI8BulkSparse)) {
                 float max = Float.NEGATIVE_INFINITY;
                 for (int i = 0; i < numNodes; ++i) {
-                    scores[i] = VectorUtil.normalizeDistanceToUnitInterval(scores[i]);
+                    scores[i] = VectorUtil.normalizeDistanceToUnitInterval(segment.getAtIndex(ValueLayout.JAVA_FLOAT, i));
                     max = Math.max(max, scores[i]);
                 }
                 return max;
@@ -216,17 +222,18 @@ public abstract sealed class Int8VectorScorer extends RandomVectorScorer.Abstrac
             long byteOffset = (long) node * vectorByteSize;
             input.seek(byteOffset);
             return IndexInputUtils.withFloatSlice(input, vectorByteSize, scratch, seg -> {
-                float dp = DISTANCE_FUNCS.dotProductI8(query, seg, dimensions);
+                float dp = DISTANCE_FUNCS.dotProductI8(seg, query, dimensions);
                 return VectorUtil.scaleMaxInnerProductScore(dp);
             });
         }
 
         @Override
         public float bulkScore(int[] nodes, float[] scores, int numNodes) throws IOException {
-            if (bulkScoreWithSparse(nodes, scores, numNodes, DISTANCE_FUNCS::dotProductI8BulkSparse)) {
+            MemorySegment segment = scoresScratch.apply(numNodes * Float.BYTES);
+            if (bulkScoreWithSparse(nodes, segment, numNodes, DISTANCE_FUNCS::dotProductI8BulkSparse)) {
                 float max = Float.NEGATIVE_INFINITY;
                 for (int i = 0; i < numNodes; ++i) {
-                    scores[i] = VectorUtil.scaleMaxInnerProductScore(scores[i]);
+                    scores[i] = VectorUtil.scaleMaxInnerProductScore(segment.getAtIndex(ValueLayout.JAVA_FLOAT, i));
                     max = Math.max(max, scores[i]);
                 }
                 return max;

@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceReq
 
 import java.util.Map;
 
+import static org.elasticsearch.inference.InferenceRequestMetadata.Field.PRODUCT_USE_CASE;
 import static org.elasticsearch.xpack.esql.inference.InferenceService.ESQL_PRODUCT_USE_CASE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -76,7 +77,7 @@ public class CompletionRequestIteratorTests extends ComputeTestCase {
             BulkInferenceRequestItem requestItem1 = requestIterator.next();
             assertThat(requestItem1.inferenceRequest().getInferenceEntityId(), equalTo(inferenceId));
             assertThat(requestItem1.inferenceRequest().getTaskType(), equalTo(TaskType.COMPLETION));
-            assertThat(requestItem1.inferenceRequest().getContext().productUseCase(), equalTo(ESQL_PRODUCT_USE_CASE));
+            assertThat(requestItem1.inferenceRequest().getContext().metadata().get(PRODUCT_USE_CASE), equalTo(ESQL_PRODUCT_USE_CASE));
             assertThat(((InferenceAction.Request) requestItem1.inferenceRequest()).getInput().getFirst(), equalTo("prompt1"));
             assertThat(requestItem1.positionValueCounts(), equalTo(new int[] { 1, 0, 0 }));
             assertThat(
@@ -321,7 +322,7 @@ public class CompletionRequestIteratorTests extends ComputeTestCase {
 
                 assertThat(request.getInferenceEntityId(), equalTo(inferenceId));
                 assertThat(request.getTaskType(), equalTo(TaskType.COMPLETION));
-                assertThat(request.getContext().productUseCase(), equalTo(ESQL_PRODUCT_USE_CASE));
+                assertThat(request.getContext().metadata().get(PRODUCT_USE_CASE), equalTo(ESQL_PRODUCT_USE_CASE));
                 assertThat(request.getInferenceTimeout(), equalTo(expectedTimeout(timeout)));
 
                 scratch = inputBlock.getBytesRef(inputBlock.getFirstValueIndex(iterationCount), scratch);

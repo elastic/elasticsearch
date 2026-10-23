@@ -32,12 +32,12 @@ import org.elasticsearch.test.fixture.HttpHeaderParser;
 import org.elasticsearch.test.fixture.RequestEntry;
 
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -58,7 +58,6 @@ import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.test.fixture.HttpHeaderParser.parseRangeHeader;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -485,7 +484,9 @@ public class S3HttpHandler implements HttpHandler {
                 exchange.sendResponseHeaders((deletions > 0 ? RestStatus.OK : RestStatus.NO_CONTENT).getStatus(), -1);
 
             } else if (request.isMultiObjectDeleteRequest()) {
-                final String requestBody = Streams.copyToString(new InputStreamReader(exchange.getRequestBody(), UTF_8));
+                final BytesReference requestBodyBytes = Streams.readFully(exchange.getRequestBody());
+                verifyContentMd5Header(exchange, requestBodyBytes);
+                final String requestBody = requestBodyBytes.utf8ToString();
 
                 final StringBuilder deletes = new StringBuilder();
                 deletes.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
@@ -820,6 +821,14 @@ public class S3HttpHandler implements HttpHandler {
             // This header is optional and if present it may contain a special value indicating a different checksum scheme is in use, but
             // if it's a real SHA256 checksum then it must match the request's contents.
             assertEquals(contentSha256Header, MessageDigests.toHexString(MessageDigests.digest(body, MessageDigests.sha256())));
+        }
+    }
+
+    private static void verifyContentMd5Header(final HttpExchange exchange, BytesReference body) {
+        final var contentMd5Header = exchange.getRequestHeaders().getFirst("Content-MD5");
+        if (contentMd5Header != null) {
+            // This header is optional but if present it must be the base64-encoded MD5 digest of the request's contents.
+            assertEquals(contentMd5Header, Base64.getEncoder().encodeToString(MessageDigests.digest(body, MessageDigests.md5())));
         }
     }
 

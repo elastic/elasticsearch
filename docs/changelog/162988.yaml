@@ -2,4 +2,4 @@ area: Search
 issues: []
 pr: 162988
 summary: Account script field doc-values decode buffers in the request breaker
-type: bug
+type: enhancement

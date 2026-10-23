@@ -6,12 +6,14 @@
  */
 package org.elasticsearch.xpack.esql.view;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.QuerySetting;
+import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 
@@ -31,14 +33,23 @@ import static java.util.stream.Collectors.joining;
  * from callers. They end at the next view boundary the same way the caller's do: a nested view is governed only by its
  * own definition's {@code SET}.
  * <p>
- * A setting a definition does not {@code SET} stays at its registry default inside the body, whatever the caller's
- * request or the cluster default says — a cluster-level default reaching into bodies would change view contents the
- * way a materialized view could not change.
+ * A setting a definition does not {@code SET} takes the cluster default inside the body, as it does in a query that does
+ * not {@code SET} it, whatever the caller's request says. The cluster default is the operator's choice for every query on
+ * the cluster, so it applies on both sides of a view boundary, like the settings that are not scoped at view boundaries.
  */
 public record ViewQuerySettings(UnmappedResolution unmappedFields, boolean wildcardsMatchViews, boolean wildcardsMatchDatasets) {
 
-    /** The settings of a view whose definition has no {@code SET} statements: everything at its registry default. */
+    /** The settings of a view whose definition has no {@code SET} statements on a cluster with no defaults configured. */
     public static final ViewQuerySettings DEFAULTS = new ViewQuerySettings(UnmappedResolution.DEFAULT, false, false);
+
+    /** The settings of a view whose definition has no {@code SET} statements: the cluster defaults, where configured. */
+    public static ViewQuerySettings clusterDefaults(Settings clusterState, Settings nodeSettings) {
+        return new ViewQuerySettings(
+            QuerySettings.UNMAPPED_FIELDS.effectiveDefault(clusterState, nodeSettings),
+            QuerySettings.WILDCARDS_MATCH_VIEWS.effectiveDefault(clusterState, nodeSettings),
+            QuerySettings.WILDCARDS_MATCH_DATASETS.effectiveDefault(clusterState, nodeSettings)
+        );
+    }
 
     /** The setting names a view definition may {@code SET} — the ones scoped at view boundaries for callers. */
     private static final Set<String> ALLOWED = Set.of(
@@ -48,8 +59,8 @@ public record ViewQuerySettings(UnmappedResolution unmappedFields, boolean wildc
     );
 
     /**
-     * Settings for a view branch. A view branch has a name; a definition that did not {@code SET} a mode contributes
-     * {@link #DEFAULTS}, which is the registry default and not the cluster default.
+     * Settings for a view branch. A view branch has a name, and {@code ViewResolver} records the settings of every view it
+     * resolves; {@link #DEFAULTS} is only a fallback for a name it did not record.
      */
     public static ViewQuerySettings forView(String viewName, Map<String, ViewQuerySettings> viewSettings) {
         assert viewName != null : "a view branch has no view name to read settings from";
@@ -58,15 +69,19 @@ public record ViewQuerySettings(UnmappedResolution unmappedFields, boolean wildc
     }
 
     /**
-     * Reads the view-scoped settings from a parsed view definition. Call {@link #validate} first; this assumes the
-     * statement carries only allowed settings.
+     * Reads the view-scoped settings from a parsed view definition, taking {@code defaults} for those it does not {@code SET}.
+     * Call {@link #validate} first; this assumes the statement carries only allowed settings.
      */
-    public static ViewQuerySettings from(EsqlStatement statement) {
+    public static ViewQuerySettings from(EsqlStatement statement, ViewQuerySettings defaults) {
         return new ViewQuerySettings(
-            statement.setting(QuerySettings.UNMAPPED_FIELDS),
-            statement.setting(QuerySettings.WILDCARDS_MATCH_VIEWS),
-            statement.setting(QuerySettings.WILDCARDS_MATCH_DATASETS)
+            setOr(statement, QuerySettings.UNMAPPED_FIELDS, defaults.unmappedFields()),
+            setOr(statement, QuerySettings.WILDCARDS_MATCH_VIEWS, defaults.wildcardsMatchViews()),
+            setOr(statement, QuerySettings.WILDCARDS_MATCH_DATASETS, defaults.wildcardsMatchDatasets())
         );
+    }
+
+    private static <T> T setOr(EsqlStatement statement, QuerySettingDef<T> def, T defaultValue) {
+        return statement.setting(def.name()) == null ? defaultValue : statement.setting(def);
     }
 
     /**

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 163146
+summary: Test that cluster settings for view-blocked settings are also blocked
+type: bug

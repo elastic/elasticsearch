@@ -2,5 +2,5 @@ area: Search
 issues:
  - 162694
 pr: 162962
-summary: Resolve the nested level of knn filters from the fields they read, and join nested queries on another nested object to their common ancestor
+summary: Fix knn filters on nested vectors that returned no hits or the wrong hits
 type: bug

@@ -248,7 +248,11 @@ public class FieldArrayContext {
         return dynamicMappers.getFirst().leafName();
     }
 
-    private static String oversizedOffsetsMessage(String offsetsFieldName, int encodedSize) {
+    /**
+     * The error for a leaf array whose encoded offsets exceed {@link IndexWriter#MAX_TERM_LENGTH}, shared with the columnar
+     * batch path ({@code ColumnarOffsetsBuilder}) so both paths report the condition the same way.
+     */
+    public static String oversizedOffsetsMessage(String offsetsFieldName, int encodedSize) {
         return "encoded offsets of field ["
             + offsetsFieldName
             + "] are too large to store (["

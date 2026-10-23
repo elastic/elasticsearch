@@ -73,7 +73,7 @@ For an empty list of stop words, use `_none_`.
 `stopwords_path`
 :   (Optional, string) Path to a file that contains a list of stop words to remove.
 
-This path must be absolute or relative to the `config` location, and the file must be UTF-8 encoded. Each stop word in the file must be separated by a line break.
+This path must be absolute or relative to the `config` location, and the file must be UTF-8 encoded. Each stop word in the file must be separated by a line break. The file must be available on every node in the cluster. How you add it depends on where you run {{es}}: refer to the [custom configuration file instructions for your deployment type](docs-content://deploy-manage/plugins-and-custom-configuration-files.md#plugins-by-deployment-type).
 
 
 `ignore_case`

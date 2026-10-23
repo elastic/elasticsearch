@@ -264,7 +264,9 @@ public class StringColumnChunkBoundsTests extends ColumnarStringTestCase {
                 StringColumnOptions.DEFAULT_ESCAPE_RANK_BLOCK_SIZE,
                 StringColumnOptions.DEFAULT_SLOT_COUNTS_BLOCK_SIZE,
                 Math.max(StringColumnOptions.DEFAULT_LENGTH_BLOCK_SIZE, valuesPerBlock)
-            )
+            ),
+            StringColumnOptions.DEFAULT_SINGLE_VALUED,
+            StringColumnOptions.DEFAULT_ENABLE_SKIP_INDEX
         );
     }
 

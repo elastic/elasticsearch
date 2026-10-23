@@ -67,6 +67,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.InnerHitBuilder;
@@ -2151,12 +2152,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     .put("index.slice.enabled", true)
             )
             .build();
-        TransportSearchAction.validateAndResolveSearchSliceRouting(
-            request,
-            Map.of(metadata.getIndex(), metadata),
-            request.indices(),
-            false
-        );
+        TransportSearchAction.validateAndResolveSearchSliceRouting(request, Map.of(metadata.getIndex(), metadata), request.indices());
         assertNull("omitting _slice on a slice-enabled index should default to _all (null routing)", request.routing());
     }
 
@@ -2177,18 +2173,16 @@ public class TransportSearchActionTests extends ESTestCase {
             () -> TransportSearchAction.validateAndResolveSearchSliceRouting(
                 request,
                 Map.of(metadata.getIndex(), metadata),
-                request.indices(),
-                false
+                request.indices()
             )
         );
         assertThat(e.getMessage(), containsString("[routing] is not allowed when [index.slice.enabled] is true"));
-        assertThat(e.getMessage(), containsString("use [slice] instead"));
+        assertThat(e.getMessage(), containsString("use [_slice] instead"));
     }
 
-    public void testValidateAndResolveSearchSliceRoutingRejectsSliceWhenDisabled() {
+    public void testValidateAndResolveSearchSliceRoutingAcceptsSliceWhenDisabled() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         SearchRequest request = new SearchRequest("slice-disabled-index");
-        request.routing("s1");
         request.searchSlice("s1");
         IndexMetadata metadata = IndexMetadata.builder("slice-disabled-index")
             .settings(
@@ -2197,16 +2191,14 @@ public class TransportSearchActionTests extends ESTestCase {
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             )
             .build();
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> TransportSearchAction.validateAndResolveSearchSliceRouting(
-                request,
-                Map.of(metadata.getIndex(), metadata),
-                request.indices(),
-                false
-            )
+        String requestedSlice = TransportSearchAction.validateAndResolveSearchSliceRouting(
+            request,
+            Map.of(metadata.getIndex(), metadata),
+            request.indices()
         );
-        assertThat(e.getMessage(), containsString("[slice] is not allowed when [index.slice.enabled] is false"));
+        assertEquals("s1", requestedSlice);
+        assertEquals("s1", request.routing());
+        assertTrue(request.isRoutingFromSlice());
     }
 
     public void testValidateAndResolveSearchSliceRoutingAcceptsMixedTargets() {
@@ -2232,8 +2224,7 @@ public class TransportSearchActionTests extends ESTestCase {
         String requestedSlice = TransportSearchAction.validateAndResolveSearchSliceRouting(
             request,
             Map.of(enabled.getIndex(), enabled, disabled.getIndex(), disabled),
-            request.indices(),
-            false
+            request.indices()
         );
         assertEquals("s1,s2", requestedSlice);
         assertEquals("s1,s2", request.routing());
@@ -2254,8 +2245,7 @@ public class TransportSearchActionTests extends ESTestCase {
         String requestedSlice = TransportSearchAction.validateAndResolveSearchSliceRouting(
             request,
             Map.of(enabled.getIndex(), enabled),
-            request.indices(),
-            false
+            request.indices()
         );
         assertEquals(SliceIndexing.SLICE_ALL, requestedSlice);
         assertNull(request.routing());
@@ -2266,7 +2256,7 @@ public class TransportSearchActionTests extends ESTestCase {
         SearchRequest request = new SearchRequest("remote:idx");
         request.routing("s1");
         request.searchSlice("s1");
-        String requestedSlice = TransportSearchAction.validateAndResolveSearchSliceRouting(request, Map.of(), request.indices(), true);
+        String requestedSlice = TransportSearchAction.validateAndResolveSearchSliceRouting(request, Map.of(), request.indices());
         assertEquals("s1", requestedSlice);
         assertEquals("s1", request.routing());
     }
@@ -2287,8 +2277,7 @@ public class TransportSearchActionTests extends ESTestCase {
         String requestedSlice = TransportSearchAction.validateAndResolveSearchSliceRouting(
             request,
             Map.of(enabled.getIndex(), enabled),
-            request.indices(),
-            false
+            request.indices()
         );
         assertNull(requestedSlice);
         assertNull(request.routing());
@@ -2311,8 +2300,7 @@ public class TransportSearchActionTests extends ESTestCase {
         String requestedSlice = TransportSearchAction.validateAndResolveSearchSliceRouting(
             request,
             Map.of(enabled.getIndex(), enabled),
-            request.indices(),
-            false
+            request.indices()
         );
         assertEquals("tenant-a", requestedSlice);
         assertEquals("tenant-a", request.searchSlice());
@@ -2473,6 +2461,41 @@ public class TransportSearchActionTests extends ESTestCase {
             .toArray(String[]::new);
 
         assertThat(Arrays.asList(actual), containsInAnyOrder(expected));
+    }
+
+    public void testIgnoreIndicesWithoutSlices() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        final ProjectId projectId = randomProjectIdOrDefault();
+        final ProjectMetadata.Builder project = ProjectMetadata.builder(projectId);
+        for (String index : List.of("sliced", "plain")) {
+            project.put(
+                IndexMetadata.builder(index)
+                    .settings(
+                        settings(IndexVersion.current()).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                            .put(IndexSettings.SLICE_ENABLED.getKey(), index.equals("sliced"))
+                    )
+                    .build(),
+                false
+            );
+        }
+        final ProjectState projectState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(project)
+            .build()
+            .projectState(projectId);
+        final String[] indices = new String[] { "sliced", "plain" };
+
+        final SearchRequest named = new SearchRequest(indices).searchSlice(randomFrom("s1", "s1,s2"));
+        assertThat(TransportSearchAction.ignoreIndicesWithoutSlices(projectState, named, indices), arrayContaining("sliced"));
+
+        // every slice, no slice or a routing value searches every index
+        for (SearchRequest request : List.of(
+            new SearchRequest(indices).searchSlice(SliceIndexing.SLICE_ALL),
+            new SearchRequest(indices),
+            new SearchRequest(indices).routing("s1")
+        )) {
+            assertThat(TransportSearchAction.ignoreIndicesWithoutSlices(projectState, request, indices), arrayContaining(indices));
+        }
     }
 
     /**

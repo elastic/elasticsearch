@@ -1,0 +1,5 @@
+area: TSDB
+issues: []
+pr: 162631
+summary: Add diagnostics to OTLP expanded content 413s
+type: enhancement

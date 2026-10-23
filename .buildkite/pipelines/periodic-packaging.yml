@@ -17,6 +17,7 @@ steps:
               - sles-15
               - ubuntu-2204
               - ubuntu-2404
+              - ubuntu-2604
               - rocky-8
               - rocky-9
               - rocky-10
@@ -464,6 +465,22 @@ steps:
           buildDirectory: /dev/shm/bk
         env:
           BWC_VERSION: 9.6.0
+
+      - label: "{{matrix.image}} / 9.7.0 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v9.7.0
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2404
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 9.7.0
 
   - group: packaging-tests-windows
     steps:

@@ -62,7 +62,9 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.indices.recovery.TestRecoverySchedulingListener;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -118,11 +120,14 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -403,6 +408,12 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
         }
         if (randomBoolean()) {
             builder.put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), randomBoolean());
+        }
+        if (randomBoolean()) {
+            builder.put(
+                SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(),
+                randomBoolean()
+            );
         }
         builder.put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), randomBoolean());
         // Sometimes explicitly set the setting to its default value, which doubles as a test for the setting being registered.
@@ -1386,4 +1397,62 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
             .build();
     }
 
+    /// Waits until the recovery stats of each node, summed over its shards, match the node's predicate. The predicates are
+    /// re-evaluated on every recovery scheduling change on those nodes, so transient states (e.g. a full queue) can be observed.
+    protected void awaitRecoveryCountStats(Map<String, Predicate<RecoveryStats>> predicatePerNode) {
+        final var conditionLatch = new CountDownLatch(1);
+        final var success = new AtomicBoolean();
+
+        final Map<String, IndicesService> indicesServices = new ConcurrentHashMap<>();
+        final Map<String, CompositeRecoverySchedulingListener> schedulingListeners = new ConcurrentHashMap<>();
+        for (final var nodeName : predicatePerNode.keySet()) {
+            indicesServices.put(nodeName, internalCluster().getInstance(IndicesService.class, nodeName));
+            schedulingListeners.put(nodeName, internalCluster().getInstance(CompositeRecoverySchedulingListener.class, nodeName));
+        }
+
+        final var listener = new TestRecoverySchedulingListener() {
+            @Override
+            public void onRecoverySchedulingChange() {
+                if (success.get()) {
+                    return;
+                }
+                for (final var nodePredicate : predicatePerNode.entrySet()) {
+                    final var stats = new RecoveryStats();
+                    for (IndexService indexService : indicesServices.get(nodePredicate.getKey())) {
+                        for (IndexShard shard : indexService) {
+                            stats.add(shard.recoveryStats());
+                        }
+                    }
+                    if (nodePredicate.getValue().test(stats) == false) {
+                        return;
+                    }
+                }
+                success.set(true);
+                conditionLatch.countDown();
+            }
+        };
+
+        for (final var nodeName : predicatePerNode.keySet()) {
+            schedulingListeners.get(nodeName).addListener(listener);
+        }
+        try {
+            listener.onRecoverySchedulingChange(); // check in case conditions were already met
+            safeAwait(conditionLatch);
+        } finally {
+            for (final var nodeName : predicatePerNode.keySet()) {
+                schedulingListeners.get(nodeName).removeListener(listener);
+            }
+        }
+    }
+
+    protected static RecoveryStats getRecoveryStats(String node) {
+        return clusterAdmin().prepareNodesStats(node)
+            .clear()
+            .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery))
+            .get()
+            .getNodes()
+            .getFirst()
+            .getIndices()
+            .getRecoveryStats();
+    }
 }

@@ -1458,6 +1458,21 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
             FROM emp_lang_view
             | KEEP emp_no, language_code, does_not_exist
             """, Map.of("emp_lang_view", "FROM employees, (FROM languages | KEEP language_code)"));
+        assertViewBoundaryWarnings("emp_lang_view", "does_not_exist");
+    }
+
+    /** Under LOAD and LOAD_ALL, but not NULLIFY, the caller is told its mode stopped at the view. */
+    private void assertViewBoundaryWarnings(String viewName, String field) {
+        assertWarnings(
+            Analyzer.viewBoundaryNullFillWarning(
+                new AnalyzerContext.ViewBoundary(UnmappedResolution.LOAD, null, viewName, null, false),
+                List.of(field)
+            ),
+            Analyzer.viewBoundaryNullFillWarning(
+                new AnalyzerContext.ViewBoundary(UnmappedResolution.LOAD_ALL, null, viewName, null, false),
+                List.of(field)
+            )
+        );
     }
 
     // Mixed union of a bare index and a view: the caller's own branch loads does_not_exist from _source, while the
@@ -1469,6 +1484,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
             FROM employees, scaled_emp_view
             | KEEP emp_no, scaled, does_not_exist
             """, Map.of("scaled_emp_view", "FROM employees | EVAL scaled = emp_no * 10"));
+        assertViewBoundaryWarnings("scaled_emp_view", "does_not_exist");
     }
 
     // LOAD_ALL: only the caller's own branch reads _source, so only its relation is stamped with the _unmapped_fields column. The

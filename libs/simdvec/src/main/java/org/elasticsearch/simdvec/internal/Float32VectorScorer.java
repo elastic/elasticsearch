@@ -92,7 +92,7 @@ public abstract sealed class Float32VectorScorer extends RandomVectorScorer.Abst
                 input,
                 vectorByteSize,
                 scratch,
-                memorySegment -> DISTANCE_FUNCS.dotProductF32(query, memorySegment, dimensions)
+                memorySegment -> DISTANCE_FUNCS.dotProductF32(memorySegment, query, dimensions)
             );
 
             return VectorUtil.normalizeToUnitInterval(dotProduct);
@@ -143,7 +143,7 @@ public abstract sealed class Float32VectorScorer extends RandomVectorScorer.Abst
                 input,
                 vectorByteSize,
                 scratch,
-                memorySegment -> DISTANCE_FUNCS.squareDistanceF32(query, memorySegment, dimensions)
+                memorySegment -> DISTANCE_FUNCS.squareDistanceF32(memorySegment, query, dimensions)
             );
             return VectorUtil.normalizeDistanceToUnitInterval(sqDist);
         }
@@ -193,7 +193,7 @@ public abstract sealed class Float32VectorScorer extends RandomVectorScorer.Abst
                 input,
                 vectorByteSize,
                 scratch,
-                memorySegment -> DISTANCE_FUNCS.dotProductF32(query, memorySegment, dimensions)
+                memorySegment -> DISTANCE_FUNCS.dotProductF32(memorySegment, query, dimensions)
             );
             return VectorUtil.scaleMaxInnerProductScore(dotProduct);
         }

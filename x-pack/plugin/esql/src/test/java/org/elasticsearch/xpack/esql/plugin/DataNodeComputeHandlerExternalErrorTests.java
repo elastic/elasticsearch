@@ -11,7 +11,11 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.NodeNotConnectedException;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -19,8 +23,10 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.SplitDiscoveryPhase;
 import org.elasticsearch.xpack.esql.datasources.glob.PlanningMemory;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
@@ -38,6 +44,7 @@ import java.util.Set;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_HOT_NODE_ROLE;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -131,6 +138,40 @@ public class DataNodeComputeHandlerExternalErrorTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("connection reset"));
         assertThat(e.getMessage(), not(containsString("my-bucket")));
         assertNull("storage failures are logged, not chained into caused_by", e.getCause());
+    }
+
+    /**
+     * A worker's decline reaches the coordinator as a {@link RemoteTransportException} around the wire form of the
+     * {@link ExternalException}, which is not a registered exception and so arrives as a {@link NotSerializableExceptionWrapper}.
+     * The coordinator must still recognise it as a decline, by its condition, and must not take any other failure for one.
+     */
+    public void testWorkerNotReadyIsRecognisedThroughTheTransportWrappers() throws IOException {
+        Exception declined = roundTrip(DataNodeComputeHandler.workerNotReady(""));
+        assertThat(declined, instanceOf(NotSerializableExceptionWrapper.class));
+        assertTrue(DataNodeComputeHandler.isWorkerNotReadyFailure(declined));
+        assertTrue(DataNodeComputeHandler.isWorkerNotReadyFailure(new RemoteTransportException("worker", declined)));
+        assertTrue(DataNodeComputeHandler.isWorkerNotReadyFailure(DataNodeComputeHandler.workerNotReady("waited [1s]")));
+
+        Exception unavailable = roundTrip(
+            new ExternalUnavailableException(
+                ExternalException.Condition.STORE_UNAVAILABLE,
+                StoragePath.of("s3://bucket/file.parquet"),
+                "HTTP 503",
+                "",
+                false,
+                0L
+            )
+        );
+        assertFalse(DataNodeComputeHandler.isWorkerNotReadyFailure(new RemoteTransportException("worker", unavailable)));
+        assertFalse(DataNodeComputeHandler.isWorkerNotReadyFailure(new RemoteTransportException("worker", new IOException("boom"))));
+        assertFalse(DataNodeComputeHandler.isWorkerNotReadyFailure(new NodeNotConnectedException(createNodes(1).get("node-0"), "gone")));
+    }
+
+    private static Exception roundTrip(Exception e) throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeException(e);
+            return out.bytes().streamInput().readException();
+        }
     }
 
     public void testDistributionPlanWithStaleNodeAssignment() {

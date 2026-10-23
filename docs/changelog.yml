@@ -10,6 +10,11 @@
 # Can be overridden per invocation with --use-pr-number or --use-issue-number CLI flags.
 filename: pr
 
+# The entry files in docs/changelog use the Elasticsearch changelog format (summary, area, type, and the
+# breaking, deprecation and highlight blocks). docs-builder converts them with this format, defined in
+# https://github.com/elastic/docs-builder/blob/main/config/changelog-entry-formats.yml.
+entry_format: elasticsearch
+
 # Products configuration (optional)
 # If not specified, all products from products.yml are allowed
 products:
@@ -100,6 +105,8 @@ pivot:
     "Cluster coordination": ":Distributed/Cluster Coordination"
     Codec: ":StorageEngine/Codec"
     "Data streams": ":StorageEngine/Data streams"
+    # An area without a label exists for entry files that use it (build-tools-internal/src/main/resources/changelog-schema.json).
+    DLM:
     "Discovery-Plugins": ":Distributed/Discovery-Plugins"
     Distributed: ":Distributed/Distributed"
     Downsampling: ":StorageEngine/Downsampling"
@@ -108,10 +115,10 @@ pivot:
     EQL: ":Analytics/EQL"
     Experiences: ":SearchOrg/Experiences"
     "Extract and transform": ":SearchOrg/Extract&Transform"
-    # Features: TBD
+    Features:
     FIPS: ":Security/FIPS"
     Geo: ":Analytics/Geo"
-    # Graph: TBD
+    Graph:
     Health: ":Distributed/Health"
     Highlighting: ":Search Relevance/Highlighting"
     "ILM": ":StorageEngine/ILM, :Data Management/ILM+SLM"
@@ -131,8 +138,9 @@ pivot:
     "Infra/Scripting": ":Core/Infra/Scripting"
     "Infra/Settings": ":Core/Infra/Settings"
     "Infra/Transport API": ":Core/Infra/Transport API"
-    # Ingest: TBD
+    Ingest:
     "Ingest node": ":Distributed/Ingest Node"
+    "Java High Level REST Client":
     "Java Low Level REST Client": ":Clients/Java Low Level REST Client"
     License: ":Security/License"
     # Logging: TBD

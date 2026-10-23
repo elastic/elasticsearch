@@ -6,10 +6,11 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-package org.elasticsearch.snapshots;
+package org.elasticsearch.plugins.internal;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
+import org.elasticsearch.snapshots.RestoreService;
 
 /**
  * Callbacks for restore initialization and completion, invoked by {@link RestoreService} inside

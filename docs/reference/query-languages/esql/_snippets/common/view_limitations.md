@@ -27,7 +27,7 @@ Views can reference remote indices in [cross-cluster search](/reference/query-la
 
 ::::{applies-switch}
 :::{applies-item} stack: ga 9.6+
-Remote views are invisible to source resolution. An exact reference such as `FROM cluster:view` returns an `Unknown index` error, and wildcard expressions don't match remote views.
+Remote views are invisible to source resolution. An exact reference such as `FROM cluster:view` returns an `Unknown index` error.
 :::
 :::{applies-item} stack: preview 9.4-9.5
 A query fails if its source expression matches a remote view. A query also fails if a remote index matches a local view name.

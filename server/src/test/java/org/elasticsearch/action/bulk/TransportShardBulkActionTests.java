@@ -741,6 +741,75 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         }
     }
 
+    public void testUpdateRequestExpansionIsReleasedOnMappingUpdateRetry() throws Exception {
+        DocWriteRequest<UpdateRequest> writeRequest = new UpdateRequest("index", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value");
+        BulkItemRequest primaryRequest = new BulkItemRequest(0, writeRequest);
+
+        String value = "x".repeat(randomIntBetween(512, 1024));
+        IndexRequest updateResponse = new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", value);
+        long expansion = BulkPrimaryExecutionContext.expansionDeltaBytes(writeRequest, updateResponse);
+        assertThat(expansion, greaterThan(0L));
+
+        IndexShard shard = mockShard(null, mock(MapperService.class));
+        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenReturn(
+            new Engine.IndexResult(Mapping.emptyCompressed(), "id"),
+            new FakeIndexResult(1, 1, 13, true, new Translog.Location(42, 42, 42), "id")
+        );
+        when(shard.routingEntry()).thenReturn(newShardRouting(ShardRouting.Role.DEFAULT));
+
+        UpdateHelper updateHelper = mock(UpdateHelper.class);
+        when(updateHelper.prepare(any(), eq(shard), any(), any(), any())).thenReturn(
+            new UpdateHelper.Result(
+                updateResponse,
+                DocWriteResponse.Result.UPDATED,
+                Collections.singletonMap("field", value),
+                Requests.INDEX_CONTENT_TYPE
+            )
+        );
+
+        BulkItemRequest[] items = new BulkItemRequest[] { primaryRequest };
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, SplitShardCountSummary.IRRELEVANT, RefreshPolicy.NONE, items);
+
+        IndexingPressure indexingPressure = new IndexingPressure(pressureSettings);
+        final long indexingBytes = bulkShardRequest.ramBytesUsed();
+        final long maxMemoryOverhead = TransportShardBulkAction.getMaxOperationMemoryOverhead(bulkShardRequest);
+
+        try (
+            Releasable coordinating = indexingPressure.markCoordinatingOperationStarted(1, indexingBytes, false);
+            IndexingPressure.PrimaryExpansionTracker tracker = indexingPressure.trackPrimaryOperationExpansion(1, maxMemoryOverhead, false)
+        ) {
+            BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard, tracker);
+
+            TransportShardBulkAction.executeBulkItemRequest(
+                context,
+                updateHelper,
+                threadPool::absoluteTimeInMillis,
+                (update, shardId, listener) -> listener.onResponse(null),
+                (listener, mappingVersion) -> listener.onResponse(null),
+                ASSERTING_DONE_LISTENER,
+                DocumentParsingProvider.EMPTY_INSTANCE
+            );
+            assertTrue(context.isInitial());
+            // the update is translated again on retry, so the expansion of the first translation must have been released (#158246)
+            assertEquals(indexingBytes + maxMemoryOverhead, indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
+
+            TransportShardBulkAction.executeBulkItemRequest(
+                context,
+                updateHelper,
+                threadPool::absoluteTimeInMillis,
+                (update, shardId, listener) -> fail("should not have had to update the mappings"),
+                (listener, mappingVersion) -> {},
+                ASSERTING_DONE_LISTENER,
+                DocumentParsingProvider.EMPTY_INSTANCE
+            );
+            assertFalse(bulkShardRequest.items()[0].getPrimaryResponse().isFailed());
+            assertEquals(
+                indexingBytes + maxMemoryOverhead + expansion,
+                indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes()
+            );
+        }
+    }
+
     @SuppressWarnings("unchecked")
     public void testUpdateRequestWithSuccess() throws Exception {
         IndexSettings indexSettings = new IndexSettings(indexMetadata(), Settings.EMPTY);

@@ -22,8 +22,7 @@ import static org.elasticsearch.test.MapMatcher.matchesMap;
 
 /**
  * Heap-attack coverage for the binary doc-values decode buffer that a Painless script opens when it reads
- * {@code doc['<flattened key>']}. Reproduces
- * <a href="https://github.com/elastic/incident-management/issues/3404">incident-management #3404</a>.
+ * {@code doc['<flattened key>']}.
  *
  * <p>Under the time-series doc-values format a {@code flattened} field stores its keyed values in binary doc
  * values. Each binary doc-values reader lazily allocates one {@code uncompressedBlock} buffer, sized up to the

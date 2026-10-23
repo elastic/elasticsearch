@@ -17,8 +17,7 @@ import org.apache.lucene.index.LeafReaderContext;
  * <p>A Painless script that reads {@code doc['field']} opens a doc-values reader per leaf through
  * {@link LeafDocLookup}. For a field stored in binary doc values that reader lazily allocates a decompression buffer
  * (up to ~512 KB under the time-series doc-values format), and one such buffer is held for every field, leaf and clause
- * the request touches at once. Nothing bounds that fan-out, which can exhaust the heap — see
- * <a href="https://github.com/elastic/incident-management/issues/3404">incident-management #3404</a>.
+ * the request touches at once. Nothing bounds that fan-out, which can exhaust the heap.
  *
  * <p>{@link LeafDocLookup} calls {@link #account(long, String, LeafReaderContext)} once per reader it opens, passing
  * the reader's estimated decode-buffer size and the leaf it was opened against. The implementation accounts the memory

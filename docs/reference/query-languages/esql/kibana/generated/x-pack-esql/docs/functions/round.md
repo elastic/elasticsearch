@@ -4,7 +4,8 @@
 Rounds a number to the specified number of decimal places.
 Defaults to 0, which returns the nearest integer. If the
 precision is a negative number, rounds to the number of digits left
-of the decimal point.
+of the decimal point. A value halfway between two results is
+rounded away from zero, so `2.5` rounds to `3` and `-2.5` to `-3`.
 
 ```esql
 FROM employees

@@ -15,7 +15,6 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.recovery.RecoveryState;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -34,12 +33,13 @@ public class LocalRecoveryRetriesHealthTracker extends HealthTracker<LocalRecove
         Map<ShardId, Integer> localRetriesByShard = new HashMap<>();
         for (IndexService indexService : indicesService) {
             for (IndexShard shard : indexService) {
-                ShardId shardId = shard.shardId();
-                RecoveryState state = shard.recoveryState();
-                int localRetries = state.getLocalRetries();
-                // The retry count is retained after the recovery completes, but it is only of interest while the shard is inactive:
-                if (localRetries > 0 && state.getStage() != RecoveryState.Stage.DONE) {
-                    localRetriesByShard.put(shardId, localRetries);
+                // The retry count is retained after the recovery completes, but the health indicator only reads the retry count for shards
+                // which are not active in the routing table, so only those need to be reported:
+                if (shard.routingEntry().active() == false) {
+                    int localRetries = shard.recoveryState().getLocalRetries();
+                    if (localRetries > 0) {
+                        localRetriesByShard.put(shard.shardId(), localRetries);
+                    }
                 }
             }
         }

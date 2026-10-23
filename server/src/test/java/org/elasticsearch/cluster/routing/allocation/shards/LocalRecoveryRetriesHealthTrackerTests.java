@@ -37,14 +37,14 @@ public class LocalRecoveryRetriesHealthTrackerTests extends ESTestCase {
     }
 
     public void testShardsWithoutLocalRetriesAreOmitted() {
-        var health = determineHealth(List.of(shard(randomShardId(), 0, RecoveryState.Stage.INIT)));
+        var health = determineHealth(List.of(shard(randomShardId(), 0, RecoveryState.Stage.INIT, ShardRoutingState.INITIALIZING)));
         assertThat(health, equalTo(LocalRecoveryRetriesHealthInfo.EMPTY));
     }
 
     public void testShardsWithLocalRetriesAreReported() {
-        var shard1 = shard(randomShardId(), randomIntBetween(1, 10), randomIncompleteStage());
-        var shard2 = shard(randomShardId(), randomIntBetween(1, 10), randomIncompleteStage());
-        var shardWithoutRetries = shard(randomShardId(), 0, randomIncompleteStage());
+        var shard1 = shard(randomShardId(), randomIntBetween(1, 10), randomIncompleteStage(), ShardRoutingState.INITIALIZING);
+        var shard2 = shard(randomShardId(), randomIntBetween(1, 10), randomIncompleteStage(), ShardRoutingState.INITIALIZING);
+        var shardWithoutRetries = shard(randomShardId(), 0, randomIncompleteStage(), ShardRoutingState.INITIALIZING);
 
         var health = determineHealth(List.of(shard1, shard2, shardWithoutRetries));
 
@@ -61,19 +61,30 @@ public class LocalRecoveryRetriesHealthTrackerTests extends ESTestCase {
         );
     }
 
-    /// The retry count in a [RecoveryState] is retained after the recovery completes, but there is no need to report it then.
-    public void testShardsWithCompletedRecoveryAreOmitted() {
-        var completed = shard(randomShardId(), randomIntBetween(1, 10), RecoveryState.Stage.DONE);
-        var inProgress = shard(randomShardId(), randomIntBetween(1, 10), randomIncompleteStage());
+    /// The retry count in a [RecoveryState] is retained after the shard has started, but the health indicator only reads it for shards
+    /// which are not active in the routing table, so there is no need to report it for shards which are.
+    public void testShardsWhichAreActiveAreOmitted() {
+        var active = shard(randomShardId(), randomIntBetween(1, 10), RecoveryState.Stage.DONE, ShardRoutingState.STARTED);
+        var inactive = shard(randomShardId(), randomIntBetween(1, 10), randomIncompleteStage(), ShardRoutingState.INITIALIZING);
 
-        var health = determineHealth(List.of(completed, inProgress));
+        var health = determineHealth(List.of(active, inactive));
 
-        assertThat(health.localRetries(), equalTo(Map.of(inProgress.shardId(), inProgress.recoveryState().getLocalRetries())));
+        assertThat(health.localRetries(), equalTo(Map.of(inactive.shardId(), inactive.recoveryState().getLocalRetries())));
+    }
+
+    /// A recovery can fail and be retried locally after it has completed, but before the shard is started and active in the routing
+    /// table (e.g. in post-recovery), so retries are reported for such shards even though the recovery is done.
+    public void testShardsWithCompletedRecoveryWhichAreNotYetActiveAreReported() {
+        var shard = shard(randomShardId(), randomIntBetween(1, 10), RecoveryState.Stage.DONE, ShardRoutingState.INITIALIZING);
+
+        var health = determineHealth(List.of(shard));
+
+        assertThat(health.localRetries(), equalTo(Map.of(shard.shardId(), shard.recoveryState().getLocalRetries())));
     }
 
     public void testShardsFromMultipleIndicesAreReported() {
-        var shard1 = shard(randomShardId(), randomIntBetween(1, 10), randomIncompleteStage());
-        var shard2 = shard(randomShardId(), randomIntBetween(1, 10), randomIncompleteStage());
+        var shard1 = shard(randomShardId(), randomIntBetween(1, 10), randomIncompleteStage(), ShardRoutingState.INITIALIZING);
+        var shard2 = shard(randomShardId(), randomIntBetween(1, 10), randomIncompleteStage(), ShardRoutingState.INITIALIZING);
 
         var tracker = new LocalRecoveryRetriesHealthTracker(indicesService(List.of(List.of(shard1), List.of(shard2))));
         var health = tracker.determineCurrentHealth();
@@ -109,7 +120,7 @@ public class LocalRecoveryRetriesHealthTrackerTests extends ESTestCase {
     ///
     /// Mocks are used for [IndicesService], [IndexService] and [IndexShard] because constructing real ones needs a full
     /// node (or at least a data path, analysis registry, and engine factory), and the tracker only uses them as containers to iterate over
-    /// and to get a shard's ID and [RecoveryState] from. The [RecoveryState] instances are real.
+    /// and to get a shard's ID, routing entry and [RecoveryState] from. The [RecoveryState] instances are real.
     private static IndicesService indicesService(List<List<IndexShard>> shardsByIndex) {
         var indexServices = shardsByIndex.stream().map(shards -> {
             var indexService = mock(IndexService.class);
@@ -121,9 +132,10 @@ public class LocalRecoveryRetriesHealthTrackerTests extends ESTestCase {
         return indicesService;
     }
 
-    private static IndexShard shard(ShardId shardId, int localRetries, RecoveryState.Stage stage) {
+    private static IndexShard shard(ShardId shardId, int localRetries, RecoveryState.Stage stage, ShardRoutingState routingState) {
         var shard = mock(IndexShard.class);
         when(shard.shardId()).thenReturn(shardId);
+        when(shard.routingEntry()).thenReturn(TestShardRouting.newShardRouting(shardId, randomAlphaOfLength(8), true, routingState));
         when(shard.recoveryState()).thenReturn(recoveryState(shardId, localRetries, stage));
         return shard;
     }

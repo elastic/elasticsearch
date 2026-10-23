@@ -33,7 +33,8 @@ public abstract class ESBaseKnnVectorsFormatTestCase extends BaseKnnVectorsForma
      * Lucene 11's default hook also picks IEEE {@link VectorEncoding#FLOAT16}, which no ES format
      * implements.
      */
-    // TODO: LUCENE11 drop this override once dense_vector has an IEEE FLOAT16 element type and
+    // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/163176):
+    // drop this override once dense_vector has an IEEE FLOAT16 element type and
     // knn formats implement Float16VectorValues / short[] search. Until then Lucene's default
     // randomVectorEncoding() writes FLOAT16 fields that our codecs reject with UOE.
     @Override

@@ -437,7 +437,8 @@ public final class MergePolicyConfig {
         }
 
         void configure(MergePolicy mergePolicy) {
-            // TODO: LUCENE11 CFS thresholds moved to CompoundFormat
+            // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/163164):
+            // CFS thresholds moved to CompoundFormat
         }
 
         @Override

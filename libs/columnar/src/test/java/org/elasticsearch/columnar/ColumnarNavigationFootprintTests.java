@@ -97,7 +97,8 @@ public class ColumnarNavigationFootprintTests extends ESTestCase {
             field -> field.name.equals("number") ? ColumnarFieldType.LONG : ColumnarFieldType.STRING
         );
         final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(format)).setUseCompoundFile(false);
-        // TODO: LUCENE11 forceMerge may pack .cfs under Lucene's 64MB default; need a 0-byte CompoundFormat cutoff
+        // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/163164):
+        // forceMerge may pack .cfs under Lucene's 64MB default; need a 0-byte CompoundFormat cutoff
         iwc.getCodec().compoundFormat().setShouldUseCompoundFile(false);
         final BytesRefBuilder builder = new BytesRefBuilder();
         long values = 0;

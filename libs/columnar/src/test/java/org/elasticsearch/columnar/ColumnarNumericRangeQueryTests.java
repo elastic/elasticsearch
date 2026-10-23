@@ -160,7 +160,8 @@ public class ColumnarNumericRangeQueryTests extends ESTestCase {
     private void indexColumnar(Directory dir, long[] values, boolean compoundFile) throws IOException {
         final Codec codec = columnarCodec(ColumnarFieldType.LONG);
         final FieldType type = columnarBinaryFieldType();
-        // TODO: LUCENE11 forceMerge may pack .cfs under Lucene's 64MB default; need a 0-byte CompoundFormat cutoff
+        // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/163164):
+        // forceMerge may pack .cfs under Lucene's 64MB default; need a 0-byte CompoundFormat cutoff
         final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(codec).setUseCompoundFile(compoundFile);
         final BytesRefBuilder builder = new BytesRefBuilder();
         try (IndexWriter writer = new IndexWriter(dir, iwc)) {

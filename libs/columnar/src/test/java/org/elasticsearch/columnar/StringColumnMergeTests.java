@@ -405,7 +405,8 @@ public class StringColumnMergeTests extends ESTestCase {
                     final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(ColumnarFieldType.STRING))
                         .setMergePolicy(new LogDocMergePolicy())
                         .setUseCompoundFile(false);
-                    // TODO: LUCENE11 forceMerge may pack .cfs under Lucene's 64MB default; need a 0-byte CompoundFormat cutoff
+                    // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/163164):
+                    // forceMerge may pack .cfs under Lucene's 64MB default; need a 0-byte CompoundFormat cutoff
                     iwc.getCodec().compoundFormat().setShouldUseCompoundFile(false);
                     try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                         for (int d = 0; d < numDocs; d++) {

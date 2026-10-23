@@ -36,7 +36,8 @@ public class MergePolicyConfigTests extends ESTestCase {
     protected final ShardId shardId = new ShardId("index", "_na_", 1);
 
     public void testCompoundFileSettings() {
-        // TODO: LUCENE11 assert boolean/byte-size mappings on CompoundFormat; ratios stay parse-only until main deprecates them
+        // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/163164):
+        // assert boolean/byte-size mappings on CompoundFormat; ratios stay parse-only until main deprecates them
         assertCompoundFormatParses(Settings.EMPTY);
         assertCompoundFormatParses(build(true));
         assertCompoundFormatParses(build(0.5));
@@ -82,7 +83,8 @@ public class MergePolicyConfigTests extends ESTestCase {
 
     public void testUpdateSettings() throws IOException {
         IndexSettings indexSettings = indexSettings(Settings.EMPTY);
-        // TODO: LUCENE11 assert compound_format updates on CompoundFormat after it is wired
+        // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/163164):
+        // assert compound_format updates on CompoundFormat after it is wired
         indexSettings.updateIndexMetadata(newIndexMeta("index", build(0.9)));
         MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING.get(indexSettings.getSettings());
         indexSettings.updateIndexMetadata(newIndexMeta("index", build(0.1)));
@@ -329,7 +331,8 @@ public class MergePolicyConfigTests extends ESTestCase {
     public void testCompoundFileConfiguredByByteSize() throws IOException {
         for (boolean isTimeSeriesIndex : new boolean[] { false, true }) {
             try (Directory dir = newDirectory()) {
-                // TODO: LUCENE11 restore a tiny cutoff (1b / false) that expects no .cfs once CompoundFormat is wired
+                // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/163164):
+                // restore a tiny cutoff (1b / false) that expects no .cfs once CompoundFormat is wired
                 // Lucene's CompoundFormat default (64MB) still packs a tiny merge into a compound file
                 MergePolicy mp = new MergePolicyConfig(logger, indexSettings(Settings.EMPTY)).getMergePolicy(isTimeSeriesIndex);
                 try (IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null).setMergePolicy(mp))) {

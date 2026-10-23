@@ -806,7 +806,8 @@ public class PersistedClusterStateService {
         mergePolicy.setSegmentsPerTier(100);
         // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/163020):
         // TieredMergePolicy.setMaxMergeAtOnce was removed; we used to merge up to 100 at once
-        // TODO: LUCENE11 always-CFS moved to CompoundFormat; do not mutate Codec.getDefault()
+        // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/163164):
+        // always-CFS moved to CompoundFormat; do not mutate Codec.getDefault()
         // segments are mostly tiny, so don't pretend they are bigger
         mergePolicy.setFloorSegmentMB(0.001);
 

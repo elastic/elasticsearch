@@ -383,7 +383,7 @@ tests:
 # CompoundFormat is wired, so _stats file_sizes hide cnd (6734).
 - class: org.elasticsearch.upgrades.ColumnarIndexModeRollingUpgradeIT
   method: testColumnarDataStream {upgradedNodes=3}
-  issue: https://github.com/elastic/elasticsearch/issues/XXXX
+  issue: https://github.com/elastic/elasticsearch/issues/163164
 
 - class: org.elasticsearch.xpack.security.apikey.ApiKeyRestIT
   method: testGrantTargetCanUpdateApiKey

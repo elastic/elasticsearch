@@ -10,6 +10,19 @@ Prior to version *8.16.0*, the connector release notes were published as part of
 ====
 
 [discrete]
+[[es-connectors-release-notes-8-19-24]]
+=== 8.19.24
+
+[discrete]
+[[es-connectors-release-notes-8-19-24-bug-fixes]]
+===== Bug fixes
+
+* Fixed SharePoint Online incremental syncs skipping sites whose last-modified timestamp had not changed, which left deleted or modified drive documents stale until the next full sync. Incremental syncs now visit every site.
+See: https://github.com/elastic/connectors/pull/4638[*PR 4638*]
+* Fixed connector syncs failing when a content index had no explicit `id` mapping and Elasticsearch dynamically mapped `id` as `long`. Before each sync, the `id` field is now mapped as `keyword` if it is not already mapped. Indices where `id` is already mapped as `long` must be recreated or reindexed.
+See: https://github.com/elastic/connectors/pull/4654[*PR 4654*]
+
+[discrete]
 [[es-connectors-release-notes-8-19-23]]
 === 8.19.23
 

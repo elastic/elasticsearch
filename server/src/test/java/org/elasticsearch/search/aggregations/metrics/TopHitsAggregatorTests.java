@@ -80,6 +80,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -240,6 +241,32 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
 
     private static final String NUMBER_FIELD = "number";
 
+    private static final List<NumberFieldMapper.NumberType> NUMERIC_TYPES = List.of(
+        NumberFieldMapper.NumberType.BYTE,
+        NumberFieldMapper.NumberType.SHORT,
+        NumberFieldMapper.NumberType.INTEGER,
+        NumberFieldMapper.NumberType.LONG,
+        NumberFieldMapper.NumberType.HALF_FLOAT,
+        NumberFieldMapper.NumberType.FLOAT,
+        NumberFieldMapper.NumberType.DOUBLE
+    );
+
+    /**
+     * Indexes with {@code indexer} and hands a reader of the result to {@code test}. Segments are never merged, so doc ids follow
+     * the order the documents were added, and a test that wants several segments commits in between.
+     */
+    private void withUnmergedIndex(CheckedConsumer<IndexWriter, IOException> indexer, CheckedConsumer<IndexReader, IOException> test)
+        throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))) {
+                indexer.accept(iw);
+            }
+            try (IndexReader reader = DirectoryReader.open(directory)) {
+                test.accept(reader);
+            }
+        }
+    }
+
     private static MappedFieldType numberFieldType(NumberFieldMapper.NumberType type) {
         return new NumberFieldMapper.NumberFieldType(NUMBER_FIELD, type);
     }
@@ -303,12 +330,8 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
                 numberFieldType(type)
             ).withQuery(boostedTermsQuery(termCount))
                 .withSplitLeavesIntoSeperateAggregators(splitLeaves)
-                .withCheckAggregator(aggregator -> {
-                    // Only run when the leaves are split, and then once for every aggregator that is built.
-                    for (TopHitsAggregator topHitsAggregator : topHitsAggregators(aggregator)) {
-                        assertEquals("collected with a BucketedSort", expectBucketedSort, topHitsAggregator.usesBucketedSort());
-                    }
-                })
+                // Only run when the leaves are split, and then once for every aggregator that is built.
+                .withCheckAggregator(aggregator -> assertUsesBucketedSort(aggregator, expectBucketedSort))
         );
     }
 
@@ -377,6 +400,7 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
             reader,
             query,
             terms("term").field("string").size(termCount).collectMode(collectMode).subAggregation(topHits),
+            expectBucketedSort,
             built -> {
                 for (Terms.Bucket bucket : ((Terms) built).getBuckets()) {
                     summaries.put(bucket.getKeyAsString(), summarize((InternalTopHits) bucket.getAggregations().get("top")));
@@ -385,7 +409,6 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
             STRING_FIELD_TYPE,
             numberFieldType
         );
-        assertBucketedSortUsed(expectBucketedSort);
         return summaries;
     }
 
@@ -434,15 +457,7 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
      * several segments, and either way of collecting the {@code terms}.
      */
     public void testBucketedSortMatchesTheLuceneCollectors() throws Exception {
-        NumberFieldMapper.NumberType type = randomFrom(
-            NumberFieldMapper.NumberType.BYTE,
-            NumberFieldMapper.NumberType.SHORT,
-            NumberFieldMapper.NumberType.INTEGER,
-            NumberFieldMapper.NumberType.LONG,
-            NumberFieldMapper.NumberType.HALF_FLOAT,
-            NumberFieldMapper.NumberType.FLOAT,
-            NumberFieldMapper.NumberType.DOUBLE
-        );
+        NumberFieldMapper.NumberType type = randomFrom(NUMERIC_TYPES);
         boolean multiValued = randomBoolean();
         FieldSortBuilder sort = SortBuilders.fieldSort(NUMBER_FIELD).order(randomFrom(SortOrder.values()));
         if (multiValued) {
@@ -455,36 +470,60 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
             sort.setNumericType(randomFrom("long", "double"));
         }
         int termCount = between(1, 4);
-        try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-                int docs = between(1, 150);
-                for (int i = 0; i < docs; i++) {
-                    List<Number> numbers = new ArrayList<>();
-                    // About one document in six has no value at all.
-                    int count = rarely() ? 0 : multiValued ? between(1, 3) : 1;
-                    for (int n = 0; n < count; n++) {
-                        numbers.add(numberValue(type, between(0, 5)));
-                    }
-                    iw.addDocument(numberDocument(Integer.toString(i), "t" + between(0, termCount - 1), type, numbers));
-                    if (rarely()) {
-                        iw.commit();
-                    }
+        withUnmergedIndex(iw -> {
+            int docs = between(1, 150);
+            for (int i = 0; i < docs; i++) {
+                List<Number> numbers = new ArrayList<>();
+                // About one document in six has no value at all.
+                int count = rarely() ? 0 : multiValued ? between(1, 3) : 1;
+                for (int n = 0; n < count; n++) {
+                    numbers.add(numberValue(type, between(0, 5)));
+                }
+                iw.addDocument(numberDocument(Integer.toString(i), "t" + between(0, termCount - 1), type, numbers));
+                if (rarely()) {
+                    iw.commit();
                 }
             }
-            try (IndexReader reader = DirectoryReader.open(directory)) {
-                assertTheSameAsTheLuceneCollectors(
-                    reader,
-                    boostedTermsQuery(termCount),
-                    numberFieldType(type),
-                    sort,
-                    termCount,
-                    between(0, 2),
-                    between(1, 4),
-                    randomBoolean(),
-                    randomFrom(Aggregator.SubAggCollectionMode.values())
-                );
+        },
+            reader -> assertTheSameAsTheLuceneCollectors(
+                reader,
+                boostedTermsQuery(termCount),
+                numberFieldType(type),
+                sort,
+                termCount,
+                between(0, 2),
+                between(1, 4),
+                randomBoolean(),
+                randomFrom(Aggregator.SubAggCollectionMode.values())
+            )
+        );
+    }
+
+    /**
+     * One bucket holding the given values, in doc id order, sorted with the {@code BucketedSort} and the Lucene collectors, which
+     * have to agree. Returns what the bucket kept.
+     */
+    private HitsSummary assertSameForValues(NumberFieldMapper.NumberType type, SortOrder order, int size, Number... values)
+        throws IOException {
+        HitsSummary[] kept = new HitsSummary[1];
+        withUnmergedIndex(iw -> {
+            for (int i = 0; i < values.length; i++) {
+                iw.addDocument(numberDocument(Integer.toString(i), "t0", type, values[i]));
             }
-        }
+        },
+            reader -> kept[0] = assertTheSameAsTheLuceneCollectors(
+                reader,
+                boostedTermsQuery(1),
+                numberFieldType(type),
+                SortBuilders.fieldSort(NUMBER_FIELD).order(order),
+                1,
+                0,
+                size,
+                false,
+                Aggregator.SubAggCollectionMode.DEPTH_FIRST
+            ).get("t0")
+        );
+        return kept[0];
     }
 
     /**
@@ -494,29 +533,9 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
      */
     public void testBucketedSortKeepsTheLowerDocIdOnTies() throws Exception {
         for (SortOrder order : SortOrder.values()) {
-            long[] values = order == SortOrder.ASC ? new long[] { 6, 5, 5, 4, 3 } : new long[] { 3, 4, 4, 5, 6 };
-            try (Directory directory = newDirectory()) {
-                // Without merging, doc ids follow the order the documents were added, whatever the number of segments.
-                try (IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))) {
-                    for (int i = 0; i < values.length; i++) {
-                        iw.addDocument(numberDocument(Integer.toString(i), "t0", NumberFieldMapper.NumberType.LONG, values[i]));
-                    }
-                }
-                try (IndexReader reader = DirectoryReader.open(directory)) {
-                    Map<String, HitsSummary> bucketed = assertTheSameAsTheLuceneCollectors(
-                        reader,
-                        boostedTermsQuery(1),
-                        numberFieldType(NumberFieldMapper.NumberType.LONG),
-                        SortBuilders.fieldSort(NUMBER_FIELD).order(order),
-                        1,
-                        0,
-                        3,
-                        false,
-                        Aggregator.SubAggCollectionMode.DEPTH_FIRST
-                    );
-                    assertEquals(order.toString(), List.of("4", "3", "1"), bucketed.get("t0").ids());
-                }
-            }
+            Number[] values = order == SortOrder.ASC ? new Number[] { 6L, 5L, 5L, 4L, 3L } : new Number[] { 3L, 4L, 4L, 5L, 6L };
+            HitsSummary kept = assertSameForValues(NumberFieldMapper.NumberType.LONG, order, 3, values);
+            assertEquals(order.toString(), List.of("4", "3", "1"), kept.ids());
         }
     }
 
@@ -525,14 +544,7 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
      * values are unique so that the order of the merge, which is shuffled by the test, cannot change the result.
      */
     public void testBucketedSortMergesAcrossAggregators() throws Exception {
-        NumberFieldMapper.NumberType type = randomFrom(
-            NumberFieldMapper.NumberType.BYTE,
-            NumberFieldMapper.NumberType.SHORT,
-            NumberFieldMapper.NumberType.INTEGER,
-            NumberFieldMapper.NumberType.LONG,
-            NumberFieldMapper.NumberType.FLOAT,
-            NumberFieldMapper.NumberType.DOUBLE
-        );
+        NumberFieldMapper.NumberType type = randomFrom(NUMERIC_TYPES);
         int termCount = between(1, 4);
         int docs = between(2, 100);
         List<Long> values = new ArrayList<>();
@@ -540,40 +552,37 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
             values.add(v);
         }
         Collections.shuffle(values, random());
-        try (Directory directory = newDirectory()) {
-            try (IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))) {
-                for (int i = 0; i < docs; i++) {
-                    iw.addDocument(
-                        numberDocument(Integer.toString(i), "t" + between(0, termCount - 1), type, numberValue(type, values.get(i)))
-                    );
-                    if (i % 10 == 9) {
-                        iw.commit();
-                    }
+        withUnmergedIndex(iw -> {
+            for (int i = 0; i < docs; i++) {
+                iw.addDocument(
+                    numberDocument(Integer.toString(i), "t" + between(0, termCount - 1), type, numberValue(type, values.get(i)))
+                );
+                if (i % 10 == 9) {
+                    iw.commit();
                 }
             }
-            try (IndexReader reader = DirectoryReader.open(directory)) {
-                FieldSortBuilder sort = SortBuilders.fieldSort(NUMBER_FIELD).order(randomFrom(SortOrder.values()));
-                int from = between(0, 3);
-                int size = between(1, 5);
-                boolean trackScores = randomBoolean();
-                Map<String, HitsSummary> bucketed = summarizeReducedBuckets(
-                    reader,
-                    type,
-                    topHits("top").sort(sort).from(from).size(size).trackScores(trackScores),
-                    termCount,
-                    true
-                );
-                Map<String, HitsSummary> fallback = summarizeReducedBuckets(
-                    reader,
-                    type,
-                    topHits("top").sort(sort).sort("_doc", SortOrder.ASC).from(from).size(size).trackScores(trackScores),
-                    termCount,
-                    false
-                );
-                assertThat(bucketed.size(), greaterThan(0));
-                assertEquals(fallback, bucketed);
-            }
-        }
+        }, reader -> {
+            FieldSortBuilder sort = SortBuilders.fieldSort(NUMBER_FIELD).order(randomFrom(SortOrder.values()));
+            int from = between(0, 3);
+            int size = between(1, 5);
+            boolean trackScores = randomBoolean();
+            Map<String, HitsSummary> bucketed = summarizeReducedBuckets(
+                reader,
+                type,
+                topHits("top").sort(sort).from(from).size(size).trackScores(trackScores),
+                termCount,
+                true
+            );
+            Map<String, HitsSummary> fallback = summarizeReducedBuckets(
+                reader,
+                type,
+                topHits("top").sort(sort).sort("_doc", SortOrder.ASC).from(from).size(size).trackScores(trackScores),
+                termCount,
+                false
+            );
+            assertThat(bucketed.size(), greaterThan(0));
+            assertEquals(fallback, bucketed);
+        });
     }
 
     /**
@@ -584,28 +593,8 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         for (NumberFieldMapper.NumberType type : List.of(NumberFieldMapper.NumberType.DOUBLE, NumberFieldMapper.NumberType.FLOAT)) {
             Number nan = type == NumberFieldMapper.NumberType.DOUBLE ? (Number) Double.NaN : (Number) Float.NaN;
             for (SortOrder order : SortOrder.values()) {
-                try (Directory directory = newDirectory()) {
-                    try (IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))) {
-                        Number[] values = new Number[] { nan, numberValue(type, 1), nan, numberValue(type, 2) };
-                        for (int i = 0; i < values.length; i++) {
-                            iw.addDocument(numberDocument(Integer.toString(i), "t0", type, values[i]));
-                        }
-                    }
-                    try (IndexReader reader = DirectoryReader.open(directory)) {
-                        Map<String, HitsSummary> bucketed = assertTheSameAsTheLuceneCollectors(
-                            reader,
-                            boostedTermsQuery(1),
-                            numberFieldType(type),
-                            SortBuilders.fieldSort(NUMBER_FIELD).order(order),
-                            1,
-                            0,
-                            4,
-                            false,
-                            Aggregator.SubAggCollectionMode.DEPTH_FIRST
-                        );
-                        assertThat(type + " " + order, bucketed.get("t0").sortValues(), hasItem(nan));
-                    }
-                }
+                HitsSummary kept = assertSameForValues(type, order, 4, nan, numberValue(type, 1), nan, numberValue(type, 2));
+                assertThat(type + " " + order, kept.sortValues(), hasItem(nan));
             }
         }
     }
@@ -617,36 +606,32 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
     public void testBucketedSortOnDateNanos() throws Exception {
         MappedFieldType dateNanos = new DateFieldMapper.DateFieldType(NUMBER_FIELD, DateFieldMapper.Resolution.NANOSECONDS);
         int termCount = between(1, 4);
-        try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-                int docs = between(1, 100);
-                for (int i = 0; i < docs; i++) {
-                    LuceneDocument document = new LuceneDocument();
-                    document.add(new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), Store.YES));
-                    document.add(
-                        new Field("string", new BytesRef("t" + between(0, termCount - 1)), KeywordFieldMapper.Defaults.FIELD_TYPE)
-                    );
-                    // A few distinct instants, so that there are ties.
-                    document.add(
-                        new SortedNumericDocValuesField(NUMBER_FIELD, 1_700_000_000_000_000_000L + between(0, 5) * 1_000_000_007L)
-                    );
-                    iw.addDocument(document);
+        withUnmergedIndex(iw -> {
+            int docs = between(1, 100);
+            for (int i = 0; i < docs; i++) {
+                LuceneDocument document = new LuceneDocument();
+                document.add(new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), Store.YES));
+                document.add(new Field("string", new BytesRef("t" + between(0, termCount - 1)), KeywordFieldMapper.Defaults.FIELD_TYPE));
+                // A few distinct instants, so that there are ties.
+                document.add(new SortedNumericDocValuesField(NUMBER_FIELD, 1_700_000_000_000_000_000L + between(0, 5) * 1_000_000_007L));
+                iw.addDocument(document);
+                if (rarely()) {
+                    iw.commit();
                 }
             }
-            try (IndexReader reader = DirectoryReader.open(directory)) {
-                assertTheSameAsTheLuceneCollectors(
-                    reader,
-                    boostedTermsQuery(termCount),
-                    dateNanos,
-                    SortBuilders.fieldSort(NUMBER_FIELD).order(randomFrom(SortOrder.values())),
-                    termCount,
-                    0,
-                    between(1, 4),
-                    false,
-                    randomFrom(Aggregator.SubAggCollectionMode.values())
-                );
-            }
-        }
+        },
+            reader -> assertTheSameAsTheLuceneCollectors(
+                reader,
+                boostedTermsQuery(termCount),
+                dateNanos,
+                SortBuilders.fieldSort(NUMBER_FIELD).order(randomFrom(SortOrder.values())),
+                termCount,
+                0,
+                between(1, 4),
+                false,
+                randomFrom(Aggregator.SubAggCollectionMode.values())
+            )
+        );
     }
 
     /**
@@ -654,51 +639,32 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
      * aggregator is created.
      */
     public void testWhichSortsUseBucketedSort() throws Exception {
-        try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-                for (int i = 0; i < 5; i++) {
-                    iw.addDocument(numberDocument(Integer.toString(i), "t" + i, NumberFieldMapper.NumberType.LONG, i));
-                }
+        Map<TopHitsAggregationBuilder, Boolean> expected = new LinkedHashMap<>();
+        expected.put(topHits("top").sort(NUMBER_FIELD, SortOrder.ASC), true);
+        expected.put(topHits("top").sort(NUMBER_FIELD, SortOrder.DESC).trackScores(true).from(1).size(2), true);
+        expected.put(topHits("top"), false);
+        expected.put(topHits("top").sort("string", SortOrder.ASC), false);
+        expected.put(topHits("top").sort("_doc", SortOrder.ASC), false);
+        expected.put(topHits("top").sort(NUMBER_FIELD, SortOrder.ASC).sort("_doc", SortOrder.ASC), false);
+        expected.put(topHits("top").sort(SortBuilders.scoreSort()), false);
+        withUnmergedIndex(iw -> {
+            for (int i = 0; i < 5; i++) {
+                iw.addDocument(numberDocument(Integer.toString(i), "t" + i, NumberFieldMapper.NumberType.LONG, i));
             }
-            try (IndexReader reader = DirectoryReader.open(directory)) {
-                assertTrue(usesBucketedSort(reader, topHits("top").sort(NUMBER_FIELD, SortOrder.ASC)));
-                assertTrue(usesBucketedSort(reader, topHits("top").sort(NUMBER_FIELD, SortOrder.DESC).trackScores(true).from(1).size(2)));
-                assertFalse("no sort", usesBucketedSort(reader, topHits("top")));
-                assertFalse("not numeric", usesBucketedSort(reader, topHits("top").sort("string", SortOrder.ASC)));
-                assertFalse("_doc", usesBucketedSort(reader, topHits("top").sort("_doc", SortOrder.ASC)));
-                assertFalse(
-                    "two sorts",
-                    usesBucketedSort(reader, topHits("top").sort(NUMBER_FIELD, SortOrder.ASC).sort("_doc", SortOrder.ASC))
+        }, reader -> {
+            // The failure message of a mismatch names the aggregation, and so the sort.
+            for (Map.Entry<TopHitsAggregationBuilder, Boolean> entry : expected.entrySet()) {
+                collectAndBuild(
+                    reader,
+                    Queries.ALL_DOCS_INSTANCE,
+                    terms("term").field("string").size(10).subAggregation(entry.getKey()),
+                    entry.getValue(),
+                    built -> {},
+                    STRING_FIELD_TYPE,
+                    numberFieldType(NumberFieldMapper.NumberType.LONG)
                 );
-                assertFalse("score", usesBucketedSort(reader, topHits("top").sort(SortBuilders.scoreSort())));
             }
-        }
-    }
-
-    private boolean usesBucketedSort(IndexReader reader, TopHitsAggregationBuilder topHits) throws IOException {
-        return usesBucketedSort(reader, NumberFieldMapper.NumberType.LONG, topHits);
-    }
-
-    private boolean usesBucketedSort(IndexReader reader, NumberFieldMapper.NumberType type, TopHitsAggregationBuilder topHits)
-        throws IOException {
-        AggregationContext context = createAggregationContext(
-            reader,
-            createIndexSettings(),
-            Queries.ALL_DOCS_INSTANCE,
-            requestBreakers("1gb"),
-            0,
-            Integer.MAX_VALUE,
-            false,
-            false,
-            STRING_FIELD_TYPE,
-            numberFieldType(type)
-        );
-        try {
-            Aggregator terms = createAggregator(terms("term").field("string").size(10).subAggregation(topHits), context);
-            return ((TopHitsAggregator) terms.subAggregators()[0]).usesBucketedSort();
-        } finally {
-            Releasables.close(context);
-        }
+        });
     }
 
     private static HierarchyCircuitBreakerService requestBreakers(String requestLimit) {
@@ -717,7 +683,8 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
     /**
      * Builds the aggregation with the given breakers and runs one sequential search over every segment into it, which is a single
      * aggregator that sees the documents in doc id order. Hands what is built, or {@code null} if {@code buildResults} is not
-     * set, to {@code check} before everything the aggregation holds is released.
+     * set, to {@code check} before everything the aggregation holds is released. If {@code expectBucketedSort} is not
+     * {@code null}, asserts that the {@code top_hits} it built do, or do not, collect with a {@code BucketedSort}.
      */
     private void collect(
         IndexReader reader,
@@ -725,6 +692,7 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         AggregationBuilder builder,
         CircuitBreakerService breakers,
         boolean buildResults,
+        @Nullable Boolean expectBucketedSort,
         CheckedConsumer<InternalAggregation, IOException> check,
         MappedFieldType... fieldTypes
     ) throws IOException {
@@ -741,9 +709,8 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         );
         try {
             Aggregator aggregator = createAggregator(builder, context);
-            usedBucketedSort.clear();
-            for (TopHitsAggregator topHits : topHitsAggregators(aggregator)) {
-                usedBucketedSort.add(topHits.usesBucketedSort());
+            if (expectBucketedSort != null) {
+                assertUsesBucketedSort(aggregator, expectBucketedSort);
             }
             aggregator.preCollection();
             ContextIndexSearcher searcher = (ContextIndexSearcher) context.searcher();
@@ -768,18 +735,24 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         IndexReader reader,
         Query query,
         AggregationBuilder builder,
+        boolean expectBucketedSort,
         CheckedConsumer<InternalAggregation, IOException> check,
         MappedFieldType... fieldTypes
     ) throws IOException {
-        collect(reader, query, builder, requestBreakers("1gb"), true, check, fieldTypes);
+        collect(reader, query, builder, requestBreakers("1gb"), true, expectBucketedSort, check, fieldTypes);
     }
 
     /**
-     * For each {@code top_hits} the last {@link #collect} built, whether it collected with a {@code BucketedSort}. A test that
-     * compares the results of two ways of collecting is only worth anything if it knows which one it ran, because falling back to
-     * the Lucene collectors compares them with themselves.
+     * A test that compares the results of two ways of collecting is only worth anything if it knows which one it ran, because
+     * falling back to the Lucene collectors compares them with themselves.
      */
-    private final List<Boolean> usedBucketedSort = new ArrayList<>();
+    private static void assertUsesBucketedSort(Aggregator aggregator, boolean expected) {
+        List<TopHitsAggregator> topHits = topHitsAggregators(aggregator);
+        assertThat("a top_hits was built", topHits, not(empty()));
+        for (TopHitsAggregator topHitsAggregator : topHits) {
+            assertEquals("collected with a BucketedSort", expected, topHitsAggregator.usesBucketedSort());
+        }
+    }
 
     private static List<TopHitsAggregator> topHitsAggregators(Aggregator aggregator) {
         List<TopHitsAggregator> topHits = new ArrayList<>();
@@ -790,13 +763,6 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
             topHits.addAll(topHitsAggregators(sub));
         }
         return topHits;
-    }
-
-    private void assertBucketedSortUsed(boolean expected) {
-        assertThat("a top_hits was built", usedBucketedSort, not(empty()));
-        for (boolean used : usedBucketedSort) {
-            assertEquals("collected with a BucketedSort", expected, used);
-        }
     }
 
     /**
@@ -817,6 +783,7 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
             builder,
             breakers,
             buildResults,
+            null,
             built -> held[0] = breakers.getBreaker(CircuitBreaker.REQUEST).getUsed() - baseline,
             STRING_FIELD_TYPE,
             numberFieldType(NumberFieldMapper.NumberType.LONG)
@@ -824,14 +791,14 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         return held[0];
     }
 
-    private void indexUniqueBuckets(Directory directory, int buckets) throws IOException {
-        try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+    private static CheckedConsumer<RandomIndexWriter, IOException> uniqueBuckets(int buckets) {
+        return iw -> {
             for (int i = 0; i < buckets; i++) {
                 iw.addDocument(
                     numberDocument(Integer.toString(i), String.format(Locale.ROOT, "term%06d", i), NumberFieldMapper.NumberType.LONG, i)
                 );
             }
-        }
+        };
     }
 
     private static AggregationBuilder termsWithSizeOneTopHits(int buckets) {
@@ -867,22 +834,19 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
      */
     public void testBucketedSortChargesTheSlotsOfEveryBucketAndReleasesThem() throws Exception {
         int buckets = 2_000;
-        try (Directory directory = newDirectory()) {
-            indexUniqueBuckets(directory, buckets);
-            try (IndexReader reader = DirectoryReader.open(directory)) {
-                HierarchyCircuitBreakerService breakers = requestBreakers("1gb");
-                long withMax = breakerBytesAfterCollecting(reader, termsWithMax(buckets), breakers, false);
-                for (int size : new int[] { 1, 100 }) {
-                    long withTopHits = breakerBytesAfterCollecting(reader, termsWithTopHitsOfSize(buckets, size), breakers, false);
-                    assertThat("the top hits are charged to the breaker", withTopHits, greaterThan(withMax));
-                    // 12 bytes a slot, and up to about an eighth more for the room the arrays grow by.
-                    long perBucket = (withTopHits - withMax) / buckets;
-                    assertThat("bytes charged per bucket at size " + size, perBucket, greaterThanOrEqualTo(12L * size - 16));
-                    assertThat("bytes charged per bucket at size " + size, perBucket, lessThanOrEqualTo(16L * size + 16));
-                    assertEquals("the breaker is back to its baseline", 0L, breakers.getBreaker(CircuitBreaker.REQUEST).getUsed());
-                }
+        withIndex(uniqueBuckets(buckets), reader -> {
+            HierarchyCircuitBreakerService breakers = requestBreakers("1gb");
+            long withMax = breakerBytesAfterCollecting(reader, termsWithMax(buckets), breakers, false);
+            for (int size : new int[] { 1, 100 }) {
+                long withTopHits = breakerBytesAfterCollecting(reader, termsWithTopHitsOfSize(buckets, size), breakers, false);
+                assertThat("the top hits are charged to the breaker", withTopHits, greaterThan(withMax));
+                // 12 bytes a slot, and up to about an eighth more for the room the arrays grow by.
+                long perBucket = (withTopHits - withMax) / buckets;
+                assertThat("bytes charged per bucket at size " + size, perBucket, greaterThanOrEqualTo(12L * size - 16));
+                assertThat("bytes charged per bucket at size " + size, perBucket, lessThanOrEqualTo(16L * size + 16));
+                assertEquals("the breaker is back to its baseline", 0L, breakers.getBreaker(CircuitBreaker.REQUEST).getUsed());
             }
-        }
+        });
     }
 
     /**
@@ -896,41 +860,33 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
     public void testBucketedSortStateFollowsTheBucketsItCollectsNotTheNumberOfTerms() throws Exception {
         int termCount = 20_000;
         int kept = 10;
-        try (Directory directory = newDirectory()) {
-            indexUniqueBuckets(directory, termCount);
-            try (IndexReader reader = DirectoryReader.open(directory)) {
-                HierarchyCircuitBreakerService breakers = requestBreakers("1gb");
-                for (Aggregator.SubAggCollectionMode mode : Aggregator.SubAggCollectionMode.values()) {
-                    // The results are built because a deferred sub-aggregation only collects when they are.
-                    long withMax = breakerBytesAfterCollecting(
-                        reader,
-                        terms("term").field("string")
-                            .size(kept)
-                            .collectMode(mode)
-                            .subAggregation(AggregationBuilders.max("max").field(NUMBER_FIELD)),
-                        breakers,
-                        true
-                    );
-                    long withTopHits = breakerBytesAfterCollecting(
-                        reader,
-                        termsWithTopHitsOfSize(kept, 1).collectMode(mode),
-                        breakers,
-                        true
-                    );
-                    long extra = withTopHits - withMax;
-                    switch (mode) {
-                        // Only the buckets kept are replayed into the top_hits, 25 of them with the shard size of 10, which is
-                        // nothing compared with the 20,000 terms, which would be about 240 KB if the state followed the ordinals. It is
-                        // about 500 bytes.
-                        case BREADTH_FIRST -> assertThat("breadth first, bytes more than a max", extra, lessThanOrEqualTo(4L * 1024));
-                        // Every term is a bucket the top_hits collects before the terms picks the best ones.
-                        case DEPTH_FIRST -> assertThat("depth first, bytes more than a max", extra, lessThanOrEqualTo(32L * termCount));
-                        default -> throw new AssertionError("unexpected collect mode [" + mode + "]");
-                    }
-                    assertEquals("the breaker is back to its baseline", 0L, breakers.getBreaker(CircuitBreaker.REQUEST).getUsed());
+        withIndex(uniqueBuckets(termCount), reader -> {
+            HierarchyCircuitBreakerService breakers = requestBreakers("1gb");
+            for (Aggregator.SubAggCollectionMode mode : Aggregator.SubAggCollectionMode.values()) {
+                // The results are built because a deferred sub-aggregation only collects when they are.
+                long withMax = breakerBytesAfterCollecting(
+                    reader,
+                    terms("term").field("string")
+                        .size(kept)
+                        .collectMode(mode)
+                        .subAggregation(AggregationBuilders.max("max").field(NUMBER_FIELD)),
+                    breakers,
+                    true
+                );
+                long withTopHits = breakerBytesAfterCollecting(reader, termsWithTopHitsOfSize(kept, 1).collectMode(mode), breakers, true);
+                long extra = withTopHits - withMax;
+                switch (mode) {
+                    // Only the buckets kept are replayed into the top_hits, 25 of them with the shard size of 10, which is
+                    // nothing compared with the 20,000 terms, which would be about 240 KB if the state followed the ordinals. It is
+                    // about 500 bytes.
+                    case BREADTH_FIRST -> assertThat("breadth first, bytes more than a max", extra, lessThanOrEqualTo(4L * 1024));
+                    // Every term is a bucket the top_hits collects before the terms picks the best ones.
+                    case DEPTH_FIRST -> assertThat("depth first, bytes more than a max", extra, lessThanOrEqualTo(32L * termCount));
+                    default -> throw new AssertionError("unexpected collect mode [" + mode + "]");
                 }
+                assertEquals("the breaker is back to its baseline", 0L, breakers.getBreaker(CircuitBreaker.REQUEST).getUsed());
             }
-        }
+        });
     }
 
     /**
@@ -939,23 +895,20 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
      */
     public void testBucketedSortTripsTheBreakerAndReleasesEverything() throws Exception {
         int buckets = 5_000;
-        try (Directory directory = newDirectory()) {
-            indexUniqueBuckets(directory, buckets);
-            try (IndexReader reader = DirectoryReader.open(directory)) {
-                HierarchyCircuitBreakerService generous = requestBreakers("1gb");
-                long withMax = breakerBytesAfterCollecting(reader, termsWithMax(buckets), generous, false);
-                long withTopHits = breakerBytesAfterCollecting(reader, termsWithSizeOneTopHits(buckets), generous, false);
-                // Room for the control, and for half of what the top hits need on top of it.
-                HierarchyCircuitBreakerService tight = requestBreakers((withMax + (withTopHits - withMax) / 2) + "b");
-                breakerBytesAfterCollecting(reader, termsWithMax(buckets), tight, false);
-                assertEquals(0L, tight.getBreaker(CircuitBreaker.REQUEST).getUsed());
-                expectThrows(
-                    CircuitBreakingException.class,
-                    () -> breakerBytesAfterCollecting(reader, termsWithSizeOneTopHits(buckets), tight, false)
-                );
-                assertEquals("the breaker is back to its baseline", 0L, tight.getBreaker(CircuitBreaker.REQUEST).getUsed());
-            }
-        }
+        withIndex(uniqueBuckets(buckets), reader -> {
+            HierarchyCircuitBreakerService generous = requestBreakers("1gb");
+            long withMax = breakerBytesAfterCollecting(reader, termsWithMax(buckets), generous, false);
+            long withTopHits = breakerBytesAfterCollecting(reader, termsWithSizeOneTopHits(buckets), generous, false);
+            // Room for the control, and for half of what the top hits need on top of it.
+            HierarchyCircuitBreakerService tight = requestBreakers((withMax + (withTopHits - withMax) / 2) + "b");
+            breakerBytesAfterCollecting(reader, termsWithMax(buckets), tight, false);
+            assertEquals(0L, tight.getBreaker(CircuitBreaker.REQUEST).getUsed());
+            expectThrows(
+                CircuitBreakingException.class,
+                () -> breakerBytesAfterCollecting(reader, termsWithSizeOneTopHits(buckets), tight, false)
+            );
+            assertEquals("the breaker is back to its baseline", 0L, tight.getBreaker(CircuitBreaker.REQUEST).getUsed());
+        });
     }
 
     /**
@@ -964,30 +917,28 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
      */
     public void testBucketedSortReleasesEverythingWhenTheBreakerFailsAtRandom() throws Exception {
         int buckets = 300;
-        try (Directory directory = newDirectory()) {
-            indexUniqueBuckets(directory, buckets);
-            try (IndexReader reader = DirectoryReader.open(directory)) {
-                int failures = 0;
-                for (int i = 0; i < 40; i++) {
-                    try {
-                        collect(
-                            reader,
-                            Queries.ALL_DOCS_INSTANCE,
-                            termsWithSizeOneTopHits(buckets),
-                            new CrankyCircuitBreakerService(),
-                            true,
-                            built -> {},
-                            STRING_FIELD_TYPE,
-                            numberFieldType(NumberFieldMapper.NumberType.LONG)
-                        );
-                    } catch (CircuitBreakingException e) {
-                        failures++;
-                        assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
-                    }
+        withIndex(uniqueBuckets(buckets), reader -> {
+            int failures = 0;
+            for (int i = 0; i < 40; i++) {
+                try {
+                    collect(
+                        reader,
+                        Queries.ALL_DOCS_INSTANCE,
+                        termsWithSizeOneTopHits(buckets),
+                        new CrankyCircuitBreakerService(),
+                        true,
+                        null,
+                        built -> {},
+                        STRING_FIELD_TYPE,
+                        numberFieldType(NumberFieldMapper.NumberType.LONG)
+                    );
+                } catch (CircuitBreakingException e) {
+                    failures++;
+                    assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
                 }
-                assertThat("the breaker was expected to fail in some of the runs", failures, greaterThan(0));
             }
-        }
+            assertThat("the breaker was expected to fail in some of the runs", failures, greaterThan(0));
+        });
     }
 
     private IndexVersion indexVersionCreated = IndexVersion.current();
@@ -1014,37 +965,34 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
     public void testIntegerFieldsOfOlderIndicesKeepTheLuceneCollectors() throws Exception {
         record Case(IndexVersion version, NumberFieldMapper.NumberType type, boolean bucketedSort) {}
         List<Case> cases = new ArrayList<>();
-        for (NumberFieldMapper.NumberType type : List.of(
-            NumberFieldMapper.NumberType.BYTE,
-            NumberFieldMapper.NumberType.SHORT,
-            NumberFieldMapper.NumberType.INTEGER
-        )) {
-            cases.add(new Case(IndexVersions.UPGRADE_TO_LUCENE_10_0_0, type, false));
-            cases.add(new Case(IndexVersions.INDEX_INT_SORT_INT_TYPE_8_19, type, true));
-            cases.add(new Case(IndexVersions.INDEX_INT_SORT_INT_TYPE, type, true));
-            cases.add(new Case(IndexVersion.current(), type, true));
-        }
-        for (NumberFieldMapper.NumberType type : List.of(
-            NumberFieldMapper.NumberType.LONG,
-            NumberFieldMapper.NumberType.FLOAT,
-            NumberFieldMapper.NumberType.DOUBLE
-        )) {
-            cases.add(new Case(IndexVersions.UPGRADE_TO_LUCENE_10_0_0, type, true));
+        for (NumberFieldMapper.NumberType type : NUMERIC_TYPES) {
+            boolean declaresLong = type == NumberFieldMapper.NumberType.BYTE
+                || type == NumberFieldMapper.NumberType.SHORT
+                || type == NumberFieldMapper.NumberType.INTEGER;
+            cases.add(new Case(IndexVersions.UPGRADE_TO_LUCENE_10_0_0, type, declaresLong == false));
+            if (declaresLong) {
+                cases.add(new Case(IndexVersions.INDEX_INT_SORT_INT_TYPE_8_19, type, true));
+                cases.add(new Case(IndexVersions.INDEX_INT_SORT_INT_TYPE, type, true));
+                cases.add(new Case(IndexVersion.current(), type, true));
+            }
         }
         for (Case testCase : cases) {
             indexVersionCreated = testCase.version;
-            try (Directory directory = newDirectory()) {
-                try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-                    iw.addDocument(numberDocument("0", "t0", testCase.type, numberValue(testCase.type, 1)));
-                }
-                try (IndexReader reader = DirectoryReader.open(directory)) {
-                    assertEquals(
-                        testCase.version + " " + testCase.type,
+            withUnmergedIndex(iw -> iw.addDocument(numberDocument("0", "t0", testCase.type, numberValue(testCase.type, 1))), reader -> {
+                try {
+                    collectAndBuild(
+                        reader,
+                        Queries.ALL_DOCS_INSTANCE,
+                        terms("term").field("string").size(10).subAggregation(topHits("top").sort(NUMBER_FIELD, SortOrder.ASC)),
                         testCase.bucketedSort,
-                        usesBucketedSort(reader, testCase.type, topHits("top").sort(NUMBER_FIELD, SortOrder.ASC))
+                        built -> {},
+                        STRING_FIELD_TYPE,
+                        numberFieldType(testCase.type)
                     );
+                } catch (AssertionError e) {
+                    throw new AssertionError(testCase.toString(), e);
                 }
-            }
+            });
         }
     }
 

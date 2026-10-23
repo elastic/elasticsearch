@@ -12,16 +12,15 @@ package org.elasticsearch.search.sort;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
@@ -31,61 +30,37 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Tests the optional tie-breaking of {@link BucketedSort}. A Lucene {@code TopFieldCollector} keeps the lower doc id among
  * entries with equal sort values, so a caller that has to match it needs the tie-break inside the heap: once a tied entry has
- * been evicted, no amount of sorting the results can bring it back.
+ * been evicted, no amount of sorting the results can bring it back. What is checked is which documents a bucket kept.
  */
 public class BucketedSortTieBreakTests extends ESTestCase {
     private final BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
 
     /**
-     * Stores the doc id next to each sort value, and breaks ties on it: the lower doc id wins.
+     * Stores the doc id next to each sort value, and breaks ties on it: the lower doc id wins. A test knows how many slots there
+     * are, so plain arrays will do.
      */
-    private static class DocIds implements BucketedSort.TieBreakingExtraData, Releasable {
-        private final BigArrays bigArrays;
-        IntArray docIds;
+    private static class DocIds implements BucketedSort.TieBreakingExtraData {
+        private final int[] docIds;
 
-        DocIds(BigArrays bigArrays) {
-            this.bigArrays = bigArrays;
-            this.docIds = bigArrays.newIntArray(1, false);
+        DocIds(int slots) {
+            this.docIds = new int[slots];
         }
 
         @Override
         public void swap(long lhs, long rhs) {
-            int tmp = docIds.get(lhs);
-            docIds.set(lhs, docIds.get(rhs));
-            docIds.set(rhs, tmp);
+            int tmp = docIds[(int) lhs];
+            docIds[(int) lhs] = docIds[(int) rhs];
+            docIds[(int) rhs] = tmp;
         }
 
         @Override
         public Loader loader(LeafReaderContext ctx) {
-            return (index, doc) -> {
-                docIds = bigArrays.grow(docIds, index + 1);
-                docIds.set(index, doc);
-            };
+            return (index, doc) -> docIds[(int) index] = doc;
         }
 
         @Override
         public boolean betterOnTie(long lhs, long rhs) {
-            return docIds.get(lhs) < docIds.get(rhs);
-        }
-
-        @Override
-        public void close() {
-            docIds.close();
-        }
-    }
-
-    /**
-     * A result that orders by sort value and then by doc id, lowest first whatever the sort order. {@link BucketedSort#getValues}
-     * reverses the whole comparison for a descending sort, so the doc id comparison is reversed in that case.
-     */
-    private record Hit(SortValue value, int doc, SortOrder order) implements Comparable<Hit> {
-        @Override
-        public int compareTo(Hit other) {
-            int cmp = value.compareTo(other.value);
-            if (cmp != 0) {
-                return cmp;
-            }
-            return order == SortOrder.DESC ? Integer.compare(other.doc, doc) : Integer.compare(doc, other.doc);
+            return docIds[(int) lhs] < docIds[(int) rhs];
         }
     }
 
@@ -111,20 +86,25 @@ public class BucketedSortTieBreakTests extends ESTestCase {
         };
     }
 
-    private List<Integer> collect(BucketedSort sort, DocIds extra, long[] values, long bucket) throws IOException {
-        BucketedSort.Leaf leaf = sort.forLeaf(null);
-        for (int doc = 0; doc < values.length; doc++) {
-            leaf.collect(doc, bucket);
-        }
-        return docs(sort, extra, bucket);
+    /**
+     * The doc ids a bucket kept, lowest first, so that what is compared is which documents were kept and not the order of the ones
+     * with equal values among them.
+     */
+    private static List<Integer> kept(BucketedSort sort, DocIds extra, long bucket) throws IOException {
+        List<Integer> kept = new ArrayList<>(sort.getValues(bucket, (index, value) -> extra.docIds[(int) index]));
+        Collections.sort(kept);
+        return kept;
     }
 
-    private List<Integer> docs(BucketedSort sort, DocIds extra, long bucket) throws IOException {
-        List<Integer> docs = new ArrayList<>();
-        for (Hit hit : sort.getValues(bucket, (index, value) -> new Hit(value, extra.docIds.get(index), sort.getOrder()))) {
-            docs.add(hit.doc);
+    private List<Integer> collectIntoOneBucket(SortOrder order, int bucketSize, long[] values) throws IOException {
+        DocIds extra = new DocIds(bucketSize);
+        try (BucketedSort sort = sort(order, bucketSize, extra, values)) {
+            BucketedSort.Leaf leaf = sort.forLeaf(null);
+            for (int doc = 0; doc < values.length; doc++) {
+                leaf.collect(doc, 0);
+            }
+            return kept(sort, extra, 0);
         }
-        return docs;
     }
 
     /**
@@ -132,27 +112,21 @@ public class BucketedSortTieBreakTests extends ESTestCase {
      * the one to keep is doc 1.
      */
     public void testAscendingKeepsLowerDocIdOnTie() throws IOException {
-        long[] values = new long[] { 6, 5, 5, 4, 3 };
-        try (DocIds extra = new DocIds(bigArrays); BucketedSort sort = sort(SortOrder.ASC, 3, extra, values)) {
-            assertThat(collect(sort, extra, values, 0), contains(4, 3, 1));
-        }
+        assertThat(collectIntoOneBucket(SortOrder.ASC, 3, new long[] { 6, 5, 5, 4, 3 }), contains(1, 3, 4));
     }
 
     /**
      * The mirror image: the best three descending of 3, 4, 4, 5, 6 are 6, 5 and one of the 4s, which are docs 1 and 2.
      */
     public void testDescendingKeepsLowerDocIdOnTie() throws IOException {
-        long[] values = new long[] { 3, 4, 4, 5, 6 };
-        try (DocIds extra = new DocIds(bigArrays); BucketedSort sort = sort(SortOrder.DESC, 3, extra, values)) {
-            assertThat(collect(sort, extra, values, 0), contains(4, 3, 1));
-        }
+        assertThat(collectIntoOneBucket(SortOrder.DESC, 3, new long[] { 3, 4, 4, 5, 6 }), contains(1, 3, 4));
     }
 
     /**
-     * Random values from a small range, so there are many ties, spread over a few buckets, must match a stable sort by value
-     * and then by doc id.
+     * Random values from a small range, so there are many ties, spread over a few buckets, must keep what a stable sort by value
+     * and then by doc id would.
      */
-    public void testMatchesStableSortWithManyTies() throws IOException {
+    public void testKeepsWhatAStableSortWouldWithManyTies() throws IOException {
         SortOrder order = randomFrom(SortOrder.values());
         int bucketSize = between(1, 8);
         int bucketCount = between(1, 4);
@@ -162,7 +136,8 @@ public class BucketedSortTieBreakTests extends ESTestCase {
             values[doc] = between(0, 5);
             buckets[doc] = between(0, bucketCount - 1);
         }
-        try (DocIds extra = new DocIds(bigArrays); BucketedSort sort = sort(order, bucketSize, extra, values)) {
+        DocIds extra = new DocIds(bucketCount * bucketSize);
+        try (BucketedSort sort = sort(order, bucketSize, extra, values)) {
             BucketedSort.Leaf leaf = sort.forLeaf(null);
             for (int doc = 0; doc < values.length; doc++) {
                 leaf.collect(doc, buckets[doc]);
@@ -176,7 +151,9 @@ public class BucketedSortTieBreakTests extends ESTestCase {
                 }
                 Comparator<Integer> byValue = Comparator.comparingLong(doc -> values[doc]);
                 expected.sort((order == SortOrder.DESC ? byValue.reversed() : byValue).thenComparingInt(doc -> doc));
-                assertThat(docs(sort, extra, bucket), equalTo(expected.subList(0, Math.min(bucketSize, expected.size()))));
+                List<Integer> expectedKept = new ArrayList<>(expected.subList(0, Math.min(bucketSize, expected.size())));
+                Collections.sort(expectedKept);
+                assertThat(kept(sort, extra, bucket), equalTo(expectedKept));
             }
         }
     }

@@ -56,12 +56,14 @@ import java.util.concurrent.TimeUnit;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.repositories.azure.AzureRepository.Repository.CONTAINER_SETTING;
 import static org.elasticsearch.repositories.azure.AzureRepository.Repository.COPY_POLL_INTERVAL;
+import static org.elasticsearch.repositories.azure.AzureRepository.Repository.MAX_COPY_SIZE_BEFORE_MULTIPART_SETTING;
 import static org.elasticsearch.repositories.azure.AzureRepository.Repository.MAX_SINGLE_PART_UPLOAD_SIZE_SETTING;
 import static org.elasticsearch.repositories.azure.AzureRepository.Repository.MULTIPART_UPLOAD_PART_SIZE_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.ACCOUNT_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.ENDPOINT_SUFFIX_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.KEY_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.MAX_RETRIES_SETTING;
+import static org.elasticsearch.repositories.azure.AzureStorageSettings.SAS_TOKEN_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.TIMEOUT_SETTING;
 
 @SuppressForbidden(reason = "use a http server")
@@ -110,11 +112,23 @@ public class AzureBlobContainerAccessTierTests extends ESTestCase {
     }
 
     private AzureBlobContainer buildContainer(@Nullable String dataAccessTier, @Nullable String metadataAccessTier) {
+        return buildContainer(dataAccessTier, metadataAccessTier, false);
+    }
+
+    private AzureBlobContainer buildContainer(@Nullable String dataAccessTier, @Nullable String metadataAccessTier, boolean useSasToken) {
         final String clientName = randomIdentifier();
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString(ACCOUNT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), ACCOUNT);
-        final String key = Base64.getEncoder().encodeToString(randomAlphaOfLength(14).getBytes(UTF_8));
-        secureSettings.setString(KEY_SETTING.getConcreteSettingForNamespace(clientName).getKey(), key);
+        if (useSasToken) {
+            // Put Block From URL, used by the concurrent multipart copy, only works with a SAS on the source
+            secureSettings.setString(
+                SAS_TOKEN_SETTING.getConcreteSettingForNamespace(clientName).getKey(),
+                "se=2021-07-20T13%3A21Z&sp=rwdl&sv=2018-11-09&sr=c&sig=random"
+            );
+        } else {
+            final String key = Base64.getEncoder().encodeToString(randomAlphaOfLength(14).getBytes(UTF_8));
+            secureSettings.setString(KEY_SETTING.getConcreteSettingForNamespace(clientName).getKey(), key);
+        }
 
         final InetSocketAddress address = httpServer.getAddress();
         final String host = address.getAddress().isLoopbackAddress() ? "localhost" : InetAddresses.toUriString(address.getAddress());
@@ -160,6 +174,7 @@ public class AzureBlobContainerAccessTierTests extends ESTestCase {
                 .put(ACCOUNT_SETTING.getKey(), clientName)
                 .put(MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.MB))
                 .put(MULTIPART_UPLOAD_PART_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.MB))
+                .put(MAX_COPY_SIZE_BEFORE_MULTIPART_SETTING.getKey(), ByteSizeValue.of(5, ByteSizeUnit.MB))
                 .put(COPY_POLL_INTERVAL.getKey(), TimeValue.timeValueMillis(100))
                 .build()
         );
@@ -300,10 +315,12 @@ public class AzureBlobContainerAccessTierTests extends ESTestCase {
 
     public void testDataAccessTierSentOnCopyBlob() throws IOException {
         String dataAccessTier = getRandomAllowedAccessTierString();
-        final AzureBlobContainer container = buildContainer(dataAccessTier, null);
+        final AzureBlobContainer container = buildContainer(dataAccessTier, null, randomBoolean());
         final String sourceBlobName = randomIdentifier();
         final String destBlobName = randomIdentifier();
-        final byte[] data = randomByteArrayOfLength(128);
+        // Either small enough for a single Copy Blob request or just over the threshold for a copy in parts, with a SAS token
+        final int blobSize = randomBoolean() ? 128 : Math.toIntExact(container.getBlobStore().maxCopySizeBeforeMultipart() + 1);
+        final byte[] data = randomByteArrayOfLength(blobSize);
 
         // Write source blob with a non-snapshot purpose so it has no access tier
         container.getBlobStore()
@@ -311,17 +328,26 @@ public class AzureBlobContainerAccessTierTests extends ESTestCase {
         assertNull(azureHttpHandler.getMockBlobStore().getBlob(sourceBlobName, null).accessTier());
 
         // Copy with snapshot data purpose — the destination should receive the configured data access tier
-        container.copyBlob(OperationPurpose.SNAPSHOT_DATA, container, sourceBlobName, destBlobName, data.length, null);
+        container.copyBlob(
+            OperationPurpose.SNAPSHOT_DATA,
+            container,
+            sourceBlobName,
+            destBlobName,
+            data.length,
+            randomBoolean() ? null : Runnable::run
+        );
 
         asserAccessTier(dataAccessTier, destBlobName);
     }
 
     public void testMetadataAccessTierSentOnCopyBlob() throws IOException {
         String metadataAccessTier = getRandomAllowedAccessTierString();
-        final AzureBlobContainer container = buildContainer(null, metadataAccessTier);
+        final AzureBlobContainer container = buildContainer(null, metadataAccessTier, randomBoolean());
         final String sourceBlobName = randomIdentifier();
         final String destBlobName = randomIdentifier();
-        final byte[] data = randomByteArrayOfLength(128);
+        // Either small enough for a single Copy Blob request or just over the threshold for a copy in parts, with a SAS token
+        final int blobSize = randomBoolean() ? 128 : Math.toIntExact(container.getBlobStore().maxCopySizeBeforeMultipart() + 1);
+        final byte[] data = randomByteArrayOfLength(blobSize);
 
         // Write source blob with a non-snapshot purpose so it has no access tier
         container.getBlobStore()
@@ -329,7 +355,14 @@ public class AzureBlobContainerAccessTierTests extends ESTestCase {
         assertNull(azureHttpHandler.getMockBlobStore().getBlob(sourceBlobName, null).accessTier());
 
         // Copy with snapshot metadata purpose — the destination should receive the configured metadata access tier
-        container.copyBlob(OperationPurpose.SNAPSHOT_METADATA, container, sourceBlobName, destBlobName, data.length, null);
+        container.copyBlob(
+            OperationPurpose.SNAPSHOT_METADATA,
+            container,
+            sourceBlobName,
+            destBlobName,
+            data.length,
+            randomBoolean() ? null : Runnable::run
+        );
 
         asserAccessTier(metadataAccessTier, destBlobName);
     }

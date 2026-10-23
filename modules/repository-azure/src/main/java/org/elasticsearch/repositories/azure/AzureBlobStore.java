@@ -20,6 +20,7 @@ import com.azure.core.http.HttpHeaderName;
 import com.azure.core.http.HttpMethod;
 import com.azure.core.http.HttpRequest;
 import com.azure.core.util.BinaryData;
+import com.azure.core.util.Context;
 import com.azure.core.util.polling.LongRunningOperationStatus;
 import com.azure.core.util.polling.PollResponse;
 import com.azure.storage.blob.BlobAsyncClient;
@@ -50,6 +51,7 @@ import com.azure.storage.blob.options.BlockBlobSimpleUploadOptions;
 import com.azure.storage.blob.specialized.BlobLeaseClient;
 import com.azure.storage.blob.specialized.BlobLeaseClientBuilder;
 import com.azure.storage.blob.specialized.BlockBlobAsyncClient;
+import com.azure.storage.blob.specialized.BlockBlobClient;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -63,6 +65,7 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreActionStats;
 import org.elasticsearch.common.blobstore.BlobStoreException;
+import org.elasticsearch.common.blobstore.ConcurrentMultipartHelper;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
@@ -115,6 +118,7 @@ import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -131,6 +135,8 @@ public class AzureBlobStore implements BlobStore {
     private static final Logger logger = LogManager.getLogger(AzureBlobStore.class);
     // See https://learn.microsoft.com/en-us/rest/api/storageservices/blob-batch#request-body
     public static final int MAX_ELEMENTS_PER_BATCH = 256;
+    // See https://learn.microsoft.com/en-us/rest/api/storageservices/put-block-list
+    static final int MAX_BLOCKS_PER_BLOB = 50_000;
     private static final long DEFAULT_READ_CHUNK_SIZE = ByteSizeValue.of(32, ByteSizeUnit.MB).getBytes();
     private static final int DEFAULT_UPLOAD_BUFFERS_SIZE = (int) ByteSizeValue.of(64, ByteSizeUnit.KB).getBytes();
     public static final Map<String, AccessTier> ALLOWED_ACCESS_TIERS_BY_LOWER_NAME = Stream.of(
@@ -154,6 +160,7 @@ public class AzureBlobStore implements BlobStore {
     private final int maxConcurrentBatchDeletes;
     private final int multipartUploadMaxConcurrency;
     private final TimeValue copyPollInterval;
+    private final ByteSizeValue maxCopySizeBeforeMultipart;
 
     private final RequestMetricsRecorder requestMetricsRecorder;
     private final AzureClientProvider.RequestMetricsHandler requestMetricsHandler;
@@ -185,6 +192,7 @@ public class AzureBlobStore implements BlobStore {
         this.maxConcurrentBatchDeletes = Repository.MAX_CONCURRENT_BATCH_DELETES_SETTING.get(metadata.settings());
         this.multipartUploadMaxConcurrency = service.getMultipartUploadMaxConcurrency();
         this.copyPollInterval = Repository.COPY_POLL_INTERVAL.get(metadata.settings());
+        this.maxCopySizeBeforeMultipart = Repository.MAX_COPY_SIZE_BEFORE_MULTIPART_SETTING.get(metadata.settings());
         this.dataAccessTier = initAccessTier(dataAccessTier);
         this.metadataAccessTier = initAccessTier(metadataAccessTier);
 
@@ -195,6 +203,7 @@ public class AzureBlobStore implements BlobStore {
                 Operation.GET_BLOB
             ),
             new RequestMatcher(AzureBlobStore::isListRequest, Operation.LIST_BLOBS),
+            new RequestMatcher(AzureBlobStore::isPutBlockFromUrlRequest, Operation.PUT_BLOCK_FROM_URL),
             new RequestMatcher(AzureBlobStore::isPutBlockRequest, Operation.PUT_BLOCK),
             new RequestMatcher(AzureBlobStore::isPutBlockListRequest, Operation.PUT_BLOCK_LIST),
             new RequestMatcher(
@@ -264,7 +273,20 @@ public class AzureBlobStore implements BlobStore {
     private static boolean isPutBlockRequest(HttpRequest httpRequest) {
         final URL url = httpRequest.getUrl();
         String queryParams = url.getQuery() == null ? "" : url.getQuery();
-        return httpRequest.getHttpMethod() == HttpMethod.PUT && queryParams.contains("comp=block") && queryParams.contains("blockid=");
+        return httpRequest.getHttpMethod() == HttpMethod.PUT
+            && queryParams.contains("comp=block")
+            && queryParams.contains("blockid=")
+            && isPutBlockFromUrlRequest(httpRequest) == false;
+    }
+
+    // https://learn.microsoft.com/en-us/rest/api/storageservices/put-block-from-url
+    private static boolean isPutBlockFromUrlRequest(HttpRequest httpRequest) {
+        final URL url = httpRequest.getUrl();
+        String queryParams = url.getQuery() == null ? "" : url.getQuery();
+        return httpRequest.getHttpMethod() == HttpMethod.PUT
+            && queryParams.contains("comp=block")
+            && queryParams.contains("blockid=")
+            && httpRequest.getHeaders().get(HttpHeaderName.fromString("x-ms-copy-source")) != null;
     }
 
     // https://docs.microsoft.com/en-us/rest/api/storageservices/put-block-list
@@ -277,7 +299,8 @@ public class AzureBlobStore implements BlobStore {
     // https://learn.microsoft.com/en-us/rest/api/storageservices/copy-blob
     private static boolean isCopyRequest(HttpRequest httpRequest) {
         return httpRequest.getHttpMethod() == HttpMethod.PUT
-            && httpRequest.getHeaders().get(HttpHeaderName.fromString("x-ms-copy-source")) != null;
+            && httpRequest.getHeaders().get(HttpHeaderName.fromString("x-ms-copy-source")) != null
+            && isPutBlockFromUrlRequest(httpRequest) == false;
     }
 
     public long getReadChunkSize() {
@@ -794,8 +817,14 @@ public class AzureBlobStore implements BlobStore {
         return service.getClientsManager().getClientSettings(projectId, clientName);
     }
 
-    public void copyBlob(OperationPurpose purpose, String sourceBlobName, AzureBlobStore sourceBlobStore, String blobName)
-        throws IOException {
+    public void copyBlob(
+        OperationPurpose purpose,
+        String sourceBlobName,
+        AzureBlobStore sourceBlobStore,
+        String blobName,
+        long blobSize,
+        @Nullable Executor executor
+    ) throws IOException {
 
         try (var sourceClient = sourceBlobStore.getAzureBlobServiceClientClient(purpose)) {
             final BlobServiceClient sourceSyncClient = sourceClient.getSyncClient();
@@ -825,14 +854,60 @@ public class AzureBlobStore implements BlobStore {
                 final BlobServiceClient syncClient = client.getSyncClient();
                 final BlobClient blobSyncClient = syncClient.getBlobContainerClient(container).getBlobClient(blobName);
                 try {
-                    final var copyOptions = new BlobBeginCopyOptions(sourceUrl).setPollInterval(
-                        Duration.ofMillis(copyPollInterval.millis())
-                    );
-                    resolveAccessTier(purpose).ifPresent(copyOptions::setTier);
-                    PollResponse<BlobCopyInfo> response = blobSyncClient.beginCopy(copyOptions).waitForCompletion();
-                    LongRunningOperationStatus status = response.getStatus();
-                    if (status != LongRunningOperationStatus.SUCCESSFULLY_COMPLETED) {
-                        throw new IOException("Copy from " + sourceBlobName + " to " + blobName + " failed: " + response.getStatus());
+                    // Put Block From URL requires the source to be public or authorized by a SAS in the source URL,
+                    // see https://learn.microsoft.com/en-us/rest/api/storageservices/put-block-from-url
+                    if (Strings.hasText(sasToken) && blobSize > maxCopySizeBeforeMultipart()) {
+                        // A block blob can have at most 50,000 blocks, so use larger parts if the configured size requires more.
+                        // The part size should always be within the max of 4,000 MiB since the max blob size is 4,000 MiB * 50,000,
+                        // see https://learn.microsoft.com/en-us/rest/api/storageservices/put-block-from-url#remarks
+                        final long partSize = Math.max(
+                            maxCopySizeBeforeMultipart(),
+                            (blobSize + MAX_BLOCKS_PER_BLOB - 1) / MAX_BLOCKS_PER_BLOB
+                        );
+                        final BlockBlobClient blockBlobClient = blobSyncClient.getBlockBlobClient();
+                        final int nbParts = ConcurrentMultipartHelper.numberOfParts(blobSize, partSize);
+                        final String[] blockIds = new String[nbParts];
+                        for (int i = 0; i < nbParts; i++) {
+                            blockIds[i] = makeMultipartBlockId();
+                        }
+
+                        final String finalSourceUrl = sourceUrl;
+                        if (executor == null) {
+                            final long lastPartSize = blobSize - (long) (nbParts - 1) * partSize;
+                            for (int partNum = 0; partNum < nbParts; partNum++) {
+                                final long curPartSize = partNum == nbParts - 1 ? lastPartSize : partSize;
+                                blockBlobClient.stageBlockFromUrl(
+                                    blockIds[partNum],
+                                    finalSourceUrl,
+                                    new BlobRange((long) partNum * partSize, curPartSize)
+                                );
+                            }
+                        } else {
+                            ConcurrentMultipartHelper.runConcurrentParts(
+                                blobSize,
+                                partSize,
+                                executor,
+                                (partNum, offset, curPartSize, lastPart) -> blockBlobClient.stageBlockFromUrl(
+                                    blockIds[partNum],
+                                    finalSourceUrl,
+                                    new BlobRange(offset, curPartSize)
+                                )
+                            );
+                        }
+
+                        final var commitOptions = new BlockBlobCommitBlockListOptions(Arrays.asList(blockIds));
+                        resolveAccessTier(purpose).ifPresent(commitOptions::setTier);
+                        blockBlobClient.commitBlockListWithResponse(commitOptions, null, Context.NONE);
+                    } else {
+                        final var copyOptions = new BlobBeginCopyOptions(sourceUrl).setPollInterval(
+                            Duration.ofMillis(copyPollInterval.millis())
+                        );
+                        resolveAccessTier(purpose).ifPresent(copyOptions::setTier);
+                        PollResponse<BlobCopyInfo> response = blobSyncClient.beginCopy(copyOptions).waitForCompletion();
+                        LongRunningOperationStatus status = response.getStatus();
+                        if (status != LongRunningOperationStatus.SUCCESSFULLY_COMPLETED) {
+                            throw new IOException("Copy from " + sourceBlobName + " to " + blobName + " failed: " + response.getStatus());
+                        }
                     }
                 } catch (BlobStorageException e) {
                     boolean blobNotFound = BlobErrorCode.BLOB_NOT_FOUND.equals(e.getErrorCode());
@@ -1124,6 +1199,11 @@ public class AzureBlobStore implements BlobStore {
         return multiPartUploadPartSize.getBytes();
     }
 
+    // visible for testing
+    long maxCopySizeBeforeMultipart() {
+        return maxCopySizeBeforeMultipart.getBytes();
+    }
+
     private AzureBlobServiceClient getAzureBlobServiceClientClient(OperationPurpose purpose) {
         return service.client(projectId, clientName, locationMode, purpose, requestMetricsHandler);
     }
@@ -1140,6 +1220,7 @@ public class AzureBlobStore implements BlobStore {
         GET_BLOB_PROPERTIES("GetBlobProperties"),
         PUT_BLOB("PutBlob"),
         PUT_BLOCK("PutBlock"),
+        PUT_BLOCK_FROM_URL("PutBlockFromUrl"),
         PUT_BLOCK_LIST("PutBlockList"),
         BLOB_BATCH("BlobBatch"),
         COPY_BLOB("CopyBlob");

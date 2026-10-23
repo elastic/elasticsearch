@@ -9,15 +9,16 @@
 
 package org.elasticsearch.benchmark.xcontent;
 
-import java.io.BufferedReader;
+import java.io.BufferedInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
-import static java.nio.charset.StandardCharsets.ISO_8859_1;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
@@ -193,24 +194,34 @@ final class AnalyticsDocs {
     }
 
     /**
-     * Loads the first {@code count} lines of a newline-delimited JSON file, e.g. a real sample of the data this class models.
-     * The bytes are used as they are: the sample is not always valid UTF-8, and decoding it would change the lengths.
+     * Loads the first {@code count} lines of a newline-delimited JSON file, e.g. a real sample of the
+     * data this class models. The bytes are used as they are: the sample is not always valid UTF-8.
      */
     static byte[][] load(Path file, int count) throws IOException {
         List<byte[]> docs = new ArrayList<>(count);
-        // ISO-8859-1 maps every byte to one char and back, so the lines keep their exact bytes.
-        try (BufferedReader reader = Files.newBufferedReader(file, ISO_8859_1)) {
-            String line;
-            while (docs.size() < count && (line = reader.readLine()) != null) {
-                if (line.isEmpty() == false) {
-                    docs.add(line.getBytes(ISO_8859_1));
+        ByteArrayOutputStream line = new ByteArrayOutputStream();
+        try (InputStream in = new BufferedInputStream(Files.newInputStream(file))) {
+            int b;
+            while (docs.size() < count && (b = in.read()) != -1) {
+                if (b == '\n') {
+                    addNonEmpty(docs, line);
+                } else {
+                    line.write(b);
                 }
             }
         }
+        addNonEmpty(docs, line);
         if (docs.size() < count) {
             throw new IllegalArgumentException("[" + file + "] has only " + docs.size() + " documents, need " + count);
         }
         return docs.toArray(new byte[0][]);
+    }
+
+    private static void addNonEmpty(List<byte[]> docs, ByteArrayOutputStream line) {
+        if (line.size() > 0) {
+            docs.add(line.toByteArray());
+            line.reset();
+        }
     }
 
     private static void appendNumber(StringBuilder sb, Random random, int zeroPercent, int digits, int negPercent) {

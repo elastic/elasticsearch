@@ -56,7 +56,6 @@ class BuildPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
         THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.""".stripIndent()
 
     def setup() {
-        disableConfigurationCache("checkstyle task references LegacyConfiguration class; revisit after checkstyle update")
         // elasticsearch.build (BuildPlugin) and elasticsearch.global-build-info are applied by
         // AbstractGradleInternalPluginFuncTest; we only add the java plugin and project config here.
         buildFile << """
@@ -157,6 +156,11 @@ class BuildPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
             noticeFile.set(file("NOTICE"))
 
             tasks.named("forbiddenApisMain").configure {enabled = false }
+            // checkstyleMain is disabled below, but a disabled task still stays on the graph and the
+            // configuration cache serializes its inputs. Gradle's checkstyle plugin populates
+            // checkstyleClasspath with the legacy `checkstyle` configuration object, which is not
+            // CC-serializable; replace it with an empty collection since the task never runs here.
+            tasks.withType(org.gradle.api.plugins.quality.Checkstyle).configureEach { checkstyleClasspath = files() }
             tasks.named('checkstyleMain').configure { enabled = false }
             tasks.named('loggerUsageCheck').configure { enabled = false }
             // tested elsewhere

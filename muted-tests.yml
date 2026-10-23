@@ -170,6 +170,11 @@ tests:
   - :x-pack:plugin:downsample:test
   method: testDownsampleResumesAfterPersistentTaskRemoved
   issue: https://github.com/elastic/elasticsearch/issues/162858
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  tasks:
+  - :docs:yamlRestTest
+  method: test {yaml=reference/search/search-your-data/retrievers-examples/line_118}
+  issue: https://github.com/elastic/elasticsearch/issues/163108
 
 # Examples:
 #

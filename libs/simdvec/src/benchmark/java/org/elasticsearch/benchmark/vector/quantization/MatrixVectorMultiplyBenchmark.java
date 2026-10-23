@@ -32,8 +32,8 @@ import org.openjdk.jmh.infra.Blackhole;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
-@BenchmarkMode(Mode.Throughput)
-@OutputTimeUnit(TimeUnit.SECONDS)
+@BenchmarkMode(Mode.AverageTime)
+@OutputTimeUnit(TimeUnit.MICROSECONDS)
 @State(Scope.Benchmark)
 @Warmup(iterations = 3, time = 1)
 @Measurement(iterations = 5, time = 1)
@@ -50,7 +50,7 @@ public class MatrixVectorMultiplyBenchmark {
 
     // ASH defaults are 10240 x 1024
     // also use an odd number to exercise the tails
-    @Param({ "192", "481", "768", "10240" })
+    @Param({ "192", "481", "768", "1024", "4096" })
     int m;
 
     @Param({ "192", "481", "768", "1024" })

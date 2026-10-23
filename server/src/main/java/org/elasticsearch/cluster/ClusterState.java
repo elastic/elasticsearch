@@ -1210,8 +1210,24 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             if (UNKNOWN_UUID.equals(uuid)) {
                 uuid = UUIDs.randomBase64UUID();
             }
+
+            // Complete the routing table before deciding whether the previous RoutingNodes can be reused.
+            // initializeProjects rebuilds the project map when metadata contains a project that has no routing entry yet, and that
+            // rebuild can change the iteration order of the existing projects. RoutingNodes walks the table in that order, and
+            // RoutingNodes.equals treats unassigned-shard order as significant, so the reuse check must see the table that is stored.
+            if (metadata == null) {
+                if (routingTable == null) {
+                    routingTable = GlobalRoutingTable.EMPTY_ROUTING_TABLE;
+                }
+            } else if (routingTable == null) {
+                var projectRouting = Maps.transformValues(metadata.projects(), ignore -> RoutingTable.EMPTY_ROUTING_TABLE);
+                routingTable = new GlobalRoutingTable(ImmutableOpenMap.builder(projectRouting).build());
+            } else {
+                routingTable = routingTable.initializeProjects(metadata.projects().keySet());
+            }
+
             final RoutingNodes routingNodes;
-            if (previous != null && this.routingTable.hasSameIndexRouting(previous.routingTable) && this.nodes == previous.nodes) {
+            if (previous != null && routingTable.hasSameIndexRouting(previous.routingTable) && nodes == previous.nodes) {
                 // routing table contents and nodes haven't changed so we can try to reuse the previous state's routing nodes which are
                 // expensive to compute
                 routingNodes = previous.routingNodes;
@@ -1225,18 +1241,6 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 for (DiscoveryNode node : nodes) {
                     nodeFeatures.putIfAbsent(node.getId(), Set.of());
                 }
-            }
-
-            // Build routing table if required
-            if (metadata == null) {
-                if (routingTable == null) {
-                    routingTable = GlobalRoutingTable.EMPTY_ROUTING_TABLE;
-                }
-            } else if (routingTable == null) {
-                var projectRouting = Maps.transformValues(metadata.projects(), ignore -> RoutingTable.EMPTY_ROUTING_TABLE);
-                routingTable = new GlobalRoutingTable(ImmutableOpenMap.builder(projectRouting).build());
-            } else {
-                routingTable = routingTable.initializeProjects(metadata.projects().keySet());
             }
 
             return new ClusterState(

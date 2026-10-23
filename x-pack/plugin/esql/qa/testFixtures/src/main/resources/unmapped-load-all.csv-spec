@@ -7313,3 +7313,426 @@ id:keyword | parts.scheme:keyword | rd.registered_domain:keyword | _unmapped_fie
 1          | http                 | null                         | "{""other"":""x""}"
 b1         | null                 | example.com                  | null
 ;
+
+###############################################
+# FILLNULL under LOAD_ALL                     #
+###############################################
+
+fillNullOnMappedFieldKeepsUnmappedFieldsColumn
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_fillnull
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| EVAL m = CASE(message == "42", null, message)
+| KEEP @timestamp, m, language*
+| FILLNULL "missing" ON m
+| SORT @timestamp
+| LIMIT 3
+;
+
+@timestamp:datetime      | m:keyword              | _unmapped_fields:_source
+2024-10-23T12:15:03.360Z | Connected to 10.1.0.3! | "{""language_code"":""4""}"
+2024-10-23T12:27:28.948Z | Connected to 10.1.0.2! | "{""language_code"":""3""}"
+2024-10-23T13:33:34.937Z | missing                | "{""language_code"":""2""}"
+;
+
+fillNullAllColumnsLeavesUnmappedFieldsColumnAlone
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_fillnull
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| EVAL m = CASE(message == "42", null, message)
+| KEEP @timestamp, m, language*
+| FILLNULL DEFAULT ON *
+| SORT @timestamp
+| LIMIT 3
+;
+warning:Line 5:3: [FILLNULL] the following fields have no default fill value for their type and were left unchanged: [@timestamp]; provide an explicit value
+
+@timestamp:datetime      | m:keyword              | _unmapped_fields:_source
+2024-10-23T12:15:03.360Z | Connected to 10.1.0.3! | "{""language_code"":""4""}"
+2024-10-23T12:27:28.948Z | Connected to 10.1.0.2! | "{""language_code"":""3""}"
+2024-10-23T13:33:34.937Z |                        | "{""language_code"":""2""}"
+;
+
+fillNullOnUnmappedFieldExcludesItFromUnmappedFieldsColumn
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_fillnull
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| EVAL unmapped_message = CASE(unmapped_message == "43", null, unmapped_message)
+| FILLNULL "missing" ON unmapped_message
+| KEEP @timestamp, unmapped_message, unmapped*
+| SORT @timestamp
+| LIMIT 3
+;
+
+@timestamp:datetime      | unmapped_message:keyword   | _unmapped_fields:_source
+2024-10-23T12:15:03.360Z | Disconnected from 10.1.0.3 | "{""unmapped_event_duration"":""3450234"",""unmapped.nested"":""g""}"
+2024-10-23T12:27:28.948Z | Disconnected from 10.1.0.2 | "{""unmapped_event_duration"":""2764890"",""unmapped.nested"":""f""}"
+2024-10-23T13:33:34.937Z | missing                    | "{""unmapped_event_duration"":""1232383"",""unmapped.nested"":""e""}"
+;
+
+fillNullOnFieldNoDocumentHas
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_fillnull
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| FILLNULL "missing" ON no_such_field
+| KEEP @timestamp, no_such_field, language*
+| SORT @timestamp
+| LIMIT 2
+;
+
+@timestamp:datetime      | no_such_field:keyword | _unmapped_fields:_source
+2024-10-23T12:15:03.360Z | missing               | "{""language_code"":""4""}"
+2024-10-23T12:27:28.948Z | missing               | "{""language_code"":""3""}"
+;
+
+fillNullOnUnmappedFieldMissingFromSomeDocuments
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_fillnull
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM mv_expand_unmapped
+| FILLNULL "none" ON deep.items
+| KEEP id, deep.items, ta*
+| SORT id
+;
+
+id:keyword | deep.items:keyword | _unmapped_fields:_source
+u1         | [x, y]             | "{""tags"":[""d"",""e""]}"
+u2         | none               | null
+u3         | z                  | "{""tags"":""f""}"
+;
+
+fillNullOnSeveralUnmappedFields
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_fillnull
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM mv_expand_unmapped
+| FILLNULL "n/a" ON tags, deep.items
+| KEEP id, ta*, deep*
+| SORT id
+;
+
+id:keyword | tags:keyword | deep.items:keyword | _unmapped_fields:_source
+u1         | [d, e]       | [x, y]             | null
+u2         | n/a          | n/a                | null
+u3         | f            | z                  | null
+;
+
+fillNullAllColumnsFillsANamedUnmappedField
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_fillnull
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM mv_expand_unmapped
+| KEEP id, tags, deep*
+| FILLNULL "n/a" ON *
+| SORT id
+;
+
+id:keyword | tags:keyword | _unmapped_fields:_source
+u1         | [d, e]       | "{""deep.items"":[""x"",""y""]}"
+u2         | n/a          | null
+u3         | f            | "{""deep.items"":""z""}"
+;
+
+fillNullAllColumnsBeforeAKeepNamingAnUnmappedField
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_fillnull
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM mv_expand_unmapped
+| FILLNULL "n/a" ON *
+| KEEP id, tags, deep*
+| SORT id
+;
+
+id:keyword | tags:keyword | _unmapped_fields:_source
+u1         | [d, e]       | "{""deep.items"":[""x"",""y""]}"
+u2         | n/a          | null
+u3         | f            | "{""deep.items"":""z""}"
+;
+
+fillNullNamingUnmappedFieldsFillsAnOrdinaryUnmappedField
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_fillnull
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| FILLNULL "none" ON _unmapped_fields
+| KEEP @timestamp, _unmapped_fields
+| SORT @timestamp
+| LIMIT 2
+;
+warning:The query has a column named [_unmapped_fields], so the unmapped fields are not returned in a column of that name; rename that column to get them
+
+@timestamp:datetime      | _unmapped_fields:keyword
+2024-10-23T12:15:03.360Z | none
+2024-10-23T12:27:28.948Z | none
+;
+
+fillNullOnEvalColumnNamedUnmappedFields
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_fillnull
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| EVAL _unmapped_fields = CASE(message == "42", null, message)
+| FILLNULL "filled" ON _unmapped_*
+| KEEP @timestamp, _unmapped_fields
+| SORT @timestamp
+| LIMIT 3
+;
+warning:The query has a column named [_unmapped_fields], so the unmapped fields are not returned in a column of that name; rename that column to get them
+
+@timestamp:datetime      | _unmapped_fields:keyword
+2024-10-23T12:15:03.360Z | Connected to 10.1.0.3!
+2024-10-23T12:27:28.948Z | Connected to 10.1.0.2!
+2024-10-23T13:33:34.937Z | filled
+;
+
+fillNullOnEvalColumnNamedUnmappedFieldsKeptByPattern
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_fillnull
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| EVAL _unmapped_fields = CASE(message == "42", null, message)
+| FILLNULL "filled" ON _unmapped_*
+| KEEP @timestamp, _unmapped_f*
+| SORT @timestamp
+| LIMIT 3
+;
+warning:The query has a column named [_unmapped_fields], so the unmapped fields are not returned in a column of that name; rename that column to get them
+
+@timestamp:datetime      | _unmapped_fields:keyword
+2024-10-23T12:15:03.360Z | Connected to 10.1.0.3!
+2024-10-23T12:27:28.948Z | Connected to 10.1.0.2!
+2024-10-23T13:33:34.937Z | filled
+;
+
+fillNullOnRenamedColumnNamedUnmappedFields
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_fillnull
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| EVAL m = CASE(message == "42", null, message)
+| RENAME m AS _unmapped_fields
+| KEEP @timestamp, _unmapped_fields
+| FILLNULL "filled" ON *
+| SORT @timestamp
+| LIMIT 3
+;
+warning:Line 6:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [@timestamp]
+warning:The query has a column named [_unmapped_fields], so the unmapped fields are not returned in a column of that name; rename that column to get them
+
+@timestamp:datetime      | _unmapped_fields:keyword
+2024-10-23T12:15:03.360Z | Connected to 10.1.0.3!
+2024-10-23T12:27:28.948Z | Connected to 10.1.0.2!
+2024-10-23T13:33:34.937Z | filled
+;
+
+fillNullInForkBranches
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_fillnull
+required_capability: fork_v9
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| EVAL m = CASE(message == "42", null, message)
+| KEEP @timestamp, m, language*
+| WHERE m IS NULL
+| FORK (FILLNULL "a" ON m) (FILLNULL "b" ON m)
+| SORT _fork
+;
+
+@timestamp:datetime      | m:keyword | _fork:keyword | _unmapped_fields:_source
+2024-10-23T13:33:34.937Z | a         | fork1         | "{""language_code"":""2""}"
+2024-10-23T13:33:34.937Z | b         | fork2         | "{""language_code"":""2""}"
+;
+
+fillNullAllColumnsInForkBranch
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_fillnull
+required_capability: fork_v9
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, sample_data METADATA _index
+| WHERE event_duration > 5000000
+| FORK (FILLNULL "x" ON *) (WHERE unmapped_message IS NOT NULL)
+| KEEP _index, event_duration, unmapped_message, _fork, language*
+| SORT _fork, _index, event_duration
+;
+warning:Line 4:9: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [event_duration]
+
+_index:keyword              | event_duration:long | unmapped_message:keyword | _fork:keyword | _unmapped_fields:_source
+partial_mapping_sample_data | 5033754             | Disconnection error      | fork1         | "{""language_code"":""2""}"
+partial_mapping_sample_data | 8268152             | Disconnection error      | fork1         | "{""language_code"":""3""}"
+sample_data                 | 5033755             | x                        | fork1         | null
+sample_data                 | 8268153             | x                        | fork1         | null
+partial_mapping_sample_data | 5033754             | Disconnection error      | fork2         | "{""language_code"":""2""}"
+partial_mapping_sample_data | 8268152             | Disconnection error      | fork2         | "{""language_code"":""3""}"
+;
+
+fillNullAllColumnsAfterForkWithStatsBranch
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_fillnull
+required_capability: fork_v9
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| EVAL m = CASE(message == "42", null, message)
+| KEEP @timestamp, m, language*
+| WHERE m IS NULL
+| FORK (WHERE true) (STATS c = COUNT(*))
+| FILLNULL DEFAULT ON *
+| SORT _fork
+;
+warning:Line 7:3: [FILLNULL] the following fields have no default fill value for their type and were left unchanged: [@timestamp]; provide an explicit value
+
+@timestamp:datetime      | m:keyword | _fork:keyword | c:long | _unmapped_fields:_source
+2024-10-23T13:33:34.937Z |           | fork1         | 0      | "{""language_code"":""2""}"
+null                     |           | fork2         | 1      | null
+;
+
+fillNullTargetedInSubqueryBranch
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_fillnull
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data METADATA _index), (FROM no_mapping_sample_data METADATA _index | FILLNULL "none" ON no_such_field)
+| KEEP @timestamp, _index, no_such_field, language*
+| SORT @timestamp, _index
+| LIMIT 4
+;
+
+@timestamp:datetime      | _index:keyword              | no_such_field:keyword | _unmapped_fields:_source
+2024-10-23T12:15:03.360Z | no_mapping_sample_data      | none                  | "{""language_code"":""4""}"
+2024-10-23T12:15:03.360Z | partial_mapping_sample_data | null                  | "{""language_code"":""4""}"
+2024-10-23T12:27:28.948Z | no_mapping_sample_data      | none                  | "{""language_code"":""3""}"
+2024-10-23T12:27:28.948Z | partial_mapping_sample_data | null                  | "{""language_code"":""3""}"
+;
+
+fillNullPatternInSubqueryBranch
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_fillnull
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data METADATA _index),
+     (FROM no_mapping_sample_data METADATA _index
+      | EVAL msg = CASE(unmapped_message == "43", null, unmapped_message)
+      | FILLNULL "none" ON ms*)
+| WHERE msg == "none"
+| KEEP @timestamp, _index, msg, language*
+;
+
+@timestamp:datetime      | _index:keyword         | msg:keyword | _unmapped_fields:_source
+2024-10-23T13:33:34.937Z | no_mapping_sample_data | none        | "{""language_code"":""2""}"
+;
+
+fillNullAllColumnsAfterSubqueries
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_fillnull
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data METADATA _index), (FROM no_mapping_sample_data METADATA _index)
+| EVAL m = CASE(message == "42", null, message)
+| KEEP @timestamp, _index, m, language*
+| WHERE m IS NULL
+| FILLNULL "filled" ON *
+| SORT _index
+;
+warning:Line 6:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [@timestamp]
+
+@timestamp:datetime      | _index:keyword              | m:keyword | _unmapped_fields:_source
+2024-10-23T13:33:34.937Z | no_mapping_sample_data      | filled    | "{""language_code"":""2""}"
+2024-10-23T13:33:34.937Z | partial_mapping_sample_data | filled    | "{""language_code"":""2""}"
+;
+
+fillNullPatternFillsOnlyTheMatchingColumns
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_fillnull
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| EVAL m1 = CASE(message == "42", null, message), m2 = CASE(message == "42", null, message), other = CASE(message == "42", null, message)
+| KEEP @timestamp, m1, m2, other, language*
+| FILLNULL "filled" ON m*
+| SORT @timestamp
+| LIMIT 3
+;
+
+@timestamp:datetime      | m1:keyword             | m2:keyword             | other:keyword          | _unmapped_fields:_source
+2024-10-23T12:15:03.360Z | Connected to 10.1.0.3! | Connected to 10.1.0.3! | Connected to 10.1.0.3! | "{""language_code"":""4""}"
+2024-10-23T12:27:28.948Z | Connected to 10.1.0.2! | Connected to 10.1.0.2! | Connected to 10.1.0.2! | "{""language_code"":""3""}"
+2024-10-23T13:33:34.937Z | filled                 | filled                 | null                   | "{""language_code"":""2""}"
+;
+
+fillNullAllColumnsAfterMvExpand
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_grok_dissect_mv_expand_sample
+required_capability: optional_fields_load_all_fillnull
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM mv_expand_unmapped
+| MV_EXPAND tags
+| FILLNULL "n/a" ON *
+| KEEP id, tags, deep*
+| SORT id, tags
+;
+
+id:keyword | tags:keyword | _unmapped_fields:_source
+u1         | d            | "{""deep.items"":[""x"",""y""]}"
+u1         | e            | "{""deep.items"":[""x"",""y""]}"
+u2         | n/a          | null
+u3         | f            | "{""deep.items"":""z""}"
+;
+
+fillNullOnPartiallyUnmappedText
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_fillnull
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _index
+| FILLNULL "none" ON txt
+| RENAME txt AS filled
+| SORT _index, doc_id
+;
+warning:Field [txt] is unmapped in some indices and has no implicit conversion from KEYWORD; it is null in those indices
+
+doc_id:keyword | filled:text      | _index:keyword         | _unmapped_fields:_source
+mapped-1       | William Faulkner | text_state_mapped      | null
+mapped-2       | Jane Austen      | text_state_mapped      | null
+nonexistent-1  | none             | text_state_nonexistent | null
+unmapped-1     | none             | text_state_unmapped    | null
+;
+
+fillNullAllColumnsOnPartiallyUnmappedText
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_fillnull
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _index
+| FILLNULL "none" ON *
+| SORT txt, doc_id
+;
+warning:Field [txt] is unmapped in some indices and has no implicit conversion from KEYWORD; it is null in those indices
+
+doc_id:keyword | txt:text         | _index:keyword         | _unmapped_fields:_source
+mapped-2       | Jane Austen      | text_state_mapped      | null
+mapped-1       | William Faulkner | text_state_mapped      | null
+nonexistent-1  | none             | text_state_nonexistent | null
+unmapped-1     | none             | text_state_unmapped    | null
+;

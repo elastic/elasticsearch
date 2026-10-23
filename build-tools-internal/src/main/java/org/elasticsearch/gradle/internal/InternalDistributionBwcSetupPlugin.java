@@ -387,46 +387,56 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         return "gradle-" + project.getGradle().getGradleVersion() + "-bin";
     }
 
+    /**
+     * Seeds the unique Gradle user home of a nested BWC build with the Gradle config and the wrapper distribution of the outer build.
+     * <p>
+     * The unique user home is updated in place and never deleted as a whole: it also holds the nested build's dependency caches and
+     * the registry of its daemons. An idle nested daemon left over from a previous build keeps writing to its registry under
+     * {@code daemon/}, so deleting the whole directory races with that daemon and fails intermittently.
+     */
     static void seedUniqueGradleUserHome(File sourceGradleUserHome, File uniqueGradleUserHome, String wrapperDistributionPath) {
         File wrapperSeedLock = new File(uniqueGradleUserHome.getParentFile(), uniqueGradleUserHome.getName() + ".seed.lock");
         withExclusiveFileLock(wrapperSeedLock, () -> {
+            FileUtils.forceMkdir(uniqueGradleUserHome);
+            refreshGradleUserHomeConfig(sourceGradleUserHome, uniqueGradleUserHome);
             File sourceWrapperDistributionDir = new File(sourceGradleUserHome, wrapperDistributionPath);
-            File existingWrapperDistributionDir = new File(uniqueGradleUserHome, wrapperDistributionPath);
-            File wrapperDistributionSeedSource = isReadyWrapperDistribution(sourceWrapperDistributionDir) ? sourceWrapperDistributionDir
-                : isReadyWrapperDistribution(existingWrapperDistributionDir) ? existingWrapperDistributionDir
-                : null;
-            File stagingGradleUserHome = new File(
-                uniqueGradleUserHome.getParentFile(),
-                uniqueGradleUserHome.getName() + ".tmp-" + UUID.randomUUID()
-            );
-            FileUtils.deleteQuietly(stagingGradleUserHome);
-            try {
-                copyGradleUserHomeConfig(sourceGradleUserHome, stagingGradleUserHome);
-                if (wrapperDistributionSeedSource != null) {
-                    FileUtils.copyDirectory(
-                        wrapperDistributionSeedSource,
-                        new File(new File(stagingGradleUserHome, WRAPPER_DISTS_RELATIVE_PATH), wrapperDistributionSeedSource.getName())
-                    );
-                }
-                if (uniqueGradleUserHome.exists()) {
-                    FileUtils.deleteDirectory(uniqueGradleUserHome);
-                }
-                Files.move(stagingGradleUserHome.toPath(), uniqueGradleUserHome.toPath(), StandardCopyOption.ATOMIC_MOVE);
-            } finally {
-                FileUtils.deleteQuietly(stagingGradleUserHome);
+            File targetWrapperDistributionDir = new File(uniqueGradleUserHome, wrapperDistributionPath);
+            if (isReadyWrapperDistribution(targetWrapperDistributionDir) == false
+                && isReadyWrapperDistribution(sourceWrapperDistributionDir)) {
+                replaceDirectory(sourceWrapperDistributionDir, targetWrapperDistributionDir);
             }
         });
     }
 
-    private static void copyGradleUserHomeConfig(File sourceGradleUserHome, File targetGradleUserHome) throws IOException {
-        FileUtils.forceMkdir(targetGradleUserHome);
+    private static void refreshGradleUserHomeConfig(File sourceGradleUserHome, File targetGradleUserHome) throws IOException {
         File gradleProperties = new File(sourceGradleUserHome, "gradle.properties");
+        File targetGradleProperties = new File(targetGradleUserHome, gradleProperties.getName());
         if (gradleProperties.isFile()) {
-            FileUtils.copyFileToDirectory(gradleProperties, targetGradleUserHome);
+            FileUtils.copyFile(gradleProperties, targetGradleProperties);
+        } else {
+            FileUtils.deleteQuietly(targetGradleProperties);
         }
         File initScriptsDir = new File(sourceGradleUserHome, "init.d");
+        File targetInitScriptsDir = new File(targetGradleUserHome, initScriptsDir.getName());
         if (initScriptsDir.isDirectory()) {
-            FileUtils.copyDirectory(initScriptsDir, new File(targetGradleUserHome, initScriptsDir.getName()));
+            replaceDirectory(initScriptsDir, targetInitScriptsDir);
+        } else {
+            FileUtils.deleteDirectory(targetInitScriptsDir);
+        }
+    }
+
+    /**
+     * Replaces {@code target} with a copy of {@code source}, staging the copy next to the target so that the target is either
+     * absent or complete, but never partially copied.
+     */
+    private static void replaceDirectory(File source, File target) throws IOException {
+        File staging = new File(target.getParentFile(), target.getName() + ".tmp-" + UUID.randomUUID());
+        try {
+            FileUtils.copyDirectory(source, staging);
+            FileUtils.deleteDirectory(target);
+            Files.move(staging.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE);
+        } finally {
+            FileUtils.deleteQuietly(staging);
         }
     }
 

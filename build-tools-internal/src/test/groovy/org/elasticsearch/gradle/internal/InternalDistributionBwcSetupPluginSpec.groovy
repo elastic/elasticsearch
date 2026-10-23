@@ -173,6 +173,55 @@ class InternalDistributionBwcSetupPluginSpec extends Specification {
         InternalDistributionBwcSetupPlugin.isReadyWrapperDistribution(new File(uniqueGradleUserHome, wrapperDistributionPath))
     }
 
+    def "seedUniqueGradleUserHome keeps daemon registry and caches of an existing user home"() {
+        given: "an existing unique user home as left behind by a previous nested build and its idle daemon"
+        File sourceGradleUserHome = new File(tempDir, "source")
+        sourceGradleUserHome.mkdirs()
+        String wrapperDistributionPath = "wrapper/dists/gradle-9.1-bin"
+        writeReadyWrapperDistribution(new File(sourceGradleUserHome, wrapperDistributionPath))
+        File uniqueGradleUserHome = new File(tempDir, "unique")
+        File daemonRegistry = new File(uniqueGradleUserHome, "daemon/9.1/registry.bin")
+        daemonRegistry.with {
+            parentFile.mkdirs()
+            text = "registry"
+        }
+        File cachedJar = new File(uniqueGradleUserHome, "caches/modules-2/files-2.1/foo/foo.jar")
+        cachedJar.with {
+            parentFile.mkdirs()
+            text = "jar"
+        }
+
+        when:
+        InternalDistributionBwcSetupPlugin.seedUniqueGradleUserHome(sourceGradleUserHome, uniqueGradleUserHome, wrapperDistributionPath)
+
+        then:
+        daemonRegistry.text == "registry"
+        cachedJar.text == "jar"
+        InternalDistributionBwcSetupPlugin.isReadyWrapperDistribution(new File(uniqueGradleUserHome, wrapperDistributionPath))
+    }
+
+    def "seedUniqueGradleUserHome replaces an incomplete wrapper distribution"() {
+        given:
+        File sourceGradleUserHome = new File(tempDir, "source")
+        sourceGradleUserHome.mkdirs()
+        String wrapperDistributionPath = "wrapper/dists/gradle-9.1-bin"
+        writeReadyWrapperDistribution(new File(sourceGradleUserHome, wrapperDistributionPath))
+        File uniqueGradleUserHome = new File(tempDir, "unique")
+        File partialDownload = new File(uniqueGradleUserHome, wrapperDistributionPath + "/abc123/gradle-9.1-bin.zip.part")
+        partialDownload.with {
+            parentFile.mkdirs()
+            text = ""
+        }
+
+        when:
+        InternalDistributionBwcSetupPlugin.seedUniqueGradleUserHome(sourceGradleUserHome, uniqueGradleUserHome, wrapperDistributionPath)
+
+        then:
+        partialDownload.exists() == false
+        InternalDistributionBwcSetupPlugin.isReadyWrapperDistribution(new File(uniqueGradleUserHome, wrapperDistributionPath))
+        new File(uniqueGradleUserHome, "wrapper/dists").list().toList() == ["gradle-9.1-bin"]
+    }
+
     private static void writeReadyWrapperDistribution(File wrapperDistributionDir) {
         String extractedGradleDirName = wrapperDistributionDir.name.endsWith("-bin")
             ? wrapperDistributionDir.name.substring(0, wrapperDistributionDir.name.length() - "-bin".length())

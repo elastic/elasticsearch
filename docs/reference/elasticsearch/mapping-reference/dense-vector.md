@@ -806,6 +806,31 @@ Dynamic float array mapping
 `index.merge.scheduler.auto_throttle`
 :   Set to `false`. Disables automatic throttling of merge I/O, allowing merges to proceed at full speed.
 
+### `vectordb_columnar` [dense-vector-vectordb-columnar-mode]
+
+{applies_to}`stack: preview 9.6+`
+
+The `vectordb_columnar` [index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting) combines the vector search defaults of [`vectordb_document`](#dense-vector-vectordb-document-mode) with the [columnar](/reference/elasticsearch/columnar/index.md) storage model. Fields are stored once, as doc values, and `_source` is reconstructed from them, which reduces the storage footprint of the non-vector fields that accompany your vectors.
+
+Unlike the other columnar modes, `vectordb_columnar` is optimized for search rather than analytics: it keeps the structures that vector and full-text retrieval depend on, making it suitable for both vector search and hybrid search that combines text with vectors.
+
+You must set the mode at index creation time:
+
+```console
+PUT my-vector-index
+{
+  "settings": {
+    "index": {
+      "mode": "vectordb_columnar"
+    }
+  }
+}
+```
+
+`vectordb_columnar` applies the same vector search settings and defaults as [`vectordb_document`](#dense-vector-vectordb-document-mode).
+
+It also inherits the behavior and [limitations](/reference/elasticsearch/columnar/index.md#columnar-limitations) of the columnar modes, such as auto-flattened mappings, synthetic or `columnar_stored` [`_source`](/reference/elasticsearch/columnar/index.md#columnar-source), and the rejection of mapping-level runtime fields. Unlike the other columnar modes, it indexes `dense_vector` fields by default, keeps positions and norms on `text` fields, maps dynamic strings as `text`, and keeps the query cache enabled for filtered vector search. For the full list of settings and defaults, refer to [`vectordb_columnar` settings](/reference/elasticsearch/columnar/index.md#vectordb-columnar-settings).
+
 ## Updatable field type [_updatable_field_type]
 
 To better accommodate scaling and performance needs, updating the `type` setting in `index_options` is possible with the [Update Mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping), according to the following graph (jumps allowed):

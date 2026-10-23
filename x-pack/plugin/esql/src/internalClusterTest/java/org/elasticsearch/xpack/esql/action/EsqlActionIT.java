@@ -2334,6 +2334,27 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testDedup() {
+        try (EsqlQueryResponse results = run("from test | keep color, data | dedup | sort color, data")) {
+            assertThat(
+                getValuesList(results),
+                equalTo(List.of(List.of("blue", 2L), List.of("green", 1L), List.of("red", 1L), List.of("red", 2L)))
+            );
+        }
+    }
+
+    public void testDedupOverAllColumns() {
+        try (EsqlQueryResponse results = run("from test | dedup | stats c = count(*)")) {
+            assertThat(getValuesList(results), equalTo(List.of(List.of(40L))));
+        }
+    }
+
+    public void testDedupOverSource() {
+        try (EsqlQueryResponse results = run("from test metadata _source | keep _source | dedup | stats c = count(*)")) {
+            assertThat(getValuesList(results), equalTo(List.of(List.of(40L))));
+        }
+    }
+
     private void createAndPopulateIndex(String indexName) {
         createAndPopulateIndex(indexName, Settings.EMPTY);
     }

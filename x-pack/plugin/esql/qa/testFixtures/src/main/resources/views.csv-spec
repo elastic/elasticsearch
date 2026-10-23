@@ -689,6 +689,23 @@ count:long
 200
 ;
 
+dedupOverIndexAndViewOfSameIndex
+required_capability: dedup_command
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_deduplication_bugfix
+
+// employees_all is a view over employees, so every row appears twice before DEDUP.
+FROM employees, employees_all
+| KEEP emp_no
+| DEDUP
+| STATS c = COUNT(*)
+;
+
+c:long
+100
+;
+
 compactedViewWithViewGivesTwoCopies
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions

@@ -435,3 +435,214 @@ FROM employees, employees_incompatible
 c:long
 100
 ;
+
+
+dedupAfterLookupJoinCollapsesMultipliedRows
+required_capability: dedup_command
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE emp_no IN (10001, 10002, 10003, 10005)
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| KEEP language_code, language_name
+| DEDUP
+| SORT language_code, language_name
+;
+
+language_code:integer | language_name:keyword
+1                     | English
+1                     | null
+2                     | German
+4                     | Quenya
+5                     | null
+;
+
+
+dedupAfterLookupJoinKeepsRowsDifferingOnlyInLookupField
+required_capability: dedup_command
+required_capability: join_lookup_v12
+
+// The four German rows for language_code 2 differ only in country, which comes from the lookup index.
+FROM employees
+| WHERE emp_no == 10001
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| KEEP emp_no, country
+| DEDUP
+| STATS c = COUNT(*)
+;
+
+c:long
+4
+;
+
+
+dedupAfterLookupJoinOnLeftColumnsOnly
+required_capability: dedup_command
+required_capability: join_lookup_v12
+
+FROM employees
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| KEEP language_code
+| DEDUP
+| SORT language_code
+;
+
+language_code:integer
+1
+2
+3
+4
+5
+null
+;
+
+
+dedupAfterMvExpand
+required_capability: dedup_command
+
+FROM employees
+| WHERE emp_no IN (10001, 10009)
+| KEEP job_positions
+| MV_EXPAND job_positions
+| DEDUP
+| SORT job_positions
+;
+
+job_positions:keyword
+Accountant
+Internship
+Senior Python Developer
+;
+
+
+dedupAfterMvExpandOnUnexpandedColumn
+required_capability: dedup_command
+
+FROM employees
+| WHERE emp_no IN (10001, 10002, 10010, 10011)
+| KEEP gender, job_positions
+| MV_EXPAND job_positions
+| KEEP gender
+| DEDUP
+| SORT gender NULLS LAST
+;
+
+gender:keyword
+F
+M
+null
+;
+
+
+dedupAfterEnrich
+required_capability: dedup_command
+required_capability: enrich_load
+
+FROM employees
+| EVAL language_code = TO_STRING(languages)
+| ENRICH languages_policy ON language_code
+| KEEP language_name
+| DEDUP
+| SORT language_name
+;
+
+language_name:keyword
+English
+French
+German
+Spanish
+null
+;
+
+
+dedupAfterEnrichOnMatchFieldOnly
+required_capability: dedup_command
+required_capability: enrich_load
+
+FROM employees
+| EVAL language_code = TO_STRING(languages)
+| ENRICH languages_policy ON language_code
+| KEEP language_code
+| DEDUP
+| SORT language_code
+;
+
+language_code:keyword
+1
+2
+3
+4
+5
+null
+;
+
+
+dedupAfterInlineStats
+required_capability: dedup_command
+required_capability: inline_stats
+
+FROM employees
+| KEEP gender, languages
+| INLINE STATS max_languages = MAX(languages) BY gender
+| KEEP gender, max_languages
+| DEDUP
+| SORT gender NULLS LAST
+;
+
+gender:keyword | max_languages:integer
+F              | 5
+M              | 5
+null           | 5
+;
+
+
+dedupAfterForkKeepsBranchesApart
+required_capability: dedup_command
+required_capability: fork_v9
+
+FROM employees
+| KEEP gender
+| FORK (WHERE gender == "F") (WHERE gender == "F")
+| DEDUP
+| SORT _fork
+;
+
+gender:keyword | _fork:keyword
+F              | fork1
+F              | fork2
+;
+
+
+dedupAfterForkWithoutForkColumn
+required_capability: dedup_command
+required_capability: fork_v9
+
+FROM employees
+| KEEP gender
+| FORK (WHERE gender == "F") (WHERE gender == "F")
+| DROP _fork
+| DEDUP
+;
+
+gender:keyword
+F
+;
+
+
+dedupInsideForkBranches
+required_capability: dedup_command
+required_capability: fork_v9
+
+FROM employees
+| KEEP gender
+| FORK (WHERE gender == "F" | DEDUP) (WHERE gender == "M" | DEDUP)
+| SORT _fork
+;
+
+gender:keyword | _fork:keyword
+F              | fork1
+M              | fork2
+;

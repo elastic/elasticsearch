@@ -20,13 +20,18 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorMappingBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
@@ -261,10 +266,62 @@ public abstract class AbstractSemanticHighlighterTests extends MapperServiceTest
         );
     }
 
+    /** A knn query on another vector field does not highlight this one. */
+    public void testNoHighlightOnOtherFieldKnn() throws Exception {
+        float[] vector = readDenseVector(queryData.get("embeddings"));
+        CheckedBiConsumer<String, Float, Exception> assertNoHighlight = (otherField, similarity) -> {
+            MappedFieldType otherFieldType = mapperService.mappingLookup().getFieldType(otherField);
+            var shardRequest = createShardSearchRequest(createKnnQuery(otherFieldType, vector, similarity));
+            assertHighlightOneDoc(
+                mapperService,
+                createSearchExecutionContext(mapperService),
+                shardRequest,
+                sourceToParse,
+                SEMANTIC_FIELD,
+                10,
+                HighlightBuilder.Order.SCORE,
+                new String[0]
+            );
+        };
+
+        merge(mapperService, mapping(b -> {
+            b.startObject("other-vector");
+            new DenseVectorMappingBuilder().dims(384)
+                .similarity(DenseVectorFieldMapper.VectorSimilarity.COSINE)
+                .indexOptions(Map.of("type", "flat"))
+                .build(b);
+            b.endObject();
+        }));
+
+        // knn on another semantic field
+        assertNoHighlight.accept(SEMANTIC_FIELD_DISK_BBQ, null);
+        // knn with a similarity threshold on another semantic field
+        assertNoHighlight.accept(SEMANTIC_FIELD_DISK_BBQ, 0.85f);
+        // exact knn on another dense_vector field
+        assertNoHighlight.accept("other-vector", null);
+    }
+
     private MapperService createMapperService(IndexVersion indexVersion, Settings settings, String mappings) throws IOException {
         var mapperService = createMapperService(indexVersion, settings, mapping(b -> {}));
         merge(mapperService, mappings);
         return mapperService;
+    }
+
+    /** Creates a knn query on {@code fieldType}, nested in its chunks for a semantic field. */
+    private static QueryBuilder createKnnQuery(MappedFieldType fieldType, float[] vector, @Nullable Float similarity) {
+        String nestedPath = null;
+        final String vectorField;
+        if (fieldType instanceof SemanticFieldMapper.SemanticFieldType semanticFieldType) {
+            nestedPath = semanticFieldType.getChunksField().fullPath();
+            vectorField = semanticFieldType.getEmbeddingsField().fullPath();
+        } else if (fieldType instanceof DenseVectorFieldMapper.DenseVectorFieldType) {
+            vectorField = fieldType.name();
+        } else {
+            throw new AssertionError("Unsupported field type [" + fieldType.typeName() + "]");
+        }
+
+        QueryBuilder knnQuery = new KnnVectorQueryBuilder(vectorField, vector, 10, 10, 10f, null, similarity);
+        return nestedPath == null ? knnQuery : new NestedQueryBuilder(nestedPath, knnQuery, ScoreMode.Max);
     }
 
     private static float[] readDenseVector(Object value) {

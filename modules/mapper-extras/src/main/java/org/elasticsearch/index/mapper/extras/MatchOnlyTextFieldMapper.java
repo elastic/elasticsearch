@@ -43,7 +43,6 @@ import org.elasticsearch.columnar.string.DictionaryPolicy;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.columnar.string.StringColumnOptions;
 import org.elasticsearch.columnar.string.SummaryPolicy;
-import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.Lucene;
@@ -302,12 +301,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     }
 
     public static final TypeParser PARSER = new TypeParser(Builder::new);
-
-    // The recorded value is the raw UTF-8 value; write it back like the offsets-aware loader does.
-    private static final CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> OFFSETS_FALLBACK = (b, v) -> {
-        var bytesRef = (BytesRef) v;
-        b.utf8Value(bytesRef.bytes, bytesRef.offset, bytesRef.length);
-    };
 
     public static class MatchOnlyTextFieldType extends TextFamilyFieldType {
 
@@ -1452,7 +1445,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                     MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull(context.doc(), fieldType().name());
                 }
             } else if (recordOffsets) {
-                context.getOffSetContext().recordNull(offsetsFieldName, OFFSETS_FALLBACK);
+                context.getOffSetContext().recordNull(offsetsFieldName, TextFieldMapper.OFFSETS_FALLBACK);
             }
             return;
         }
@@ -1512,7 +1505,11 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
         if (recordOffsets) {
             context.getOffSetContext()
-                .recordOffset(offsetsFieldName, new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length()), OFFSETS_FALLBACK);
+                .recordOffset(
+                    offsetsFieldName,
+                    new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length()),
+                    TextFieldMapper.OFFSETS_FALLBACK
+                );
         }
 
         // match only text isn't stored, so if synthetic source needs to be supported, we must find an alternative way of loading the field

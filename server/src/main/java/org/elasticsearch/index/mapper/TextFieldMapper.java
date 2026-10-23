@@ -630,8 +630,11 @@ public final class TextFieldMapper extends FieldMapper {
 
     public static final TypeParser PARSER = createTypeParserWithLegacySupport(Builder::new);
 
-    // The recorded value is the raw UTF-8 value; write it back like the offsets-aware loader does.
-    private static final CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> OFFSETS_FALLBACK = (b, v) -> {
+    /**
+     * Writes a recorded offsets value back into synthetic source when the offsets of an array are too large to store.
+     * The recorded value is the raw UTF-8 value as a {@link BytesRef}; shared by the text-family mappers that record offsets this way.
+     */
+    public static final CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> OFFSETS_FALLBACK = (b, v) -> {
         var bytesRef = (BytesRef) v;
         b.utf8Value(bytesRef.bytes, bytesRef.offset, bytesRef.length);
     };

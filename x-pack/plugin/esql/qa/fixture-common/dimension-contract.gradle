@@ -1,0 +1,32 @@
+/*
+ * Registers checkDimensionContract on precommit: every (dimension, value, format) cell of the
+ * contract is reachable through a seam or carries a typed reason for why it is not.
+ *
+ * Static half only, mirroring checkFixtureCoverage. It answers from the declaration alone, so it has
+ * an answer on every build including release builds where no fixture artifacts exist. The artifact
+ * half -- do the bytes a capability row claims actually exist -- rides csvSpecTests instead, for the
+ * same reason checkFixtureGeneration does.
+ *
+ * The Java class is the sole authority: re-deriving any of this in Groovy would give two answers that
+ * agree until they do not.
+ */
+
+def contractReport = layout.buildDirectory.file('reports/fixture-coverage/dimension-contract.txt')
+def contractDeclaration = file('src/main/resources/org/elasticsearch/xpack/esql/datasources/fixtures/fixture-dimensions.properties')
+
+def checkDimensionContract = tasks.register('checkDimensionContract', JavaExec) {
+  description = 'Fails when a declared dimension value can be reached by no seam and nothing says why.'
+  dependsOn tasks.named('classes')
+  classpath = sourceSets.main.runtimeClasspath
+  mainClass = 'org.elasticsearch.xpack.esql.datasources.fixtures.FixtureContractAudit'
+  // Captured at configuration time: reading these from inside the action would resolve against the
+  // task rather than the project, which Gradle 9 treats as an error rather than a warning.
+  def reportFile = contractReport
+  argumentProviders.add({ [reportFile.get().asFile.path] } as CommandLineArgumentProvider)
+  inputs.file(contractDeclaration)
+  outputs.file(contractReport)
+}
+
+tasks.named('precommit').configure {
+  dependsOn checkDimensionContract
+}

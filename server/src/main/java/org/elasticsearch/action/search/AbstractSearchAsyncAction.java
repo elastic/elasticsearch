@@ -44,6 +44,7 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayList;
@@ -98,6 +99,7 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
     protected final SearchPhaseResults<Result> results;
     private final CircuitBreaker circuitBreaker;
     private final long clusterStateVersion;
+    protected final ClusterState clusterState;
     protected final Map<String, AliasFilter> aliasFilter;
     protected final Map<String, Float> concreteIndexBoosts;
     private final SetOnce<AtomicArray<ShardSearchFailure>> shardFailures = new SetOnce<>();
@@ -177,6 +179,7 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
         this.listener = ActionListener.runBefore(listener, () -> doneFuture.onResponse(null));
         this.nodeIdToConnection = nodeIdToConnection;
         this.concreteIndexBoosts = concreteIndexBoosts;
+        this.clusterState = clusterState;
         this.clusterStateVersion = clusterState.version();
         this.mintransportVersion = clusterState.getMinTransportVersion();
         this.discoveryNodes = clusterState::nodes;
@@ -267,7 +270,7 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
     }
 
     protected void doRun(Map<SearchShardIterator, Integer> shardIndexMap) {
-        doCheckNoMissingShards(getName(), request, shardsIts);
+        doCheckNoMissingShards(getName(), request, shardsIts, clusterState);
         for (int i = 0; i < shardsIts.size(); i++) {
             final SearchShardIterator shardRoutings = shardsIts.get(i);
             assert shardRoutings.skip() == false;
@@ -325,7 +328,13 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
 
     protected final void failOnUnavailable(int shardIndex, SearchShardIterator shardIt) {
         SearchShardTarget unassignedShard = new SearchShardTarget(null, shardIt.shardId(), shardIt.getClusterAlias());
-        onShardFailure(shardIndex, unassignedShard, shardIt, new NoShardAvailableActionException(shardIt.shardId()));
+        final ShardRestoringException restoring = restoringShardException(shardIt, clusterState);
+        onShardFailure(
+            shardIndex,
+            unassignedShard,
+            shardIt,
+            restoring != null ? restoring : new NoShardAvailableActionException(shardIt.shardId())
+        );
     }
 
     /**
@@ -509,9 +518,10 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
      * @param e the failure reason
      */
     void onShardFailure(final int shardIndex, SearchShardTarget shardTarget, Exception e) {
-        if (TransportActions.isShardNotAvailableException(e)) {
+        if (TransportActions.isShardNotAvailableException(e)
+            && ExceptionsHelper.unwrapCause(e) instanceof ShardRestoringException == false) {
             // Groups shard not available exceptions under a generic exception that returns a SERVICE_UNAVAILABLE(503)
-            // temporary error.
+            // temporary error. ShardRestoringException is excluded so that its 403 status is preserved.
             e = NoShardAvailableActionException.forOnShardFailureWrapper(e.getMessage());
         }
         // we don't aggregate shard on failures due to the internal cancellation,

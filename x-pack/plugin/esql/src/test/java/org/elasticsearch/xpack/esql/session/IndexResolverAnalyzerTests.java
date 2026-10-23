@@ -122,7 +122,7 @@ public class IndexResolverAnalyzerTests extends ESTestCase {
         IndexResolution resolution = IndexResolver.mergedMappings(
             "idx-*",
             false,
-            new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, false, needsAnalyzerGroups, false),
+            new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, false, needsAnalyzerGroups, false, null),
             false,
             IndexResolver.DO_NOT_GROUP
         );

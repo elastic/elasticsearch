@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.datageneration.Mapping;
 import org.elasticsearch.index.mapper.BinaryDVBlockLoaderTestCase;
 import org.elasticsearch.index.mapper.BlockLoaderTestRunner;
+import org.elasticsearch.index.mapper.flattened.FlattenedKeysConfig;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
@@ -351,6 +352,38 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
         var settings = getSettingsForParams();
         runner.mapperService(createMapperService(settings.build(), XContentFactory.jsonBuilder().map(mapping.raw())));
         runner.run(new BytesRef(expected));
+    }
+
+    public void testBlockLoaderWithSomeKeys() throws IOException {
+        runner.breaker(newLimitedBreaker(TEST_BREAKER_SIZE));
+        runner.document(Map.of("field", Map.of("host", Map.of("name", "h", "ip", "1.2.3.4"), "secret", "s", "service", "svc")));
+        runner.fieldName("field");
+        runner.blockLoaderFunctionConfig(new FlattenedKeysConfig(List.of("host.*", "se*"), List.of("secret")));
+
+        Mapping mapping = new Mapping(
+            Map.of("_doc", Map.of("properties", Map.of("field", Map.of("type", "flattened")))),
+            Map.of("field", Map.of("type", "flattened"))
+        );
+
+        var settings = getSettingsForParams();
+        runner.mapperService(createMapperService(settings.build(), XContentFactory.jsonBuilder().map(mapping.raw())));
+        runner.run(new BytesRef("{\"host.ip\":\"1.2.3.4\",\"host.name\":\"h\",\"service\":\"svc\"}"));
+    }
+
+    public void testBlockLoaderWithNoMatchingKeyIsNull() throws IOException {
+        runner.breaker(newLimitedBreaker(TEST_BREAKER_SIZE));
+        runner.document(Map.of("field", Map.of("a", "1")));
+        runner.fieldName("field");
+        runner.blockLoaderFunctionConfig(new FlattenedKeysConfig(List.of("b*"), List.of()));
+
+        Mapping mapping = new Mapping(
+            Map.of("_doc", Map.of("properties", Map.of("field", Map.of("type", "flattened")))),
+            Map.of("field", Map.of("type", "flattened"))
+        );
+
+        var settings = getSettingsForParams();
+        runner.mapperService(createMapperService(settings.build(), XContentFactory.jsonBuilder().map(mapping.raw())));
+        runner.run(null);
     }
 
     public void testBlockLoaderOutputFlatStructure() throws IOException {

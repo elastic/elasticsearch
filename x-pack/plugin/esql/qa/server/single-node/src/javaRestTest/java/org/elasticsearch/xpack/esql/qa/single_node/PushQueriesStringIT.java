@@ -46,6 +46,7 @@ import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.runEsql;
 import static org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT.commonProfile;
 import static org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT.fixTypesOnProfile;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.startsWith;
@@ -73,7 +74,13 @@ public class PushQueriesStringIT extends ESRestTestCase {
         MATCH_ONLY_TEXT_WITH_KEYWORD(false),
         SEMANTIC_TEXT_WITH_KEYWORD(true),
         TEXT_WITH_KEYWORD(false),
-        WILDCARD(false);
+        WILDCARD(false),
+        /** A key of a {@code flattened} field, read through a {@code RENAME}. */
+        FLATTENED_KEY(false),
+        /** A field no index maps, read with {@code unmapped_fields="load"} from an index that cannot search it. */
+        UNMAPPED(false),
+        /** A field no index maps, read with {@code unmapped_fields="load"} from the {@code _unmapped} field of a columnar index. */
+        UNMAPPED_CONTAINER(false);
 
         private final boolean needEmbeddings;
 
@@ -101,10 +108,12 @@ public class PushQueriesStringIT extends ESRestTestCase {
             case CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD -> "*:*";
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
             case WILDCARD -> ": [%value]";
+            case FLATTENED_KEY, UNMAPPED, UNMAPPED_CONTAINER -> ""; // checked by the field it reads
         };
         ComputeSignature dataNodeSignature = switch (type) {
-            case AUTO, CONSTANT_KEYWORD, KEYWORD, TEXT_WITH_KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
+            case AUTO, CONSTANT_KEYWORD, KEYWORD, FLATTENED_KEY, TEXT_WITH_KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+            case UNMAPPED, UNMAPPED_CONTAINER -> ComputeSignature.FILTER_IN_COMPUTE;
         };
         testPushQuery(value, differentValue, esqlQuery, List.of(luceneQuery), dataNodeSignature, hasItem(List.of(value)));
     }
@@ -122,10 +131,12 @@ public class PushQueriesStringIT extends ESRestTestCase {
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
             // WILDCARD has no ignore_above, so large values are still pushed
             case WILDCARD -> ": [%value]";
+            case FLATTENED_KEY, UNMAPPED, UNMAPPED_CONTAINER -> ""; // checked by the field it reads
         };
         ComputeSignature dataNodeSignature = switch (type) {
-            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
+            case CONSTANT_KEYWORD, KEYWORD, FLATTENED_KEY, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+            case UNMAPPED, UNMAPPED_CONTAINER -> ComputeSignature.FILTER_IN_COMPUTE;
         };
         // KEYWORD stores values > 256 chars as null (ignore_above), so the equality query finds no doc.
         // All other types find the indexed big value.
@@ -150,10 +161,12 @@ public class PushQueriesStringIT extends ESRestTestCase {
             case SEMANTIC_TEXT_WITH_KEYWORD -> List.of("FieldExistsQuery [field=_primary_term]");
             // WILDCARD has no ignore_above, so large values are still pushed
             case WILDCARD -> List.of(": [%tooBig, %value]".replace("%tooBig", tooBig), ": [%value, %tooBig]".replace("%tooBig", tooBig));
+            case FLATTENED_KEY, UNMAPPED, UNMAPPED_CONTAINER -> List.of(); // checked by the field it reads
         };
         ComputeSignature dataNodeSignature = switch (type) {
-            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
+            case CONSTANT_KEYWORD, KEYWORD, FLATTENED_KEY, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+            case UNMAPPED, UNMAPPED_CONTAINER -> ComputeSignature.FILTER_IN_COMPUTE;
         };
         testPushQuery(value, differentValue, esqlQuery, luceneQuery, dataNodeSignature, hasItem(List.of(value)));
     }
@@ -175,10 +188,12 @@ public class PushQueriesStringIT extends ESRestTestCase {
             case CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD -> List.of("*:*");
             case SEMANTIC_TEXT_WITH_KEYWORD -> List.of("FieldExistsQuery [field=_primary_term]");
             case WILDCARD -> List.of(": [%value]", ": [%value] foo:[2 TO 2]");
+            case FLATTENED_KEY, UNMAPPED, UNMAPPED_CONTAINER -> List.of(); // checked by the field it reads
         };
         ComputeSignature dataNodeSignature = switch (type) {
-            case AUTO, CONSTANT_KEYWORD, KEYWORD, TEXT_WITH_KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
+            case AUTO, CONSTANT_KEYWORD, KEYWORD, FLATTENED_KEY, TEXT_WITH_KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+            case UNMAPPED, UNMAPPED_CONTAINER -> ComputeSignature.FILTER_IN_COMPUTE;
         };
         testPushQuery(value, differentValue, esqlQuery, luceneQuery, dataNodeSignature, hasItem(List.of(value)));
     }
@@ -212,10 +227,12 @@ public class PushQueriesStringIT extends ESRestTestCase {
                     "FieldExistsQuery [field=_primary_term]"
                 );
             case WILDCARD -> List.of(": [%value]", ": [%value] foo:[2 TO 2]");
+            case FLATTENED_KEY, UNMAPPED, UNMAPPED_CONTAINER -> List.of(); // checked by the field it reads
         };
         ComputeSignature dataNodeSignature = switch (type) {
-            case AUTO, CONSTANT_KEYWORD, KEYWORD, TEXT_WITH_KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
+            case AUTO, CONSTANT_KEYWORD, KEYWORD, FLATTENED_KEY, TEXT_WITH_KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+            case UNMAPPED, UNMAPPED_CONTAINER -> ComputeSignature.FILTER_IN_COMPUTE;
         };
         testPushQuery(value, differentValue, esqlQuery, luceneQueryOptions, dataNodeSignature, hasItem(List.of(value)));
     }
@@ -233,10 +250,12 @@ public class PushQueriesStringIT extends ESRestTestCase {
             case KEYWORD -> "-test:%different_value #*:*";
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
             case WILDCARD -> "-: [%different_value] #*:*";
+            case FLATTENED_KEY, UNMAPPED, UNMAPPED_CONTAINER -> ""; // checked by the field it reads
         };
         ComputeSignature dataNodeSignature = switch (type) {
-            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
+            case CONSTANT_KEYWORD, KEYWORD, FLATTENED_KEY, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+            case UNMAPPED, UNMAPPED_CONTAINER -> ComputeSignature.FILTER_IN_COMPUTE;
         };
         // value satisfies test != differentValue; differentValue does not satisfy it
         testPushQuery(value, differentValue, esqlQuery, List.of(luceneQuery), dataNodeSignature, hasItem(List.of(value)));
@@ -261,11 +280,13 @@ public class PushQueriesStringIT extends ESRestTestCase {
             case SEMANTIC_TEXT_WITH_KEYWORD -> List.of("FieldExistsQuery [field=_primary_term]");
             // WILDCARD has no ignore_above, so large values are still pushed
             case WILDCARD -> List.of("-: [%value] #*:*");
+            case FLATTENED_KEY, UNMAPPED, UNMAPPED_CONTAINER -> List.of(); // checked by the field it reads
         };
         ComputeSignature dataNodeSignature = switch (type) {
             case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
             case CONSTANT_KEYWORD -> ComputeSignature.FIND_NONE;
-            case KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
+            case KEYWORD, FLATTENED_KEY, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
+            case UNMAPPED, UNMAPPED_CONTAINER -> ComputeSignature.FILTER_IN_COMPUTE;
         };
         // The big value itself is excluded by the inequality; differentValue (shorter, != value) satisfies test != value.
         // CONSTANT_KEYWORD uses FIND_NONE — optimizer eliminates the operator, returning nothing.
@@ -285,10 +306,12 @@ public class PushQueriesStringIT extends ESRestTestCase {
             case KEYWORD -> "".equals(value) ? "test:" : "CaseInsensitiveTermQuery{test:%value}";
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
             case WILDCARD -> "".equals(value) ? ": []" : ":PatternAutomatonProvider[matchPattern=%value, caseInsensitive=true]";
+            case FLATTENED_KEY, UNMAPPED, UNMAPPED_CONTAINER -> ""; // checked by the field it reads
         };
         ComputeSignature dataNodeSignature = switch (type) {
-            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
+            case CONSTANT_KEYWORD, KEYWORD, FLATTENED_KEY, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+            case UNMAPPED, UNMAPPED_CONTAINER -> ComputeSignature.FILTER_IN_COMPUTE;
         };
         testPushQuery(value, differentValue, esqlQuery, List.of(luceneQuery), dataNodeSignature, hasItem(List.of(value)));
     }
@@ -305,10 +328,12 @@ public class PushQueriesStringIT extends ESRestTestCase {
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
             case KEYWORD -> "CaseInsensitiveWildcardQuery{:%value*}";
             case WILDCARD -> ":PatternAutomatonProvider[matchPattern=%value*, caseInsensitive=true]";
+            case FLATTENED_KEY, UNMAPPED, UNMAPPED_CONTAINER -> ""; // checked by the field it reads
         };
         ComputeSignature dataNodeSignature = switch (type) {
-            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
+            case CONSTANT_KEYWORD, KEYWORD, FLATTENED_KEY, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+            case UNMAPPED, UNMAPPED_CONTAINER -> ComputeSignature.FILTER_IN_COMPUTE;
         };
         testPushQuery(value, differentValue, esqlQuery, List.of(luceneQuery), dataNodeSignature, hasItem(List.of(value)));
     }
@@ -332,6 +357,7 @@ public class PushQueriesStringIT extends ESRestTestCase {
             case KEYWORD -> "-CaseInsensitiveWildcardQuery{:%different_value*} #*:*";
             case WILDCARD -> "-:PatternAutomatonProvider[matchPattern=%different_value*, caseInsensitive=true] #*:*";
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
+            case FLATTENED_KEY, UNMAPPED, UNMAPPED_CONTAINER -> ""; // checked by the field it reads
         };
         /*
          * KEYWORD and WILDCARD push NOT case-insensitive LIKE fully to Lucene (FILTER_IN_QUERY). Text-based
@@ -340,8 +366,9 @@ public class PushQueriesStringIT extends ESRestTestCase {
          * (FILTER_IN_QUERY).
          */
         ComputeSignature dataNodeSignature = switch (type) {
-            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
+            case CONSTANT_KEYWORD, KEYWORD, FLATTENED_KEY, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, TEXT_WITH_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+            case UNMAPPED, UNMAPPED_CONTAINER -> ComputeSignature.FILTER_IN_COMPUTE;
         };
         // value satisfies NOT(like differentValue*); differentValue is excluded for KEYWORD/WILDCARD.
         // For text-based types, both docs may be returned; hasItem checks that value is present.
@@ -374,10 +401,12 @@ public class PushQueriesStringIT extends ESRestTestCase {
             );
             case WILDCARD -> List.of(": [cat] (-:PatternAutomatonProvider[matchPattern=%different_value*, caseInsensitive=true] #*:*)");
             case SEMANTIC_TEXT_WITH_KEYWORD -> List.of("FieldExistsQuery [field=_primary_term]");
+            case FLATTENED_KEY, UNMAPPED, UNMAPPED_CONTAINER -> List.of(); // checked by the field it reads
         };
         ComputeSignature dataNodeSignature = switch (type) {
-            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
+            case CONSTANT_KEYWORD, KEYWORD, FLATTENED_KEY, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, TEXT_WITH_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+            case UNMAPPED, UNMAPPED_CONTAINER -> ComputeSignature.FILTER_IN_COMPUTE;
         };
         // value satisfies the combined OR NOT condition.
         testPushQuery(value, differentValue, esqlQuery, luceneQuery, dataNodeSignature, hasItem(List.of(value)));
@@ -396,11 +425,13 @@ public class PushQueriesStringIT extends ESRestTestCase {
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
             case KEYWORD -> "test:LIKE(\"%value*\", \"abc*\"), caseInsensitive=true";
             case WILDCARD -> throw new AssertionError("unreachable");
+            case FLATTENED_KEY, UNMAPPED, UNMAPPED_CONTAINER -> ""; // checked by the field it reads
         };
         ComputeSignature dataNodeSignature = switch (type) {
-            case CONSTANT_KEYWORD, KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
+            case CONSTANT_KEYWORD, KEYWORD, FLATTENED_KEY -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
             case WILDCARD -> throw new AssertionError("unreachable");
+            case UNMAPPED, UNMAPPED_CONTAINER -> ComputeSignature.FILTER_IN_COMPUTE;
         };
         testPushQuery(value, differentValue, esqlQuery, List.of(luceneQuery), dataNodeSignature, hasItem(List.of(value)));
     }
@@ -417,10 +448,12 @@ public class PushQueriesStringIT extends ESRestTestCase {
             case CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, AUTO, TEXT_WITH_KEYWORD -> "*:*";
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
             case WILDCARD -> ":PatternAutomatonProvider[matchPattern=%value*, caseInsensitive=false]";
+            case FLATTENED_KEY, UNMAPPED, UNMAPPED_CONTAINER -> ""; // checked by the field it reads
         };
         ComputeSignature dataNodeSignature = switch (type) {
-            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
+            case CONSTANT_KEYWORD, KEYWORD, FLATTENED_KEY, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, TEXT_WITH_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+            case UNMAPPED, UNMAPPED_CONTAINER -> ComputeSignature.FILTER_IN_COMPUTE;
         };
         testPushQuery(value, differentValue, esqlQuery, List.of(luceneQuery), dataNodeSignature, hasItem(List.of(value)));
     }
@@ -438,11 +471,13 @@ public class PushQueriesStringIT extends ESRestTestCase {
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
             case KEYWORD -> "test:LIKE(\"%value*\", \"abc*\"), caseInsensitive=false";
             case WILDCARD -> throw new AssertionError("unreachable");
+            case FLATTENED_KEY, UNMAPPED, UNMAPPED_CONTAINER -> ""; // checked by the field it reads
         };
         ComputeSignature dataNodeSignature = switch (type) {
-            case CONSTANT_KEYWORD, KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
+            case CONSTANT_KEYWORD, KEYWORD, FLATTENED_KEY -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, TEXT_WITH_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
             case WILDCARD -> throw new AssertionError("unreachable");
+            case UNMAPPED, UNMAPPED_CONTAINER -> ComputeSignature.FILTER_IN_COMPUTE;
         };
         testPushQuery(value, differentValue, esqlQuery, List.of(luceneQuery), dataNodeSignature, hasItem(List.of(value)));
     }
@@ -459,10 +494,12 @@ public class PushQueriesStringIT extends ESRestTestCase {
             case CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, AUTO, TEXT_WITH_KEYWORD -> "*:*";
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
             case WILDCARD -> ":RegexAutomatonProvider[value=%value.*, syntaxFlags=65791, matchFlags=0, maxDeterminizedStates=10000]";
+            case FLATTENED_KEY, UNMAPPED, UNMAPPED_CONTAINER -> ""; // checked by the field it reads
         };
         ComputeSignature dataNodeSignature = switch (type) {
-            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
+            case CONSTANT_KEYWORD, KEYWORD, FLATTENED_KEY, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, TEXT_WITH_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+            case UNMAPPED, UNMAPPED_CONTAINER -> ComputeSignature.FILTER_IN_COMPUTE;
         };
         testPushQuery(value, differentValue, esqlQuery, List.of(luceneQuery), dataNodeSignature, hasItem(List.of(value)));
     }
@@ -480,11 +517,13 @@ public class PushQueriesStringIT extends ESRestTestCase {
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
             case KEYWORD -> "test:RLIKE(\"%value.*\", \"abc.*\"), caseInsensitive=false";
             case WILDCARD -> throw new AssertionError("unreachable");
+            case FLATTENED_KEY, UNMAPPED, UNMAPPED_CONTAINER -> ""; // checked by the field it reads
         };
         ComputeSignature dataNodeSignature = switch (type) {
-            case CONSTANT_KEYWORD, KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
+            case CONSTANT_KEYWORD, KEYWORD, FLATTENED_KEY -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, TEXT_WITH_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
             case WILDCARD -> throw new AssertionError("unreachable");
+            case UNMAPPED, UNMAPPED_CONTAINER -> ComputeSignature.FILTER_IN_COMPUTE;
         };
         testPushQuery(value, differentValue, esqlQuery, List.of(luceneQuery), dataNodeSignature, hasItem(List.of(value)));
     }
@@ -503,10 +542,12 @@ public class PushQueriesStringIT extends ESRestTestCase {
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
             case KEYWORD -> "test:/%value.*/";
             case WILDCARD -> ":RegexAutomatonProvider[value=%value.*, syntaxFlags=65791, matchFlags=512, maxDeterminizedStates=10000]";
+            case FLATTENED_KEY, UNMAPPED, UNMAPPED_CONTAINER -> ""; // checked by the field it reads
         };
         ComputeSignature dataNodeSignature = switch (type) {
-            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
+            case CONSTANT_KEYWORD, KEYWORD, FLATTENED_KEY, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+            case UNMAPPED, UNMAPPED_CONTAINER -> ComputeSignature.FILTER_IN_COMPUTE;
         };
         testPushQuery(value, differentValue, esqlQuery, List.of(luceneQuery), dataNodeSignature, hasItem(List.of(value)));
     }
@@ -524,10 +565,12 @@ public class PushQueriesStringIT extends ESRestTestCase {
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
             case KEYWORD -> "test:RLIKE(\"%value.*\", \"abc.*\"), caseInsensitive=true";
             case WILDCARD -> ":RLIKE(\"%value.*\", \"abc.*\"), caseInsensitive=true";
+            case FLATTENED_KEY, UNMAPPED, UNMAPPED_CONTAINER -> ""; // checked by the field it reads
         };
         ComputeSignature dataNodeSignature = switch (type) {
-            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
+            case CONSTANT_KEYWORD, KEYWORD, FLATTENED_KEY, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+            case UNMAPPED, UNMAPPED_CONTAINER -> ComputeSignature.FILTER_IN_COMPUTE;
         };
         testPushQuery(value, differentValue, esqlQuery, List.of(luceneQuery), dataNodeSignature, hasItem(List.of(value)));
     }
@@ -548,10 +591,12 @@ public class PushQueriesStringIT extends ESRestTestCase {
             case KEYWORD -> "-test:%different_value* #*:*";
             case WILDCARD -> "-:PatternAutomatonProvider[matchPattern=%different_value*, caseInsensitive=false] #*:*";
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
+            case FLATTENED_KEY, UNMAPPED, UNMAPPED_CONTAINER -> ""; // checked by the field it reads
         };
         ComputeSignature dataNodeSignature = switch (type) {
-            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
+            case CONSTANT_KEYWORD, KEYWORD, FLATTENED_KEY, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+            case UNMAPPED, UNMAPPED_CONTAINER -> ComputeSignature.FILTER_IN_COMPUTE;
         };
         testPushQuery(value, differentValue, esqlQuery, List.of(luceneQuery), dataNodeSignature, hasItem(List.of(value)));
     }
@@ -569,10 +614,12 @@ public class PushQueriesStringIT extends ESRestTestCase {
             case WILDCARD ->
                 "-:RegexAutomatonProvider[value=%different_value.*, syntaxFlags=65791, matchFlags=0, maxDeterminizedStates=10000] #*:*";
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
+            case FLATTENED_KEY, UNMAPPED, UNMAPPED_CONTAINER -> ""; // checked by the field it reads
         };
         ComputeSignature dataNodeSignature = switch (type) {
-            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
+            case CONSTANT_KEYWORD, KEYWORD, FLATTENED_KEY, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+            case UNMAPPED, UNMAPPED_CONTAINER -> ComputeSignature.FILTER_IN_COMPUTE;
         };
         testPushQuery(value, differentValue, esqlQuery, List.of(luceneQuery), dataNodeSignature, hasItem(List.of(value)));
     }
@@ -591,10 +638,12 @@ public class PushQueriesStringIT extends ESRestTestCase {
             case WILDCARD ->
                 "-:RegexAutomatonProvider[value=%different_value.*, syntaxFlags=65791, matchFlags=512, maxDeterminizedStates=10000] #*:*";
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
+            case FLATTENED_KEY, UNMAPPED, UNMAPPED_CONTAINER -> ""; // checked by the field it reads
         };
         ComputeSignature dataNodeSignature = switch (type) {
-            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
+            case CONSTANT_KEYWORD, KEYWORD, FLATTENED_KEY, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+            case UNMAPPED, UNMAPPED_CONTAINER -> ComputeSignature.FILTER_IN_COMPUTE;
         };
         testPushQuery(value, differentValue, esqlQuery, List.of(luceneQuery), dataNodeSignature, hasItem(List.of(value)));
     }
@@ -611,10 +660,12 @@ public class PushQueriesStringIT extends ESRestTestCase {
             case KEYWORD -> List.of("test:cat (-test:%different_value* #*:*)", "(-test:%different_value* #*:*) test:cat");
             case WILDCARD -> List.of(": [cat] (-:PatternAutomatonProvider[matchPattern=%different_value*, caseInsensitive=false] #*:*)");
             case SEMANTIC_TEXT_WITH_KEYWORD -> List.of("FieldExistsQuery [field=_primary_term]");
+            case FLATTENED_KEY, UNMAPPED, UNMAPPED_CONTAINER -> List.of(); // checked by the field it reads
         };
         ComputeSignature dataNodeSignature = switch (type) {
-            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
+            case CONSTANT_KEYWORD, KEYWORD, FLATTENED_KEY, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+            case UNMAPPED, UNMAPPED_CONTAINER -> ComputeSignature.FILTER_IN_COMPUTE;
         };
         testPushQuery(value, differentValue, esqlQuery, luceneQuery, dataNodeSignature, hasItem(List.of(value)));
     }
@@ -635,10 +686,12 @@ public class PushQueriesStringIT extends ESRestTestCase {
                 yield List.of(": [cat] (-" + regex + " #*:*)");
             }
             case SEMANTIC_TEXT_WITH_KEYWORD -> List.of("FieldExistsQuery [field=_primary_term]");
+            case FLATTENED_KEY, UNMAPPED, UNMAPPED_CONTAINER -> List.of(); // checked by the field it reads
         };
         ComputeSignature dataNodeSignature = switch (type) {
-            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
+            case CONSTANT_KEYWORD, KEYWORD, FLATTENED_KEY, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+            case UNMAPPED, UNMAPPED_CONTAINER -> ComputeSignature.FILTER_IN_COMPUTE;
         };
         testPushQuery(value, differentValue, esqlQuery, luceneQuery, dataNodeSignature, hasItem(List.of(value)));
     }
@@ -660,10 +713,12 @@ public class PushQueriesStringIT extends ESRestTestCase {
                 yield List.of(": [cat] (-" + regex + " #*:*)");
             }
             case SEMANTIC_TEXT_WITH_KEYWORD -> List.of("FieldExistsQuery [field=_primary_term]");
+            case FLATTENED_KEY, UNMAPPED, UNMAPPED_CONTAINER -> List.of(); // checked by the field it reads
         };
         ComputeSignature dataNodeSignature = switch (type) {
-            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
+            case CONSTANT_KEYWORD, KEYWORD, FLATTENED_KEY, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+            case UNMAPPED, UNMAPPED_CONTAINER -> ComputeSignature.FILTER_IN_COMPUTE;
         };
         testPushQuery(value, differentValue, esqlQuery, luceneQuery, dataNodeSignature, hasItem(List.of(value)));
     }
@@ -687,10 +742,12 @@ public class PushQueriesStringIT extends ESRestTestCase {
                 "#foo:[1 TO 1] #FieldExistsQuery [field=_primary_term]",
                 "#foo:[1 TO 1] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]"
             );
+            case FLATTENED_KEY, UNMAPPED, UNMAPPED_CONTAINER -> List.of(); // checked by the field it reads
         };
         ComputeSignature dataNodeSignature = switch (type) {
-            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
+            case CONSTANT_KEYWORD, KEYWORD, FLATTENED_KEY, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+            case UNMAPPED, UNMAPPED_CONTAINER -> ComputeSignature.FILTER_IN_COMPUTE;
         };
         testPushQuery(value, differentValue, esqlQuery, luceneQuery, dataNodeSignature, hasItem(List.of(value)));
     }
@@ -713,10 +770,12 @@ public class PushQueriesStringIT extends ESRestTestCase {
                 "#foo:[1 TO 1] #FieldExistsQuery [field=_primary_term]",
                 "#foo:[1 TO 1] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]"
             );
+            case FLATTENED_KEY, UNMAPPED, UNMAPPED_CONTAINER -> List.of(); // checked by the field it reads
         };
         ComputeSignature dataNodeSignature = switch (type) {
-            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
+            case CONSTANT_KEYWORD, KEYWORD, FLATTENED_KEY, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+            case UNMAPPED, UNMAPPED_CONTAINER -> ComputeSignature.FILTER_IN_COMPUTE;
         };
         testPushQuery(value, differentValue, esqlQuery, luceneQuery, dataNodeSignature, hasItem(List.of(value)));
     }
@@ -738,10 +797,12 @@ public class PushQueriesStringIT extends ESRestTestCase {
                 "#foo:[1 TO 1] #FieldExistsQuery [field=_primary_term]",
                 "#foo:[1 TO 1] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]"
             );
+            case FLATTENED_KEY, UNMAPPED, UNMAPPED_CONTAINER -> List.of(); // checked by the field it reads
         };
         ComputeSignature dataNodeSignature = switch (type) {
-            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
+            case CONSTANT_KEYWORD, KEYWORD, FLATTENED_KEY, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+            case UNMAPPED, UNMAPPED_CONTAINER -> ComputeSignature.FILTER_IN_COMPUTE;
         };
         testPushQuery(value, differentValue, esqlQuery, luceneQuery, dataNodeSignature, hasItem(List.of(value)));
     }
@@ -765,10 +826,12 @@ public class PushQueriesStringIT extends ESRestTestCase {
                 "#foo:[1 TO 1] #FieldExistsQuery [field=_primary_term]",
                 "#foo:[1 TO 1] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]"
             );
+            case FLATTENED_KEY, UNMAPPED, UNMAPPED_CONTAINER -> List.of(); // checked by the field it reads
         };
         ComputeSignature dataNodeSignature = switch (type) {
-            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
+            case CONSTANT_KEYWORD, KEYWORD, FLATTENED_KEY, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+            case UNMAPPED, UNMAPPED_CONTAINER -> ComputeSignature.FILTER_IN_COMPUTE;
         };
         testPushQuery(value, differentValue, esqlQuery, luceneQuery, dataNodeSignature, hasItem(List.of(value)));
     }
@@ -807,7 +870,7 @@ public class PushQueriesStringIT extends ESRestTestCase {
     ) throws IOException {
         indexValue(value, differentValue);
 
-        String replacedQuery = esqlQuery.replaceAll("%value", value).replaceAll("%different_value", differentValue);
+        String replacedQuery = readsTestAs(esqlQuery.replaceAll("%value", value).replaceAll("%different_value", differentValue));
         RestEsqlTestCase.RequestObjectBuilder builder = requestObjectBuilder().query(replacedQuery + "\n| KEEP test");
         builder.profile(true);
         Map<String, Object> result = runEsql(builder, new AssertWarnings.NoWarnings(), profileLogger, RestEsqlTestCase.Mode.SYNC);
@@ -817,9 +880,15 @@ public class PushQueriesStringIT extends ESRestTestCase {
             matchesList().item(matchesMap().entry("name", "test").entry("type", anyOf(equalTo("text"), equalTo("keyword")))),
             resultMatcher
         );
-        Matcher<String> luceneQueryMatcher = anyOf(
-            () -> Iterators.map(luceneQueryOptions.iterator(), (String s) -> queryMatcher(s, value, differentValue))
-        );
+        Matcher<String> luceneQueryMatcher = switch (type) {
+            // The shard runs the filter on the key, on the field that keeps its unmapped fields, or matches every document. The
+            // filter of a field no index maps also checks every document in compute, as the shard may match all of them.
+            case FLATTENED_KEY -> containsString("attrs._keyed");
+            case UNMAPPED -> equalTo("*:*");
+            case UNMAPPED_CONTAINER -> containsString("_unmapped._keyed");
+            case AUTO, CONSTANT_KEYWORD, KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD, WILDCARD ->
+                anyOf(() -> Iterators.map(luceneQueryOptions.iterator(), (String s) -> queryMatcher(s, value, differentValue)));
+        };
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");
@@ -854,6 +923,17 @@ public class PushQueriesStringIT extends ESRestTestCase {
         }
     }
 
+    /** {@code query}, reading the field of this type as {@code test}. */
+    private String readsTestAs(String query) {
+        if (type == Type.FLATTENED_KEY) {
+            return query.replaceFirst("FROM test\n", "FROM test\n| RENAME attrs.test AS test\n");
+        }
+        if (type == Type.UNMAPPED || type == Type.UNMAPPED_CONTAINER) {
+            return "SET unmapped_fields=\"load\";\n" + query;
+        }
+        return query;
+    }
+
     private Matcher<String> queryMatcher(String queryString, String value, String differentValue) {
         queryString = queryString.replaceAll("%value", value).replaceAll("%different_value", differentValue);
         if (queryString.length() <= LuceneOperator.Status.QUERY_STRING_TRUNCATION) {
@@ -877,9 +957,12 @@ public class PushQueriesStringIT extends ESRestTestCase {
             {
               "settings": {
                 "index": {
-                  "number_of_shards": 1
+                  %mode"number_of_shards": 1
                 }
-              }""";
+              }""".replace(
+            "%mode",
+            type == Type.UNMAPPED_CONTAINER ? "\"mode\": \"columnar\", \"mapping.flattened_unmapped_fields.enabled\": true, " : ""
+        );
         json += switch (type) {
             case AUTO -> "";
             case CONSTANT_KEYWORD -> justType();
@@ -887,6 +970,9 @@ public class PushQueriesStringIT extends ESRestTestCase {
             case SEMANTIC_TEXT_WITH_KEYWORD -> semanticTextWithKeyword();
             case TEXT_WITH_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD -> typeWithKeyword();
             case WILDCARD -> justType();
+            case FLATTENED_KEY -> flattened();
+            case UNMAPPED -> onlyFoo(false);
+            case UNMAPPED_CONTAINER -> onlyFoo(true);
         };
         json += "}";
         createIndex.setJsonEntity(json);
@@ -900,18 +986,57 @@ public class PushQueriesStringIT extends ESRestTestCase {
         bulk.addParameter("refresh", "");
         String bulkBody = String.format(Locale.ROOT, """
             {"create":{"_index":"test"}}
-            {"test":"%s","foo":1}
-            """, value);
+            %s
+            """, document(value));
         // constant_keyword only accepts the single constant value; do not index differentValue for it.
         if (type != Type.CONSTANT_KEYWORD) {
             bulkBody += String.format(Locale.ROOT, """
                 {"create":{"_index":"test"}}
-                {"test":"%s","foo":1}
-                """, differentValue);
+                %s
+                """, document(differentValue));
         }
         bulk.setJsonEntity(bulkBody);
         Response bulkResponse = client().performRequest(bulk);
         assertThat(entityToMap(bulkResponse.getEntity(), XContentType.JSON), matchesMap().entry("errors", false).extraOk());
+    }
+
+    /** The document that holds {@code value} in the field the queries read as {@code test}. */
+    private String document(String value) {
+        String field = type == Type.FLATTENED_KEY ? "{\"attrs\":{\"test\":\"%s\"},\"foo\":1}" : "{\"test\":\"%s\",\"foo\":1}";
+        return String.format(Locale.ROOT, field, value);
+    }
+
+    private String flattened() {
+        return """
+            ,
+            "mappings": {
+              "properties": {
+                "attrs": {
+                  "type": "flattened"
+                },
+                "foo": {
+                  "type": "long"
+                }
+              }
+            }""";
+    }
+
+    /**
+     * Maps {@code foo} only. A columnar index keeps the other fields in its {@code _unmapped} field, and any other index keeps them in
+     * {@code _source} with {@code dynamic: false}.
+     */
+    private String onlyFoo(boolean container) {
+        String dynamic = container ? "" : "\"dynamic\": false,";
+        return """
+            ,
+            "mappings": {
+              %dynamic
+              "properties": {
+                "foo": {
+                  "type": "long"
+                }
+              }
+            }""".replace("%dynamic", dynamic);
     }
 
     private String justType() {
@@ -1001,6 +1126,28 @@ public class PushQueriesStringIT extends ESRestTestCase {
     }
 
     private static boolean setupEmbeddings = false;
+
+    @Before
+    public void requireCapabilities() throws IOException {
+        if (type == Type.FLATTENED_KEY) {
+            assumeTrue("keys of flattened fields are fields", hasQueryCapability("flattened_subfields"));
+        }
+        if (type == Type.UNMAPPED || type == Type.UNMAPPED_CONTAINER) {
+            assumeTrue("filters are pushed to the shards", hasQueryCapability("unmapped_fields_shard_pushdown"));
+        }
+        if (type == Type.UNMAPPED_CONTAINER) {
+            assumeTrue(
+                "the _unmapped field of a columnar index",
+                clusterHasCapability("PUT", "/{index}", List.of(), List.of("columnar_index_modes", "flattened_unmapped_fields")).orElse(
+                    false
+                )
+            );
+        }
+    }
+
+    private static boolean hasQueryCapability(String capability) throws IOException {
+        return clusterHasCapability("POST", "/_query", List.of(), List.of(capability)).orElse(false);
+    }
 
     @Before
     public void setUpTextEmbeddingInferenceEndpoint() throws IOException {

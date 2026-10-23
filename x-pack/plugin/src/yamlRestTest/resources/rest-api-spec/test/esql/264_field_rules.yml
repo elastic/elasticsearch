@@ -1,0 +1,375 @@
+---
+# The rules that decide what a field is, over the same document stored in different ways: in a flattened field (flat), as mapped
+# fields (mapped), as unmapped fields (unmapped), with a key mapped as another type (typed), and with the root mapped as a keyword
+# (kw). Each test is one rule or one of its consequences.
+setup:
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings_regex, contains ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ flattened_subfields ]
+      reason: "A name under a flattened field is a field"
+  - do:
+      indices.create:
+        index: flat
+        body:
+          mappings:
+            properties:
+              attrs:
+                type: flattened
+                ignore_above: 5
+  - do:
+      indices.create:
+        index: mapped
+        body:
+          mappings:
+            properties:
+              attrs:
+                properties:
+                  bar:
+                    type: keyword
+                  baz:
+                    type: keyword
+  - do:
+      indices.create:
+        index: unmapped
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              other:
+                type: keyword
+  - do:
+      indices.create:
+        index: typed
+        body:
+          mappings:
+            properties:
+              attrs:
+                properties:
+                  n:
+                    type: long
+  - do:
+      indices.create:
+        index: kw
+        body:
+          mappings:
+            properties:
+              attrs:
+                type: keyword
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "flat", "_id": "1" } }
+          - { "attrs": { "bar": "a", "baz": "b", "n": "1", "host": { "name": "h" } } }
+          - { "index": { "_index": "mapped", "_id": "2" } }
+          - { "attrs": { "bar": "c", "baz": "d" } }
+          - { "index": { "_index": "unmapped", "_id": "3" } }
+          - { "other": "o", "attrs": { "bar": "e", "n": "3" } }
+          - { "index": { "_index": "typed", "_id": "4" } }
+          - { "attrs": { "n": 4 } }
+          - { "index": { "_index": "kw", "_id": "5" } }
+          - { "attrs": "k" }
+
+---
+'1 and 2: a name is mapped only where it is a leaf':
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat, mapped METADATA _index | KEEP _index, attrs | SORT _index | LIMIT 10'
+  - match: { columns: [ { name: _index, type: keyword }, { name: attrs, type: flattened } ] }
+  - match: { values: [ [ "flat", { bar: "a", baz: "b", host.name: "h", n: "1" } ], [ "mapped", null ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM kw, mapped METADATA _index | KEEP _index, attrs | SORT _index | LIMIT 10'
+  - match: { columns: [ { name: _index, type: keyword }, { name: attrs, type: keyword } ] }
+  - match: { values: [ [ "kw", "k" ], [ "mapped", null ] ] }
+
+---
+'5: every shard fills every column':
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat, mapped, unmapped METADATA _index | KEEP _index, attrs.bar | SORT _index | LIMIT 10'
+  - match: { columns: [ { name: _index, type: keyword }, { name: attrs.bar, type: keyword } ] }
+  - match: { values: [ [ "flat", "a" ], [ "mapped", "c" ], [ "unmapped", null ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM flat, mapped, unmapped METADATA _index | KEEP _index, attrs.bar | SORT _index | LIMIT 10'
+  - match: { values: [ [ "flat", "a" ], [ "mapped", "c" ], [ "unmapped", "e" ] ] }
+
+---
+'6: a container keeps its values':
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat | KEEP attrs, attrs.bar | LIMIT 10'
+  - match: { values: [ [ { bar: "a", baz: "b", host.name: "h", n: "1" }, "a" ] ] }
+  - do:
+      allowed_warnings_regex:
+        - ".*"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load_all"; FROM unmapped | KEEP attrs.bar, attrs.* | LIMIT 10'
+  - match: { columns: [ { name: attrs.bar, type: keyword }, { name: _unmapped_fields, type: _source } ] }
+  - match: { values: [ [ "e", { attrs.bar: "e", attrs.n: "3" } ] ] }
+
+---
+'7: a path has the values it holds directly':
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat | KEEP attrs.host, attrs.host.name | LIMIT 10'
+  - match: { values: [ [ null, "h" ] ] }
+
+---
+'8: a name under a container column is its key':
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat | RENAME attrs AS a | KEEP a.bar | LIMIT 10'
+  - match: { columns: [ { name: a.bar, type: keyword } ] }
+  - match: { values: [ [ "a" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat | EVAL a = attrs | WHERE a.bar == "a" | KEEP a.baz | LIMIT 10'
+  - match: { values: [ [ "b" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat | EVAL a = attrs, a.bar = "mine" | KEEP a.bar | LIMIT 10'
+  - match: { values: [ [ "mine" ] ] }
+  # the key comes from the value of the column, so a missing key is null and a key ignore_above leaves out is read
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat, mapped METADATA _index | RENAME attrs AS a | KEEP _index, a.bar, a.missing | SORT _index | LIMIT 10'
+  - match: { values: [ [ "flat", "a", null ], [ "mapped", null, null ] ] }
+  - do:
+      allowed_warnings_regex:
+        - ".*"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM flat | EVAL a = attrs | KEEP a.bar, a.missing | LIMIT 10'
+  - match: { values: [ [ "a", null ] ] }
+
+---
+'10: a pattern keeps the container and the columns it matches':
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat, mapped, unmapped METADATA _index | KEEP _index, attrs.b* | SORT _index | LIMIT 10'
+  - match: { columns: [ { name: _index, type: keyword }, { name: attrs, type: flattened }, { name: attrs.bar, type: keyword }, { name: attrs.baz, type: keyword } ] }
+  - match: { values: [ [ "flat", { bar: "a", baz: "b" }, "a", "b" ], [ "mapped", null, "c", "d" ], [ "unmapped", null, null, null ] ] }
+
+---
+'10: a pattern drops the keys and the columns it matches':
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat, mapped METADATA _index | DROP attrs.b* | KEEP _index, attrs* | SORT _index | LIMIT 10'
+  - match: { columns: [ { name: _index, type: keyword }, { name: attrs, type: flattened } ] }
+  - match: { values: [ [ "flat", { host.name: "h", n: "1" } ], [ "mapped", null ] ] }
+
+---
+'10: dropping a name drops it from the columns and the containers':
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat, mapped METADATA _index | DROP attrs.bar | KEEP _index, attrs* | SORT _index | LIMIT 10'
+  - match: { columns: [ { name: _index, type: keyword }, { name: attrs, type: flattened }, { name: attrs.baz, type: keyword } ] }
+  - match: { values: [ [ "flat", { baz: "b", host.name: "h", n: "1" }, "b" ], [ "mapped", null, "d" ] ] }
+  - do:
+      allowed_warnings_regex:
+        - ".*"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load_all"; FROM unmapped | DROP attrs.bar | KEEP attrs.* | LIMIT 10'
+  - match: { values: [ [ { attrs.n: "3" } ] ] }
+
+---
+'10: dropping the container keeps the fields the query uses':
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat, mapped METADATA _index | DROP attrs | KEEP _index, attrs.bar | SORT _index | LIMIT 10'
+  - match: { values: [ [ "flat", "a" ], [ "mapped", "c" ] ] }
+
+---
+'10: a name and a pattern keep or drop what either of them selects':
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat, mapped METADATA _index | KEEP _index, attrs, attrs.b* | SORT _index | LIMIT 10'
+  - match: { columns: [ { name: _index, type: keyword }, { name: attrs, type: flattened }, { name: attrs.bar, type: keyword }, { name: attrs.baz, type: keyword } ] }
+  - match: { values: [ [ "flat", { bar: "a", baz: "b", n: "1", host.name: "h" }, "a", "b" ], [ "mapped", null, "c", "d" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat, mapped METADATA _index | DROP attrs, attrs.b* | SORT _index | LIMIT 10'
+  - match: { columns: [ { name: _index, type: keyword } ] }
+  - match: { values: [ [ "flat" ], [ "mapped" ] ] }
+
+---
+'10: a name used after a pattern passes through it':
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat | KEEP attrs.b* | WHERE attrs.bar == "a" | LIMIT 10'
+  - match: { values: [ [ { bar: "a", baz: "b" }, "a" ] ] }
+
+---
+'11: a key is a keyword and conflicts with another type':
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM flat, typed | EVAL n = attrs.n + 1 | LIMIT 10'
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: "Cannot use field [attrs.n] due to ambiguities being mapped as [2] incompatible types: [keyword] in [flat], [long] in [typed]" }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat, typed METADATA _index | EVAL n = attrs.n::long | KEEP _index, n | SORT _index | LIMIT 10'
+  - match: { values: [ [ "flat", 1 ], [ "typed", 4 ] ] }
+
+---
+'12: a key runs every keyword query':
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat, mapped METADATA _index | WHERE attrs.bar LIKE "a*" OR attrs.bar RLIKE "c" | KEEP _index | SORT _index | LIMIT 10'
+  - match: { values: [ [ "flat" ], [ "mapped" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat, mapped METADATA _index | WHERE MATCH(attrs.baz, "b") OR TO_LOWER(attrs.baz) == "d" | KEEP _index | SORT _index | LIMIT 10'
+  - match: { values: [ [ "flat" ], [ "mapped" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat, mapped | STATS c = COUNT(*) BY attrs.bar | SORT attrs.bar | LIMIT 10'
+  - match: { values: [ [ 1, "a" ], [ 1, "c" ] ] }
+
+---
+'consequence: a key the flattened field does not have is null':
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat | KEEP attrs.bar.keyword | LIMIT 10'
+  - match: { values: [ [ null ] ] }
+
+---
+'consequence: an ignored value is in the container but not in the key':
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "flat", "_id": "long" } }
+          - { "attrs": { "bar": "too long" } }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat METADATA _id | WHERE _id == "long" | KEEP attrs, attrs.bar | LIMIT 10'
+  - match: { values: [ [ { bar: "too long" }, null ] ] }
+
+---
+'consequence: a column of the name of a key replaces the column, not the container':
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat | EVAL attrs.bar = "x" | KEEP attrs, attrs.bar | LIMIT 10'
+  - match: { values: [ [ { bar: "a", baz: "b", host.name: "h", n: "1" }, "x" ] ] }
+
+---
+'consequence: a root flattened in one index and only in _source in another comes back in _unmapped_fields':
+  - do:
+      allowed_warnings_regex:
+        - ".*"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM flat, unmapped METADATA _index | KEEP _index, attrs | SORT _index | LIMIT 10'
+  - match: { values: [ [ "flat", { bar: "a", baz: "b", n: "1", host.name: "h" } ], [ "unmapped", null ] ] }
+  - do:
+      allowed_warnings_regex:
+        - ".*"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load_all"; FROM flat, unmapped METADATA _index | KEEP _index, attrs, attrs.* | SORT _index | LIMIT 10'
+  - match: { columns: [ { name: _index, type: keyword }, { name: attrs, type: flattened }, { name: _unmapped_fields, type: _source } ] }
+  - match: { values.0.0: "flat" }
+  - match: { values.0.2: null }
+  - match: { values.1: [ "unmapped", null, { attrs.bar: "e", attrs.n: "3" } ] }
+
+---
+'consequence: a root flattened in one index and a keyword in another is a conflict':
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat, kw METADATA _index | KEEP _index, attrs, attrs.bar | SORT _index | LIMIT 10'
+  - match: { columns.1.name: attrs }
+  - match: { columns.1.type: unsupported }
+  - match: { values: [ [ "flat", null, "a" ], [ "kw", null, null ] ] }
+
+---
+'consequence: dropping every key leaves an empty container':
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat | DROP attrs.* | KEEP attrs | LIMIT 10'
+  - match: { values: [ [ null ] ] }
+
+---
+'consequence: a key that is a flattened field in another index is a conflict':
+  - do:
+      indices.create:
+        index: deeper
+        body:
+          mappings:
+            properties:
+              attrs:
+                properties:
+                  host:
+                    type: flattened
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "deeper", "_id": "6" } }
+          - { "attrs": { "host": { "name": "d" } } }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat, deeper METADATA _index | KEEP _index, attrs.host, attrs.host.name | SORT _index | LIMIT 10'
+  - match: { columns.1.name: attrs.host }
+  - match: { columns.1.type: unsupported }
+  - match: { values: [ [ "deeper", null, "d" ], [ "flat", null, "h" ] ] }
+
+---
+'consequence: a pattern falls under a container only by its literal name':
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM flat | KEEP *.bar | LIMIT 10'
+  - match: { error.type: verification_exception }
+
+---
+'consequence: a path has the values it holds directly, among keys it holds':
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "flat", "_id": "mixed" } }
+          - { "attrs": [ { "host": "a" }, { "host": { "name": "b" } } ] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat METADATA _id | WHERE _id == "mixed" | KEEP attrs.host, attrs.host.name | LIMIT 10'
+  - match: { values: [ [ "a", "b" ] ] }

@@ -7,15 +7,20 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
+import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.datasources.FilterEvaluationOrderEstimator;
@@ -40,6 +45,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.ParameterizedQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.querydsl.query.UnmappedFieldsQueryBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -72,8 +78,13 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
 
     private static PhysicalPlan planFilterExec(FilterExec filterExec, EsQueryExec queryExec, LocalPhysicalOptimizerContext ctx) {
         LucenePushdownPredicates pushdownPredicates = LucenePushdownPredicates.from(ctx.searchStats(), ctx.flags());
-        PushdownClassification classified = classifyFilters(filterExec.condition(), pushdownPredicates);
-        return rewrite(pushdownPredicates, filterExec, queryExec, classified.pushable, classified.nonPushable, List.of());
+        PushdownClassification classified = classifyFilters(
+            filterExec.condition(),
+            pushdownPredicates,
+            AttributeMap.emptyAttributeMap(),
+            ctx
+        );
+        return rewrite(pushdownPredicates, filterExec, queryExec, classified, List.of());
     }
 
     private static PhysicalPlan planFilterExec(
@@ -84,9 +95,9 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
     ) {
         LucenePushdownPredicates pushdownPredicates = LucenePushdownPredicates.from(ctx.searchStats(), ctx.flags());
         AttributeMap<Attribute> aliasReplacedBy = getAliasReplacedBy(evalExec);
-        PushdownClassification classified = classifyFilters(filterExec.condition(), pushdownPredicates, aliasReplacedBy);
+        PushdownClassification classified = classifyFilters(filterExec.condition(), pushdownPredicates, aliasReplacedBy, ctx);
         classified.pushable.replaceAll(e -> e.transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r)));
-        return rewrite(pushdownPredicates, filterExec, queryExec, classified.pushable, classified.nonPushable, evalExec.fields());
+        return rewrite(pushdownPredicates, filterExec, queryExec, classified, evalExec.fields());
     }
 
     static AttributeMap<Attribute> getAliasReplacedBy(EvalExec evalExec) {
@@ -113,17 +124,22 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         LucenePushdownPredicates pushdownPredicates,
         FilterExec filterExec,
         EsQueryExec queryExec,
-        List<Expression> pushable,
-        List<Expression> nonPushable,
+        PushdownClassification classified,
         List<Alias> evalFields
     ) {
+        List<Expression> nonPushable = classified.nonPushable;
         // Combine GT, GTE, LT and LTE in pushable to Range if possible
-        List<Expression> newPushable = combineEligiblePushableToRange(pushable);
-        if (newPushable.size() > 0) { // update the executable with pushable conditions
-            Query queryDSL = TRANSLATOR_HANDLER.asQuery(pushdownPredicates, Predicates.combineAnd(newPushable));
-            QueryBuilder planQuery = queryDSL.toQueryBuilder();
+        List<Expression> newPushable = combineEligiblePushableToRange(classified.pushable);
+        if (newPushable.size() > 0 || classified.unmappedFieldsQueries.isEmpty() == false) { // update the executable
+            List<QueryBuilder> queries = new ArrayList<>();
+            queries.add(queryExec.query());
+            if (newPushable.isEmpty() == false) {
+                Query queryDSL = TRANSLATOR_HANDLER.asQuery(pushdownPredicates, Predicates.combineAnd(newPushable));
+                queries.add(queryDSL.toQueryBuilder());
+            }
+            queries.addAll(classified.unmappedFieldsQueries);
             Queries.Clause combiningQueryClauseType = queryExec.hasScoring() ? Queries.Clause.MUST : Queries.Clause.FILTER;
-            var query = Queries.combine(combiningQueryClauseType, asList(queryExec.query(), planQuery));
+            var query = Queries.combine(combiningQueryClauseType, queries);
             queryExec = new EsQueryExec(
                 queryExec.source(),
                 queryExec.indexPattern(),
@@ -377,7 +393,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
     ) {
         LucenePushdownPredicates pushdownPredicates = LucenePushdownPredicates.from(ctx.searchStats(), ctx.flags());
         AttributeMap<Attribute> aliasReplacedBy = getAliasReplacedBy(evalExec);
-        PushdownClassification classified = classifyFilters(filterExec.condition(), pushdownPredicates, aliasReplacedBy);
+        PushdownClassification classified = classifyFilters(filterExec.condition(), pushdownPredicates, aliasReplacedBy, null);
         classified.pushable.replaceAll(e -> e.transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r)));
         return rewrite(pushdownPredicates, filterExec, pqExec, classified.pushable, classified.nonPushable, evalExec.fields());
     }
@@ -409,10 +425,18 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         return filterExec;
     }
 
-    private record PushdownClassification(List<Expression> pushable, List<Expression> nonPushable) {}
+    /**
+     * @param unmappedFieldsQueries queries over fields that some shards may not map, whose filters stay in {@code nonPushable} to check
+     *                              the values those shards read from their unmapped fields
+     */
+    private record PushdownClassification(
+        List<Expression> pushable,
+        List<Expression> nonPushable,
+        List<QueryBuilder> unmappedFieldsQueries
+    ) {}
 
     private static PushdownClassification classifyFilters(Expression condition, LucenePushdownPredicates pushdownPredicates) {
-        return classifyFilters(condition, pushdownPredicates, AttributeMap.emptyAttributeMap());
+        return classifyFilters(condition, pushdownPredicates, AttributeMap.emptyAttributeMap(), null);
     }
 
     /**
@@ -420,22 +444,33 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
      * When {@code aliasReplacedBy} is non-empty, alias resolution is applied before
      * the translatability check, but the original (unresolved) expressions are stored
      * so that non-pushable filters still reference the EvalExec output attributes.
+     *
+     * @param ctx the context of the {@link EsQueryExec} the filters are pushed to, to push filters over fields that some shards may
+     *            not map; {@code null} for any other source
      */
     private static PushdownClassification classifyFilters(
         Expression condition,
         LucenePushdownPredicates pushdownPredicates,
-        AttributeMap<Attribute> aliasReplacedBy
+        AttributeMap<Attribute> aliasReplacedBy,
+        @Nullable LocalPhysicalOptimizerContext ctx
     ) {
         List<Expression> conjuncts = splitAnd(condition);
 
         List<Expression> pushable = new ArrayList<>();
         List<Expression> nonPushable = new ArrayList<>();
+        List<QueryBuilder> unmappedFieldsQueries = new ArrayList<>();
         for (Expression exp : conjuncts) {
             Expression resExp = aliasReplacedBy.isEmpty()
                 ? exp
                 : exp.transformUp(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r));
             switch (translatable(resExp, pushdownPredicates).finish()) {
-                case NO -> nonPushable.add(exp);
+                case NO -> {
+                    QueryBuilder unmappedFieldsQuery = ctx == null ? null : unmappedFieldsQuery(resExp, ctx);
+                    if (unmappedFieldsQuery != null) {
+                        unmappedFieldsQueries.add(unmappedFieldsQuery);
+                    }
+                    nonPushable.add(exp);
+                }
                 case YES -> pushable.add(exp);
                 case RECHECK -> {
                     pushable.add(exp);
@@ -443,6 +478,43 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
                 }
             }
         }
-        return new PushdownClassification(pushable, nonPushable);
+        return new PushdownClassification(pushable, nonPushable, unmappedFieldsQueries);
+    }
+
+    /**
+     * The query of a filter over {@code keyword} fields that some shards here may not map, translated as over plain indexed
+     * {@code keyword} fields with doc values, or {@code null} if it cannot be. Each shard decides whether it runs it (see
+     * {@link UnmappedFieldsQueryBuilder}).
+     */
+    @Nullable
+    private static QueryBuilder unmappedFieldsQuery(Expression filter, LocalPhysicalOptimizerContext ctx) {
+        List<String> fields = new ArrayList<>();
+        Expression asKeywords = filter.transformUp(FieldAttribute.class, fa -> {
+            if (fa.field() instanceof PotentiallyUnmappedKeywordEsField unmapped) {
+                fields.add(fa.fieldName().string());
+                // Aggregatable stands for indexed with doc values, which the shards that run the query check for themselves
+                return fa.withField(
+                    new KeywordEsField(
+                        unmapped.getName(),
+                        unmapped.getProperties(),
+                        true,
+                        unmapped.getPrecision(),
+                        false,
+                        unmapped.isAlias(),
+                        unmapped.getTimeSeriesFieldType()
+                    )
+                );
+            }
+            return fa;
+        });
+        if (fields.isEmpty()) {
+            return null;
+        }
+        LucenePushdownPredicates predicates = LucenePushdownPredicates.from(ctx.searchStats(), ctx.flags());
+        if (translatable(asKeywords, predicates).finish() == TranslationAware.FinishedTranslatable.NO) {
+            return null;
+        }
+        Query query = TRANSLATOR_HANDLER.asQuery(predicates, asKeywords);
+        return new UnmappedFieldsQueryBuilder(fields.stream().distinct().sorted().toList(), query.toQueryBuilder());
     }
 }

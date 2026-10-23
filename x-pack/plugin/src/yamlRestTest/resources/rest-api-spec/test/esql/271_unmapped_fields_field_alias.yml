@@ -254,7 +254,89 @@ setup:
   - match: { values.2: ["b"] }
 
 ---
+'loading a subfield of a flattened field (direct) reads its key with load':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ flattened_subfields ]
+      reason: "A subfield of a flattened field is a keyword field of its own"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM fa-flat | KEEP attributes.sub'
+  - match: { columns.0: { name: attributes.sub, type: keyword } }
+  - match: { values: [ [ "v" ] ] }
+
+---
+'loading a subfield via a flattened field alias reads its key the same way':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ flattened_subfields ]
+      reason: "A subfield of a flattened field is a keyword field of its own"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          # the alias is not special-cased: a subfield through it is the key of the field it points to.
+          query: 'SET unmapped_fields="load"; FROM fa-flat | KEEP attributes_alias.sub'
+  - match: { columns.0: { name: attributes_alias.sub, type: keyword } }
+  - match: { values: [ [ "v" ] ] }
+
+---
+'nullify reads a flattened subfield via an alias as its key':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ flattened_subfields ]
+      reason: "A subfield of a flattened field is a keyword field of its own"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          # a key of a flattened field is a field in every unmapped_fields mode, so nullify does not apply to it
+          query: 'SET unmapped_fields="nullify"; FROM fa-flat | KEEP attributes_alias.sub'
+  - match: { columns.0: { name: attributes_alias.sub, type: keyword } }
+  - match: { values: [ [ "v" ] ] }
+
+---
+'loading a subfield via a flattened field alias under a type conflict reads the key where the alias is flattened':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ flattened_subfields ]
+      reason: "A subfield of a flattened field is a keyword field of its own"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          # [attributes_alias] is a keyword in fa-flat-kw, which neither maps the subfield nor holds it as an unmapped field
+          query: 'SET unmapped_fields="load"; FROM fa-flat, fa-flat-kw METADATA _index | KEEP _index, attributes_alias.sub | SORT _index'
+  - match: { columns.1: { name: attributes_alias.sub, type: keyword } }
+  - match: { values: [ [ "fa-flat", "v" ], [ "fa-flat-kw", null ] ] }
+
+---
 'loading a subfield of a flattened field (direct) fails with load':
+  - skip:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ flattened_subfields ]
+      reason: "A subfield of a flattened field is a keyword field of its own"
   - do:
       catch: bad_request
       esql.query:
@@ -266,6 +348,13 @@ setup:
 
 ---
 'loading a subfield via a flattened field alias fails the same way':
+  - skip:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ flattened_subfields ]
+      reason: "A subfield of a flattened field is a keyword field of its own"
   - do:
       catch: bad_request
       esql.query:
@@ -278,6 +367,13 @@ setup:
 
 ---
 'nullify resolves a flattened subfield via an alias to null instead of failing':
+  - skip:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ flattened_subfields ]
+      reason: "A subfield of a flattened field is a keyword field of its own"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -292,6 +388,13 @@ setup:
 
 ---
 'loading a subfield via a flattened field alias still fails under a type conflict':
+  - skip:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ flattened_subfields ]
+      reason: "A subfield of a flattened field is a keyword field of its own"
   - do:
       catch: bad_request
       esql.query:

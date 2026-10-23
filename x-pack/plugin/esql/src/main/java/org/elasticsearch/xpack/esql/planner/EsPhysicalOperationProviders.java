@@ -52,6 +52,7 @@ import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.UnmappedFields;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
@@ -100,6 +101,7 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.DriverParallel
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 
@@ -346,8 +348,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 MappedFieldType mft = shardContext.fieldType(fieldName);
                 // Match what field_caps reports on the coordinator: family type (e.g., constant_keyword -> keyword) rather than the
                 // concrete mapper type, so the lookup key here aligns with how typeToConversionExpressions was keyed upstream.
-                yield mft == null
-                    ? null
+                // The key of a flattened field is the keyword the coordinator resolved it to.
+                yield mft == null ? null
+                    : mft instanceof FlattenedFieldMapper.KeyedFlattenedFieldType ? compact.getConversionExpressionForType(DataType.KEYWORD)
                     : compact.getConversionExpressionForType(
                         EsqlDataTypeRegistry.INSTANCE.fromEs(mft.familyTypeName(), mft.getMetricType())
                     );
@@ -499,7 +502,24 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 // one - so catch it here rather than let it be dropped and surface as a wrong value much later.
                 assert blockLoaderFunctionConfig == null
                     : "cannot fuse [" + blockLoaderFunctionConfig + "] into loading unmapped field [" + name + "]";
-                UnmappedFields unmappedFields = ((DefaultShardContext) this).ctx.unmappedFields();
+                SearchExecutionContext context = ((DefaultShardContext) this).ctx;
+                // An index that keeps its unmapped fields in the _unmapped field reads the key of the field there
+                if (context instanceof EsqlSearchExecutionContext esql) {
+                    MappedFieldType key = esql.unmappedFieldInContainer(name);
+                    if (key != null) {
+                        return key.blockLoader(
+                            new EsqlBlockLoaderContext(
+                                context,
+                                fieldExtractPreference,
+                                null,
+                                warnings,
+                                blockLoaderSizeOrdinals,
+                                blockLoaderSizeScript
+                            )
+                        );
+                    }
+                }
+                UnmappedFields unmappedFields = context.unmappedFields();
                 return walk == null ? unmappedFields.blockLoader(name) : unmappedFields.blockLoader(name, walk);
             }
             return super.blockLoader(
@@ -913,7 +933,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 return ConstantNull.INSTANCE;
             }
             // Exclude fields that field caps hides from the coordinator so the shard does not load a differently-typed block:
-            // - flattened sub-keys: fieldType() is non-null but the key is not in the mapping (#154508)
+            // - flattened sub-keys, unless the query reads them as keyword fields: fieldType() is non-null but the key is not in
+            // the mapping (#154508)
             // - nested subfields: mapped, but IndexResolver applies -nested on the field-caps request (#154011)
             // Only dotted names can be either, so gating the extra probes on the dot keeps flat names (the common case)
             // at a single resolution.

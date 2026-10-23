@@ -128,7 +128,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
         ).v2();
         UnmappedFieldsAttribute before = unmappedFieldsAttribute(dataNodePlan);
         assertTrue(before.pattern().matches("first_name_suffix"));
-        assertFalse(before.pattern().matches("first_name"));
+        assertTrue(before.pattern().matches("first_name"));
+        assertFalse(before.pattern().matches("salary"));
 
         DataNodeRequest request = new DataNodeRequest(
             "load-all-session",

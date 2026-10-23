@@ -586,3 +586,21 @@ ds_dataset_query_partial:
   indices:
     - names: [ 'security_it_ds_keep_*' ]
       privileges: [ 'read' ]
+
+fls_unmapped_container_except_k:
+  cluster: []
+  indices:
+    - names: [ 'index-unmapped-container' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ '*' ]
+        except: [ 'k' ]
+
+fls_flattened_key_except_secret:
+  cluster: []
+  indices:
+    - names: [ 'index-flattened-keys' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ '*' ]
+        except: [ 'attrs.secret' ]

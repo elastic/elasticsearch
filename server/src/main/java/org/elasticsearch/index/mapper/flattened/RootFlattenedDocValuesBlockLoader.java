@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.KEYED_FIELD_SUFFIX;
@@ -46,7 +47,8 @@ final class RootFlattenedDocValuesBlockLoader implements BlockLoader {
         boolean usesArrayOrderBinaryDocValues,
         List<SourceLoader.SyntheticFieldLoader> mappedSubFieldLoaders,
         boolean storeIgnoredFieldsInBinaryDocValues,
-        FlattenedFieldMapper.PreserveLeafArrays preserveLeafArrays
+        FlattenedFieldMapper.PreserveLeafArrays preserveLeafArrays,
+        Predicate<String> keys
     ) {
         this.ignoreAbove = ignoreAbove;
         this.fieldLoader = new BlockFlattenedDocValuesSyntheticFieldLoader(
@@ -58,7 +60,8 @@ final class RootFlattenedDocValuesBlockLoader implements BlockLoader {
             usesArrayOrderBinaryDocValues,
             mappedSubFieldLoaders,
             storeIgnoredFieldsInBinaryDocValues,
-            preserveLeafArrays
+            preserveLeafArrays,
+            keys
         );
         this.storedFieldLoaders = fieldLoader.storedFieldLoaders().toList();
     }
@@ -185,6 +188,8 @@ final class RootFlattenedDocValuesBlockLoader implements BlockLoader {
      * instead of to the "_source" field.
      */
     private static class BlockFlattenedDocValuesSyntheticFieldLoader extends FlattenedDocValuesSyntheticFieldLoader {
+        private final Predicate<String> keys;
+
         BlockFlattenedDocValuesSyntheticFieldLoader(
             String fieldFullPath,
             String keyedFieldFullPath,
@@ -194,7 +199,8 @@ final class RootFlattenedDocValuesBlockLoader implements BlockLoader {
             boolean usesArrayOrderBinaryDocValues,
             List<SourceLoader.SyntheticFieldLoader> mappedSubFieldLoaders,
             boolean storeIgnoredFieldsInBinaryDocValues,
-            FlattenedFieldMapper.PreserveLeafArrays preserveLeafArrays
+            FlattenedFieldMapper.PreserveLeafArrays preserveLeafArrays,
+            Predicate<String> keys
         ) {
             super(
                 fieldFullPath,
@@ -207,6 +213,20 @@ final class RootFlattenedDocValuesBlockLoader implements BlockLoader {
                 preserveLeafArrays,
                 usesArrayOrderBinaryDocValues
             );
+            this.keys = keys;
+        }
+
+        @Override
+        protected FlattenedFieldSyntheticWriterHelper.KeyedValueProducer keyedValues(
+            FlattenedFieldSyntheticWriterHelper.KeyedValueProducer all
+        ) {
+            return () -> {
+                FlattenedFieldSyntheticWriterHelper.OrderedField field;
+                do {
+                    field = all.next();
+                } while (field != null && keys.test(field.key().fullPath()) == false);
+                return field;
+            };
         }
 
         public void writeToBlock(BlockLoader.BytesRefBuilder builder) throws IOException {

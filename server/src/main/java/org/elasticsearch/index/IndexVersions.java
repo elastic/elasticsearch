@@ -258,6 +258,7 @@ public class IndexVersions {
         9_094_0_01,
         Version.LUCENE_10_4_0
     );
+    public static final IndexVersion SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_DATE_BACKPORT_9_4 = def(9_094_0_02, Version.LUCENE_10_4_0);
     public static final IndexVersion DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES = def(9_095_0_00, Version.LUCENE_10_4_0);
     public static final IndexVersion SEMANTIC_TEXT_LEGACY_FORMAT_FORBIDDEN = def(9_096_00_0, Version.LUCENE_10_4_0);
     public static final IndexVersion SEMANTIC_FIELD_TYPE = def(9_097_00_0, Version.LUCENE_10_4_0);
@@ -280,6 +281,7 @@ public class IndexVersions {
         Version.LUCENE_10_5_1
     );
     public static final IndexVersion UPGRADE_TO_LUCENE_10_5_2_BACKPORT_9_5 = def(9_111_0_02, Version.LUCENE_10_5_2);
+    public static final IndexVersion SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_DATE_BACKPORT_9_5 = def(9_111_0_03, Version.LUCENE_10_5_2);
     public static final IndexVersion COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG = def(9_112_0_00, Version.LUCENE_10_5_1);
     // Deliberately unreferenced: defining it raises IndexVersion.current(), which is what keeps segments written by the
     // Elasticsearch96 codec off nodes that cannot resolve that name (see IndexVersionAllocationDecider).
@@ -300,6 +302,7 @@ public class IndexVersions {
     public static final IndexVersion DISK_BBQ_AUTO_CALIBRATE_ENABLE_BY_DEFAULT = def(9_125_0_00, Version.LUCENE_10_5_2);
     public static final IndexVersion DOC_VALUES_TOP_LEVEL_ATTRIBUTES = def(9_126_0_00, Version.LUCENE_10_5_2);
     public static final IndexVersion COLUMNAR_CODEC_NO_FEATURE_FLAG = def(9_127_0_00, Version.LUCENE_10_5_2);
+    public static final IndexVersion SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_DATE = def(9_128_0_00, Version.LUCENE_10_5_2);
 
     /*
      * STOP! READ THIS FIRST! No, really,

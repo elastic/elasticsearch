@@ -65,6 +65,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -629,10 +630,85 @@ public class DateFieldMapperTests extends MapperTestCase {
         return syntheticSourceSupportInternal(ignoreMalformed, true, true);
     }
 
+    /**
+     * Date arrays are stored natively under {@code synthetic_source_keep: arrays}, so array elements are rebuilt from doc
+     * values and formatted with the field's formatter rather than copied verbatim from {@code _ignored_source}. The expected
+     * synthetic source must therefore be used as the input too, since {@link MapperTestCase#testSyntheticSourceKeepArrays}
+     * expects input and output to be equal.
+     */
     @Override
     protected SyntheticSourceSupport syntheticSourceSupportForKeepTests(boolean ignoreMalformed, Mapper.SourceKeepMode sourceKeepMode) {
         // Serializing and deserializing BigDecimal values may lead to parsing errors, a test artifact.
-        return syntheticSourceSupportInternal(ignoreMalformed, false, false);
+        var delegate = syntheticSourceSupportInternal(ignoreMalformed, false, false);
+        return new SyntheticSourceSupport() {
+            @Override
+            public SyntheticSourceExample example(int maxValues) throws IOException {
+                var example = delegate.example(maxValues);
+                return new SyntheticSourceExample(
+                    example.expectedForSyntheticSource(),
+                    example.expectedForSyntheticSource(),
+                    example.mapping()
+                );
+            }
+
+            @Override
+            public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+                return delegate.invalidExample();
+            }
+        };
+    }
+
+    /**
+     * Native array offsets for date fields are gated on {@link IndexVersions#SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_DATE} and its
+     * 9.4 and 9.5 backport versions. Indices created before any of those, or in the 8.x range where other field types already
+     * stored offsets natively, must keep routing date arrays to {@code _ignored_source}.
+     */
+    public void testOffsetsFieldNameIndexVersionGate() throws IOException {
+        final IndexVersion lastBefore94Backport = IndexVersionUtils.getPreviousVersion(
+            IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_DATE_BACKPORT_9_4
+        );
+        final IndexVersion lastBefore95Backport = IndexVersionUtils.getPreviousVersion(
+            IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_DATE_BACKPORT_9_5
+        );
+        final IndexVersion lastBeforeMain = IndexVersionUtils.getPreviousVersion(IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_DATE);
+        final List<IndexVersion> unsupported = List.of(
+            IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_BACKPORT_8_X,
+            IndexVersionUtils.randomVersionBetween(IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_NUMBER, lastBefore94Backport),
+            lastBefore94Backport,
+            IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES,
+            IndexVersionUtils.randomVersionBetween(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES, lastBefore95Backport),
+            lastBefore95Backport,
+            IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG,
+            IndexVersionUtils.randomVersionBetween(IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG, lastBeforeMain),
+            lastBeforeMain
+        );
+        for (IndexVersion indexVersion : unsupported) {
+            assertThat(indexVersion.toString(), offsetsFieldName(indexVersion), nullValue());
+        }
+
+        final List<IndexVersion> supported = List.of(
+            IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_DATE_BACKPORT_9_4,
+            IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_DATE_BACKPORT_9_5,
+            IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_DATE,
+            IndexVersionUtils.randomVersionBetween(IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_DATE, IndexVersion.current())
+        );
+        for (IndexVersion indexVersion : supported) {
+            assertThat(indexVersion.toString(), offsetsFieldName(indexVersion), equalTo("field.offsets"));
+        }
+    }
+
+    private String offsetsFieldName(IndexVersion indexVersion) throws IOException {
+        Settings settings = Settings.builder()
+            .put("index.mapping.source.mode", "synthetic")
+            .put("index.mapping.synthetic_source_keep", "arrays")
+            .build();
+        MapperService mapperService = createMapperService(
+            indexVersion,
+            settings,
+            () -> true,
+            fieldMapping(b -> b.field("type", randomBoolean() ? "date" : "date_nanos"))
+        );
+        return mapperService.mappingLookup().getMapper("field").getOffsetFieldName();
     }
 
     private SyntheticSourceSupport syntheticSourceSupportInternal(boolean ignoreMalformed, boolean allowBigDecimal, boolean isColumnar) {

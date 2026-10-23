@@ -82,7 +82,7 @@ A role configures these privileges as follows. The example grants querying `sale
 The {{esql}} Data Federation UI in {{kib}} requires the cluster `manage` privilege. A role with only `global.data_source` privileges can manage data sources with the API, but not in the UI.
 :::
 
-### Grant data source privileges in {{kib}}
+### Grant data source privileges in {{kib}} [grant-data-source-privileges-in-kibana]
 ```{applies_to}
 stack: experimental 9.6+
 ```

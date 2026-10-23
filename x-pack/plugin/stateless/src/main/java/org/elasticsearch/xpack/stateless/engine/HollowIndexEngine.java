@@ -15,6 +15,7 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -339,9 +340,11 @@ public class HollowIndexEngine extends Engine {
 
     @Override
     protected void flushHoldingLock(boolean force, boolean waitIfOngoing, FlushResultListener listener) throws EngineException {
-        // This returns a flush result which is not skipped due to collision, but does not actually flush anything. Mostly to appease
-        // flushOnIdle so it does not retry endlessly unnecessarily.
-        listener.onResponse(new FlushResult(false, segmentInfos.getGeneration()));
+        // This returns a flush result which is not skipped due to collision. Mostly to appease flushOnIdle so it does not retry
+        // endlessly unnecessarily. Itself does not actually flush anything but does ensure flush of the current generation
+        // (the hollow commit) is completed before invoking the listener.
+        final long generation = segmentInfos.getGeneration();
+        statelessCommitService.addListenerForUploadedGeneration(shardId, generation, listener.map(v -> new FlushResult(false, generation)));
     }
 
     @Override
@@ -399,6 +402,14 @@ public class HollowIndexEngine extends Engine {
 
     @Override
     public IndexCommitRef acquireLastIndexCommit(boolean flushFirst) throws EngineException {
+        if (flushFirst) {
+            final PlainActionFuture<FlushResult> future = new PlainActionFuture<>();
+            /// Ensure the hollow commit has completed its flush so that it can be read from the object store by snapshot.
+            /// Values for the `force` and `waitIfOngoing` arguments make no difference as they are just placeholders to
+            /// satisfy the method signature. See also [#flushHoldingLock]
+            flush(false, true, future);
+            future.actionGet();
+        }
         return acquireIndexCommitRef(false);
     }
 

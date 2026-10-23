@@ -50,32 +50,19 @@ class IsolatedProjectsArchUnitSpec extends AbstractArchUnitSpec {
 
     private static final Set<String> KNOWN_GET_ROOT_PROJECT = [
         "org.elasticsearch.gradle.internal.BaseInternalPluginBuildPlugin",
-        "org.elasticsearch.gradle.internal.BuildPlugin",
         "org.elasticsearch.gradle.internal.ElasticsearchBasePlugin",
-        "org.elasticsearch.gradle.internal.ElasticsearchJavaPlugin",
-        "org.elasticsearch.gradle.internal.ElasticsearchTestBasePlugin",
         "org.elasticsearch.gradle.internal.InternalAvailableTcpPortProviderPlugin",
         "org.elasticsearch.gradle.internal.InternalBwcGitPlugin",
         "org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPlugin",
         "org.elasticsearch.gradle.internal.InternalDistributionDownloadPlugin",
         "org.elasticsearch.gradle.internal.InternalTestClustersPlugin",
-        "org.elasticsearch.gradle.internal.MrjarPlugin",
         "org.elasticsearch.gradle.internal.docker.DockerSupportPlugin",
-        "org.elasticsearch.gradle.internal.esql.EsqlFunctionPlugin",
         "org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin",
         "org.elasticsearch.gradle.internal.precommit.SplitPackagesAuditPrecommitPlugin",
-        "org.elasticsearch.gradle.internal.precommit.ThirdPartyAuditPrecommitPlugin",
-        "org.elasticsearch.gradle.internal.snyk.SnykDependencyMonitoringGradlePlugin",
         "org.elasticsearch.gradle.internal.test.DistroTestPlugin",
-        "org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin",
-        "org.elasticsearch.gradle.internal.test.MutedTestPlugin",
         "org.elasticsearch.gradle.internal.test.StandaloneRestTestPlugin",
-        "org.elasticsearch.gradle.internal.test.StandaloneTestPlugin",
         "org.elasticsearch.gradle.internal.test.TestWithSslPlugin",
         "org.elasticsearch.gradle.internal.test.rest.RestTestBasePlugin",
-        "org.elasticsearch.gradle.internal.test.rest.compat.compat.AbstractYamlRestCompatTestPlugin",
-        "org.elasticsearch.gradle.internal.testfixtures.TestFixturesDeployPlugin",
-        "org.elasticsearch.gradle.internal.transport.TransportVersionResourcesPlugin",
     ] as Set
 
     private static final Set<String> KNOWN_GET_ALL_SUB_PROJECTS = [

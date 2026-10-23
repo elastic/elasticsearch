@@ -30,6 +30,7 @@ import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.common.util.LongObjectPagedHashMap.Cursor;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchHit;
@@ -73,6 +74,12 @@ class TopHitsAggregator extends MetricsAggregator {
 
     private final BigArrays bigArrays;
     private final SubSearchContext subSearchContext;
+    /**
+     * Collects the top documents of every bucket without a Lucene collector per bucket, or {@code null} for the sorts it does
+     * not support, in which case {@link #topDocsCollectors} and {@link #leafCollectors} are used.
+     */
+    @Nullable
+    private final BucketedTopHits bucketedTopHits;
     private final LongObjectPagedHashMap<Collectors> topDocsCollectors;
     private final List<ProfileResult> fetchProfiles;
     // this must be mutable so it can be closed/replaced on each call to getLeafCollector
@@ -86,12 +93,14 @@ class TopHitsAggregator extends MetricsAggregator {
         String name,
         AggregationContext context,
         Aggregator parent,
-        Map<String, Object> metadata
+        Map<String, Object> metadata,
+        @Nullable BucketedTopHits bucketedTopHits
     ) throws IOException {
         super(name, context, parent, metadata);
         this.bigArrays = context.bigArrays();
         this.subSearchContext = subSearchContext;
-        this.topDocsCollectors = new LongObjectPagedHashMap<>(1, bigArrays);
+        this.bucketedTopHits = bucketedTopHits;
+        this.topDocsCollectors = bucketedTopHits == null ? new LongObjectPagedHashMap<>(1, bigArrays) : null;
         this.fetchProfiles = context.profiling() ? new ArrayList<>() : null;
         this.isNested = isNestedAggregationContext(parent);
         // Fork the search execution context, because the fetch phase does not support concurrent execution yet. One fork per
@@ -113,6 +122,10 @@ class TopHitsAggregator extends MetricsAggregator {
         }
     }
 
+    boolean usesBucketedSort() {
+        return bucketedTopHits != null;
+    }
+
     @Override
     public ScoreMode scoreMode() {
         SortAndFormats sort = subSearchContext.sort();
@@ -126,6 +139,9 @@ class TopHitsAggregator extends MetricsAggregator {
 
     @Override
     public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
+        if (usesBucketedSort()) {
+            return bucketedTopHits.getLeafCollector(aggCtx, sub);
+        }
         // Create leaf collectors here instead of at the aggregator level. Otherwise in case this collector get invoked
         // when post collecting then we have already replaced the leaf readers on the aggregator level have already been
         // replaced with the next leaf readers and then post collection pushes docids of the previous segment, which
@@ -196,11 +212,10 @@ class TopHitsAggregator extends MetricsAggregator {
         };
     }
 
-    @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
+    private TopDocsAndMaxScore luceneTopDocs(long owningBucketOrdinal) throws IOException {
         Collectors collectors = topDocsCollectors.get(owningBucketOrdinal);
         if (collectors == null) {
-            return buildEmptyAggregation();
+            return null;
         }
         TopDocsCollector<?> topDocsCollector = collectors.topDocsCollector;
         TopDocs topDocs = topDocsCollector.topDocs();
@@ -220,7 +235,18 @@ class TopHitsAggregator extends MetricsAggregator {
             TopFieldCollector.populateScores(topDocs.scoreDocs, subSearchContext.searcher(), subSearchContext.query());
             maxScore = collectors.maxScoreCollector.getMaxScore();
         }
-        final TopDocsAndMaxScore topDocsAndMaxScore = new TopDocsAndMaxScore(topDocs, maxScore);
+        return new TopDocsAndMaxScore(topDocs, maxScore);
+    }
+
+    @Override
+    public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
+        final TopDocsAndMaxScore topDocsAndMaxScore = usesBucketedSort()
+            ? bucketedTopHits.topDocs(owningBucketOrdinal, subSearchContext)
+            : luceneTopDocs(owningBucketOrdinal);
+        if (topDocsAndMaxScore == null) {
+            return buildEmptyAggregation();
+        }
+        final TopDocs topDocs = topDocsAndMaxScore.topDocs;
         subSearchContext.queryResult()
             .topDocs(topDocsAndMaxScore, subSearchContext.sort() == null ? null : subSearchContext.sort().formats);
         int[] docIdsToLoad = new int[topDocs.scoreDocs.length];
@@ -332,7 +358,7 @@ class TopHitsAggregator extends MetricsAggregator {
 
     @Override
     protected void doClose() {
-        Releasables.close(topDocsCollectors, leafCollectors);
+        Releasables.close(bucketedTopHits, topDocsCollectors, leafCollectors);
     }
 
     private static class ResettableScorable extends Scorable {

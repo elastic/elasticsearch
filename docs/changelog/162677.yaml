@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 162677
+summary: Record SET settings of views in telemetry and logs
+type: enhancement

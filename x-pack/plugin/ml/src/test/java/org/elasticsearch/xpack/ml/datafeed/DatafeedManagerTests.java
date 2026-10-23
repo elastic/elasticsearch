@@ -1084,6 +1084,7 @@ public class DatafeedManagerTests extends ESTestCase {
 
         assertThat(response.get(), notNullValue());
         assertThat(response.get().getResponse().getProjectRouting(), equalTo("_alias:prod-*"));
+        assertWarnings(DatafeedConfig.PROJECT_ROUTING_INERT_WITHOUT_CPS_MESSAGE);
     }
 
     @SuppressWarnings("unchecked")

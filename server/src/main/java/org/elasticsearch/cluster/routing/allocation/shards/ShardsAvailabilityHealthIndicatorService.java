@@ -487,20 +487,15 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
         }
         // If the primary is inactive for unexceptional events in the cluster lifecycle, both the primary and the replica are considered
         // provisionally inactive:
+        int localRecoveryRetries = localRecoveryRetries(routing, localRecoveryRetriesHealthInfoByNode);
         if (routing.primary()) {
-            if (getInactivePrimaryHealth(
-                routing,
-                localRecoveryRetries(routing, localRecoveryRetriesHealthInfoByNode) > 0
-            ) == ClusterHealthStatus.YELLOW) {
+            if (getInactivePrimaryHealth(routing, localRecoveryRetries > 0) == ClusterHealthStatus.YELLOW) {
                 return true;
             }
         } else {
             ShardRouting primary = state.routingTable(projectId).shardRoutingTable(routing.shardId()).primaryShard();
-            if (!primary.active()
-                && getInactivePrimaryHealth(
-                    primary,
-                    localRecoveryRetries(primary, localRecoveryRetriesHealthInfoByNode) > 0
-                ) == ClusterHealthStatus.YELLOW) {
+            int localRecoveryRetriesForPrimary = localRecoveryRetries(primary, localRecoveryRetriesHealthInfoByNode);
+            if (!primary.active() && getInactivePrimaryHealth(primary, localRecoveryRetriesForPrimary > 0) == ClusterHealthStatus.YELLOW) {
                 return true;
             }
         }
@@ -513,7 +508,7 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
         UnassignedInfo unassignedInfo = routing.unassignedInfo();
         return unassignedInfo != null
             && unassignedInfo.failedAllocations() == 0
-            && localRecoveryRetries(routing, localRecoveryRetriesHealthInfoByNode) == 0
+            && localRecoveryRetries == 0
             && unassignedInfo.lastAllocationStatus() != UnassignedInfo.AllocationStatus.DECIDERS_NO
             && unassignedInfo.reason().isExpectedTransient()
             && (inactiveBufferTime.millis() > 0)

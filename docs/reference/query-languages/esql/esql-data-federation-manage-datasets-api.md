@@ -1,5 +1,5 @@
 ---
-navigation_title: "API"
+navigation_title: "Manage with API"
 description: "Create, get, list, and delete ES|QL Data Federation datasets with the /_query/dataset API."
 applies_to:
   stack: experimental 9.5+
@@ -155,3 +155,8 @@ curl -X DELETE "${ELASTICSEARCH_URL}/_query/dataset/access_logs" \
 :::
 
 ::::
+
+## Next steps
+
+:::{include} _snippets/data-federation/datasets-next-steps.md
+:::

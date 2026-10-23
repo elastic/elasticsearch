@@ -1,0 +1,1 @@
+After creating a dataset, [query it with {{esql}}](/reference/query-languages/esql/esql-data-federation-querying.md). To change how the dataset selects or interprets files, return to [define a dataset](/reference/query-languages/esql/esql-data-federation-datasets.md#define-a-dataset).

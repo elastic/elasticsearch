@@ -31,7 +31,3 @@ With [audit logging enabled](docs-content://deploy-manage/security/logging-confi
 creating, updating, and deleting datasets generates `security_config_change` events. Refer to
 [put_dataset](../../elasticsearch/elasticsearch-audit-events.md#event-put-dataset) and
 [delete_dataset](../../elasticsearch/elasticsearch-audit-events.md#event-delete-dataset).
-
-## Next steps
-
-After creating a dataset, [query it with {{esql}}](esql-data-federation-querying.md). To change how the dataset selects or interprets files, return to [define a dataset](esql-data-federation-datasets.md#define-a-dataset).

@@ -518,6 +518,22 @@ tests:
 - class: org.elasticsearch.columnar.string.StringColumnMetadataTests
   method: testRoundTrip
   issue: https://github.com/elastic/elasticsearch/issues/162976
-- class: org.elasticsearch.xpack.stateless.recovery.BlockRefreshUponIndexCreationIT
-  method: testRefreshBlockRemovedAfterDelay
-  issue: https://github.com/elastic/elasticsearch/issues/162990
+- class: org.elasticsearch.xpack.logsdb.patterntext.PatternTextIntegrationTests
+  tasks:
+  - :x-pack:plugin:logsdb:test
+  issue: https://github.com/elastic/elasticsearch/issues/163084
+- class: org.elasticsearch.xpack.stateless.commits.UploadQueueControllerServiceIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testDisableThrottlingUsingTheSetting
+  issue: https://github.com/elastic/elasticsearch/issues/163114
+- class: org.elasticsearch.index.mapper.DynamicMappingIT
+  tasks:
+  - :server:internalClusterTest
+  method: testBulkRequestCombinesDynamicMappingUpdates
+  issue: https://github.com/elastic/elasticsearch/issues/163174
+- class: org.elasticsearch.upgrades.MlAssignmentPlannerUpgradeIT
+  tasks:
+  - :x-pack:qa:rolling-upgrade:v9.5.6#bwcTest
+  method: testMlAssignmentPlannerUpgrade {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/158099

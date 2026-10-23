@@ -236,6 +236,16 @@ public class RestRequestTests extends ESTestCase {
         }
     }
 
+    public void testRejectsNonUtf8ContentType() {
+        RestRequest restRequest = contentRestRequest(
+            "{}",
+            Collections.emptyMap(),
+            Collections.singletonMap("Content-Type", Collections.singletonList("application/json; charset=iso-8859-1"))
+        );
+
+        assertNull(restRequest.getXContentType());
+    }
+
     public void testPlainTextSupport() {
         RestRequest restRequest = contentRestRequest(
             randomAlphaOfLengthBetween(1, 30),

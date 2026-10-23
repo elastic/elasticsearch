@@ -172,7 +172,7 @@ public class LabelMatcher implements NodeStringRenderable {
             if (isMultiValue() && matcher.isRegex() == false) {
                 // Multi-value exact match: union of all literal values
                 List<Automaton> automata = values.stream().map(Automata::makeString).toList();
-                result = Operations.union(automata);
+                result = CircuitBreakingOperations.union(automata, breaker, BREAKER_LABEL);
             } else if (isMultiValue()) {
                 // Multi-value regex: union of all regex patterns
                 List<Automaton> automata = new ArrayList<>(values.size());
@@ -181,7 +181,7 @@ public class LabelMatcher implements NodeStringRenderable {
                     held += hold(automaton, breaker);
                     automata.add(automaton);
                 }
-                result = Operations.union(automata);
+                result = CircuitBreakingOperations.union(automata, breaker, BREAKER_LABEL);
             } else {
                 // Single value
                 String v = getFirstValue();

@@ -201,6 +201,18 @@ public class CircuitBreakingOperationsTests extends ESTestCase {
         breaker.addWithoutBreaking(-1, "test");
     }
 
+    /** The charged union reserves its peak before Lucene builds it, releases it after, and accepts what Lucene's accepts. */
+    public void testUnionReservesItsPeakAndReleasesIt() {
+        List<Automaton> pieces = List.of(Automata.makeString("cat"), Automata.makeString("dog"));
+        CircuitBreaker tooSmall = newLimitedBreaker(ByteSizeValue.ofBytes(1));
+        expectThrows(CircuitBreakingException.class, () -> CircuitBreakingOperations.union(pieces, tooSmall, "test"));
+        assertEquals(0L, tooSmall.getUsed());
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofGb(1));
+        Automaton actual = CircuitBreakingOperations.union(pieces, breaker, "test");
+        assertEquals(0L, breaker.getUsed());
+        assertTrue(AutomatonTestUtil.sameLanguage(Operations.union(pieces), actual));
+    }
+
     /** The charged complement accepts exactly what Lucene's accepts and releases what it reserved. */
     public void testComplementMatchesLuceneOnRandomAutomata() {
         for (int i = 0; i < 20; i++) {

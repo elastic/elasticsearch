@@ -26,6 +26,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -293,6 +294,20 @@ public final class CircuitBreakingOperations {
             if (reserved > 0) {
                 breaker.addWithoutBreaking(-reserved, label);
             }
+        }
+    }
+
+    /**
+     * {@link Operations#union(java.util.Collection)}, with its peak reserved before it runs. The peak is bounded from the
+     * operands' shapes by {@code CircuitBreakingRegExp.unionCost}; the reservation is released on return and the caller
+     * accounts the result's {@code ramBytesUsed()}.
+     */
+    public static Automaton union(List<Automaton> automata, CircuitBreaker circuitBreaker, String label) {
+        long reserved = reserve(circuitBreaker, CircuitBreakingRegExp.unionCost(automata.toArray(Automaton[]::new)).bytes(), label);
+        try {
+            return Operations.union(automata);
+        } finally {
+            circuitBreaker.addWithoutBreaking(-reserved, label);
         }
     }
 

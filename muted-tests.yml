@@ -424,9 +424,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
   method: testFullyUploadedListenerDoesNotFireBeforeItsCopyCompletes
   issue: https://github.com/elastic/elasticsearch/issues/162163
-- class: org.elasticsearch.columnar.PayloadColumnMergeTests
-  method: testMergeCarriesRepeatsOverWithoutComparing
-  issue: https://github.com/elastic/elasticsearch/issues/162235
 - class: org.elasticsearch.upgrades.UpgradeXpackClusterClientYamlTestSuiteIT
   method: test {upgradedNodes=2 yaml=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old outlier_detection job}
   issue: https://github.com/elastic/elasticsearch/issues/162240

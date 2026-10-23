@@ -101,9 +101,11 @@ public class TopHitsCollectionBenchmark {
     public int buckets;
 
     /**
-     * The {@code size} of the {@code top_hits}, which is the number of documents kept for every bucket.
+     * The {@code size} of the {@code top_hits}, which is the number of documents kept for every bucket. A {@code BucketedSort}
+     * reserves {@code size} slots for every bucket it sees, so what it needs grows with it, which the Lucene collectors do not do
+     * as much. 100 is the default maximum of {@code index.max_inner_result_window}.
      */
-    @Param({ "1", "10" })
+    @Param({ "1", "10", "100" })
     public int size;
 
     @Param({ LUCENE, BUCKETED })
@@ -180,7 +182,7 @@ public class TopHitsCollectionBenchmark {
             // Few distinct values, so that most buckets have ties at the edge of what they keep.
             try (DirectoryReader reader = index(directory, bucketOfDoc, buckets, 4)) {
                 BigArrays bigArrays = new BigArrays(new PageCacheRecycler(Settings.EMPTY), null, "REQUEST");
-                for (int size : new int[] { 1, 3, 10 }) {
+                for (int size : new int[] { 1, 3, 10, 100 }) {
                     List<List<Integer>> lucene = topDocs(LUCENE, reader, bigArrays, buckets, size, bucketOfDoc);
                     List<List<Integer>> bucketed = topDocs(BUCKETED, reader, bigArrays, buckets, size, bucketOfDoc);
                     if (lucene.equals(bucketed) == false) {

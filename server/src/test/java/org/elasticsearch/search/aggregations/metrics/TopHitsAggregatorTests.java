@@ -76,6 +76,7 @@ import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -99,6 +100,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.topHits;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
@@ -1025,7 +1027,17 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
     }
 
     private static AggregationBuilder termsWithSizeOneTopHits(int buckets) {
-        return terms("term").field("string").size(buckets).subAggregation(topHits("top").size(1).sort(NUMBER_FIELD, SortOrder.ASC));
+        return termsWithTopHitsOfSize(buckets, 1);
+    }
+
+    /**
+     * A {@code terms} that keeps {@code termsSize} buckets, with the default shard size, with a {@code top_hits} that keeps
+     * {@code topHitsSize} documents in each of them.
+     */
+    private static TermsAggregationBuilder termsWithTopHitsOfSize(int termsSize, int topHitsSize) {
+        return terms("term").field("string")
+            .size(termsSize)
+            .subAggregation(topHits("top").size(topHitsSize).sort(NUMBER_FIELD, SortOrder.ASC));
     }
 
     /**
@@ -1053,6 +1065,79 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
                 assertThat("the top hits are charged to the breaker", withTopHits, greaterThan(withMax));
                 assertThat("bytes charged per bucket over a max", (withTopHits - withMax) / buckets, lessThanOrEqualTo(32L));
                 assertEquals("the breaker is back to its baseline", 0L, breakers.getBreaker(CircuitBreaker.REQUEST).getUsed());
+            }
+        }
+    }
+
+    /**
+     * A {@code BucketedSort} reserves {@code from + size} slots, 12 bytes each, the first time it sees a bucket, whether the bucket
+     * ends up with that many documents or not, and all of it is charged to the request breaker. That is the cost of a large size, and
+     * the reason a large size over many buckets can now trip the breaker where the Lucene collectors went unnoticed. Every bucket here
+     * has a single document and the size is 100, so what is charged is the slots and not the documents. The cost of a {@code max}
+     * sub-aggregation, which is 8 bytes a bucket, is taken off.
+     */
+    public void testBucketedSortChargesTheSlotsOfEveryBucketWhateverTheyHold() throws Exception {
+        int buckets = 2_000;
+        int size = 100;
+        try (Directory directory = newDirectory()) {
+            indexUniqueBuckets(directory, buckets);
+            try (IndexReader reader = DirectoryReader.open(directory)) {
+                HierarchyCircuitBreakerService breakers = requestBreakers("1gb");
+                long withMax = breakerBytesAfterCollecting(reader, termsWithMax(buckets), breakers, false);
+                long withTopHits = breakerBytesAfterCollecting(reader, termsWithTopHitsOfSize(buckets, size), breakers, false);
+                long perBucket = (withTopHits - withMax) / buckets;
+                // 12 bytes a slot for the slots, and about an eighth more for the room the arrays grow by.
+                assertThat("bytes charged per bucket", perBucket, greaterThanOrEqualTo(12L * size - 16));
+                assertThat("bytes charged per bucket", perBucket, lessThanOrEqualTo(16L * size));
+                assertEquals("the breaker is back to its baseline", 0L, breakers.getBreaker(CircuitBreaker.REQUEST).getUsed());
+            }
+        }
+    }
+
+    /**
+     * The state of a {@code BucketedSort} is indexed by bucket ordinal, so it would grow with the highest ordinal it is given if a
+     * parent aggregation handed it sparse ones, where the Lucene collectors only held the buckets they saw. A {@code terms} does not:
+     * collecting depth first remaps the global ordinals as it sees them, and collecting breadth first defers the {@code top_hits}
+     * and replays the documents of the buckets it keeps with their ordinals rebased to {@code 0..n}. So the state follows the
+     * buckets the {@code top_hits} collects and not the number of terms. A {@code terms} over 20,000 values that keeps 10 of them
+     * breadth first must cost about nothing, where depth first it has to collect all of them.
+     */
+    public void testBucketedSortStateFollowsTheBucketsItCollectsNotTheNumberOfTerms() throws Exception {
+        int termCount = 20_000;
+        int kept = 10;
+        try (Directory directory = newDirectory()) {
+            indexUniqueBuckets(directory, termCount);
+            try (IndexReader reader = DirectoryReader.open(directory)) {
+                HierarchyCircuitBreakerService breakers = requestBreakers("1gb");
+                for (Aggregator.SubAggCollectionMode mode : Aggregator.SubAggCollectionMode.values()) {
+                    // The results are built because a deferred sub-aggregation only collects when they are.
+                    long withMax = breakerBytesAfterCollecting(
+                        reader,
+                        terms("term").field("string")
+                            .size(kept)
+                            .collectMode(mode)
+                            .subAggregation(AggregationBuilders.max("max").field(NUMBER_FIELD)),
+                        breakers,
+                        true
+                    );
+                    long withTopHits = breakerBytesAfterCollecting(
+                        reader,
+                        termsWithTopHitsOfSize(kept, 1).collectMode(mode),
+                        breakers,
+                        true
+                    );
+                    long extra = withTopHits - withMax;
+                    switch (mode) {
+                        // Only the buckets kept are replayed into the top_hits, 25 of them with the shard size of 10, which is
+                        // nothing compared with the 20,000 terms, which would be about 240 KB if the state followed the ordinals. It is
+                        // about 500 bytes.
+                        case BREADTH_FIRST -> assertThat("breadth first, bytes more than a max", extra, lessThanOrEqualTo(4L * 1024));
+                        // Every term is a bucket the top_hits collects before the terms picks the best ones.
+                        case DEPTH_FIRST -> assertThat("depth first, bytes more than a max", extra, lessThanOrEqualTo(32L * termCount));
+                        default -> throw new AssertionError("unexpected collect mode [" + mode + "]");
+                    }
+                    assertEquals("the breaker is back to its baseline", 0L, breakers.getBreaker(CircuitBreaker.REQUEST).getUsed());
+                }
             }
         }
     }

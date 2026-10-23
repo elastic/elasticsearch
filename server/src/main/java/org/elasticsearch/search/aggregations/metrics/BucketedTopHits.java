@@ -60,6 +60,14 @@ import java.util.function.Function;
  * {@link BucketedSort.TieBreakingExtraData}.
  * </p>
  * <p>
+ * The state is indexed by bucket ordinal, as it is for a {@code max} or a {@code top_metrics}, so it grows with the highest ordinal
+ * collected and not with the number of buckets that have documents. A {@code terms} gives its sub-aggregations dense ordinals:
+ * collecting depth first remaps the global ordinals in the order it sees them, and collecting breadth first defers the
+ * sub-aggregation and replays the documents of the buckets it keeps with their ordinals rebased to {@code 0..n}. The state also
+ * reserves {@code from + size} slots, 12 bytes each, the first time a bucket is seen, whether the bucket ends up with that many
+ * documents or not, all of it charged to the request circuit breaker.
+ * </p>
+ * <p>
  * Only a single sort on a numeric field is supported, and only when the values it reports are of the type the sort field of the
  * shard result declares. {@link #tryCreate} returns {@code null} for anything else, and {@link TopHitsAggregator} keeps using the
  * Lucene collectors for it.

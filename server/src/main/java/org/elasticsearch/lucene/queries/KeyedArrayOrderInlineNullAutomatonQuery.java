@@ -30,7 +30,7 @@ import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.Sep
  * {@link KeyedArrayOrderInlineNullTermQuery}: it reads each slot whole, key included, which the scan of the plain
  * array-order format does not.
  */
-public class KeyedArrayOrderInlineNullAutomatonQuery extends AbstractBinaryDocValuesQuery {
+public final class KeyedArrayOrderInlineNullAutomatonQuery extends AbstractBinaryDocValuesQuery {
 
     private final ByteRunAutomaton runAutomaton;
     private final String description;

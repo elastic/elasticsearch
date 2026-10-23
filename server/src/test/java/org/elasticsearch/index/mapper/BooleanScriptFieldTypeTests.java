@@ -61,6 +61,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -92,12 +93,12 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [true]}"))));
             addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [true, false]}"))));
-            List<Long> results = new ArrayList<>();
+            List<Long> results = Collections.synchronizedList(new ArrayList<>());
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 BooleanScriptFieldType ft = simpleMappedFieldType();
                 BooleanScriptFieldData ifd = ft.fielddataBuilder(mockFielddataContext()).build(null, null);
-                searcher.search(Queries.ALL_DOCS_INSTANCE, new Collector() {
+                searcher.search(Queries.ALL_DOCS_INSTANCE, collectorManager(() -> new Collector() {
                     @Override
                     public ScoreMode scoreMode() {
                         return ScoreMode.COMPLETE_NO_SCORES;
@@ -120,7 +121,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                             }
                         };
                     }
-                });
+                }));
                 assertThat(results, containsInAnyOrder(1L, 0L, 1L));
             }
         }

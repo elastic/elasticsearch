@@ -92,6 +92,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
     public static final String RERANK_V1_ENDPOINT_ID = ".jina-reranker-v2";
     public static final String RERANK_V1_MODEL_NAME = "jina-reranker-v2";
     public static final String EIS_RERANK_PATH = "rerank";
+    public static final String EIS_DECIDE_PATH = "decide";
 
     // document extraction
     public static final String EIS_DOCUMENT_EXTRACTION_PATH = "document_extraction";
@@ -1109,6 +1110,21 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                 END_OF_LIFE_DATE_STRING,
                 null,
                 new Display("Completion Connector", "Completion Creator"),
+                null,
+                fingerprintSupplier.get(),
+                List.of(),
+                false
+            );
+            case DECISION -> new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
+                id,
+                name,
+                createTaskTypeObject(EIS_DECIDE_PATH, TaskType.DECISION.toString()),
+                status,
+                null,
+                RELEASE_DATE_STRING,
+                null,
+                null,
+                new Display("Decision Connector", "Decision Creator"),
                 null,
                 fingerprintSupplier.get(),
                 List.of(),

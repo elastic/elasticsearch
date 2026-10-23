@@ -38,7 +38,7 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
     static final ParseField KNN_SETTINGS_FIELD = new ParseField("knn_settings");
     static final ParseField ALLOW_EXACT_BASELINE_FIELD = new ParseField("allow_exact_baseline");
 
-    /** An omitted baseline: resolved to a bounded, index-type specific one once the mapping is known; exact must be explicit. */
+    /** All-null: resolved to an index-type default once the mapping is known. */
     private static final KnnEvalSettings DEFAULT_BASELINE = new KnnEvalSettings(null, null, null, false);
 
     @SuppressWarnings("unchecked")
@@ -239,7 +239,7 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
         return querySource instanceof KnnEvalQuerySource.DocsSource ds ? ds.sample() : null;
     }
 
-    /** Never {@code null}: all-null settings mean the index type's bounded default, see {@link KnnEvalRescore#defaultBaseline}. */
+    /** Never {@code null}; all-null means the index type's default. */
     public KnnEvalSettings getBaseline() {
         return baseline;
     }

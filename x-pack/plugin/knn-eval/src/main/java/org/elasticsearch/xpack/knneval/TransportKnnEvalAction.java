@@ -67,13 +67,14 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /** Compares each candidate's top-k with the baseline's, using one PIT and sequential passes to keep changes and contention out. */
 public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalRequest, KnnEvalResponse> {
@@ -137,9 +138,10 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
             );
             return;
         }
+        ProjectMetadata project;
         Set<String> indices;
         try {
-            ProjectMetadata project = projectResolver.getProjectMetadata(clusterService.state());
+            project = projectResolver.getProjectMetadata(clusterService.state());
             // data streams included, as the PIT includes them
             indices = Set.of(indexNameExpressionResolver.concreteIndexNames(project, request.indicesOptions(), true, request.indices()));
             if (indices.isEmpty()) {
@@ -153,6 +155,7 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         resolveField(
             task,
             request,
+            project,
             indices,
             listener.delegateFailureAndWrap((delegate, rescore) -> rejectNestedField(task, request, rescore, delegate))
         );
@@ -195,7 +198,13 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
     }
 
     /** Checks the field maps to one supported DiskBBQ or HNSW-family config across all of {@code indices}. */
-    private void resolveField(Task task, KnnEvalRequest request, Set<String> indices, ActionListener<KnnEvalRescore> listener) {
+    private void resolveField(
+        Task task,
+        KnnEvalRequest request,
+        ProjectMetadata project,
+        Set<String> indices,
+        ActionListener<KnnEvalRescore> listener
+    ) {
         KnnEvalSpec spec = request.getKnnEvalSpec();
         String field = spec.getField();
         GetFieldMappingsRequest mappingsRequest = new GetFieldMappingsRequest().indices(request.indices())
@@ -205,7 +214,7 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         client.execute(GetFieldMappingsAction.INSTANCE, mappingsRequest, listener.<GetFieldMappingsResponse>map(response -> {
             rejectUnreadMappings(field, indices, response.mappings().keySet());
             KnnEvalRescore rescore = rescoreOf(spec, response);
-            return rescore.withHnswEarlyTermination(hnswEarlyTermination(rescore, field, indices));
+            return rescore.withIndexInfo(indexInfo(rescore, project, indices));
         }).delegateResponse((delegate, e) -> delegate.onFailure(mappingLookupFailure(field, e))));
     }
 
@@ -255,33 +264,20 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         return null;
     }
 
-    /**
-     * Early termination can stop a graph search short of the requested beam, so it bounds what any baseline can reach. It is an index
-     * setting the evaluation can't vary, so it is reported, and indices that disagree can't share one baseline.
-     */
-    @Nullable
-    private Boolean hnswEarlyTermination(KnnEvalRescore rescore, String field, Set<String> indices) {
+    static Map<String, KnnEvalResponse.IndexInfo> indexInfo(KnnEvalRescore rescore, ProjectMetadata project, Set<String> indices) {
         if (rescore.indexType().isGraph() == false) {
-            return null;
+            return Map.of();
         }
-        ProjectMetadata project = projectResolver.getProjectMetadata(clusterService.state());
-        Set<Boolean> values = new HashSet<>();
-        for (String index : indices) {
-            IndexMetadata metadata = project.index(index);
-            if (metadata != null) {
-                values.add(DenseVectorFieldMapper.HNSW_EARLY_TERMINATION.get(metadata.getSettings()));
-            }
-        }
-        if (values.size() > 1) {
-            throw new IllegalArgumentException(
-                "["
-                    + field
-                    + "] is searched with different ["
-                    + DenseVectorFieldMapper.HNSW_EARLY_TERMINATION.getKey()
-                    + "] values across indices; evaluate one at a time"
+        return indices.stream()
+            .filter(index -> project.index(index) != null)
+            .collect(
+                Collectors.toMap(
+                    Function.identity(),
+                    index -> new KnnEvalResponse.IndexInfo(
+                        DenseVectorFieldMapper.HNSW_EARLY_TERMINATION.get(project.index(index).getSettings())
+                    )
+                )
             );
-        }
-        return values.isEmpty() ? null : values.iterator().next();
     }
 
     private static void rejectDisabledIndices(ProjectMetadata project, Set<String> indices) {

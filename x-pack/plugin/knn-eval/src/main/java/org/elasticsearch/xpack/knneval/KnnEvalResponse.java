@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 /** Reports each candidate setting's recall and cost against a common baseline. */
@@ -40,7 +41,7 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
     static final ParseField BASELINE_VECTOR_OPS_KIND_FIELD = new ParseField("baseline_vector_ops_kind");
     static final ParseField RESULTS_FIELD = new ParseField("results");
     static final ParseField FAILURES_FIELD = new ParseField("failures");
-    static final ParseField HNSW_EARLY_TERMINATION_FIELD = new ParseField("hnsw_early_termination");
+    static final ParseField INDEX_INFO_FIELD = new ParseField("index_info");
 
     private final String queryFrom;
     private final ReportedSettings baseline;
@@ -49,8 +50,7 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
     private final String baselineVectorOpsKind;
     private final List<KnnSettingsResult> results;
     private final Map<String, Exception> failures;
-    @Nullable
-    private final Boolean hnswEarlyTermination;
+    private final Map<String, IndexInfo> indexInfo;
 
     KnnEvalResponse(
         String queryFrom,
@@ -60,7 +60,7 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
         String baselineVectorOpsKind,
         List<KnnSettingsResult> results,
         Map<String, Exception> failures,
-        @Nullable Boolean hnswEarlyTermination
+        Map<String, IndexInfo> indexInfo
     ) {
         this.queryFrom = Objects.requireNonNull(queryFrom);
         this.baseline = Objects.requireNonNull(baseline);
@@ -69,7 +69,7 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
         this.baselineVectorOpsKind = Objects.requireNonNull(baselineVectorOpsKind);
         this.results = List.copyOf(results);
         this.failures = Map.copyOf(failures);
-        this.hnswEarlyTermination = hnswEarlyTermination;
+        this.indexInfo = Map.copyOf(indexInfo);
     }
 
     KnnEvalResponse(StreamInput in) throws IOException {
@@ -80,7 +80,7 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
         this.baselineVectorOpsKind = in.readString();
         this.results = in.readCollectionAsList(KnnSettingsResult::new);
         this.failures = in.readMap(StreamInput::readException);
-        this.hnswEarlyTermination = in.readOptionalBoolean();
+        this.indexInfo = in.readMap(IndexInfo::new);
     }
 
     public String getQueryFrom() {
@@ -111,10 +111,9 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
         return failures;
     }
 
-    /** The indices' early-termination setting, or {@code null} when the field isn't an HNSW-family type. */
-    @Nullable
-    public Boolean getHnswEarlyTermination() {
-        return hnswEarlyTermination;
+    /** Empty unless the field is an HNSW-family type. */
+    public Map<String, IndexInfo> getIndexInfo() {
+        return indexInfo;
     }
 
     @Override
@@ -126,7 +125,7 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
         out.writeString(baselineVectorOpsKind);
         out.writeCollection(results);
         out.writeMap(failures, StreamOutput::writeException);
-        out.writeOptionalBoolean(hnswEarlyTermination);
+        out.writeMap(indexInfo, StreamOutput::writeWriteable);
     }
 
     @Override
@@ -140,8 +139,13 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
         builder.field(BASELINE_TOOK_MS_FIELD.getPreferredName(), baselineTookMs);
         builder.field(BASELINE_VECTOR_OPS_FIELD.getPreferredName(), baselineVectorOps);
         builder.field(BASELINE_VECTOR_OPS_KIND_FIELD.getPreferredName(), baselineVectorOpsKind);
-        if (hnswEarlyTermination != null) {
-            builder.field(HNSW_EARLY_TERMINATION_FIELD.getPreferredName(), hnswEarlyTermination);
+        if (indexInfo.isEmpty() == false) {
+            builder.startObject(INDEX_INFO_FIELD.getPreferredName());
+            for (Map.Entry<String, IndexInfo> entry : new TreeMap<>(indexInfo).entrySet()) {
+                builder.field(entry.getKey());
+                entry.getValue().toXContent(builder, params);
+            }
+            builder.endObject();
         }
         builder.startArray(RESULTS_FIELD.getPreferredName());
         for (KnnSettingsResult result : results) {
@@ -170,7 +174,7 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
             && baseline.equals(that.baseline)
             && baselineVectorOpsKind.equals(that.baselineVectorOpsKind)
             && results.equals(that.results)
-            && Objects.equals(hnswEarlyTermination, that.hnswEarlyTermination)
+            && indexInfo.equals(that.indexInfo)
             && failureMessages().equals(that.failureMessages());
     }
 
@@ -184,7 +188,7 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
             baselineVectorOpsKind,
             results,
             failureMessages(),
-            hnswEarlyTermination
+            indexInfo
         );
     }
 
@@ -196,6 +200,30 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
     @Override
     public String toString() {
         return Strings.toString(this);
+    }
+
+    /** Per-index facts the evaluation can't vary; early termination can stop a graph search short of {@code num_candidates}. */
+    public record IndexInfo(@Nullable Boolean hnswEarlyTermination) implements Writeable, ToXContentObject {
+
+        static final ParseField HNSW_EARLY_TERMINATION_FIELD = new ParseField("hnsw_early_termination");
+
+        IndexInfo(StreamInput in) throws IOException {
+            this(in.readOptionalBoolean());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeOptionalBoolean(hnswEarlyTermination);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            if (hnswEarlyTermination != null) {
+                builder.field(HNSW_EARLY_TERMINATION_FIELD.getPreferredName(), hnswEarlyTermination);
+            }
+            return builder.endObject();
+        }
     }
 
     /** How one settings entry compared with the baseline. */

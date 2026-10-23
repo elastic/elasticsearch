@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.knneval;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
@@ -21,23 +22,26 @@ record KnnEvalRescore(
     IndexType indexType,
     @Nullable Float mappingOversample,
     boolean autoCalibrate,
-    @Nullable Boolean hnswEarlyTermination
+    Map<String, KnnEvalResponse.IndexInfo> indexInfo
 ) {
 
     /** Index types whose search knobs differ, so each needs its own validation and default baseline. */
     enum IndexType {
-        BBQ_DISK("bbq_disk", false),
-        HNSW("hnsw", false),
-        INT8_HNSW("int8_hnsw", true),
-        INT4_HNSW("int4_hnsw", true),
-        BBQ_HNSW("bbq_hnsw", true);
+        BBQ_DISK("bbq_disk", false, true),
+        HNSW("hnsw", true, false),
+        INT8_HNSW("int8_hnsw", true, true),
+        INT4_HNSW("int4_hnsw", true, true),
+        BBQ_HNSW("bbq_hnsw", true, true);
 
         private final String mappingName;
-        private final boolean quantizedGraph;
+        private final boolean graph;
+        /** Hits are scored on quantized vectors unless something rescores them. */
+        private final boolean quantized;
 
-        IndexType(String mappingName, boolean quantizedGraph) {
+        IndexType(String mappingName, boolean graph, boolean quantized) {
             this.mappingName = mappingName;
-            this.quantizedGraph = quantizedGraph;
+            this.graph = graph;
+            this.quantized = quantized;
         }
 
         @Nullable
@@ -51,12 +55,11 @@ record KnnEvalRescore(
         }
 
         boolean isGraph() {
-            return this != BBQ_DISK;
+            return graph;
         }
 
-        /** Whether hits are scored on quantized vectors unless something rescores them. */
         boolean isQuantized() {
-            return this == BBQ_DISK || quantizedGraph;
+            return quantized;
         }
     }
 
@@ -73,22 +76,11 @@ record KnnEvalRescore(
     static final int MAX_NUM_CANDIDATES = KnnSearchBuilder.NUM_CANDS_LIMIT;
 
     static KnnEvalRescore fromFieldMapping(String field, @Nullable Map<String, Object> fieldMapping) {
-        Object indexOptionsValue = fieldMapping == null ? null : fieldMapping.get(INDEX_OPTIONS_FIELD);
-        if (indexOptionsValue instanceof Map<?, ?> == false) {
-            throw new IllegalArgumentException(
-                "field [" + field + "] has no [index_options] in mapping [" + fieldMapping + "]; supported types are: " + SUPPORTED
-            );
-        }
-        Map<?, ?> indexOptions = (Map<?, ?>) indexOptionsValue;
+        Map<?, ?> indexOptions = fieldMapping != null && fieldMapping.get(INDEX_OPTIONS_FIELD) instanceof Map<?, ?> m ? m : Map.of();
         IndexType indexType = IndexType.fromMappingName(indexOptions.get(TYPE_FIELD));
         if (indexType == null) {
             throw new IllegalArgumentException(
-                "field ["
-                    + field
-                    + "] has unsupported [index_options.type="
-                    + indexOptions.get(TYPE_FIELD)
-                    + "]; supported types are: "
-                    + SUPPORTED
+                Strings.format("field [%s] must use [index_options.type] of %s, found [%s]", field, SUPPORTED, indexOptions.get(TYPE_FIELD))
             );
         }
         Float mappingOversample = null;
@@ -100,19 +92,15 @@ record KnnEvalRescore(
             indexType,
             mappingOversample,
             indexType == IndexType.BBQ_DISK && Boolean.TRUE.equals(indexOptions.get(AUTO_CALIBRATE_FIELD)),
-            null
+            Map.of()
         );
     }
 
-    /** A mapping doesn't carry this index setting, so it is attached once the indices' settings are read. */
-    KnnEvalRescore withHnswEarlyTermination(@Nullable Boolean earlyTermination) {
-        return new KnnEvalRescore(indexType, mappingOversample, autoCalibrate, earlyTermination);
+    KnnEvalRescore withIndexInfo(Map<String, KnnEvalResponse.IndexInfo> indexInfo) {
+        return new KnnEvalRescore(indexType, mappingOversample, autoCalibrate, indexInfo);
     }
 
-    /**
-     * The bounded reference used when the request names none: never exact, which brute-forces every vector. A graph search
-     * takes the deepest beam allowed, DiskBBQ a fifth of its postings.
-     */
+    /** Bounded, never exact: the deepest beam for graphs, a fifth of the postings for DiskBBQ. */
     KnnEvalSettings defaultBaseline(boolean sampling) {
         if (indexType.isGraph() == false) {
             return new KnnEvalSettings(BBQ_DISK_BASELINE_VISIT_PERCENTAGE, null, BASELINE_OVERSAMPLE, false);
@@ -124,41 +112,20 @@ record KnnEvalRescore(
 
     /** Rejects a knob of the other index family, which would be ignored or change what the setting means. */
     void validateSettings(KnnEvalSettings settings, String role) {
-        String visitPercentage = KnnEvalSettings.VISIT_PERCENTAGE_FIELD.getPreferredName();
-        String numCandidates = KnnEvalSettings.NUM_CANDIDATES_FIELD.getPreferredName();
+        String problem = null;
         if (indexType.isGraph() && settings.getVisitPercentage() != null) {
-            throw mismatch(visitPercentage, "bbq_disk", numCandidates, role, settings);
-        }
-        if (indexType.isGraph() == false && settings.getNumCandidates() != null) {
-            throw mismatch(numCandidates, "the hnsw family", visitPercentage, role, settings);
-        }
-        if (indexType.isQuantized() == false && settings.getRescoreOversample() != null) {
-            throw new IllegalArgumentException(
-                "["
-                    + KnnEvalSettings.RESCORE_VECTOR_FIELD.getPreferredName()
-                    + "] does not apply to an unquantized [hnsw] field, in the "
-                    + role
-                    + " "
-                    + settings
+            problem = Strings.format(
+                "[visit_percentage] applies only to bbq_disk, but the field is [%s]; use [num_candidates]",
+                indexType.mappingName
             );
+        } else if (indexType.isGraph() == false && settings.getNumCandidates() != null) {
+            problem = "[num_candidates] applies only to the hnsw family, but the field is [bbq_disk]; use [visit_percentage]";
+        } else if (indexType.isQuantized() == false && settings.getRescoreOversample() != null) {
+            problem = "[rescore_vector] does not apply to an unquantized [hnsw] field";
         }
-    }
-
-    private IllegalArgumentException mismatch(String knob, String appliesTo, String instead, String role, KnnEvalSettings settings) {
-        return new IllegalArgumentException(
-            "["
-                + knob
-                + "] applies only to "
-                + appliesTo
-                + ", but the field is ["
-                + indexType.mappingName
-                + "]; use ["
-                + instead
-                + "] in the "
-                + role
-                + " "
-                + settings
-        );
+        if (problem != null) {
+            throw new IllegalArgumentException(problem + ", in the " + role + " " + settings);
+        }
     }
 
     /** True if nothing rescores these hits, so their scores are estimates. Exact searches are always full precision. */

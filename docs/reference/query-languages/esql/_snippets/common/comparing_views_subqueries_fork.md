@@ -24,21 +24,24 @@ when the nested branches can be flattened into one branch point.
 :::
 ::::
 
-* **Maximum branch count.** The limits depend on the branching mechanism and
-  version:
+* **Branch limits.** The limits depend on the branching mechanism and version:
 
 ::::{applies-switch}
 :::{applies-item} { "stack": "ga 9.6+", "serverless": "ga" }
-* A single `FORK` is capped at 8 branches by default
+* **Maximum branch count.** A single `FORK` is capped at 8 branches by default
   (`esql.query.max_branch_count_per_merge`).
 * View
   [query compaction](/reference/query-languages/esql/esql-views.md#query-compaction)
   flattens nested view unions only when the flat width is within
   `esql.query.max_branch_count` (20 by default). The same setting caps nested
   leaves across the whole query.
+* **Maximum branch level.** Nested branch points created by views, `FROM`
+  subqueries, and `FORK` are capped at 5 levels by default
+  (`esql.query.max_branch_level`). This limit counts nested branch points, not
+  view nesting depth.
 :::
 :::{applies-item} stack: preview 9.1-9.3, ga 9.4-9.5
-* `FORK` is capped at 8 branches.
+* **Maximum branch count.** `FORK` is capped at 8 branches.
 * {applies_to}`stack: preview 9.4-9.5` Views are capped at 8 branches.
 :::
 ::::

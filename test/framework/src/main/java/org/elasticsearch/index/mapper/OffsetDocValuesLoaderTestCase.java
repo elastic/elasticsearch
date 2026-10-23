@@ -15,6 +15,7 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -220,6 +221,49 @@ public abstract class OffsetDocValuesLoaderTestCase extends MapperServiceTestCas
                 expected = Strings.toString(b);
             }
             assertThat(syntheticSource(mapper, b -> b.field("field", values)), Matchers.equalTo(expected));
+        }
+    }
+
+    /**
+     * An array whose values were all ignored via {@code ignore_malformed} records ignored values but no offsets slot. No offsets
+     * doc value may be written for it: one would read back as an empty-array marker and alter the synthetic source, which must
+     * come from the field's own storage of ignored values alone, like before the oversized-offsets fallback existed. Covers both
+     * a small array and one with more elements than a sorted doc value could hold offsets for.
+     */
+    public void testAllIgnoredArrayWritesNoOffsets() throws Exception {
+        assumeTrue("field type has no ignore_malformed parameter", randomMalformedValue() != null);
+        int numValues = randomBoolean() ? between(1, 10) : IndexWriter.MAX_TERM_LENGTH + between(1, 500);
+        List<Object> values = new ArrayList<>(numValues);
+        for (int i = 0; i < numValues; i++) {
+            values.add(randomMalformedValue());
+        }
+
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("field");
+        minimalMapping(mapping);
+        mapping.field("ignore_malformed", true);
+        mapping.endObject().endObject().endObject().endObject();
+        try (var mapperService = createMapperService(mapping)) {
+            var mapper = mapperService.documentMapper();
+
+            var doc = mapper.parse(source(b -> b.field("field", values)));
+            assertThat(doc.rootDoc().getFields("field.offsets"), Matchers.empty());
+            assertSyntheticSourceHasIgnoredValues(syntheticSource(mapper, b -> b.field("field", values)), values);
+        }
+    }
+
+    /**
+     * Asserts that the synthetic source of a document holds exactly the given ignored values of {@code field}, in any order: the
+     * field's own storage of ignored values does not preserve their order, and without offsets a single value is synthesized as
+     * a scalar, like any single value.
+     */
+    protected static void assertSyntheticSourceHasIgnoredValues(String syntheticSource, List<Object> values) {
+        var source = XContentHelper.convertToMap(new BytesArray(syntheticSource), false, XContentType.JSON).v2();
+        assertThat(source.keySet(), Matchers.contains("field"));
+        if (values.size() == 1) {
+            assertThat(source.get("field"), Matchers.equalTo(values.getFirst()));
+        } else {
+            assertThat(source.get("field"), Matchers.instanceOf(List.class));
+            assertThat((List<?>) source.get("field"), Matchers.containsInAnyOrder(values.toArray()));
         }
     }
 

@@ -135,6 +135,12 @@ public class FieldArrayContext {
             LuceneDocument doc = docEntry.getKey() != null ? docEntry.getKey() : context.doc();
             for (var entry : docEntry.getValue().entrySet()) {
                 var offsets = entry.getValue();
+                // An array whose values were all ignored (ignore_above, ignore_malformed) recorded ignored values but no slot.
+                // Writing offsets for it would read back as an empty-array marker; the ignored values are synthesized from the
+                // field's own storage of ignored values instead, like before ignored values were recorded here.
+                if (offsets.hasRecordedSlots() == false) {
+                    continue;
+                }
                 // In strict columnar a single non-null value carries no ordering or shape information beyond what the sorted-set doc
                 // values already encode, so the offsets entry is redundant. This means that single-valued arrays are rebuilt as
                 // single valued; ex. ["a"] -> "a".
@@ -477,6 +483,14 @@ public class FieldArrayContext {
 
         public boolean hasNulls() {
             return nullValueOffsets != null && nullValueOffsets.isEmpty() == false;
+        }
+
+        /**
+         * Whether a value, a null or an empty-array marker was recorded. False when only ignored values were recorded via
+         * {@link #recordIgnored(BytesRef)}, in which case there is nothing to encode.
+         */
+        public boolean hasRecordedSlots() {
+            return valueToOffsets != null || pendingValue != null;
         }
 
         private void startRecording() {

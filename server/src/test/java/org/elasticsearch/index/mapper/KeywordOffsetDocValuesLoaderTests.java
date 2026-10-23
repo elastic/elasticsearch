@@ -68,6 +68,30 @@ public class KeywordOffsetDocValuesLoaderTests extends OffsetDocValuesLoaderTest
         }
     }
 
+    /**
+     * Like {@link #testAllIgnoredArrayWritesNoOffsets()}, with values ignored via {@code ignore_above}: no offsets doc value is
+     * written for an array whose values were all ignored, and synthetic source comes from the field's own storage of ignored values.
+     */
+    public void testAllIgnoredViaIgnoreAboveArrayWritesNoOffsets() throws Exception {
+        int numValues = randomBoolean() ? between(1, 10) : IndexWriter.MAX_TERM_LENGTH + between(1, 500);
+        List<Object> values = new ArrayList<>(numValues);
+        for (int i = 0; i < numValues; i++) {
+            values.add(randomAlphaOfLength(20));
+        }
+
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("field");
+        minimalMapping(mapping);
+        mapping.field("ignore_above", 10);
+        mapping.endObject().endObject().endObject().endObject();
+        try (var mapperService = createMapperService(mapping)) {
+            var mapper = mapperService.documentMapper();
+
+            var doc = mapper.parse(source(b -> b.field("field", values)));
+            assertThat(doc.rootDoc().getFields("field.offsets"), Matchers.empty());
+            assertSyntheticSourceHasIgnoredValues(syntheticSource(mapper, b -> b.field("field", values)), values);
+        }
+    }
+
     @Override
     protected Object randomMalformedValue() {
         // keyword has no ignore_malformed; see testOversizedOffsetArrayWithIgnoredValuesFallsBackToIgnoredSource for ignore_above

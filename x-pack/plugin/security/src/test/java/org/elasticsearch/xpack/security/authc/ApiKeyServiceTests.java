@@ -791,9 +791,25 @@ public class ApiKeyServiceTests extends ESTestCase {
         );
     }
 
-    public void testCreateApiKeyWillCacheOnCreation() {
-        final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true).build();
-        final ApiKeyService service = createApiKeyService(settings);
+    public void testCreateApiKeyWillCacheOnCreationWhenStoredHashIsExpensive() {
+        final ApiKeyService service = createApiKeyService(
+            Settings.builder().put(ApiKeyService.STORED_HASH_ALGO_SETTING.getKey(), getFastStoredHashAlgoForTests().name()).build()
+        );
+        final CreateApiKeyResponse createApiKeyResponse = createApiKeyWithMockedIndexing(service);
+        final CachedApiKeyHashResult cachedApiKeyHashResult = service.getFromCache(createApiKeyResponse.getId());
+        assertThat(cachedApiKeyHashResult.success, is(true));
+        assertThat(cachedApiKeyHashResult.verify(createApiKeyResponse.getKey()), is(true));
+    }
+
+    public void testCreateApiKeyWillNotCacheOnCreationWhenStoredHashIsFast() {
+        final ApiKeyService service = createApiKeyService(
+            Settings.builder().put(ApiKeyService.STORED_HASH_ALGO_SETTING.getKey(), Hasher.SSHA256.name()).build()
+        );
+        final CreateApiKeyResponse createApiKeyResponse = createApiKeyWithMockedIndexing(service);
+        assertThat(service.getApiKeyAuthCache().get(createApiKeyResponse.getId()), nullValue());
+    }
+
+    private CreateApiKeyResponse createApiKeyWithMockedIndexing(ApiKeyService service) {
         final Authentication authentication = AuthenticationTestHelper.builder()
             .user(new User(randomAlphaOfLengthBetween(8, 16), "superuser"))
             .realmRef(new RealmRef(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)))
@@ -823,15 +839,12 @@ public class ApiKeyServiceTests extends ESTestCase {
             return null;
         }).when(client).execute(eq(TransportBulkAction.TYPE), any(BulkRequest.class), any());
 
-        final Cache<String, ListenableFuture<CachedApiKeyHashResult>> apiKeyAuthCache = service.getApiKeyAuthCache();
-        assertNull(apiKeyAuthCache.get(createApiKeyRequest.getId()));
+        assertNull(service.getApiKeyAuthCache().get(createApiKeyRequest.getId()));
         final PlainActionFuture<CreateApiKeyResponse> listener = new PlainActionFuture<>();
         service.createApiKey(authentication, createApiKeyRequest, Set.of(), listener);
         final CreateApiKeyResponse createApiKeyResponse = listener.actionGet();
         assertThat(createApiKeyResponse.getId(), equalTo(createApiKeyRequest.getId()));
-        final CachedApiKeyHashResult cachedApiKeyHashResult = service.getFromCache(createApiKeyResponse.getId());
-        assertThat(cachedApiKeyHashResult.success, is(true));
-        cachedApiKeyHashResult.verify(createApiKeyResponse.getKey());
+        return createApiKeyResponse;
     }
 
     public void testGetCredentialsFromThreadContext() {
@@ -1176,6 +1189,9 @@ public class ApiKeyServiceTests extends ESTestCase {
             assertThat(response.getId(), equalTo(cloneRequest.getId()));
             assertThat(response.getName(), equalTo(clonedName));
             assertThat(response.getKey(), notNullValue());
+            // the source key is stored with an expensive hash, the clone with the default (fast) SSHA256 hash
+            assertThat(service.getApiKeyAuthCache().get(sourceId), notNullValue());
+            assertThat(service.getApiKeyAuthCache().get(response.getId()), nullValue());
         }
     }
 
@@ -1978,6 +1994,53 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(service.getFromCache(creds.getId()).success, is(true));
     }
 
+    public void testApiKeyAuthCacheIsNotUsedForFastStoredHash() throws IOException {
+        final String apiKeyId = randomAlphaOfLength(12);
+        final String apiKey = randomAlphaOfLength(16);
+        final ApiKeyDoc apiKeyDoc = buildApiKeyDoc(Hasher.SSHA256.hash(new SecureString(apiKey.toCharArray())), -1, false, -1);
+        // caching depends on how the API key itself is hashed, not on the algorithm configured for new API keys
+        final String configuredAlgorithm = randomFrom(Hasher.SSHA256, getFastStoredHashAlgoForTests()).name();
+        final ApiKeyService service = createApiKeyService(
+            Settings.builder().put(ApiKeyService.STORED_HASH_ALGO_SETTING.getKey(), configuredAlgorithm).build()
+        );
+
+        PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
+        ApiKeyCredentials creds = getApiKeyCredentials(apiKeyId, apiKey, apiKeyDoc.type);
+        service.validateApiKeyCredentials(apiKeyId, apiKeyDoc, creds, Clock.systemUTC(), future);
+        assertThat(future.actionGet().isAuthenticated(), is(true));
+
+        future = new PlainActionFuture<>();
+        creds = getApiKeyCredentials(apiKeyId, randomValueOtherThan(apiKey, () -> randomAlphaOfLength(16)), apiKeyDoc.type);
+        service.validateApiKeyCredentials(apiKeyId, apiKeyDoc, creds, Clock.systemUTC(), future);
+        final AuthenticationResult<User> result = future.actionGet();
+        assertThat(result.isAuthenticated(), is(false));
+        assertThat(result.getMessage(), containsString("invalid credentials for API key [" + apiKeyId + "]"));
+
+        assertThat(service.getApiKeyAuthCache().count(), is(0));
+    }
+
+    /**
+     * Not caching the verification results of fast hashes must not lead to fetching the API key doc again.
+     */
+    public void testFastStoredHashIsVerifiedAgainstCachedDoc() throws Exception {
+        final String apiKeyId = randomAlphaOfLength(12);
+        final String apiKey = randomAlphaOfLength(16);
+        final Map<String, Object> sourceMap = buildApiKeySourceDoc(Hasher.SSHA256.hash(new SecureString(apiKey.toCharArray())));
+        final ApiKey.Type type = parseTypeFromSourceMap(sourceMap);
+        mockSourceDocument(apiKeyId, sourceMap);
+
+        final ApiKeyService service = createApiKeyService(Settings.EMPTY);
+        final int authentications = randomIntBetween(2, 5);
+        for (int i = 0; i < authentications; i++) {
+            final PlainActionFuture<AuthenticationResult<Tuple<User, ApiKeyDoc>>> future = new PlainActionFuture<>();
+            service.loadApiKeyAndValidateCredentials(threadPool.getThreadContext(), getApiKeyCredentials(apiKeyId, apiKey, type), future);
+            assertThat(future.get().isAuthenticated(), is(true));
+        }
+
+        verify(client, times(1)).get(any(GetRequest.class), anyActionListener());
+        assertThat(service.getApiKeyAuthCache().count(), is(0));
+    }
+
     public void testApiKeyAuthCacheHitAndMissMetrics() {
         final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
         final MeterRegistry meterRegistry = telemetryPlugin.getTelemetryProvider(Settings.EMPTY).getMeterRegistry();
@@ -2449,7 +2512,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             hashCounter.incrementAndGet();
             hashWait.acquire();
             return invocationOnMock.callRealMethod();
-        }).when(service).verifyKeyAgainstHash(any(String.class), any(ApiKeyCredentials.class), anyActionListener());
+        }).when(service).verifyKeyAgainstHash(any(Hasher.class), any(char[].class), any(ApiKeyCredentials.class), anyActionListener());
 
         final String apiKeyId = randomAlphaOfLength(12);
         final PlainActionFuture<AuthenticationResult<User>> future1 = new PlainActionFuture<>();
@@ -3637,7 +3700,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         );
 
         // API key type mismatch should be checked after API key secret is verified
-        verify(service).verifyKeyAgainstHash(any(), any(), anyActionListener());
+        verify(service).verifyKeyAgainstHash(any(), any(), any(), anyActionListener());
         assertThat(service.getDocCache().keys(), contains(id));
         assertThat(service.getApiKeyAuthCache().keys(), contains(id));
     }

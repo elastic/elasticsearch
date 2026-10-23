@@ -21,13 +21,18 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
@@ -38,6 +43,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
@@ -119,9 +125,14 @@ public final class ExemplarsRewriter {
     }
 
     /**
-     * Replaces the analyzed metrics query with the most recent exemplars of the metrics it aggregates, read from all resolved exemplar
-     * data streams. The metrics query has been verified with {@link #verifyMetricsQuery} before analysis. Without a configured
-     * {@link ExemplarsSettings#limit() limit}, the analyzer applies the default limit of a regular query.
+     * Replaces the analyzed metrics query with the most recent exemplars of the metrics it aggregates under its filters, read from all
+     * resolved exemplar data streams. The metrics query has been verified with {@link #verifyMetricsQuery} before analysis. Without a
+     * configured {@link ExemplarsSettings#limit() limit}, the analyzer applies the default limit of a regular query.
+     * <p>
+     * Analysis has translated the {@code TS ... | STATS} command to a time series aggregation of per-time-series aggregate functions,
+     * which carry the filter of the {@code STATS} aggregate they belong to. A {@code PROMQL} command has been translated to one time
+     * series aggregation per vector matching operand, with its label matchers and evaluated time range as filters. Each time series
+     * aggregation selects the exemplars of its {@link #metricFilters metrics} under its {@link #sharedFilters shared filters}.
      *
      * @param metricsResolutions the resolutions of the metrics query's index patterns, used to recognize passthrough objects
      */
@@ -131,15 +142,31 @@ public final class ExemplarsRewriter {
         @Nullable IndexResolution exemplarsResolution,
         ExemplarsSettings settings
     ) {
-        // TODO add the filters of the metrics query (WHERE commands and aggregate filters)
         Source source = analyzedMetricsQuery.source();
         LogicalPlan exemplars = exemplarsRelation(analyzedMetricsQuery, exemplarsResolution);
         if (exemplars instanceof LocalRelation) {
             return exemplars;
         }
-        List<Expression> metricFilters = metricFilters(analyzedMetricsQuery, metricsResolutions);
+        Set<String> passthroughPaths = new HashSet<>();
+        for (IndexResolution resolution : metricsResolutions) {
+            if (resolution != null && resolution.isValid()) {
+                collectPassthroughPaths(null, resolution.get().mapping(), passthroughPaths);
+            }
+        }
+        List<Expression> aggregationFilters = new ArrayList<>();
+        // Note that we currently only support a single PROMQL / TS .. STATS Command,
+        // still due to vector matching there may be multiple TimeSeriesAggregates
+        // But we know they load their metrics from the same index patterns
+        analyzedMetricsQuery.forEachDown(TimeSeriesAggregate.class, aggregate -> {
+            List<Expression> metricFilters = metricFilters(aggregate, passthroughPaths);
+            if (metricFilters.isEmpty() == false) {
+                List<Expression> conditions = new ArrayList<>(sharedFilters(aggregate, passthroughPaths));
+                conditions.add(Predicates.combineOr(metricFilters));
+                aggregationFilters.add(Predicates.combineAnd(conditions));
+            }
+        });
         // Without any aggregated metric, there are no exemplars to select.
-        Expression filter = metricFilters.isEmpty() ? Literal.FALSE : Predicates.combineOr(metricFilters);
+        Expression filter = aggregationFilters.isEmpty() ? Literal.FALSE : Predicates.combineOr(aggregationFilters);
         exemplars = new Filter(source, exemplars, filter);
         List<NamedExpression> projections = new ArrayList<>(EXEMPLAR_COLUMNS.size());
         for (String column : EXEMPLAR_COLUMNS) {
@@ -177,8 +204,15 @@ public final class ExemplarsRewriter {
         }
     }
 
-    private static void collectAggregatedMetricFields(Expression expression, Set<FieldAttribute> metricFields) {
+    /**
+     * Collects the metric fields read by the aggregate functions in an expression and the conjuncts of their filters that apply to
+     * exemplars (see {@link #exemplarConjuncts}).
+     */
+    private static void collectAggregatedMetricFields(Expression expression, Set<FieldAttribute> metricFields, List<Expression> filters) {
         if (expression instanceof AggregateFunction function) {
+            if (function.hasFilter()) {
+                filters.addAll(exemplarConjuncts(function.filter()));
+            }
             for (Expression field : function.fields()) {
                 field.forEachDown(FieldAttribute.class, attribute -> {
                     if (attribute.isMetric()) {
@@ -188,44 +222,139 @@ public final class ExemplarsRewriter {
             }
         } else {
             for (Expression child : expression.children()) {
-                collectAggregatedMetricFields(child, metricFields);
+                collectAggregatedMetricFields(child, metricFields, filters);
             }
         }
     }
 
     /**
-     * One filter per aggregate expression of the time series aggregations, selecting the exemplars of the metrics it aggregates, so
-     * that the filter of the aggregate can be added to it. Exemplars record the metric in {@code metric_name} by its field name
-     * without passthrough parents: OTel stores the metric {@code cpu_time} in the passthrough object {@code metrics}, so both the
-     * field {@code metrics.cpu_time} and its root-level alias {@code cpu_time} select the exemplars of {@code cpu_time}.
+     * One filter per aggregate expression of a time series aggregation, selecting the exemplars of the metrics it aggregates under its
+     * filter, so that they can be combined with OR.
+     * <p>
+     * Exemplars record the metric in {@code metric_name} by its field name without passthrough parents: OTel stores the metric
+     * {@code cpu_time} in the passthrough object {@code metrics}, so both the field {@code metrics.cpu_time} and its root-level alias
+     * {@code cpu_time} select the exemplars of {@code cpu_time}.
      */
-    private static List<Expression> metricFilters(LogicalPlan metricsQuery, Collection<IndexResolution> metricsResolutions) {
-        Set<String> passthroughPaths = new HashSet<>();
-        for (IndexResolution resolution : metricsResolutions) {
-            if (resolution != null && resolution.isValid()) {
-                collectPassthroughPaths(null, resolution.get().mapping(), passthroughPaths);
-            }
-        }
-
+    private static List<Expression> metricFilters(TimeSeriesAggregate aggregate, Set<String> passthroughPaths) {
         List<Expression> filters = new ArrayList<>();
-        metricsQuery.forEachDown(TimeSeriesAggregate.class, aggregate -> {
-            for (Expression aggregateExpression : aggregate.aggregates()) {
-                // Linked hashset to get a stable order matching the order in the original query
-                // Not required for correctness, but nicer for testing
-                Set<FieldAttribute> aggregatedMetricFields = new LinkedHashSet<>();
-                collectAggregatedMetricFields(aggregateExpression, aggregatedMetricFields);
-                Source source = aggregateExpression.source();
-                List<Equals> nameFilters = aggregatedMetricFields.stream()
-                    .map(field -> withoutPassthroughParents(field.fieldName().string(), passthroughPaths))
-                    .distinct()
-                    .map(name -> new Equals(source, new UnresolvedAttribute(source, METRIC_NAME_FIELD), Literal.keyword(source, name)))
-                    .toList();
-                if (nameFilters.isEmpty() == false) {
-                    filters.add(Predicates.combineOr(nameFilters));
+        for (Expression aggregateExpression : aggregate.aggregates()) {
+            // Linked hashset to get a stable order matching the order in the original query
+            // Not required for correctness, but nicer for testing
+            Set<FieldAttribute> metricFields = new LinkedHashSet<>();
+            List<Expression> aggregateFilters = new ArrayList<>();
+            collectAggregatedMetricFields(aggregateExpression, metricFields, aggregateFilters);
+            if (metricFields.isEmpty()) {
+                continue;
+            }
+            Source source = aggregateExpression.source();
+            List<Expression> conditions = new ArrayList<>();
+            for (Expression conjunct : aggregateFilters) {
+                conditions.add(exemplarFilter(conjunct, passthroughPaths));
+            }
+            List<Expression> nameFilters = metricFields.stream()
+                .map(field -> withoutPassthroughParents(field.fieldName().string(), passthroughPaths))
+                .distinct()
+                .map(name -> {
+                    return (Expression) new Equals(
+                        source,
+                        new UnresolvedAttribute(source, METRIC_NAME_FIELD),
+                        Literal.keyword(source, name)
+                    );
+                })
+                .toList();
+            conditions.add(Predicates.combineOr(nameFilters));
+            filters.add(Predicates.combineAnd(conditions));
+        }
+        return filters;
+    }
+
+    /**
+     * The filters of the {@code WHERE}s between a time series aggregation and its source relation, which apply to all metrics it
+     * aggregates. Filters after the aggregation apply to aggregated values and are ignored.
+     */
+    private static List<Expression> sharedFilters(TimeSeriesAggregate aggregate, Set<String> passthroughPaths) {
+        List<Expression> filters = new ArrayList<>();
+        for (LogicalPlan plan = aggregate.child(); plan instanceof UnaryPlan unary; plan = unary.child()) {
+            if (unary instanceof Filter filter) {
+                for (Expression conjunct : exemplarConjuncts(filter.condition())) {
+                    filters.add(exemplarFilter(conjunct, passthroughPaths));
                 }
             }
-        });
+        }
         return filters;
+    }
+
+    /**
+     * The top-level conjuncts of a filter of the metrics query that hold for exemplars as well, to be translated for the exemplar
+     * relation by {@link #exemplarFilter}. A conjunct is kept if it only refers to dimensions, {@code @timestamp}, and metrics tested
+     * for {@code IS NULL} or {@code IS NOT NULL} (looking through conversion functions). Any other reference to a metric would select
+     * exemplars by their own value rather than by the series they belong to, and a condition on a value computed by an {@code EVAL}
+     * cannot be evaluated on exemplars, so such conjuncts are dropped.
+     */
+    private static List<Expression> exemplarConjuncts(Expression condition) {
+        List<Expression> conjuncts = new ArrayList<>();
+        for (Expression conjunct : Predicates.splitAnd(condition)) {
+            if (appliesToExemplars(conjunct)) {
+                conjuncts.add(conjunct);
+            }
+        }
+        return conjuncts;
+    }
+
+    private static boolean appliesToExemplars(Expression conjunct) {
+        Expression withoutMetricNullChecks = conjunct.transformDown(e -> isMetricNullCheck(e) ? Literal.TRUE : e);
+        for (Attribute reference : withoutMetricNullChecks.references()) {
+            if (reference instanceof FieldAttribute == false) {
+                return false;
+            }
+            FieldAttribute field = (FieldAttribute) reference;
+            if (field.isDimension() == false && field.fieldName().string().equals(MetadataAttribute.TIMESTAMP_FIELD) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean isMetricNullCheck(Expression expression) {
+        return (expression instanceof IsNull || expression instanceof IsNotNull)
+            && metricField(((UnaryScalarFunction) expression).field()) != null;
+    }
+
+    /**
+     * The metric field an expression refers to, looking through conversion functions, or {@code null} if it is not one.
+     */
+    @Nullable
+    private static FieldAttribute metricField(Expression expression) {
+        while (expression instanceof ConvertFunction convert) {
+            expression = convert.field();
+        }
+        return expression instanceof FieldAttribute field && field.isMetric() ? field : null;
+    }
+
+    /**
+     * Translates a conjunct kept by {@link #exemplarConjuncts} for the exemplar relation. Exemplars do not have the metric fields, so
+     * {@code <metric> IS NOT NULL} becomes {@code metric_name == "<metric name>"} and {@code <metric> IS NULL} becomes
+     * {@code metric_name != "<metric name>"}. Every other field is referred to by its name, so that it resolves against the exemplar
+     * relation, or is nullified when the exemplar data streams do not have it.
+     */
+    private static Expression exemplarFilter(Expression conjunct, Set<String> passthroughPaths) {
+        Expression withMetricNullChecksTranslated = conjunct.transformDown(e -> {
+            if (isMetricNullCheck(e) == false) {
+                return e;
+            }
+            FieldAttribute metric = metricField(((UnaryScalarFunction) e).field());
+            Literal metricName = Literal.keyword(e.source(), withoutPassthroughParents(metric.fieldName().string(), passthroughPaths));
+            if (e instanceof IsNull) {
+                return new NotEquals(e.source(), new UnresolvedAttribute(e.source(), METRIC_NAME_FIELD), metricName);
+            } else {
+                assert e instanceof IsNotNull;
+                return new Equals(e.source(), new UnresolvedAttribute(e.source(), METRIC_NAME_FIELD), metricName);
+            }
+        });
+        return withMetricNullChecksTranslated.transformUp(
+            FieldAttribute.class,
+            field -> new UnresolvedAttribute(field.source(), field.fieldName().string())
+        );
     }
 
     private static void collectPassthroughPaths(@Nullable String parentPath, Map<String, EsField> mapping, Set<String> passthroughPaths) {

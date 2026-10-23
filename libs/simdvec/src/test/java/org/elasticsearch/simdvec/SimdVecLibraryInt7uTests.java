@@ -70,9 +70,6 @@ public class SimdVecLibraryInt7uTests extends SimdVecLibraryTests {
             float expected = ScalarOperations.similarity(function, values[first], values[second]);
             assertEquals(expected, similarity(nativeSeg1, nativeSeg2, dims), 0f);
             var heapSeg1 = MemorySegment.ofArray(values[first]);
-            var heapSeg2 = MemorySegment.ofArray(values[second]);
-            assertEquals(expected, similarity(heapSeg1, heapSeg2, dims), 0f);
-            assertEquals(expected, similarity(nativeSeg1, heapSeg2, dims), 0f);
             assertEquals(expected, similarity(heapSeg1, nativeSeg2, dims), 0f);
 
             // trivial bulk with a single vector

@@ -432,6 +432,11 @@ public class IpFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean hasNullValue() {
+            return nullValue != null;
+        }
+
+        @Override
         public boolean hasScriptValues() {
             return scriptValues != null;
         }

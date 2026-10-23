@@ -734,6 +734,11 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             return isDimension;
         }
 
+        @Override
+        public boolean hasNullValue() {
+            return nullValueFormatted != null;
+        }
+
         /**
          * If field is a time series metric field, returns its metric type
          * @return the metric type or null

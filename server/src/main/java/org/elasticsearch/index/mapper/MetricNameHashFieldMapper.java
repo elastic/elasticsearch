@@ -273,8 +273,8 @@ public class MetricNameHashFieldMapper extends MetadataFieldMapper {
             EscfColumn col = batch.column(dc.leafIdx());
             // An explicit null adds nothing to the parsed document unless the field maps it to a null_value, so it is only a
             // dimension of the row in that case
-            boolean nullIsValue = context.mappingLookup().getFieldType(dc.path()) instanceof KeywordFieldMapper.KeywordFieldType keyword
-                && keyword.nullValue() != null;
+            MappedFieldType fieldType = context.mappingLookup().getFieldType(dc.path());
+            boolean nullIsValue = fieldType != null && fieldType.hasNullValue();
             PresentDocIterator it = col.presentDocs();
             int r;
             while ((r = it.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {

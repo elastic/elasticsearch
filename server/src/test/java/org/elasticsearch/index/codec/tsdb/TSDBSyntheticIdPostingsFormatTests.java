@@ -91,7 +91,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
 
     private static int metricHash;
-    private static String dimensionGroupField;
+    private static String dimensionGroupField = "";
 
     @Before
     public void setUpMetricsNameField() throws Exception {

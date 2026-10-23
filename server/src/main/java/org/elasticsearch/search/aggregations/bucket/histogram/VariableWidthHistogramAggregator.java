@@ -179,8 +179,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
         }
 
         /**
-         * Sorts the <b>indices</b> of <code>values</code> by their underlying value
-         * This will produce a merge map whose application will sort <code>values</code>
+         * Sorts the <b>indices</b> of <code>values</code> by their underlying value, without moving the values themselves.
          */
         private static class ClusterSorter extends InPlaceMergeSorter {
 
@@ -211,13 +210,11 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
             }
 
             /**
-             * Produces a merge map where `mergeMap[i]` represents the index that <code>values[i]</code>
-             * would be moved to <b>if</b> <code>values</code> were sorted
-             * In other words, this method produces a merge map that will sort <code>values</code>
-             *
-             * See BucketsAggregator::mergeBuckets to learn more about the merge map
+             * Returns the indices of <code>values</code> in ascending order of their value: <code>sortedOrds[i]</code> is the
+             * index (the bucket ordinal) of the i'th smallest value. This maps sorted positions to ordinals, so it is not a
+             * merge map in the sense of BucketsAggregator::rewriteBuckets, which is indexed by the old ordinal.
              */
-            public long[] generateMergeMap() {
+            public long[] sortedOrdinals() {
                 sort(0, indexes.length);
                 return indexes;
             }
@@ -229,8 +226,9 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
          * But we can't do this by just sorting <code>buffer</code>, because we also need to generate a merge map
          * for every change we make to the list, so that we can apply the changes to the underlying buckets as well.
          *
-         * By just creating a merge map, we eliminate the need to actually sort <code>buffer</code>. We can just
-         * use the merge map to find any doc's sorted index.
+         * By just sorting the ordinals, we eliminate the need to actually sort <code>buffer</code>. We can just
+         * use the sorted ordinals to visit the docs in ascending order of value, and record each doc's new
+         * bucket in a merge map indexed by its old ordinal.
          */
         private void bucketBufferedDocs(final DoubleArray buffer, final int bufferSize, final int numBuckets) {
             // Allocate space for the clusters about to be created
@@ -241,18 +239,19 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
             numClusters = 0;
 
             ClusterSorter sorter = new ClusterSorter(buffer, bufferSize);
-            long[] mergeMap = sorter.generateMergeMap();
+            long[] sortedOrds = sorter.sortedOrdinals();
+            // mergeMap[oldOrd] is the cluster that the doc buffered at oldOrd moves to
+            long[] mergeMap = new long[bufferSize];
 
             // Naively use basic linear separation to group the first bufferSize docs into initialNumBuckets buckets
-            // This will require modifying the merge map, which currently represents a sorted list of buckets with 1 doc / bucket
             int docsPerBucket = (int) Math.ceil((double) bufferSize / (double) numBuckets);
             int bucketOrd = 0;
-            for (int i = 0; i < mergeMap.length; i++) {
-                // mergeMap[i] is the index of the i'th smallest doc
-                double val = buffer.get(mergeMap[i]);
+            for (int i = 0; i < sortedOrds.length; i++) {
+                // sortedOrds[i] is the ordinal of the i'th smallest doc
+                double val = buffer.get(sortedOrds[i]);
 
                 // Put the i'th smallest doc into the bucket at bucketOrd
-                mergeMap[i] = (int) (mergeMap[i] / docsPerBucket);
+                mergeMap[(int) sortedOrds[i]] = bucketOrd;
                 if (bucketOrd == numClusters) {
                     createAndAppendNewCluster(val);
                 } else {

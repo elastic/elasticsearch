@@ -482,3 +482,8 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testRetryWhileFirstTryStillReadsUploadsCorrectBcc
   issue: https://github.com/elastic/elasticsearch/issues/163111
+- class: org.elasticsearch.xpack.stateless.engine.translog.StatelessTranslogIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testTranslogMasterFailureOnlyStressRecoveryTest
+  issue: https://github.com/elastic/elasticsearch/issues/163242

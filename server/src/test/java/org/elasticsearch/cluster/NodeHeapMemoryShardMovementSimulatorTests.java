@@ -50,6 +50,7 @@ public class NodeHeapMemoryShardMovementSimulatorTests extends ESAllocationTestC
     /**
      * When removing the last shard of an index from a node, and the cumulative heap delta (shard + index) exceeds
      * the initial heap values, both totalHeapUsage and hostedShardsHeapUsage are clamped to 0.
+     * {@code nonShardHeapUsage} is not a function of placement, so the published value is copied through.
      */
     public void testNegativeHeapUsageClampsToZeroForBothMetrics() {
         var nodeA = "node-a";
@@ -66,12 +67,13 @@ public class NodeHeapMemoryShardMovementSimulatorTests extends ESAllocationTestC
             ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
         );
 
-        long shardHeap = randomLongBetween(51, 100), indexHeap = randomLongBetween(31, 50);
+        long shardHeap = randomLongBetween(51, 100), indexHeap = randomLongBetween(31, 50), postingsHeap = randomLongBetween(0, shardHeap);
+        long nonShard = randomLongBetween(1, 500);
         // nodeA initial heap values are less than the shard+index heap that will be removed
-        var initialMetrics = Map.of(nodeA, nodeHeapMetrics(nodeA, 50, 30), nodeB, nodeHeapMetrics(nodeB, 0, 0));
+        var initialMetrics = Map.of(nodeA, nodeHeapMetrics(nodeA, 50, 30, nonShard), nodeB, nodeHeapMetrics(nodeB, 0, 0, nonShard));
         var simulator = newSimulator(
             initialMetrics,
-            Map.of(startedShard.shardId(), new ShardAndIndexHeapUsage(shardHeap, indexHeap)),
+            Map.of(startedShard.shardId(), new ShardAndIndexHeapUsage(shardHeap, indexHeap, postingsHeap)),
             ShardAndIndexHeapUsage.ZERO,
             routingNodes
         );
@@ -87,6 +89,8 @@ public class NodeHeapMemoryShardMovementSimulatorTests extends ESAllocationTestC
         assertThat(result.get(nodeB).nodeHeapEstimates().totalHeapUsage(), equalTo(shardHeap + indexHeap));
         // nodeB: add shardHeap + indexHeap; initial hosted=0 → shardHeap + indexHeap
         assertThat(result.get(nodeB).nodeHeapEstimates().hostedShardsHeapUsage(), equalTo(shardHeap + indexHeap));
+        assertThat(result.get(nodeA).nodeHeapEstimates().nonShardHeapUsage(), equalTo(nonShard));
+        assertThat(result.get(nodeB).nodeHeapEstimates().nonShardHeapUsage(), equalTo(nonShard));
     }
 
     /**
@@ -111,7 +115,7 @@ public class NodeHeapMemoryShardMovementSimulatorTests extends ESAllocationTestC
             ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
         );
 
-        long shardHeap = 100L, indexHeap = 50L;
+        long shardHeap = 100L, indexHeap = 50L, postingsHeap = randomLongBetween(0, shardHeap);
         var initialMetrics = Map.of(
             nodeA,
             nodeHeapMetrics(nodeA, 200, 30),  // total high (won't clamp), hosted low (will clamp)
@@ -120,7 +124,7 @@ public class NodeHeapMemoryShardMovementSimulatorTests extends ESAllocationTestC
         );
         var simulator = newSimulator(
             initialMetrics,
-            Map.of(shard0.shardId(), new ShardAndIndexHeapUsage(shardHeap, indexHeap)),
+            Map.of(shard0.shardId(), new ShardAndIndexHeapUsage(shardHeap, indexHeap, postingsHeap)),
             ShardAndIndexHeapUsage.ZERO,
             routingNodes
         );
@@ -148,18 +152,21 @@ public class NodeHeapMemoryShardMovementSimulatorTests extends ESAllocationTestC
         long indexingInitialTotal = randomLongBetween(200, 500);
         long indexingInitialHosted = randomLongBetween(50, 150);
         long searchInitialHosted = randomLongBetween(50, 150);
+        long searchNonShard = randomLongBetween(1, 500);
+        long indexingNonShard = randomLongBetween(1, 500);
         long shardHeap = randomLongBetween(10, 50);
         long indexHeap = randomLongBetween(10, 40);
+        long postingsHeap = randomLongBetween(0, shardHeap);
         var indexMetadata = IndexMetadata.builder("test-index").settings(indexSettings(IndexVersion.current(), 1, 1)).build();
         var index = indexMetadata.getIndex();
         var shardId0 = new ShardId(index, 0);
         var initialMetrics = Map.of(
             searchNodeId,
-            nodeHeapMetrics(searchNodeId, 0, searchInitialHosted),
+            nodeHeapMetrics(searchNodeId, 0, searchInitialHosted, searchNonShard),
             indexingNodeId,
-            nodeHeapMetrics(indexingNodeId, indexingInitialTotal, indexingInitialHosted)
+            nodeHeapMetrics(indexingNodeId, indexingInitialTotal, indexingInitialHosted, indexingNonShard)
         );
-        var shardHeapUsages = Map.of(shardId0, new ShardAndIndexHeapUsage(shardHeap, indexHeap));
+        var shardHeapUsages = Map.of(shardId0, new ShardAndIndexHeapUsage(shardHeap, indexHeap, postingsHeap));
 
         // Both branches produce expectedDelta = shardHeap + indexHeap per node, via different call paths.
         NodeHeapMemoryShardMovementSimulator simulator;
@@ -212,8 +219,10 @@ public class NodeHeapMemoryShardMovementSimulatorTests extends ESAllocationTestC
         var result = simulator.getSimulatedHeapMetrics();
         assertThat(result.get(searchNodeId).nodeHeapEstimates().totalHeapUsage(), equalTo(0L));
         assertThat(result.get(searchNodeId).nodeHeapEstimates().hostedShardsHeapUsage(), equalTo(searchInitialHosted + expectedDelta));
+        assertThat(result.get(searchNodeId).nodeHeapEstimates().nonShardHeapUsage(), equalTo(searchNonShard));
         assertThat(result.get(indexingNodeId).nodeHeapEstimates().totalHeapUsage(), equalTo(indexingInitialTotal + expectedDelta));
         assertThat(result.get(indexingNodeId).nodeHeapEstimates().hostedShardsHeapUsage(), equalTo(indexingInitialHosted + expectedDelta));
+        assertThat(result.get(indexingNodeId).nodeHeapEstimates().nonShardHeapUsage(), equalTo(indexingNonShard));
     }
 
     /** Nodes not present in the initial metrics map are silently skipped; results for known nodes are unaffected. */
@@ -235,7 +244,7 @@ public class NodeHeapMemoryShardMovementSimulatorTests extends ESAllocationTestC
         // Neither nodeA nor nodeB has initial metrics
         var simulator = newSimulator(
             Map.of(),
-            Map.of(startedShard.shardId(), new ShardAndIndexHeapUsage(100, 50)),
+            Map.of(startedShard.shardId(), new ShardAndIndexHeapUsage(100, 50, 10)),
             ShardAndIndexHeapUsage.ZERO,
             routingNodes
         );
@@ -248,13 +257,13 @@ public class NodeHeapMemoryShardMovementSimulatorTests extends ESAllocationTestC
     /** simulateAddIndexToNode increases totalHeapUsage and hostedShardsHeapUsage by the index heap amount. */
     public void testSimulateAddIndexToNodeIncrementsTotalAndHostedShardsHeap() {
         var nodeId = "node-0";
-        long shardHeap = randomLongBetween(100, 150), indexHeap = randomLongBetween(30, 50);
+        long shardHeap = randomLongBetween(100, 150), indexHeap = randomLongBetween(30, 50), postingsHeap = randomLongBetween(0, shardHeap);
         long initialTotal = randomLongBetween(500, 1000), initialHosted = randomLongBetween(300, 500);
         var index = new Index("test-index", "_na_");
 
         var simulator = newSimulator(
             Map.of(nodeId, nodeHeapMetrics(nodeId, initialTotal, initialHosted)),
-            Map.of(new ShardId(index, 0), new ShardAndIndexHeapUsage(shardHeap, indexHeap)),
+            Map.of(new ShardId(index, 0), new ShardAndIndexHeapUsage(shardHeap, indexHeap, postingsHeap)),
             ShardAndIndexHeapUsage.ZERO,
             routingNodes(nodeId)
         );
@@ -269,13 +278,13 @@ public class NodeHeapMemoryShardMovementSimulatorTests extends ESAllocationTestC
     /** simulateRemoveIndexFromNode decreases totalHeapUsage and hostedShardsHeapUsage by the index heap amount. */
     public void testSimulateRemoveIndexFromNodeDecrementsTotalAndHostedShardsHeap() {
         var nodeId = "node-0";
-        long shardHeap = randomLongBetween(100, 150), indexHeap = randomLongBetween(30, 50);
+        long shardHeap = randomLongBetween(100, 150), indexHeap = randomLongBetween(30, 50), postingsHeap = randomLongBetween(0, shardHeap);
         long initialTotal = randomLongBetween(500, 1000), initialHosted = randomLongBetween(300, 500);
         var index = new Index("test-index", "_na_");
 
         var simulator = newSimulator(
             Map.of(nodeId, nodeHeapMetrics(nodeId, initialTotal, initialHosted)),
-            Map.of(new ShardId(index, 0), new ShardAndIndexHeapUsage(shardHeap, indexHeap)),
+            Map.of(new ShardId(index, 0), new ShardAndIndexHeapUsage(shardHeap, indexHeap, postingsHeap)),
             ShardAndIndexHeapUsage.ZERO,
             routingNodes(nodeId)
         );
@@ -312,7 +321,11 @@ public class NodeHeapMemoryShardMovementSimulatorTests extends ESAllocationTestC
     // --- helpers ---
 
     private static NodeHeapMetrics nodeHeapMetrics(String nodeId, long totalHeap, long hostedShardsHeap) {
-        return new NodeHeapMetrics(nodeId, TOTAL_HEAP_BYTES, new NodeHeapEstimates(totalHeap, hostedShardsHeap));
+        return nodeHeapMetrics(nodeId, totalHeap, hostedShardsHeap, 0L);
+    }
+
+    private static NodeHeapMetrics nodeHeapMetrics(String nodeId, long totalHeap, long hostedShardsHeap, long nonShardHeapUsage) {
+        return new NodeHeapMetrics(nodeId, TOTAL_HEAP_BYTES, new NodeHeapEstimates(totalHeap, hostedShardsHeap, nonShardHeapUsage));
     }
 
     private static NodeHeapMemoryShardMovementSimulator newSimulator(

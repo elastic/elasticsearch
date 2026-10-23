@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionReg
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.Map;
@@ -83,7 +84,10 @@ public class MutableAnalyzerContext extends AnalyzerContext {
             minimumVersion,
             unmappedResolution,
             timestampBounds,
-            IpLocationResolution.SERVICE_UNAVAILABLE
+            IpLocationResolution.SERVICE_UNAVAILABLE,
+            false,
+            Map.of(),
+            EsqlFlags.DEFAULTS
         );
         this.currentVersion = minimumVersion;
     }

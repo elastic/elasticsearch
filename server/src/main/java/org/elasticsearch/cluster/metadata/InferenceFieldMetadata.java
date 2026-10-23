@@ -9,6 +9,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
@@ -33,7 +35,10 @@ import java.util.Objects;
  * Given that the coordinator node does not necessarily have mapping information for all indices (only for those that have shards
  * in the node), the field inference information must be stored in the IndexMetadata and broadcasted to all nodes.
  */
-public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFieldMetadata>, ToXContentFragment {
+public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFieldMetadata>, ToXContentFragment, Accountable {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(InferenceFieldMetadata.class);
+
     private static final String INFERENCE_ID_FIELD = "inference_id";
     private static final String SEARCH_INFERENCE_ID_FIELD = "search_inference_id";
     private static final String SOURCE_FIELDS_FIELD = "source_fields";
@@ -75,6 +80,17 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
         } else {
             this.chunkingSettings = null;
         }
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        long size = BASE_RAM_BYTES_USED;
+        size += RamUsageEstimator.sizeOf(name);
+        size += RamUsageEstimator.sizeOf(inferenceId);
+        size += RamUsageEstimator.sizeOf(searchInferenceId);
+        size += RamUsageEstimator.sizeOf(sourceFields);
+        size += RamUsageEstimator.sizeOfMap(chunkingSettings);
+        return size;
     }
 
     @Override

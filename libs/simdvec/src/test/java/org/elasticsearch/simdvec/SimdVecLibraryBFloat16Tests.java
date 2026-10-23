@@ -13,7 +13,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.codec.vectors.BFloat16;
-import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.lang.foreign.MemorySegment;
@@ -22,9 +21,11 @@ import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.IntFunction;
+import java.util.function.IntUnaryOperator;
 
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT_UNALIGNED;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class SimdVecLibraryBFloat16Tests extends SimdVecLibraryTests {
 
@@ -53,11 +54,6 @@ public class SimdVecLibraryBFloat16Tests extends SimdVecLibraryTests {
     @BeforeClass
     public static void beforeClass() {
         SimdVecLibraryTests.setup();
-    }
-
-    @AfterClass
-    public static void afterClass() {
-        SimdVecLibraryTests.cleanup();
     }
 
     public void testAllZeroValues() {
@@ -133,90 +129,6 @@ public class SimdVecLibraryBFloat16Tests extends SimdVecLibraryTests {
         assertScoresEquals(expectedScores, bulkScoresSeg, delta);
     }
 
-    public void testBFloat16BulkWithOffsets() {
-        assumeTrue(notSupportedMsg(), supported());
-        final int dims = size;
-        final int numVecs = randomIntBetween(2, 101);
-        var offsets = new int[numVecs];
-        var offsetsSegment = arena.allocate((long) numVecs * Integer.BYTES);
-        var f32Values = new float[numVecs][];
-        var bf16Values = new float[numVecs][];
-        var f32Segment = arena.allocate((long) dims * numVecs * Float.BYTES);
-        var bf16Segment = arena.allocate((long) dims * numVecs * BFloat16.BYTES);
-        for (int i = 0; i < numVecs; i++) {
-            offsets[i] = randomInt(numVecs - 1);
-            offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, i, offsets[i]);
-            f32Values[i] = randomFloatArray(dims);
-            bf16Values[i] = truncateFloatArray(f32Values[i]);
-            MemorySegment.copy(f32Values[i], 0, f32Segment, LAYOUT_LE_FLOAT, (long) i * dims * Float.BYTES, dims);
-            copyToBFloat16Segment(bf16Values[i], bf16Segment, (long) i * dims * BFloat16.BYTES);
-        }
-
-        int queryOrd = randomInt(numVecs - 1);
-        float[] queryVector;
-        MemorySegment nativeQuerySeg = switch (queryType) {
-            case BFLOAT16 -> {
-                queryVector = bf16Values[queryOrd];
-                yield bf16Segment.asSlice((long) queryOrd * dims * BFloat16.BYTES, (long) dims * BFloat16.BYTES);
-            }
-            case FLOAT32 -> {
-                queryVector = f32Values[queryOrd];
-                yield f32Segment.asSlice((long) queryOrd * dims * Float.BYTES, (long) dims * Float.BYTES);
-            }
-        };
-
-        float[] expectedScores = new float[numVecs];
-        ScalarOperations.bulkWithOffsets(function, queryVector, bf16Values, offsets, expectedScores);
-
-        var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
-        similarityBulkWithOffsets(bf16Segment, nativeQuerySeg, dims, dims * BFloat16.BYTES, offsetsSegment, numVecs, bulkScoresSeg);
-        assertScoresEquals(expectedScores, bulkScoresSeg, delta);
-    }
-
-    public void testBFloat16BulkWithOffsetsAndPitch() {
-        assumeTrue(notSupportedMsg(), supported());
-        final int dims = size;
-        final int numVecs = randomIntBetween(2, 101);
-        var offsets = new int[numVecs];
-        var offsetsSegment = arena.allocate((long) numVecs * Integer.BYTES);
-
-        // Mimics extra data at the end
-        // f32 doesn't need to be pitched like this, as its only used for individual queries
-        var bf16Pitch = dims * BFloat16.BYTES + BFloat16.BYTES;
-        var f32Values = new float[numVecs][];
-        var bf16Values = new float[numVecs][];
-        var f32Segment = arena.allocate((long) numVecs * dims * Float.BYTES);
-        var bf16Segment = arena.allocate((long) numVecs * bf16Pitch);
-        for (int i = 0; i < numVecs; i++) {
-            offsets[i] = randomInt(numVecs - 1);
-            offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, i, offsets[i]);
-            f32Values[i] = randomFloatArray(dims);
-            bf16Values[i] = truncateFloatArray(f32Values[i]);
-            MemorySegment.copy(f32Values[i], 0, f32Segment, LAYOUT_LE_FLOAT, (long) i * dims * Float.BYTES, dims);
-            copyToBFloat16Segment(bf16Values[i], bf16Segment, (long) i * bf16Pitch);
-        }
-
-        int queryOrd = randomInt(numVecs - 1);
-        float[] queryVector;
-        MemorySegment nativeQuerySeg = switch (queryType) {
-            case BFLOAT16 -> {
-                queryVector = bf16Values[queryOrd];
-                yield bf16Segment.asSlice((long) queryOrd * bf16Pitch, (long) dims * BFloat16.BYTES);
-            }
-            case FLOAT32 -> {
-                queryVector = f32Values[queryOrd];
-                yield f32Segment.asSlice((long) queryOrd * dims * Float.BYTES, (long) dims * Float.BYTES);
-            }
-        };
-        float[] expectedScores = new float[numVecs];
-        ScalarOperations.bulkWithOffsets(function, queryVector, bf16Values, offsets, expectedScores);
-
-        var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
-
-        similarityBulkWithOffsets(bf16Segment, nativeQuerySeg, dims, bf16Pitch, offsetsSegment, numVecs, bulkScoresSeg);
-        assertScoresEquals(expectedScores, bulkScoresSeg, delta);
-    }
-
     // Tests bulk sparse similarity where vector addresses are slices of a single contiguous segment,
     // verifying correct lookup and scoring via an address array with random ordinals.
     public void testBFloat16BulkSparse() {
@@ -250,7 +162,7 @@ public class SimdVecLibraryBFloat16Tests extends SimdVecLibraryTests {
         };
 
         float[] expectedScores = new float[numVecs];
-        ScalarOperations.bulkWithOffsets(function, queryVector, bf16Values, ordinals, expectedScores);
+        ScalarOperations.bulkSparse(function, queryVector, bf16Values, ordinals, expectedScores);
 
         var addressesSeg = arena.allocate(ValueLayout.ADDRESS.byteSize() * numVecs, ValueLayout.ADDRESS.byteAlignment());
         for (int i = 0; i < numVecs; i++) {
@@ -301,7 +213,7 @@ public class SimdVecLibraryBFloat16Tests extends SimdVecLibraryTests {
         };
 
         float[] expectedScores = new float[numVecs];
-        ScalarOperations.bulkWithOffsets(function, queryVector, bf16Values, ordinals, expectedScores);
+        ScalarOperations.bulkSparse(function, queryVector, bf16Values, ordinals, expectedScores);
 
         var addressesSeg = arena.allocate(ValueLayout.ADDRESS.byteSize() * numVecs, ValueLayout.ADDRESS.byteAlignment());
         for (int i = 0; i < numVecs; i++) {
@@ -310,6 +222,100 @@ public class SimdVecLibraryBFloat16Tests extends SimdVecLibraryTests {
         var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
         similarityBulkSparse(addressesSeg, nativeQuerySeg, dims, numVecs, bulkScoresSeg);
         assertScoresEquals(expectedScores, bulkScoresSeg, delta);
+    }
+
+    /**
+     * Squared distance of duplicate and near-duplicate vectors at raw (unnormalised) scale, where the norms are large
+     * compared to the distance. The result must be non-negative, exactly 0 for an exact duplicate, and within f32
+     * rounding of the scalar reference; Lucene's distance-to-score mapping requires a non-negative distance.
+     */
+    public void testDuplicateAndNearDuplicateVectors() {
+        assumeTrue(notSupportedMsg(), supported());
+        assumeTrue("only meaningful for squared distance", function == SimdVecLibrary.SimilarityFunction.SQUARE_DISTANCE);
+        final int dims = size;
+        final float scale = randomFrom(64f, 150f, 300f, 500f, 1000f);
+
+        float[] base = new float[dims];
+        for (int i = 0; i < dims; i++) {
+            base[i] = BFloat16.truncateToBFloat16((randomFloat() * 2f - 1f) * scale);
+        }
+
+        // vector 0 is an exact duplicate of the query; the others differ by one bf16 ulp in a few components
+        final int numVecs = randomIntBetween(2, 17);
+        float[][] docs = new float[numVecs][];
+        docs[0] = base.clone();
+        for (int v = 1; v < numVecs; v++) {
+            docs[v] = base.clone();
+            int perturbed = randomIntBetween(1, Math.min(4, dims));
+            for (int k = 0; k < perturbed; k++) {
+                int idx = randomInt(dims - 1);
+                docs[v][idx] = nextBFloat16AwayFromZero(docs[v][idx]);
+            }
+        }
+
+        var bf16Segment = arena.allocate((long) dims * numVecs * BFloat16.BYTES);
+        for (int v = 0; v < numVecs; v++) {
+            copyToBFloat16Segment(docs[v], bf16Segment, (long) v * dims * BFloat16.BYTES);
+        }
+        MemorySegment querySeg = switch (queryType) {
+            case BFLOAT16 -> {
+                var seg = arena.allocate((long) dims * BFloat16.BYTES);
+                copyToBFloat16Segment(base, seg, 0L);
+                yield seg;
+            }
+            case FLOAT32 -> {
+                var seg = arena.allocate((long) dims * Float.BYTES);
+                MemorySegment.copy(base, 0, seg, LAYOUT_LE_FLOAT, 0L, dims);
+                yield seg;
+            }
+        };
+
+        // single
+        for (int v = 0; v < numVecs; v++) {
+            float expected = ScalarOperations.similarity(function, base, docs[v]);
+            var docSeg = bf16Segment.asSlice((long) v * dims * BFloat16.BYTES, (long) dims * BFloat16.BYTES);
+            assertDistance("single vector " + v, expected, similarity(docSeg, querySeg, dims));
+        }
+
+        // bulk (sequential)
+        int[] identity = new int[numVecs];
+        Arrays.setAll(identity, IntUnaryOperator.identity());
+        float[] expected = new float[numVecs];
+        ScalarOperations.bulkSparse(function, base, docs, identity, expected);
+        var scores = arena.allocate((long) numVecs * Float.BYTES);
+        similarityBulk(bf16Segment, querySeg, dims, numVecs, scores);
+        assertDistances("bulk", expected, scores);
+
+        // bulk sparse (random ordinals as addresses)
+        int[] ordinals = new int[numVecs];
+        for (int v = 0; v < numVecs; v++) {
+            ordinals[v] = randomInt(numVecs - 1);
+        }
+        // Guarantee that every layout scores the exact duplicate (docs[0]) on every seed.
+        ordinals[0] = 0;
+        ScalarOperations.bulkSparse(function, base, docs, ordinals, expected);
+        var addressesSeg = arena.allocate(ValueLayout.ADDRESS.byteSize() * numVecs, ValueLayout.ADDRESS.byteAlignment());
+        for (int v = 0; v < numVecs; v++) {
+            addressesSeg.setAtIndex(
+                ValueLayout.ADDRESS,
+                v,
+                bf16Segment.asSlice((long) ordinals[v] * dims * BFloat16.BYTES, (long) dims * BFloat16.BYTES)
+            );
+        }
+        similarityBulkSparse(addressesSeg, querySeg, dims, numVecs, scores);
+        assertDistances("bulk sparse", expected, scores);
+    }
+
+    private static void assertDistance(String what, float expected, float actual) {
+        assertThat(what + " must not be negative", actual, greaterThanOrEqualTo(0f));
+        // an exact duplicate must be exactly 0; otherwise allow f32 accumulation-order differences
+        assertEquals(what, expected, actual, expected * 1e-3f);
+    }
+
+    private static void assertDistances(String what, float[] expected, MemorySegment scores) {
+        for (int v = 0; v < expected.length; v++) {
+            assertDistance(what + " vector " + v, expected[v], scores.getAtIndex(JAVA_FLOAT_UNALIGNED, v));
+        }
     }
 
     // Verifies that bulk sparse similarity rejects invalid arguments (undersized segments,
@@ -357,34 +363,6 @@ public class SimdVecLibraryBFloat16Tests extends SimdVecLibraryTests {
         var zeroAddrs = arena.allocate(ValueLayout.ADDRESS.byteSize() * count, ValueLayout.ADDRESS.byteAlignment());
         ex = expectThrows(IAE, () -> similarityBulkSparse(zeroAddrs, query, size, count, scores));
         assertThat(ex.getMessage(), containsString("null"));
-    }
-
-    // Verifies that individual offset values are bounds-checked against the data segment.
-    public void testBulkOffsetsOutOfRange() {
-        assumeTrue(notSupportedMsg(), supported());
-        final int dims = size;
-        final int numVecs = 3;
-        final int pitch = dims * BFloat16.BYTES;
-        var vectorsSegment = arena.allocate((long) pitch * numVecs);
-        var query = switch (queryType) {
-            case BFLOAT16 -> arena.allocate((long) dims * BFloat16.BYTES);
-            case FLOAT32 -> arena.allocate((long) dims * Float.BYTES);
-        };
-        var scores = arena.allocate((long) numVecs * Float.BYTES);
-        var offsetsSegment = arena.allocate((long) numVecs * Integer.BYTES);
-
-        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 0, 0);
-        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 1, numVecs);
-        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 2, 0);
-        Exception ex = expectThrows(
-            IOOBE,
-            () -> similarityBulkWithOffsets(vectorsSegment, query, dims, pitch, offsetsSegment, numVecs, scores)
-        );
-        assertThat(ex.getMessage(), containsString("out of bounds for length"));
-
-        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 1, -1);
-        ex = expectThrows(IOOBE, () -> similarityBulkWithOffsets(vectorsSegment, query, dims, pitch, offsetsSegment, numVecs, scores));
-        assertThat(ex.getMessage(), containsString("out of bounds for length"));
     }
 
     public void testBulkIllegalDims() {
@@ -448,6 +426,11 @@ public class SimdVecLibraryBFloat16Tests extends SimdVecLibraryTests {
         return fa;
     }
 
+    /** The adjacent bf16 value one ulp further from zero; {@code bf16Value} must itself be a bf16 value. */
+    static float nextBFloat16AwayFromZero(float bf16Value) {
+        return Float.intBitsToFloat(Float.floatToRawIntBits(bf16Value) + 0x10000);
+    }
+
     private static void copyToBFloat16Segment(float[] fa, MemorySegment segment, long offset) {
         for (int i = 0; i < fa.length; i++) {
             short bfloat16 = BFloat16.floatToBFloat16(fa[i]);
@@ -483,49 +466,6 @@ public class SimdVecLibraryBFloat16Tests extends SimdVecLibraryTests {
                 switch (function) {
                     case DOT_PRODUCT -> getVectorDistance().dotProductDBF16QBF16Bulk(a, b, dims, count, result);
                     case SQUARE_DISTANCE -> getVectorDistance().squareDistanceDBF16QBF16Bulk(a, b, dims, count, result);
-                    case COSINE -> throw new UnsupportedOperationException(function.toString());
-                }
-            }
-        }
-    }
-
-    void similarityBulkWithOffsets(
-        MemorySegment a,
-        MemorySegment b,
-        int dims,
-        int pitch,
-        MemorySegment offsets,
-        int count,
-        MemorySegment result
-    ) {
-        switch (queryType) {
-            case FLOAT32 -> {
-                switch (function) {
-                    case DOT_PRODUCT -> getVectorDistance().dotProductDBF16QF32BulkWithOffsets(a, b, dims, pitch, offsets, count, result);
-                    case SQUARE_DISTANCE -> getVectorDistance().squareDistanceDBF16QF32BulkWithOffsets(
-                        a,
-                        b,
-                        dims,
-                        pitch,
-                        offsets,
-                        count,
-                        result
-                    );
-                    case COSINE -> throw new UnsupportedOperationException(function.toString());
-                }
-            }
-            case BFLOAT16 -> {
-                switch (function) {
-                    case DOT_PRODUCT -> getVectorDistance().dotProductDBF16QBF16BulkWithOffsets(a, b, dims, pitch, offsets, count, result);
-                    case SQUARE_DISTANCE -> getVectorDistance().squareDistanceDBF16QBF16BulkWithOffsets(
-                        a,
-                        b,
-                        dims,
-                        pitch,
-                        offsets,
-                        count,
-                        result
-                    );
                     case COSINE -> throw new UnsupportedOperationException(function.toString());
                 }
             }

@@ -35,6 +35,7 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
@@ -75,7 +76,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.LongScriptFieldDistanceFeatureQuery;
-import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -338,7 +338,7 @@ public final class DateFieldMapper extends FieldMapper {
                     DocValuesParameter.Values.Cardinality.LOW
                 ),
                 m -> toType(m).docValuesParameters(),
-                indexSettings.getMode().isStrictColumnar()
+                indexSettings
             );
             this.ignoreMalformed = Parameter.boolParam(
                 "ignore_malformed",
@@ -405,6 +405,9 @@ public final class DateFieldMapper extends FieldMapper {
             return new Parameter<?>[] {
                 index,
                 docValuesParameters,
+                docValuesParameters.multiValue(),
+                docValuesParameters.nullability(),
+                docValuesParameters.onFailure(),
                 store,
                 format,
                 locale,
@@ -518,7 +521,8 @@ public final class DateFieldMapper extends FieldMapper {
                 resolution,
                 context.isSourceSynthetic(),
                 this,
-                offsetsFieldName
+                offsetsFieldName,
+                context.isDataStream()
             );
         }
     }
@@ -767,7 +771,7 @@ public final class DateFieldMapper extends FieldMapper {
                     } else {
                         query = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
                     }
-                    if (hasDocValues() && context.indexSortedOnField(name())) {
+                    if (hasDocValues() && context.canUseIndexSortRangeQuery(name())) {
                         query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
                     }
                     return query;
@@ -884,7 +888,7 @@ public final class DateFieldMapper extends FieldMapper {
             } else {
                 query = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
             }
-            if (hasDocValues() && context.indexSortedOnField(name())) {
+            if (hasDocValues() && context.canUseIndexSortRangeQuery(name())) {
                 query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
             }
             return query;
@@ -1201,7 +1205,8 @@ public final class DateFieldMapper extends FieldMapper {
         Resolution resolution,
         boolean isSourceSynthetic,
         Builder builder,
-        String offsetsFieldName
+        String offsetsFieldName,
+        boolean isDataStream
     ) {
         super(leafName, mappedFieldType, builderParams);
         this.stored = builder.store.getValue();
@@ -1222,7 +1227,7 @@ public final class DateFieldMapper extends FieldMapper {
         this.script = builder.script.get();
         this.scriptCompiler = builder.scriptCompiler;
         this.scriptValues = builder.scriptValues();
-        this.isDataStreamTimestampField = mappedFieldType.name().equals(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+        this.isDataStreamTimestampField = isDataStream && mappedFieldType.name().equals(DataStreamTimestampFieldMapper.DEFAULT_PATH);
         this.indexSettings = builder.indexSettings;
         this.offsetsFieldName = offsetsFieldName;
     }
@@ -1263,22 +1268,20 @@ public final class DateFieldMapper extends FieldMapper {
 
     @Override
     protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
-        // Columnar support requires strict-columnar index mode or TIME_SERIES (for @timestamp),
-        // and a doc-values date field. doc_values.multi_value and ignore_malformed are not
-        // implemented by mapColumnBatch but are deliberately not rejected here — rejected at parse
-        // time instead.
-        return (indexSettings.getMode().isStrictColumnar() || indexSettings.getMode().isTsdb())
-            && docValuesParameters.enabled()
-            && hasScript() == false
-            && copyTo().copyToFields().isEmpty()
-            && indexSettings.getIndexVersionCreated().isLegacyIndexVersion() == false;
+        // ignore_malformed is not enforced by mapColumnBatch — it falls back per document at parse time.
+        return docValuesParameters.enabled();
+    }
+
+    @Override
+    protected boolean shouldEnforceSingleValueBatch() {
+        return docValuesParameters.multiValue() == false;
     }
 
     @Override
     protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         final EscfColumnData outData = switch (source.kind()) {
-            case EscfColumnKind.STRING -> datesFromStrings(source);
-            case EscfColumnKind.LONG -> datesFromLongs(source);
+            case EscfColumnKind.STRING -> datesFromStrings(source, ctx.recycler());
+            case EscfColumnKind.LONG -> datesFromLongs(source, ctx.recycler());
             default -> throw new UnsupportedOperationException(
                 Strings.format(
                     "mapColumnBatch: ESCF column kind [%s] is not yet supported for date field [%s]",
@@ -1310,8 +1313,8 @@ public final class DateFieldMapper extends FieldMapper {
         }
     }
 
-    private EscfColumnData datesFromStrings(EscfColumn source) {
-        try (EscfColumnBuilder builder = newLongColumn()) {
+    private EscfColumnData datesFromStrings(EscfColumn source, Recycler<BytesRef> recycler) {
+        try (EscfColumnBuilder builder = newLongColumn(recycler)) {
             // retainValues=false: each value is parsed inside the loop body, before the cursor advances.
             final ObjectTupleCursor<BytesRef> cursor = source.bytesRefCursor(false);
             for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
@@ -1330,7 +1333,7 @@ public final class DateFieldMapper extends FieldMapper {
     }
 
     // TODO: This can be zero-copy.
-    private EscfColumnData datesFromLongs(EscfColumn source) {
+    private EscfColumnData datesFromLongs(EscfColumn source, Recycler<BytesRef> recycler) {
         final boolean epochCompatible;
         {
             final var dateFormatter = fieldType().dateTimeFormatter();
@@ -1338,7 +1341,7 @@ public final class DateFieldMapper extends FieldMapper {
                 || dateFormatter.equals(DEFAULT_DATE_TIME_NANOS_FORMATTER)
                 || dateFormatter.equals(EPOCH_MILLIS_FORMATTER);
         }
-        try (EscfColumnBuilder builder = newLongColumn()) {
+        try (EscfColumnBuilder builder = newLongColumn(recycler)) {
             final LongTupleCursor cursor = source.longCursor();
             for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
                 final long raw = cursor.longValue();
@@ -1348,9 +1351,8 @@ public final class DateFieldMapper extends FieldMapper {
         }
     }
 
-    // TODO: make the batch supply a recycler to wire up recycling instead of NON_RECYCLING_INSTANCE.
-    private static EscfColumnBuilder newLongColumn() {
-        EscfColumnBuilder builder = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+    private static EscfColumnBuilder newLongColumn(Recycler<BytesRef> recycler) {
+        EscfColumnBuilder builder = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, recycler);
         builder.lockScalar(EscfColumnKind.LONG);
         return builder;
     }
@@ -1431,7 +1433,7 @@ public final class DateFieldMapper extends FieldMapper {
         //
         // DataStreamTimestampFieldMapper is present and enabled both
         // in data streams and standalone indices in time_series mode
-        if (isDataStreamTimestampField && context.mappingLookup().isDataStreamTimestampFieldEnabled()) {
+        if (isDataStreamTimestampField) {
             DataStreamTimestampFieldMapper.storeTimestampValueForReuse(context.doc(), timestamp);
         }
 
@@ -1493,12 +1495,7 @@ public final class DateFieldMapper extends FieldMapper {
                         )
                     );
                 }
-                if (ignoreMalformed) {
-                    layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
-                }
-                if (onFailureColumnEnabled()) {
-                    layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
-                }
+                CompositeSyntheticFieldLoader.addFallbackLayers(layers, this, indexSettings);
                 return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
             });
         }

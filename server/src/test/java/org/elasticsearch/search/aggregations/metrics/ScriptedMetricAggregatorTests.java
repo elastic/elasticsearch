@@ -659,7 +659,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 AggregationContext aggContext = mock(AggregationContext.class);
                 when(aggContext.searcher()).thenReturn(contextSearcher);
                 when(aggContext.lookup()).thenReturn(lookup);
-                when(aggContext.breaker()).thenReturn(new NoopCircuitBreaker(CircuitBreaker.REQUEST));
+                when(aggContext.breaker()).thenReturn(NoopCircuitBreaker.INSTANCE);
                 when(aggContext.bigArrays()).thenReturn(BigArrays.NON_RECYCLING_INSTANCE);
 
                 ScriptedMetricAggregator agg = new ScriptedMetricAggregator(
@@ -695,7 +695,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 AggregationContext plainContext = mock(AggregationContext.class);
                 when(plainContext.searcher()).thenReturn(newSearcher(reader));
                 when(plainContext.lookup()).thenReturn(lookup);
-                when(plainContext.breaker()).thenReturn(new NoopCircuitBreaker(CircuitBreaker.REQUEST));
+                when(plainContext.breaker()).thenReturn(NoopCircuitBreaker.INSTANCE);
                 when(plainContext.bigArrays()).thenReturn(BigArrays.NON_RECYCLING_INSTANCE);
 
                 ScriptedMetricAggregator plainAgg = new ScriptedMetricAggregator(

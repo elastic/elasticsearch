@@ -1,0 +1,8 @@
+{
+  "properties": {
+    "title": {
+      "type": "text",
+      "analyzer": "my_index_analyzer"
+    }
+  }
+}

@@ -35,6 +35,18 @@ public final class RangeReadContext {
      */
     private final int rowLimit;
     /**
+     * Per-read error budget shared between the columnar reader and {@code SchemaAdaptingIterator}.
+     * {@code null} when the split's error policy is not {@code SKIP_ROW}.
+     */
+    @Nullable
+    private final SharedErrorBudget sharedErrorBudget;
+    /**
+     * Per-operator counter struct. {@code null} when the caller does not participate in
+     * instrumentation (tests, benchmarks, planning-time reads).
+     */
+    @Nullable
+    private final FormatReadCounters readCounters;
+    /**
      * Opaque file-level context, single-writer/single-reader, carried by the owning producer across successive readRange calls.
      */
     @Nullable
@@ -91,6 +103,54 @@ public final class RangeReadContext {
         @Nullable Consumer<String> informationalWarningSink,
         int rowLimit
     ) {
+        this(projectedColumns, batchSize, rangeStart, rangeEnd, resolvedAttributes, errorPolicy, informationalWarningSink, rowLimit, null);
+    }
+
+    /**
+     * As the above, plus {@code sharedErrorBudget} — per-read budget shared with the adapter.
+     * {@code null} when the error policy is not {@code SKIP_ROW}.
+     */
+    public RangeReadContext(
+        List<String> projectedColumns,
+        int batchSize,
+        long rangeStart,
+        long rangeEnd,
+        List<Attribute> resolvedAttributes,
+        ErrorPolicy errorPolicy,
+        @Nullable Consumer<String> informationalWarningSink,
+        int rowLimit,
+        @Nullable SharedErrorBudget sharedErrorBudget
+    ) {
+        this(
+            projectedColumns,
+            batchSize,
+            rangeStart,
+            rangeEnd,
+            resolvedAttributes,
+            errorPolicy,
+            informationalWarningSink,
+            rowLimit,
+            sharedErrorBudget,
+            null
+        );
+    }
+
+    /**
+     * As the above, plus {@code readCounters} — per-operator counter struct.
+     * {@code null} when the caller does not participate in instrumentation.
+     */
+    public RangeReadContext(
+        List<String> projectedColumns,
+        int batchSize,
+        long rangeStart,
+        long rangeEnd,
+        List<Attribute> resolvedAttributes,
+        ErrorPolicy errorPolicy,
+        @Nullable Consumer<String> informationalWarningSink,
+        int rowLimit,
+        @Nullable SharedErrorBudget sharedErrorBudget,
+        @Nullable FormatReadCounters readCounters
+    ) {
         this.projectedColumns = projectedColumns;
         this.batchSize = batchSize;
         this.rangeStart = rangeStart;
@@ -99,6 +159,8 @@ public final class RangeReadContext {
         this.errorPolicy = errorPolicy;
         this.informationalWarningSink = informationalWarningSink;
         this.rowLimit = rowLimit;
+        this.sharedErrorBudget = sharedErrorBudget;
+        this.readCounters = readCounters;
     }
 
     public List<String> projectedColumns() {
@@ -142,6 +204,20 @@ public final class RangeReadContext {
 
     public int rowLimit() {
         return rowLimit;
+    }
+
+    @Nullable
+    public SharedErrorBudget sharedErrorBudget() {
+        return sharedErrorBudget;
+    }
+
+    /**
+     * Per-operator counter struct for format-specific instrumentation, or {@code null} when the
+     * caller does not participate in instrumentation (tests, benchmarks, planning-time reads).
+     */
+    @Nullable
+    public FormatReadCounters readCounters() {
+        return readCounters;
     }
 
     @Nullable

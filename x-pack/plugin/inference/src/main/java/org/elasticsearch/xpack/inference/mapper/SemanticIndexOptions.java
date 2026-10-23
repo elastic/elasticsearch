@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.mapper;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.IndexOptions;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
@@ -76,10 +76,10 @@ public class SemanticIndexOptions implements ToXContent {
             public IndexOptions parseIndexOptions(
                 String fieldName,
                 Map<String, Object> map,
-                IndexVersion indexVersion,
+                MappingParserContext context,
                 boolean experimentalFeaturesEnabled
             ) {
-                return parseDenseVectorIndexOptionsFromMap(fieldName, map, indexVersion, experimentalFeaturesEnabled);
+                return parseDenseVectorIndexOptionsFromMap(fieldName, map, context, experimentalFeaturesEnabled);
             }
         },
         SPARSE_VECTOR("sparse_vector") {
@@ -87,7 +87,7 @@ public class SemanticIndexOptions implements ToXContent {
             public IndexOptions parseIndexOptions(
                 String fieldName,
                 Map<String, Object> map,
-                IndexVersion indexVersion,
+                MappingParserContext context,
                 boolean experimentalFeaturesEnabled
             ) {
                 return parseSparseVectorIndexOptionsFromMap(map);
@@ -103,7 +103,7 @@ public class SemanticIndexOptions implements ToXContent {
         public abstract IndexOptions parseIndexOptions(
             String fieldName,
             Map<String, Object> map,
-            IndexVersion indexVersion,
+            MappingParserContext context,
             boolean experimentalFeaturesEnabled
         );
 
@@ -137,7 +137,7 @@ public class SemanticIndexOptions implements ToXContent {
     private static ExtendedDenseVectorIndexOptions parseDenseVectorIndexOptionsFromMap(
         String fieldName,
         Map<String, Object> map,
-        IndexVersion indexVersion,
+        MappingParserContext context,
         boolean experimentalFeaturesEnabled
     ) {
         DenseVectorFieldMapper.ElementType elementType = null;
@@ -161,7 +161,7 @@ public class SemanticIndexOptions implements ToXContent {
         DenseVectorFieldMapper.DenseVectorIndexOptions denseVectorIndexOptions = parseBaseDenseVectorIndexOptionsFromMap(
             fieldName,
             map,
-            indexVersion,
+            context,
             experimentalFeaturesEnabled
         );
 
@@ -177,7 +177,7 @@ public class SemanticIndexOptions implements ToXContent {
     private static DenseVectorFieldMapper.DenseVectorIndexOptions parseBaseDenseVectorIndexOptionsFromMap(
         String fieldName,
         Map<String, Object> map,
-        IndexVersion indexVersion,
+        MappingParserContext context,
         boolean experimentalFeaturesEnabled
     ) {
         Object type = map.remove(TYPE_FIELD);
@@ -199,7 +199,7 @@ public class SemanticIndexOptions implements ToXContent {
             XContentMapValues.nodeStringValue(type)
         ).orElseThrow(() -> new IllegalArgumentException("Unsupported index options " + TYPE_FIELD + " " + type));
 
-        return vectorIndexType.parseIndexOptions(fieldName, map, indexVersion, experimentalFeaturesEnabled);
+        return vectorIndexType.parseIndexOptions(fieldName, map, context, experimentalFeaturesEnabled);
     }
 
     private static SparseVectorFieldMapper.SparseVectorIndexOptions parseSparseVectorIndexOptionsFromMap(Map<String, Object> map) {

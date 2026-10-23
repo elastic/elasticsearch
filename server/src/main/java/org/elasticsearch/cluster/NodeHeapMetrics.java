@@ -38,7 +38,7 @@ public record NodeHeapMetrics(String nodeId, long totalBytes, NodeHeapEstimates 
             return new NodeHeapMetrics(nodeId, totalBytes, nodeHeapEstimate);
         } else {
             final long totalHeapUsage = in.readVLong();
-            return new NodeHeapMetrics(nodeId, totalBytes, new NodeHeapEstimates(totalHeapUsage, 0));
+            return new NodeHeapMetrics(nodeId, totalBytes, new NodeHeapEstimates(totalHeapUsage, 0L, 0L));
         }
     }
 
@@ -67,17 +67,5 @@ public record NodeHeapMetrics(String nodeId, long totalBytes, NodeHeapEstimates 
 
     public double estimatedUsageAsRatio() {
         return nodeHeapEstimates.totalHeapUsage() / (double) totalBytes;
-    }
-
-    public NodeHeapMetrics updateEstimatedUsage(long indexOverheadUsageDelta, long hostedShardsUsageDelta) {
-        final long usageDelta = Math.addExact(indexOverheadUsageDelta, hostedShardsUsageDelta);
-        return new NodeHeapMetrics(
-            nodeId,
-            totalBytes,
-            new NodeHeapEstimates(
-                Math.addExact(nodeHeapEstimates.totalHeapUsage(), usageDelta),
-                Math.addExact(nodeHeapEstimates.hostedShardsHeapUsage(), usageDelta)
-            )
-        );
     }
 }

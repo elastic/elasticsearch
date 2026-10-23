@@ -13,6 +13,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.telemetry.metric.LongAsyncMeasurement;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.Scheduler;
@@ -21,7 +22,6 @@ import org.elasticsearch.xpack.transform.TransformNode;
 import org.elasticsearch.xpack.transform.transforms.TransformTask;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -102,43 +102,37 @@ public final class TransformCrossProjectMetrics extends AbstractLifecycleCompone
         this.pollInterval = pollInterval;
         this.transformNode = transformNode;
         registeredMetrics.add(
-            meterRegistry.registerLongsAsyncGauge(
+            meterRegistry.registerLongAsyncGauge(
                 TRANSFORM_CPS_UIAM_AUTH_CURRENT,
                 "Number of running transforms on this node broken down by UIAM migration status",
                 "transforms",
-                this::observeUiamAuth
+                this::recordUiamAuth
             )
         );
         registeredMetrics.add(
-            meterRegistry.registerLongsAsyncGauge(
+            meterRegistry.registerLongAsyncGauge(
                 TRANSFORM_CPS_ACTIVE_CURRENT,
                 "Number of running transforms on this node broken down by whether their last search went cross-project",
                 "transforms",
-                this::observeCrossProjectActive
+                this::recordCrossProjectActive
             )
         );
     }
 
-    private Collection<LongWithAttributes> observeUiamAuth() {
+    private void recordUiamAuth(LongAsyncMeasurement measurement) {
         CpsCounts counts = cachedCounts;
-        if (counts.isEmpty()) {
-            return List.of();
+        if (counts.isEmpty() == false) {
+            measurement.record(counts.uiam(), Map.of("auth_type", "uiam"));
+            measurement.record(counts.legacy(), Map.of("auth_type", "legacy"));
         }
-        return List.of(
-            new LongWithAttributes(counts.uiam(), Map.of("auth_type", "uiam")),
-            new LongWithAttributes(counts.legacy(), Map.of("auth_type", "legacy"))
-        );
     }
 
-    private Collection<LongWithAttributes> observeCrossProjectActive() {
+    private void recordCrossProjectActive(LongAsyncMeasurement measurement) {
         CpsCounts counts = cachedCounts;
-        if (counts.isEmpty()) {
-            return List.of();
+        if (counts.isEmpty() == false) {
+            measurement.record(counts.crossProject(), Map.of("scope", "cross_project"));
+            measurement.record(counts.origin(), Map.of("scope", "origin"));
         }
-        return List.of(
-            new LongWithAttributes(counts.crossProject(), Map.of("scope", "cross_project")),
-            new LongWithAttributes(counts.origin(), Map.of("scope", "origin"))
-        );
     }
 
     @Override

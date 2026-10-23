@@ -11,7 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.inference.completion.Tool;
@@ -244,7 +244,7 @@ public class AnthropicUnifiedChatCompletionRequestEntityTests extends ESTestCase
 
     public void testToXContent_WithStopSequencesTranslatedToAnthropicStopSequences() throws IOException {
         var maxTokens = 1024;
-        var unifiedRequest = new UnifiedCompletionRequest(
+        var unifiedRequest = new UnifiedCompletionRequestBody(
             List.of(new Message(new ContentString(INPUT_VALUE), ROLE_VALUE, null, null)),
             null,
             null,
@@ -282,7 +282,7 @@ public class AnthropicUnifiedChatCompletionRequestEntityTests extends ESTestCase
             new Message(new ContentString(""), "assistant", null, List.of(toolCall)),
             new Message(new ContentString("72F and sunny"), "tool", "call_1", null)
         );
-        var unifiedRequest = new UnifiedCompletionRequest(messages, null, null, null, null, null, null, null);
+        var unifiedRequest = new UnifiedCompletionRequestBody(messages, null, null, null, null, null, null, null);
         var entity = new AnthropicUnifiedChatCompletionRequestEntity(
             new UnifiedChatInput(unifiedRequest, true),
             MODEL_ID,
@@ -353,7 +353,7 @@ public class AnthropicUnifiedChatCompletionRequestEntityTests extends ESTestCase
         AnthropicChatCompletionTaskSettings taskSettings
     ) {
         var message = new Message(new ContentString(INPUT_VALUE), ROLE_VALUE, null, null);
-        var unifiedRequest = new UnifiedCompletionRequest(
+        var unifiedRequest = new UnifiedCompletionRequestBody(
             List.of(message),
             null,
             requestMaxCompletionTokens,
@@ -390,7 +390,7 @@ public class AnthropicUnifiedChatCompletionRequestEntityTests extends ESTestCase
         AnthropicChatCompletionTaskSettings taskSettings,
         String expectedJson
     ) throws IOException {
-        var unifiedRequest = new UnifiedCompletionRequest(messages, null, null, null, null, null, null, null);
+        var unifiedRequest = new UnifiedCompletionRequestBody(messages, null, null, null, null, null, null, null);
         var entity = new AnthropicUnifiedChatCompletionRequestEntity(new UnifiedChatInput(unifiedRequest, stream), MODEL_ID, taskSettings);
         XContentBuilder builder = JsonXContent.contentBuilder();
         entity.toXContent(builder, ToXContent.EMPTY_PARAMS);

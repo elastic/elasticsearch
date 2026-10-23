@@ -13,6 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.DecompressionCodecRegistry;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 
@@ -54,9 +55,9 @@ public class HttpDataSourcePluginTests extends ESTestCase {
     public void testHttpValidatorAcceptsHttpAndHttpsSchemes() {
         assumeTrue("requires http datasource feature flag", httpEnabled());
         DataSourceValidator http = plugin.datasourceValidators(Settings.EMPTY).get("http");
-        // No dataset settings supplied, so the validated settings come back empty for both schemes.
-        assertTrue(http.validateDataset(Map.of(), "http://example.org/data.csv", Map.of()).isEmpty());
-        assertTrue(http.validateDataset(Map.of(), "https://example.org/data.csv", Map.of()).isEmpty());
+        // File-backed PUT materializes omitted schema_resolution as first_file_wins.
+        assertEquals("first_file_wins", http.validateDataset(Map.of(), "http://example.org/data.csv", Map.of()).get("schema_resolution"));
+        assertEquals("first_file_wins", http.validateDataset(Map.of(), "https://example.org/data.csv", Map.of()).get("schema_resolution"));
     }
 
     public void testHttpValidatorRejectsNonHttpScheme() {
@@ -127,6 +128,11 @@ public class HttpDataSourcePluginTests extends ESTestCase {
      * Mockito stub: {@link FormatReader#formatName()}, {@link FormatReader#fileExtensions()}, and
      * {@link FormatReader#supportsWholeFileCompression()} are the only methods consulted.
      */
+    public void testSchemesAreRejectedBySafeForUserMessage() {
+        assertFalse(ExternalFailures.safeForUserMessage("http://host/path/file.csv"));
+        assertFalse(ExternalFailures.safeForUserMessage("https://host/path/file.csv"));
+    }
+
     private static FormatReaderRegistry csvRegistry() {
         FormatReader csv = mock(FormatReader.class);
         when(csv.formatName()).thenReturn("csv");

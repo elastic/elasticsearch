@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DateEsField;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.IndexAnalyzerGroup;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
@@ -25,6 +26,8 @@ import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomList;
+import static org.elasticsearch.test.ESTestCase.randomSet;
+import static org.elasticsearch.test.ESTestCase.randomValueOtherThan;
 
 /**
  * Utility class providing factory and random-instance methods for EsField subtype testing.
@@ -141,7 +144,51 @@ public class EsFieldTestUtils {
         boolean hasDocValues = randomBoolean();
         boolean isAlias = randomBoolean();
         EsField.TimeSeriesFieldType tsType = randomFrom(EsField.TimeSeriesFieldType.values());
-        return new TextEsField(name, properties, hasDocValues, isAlias, tsType);
+        String analyzerName = null;
+        int positionIncrementGap = TextEsField.DEFAULT_POSITION_INCREMENT_GAP;
+        TextEsField.UnknownAnalyzer unknownAnalyzer = TextEsField.UnknownAnalyzer.NOT_REPORTED;
+        List<IndexAnalyzerGroup> analyzerGroups = null;
+        if (supportedOn == null || supportedOn.supports(TextEsField.TEXT_FIELD_ANALYZER)) {
+            analyzerName = randomBoolean() ? null : randomAlphaOfLength(6);
+            if (analyzerName != null) {
+                unknownAnalyzer = TextEsField.UnknownAnalyzer.NONE;
+                positionIncrementGap = randomBoolean() ? TextEsField.DEFAULT_POSITION_INCREMENT_GAP : between(0, 1000);
+            } else {
+                unknownAnalyzer = randomUnknownAnalyzer();
+                if (unknownAnalyzer == TextEsField.UnknownAnalyzer.CONFLICT && randomBoolean()) {
+                    analyzerGroups = randomAnalyzerGroups();
+                }
+            }
+        }
+        return new TextEsField(
+            name,
+            properties,
+            hasDocValues,
+            isAlias,
+            tsType,
+            analyzerName,
+            positionIncrementGap,
+            unknownAnalyzer,
+            analyzerGroups
+        );
+    }
+
+    /** Why a {@link TextEsField} has no analyzer name: anything but {@link TextEsField.UnknownAnalyzer#NONE}. */
+    public static TextEsField.UnknownAnalyzer randomUnknownAnalyzer() {
+        return randomValueOtherThan(TextEsField.UnknownAnalyzer.NONE, () -> randomFrom(TextEsField.UnknownAnalyzer.values()));
+    }
+
+    /** Which indices use which analyzer when they disagree. Meant for serialization: unlike the resolver's, groups may repeat an analyzer. */
+    public static List<IndexAnalyzerGroup> randomAnalyzerGroups() {
+        return randomList(2, 4, () -> {
+            String analyzerName = randomBoolean() ? null : randomAlphaOfLength(6);
+            return new IndexAnalyzerGroup(
+                analyzerName,
+                analyzerName == null && randomBoolean(),
+                between(0, 1000),
+                randomSet(1, 3, () -> randomAlphaOfLength(5))
+            );
+        });
     }
 
     public static PotentiallyUnmappedKeywordEsField randomPotentiallyUnmappedKeywordEsField(

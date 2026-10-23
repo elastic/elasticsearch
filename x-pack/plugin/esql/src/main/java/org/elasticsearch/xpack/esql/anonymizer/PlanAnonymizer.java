@@ -19,6 +19,9 @@ import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -38,7 +41,7 @@ import java.util.TreeMap;
  */
 public final class PlanAnonymizer {
 
-    public record AnonymizedPlans(String schema, String parsed, String analyzed, String optimized, String physical) {}
+    public record AnonymizedPlans(String schema, String parsed, String analyzed, String optimized, String physical, String settings) {}
 
     private final AnonymizationContext ctx;
     private final NodeStringMapper mapper;
@@ -60,17 +63,36 @@ public final class PlanAnonymizer {
      * optimized (the parsed plan has {@code UnresolvedRelation}s with no resolved attributes, so it
      * carries no useful schema).
      */
-    public AnonymizedPlans anonymize(LogicalPlan parsed, LogicalPlan analyzed, LogicalPlan optimized, PhysicalPlan physical) {
+    public AnonymizedPlans anonymize(
+        LogicalPlan parsed,
+        LogicalPlan analyzed,
+        LogicalPlan optimized,
+        PhysicalPlan physical,
+        ResolvedSettings settings
+    ) {
         var format = Node.NodeStringFormat.FULL;
         String parsedText = parsed == null ? "" : parsed.toString(format, mapper);
         String analyzedText = analyzed == null ? "" : analyzed.toString(format, mapper);
         String optimizedText = optimized == null ? "" : optimized.toString(format, mapper);
         String physicalText = physical == null ? "" : physical.toString(format, mapper);
+        String settingsText;
+        if (settings == null) {
+            settingsText = "";
+        } else {
+            StringBuilder sb = new StringBuilder();
+            for (QuerySettingDef<?> def : QuerySettings.all()) {
+                // The telemetry labels consist of a small set of strings that the setting declares.
+                // For booleans/enums, it's the value; for freeform types, values like "default" or
+                // "set" are used. This is both granular and anonymized enough.
+                sb.append(def.name().toUpperCase(Locale.ROOT)).append("=").append(def.telemetryLabel(settings)).append("\n");
+            }
+            settingsText = sb.toString();
+        }
 
         LogicalPlan schemaSource = analyzed != null ? analyzed : optimized;
         String schema = schemaSource == null ? "" : renderSchema(schemaSource);
 
-        return new AnonymizedPlans(schema, parsedText, analyzedText, optimizedText, physicalText);
+        return new AnonymizedPlans(schema, parsedText, analyzedText, optimizedText, physicalText, settingsText);
     }
 
     /**

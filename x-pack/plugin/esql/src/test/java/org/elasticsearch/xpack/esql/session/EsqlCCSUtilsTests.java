@@ -11,8 +11,6 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
-import org.elasticsearch.action.fieldcaps.RemoteResourceNotSupportedException;
-import org.elasticsearch.action.fieldcaps.RemoteViewNotSupportedException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
@@ -34,6 +32,7 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.view.IndexViewOrigins;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
@@ -57,7 +56,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.not;
 
 public class EsqlCCSUtilsTests extends ESTestCase {
 
@@ -329,7 +327,13 @@ public class EsqlCCSUtilsTests extends ESTestCase {
 
             IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteQualifiedIndices(), Map.of());
 
-            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, Set.of(indexResolution), Set.of(), false);
+            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(
+                executionInfo,
+                Set.of(indexResolution),
+                Set.of(),
+                IndexViewOrigins.EMPTY,
+                false
+            );
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER_ALIAS);
             assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
@@ -383,7 +387,13 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             );
             IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteQualifiedIndices(), Map.of());
 
-            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, Set.of(indexResolution), Set.of(), false);
+            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(
+                executionInfo,
+                Set.of(indexResolution),
+                Set.of(),
+                IndexViewOrigins.EMPTY,
+                false
+            );
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER_ALIAS);
             assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
@@ -436,7 +446,13 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             var failures = Map.of(REMOTE1_ALIAS, List.of(failure));
             IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteQualifiedIndices(), failures);
 
-            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, Set.of(indexResolution), Set.of(), false);
+            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(
+                executionInfo,
+                Set.of(indexResolution),
+                Set.of(),
+                IndexViewOrigins.EMPTY,
+                false
+            );
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER_ALIAS);
             assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
@@ -485,7 +501,13 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             var failure = new FieldCapabilitiesFailure(new String[] { "logs-a" }, new NoSeedNodeLeftException("unable to connect"));
             var failures = Map.of(REMOTE1_ALIAS, List.of(failure));
             IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteQualifiedIndices(), failures);
-            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, Set.of(indexResolution), Set.of(), false);
+            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(
+                executionInfo,
+                Set.of(indexResolution),
+                Set.of(),
+                IndexViewOrigins.EMPTY,
+                false
+            );
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER_ALIAS);
             assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
@@ -540,7 +562,13 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             var failures = Map.of(REMOTE1_ALIAS, List.of(failure));
             IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteQualifiedIndices(), failures);
 
-            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, Set.of(indexResolution), Set.of(), false);
+            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(
+                executionInfo,
+                Set.of(indexResolution),
+                Set.of(),
+                IndexViewOrigins.EMPTY,
+                false
+            );
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER_ALIAS);
             assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
@@ -554,6 +582,37 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             EsqlExecutionInfo.Cluster remote2Cluster = executionInfo.getCluster(REMOTE2_ALIAS);
             assertThat(remote2Cluster.getIndexExpression(), equalTo("mylogs1*,mylogs2*,logs*"));
             assertThat(remote2Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+        }
+    }
+
+    public void testNoMatchingIndicesPrefersFieldCapsFailureOverAnotherResolutionsEmptyFailures() {
+        for (boolean failureFirst : List.of(true, false)) {
+            EsqlExecutionInfo executionInfo = createEsqlExecutionInfo(true);
+            executionInfo.swapCluster(
+                REMOTE1_ALIAS,
+                (k, v) -> createEsqlExecutionInfoCluster(REMOTE1_ALIAS, "*", true, EsqlExecutionInfo.Cluster.Status.RUNNING)
+            );
+            EsIndex localOnly = EsIndexGenerator.esIndex("logs*", randomMapping(), Map.of("logs-a", IndexMode.STANDARD));
+            IndexResolution withoutFailure = IndexResolution.valid(localOnly, localOnly.concreteQualifiedIndices(), Map.of());
+            EsIndex remotePattern = EsIndexGenerator.esIndex("*:logs*", randomMapping(), Map.of("logs-a", IndexMode.STANDARD));
+            var failure = new FieldCapabilitiesFailure(new String[] { "*:logs*" }, new NoSeedNodeLeftException("unable to connect"));
+            IndexResolution withFailure = IndexResolution.valid(
+                remotePattern,
+                remotePattern.concreteQualifiedIndices(),
+                Map.of(REMOTE1_ALIAS, List.of(failure))
+            );
+            List<IndexResolution> resolutions = failureFirst ? List.of(withFailure, withoutFailure) : List.of(withoutFailure, withFailure);
+            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(
+                executionInfo,
+                resolutions,
+                Set.of(),
+                IndexViewOrigins.EMPTY,
+                false
+            );
+            EsqlExecutionInfo.Cluster remote1Cluster = executionInfo.getCluster(REMOTE1_ALIAS);
+            assertThat(remote1Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+            assertThat(remote1Cluster.getFailures(), hasSize(1));
+            assertThat(remote1Cluster.getFailures().getFirst().reason(), containsString("unable to connect"));
         }
     }
 
@@ -616,95 +675,6 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             var groupedFailures = EsqlCCSUtils.groupFailuresPerCluster(failures);
             Map<String, FieldCapabilitiesFailure> unavailableClusters = EsqlCCSUtils.determineUnavailableRemoteClusters(groupedFailures);
             assertThat(unavailableClusters.keySet(), equalTo(Set.of()));
-        }
-    }
-
-    public void testCheckForRemoteResourceErrorsWithViews() {
-        {
-            var viewEx = new RemoteViewNotSupportedException(List.of("r1:v"));
-            var wrapped = new RemoteTransportException("test failure", viewEx);
-            List<FieldCapabilitiesFailure> failures = List.of(new FieldCapabilitiesFailure(new String[] { "r1:logs-*" }, wrapped));
-            var grouped = EsqlCCSUtils.groupFailuresPerCluster(failures);
-            expectThrows(
-                RemoteResourceNotSupportedException.class,
-                containsString(
-                    "ES|QL queries with remote views are not supported. Matched [r1:v]."
-                        + " Remove them from the query pattern or exclude them with [r1:-v] if matched by a wildcard."
-                ),
-                () -> EsqlCCSUtils.checkForRemoteResourceErrors(grouped)
-            );
-        }
-        {
-            var viewEx1 = new RemoteViewNotSupportedException(List.of("r1:v1"));
-            var viewEx2 = new RemoteViewNotSupportedException(List.of("r2:v2"));
-            var wrapped1 = new RemoteTransportException("test failure", viewEx1);
-            var wrapped2 = new RemoteTransportException("test failure", viewEx2);
-            List<FieldCapabilitiesFailure> failures = List.of(
-                new FieldCapabilitiesFailure(new String[] { "r1:logs-*" }, wrapped1),
-                new FieldCapabilitiesFailure(new String[] { "r2:logs-*" }, wrapped2)
-            );
-            var grouped = EsqlCCSUtils.groupFailuresPerCluster(failures);
-            RemoteResourceNotSupportedException ex = expectThrows(
-                RemoteResourceNotSupportedException.class,
-                () -> EsqlCCSUtils.checkForRemoteResourceErrors(grouped)
-            );
-            assertThat(ex.getMessage(), containsString("ES|QL queries with remote views are not supported."));
-            assertThat(ex.getMetadata("es.esql.view.names"), containsInAnyOrder("r1:v1", "r2:v2"));
-        }
-        {
-            List<FieldCapabilitiesFailure> failures = List.of(
-                new FieldCapabilitiesFailure(new String[] { "r1:logs-*" }, new RuntimeException("some other error"))
-            );
-            var grouped = EsqlCCSUtils.groupFailuresPerCluster(failures);
-            EsqlCCSUtils.checkForRemoteResourceErrors(grouped);
-        }
-        {
-            EsqlCCSUtils.checkForRemoteResourceErrors(Map.of());
-        }
-    }
-
-    /**
-     * The aggregate exception is read defensively. Nothing can send one carrying datasets to a coordinator running
-     * this code, because a remote only reported datasets when the request asked and this code never asks, but the
-     * branch exists and so it is pinned: the views half still fails the query, the datasets half is dropped, and
-     * datasets alone fail nothing at all.
-     */
-    public void testCheckForRemoteResourceErrorsReadsTheAggregateFromAnOlderPeer() {
-        {
-            var aggregate = new RemoteResourceNotSupportedException(List.of("r1:v"), List.of());
-            var wrapped = new RemoteTransportException("test failure", aggregate);
-            var grouped = EsqlCCSUtils.groupFailuresPerCluster(
-                List.of(new FieldCapabilitiesFailure(new String[] { "r1:logs-*" }, wrapped))
-            );
-            RemoteResourceNotSupportedException ex = expectThrows(
-                RemoteResourceNotSupportedException.class,
-                () -> EsqlCCSUtils.checkForRemoteResourceErrors(grouped)
-            );
-            assertThat(ex.getMetadata("es.esql.view.names"), containsInAnyOrder("r1:v"));
-        }
-        {
-            var aggregate = new RemoteResourceNotSupportedException(List.of("r1:v"), List.of("r1:d"));
-            var wrapped = new RemoteTransportException("test failure", aggregate);
-            var grouped = EsqlCCSUtils.groupFailuresPerCluster(
-                List.of(new FieldCapabilitiesFailure(new String[] { "r1:logs-*" }, wrapped))
-            );
-            RemoteResourceNotSupportedException ex = expectThrows(
-                RemoteResourceNotSupportedException.class,
-                () -> EsqlCCSUtils.checkForRemoteResourceErrors(grouped)
-            );
-            assertThat(ex.getMessage(), containsString("ES|QL queries with remote views are not supported."));
-            assertThat(ex.getMessage(), not(containsString("datasets")));
-            assertThat(ex.getMetadata("es.esql.view.names"), containsInAnyOrder("r1:v"));
-            assertThat(ex.datasets(), equalTo(List.of()));
-        }
-        {
-            // Datasets alone carry nothing to act on, so the query is not failed at all.
-            var aggregate = new RemoteResourceNotSupportedException(List.of(), List.of("r1:d"));
-            var wrapped = new RemoteTransportException("test failure", aggregate);
-            var grouped = EsqlCCSUtils.groupFailuresPerCluster(
-                List.of(new FieldCapabilitiesFailure(new String[] { "r1:logs-*" }, wrapped))
-            );
-            EsqlCCSUtils.checkForRemoteResourceErrors(grouped);
         }
     }
 

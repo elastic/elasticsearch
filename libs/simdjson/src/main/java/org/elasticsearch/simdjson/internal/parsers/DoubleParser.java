@@ -36,6 +36,27 @@ import static org.elasticsearch.simdjson.internal.parsers.NumberParserTables.NUM
 import static org.elasticsearch.simdjson.internal.parsers.NumberParserTables.POWERS_OF_FIVE;
 import static org.elasticsearch.simdjson.internal.parsers.NumberParserTables.POWER_OF_FIVE_DIGITS;
 
+/**
+ * Parses a JSON number's pre-scanned sign/digits/exponent components into a {@code double}.
+ *
+ * <p>Originally derived from
+ * <a href="https://github.com/simdjson/simdjson-java">simdjson-java</a>'s {@code DoubleParser}.
+ * Elasticsearch changes:
+ * <ul>
+ *   <li>Split the Eisel-Lemire path out into its own {@link #computeDoubleEiselLemire} method,
+ *       keeping {@link #computeDouble} (dispatch plus fast path) small enough for the JIT to
+ *       inline it into its caller (upstream fuses both paths into a single ~435-byte method,
+ *       which never inlines); see the comment on {@link #computeDouble} for detail.</li>
+ *   <li>Moved the rare subnormal-result branch of {@link #computeDoubleEiselLemire} into its own
+ *       cold method, {@link #computeSubnormal}. This shrinks the hot method from 363 to 302 bytes of
+ *       bytecode, under the JIT's {@code FreqInlineSize} limit (325), so it is inlined into
+ *       {@link #computeDouble} instead of being left as a real call ("hot method too big" is what
+ *       C2 reports when it is not). The logic is unchanged.</li>
+ * </ul>
+ *
+ * <p>Otherwise unchanged from upstream: the fast-path, Eisel-Lemire, and slow-path algorithms
+ * below are a faithful, line-for-line port.
+ */
 public final class DoubleParser {
 
     // When parsing doubles, we assume that a long used to store digits is unsigned. Thus, it can safely accommodate
@@ -114,21 +135,24 @@ public final class DoubleParser {
         return significantDigitCount > FAST_PATH_MAX_DIGIT_COUNT;
     }
 
+    // Kept tiny, and separate from computeDoubleEiselLemire below, so that it stays under the JIT's inlining budget
+    // and can be inlined into parse(): the fast path has been described in
+    // https://www.exploringbinary.com/fast-path-decimal-to-floating-point-conversion/. The two branches below share
+    // a single array load (and thus a single bounds check) on Math.abs(exp10), rather than indexing the table
+    // separately as exp10 and -exp10, which otherwise defeats the JIT's ability to prove the two accesses are
+    // already range-checked by the same guard.
     private static double computeDouble(boolean negative, long significand10, long exp10) {
         if (abs(exp10) < POWERS_OF_TEN.length && compareUnsigned(significand10, MAX_LONG_REPRESENTED_AS_DOUBLE_EXACTLY) <= 0) {
-            // This path has been described in https://www.exploringbinary.com/fast-path-decimal-to-floating-point-conversion/.
-            double result = significand10;
-            if (exp10 < 0) {
-                result = result / POWERS_OF_TEN[(int) -exp10];
-            } else {
-                result = result * POWERS_OF_TEN[(int) exp10];
-            }
+            double powerOfTen = POWERS_OF_TEN[(int) abs(exp10)];
+            double result = (exp10 < 0) ? significand10 / powerOfTen : significand10 * powerOfTen;
             return negative ? -result : result;
         }
+        return computeDoubleEiselLemire(negative, significand10, exp10);
+    }
 
-        // The following path is an implementation of the Eisel-Lemire algorithm described by Daniel Lemire in
-        // "Number Parsing at a Gigabyte per Second" (https://arxiv.org/abs/2101.11408).
-
+    // The following path is an implementation of the Eisel-Lemire algorithm described by Daniel Lemire in
+    // "Number Parsing at a Gigabyte per Second" (https://arxiv.org/abs/2101.11408).
+    private static double computeDoubleEiselLemire(boolean negative, long significand10, long exp10) {
         if (exp10 < FAST_PATH_MIN_POWER_OF_TEN || significand10 == 0) {
             return zero(negative);
         } else if (exp10 > FAST_PATH_MAX_POWER_OF_TEN) {
@@ -182,26 +206,7 @@ public final class DoubleParser {
         // Therefore, we add (63 - lz + upperBit) to the exponent.
         long exp2 = ((217706 * exp10) >> 16) + 63 - lz + upperBit;
         if (exp2 < IEEE64_MIN_FINITE_NUMBER_EXPONENT) {
-            // In the next step, we right-shift the binary significand by the difference between the minimum exponent
-            // and the binary exponent. In Java, the shift distance is limited to the range of 0 to 63, inclusive.
-            // Thus, we need to handle the case when the distance is >= 64 separately and always return zero.
-            if (exp2 <= IEEE64_MIN_FINITE_NUMBER_EXPONENT - 64) {
-                return zero(negative);
-            }
-
-            // In this branch, it is likely that we are handling a subnormal number. Therefore, we adjust the significand
-            // to conform to the formula representing subnormal numbers: (significand2 * 2^(1 - IEEE64_EXPONENT_BIAS)) / 2^52.
-            significand2 >>= 1 - IEEE64_EXPONENT_BIAS - exp2;
-            // Round up if the significand is odd and remove the least significant bit that we've left for rounding.
-            significand2 += significand2 & 1;
-            significand2 >>= 1;
-
-            // Here, we are addressing a scenario in which the original number was subnormal, but it became normal after
-            // rounding up. For example, when we are parsing 2.2250738585072013e-308 before rounding and removing the
-            // least significant bit significand2 = 0x3fffffffffffff and exp2 = -1023. After rounding, we get
-            // significand2 = 0x10000000000000, which is the significand of the smallest normal number.
-            exp2 = (significand2 < (1L << 52)) ? IEEE64_SUBNORMAL_EXPONENT : IEEE64_MIN_FINITE_NUMBER_EXPONENT;
-            return toDouble(negative, significand2, exp2);
+            return computeSubnormal(negative, significand2, exp2);
         }
 
         // Here, we are addressing a scenario of rounding the binary significand when it falls precisely halfway
@@ -229,6 +234,31 @@ public final class DoubleParser {
         if (exp2 > IEEE64_MAX_FINITE_NUMBER_EXPONENT) {
             return infinity(negative);
         }
+        return toDouble(negative, significand2, exp2);
+    }
+
+    // Cold path of computeDoubleEiselLemire for results below the smallest normal number. Kept out of line so that the
+    // hot method stays under the JIT's FreqInlineSize bytecode limit and can be inlined into its callers.
+    private static double computeSubnormal(boolean negative, long significand2, long exp2) {
+        // In the next step, we right-shift the binary significand by the difference between the minimum exponent
+        // and the binary exponent. In Java, the shift distance is limited to the range of 0 to 63, inclusive.
+        // Thus, we need to handle the case when the distance is >= 64 separately and always return zero.
+        if (exp2 <= IEEE64_MIN_FINITE_NUMBER_EXPONENT - 64) {
+            return zero(negative);
+        }
+
+        // In this branch, it is likely that we are handling a subnormal number. Therefore, we adjust the significand
+        // to conform to the formula representing subnormal numbers: (significand2 * 2^(1 - IEEE64_EXPONENT_BIAS)) / 2^52.
+        significand2 >>= 1 - IEEE64_EXPONENT_BIAS - exp2;
+        // Round up if the significand is odd and remove the least significant bit that we've left for rounding.
+        significand2 += significand2 & 1;
+        significand2 >>= 1;
+
+        // Here, we are addressing a scenario in which the original number was subnormal, but it became normal after
+        // rounding up. For example, when we are parsing 2.2250738585072013e-308 before rounding and removing the
+        // least significant bit significand2 = 0x3fffffffffffff and exp2 = -1023. After rounding, we get
+        // significand2 = 0x10000000000000, which is the significand of the smallest normal number.
+        exp2 = (significand2 < (1L << 52)) ? IEEE64_SUBNORMAL_EXPONENT : IEEE64_MIN_FINITE_NUMBER_EXPONENT;
         return toDouble(negative, significand2, exp2);
     }
 

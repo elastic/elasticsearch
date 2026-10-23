@@ -10,6 +10,7 @@
 package org.elasticsearch.index;
 
 import org.apache.logging.log4j.Level;
+import org.apache.lucene.index.IndexWriter;
 import org.elasticsearch.Build;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
@@ -27,8 +28,10 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.search.vectors.PostFilterKnnQuery;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.index.IndexVersionUtils;
@@ -544,6 +547,20 @@ public class IndexSettingsTests extends ESTestCase {
         assertEquals(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY).intValue(), settings.getMaxResultWindow());
     }
 
+    public void testPostFilterSelectivityThresholdIsDynamic() {
+        String key = DenseVectorFieldMapper.POST_FILTER_SELECTIVITY_THRESHOLD.getKey();
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).put(key, 0.5f).build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertEquals(0.5f, settings.getPostFilterSelectivityThreshold(), 0f);
+        settings.updateIndexMetadata(newIndexMeta("index", Settings.builder().put(key, 1.0f).build()));
+        assertEquals(1.0f, settings.getPostFilterSelectivityThreshold(), 0f);
+        settings.updateIndexMetadata(newIndexMeta("index", Settings.EMPTY));
+        assertEquals(PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD, settings.getPostFilterSelectivityThreshold(), 0f);
+    }
+
     public void testMaxInnerResultWindow() {
         IndexMetadata metadata = newIndexMeta(
             "index",
@@ -849,6 +866,65 @@ public class IndexSettingsTests extends ESTestCase {
         assertThat(error.getMessage(), equalTo("final index setting [index.soft_deletes.enabled], not updateable"));
     }
 
+    public void testUpdateNonIndexedFieldMaxValueLengthFails() {
+        IndexScopedSettings settings = new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+        IllegalArgumentException error = expectThrows(
+            IllegalArgumentException.class,
+            () -> settings.updateSettings(
+                Settings.builder().put(IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.getKey(), "20mb").build(),
+                Settings.builder(),
+                Settings.builder(),
+                "index"
+            )
+        );
+        assertThat(error.getMessage(), equalTo("final index setting [index.mapping.non_indexed_field.max_value_length], not updateable"));
+    }
+
+    public void testNonIndexedFieldMaxValueLengthSetting() {
+        assertThat(
+            newIndexSettings(newIndexMeta("index", Settings.EMPTY), Settings.EMPTY).getNonIndexedFieldMaxValueLength(),
+            equalTo(1024 * 1024)
+        );
+        Settings custom = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.getKey(), "2mb")
+            .build();
+        assertThat(
+            newIndexSettings(newIndexMeta("index", custom), Settings.EMPTY).getNonIndexedFieldMaxValueLength(),
+            equalTo(2 * 1024 * 1024)
+        );
+
+        Settings belowTermLimit = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.getKey(), IndexWriter.MAX_TERM_LENGTH - 1 + "b")
+            .build();
+        expectThrows(IllegalArgumentException.class, () -> IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.get(belowTermLimit));
+    }
+
+    public void testNonIndexedFieldMaxValueLengthRequiresColumnarMode() {
+        IndexMode nonColumnarMode = randomFrom(IndexMode.STANDARD, IndexMode.LOGSDB);
+        Settings explicit = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), nonColumnarMode.getName())
+            .put(IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.getKey(), "2mb")
+            .build();
+        IllegalArgumentException error = expectThrows(
+            IllegalArgumentException.class,
+            () -> IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.get(explicit)
+        );
+        assertThat(
+            error.getMessage(),
+            equalTo(
+                "The setting [index.mapping.non_indexed_field.max_value_length] is only permitted when [index.mode] is a columnar "
+                    + "index mode. Current mode: ["
+                    + nonColumnarMode.getName()
+                    + "]."
+            )
+        );
+
+        Settings defaulted = Settings.builder().put(IndexSettings.MODE.getKey(), nonColumnarMode.getName()).build();
+        assertThat(IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.get(defaulted), equalTo(ByteSizeValue.ofMb(1)));
+    }
+
     public void testSoftDeletesDefaultSetting() {
         // enabled by default on 7.0+ or later
         IndexVersion createdVersion = IndexVersionUtils.randomCompatibleVersion();
@@ -926,6 +1002,7 @@ public class IndexSettingsTests extends ESTestCase {
         IndexMetadata idxMetaData = newIndexMeta("test", settings);
         IndexMetadataVerifier indexMetadataVerifier = new IndexMetadataVerifier(
             Settings.EMPTY,
+            null,
             null,
             xContentRegistry(),
             new MapperRegistry(

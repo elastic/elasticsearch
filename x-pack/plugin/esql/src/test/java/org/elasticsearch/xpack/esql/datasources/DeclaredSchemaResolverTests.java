@@ -11,11 +11,13 @@ import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping.Dynamic;
 import org.elasticsearch.cluster.metadata.DatasetMapping.Mappings;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -25,6 +27,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 public class DeclaredSchemaResolverTests extends ESTestCase {
 
@@ -34,6 +37,38 @@ public class DeclaredSchemaResolverTests extends ESTestCase {
 
     private static ReferenceAttribute attr(String name, DataType type) {
         return new ReferenceAttribute(Source.EMPTY, null, name, type);
+    }
+
+    public void testDeclaredWidthOverCapIsRefused() {
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("a", new DatasetFieldMapping("long", null));
+        props.put("b", new DatasetFieldMapping("long", null));
+        props.put("c", new DatasetFieldMapping("long", null));
+
+        DeclaredSchemaResolver.checkDeclaredWidth(mapping(props), 3);
+        DeclaredSchemaResolver.checkDeclaredWidth(null, 1);
+        ExternalClientException e = expectThrows(
+            ExternalClientException.class,
+            () -> DeclaredSchemaResolver.checkDeclaredWidth(mapping(props), 2)
+        );
+        assertThat(e.getMessage(), containsString("declares [3] columns"));
+        assertThat(e.getMessage(), containsString("raise [esql.external.schema_max_fields]"));
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+    }
+
+    /** At the ceiling raising the cap is refused too, so the refusal does not suggest it. */
+    public void testDeclaredWidthOverCeilingDoesNotSuggestRaisingTheCap() {
+        int ceiling = ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS;
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        for (int i = 0; i <= ceiling; i++) {
+            props.put("c" + i, new DatasetFieldMapping("long", null));
+        }
+        ExternalClientException e = expectThrows(
+            ExternalClientException.class,
+            () -> DeclaredSchemaResolver.checkDeclaredWidth(mapping(props), ceiling)
+        );
+        assertThat(e.getMessage(), containsString("declare fewer columns"));
+        assertThat(e.getMessage(), not(containsString("raise")));
     }
 
     public void testOverlayNonStrictRenamesAndRetypesDeclaredColumnsOnly() {
@@ -73,22 +108,43 @@ public class DeclaredSchemaResolverTests extends ESTestCase {
         assertTrue(e.getMessage(), e.getMessage().contains("duplicate column [y]"));
     }
 
-    public void testOverlayNonStrictErrorsOnDeclaredColumnMissingFromSource() {
+    /**
+     * A declared column absent from the inferred schema is kept at its declared type and reported in
+     * {@link DeclaredSchemaResolver.Overlaid#absent()}, whether the schema was sampled (a sparse field the sample did
+     * not reach) or is complete (a column the source does not carry, which reads null with a warning).
+     */
+    public void testOverlayNonStrictKeepsADeclaredColumnMissingFromTheInferredSchema() {
         List<Attribute> inferred = List.of(attr("a", DataType.KEYWORD));
         Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
-        props.put("b", new DatasetFieldMapping("long", null)); // 'b' is not in the inferred source
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> DeclaredSchemaResolver.overlayNonStrict(inferred, mapping(props))
-        );
-        assertTrue(e.getMessage(), e.getMessage().contains("b"));
+        props.put("b", new DatasetFieldMapping("long", null)); // 'b' is not in the inferred schema
+
+        DeclaredSchemaResolver.Overlaid o = DeclaredSchemaResolver.overlayNonStrict(inferred, mapping(props));
+
+        assertEquals(List.of("a", "b"), o.output().stream().map(Attribute::name).toList());
+        assertEquals(DataType.LONG, o.output().get(1).dataType());
+        assertEquals(List.of("a", "b"), o.fileSchema().stream().map(Attribute::name).toList());
+        assertThat("absent must carry the missing declared column", o.absent(), hasSize(1));
+        assertEquals("b", o.absent().get(0).name());
+        assertEquals(DataType.LONG, o.absent().get(0).dataType());
+    }
+
+    /** Lenient (per-file) overlay skips a declared column the file lacks; the caller decides what that file carries. */
+    public void testOverlayNonStrictLenientSkipsADeclaredColumnMissingFromTheFile() {
+        List<Attribute> inferred = List.of(attr("a", DataType.KEYWORD));
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("b", new DatasetFieldMapping("long", null));
+
+        DeclaredSchemaResolver.Overlaid o = DeclaredSchemaResolver.overlayNonStrict(inferred, mapping(props), true);
+
+        assertEquals(List.of("a"), o.output().stream().map(Attribute::name).toList());
+        assertThat(o.absent(), hasSize(0));
     }
 
     public void testOverlayNonStrictNoMappingsPassesThrough() {
         List<Attribute> inferred = List.of(attr("a", DataType.KEYWORD));
         DeclaredSchemaResolver.Overlaid o = DeclaredSchemaResolver.overlayNonStrict(
             inferred,
-            new DatasetMapping(new Mappings(Dynamic.TRUE, Map.of(), "row_id"))
+            new DatasetMapping(new Mappings(Dynamic.TRUE, Map.of()))
         );
         assertSame(inferred, o.output());
         assertSame(inferred, o.fileSchema());
@@ -127,9 +183,9 @@ public class DeclaredSchemaResolverTests extends ESTestCase {
     }
 
     public void testNoMappingsYieldsEmpty() {
-        DatasetMapping roleOnly = new DatasetMapping(new Mappings(Dynamic.TRUE, Map.of(), "row_id"));
-        assertTrue(DeclaredSchemaResolver.declaredAttributes(roleOnly).isEmpty());
-        assertTrue(DeclaredSchemaResolver.renameMap(roleOnly).isEmpty());
+        DatasetMapping noProperties = new DatasetMapping(new Mappings(Dynamic.TRUE, Map.of()));
+        assertTrue(DeclaredSchemaResolver.declaredAttributes(noProperties).isEmpty());
+        assertTrue(DeclaredSchemaResolver.renameMap(noProperties).isEmpty());
         assertTrue(DeclaredSchemaResolver.declaredAttributes(null).isEmpty());
         assertTrue(DeclaredSchemaResolver.renameMap(null).isEmpty());
     }

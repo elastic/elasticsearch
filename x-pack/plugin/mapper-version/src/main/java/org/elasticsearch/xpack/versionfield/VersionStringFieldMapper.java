@@ -68,7 +68,6 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlo
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.versionfield.VersionEncoder.EncodedVersion;
 
@@ -415,14 +414,12 @@ public class VersionStringFieldMapper extends FieldMapper {
 
     @Override
     protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
-        // version fields have no store/script/null_value/ignore_malformed/dimension parameters
-        // and are always both indexed and doc-valued, so only copy_to needs gating.
-        // TIME_SERIES is allowed as well: the emitted doc-values field is always plain
-        // SortedSetDocValuesField.TYPE (see mapColumnBatch and parseCreateField), with no
+        // version fields have no store/null_value/ignore_malformed/dimension parameters and are always
+        // both indexed and doc-valued. script, copy_to, mode gate, and legacy-version gate are handled
+        // by the base class. TIME_SERIES is allowed by the mode gate: the emitted doc-values field is
+        // always plain SortedSetDocValuesField.TYPE (see mapColumnBatch and parseCreateField), with no
         // doc-values-skipper variant, so the Lucene output does not vary with the index mode.
-        return (indexSettings.getMode().isStrictColumnar() || indexSettings.getMode().isTsdb())
-            && hasScript() == false
-            && copyTo().copyToFields().isEmpty();
+        return true;
     }
 
     /**
@@ -464,8 +461,7 @@ public class VersionStringFieldMapper extends FieldMapper {
         final int docCount = ctx.docCount();
         // retainValues=false: every value is encoded within one loop iteration, before the cursor advances.
         final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(source, false);
-        // TODO: make the batch supply a recycler to wire up recycling instead of NON_RECYCLING_INSTANCE.
-        try (EscfColumnBuilder encoded = new EscfColumnBuilder(CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE)) {
+        try (EscfColumnBuilder encoded = new EscfColumnBuilder(CollisionPolicy.MERGE, ctx.recycler())) {
             encoded.lockScalar(EscfColumnKind.STRING);
 
             int doc;

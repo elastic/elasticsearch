@@ -27,13 +27,16 @@ public class VectorScorerBFloat16BulkOperationBenchmarkTests extends BenchmarkTe
     }
 
     private VectorScorerBFloat16BulkOperationBenchmark newBench() {
-        var vectorData = VectorScorerBFloat16BulkOperationBenchmark.VectorData.create(dims, 1000, 200, random());
+        // Seed 10% near-duplicates so the assertions also cover the bf16 x bf16 Euclidean recompute path.
+        int nearDuplicatePercent = 10;
+        var vectorData = VectorScorerBFloat16BulkOperationBenchmark.VectorData.create(dims, 1000, 200, nearDuplicatePercent, random());
         var bench = new VectorScorerBFloat16BulkOperationBenchmark();
         bench.function = function;
         bench.queryType = queryType;
         bench.dims = dims;
         bench.numVectors = 1000;
         bench.bulkSize = 200;
+        bench.nearDuplicatePercent = nearDuplicatePercent;
         bench.setup(vectorData);
         return bench;
     }
@@ -41,16 +44,7 @@ public class VectorScorerBFloat16BulkOperationBenchmarkTests extends BenchmarkTe
     public void testBulk() {
         var bench = newBench();
         try {
-            assertArrayEquals(function + "/" + queryType, bench.scoreSequential(), bench.scoreBulk(), 1e-3f);
-        } finally {
-            bench.teardown();
-        }
-    }
-
-    public void testBulkOffsets() {
-        var bench = newBench();
-        try {
-            assertArrayEquals(function + "/" + queryType, bench.scoreRandom(), bench.scoreBulkOffsets(), 1e-3f);
+            assertArrayEquals(function + "/" + queryType, bench.scoreSequential().clone(), bench.scoreBulk(), 1e-3f);
         } finally {
             bench.teardown();
         }
@@ -59,7 +53,7 @@ public class VectorScorerBFloat16BulkOperationBenchmarkTests extends BenchmarkTe
     public void testBulkSparse() {
         var bench = newBench();
         try {
-            assertArrayEquals(function + "/" + queryType, bench.scoreRandom(), bench.scoreBulkSparse(), 1e-3f);
+            assertArrayEquals(function + "/" + queryType, bench.scoreRandom().clone(), bench.scoreBulkSparse(), 1e-3f);
         } finally {
             bench.teardown();
         }

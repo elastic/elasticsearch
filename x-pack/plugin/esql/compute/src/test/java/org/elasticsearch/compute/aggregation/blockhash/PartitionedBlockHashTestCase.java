@@ -12,11 +12,15 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SumIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntArrayBlock;
+import org.elasticsearch.compute.data.IntBigArrayBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -38,6 +42,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -84,6 +89,37 @@ public abstract class PartitionedBlockHashTestCase extends ComputeTestCase {
         }
     }
 
+    public final void testEstimatedBytesForPartitioningResetsOnClear() {
+        List<BlockHash.GroupSpec> groups = groups();
+        BlockFactory blockFactory = blockFactory();
+        List<Page> pages = randomPages(blockFactory, groups);
+        try (
+            PartitionedBlockHash hash = newBlockHash(groups, blockFactory, 1024);
+            GroupingAggregatorFunction.AddInput addInput = new GroupingAggregatorFunction.AddInput() {
+                @Override
+                public void add(int positionOffset, IntArrayBlock groupIds) {}
+
+                @Override
+                public void add(int positionOffset, IntBigArrayBlock groupIds) {}
+
+                @Override
+                public void add(int positionOffset, IntVector groupIds) {}
+
+                @Override
+                public void close() {}
+            }
+        ) {
+            for (Page page : pages) {
+                hash.add(page, addInput);
+            }
+            assertThat(hash.estimatedBytesForPartitioning(), greaterThan(0L));
+            hash.clear();
+            assertThat(hash.estimatedBytesForPartitioning(), equalTo(0L));
+        } finally {
+            Releasables.close(pages);
+        }
+    }
+
     private List<BlockHash.GroupSpec> groups() {
         List<ElementType> keyTypes = keyTypes();
         List<BlockHash.GroupSpec> groups = new ArrayList<>(keyTypes.size());
@@ -104,36 +140,19 @@ public abstract class PartitionedBlockHashTestCase extends ComputeTestCase {
             Block[] blocks = new Block[groups.size() + 1];
             int positionCount = between(1, 1_000);
             for (int g = 0; g < groups.size(); g++) {
-                BlockHash.GroupSpec group = groups.get(g);
+                boolean vector = randomBoolean();
                 blocks[g] = RandomBlock.randomBlock(
                     blockFactory,
-                    group.elementType(),
+                    groups.get(g).elementType(),
                     positionCount,
-                    randomBoolean(),
+                    vector == false && randomBoolean(),
                     1,
-                    between(1, 3),
-                    1,
-                    between(1, 3)
+                    vector ? 1 : between(1, 3),
+                    0,
+                    vector ? 0 : between(0, 3)
                 ).block();
-
             }
-            try (var sums = blockFactory.newIntBlockBuilder(positionCount)) {
-                for (int p = 0; p < positionCount; p++) {
-                    int valueCount = between(0, 2);
-                    if (valueCount == 0) {
-                        sums.appendNull();
-                    } else if (valueCount == 1) {
-                        sums.appendInt(randomInt());
-                    } else {
-                        sums.beginPositionEntry();
-                        for (int v = 0; v < valueCount; v++) {
-                            sums.appendInt(randomInt());
-                        }
-                        sums.endPositionEntry();
-                    }
-                }
-                blocks[groups.size()] = sums.build();
-            }
+            blocks[groups.size()] = RandomBlock.randomBlock(blockFactory, ElementType.INT, positionCount, false, 0, 2, 0, 0).block();
             pages.add(new Page(blocks));
         }
         return pages;
@@ -174,9 +193,9 @@ public abstract class PartitionedBlockHashTestCase extends ComputeTestCase {
                 randomDouble(),
                 randomIntBetween(128, 4096),
                 null,
-                null,
                 driverContext,
-                parallelConfig
+                parallelConfig,
+                randomBoolean()
             );
             try (
                 var source = new CannedSourceOperator(CannedSourceOperator.deepCopyOf(driverContext.blockFactory(), inputPages).iterator());

@@ -63,7 +63,7 @@ public final class PlanTimeProfile implements Writeable, ToXContentObject {
             builder.field("physical_optimization_nanos", physicalOptimizationNanos);
         }
         if (reductionPlanNanos > 0) {
-            builder.field("reduction_nanos", physicalOptimizationNanos);
+            builder.field("reduction_nanos", reductionPlanNanos);
         }
         return builder;
     }

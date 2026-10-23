@@ -24,6 +24,10 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
     def setup() {
         // required for JarHell to work
         subProject(":libs:core") << "apply plugin:'java'"
+        // Provide these stub projects so this fixture exercises the internal-build path that
+        // swaps PluginBuildPlugin's default external coordinates for local project dependencies.
+        subProject(":server") << "apply plugin:'java'"
+        subProject(":test:framework") << "apply plugin:'java'"
     }
 
     def "project with plugin applied is considered for maven central publication"() {
@@ -60,13 +64,23 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
 
         buildFile << """
             plugins {
+                id 'elasticsearch.global-build-info'
                 id 'com.gradleup.nmcp.aggregation'
+            }
+
+            // nmcp 1.x resolves its `nmcp-tasks` worker artifact (classloader isolation) at
+            // execution time, so the aggregating project needs a repository. The real ES build
+            // gets this from the `elasticsearch.repositories` plugin.
+            repositories {
+                mavenCentral()
             }
 
             version = "1.0"
             group = 'org.acme'
             description = "custom project description"
             nmcpAggregation {
+              // keep publishing the non-required `.sha256` checksums (nmcp 1.6.x drops them by default)
+              publishAllChecksums = true
               centralPortal {
                 username = 'acme'
                 password = 'acmepassword'
@@ -79,10 +93,10 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
         """
 
         when:
-        def result = gradleRunner(':zipAggregation').build()
+        def result = gradleRunner(':nmcpZipAggregation').build()
 
         then:
-        result.task(":zipAggregation").outcome == TaskOutcome.SUCCESS
+        result.task(":nmcpZipAggregation").outcome == TaskOutcome.SUCCESS
         file("build/nmcp/zip/aggregation.zip").exists()
 
 
@@ -244,6 +258,7 @@ def "dra snapshot aggregation renames timestamped snapshot filenames and generat
 
     buildFile << """
         plugins {
+            id 'elasticsearch.global-build-info'
             id 'com.gradleup.nmcp.aggregation'
             id 'elasticsearch.dra-maven-aggregation'
         }
@@ -266,9 +281,9 @@ def "dra snapshot aggregation renames timestamped snapshot filenames and generat
 
     then:
     result.task(":prepareDraSnapshotMavenAggregation").outcome == TaskOutcome.SUCCESS
-    // The DRA path reuses zipAggregation's copy-spec source, so the aggregation
+    // The DRA path reuses nmcpZipAggregation's copy-spec source, so the aggregation
     // zip itself is never built here — nothing is zipped on the DRA path.
-    result.task(":zipAggregation") == null
+    result.task(":nmcpZipAggregation") == null
 
     // The DRA task emits an exploded maven tree (not a zip): the buildkite
     // publish step uploads the directory directly, so re-zipping here just to
@@ -310,6 +325,7 @@ def "dra release aggregation is a plain sync without maven-metadata"() {
 
     buildFile << """
         plugins {
+            id 'elasticsearch.global-build-info'
             id 'com.gradleup.nmcp.aggregation'
             id 'elasticsearch.dra-maven-aggregation'
         }
@@ -332,7 +348,7 @@ def "dra release aggregation is a plain sync without maven-metadata"() {
 
     then:
     result.task(":prepareDraSnapshotMavenAggregation").outcome == TaskOutcome.SUCCESS
-    result.task(":zipAggregation") == null
+    result.task(":nmcpZipAggregation") == null
 
     def draDir = file("build/dra-maven-aggregation")
     def draNames = []

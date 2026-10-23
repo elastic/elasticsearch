@@ -15,7 +15,7 @@ apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.foreign-library'
 apply plugin: 'elasticsearch.foreign-api'
 apply plugin: 'elasticsearch.native-library-build'
-apply plugin: 'elasticsearch.jmh'
+apply plugin: 'elasticsearch.benchmark'
 
 dependencies {
   api project(':libs:foreign-library')
@@ -23,9 +23,7 @@ dependencies {
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'simdjson'
   }
-  testImplementation(testFixtures(project(':libs:simdvec'))) {
-    exclude group: 'org.elasticsearch', module: 'simdjson'
-  }
+  testImplementation project(':libs:foreign-library:testing')
 
   // SimdJsonParserBenchmark measures simdjson through the EscfEncoder pipeline, so the benchmark
   // source set needs :server for the escf, sourcebatch and bytes classes.
@@ -84,16 +82,31 @@ tasks.named('dependencyLicenses').configure {
 // SIMDJSON_NATIVE_BUILD=host to build the current platform only. Unset, the published artifact is used.
 nativeLibraryBuild {
   modeEnvironmentVariable = 'SIMDJSON_NATIVE_BUILD'
-  sourceDir = layout.projectDirectory.dir('native')
-  sources = ['src/**', 'Makefile']
-  toolchainImage = 'docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:6'
+  workingDir = layout.projectDirectory.dir('native')
+  sources = ['native/src/**', 'native/Makefile']
+  toolchainImage = 'docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:8'
   forwardedEnvironment = ['CLANG_CXX']
+  // The platforms libsimdjson is built for. Other hosts (Intel Mac) still consume the artifact but
+  // fall back to the Java implementation when they don't have a platform-specific one.
+  supportedPlatforms = ['darwin-aarch64', 'linux-aarch64', 'linux-x64', 'windows-x64']
+
+  // Reuse the published artifact whenever these sources already have one, addressed by their hash.
+  artifactRepositoryUrl = 'https://artifactory.elastic.dev/artifactory/elasticsearch-native'
+  artifactName = 'libsimdjson'
+  publishCredentialEnvironmentVariable = 'ARTIFACTORY_API_KEY'
 
   dockerCommand = ['make', 'all']
   collect = [
-    'build/libs/simdjson/shared/aarch64/libsimdjson.dylib': 'darwin-aarch64/libsimdjson.dylib',
-    'build/libs/simdjson/shared/aarch64/libsimdjson.so'   : 'linux-aarch64/libsimdjson.so',
-    'build/libs/simdjson/shared/amd64/libsimdjson.so'     : 'linux-x64/libsimdjson.so',
+    'build/libs/simdjson/shared/aarch64/libsimdjson.dylib' : 'darwin-aarch64/libsimdjson.dylib',
+    'build/libs/simdjson/shared/aarch64/libsimdjson.so'    : 'linux-aarch64/libsimdjson.so',
+    'build/libs/simdjson/shared/amd64/libsimdjson.so'      : 'linux-x64/libsimdjson.so',
+    'build/libs/simdjson/shared/windows-x64/simdjson.dll'  : 'windows-x64/simdjson.dll',
+  ]
+  debugInfoCollect = [
+    'build/libs/simdjson/shared/aarch64/libsimdjson.dylib.dSYM' : 'darwin-aarch64/libsimdjson.dylib.dSYM',
+    'build/libs/simdjson/shared/aarch64/libsimdjson.so.debug'   : 'linux-aarch64/libsimdjson.so.debug',
+    'build/libs/simdjson/shared/amd64/libsimdjson.so.debug'     : 'linux-x64/libsimdjson.so.debug',
+    'build/libs/simdjson/shared/windows-x64/simdjson.pdb'       : 'windows-x64/simdjson.pdb',
   ]
 
   hostCommand { outputDir -> ['make', 'local-install', "DEST=${outputDir.asFile}"] }

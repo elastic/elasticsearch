@@ -185,8 +185,7 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
 
     private boolean skipOptimisingAgg(AggregateFunction af) {
         // do not replace nested aggregates
-        if (containsAggregate(af.field())
-            || af.parameters().stream().anyMatch(ReplaceAggregateNestedExpressionWithEval::containsAggregate)) {
+        if (af.fields().stream().anyMatch(ReplaceAggregateNestedExpressionWithEval::containsAggregate)) {
             return true;
         }
         // check if the field or any parameter needs to be extracted into an eval

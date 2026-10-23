@@ -1004,8 +1004,12 @@ public class SearchExecutionContextTests extends ESTestCase {
         SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext("uuid", null), breaker);
 
         context.accountScriptFieldMemory(100L, "field", null);
-        assertEquals(100L, breaker.used);
-        assertEquals("without a searcher the request-scoped pool must take the memory", 100L, context.getQueryConstructionMemoryUsed());
+        assertEquals("the memory is charged to the breaker exactly once", 100L, breaker.used);
+        assertEquals(
+            "the request-scoped pool must record the same single charge so it can refund it",
+            100L,
+            context.getQueryConstructionMemoryUsed()
+        );
 
         context.releaseQueryConstructionMemory();
         assertEquals(0L, breaker.used);
@@ -1017,23 +1021,31 @@ public class SearchExecutionContextTests extends ESTestCase {
             try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(null))) {
                 writer.addDocument(new Document());
             }
-            try (
-                DirectoryReader reader = DirectoryReader.open(directory);
-                ContextIndexSearcher searcher = newContextIndexSearcher(reader)
-            ) {
-                TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
-                SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(searcher), breaker);
+            TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                SearchExecutionContext context;
+                try (ContextIndexSearcher searcher = newContextIndexSearcher(reader)) {
+                    context = new SearchExecutionContext(createSearchExecutionContext(searcher), breaker);
 
-                context.accountScriptFieldMemory(100L, "field", reader.leaves().get(0));
-                assertEquals(100L, breaker.used);
+                    context.accountScriptFieldMemory(100L, "field", reader.leaves().get(0));
+                    assertEquals("the memory is charged to the breaker exactly once", 100L, breaker.used);
+
+                    // unlike a searcher with a breaker, this searcher cannot release per leaf: scoring the leaf and
+                    // closing the searcher must both leave the charge in place
+                    searcher.search(Queries.ALL_DOCS_INSTANCE, new CountingCollectorManager());
+                    assertEquals("a searcher without a breaker must not own the charge", 100L, breaker.used);
+                }
+                assertEquals("closing a searcher without a breaker must not release the charge", 100L, breaker.used);
+
+                // the request-scoped pool owns the charge instead, and is the only thing that can refund it
                 assertEquals(
-                    "a searcher without a breaker cannot release per leaf, so the pool must take the memory",
+                    "the request-scoped pool must record the same single charge so it can refund it",
                     100L,
                     context.getQueryConstructionMemoryUsed()
                 );
-
                 context.releaseQueryConstructionMemory();
                 assertEquals(0L, breaker.used);
+                assertEquals(0L, context.getQueryConstructionMemoryUsed());
             }
         }
     }

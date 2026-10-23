@@ -1593,7 +1593,8 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
      * A long term on a date field fails in the date parser, which cuts it in the error.
      */
     public void testToQueryLongIllegalDateIsTruncatedInShardFailure() {
-        String value = "x".repeat(randomIntBetween(100_000, 200_000));
+        // Much longer than the stack trace the reason holds
+        String value = "x".repeat(100_000);
         SearchExecutionContext context = createSearchExecutionContext();
         QueryShardException e = expectThrows(
             QueryShardException.class,

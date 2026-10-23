@@ -30,7 +30,6 @@ import static java.util.Map.entry;
 import static org.elasticsearch.core.Strings.truncateForError;
 
 class JavaDateFormatter implements DateFormatter {
-
     @SuppressWarnings("unchecked")
     private static <T extends DateTimeParser> T defaultRoundUp(T parser) {
         if (parser instanceof JavaTimeDateTimeParser jtp) {

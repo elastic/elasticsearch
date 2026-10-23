@@ -341,7 +341,8 @@ public final class MergePolicyConfig {
     }
 
     void setMaxMergesAtOnce(int maxMergeAtOnce) {
-        // TODO: LUCENE11 TieredMergePolicy.setMaxMergeAtOnce was removed; setting kept for BWC
+        // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/163020):
+        // TieredMergePolicy.setMaxMergeAtOnce was removed; setting kept for BWC
     }
 
     void setFloorSegmentSetting(ByteSizeValue floorSegementSetting) {

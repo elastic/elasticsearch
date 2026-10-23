@@ -157,7 +157,8 @@ public class MergePolicyConfigTests extends ESTestCase {
             0.001
         );
 
-        // TODO: LUCENE11 max_merge_at_once is a no-op; drop this update when the setting is removed
+        // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/163020):
+        // max_merge_at_once is a no-op; drop this update when the setting is removed
         indexSettings.updateIndexMetadata(
             newIndexMeta(
                 "index",

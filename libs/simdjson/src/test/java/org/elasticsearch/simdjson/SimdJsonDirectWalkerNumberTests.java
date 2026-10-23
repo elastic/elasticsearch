@@ -373,6 +373,55 @@ public class SimdJsonDirectWalkerNumberTests extends SimdJsonTestCase {
         );
     }
 
+    // ---- Explicit exponents larger than a long ----
+
+    // Accumulating the exponent in a long wrapped for 20+ digit exponents: 2^64 + 1 became 1, so
+    // 1e18446744073709551617 parsed as 10.0 instead of overflowing to infinity.
+    public void testExponentLargerThanLongDoesNotWrap() {
+        for (int padding : new int[] { 0, 32, 64, 128 }) {
+            for (String huge : new String[] {
+                "18446744073709551616", // 2^64, wrapped to 0
+                "18446744073709551617", // 2^64 + 1, wrapped to 1
+                "18446744073709551626", // 2^64 + 10, wrapped to 10
+                "99999999999999999999",
+                "100000000000000000000000000000" }) {
+                assertAcceptedAtPadding(padding, "{\"n\":1e" + huge + "}", "double(n=Infinity,");
+                assertAcceptedAtPadding(padding, "{\"n\":1e+" + huge + "}", "double(n=Infinity,");
+                assertAcceptedAtPadding(padding, "{\"n\":1.5E" + huge + "}", "double(n=Infinity,");
+                assertAcceptedAtPadding(padding, "{\"n\":-1e" + huge + "}", "double(n=-Infinity,");
+                assertAcceptedAtPadding(padding, "{\"n\":1e-" + huge + "}", "double(n=0.0,");
+                assertAcceptedAtPadding(padding, "{\"n\":-1e-" + huge + "}", "double(n=-0.0,");
+                assertAcceptedAtPadding(padding, "{\"n\":0e" + huge + "}", "double(n=0.0,");
+                assertAcceptedAtPadding(
+                    padding,
+                    "{\"a\":[1e" + huge + ",1e-" + huge + "]}",
+                    "startArray(a)",
+                    "arrayElemDouble(Infinity,",
+                    "arrayElemDouble(0.0,",
+                    "endArray()"
+                );
+            }
+        }
+    }
+
+    // Leading zeros in a long exponent do not count towards its magnitude.
+    public void testExponentWithManyLeadingZerosAccepted() {
+        assertAcceptedAtAllPaddings("{\"n\":1e000000000000000000000000005}", "double(n=100000.0,");
+        assertAcceptedAtAllPaddings("{\"n\":1e-000000000000000000000000005}", "double(n=1.0E-5,");
+    }
+
+    // Like assertAcceptedAtAllPaddings, for a single padding.
+    private void assertAcceptedAtPadding(int padding, String json, String... expectedEventPrefixes) {
+        List<String> events = walkAndRecord(json, padding).events;
+        assertEquals("padding=" + padding + " json=" + json + " events: " + events, expectedEventPrefixes.length, events.size());
+        for (int i = 0; i < expectedEventPrefixes.length; i++) {
+            assertTrue(
+                "padding=" + padding + " json=" + json + " event [" + i + "]: " + events.get(i),
+                events.get(i).startsWith(expectedEventPrefixes[i])
+            );
+        }
+    }
+
     // ---- Other malformed-number shapes are rejected, not silently mis-parsed ----
 
     // Verifies json is rejected with a message containing expectedReason, not some other error .
@@ -459,5 +508,47 @@ public class SimdJsonDirectWalkerNumberTests extends SimdJsonTestCase {
         assertTrue(events.get(0).startsWith("double(n=1.5E10,"));
 
         assertTrue(walkJson("{\"n\":1.5e-5}").get(0).startsWith("double(n=1.5E-5,"));
+    }
+
+    // ---- Bytes between '9' and 'A' (':' to '?') are not digits ----
+
+    // Verifies json is rejected at every buffer padding. ':' is a structural character, so the number
+    // itself ends there and the walker rejects it at the separator instead, with a different message;
+    // the other bytes in the range are not structural and are rejected as part of the number.
+    private void assertNonDigitRejected(char junk, String json) {
+        if (junk == ':') {
+            for (int padding : new int[] { 0, 32, 64, 128 }) {
+                expectThrows(JsonParsingException.class, () -> walkAndRecord(json, padding));
+            }
+        } else {
+            assertInvalidNumberRejected(json, "Unexpected character after number");
+        }
+    }
+
+    // The SWAR digit check must reject ':' ';' '<' '=' '>' '?' (0x3A..0x3F) wherever they fall in
+    // the 8-byte word: they have a zero high nibble once 0x30 is subtracted, which a nibble-only
+    // test mistakes for a digit. Lengths 1..9 put the byte at every position of the first word
+    // (1 and 2 digits exercise the short fast path, 7 the all-digits-but-one word) and just past it.
+    public void testNonDigitBetweenNineAndLetterAfterDigitsRejected() {
+        for (char junk : new char[] { ':', ';', '<', '=', '>', '?' }) {
+            for (int digits = 1; digits <= 9; digits++) {
+                String number = "1234567890".substring(0, digits) + junk;
+                assertNonDigitRejected(junk, "{\"n\":" + number + "}");
+                assertNonDigitRejected(junk, "{\"n\":" + number + ",\"m\":1}");
+                assertNonDigitRejected(junk, "{\"n\":-" + number + "}");
+                assertNonDigitRejected(junk, "{\"a\":[" + number + "]}");
+                assertNonDigitRejected(junk, "{\"a\":[1," + number + "]}");
+            }
+        }
+    }
+
+    // The same byte followed by more digits must not be absorbed into the value either.
+    public void testNonDigitBetweenNineAndLetterInsideDigitsRejected() {
+        for (char junk : new char[] { ':', ';', '<', '=', '>', '?' }) {
+            assertNonDigitRejected(junk, "{\"n\":12345678" + junk + "9}");
+            assertNonDigitRejected(junk, "{\"n\":1234567" + junk + "89}");
+            assertNonDigitRejected(junk, "{\"a\":[1234567" + junk + "89]}");
+            assertNonDigitRejected(junk, "{\"n\":1" + junk + "2,\"m\":3}");
+        }
     }
 }

@@ -96,7 +96,7 @@ $$$partition-spec$$$
       - `column`: Binds a column to the key with the same name.
       Also allowed, and not bindings:
       - `lag(column, duration)` / `lead(column, duration)`: Widen the listing window for a column that already has a time-based binding. They do not map a path key.
-    - **Requires:** Each binding key to be a `{name}` placeholder in `partition_path`, when `partition_path` is set. Bindings must name mapping fields, not mapping `path` sources.
+    - **Requires:** Each binding key to be a `{name}` placeholder in `partition_path`, when `partition_path` is set. Bindings must name mapping fields, not the file columns they are renamed from.
     - **Conflicts with:** `partition_detection` set to `none`
     - **Related:** `partition_detection`, `partition_path`
 

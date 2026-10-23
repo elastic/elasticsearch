@@ -306,9 +306,9 @@ public final class PartitionSpec {
     }
 
     /**
-     * PUT alignment: temporal and lag/lead columns must name a mapping field, not a mapping
-     * {@code path}. Naming the path (for example {@code year(start)} while {@code @timestamp} has
-     * {@code path=start}) is a PUT error; bind the logical field. A date / date_nanos field drops
+     * PUT alignment: temporal and lag/lead columns must name a mapping field, not the file column that field is
+     * renamed from. Naming the file column (for example {@code year(start)} while {@code @timestamp} is renamed from
+     * {@code start}) is a PUT error; bind the logical field. A date / date_nanos field drops
      * unused {@code epoch_second}. Identity columns missing from the mapping stay. No mapping, or a
      * mapping with no properties, is a no-op. After alignment the spec is re-parsed so duplicate keys
      * or lag/lead on the same column fail PUT instead of storing a spec that GET cannot PUT again.
@@ -342,19 +342,23 @@ public final class PartitionSpec {
     }
 
     /**
-     * Mapping {@code path} → logical name for fields that rename a physical column. Empty when there
-     * is no mapping. PUT rejects a spec that names the path; query time still warns for stored specs.
+     * File column → logical name, for every mapping field that is renamed from a different file column. Empty when
+     * there is no mapping. PUT rejects a spec that binds the file column; query time still warns for stored specs.
+     * <p>
+     * Keyed on the file column rather than on the key that declared it, so neither message below names a mapping key:
+     * the same rename can arrive as {@code rename_from} or as its former spelling {@code path}, and an error naming
+     * one of them is wrong for a request that used the other.
      */
-    static Map<String, String> pathToLogical(@Nullable DatasetMapping mapping) {
+    static Map<String, String> renameSourceToLogical(@Nullable DatasetMapping mapping) {
         Map<String, DatasetFieldMapping> properties = mappingProperties(mapping);
         if (properties == null) {
             return Map.of();
         }
         Map<String, String> out = new LinkedHashMap<>();
         for (Map.Entry<String, DatasetFieldMapping> entry : properties.entrySet()) {
-            String path = entry.getValue().path();
-            if (path != null && path.equals(entry.getKey()) == false) {
-                out.put(path, entry.getKey());
+            String renameFrom = entry.getValue().renameFrom();
+            if (renameFrom != null && renameFrom.equals(entry.getKey()) == false) {
+                out.put(renameFrom, entry.getKey());
             }
         }
         return out;
@@ -374,15 +378,15 @@ public final class PartitionSpec {
         if (properties == null) {
             return this;
         }
-        Map<String, String> pathToLogical = pathToLogical(mapping);
+        Map<String, String> renameSourceToLogical = renameSourceToLogical(mapping);
         Set<String> logicalNames = properties.keySet();
         List<Field> rewrittenFields = new ArrayList<>(fields.size());
         for (Field field : fields) {
-            rewrittenFields.add(alignField(field, properties, logicalNames, pathToLogical));
+            rewrittenFields.add(alignField(field, properties, logicalNames, renameSourceToLogical));
         }
         Map<String, Window> rewrittenWindows = new LinkedHashMap<>();
         for (Map.Entry<String, Window> entry : windows.entrySet()) {
-            String column = resolveMappedColumn(entry.getKey(), logicalNames, pathToLogical, false);
+            String column = resolveMappedColumn(entry.getKey(), logicalNames, renameSourceToLogical, false);
             putRewrittenWindow(rewrittenWindows, column, entry.getValue());
         }
         return parse(new PartitionSpec(rewrittenFields, rewrittenWindows).toSpecString());
@@ -428,10 +432,10 @@ public final class PartitionSpec {
         Field field,
         Map<String, DatasetFieldMapping> properties,
         Set<String> logicalNames,
-        Map<String, String> pathToLogical
+        Map<String, String> renameSourceToLogical
     ) {
         boolean identity = field.transform() == Transform.IDENTITY;
-        String column = resolveMappedColumn(field.column(), logicalNames, pathToLogical, identity);
+        String column = resolveMappedColumn(field.column(), logicalNames, renameSourceToLogical, identity);
         Unit unit = field.unit();
         if (identity == false) {
             DatasetFieldMapping declared = properties.get(column);
@@ -445,22 +449,22 @@ public final class PartitionSpec {
     private static String resolveMappedColumn(
         String column,
         Set<String> logicalNames,
-        Map<String, String> pathToLogical,
+        Map<String, String> renameSourceToLogical,
         boolean identity
     ) {
         if (logicalNames.contains(column)) {
             return column;
         }
-        String mapped = pathToLogical.get(column);
+        String mapped = renameSourceToLogical.get(column);
         if (mapped != null) {
             throw new IllegalArgumentException(
                 "["
                     + CONFIG_PARTITION_SPEC
                     + "] column ["
                     + column
-                    + "] is the path of mapping field ["
+                    + "] is the file column that mapping field ["
                     + mapped
-                    + "]; bind ["
+                    + "] is renamed from; bind ["
                     + mapped
                     + "]"
             );
@@ -1398,21 +1402,21 @@ public final class PartitionSpec {
     }
 
     /**
-     * Same as {@link #emitListingNotices(Set, List, Map, Consumer)} plus the BWC path-rename warning
+     * Same as {@link #emitListingNotices(Set, List, Map, Consumer)} plus the BWC rename warning
      * when the spec still names a physical column a mapping field consumed with {@code path}.
      */
     public void emitListingNotices(
         @Nullable Set<String> detectedKeys,
         @Nullable List<PartitionFilterHint> hints,
         @Nullable Map<String, DataType> columnTypes,
-        @Nullable Map<String, String> pathToLogical,
+        @Nullable Map<String, String> renameSourceToLogical,
         Consumer<String> sink
     ) {
         if (isEmpty() || sink == null) {
             return;
         }
         emitIdentityOnDateNotices(hints, columnTypes, sink);
-        emitPathRenameNotices(pathToLogical, sink);
+        emitRenameSourceNotices(renameSourceToLogical, sink);
         if (detectedKeys != null) {
             for (Field field : fields) {
                 if (detectedKeys.contains(field.key()) == false) {
@@ -1498,21 +1502,26 @@ public final class PartitionSpec {
         }
     }
 
-    private void emitPathRenameNotices(@Nullable Map<String, String> pathToLogical, Consumer<String> sink) {
-        if (pathToLogical == null || pathToLogical.isEmpty()) {
+    private void emitRenameSourceNotices(@Nullable Map<String, String> renameSourceToLogical, Consumer<String> sink) {
+        if (renameSourceToLogical == null || renameSourceToLogical.isEmpty()) {
             return;
         }
         Set<String> warned = new LinkedHashSet<>();
         for (Field field : fields) {
-            warnPathRename(field.column(), pathToLogical, warned, sink);
+            warnRenameSource(field.column(), renameSourceToLogical, warned, sink);
         }
         for (String column : windows.keySet()) {
-            warnPathRename(column, pathToLogical, warned, sink);
+            warnRenameSource(column, renameSourceToLogical, warned, sink);
         }
     }
 
-    private static void warnPathRename(String column, Map<String, String> pathToLogical, Set<String> warned, Consumer<String> sink) {
-        String logical = pathToLogical.get(column);
+    private static void warnRenameSource(
+        String column,
+        Map<String, String> renameSourceToLogical,
+        Set<String> warned,
+        Consumer<String> sink
+    ) {
+        String logical = renameSourceToLogical.get(column);
         if (logical == null || warned.add(column) == false) {
             return;
         }
@@ -1523,7 +1532,7 @@ public final class PartitionSpec {
                 + column
                 + "], which mapping field ["
                 + logical
-                + "] renames with path; bind ["
+                + "] is renamed from; bind ["
                 + logical
                 + "]"
         );

@@ -34,7 +34,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  * top-level declaration keys have a home.
  *
  * <p>There are <b>no role designations</b>. A time axis is just a column named {@code @timestamp}, declared as an
- * ordinary rename ({@code "@timestamp": {"type":"date","path":"ts"}}) and recognized by the stack by name — a
+ * ordinary rename ({@code "@timestamp": {"type":"date","rename_from":"ts"}}) and recognized by the stack by name — a
  * "move", not a designation.
  *
  * <p>Like {@link DataSourceReference}, this has no standalone XContent: {@link Dataset#toXContent} emits the

@@ -1,0 +1,6 @@
+area: Health
+issues:
+ - 99415
+pr: 142665
+summary: Log preflight health on master-eligible nodes when no health node exists
+type: bug

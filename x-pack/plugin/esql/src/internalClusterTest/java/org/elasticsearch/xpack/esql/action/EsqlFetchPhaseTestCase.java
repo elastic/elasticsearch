@@ -23,6 +23,7 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -125,6 +126,40 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
         assertLoadedOnlyBeforeTheCut(run, "unique_sort");
         assertFetchedOnly(run, "payload");
         assertFetchedOnly(run, "category");
+    }
+
+    /**
+     * Without a sort, a {@code LIMIT} keeps the first rows that reach the coordinator, so the rows change from run to run.
+     * The fetch loads the columns of the rows it kept, and each row holds the values of its own document.
+     */
+    public void testAPlainLimitFetchesTheColumnsOfTheRowsItKeeps() {
+        Run run = runQuery("FROM " + indexName + " | LIMIT 10 | KEEP unique_sort, payload, category", true);
+        assertThat(run.rows(), hasSize(10));
+        Set<Long> documents = new HashSet<>();
+        for (List<Object> row : run.rows()) {
+            long uniqueSort = (Long) row.getFirst();
+            assertTrue("each document once", documents.add(uniqueSort));
+            assertThat(row, equalTo(List.of(uniqueSort, "payload-" + uniqueSort, "cat-" + (uniqueSort % 5))));
+        }
+        assertFetched(run, 10);
+        assertFetchedOnly(run, "unique_sort");
+        assertFetchedOnly(run, "payload");
+    }
+
+    /**
+     * A query without a {@code LIMIT} gets the default one, which is a cut too. The index holds fewer documents than the
+     * default, so the query returns each of them once, with the columns the fetch loaded.
+     */
+    public void testTheDefaultLimitFetchesItsRows() {
+        Run run = runQuery("FROM " + indexName + " | KEEP unique_sort, payload", true);
+        List<List<Object>> rows = new ArrayList<>(run.rows());
+        rows.sort(Comparator.comparing(row -> (Long) row.getFirst()));
+        List<List<Object>> expected = new ArrayList<>();
+        for (long i = 0; i < 64; i++) {
+            expected.add(List.of(i, "payload-" + i));
+        }
+        assertThat(rows, equalTo(expected));
+        assertFetched(run, 64);
     }
 
     /**

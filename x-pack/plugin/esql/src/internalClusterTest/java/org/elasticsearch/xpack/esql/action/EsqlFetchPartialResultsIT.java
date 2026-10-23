@@ -63,6 +63,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -288,6 +289,32 @@ public class EsqlFetchPartialResultsIT extends AbstractEsqlIntegTestCase {
             assertThat(local.getSuccessfulShards(), equalTo(keptShards));
             assertThat(local.getSkippedShards(), equalTo(0));
             assertThat(local.getFailedShards(), equalTo(1));
+        }
+    }
+
+    /**
+     * Without a sort, a {@code LIMIT} keeps the first rows that reach the coordinator, and fetches them afterwards. The rows
+     * of a shard whose fetch failed drop out and nothing replaces them, so the result holds fewer rows than the limit
+     * although other rows matched. The limit is above the rows of {@link #KEPT}, so it keeps some rows of {@link #LOST}
+     * whatever order they arrive in.
+     */
+    public void testAPlainLimitComesBackShortWithoutTheRowsOfAFailedFetch() {
+        createIndices();
+        freeContextsBeforeTheirFetch(shardId -> shardId.getIndexName().equals(LOST));
+        int limit = DOCS_PER_INDEX + DOCS_PER_INDEX / 2;
+        String query = "FROM " + KEPT + "," + LOST + " | LIMIT " + limit + " | KEEP ts, payload";
+        try (EsqlQueryResponse response = run(request(query, true))) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.size(), lessThan(limit));
+            for (List<Object> row : rows) {
+                long ts = (Long) row.getFirst();
+                assertThat("a row of " + KEPT, ts % 2, equalTo(0L));
+                assertThat(row.get(1), equalTo("payload-" + ts));
+            }
+            assertTrue(response.isPartial());
+            EsqlExecutionInfo.Cluster local = response.getExecutionInfo().getCluster(LOCAL);
+            assertThat(local.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+            assertFailuresOf(local, LOST, SearchContextMissingException.class);
         }
     }
 

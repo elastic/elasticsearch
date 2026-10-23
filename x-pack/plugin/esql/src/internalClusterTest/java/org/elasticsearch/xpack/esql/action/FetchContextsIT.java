@@ -7,30 +7,39 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.fetch.FetchService;
+import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -61,16 +70,23 @@ public class FetchContextsIT extends AbstractEsqlIntegTestCase {
     private final Set<Long> keepAlivesMillis = ConcurrentHashMap.newKeySet();
     private int shards;
 
+    private final List<Runnable> removeMessageListeners = new ArrayList<>();
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        // counts the requests that free fetch contexts
-        return CollectionUtils.appendToCopy(super.nodePlugins(), MockTransportService.TestPlugin.class);
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        // counts the requests that free fetch contexts, and sees the responses the coordinator receives
+        plugins.add(MockTransportService.TestPlugin.class);
+        // keeps a shard searching while the coordinator fetches
+        plugins.add(SimplePauseFieldPlugin.class);
+        return plugins;
     }
 
     @Before
     public void setupIndexAndCounters() {
         assumeTrue("the fetch phase needs its feature flag", EsqlFlags.FETCH_PHASE_FEATURE_FLAG.isEnabled());
         assumeTrue("the fetch_phase pragma needs a snapshot build", canUseQueryPragmas());
+        SimplePauseFieldPlugin.resetPlugin();
         shards = between(3, 6);
         assertAcked(
             indicesAdmin().prepareCreate(INDEX)
@@ -111,6 +127,9 @@ public class FetchContextsIT extends AbstractEsqlIntegTestCase {
 
     @After
     public void resetCounters() {
+        SimplePauseFieldPlugin.release();
+        removeMessageListeners.forEach(Runnable::run);
+        removeMessageListeners.clear();
         for (SearchService searchService : internalCluster().getInstances(SearchService.class)) {
             MockSearchService mock = (MockSearchService) searchService;
             mock.setOnPutContext(context -> {});
@@ -176,6 +195,138 @@ public class FetchContextsIT extends AbstractEsqlIntegTestCase {
             assertThat(getValuesList(response), hasSize(10));
         }
         assertThat(registered.get(), equalTo(0));
+    }
+
+    /**
+     * Without a sort the coordinator fetches the rows a {@code LIMIT} keeps as soon as they arrive. The fast shard holds
+     * fewer rows than the limit, so the query also waits for the slow shard, which searches on the same node. The
+     * coordinator fetches the rows of the fast shard while that node still searches, the node answers the query only
+     * afterwards, and every context is freed at the end.
+     */
+    public void testAPlainLimitFetchesWhileTheNodeStillSearches() throws Exception {
+        List<String> dataNodes = new ArrayList<>();
+        for (DiscoveryNode node : internalCluster().clusterService().state().nodes().getDataNodes().values()) {
+            dataNodes.add(node.getName());
+        }
+        Collections.shuffle(dataNodes, random());
+        String searching = dataNodes.get(0);
+        String coordinator = dataNodes.get(1);
+        String fast = "fetch_contexts_fast";
+        String slow = "fetch_contexts_slow";
+        assertAcked(
+            indicesAdmin().prepareCreate(fast)
+                .setSettings(indexSettings(1, 0).put("index.routing.allocation.require._name", searching))
+                .setMapping("ts", "type=long", "payload", "type=keyword", "pause", "type=long")
+        );
+        assertAcked(
+            indicesAdmin().prepareCreate(slow)
+                .setSettings(indexSettings(1, 0).put("index.routing.allocation.require._name", searching))
+                .setMapping("""
+                    {
+                      "runtime": { "pause": { "type": "long", "script": { "source": "", "lang": "pause" } } },
+                      "properties": { "ts": { "type": "long" }, "payload": { "type": "keyword" } }
+                    }""")
+        );
+        BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int i = 0; i < 20; i++) {
+            bulk.add(prepareIndex(fast).setSource("ts", i, "payload", "payload-" + i, "pause", 0));
+            bulk.add(prepareIndex(slow).setSource("ts", 100 + i, "payload", "payload-" + (100 + i)));
+        }
+        assertFalse(bulk.get().hasFailures());
+        ensureGreen(fast, slow);
+
+        CountDownLatch fetchAnswered = responseReceived(coordinator, FetchService.FETCH_ACTION_NAME, searching);
+        CountDownLatch searchAnswered = responseReceived(coordinator, ComputeService.DATA_ACTION_NAME, searching);
+        // more than the fast shard holds, so its rows never use up the limit that the drivers of the node share
+        int limit = 30;
+        EsqlQueryRequest request = syncEsqlQueryRequest(
+            "FROM " + fast + "," + slow + " | WHERE pause >= 0 | LIMIT " + limit + " | KEEP ts, payload"
+        ).pragmas(
+            new QueryPragmas(
+                Settings.builder()
+                    .put(QueryPragmas.FETCH_PHASE.getKey(), true)
+                    // a driver per shard, side by side, so the fast shard sends its rows while the slow one waits
+                    .put(QueryPragmas.TASK_CONCURRENCY.getKey(), 2)
+                    .put(QueryPragmas.DATA_PARTITIONING.getKey(), "shard")
+                    .build()
+            )
+        );
+        ActionFuture<EsqlQueryResponse> query = client(coordinator).execute(EsqlQueryAction.INSTANCE, request);
+        // asserted once the response is in hand, so a failure still closes it
+        boolean slowShardWaits;
+        boolean fetchAnsweredWhileTheNodeSearched;
+        try {
+            slowShardWaits = SimplePauseFieldPlugin.startEmitting.await(30, TimeUnit.SECONDS);
+            fetchAnsweredWhileTheNodeSearched = fetchAnswered.await(30, TimeUnit.SECONDS) && searchAnswered.getCount() == 1;
+        } finally {
+            SimplePauseFieldPlugin.release();
+        }
+        try (EsqlQueryResponse response = query.actionGet(30, TimeUnit.SECONDS)) {
+            assertTrue("the slow shard waits", slowShardWaits);
+            assertTrue("the fetch answered while the node still searched", fetchAnsweredWhileTheNodeSearched);
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(limit));
+            Set<Long> fastRows = new HashSet<>();
+            for (List<Object> row : rows) {
+                long ts = (Long) row.getFirst();
+                assertThat(row.get(1), equalTo("payload-" + ts));
+                if (ts < 20) {
+                    assertTrue("each row once", fastRows.add(ts));
+                }
+            }
+            assertThat("every row of the fast shard", fastRows, hasSize(20));
+            assertFalse(response.isPartial());
+        }
+        assertBusy(() -> assertThat(freed.get(), equalTo(registered.get())));
+    }
+
+    /**
+     * A plain {@code LIMIT} asks the nodes for rows one at a time here, and ends the exchange once it has its rows. The
+     * nodes it reached free the contexts whose rows didn't leave them, and the lease frees the rest.
+     */
+    public void testAPlainLimitFreesTheContextsOfTheNodesItReached() throws Exception {
+        EsqlQueryRequest request = syncEsqlQueryRequest("FROM " + INDEX + " | LIMIT 5 | KEEP a, b, ts").pragmas(
+            new QueryPragmas(
+                Settings.builder()
+                    .put(QueryPragmas.FETCH_PHASE.getKey(), true)
+                    .put(QueryPragmas.MAX_CONCURRENT_NODES_PER_CLUSTER.getKey(), 1)
+                    .build()
+            )
+        );
+        try (EsqlQueryResponse response = run(request)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(5));
+            for (List<Object> row : rows) {
+                long ts = (Long) row.get(2);
+                assertThat(row, equalTo(List.of("a-" + ts, ts * 10, ts)));
+            }
+        }
+
+        assertThat(registered.get(), allOf(greaterThan(0), lessThanOrEqualTo(shards)));
+        assertBusy(() -> {
+            assertThat(freed.get(), equalTo(registered.get()));
+            assertThat(indicesAdmin().prepareStats(INDEX).setSearch(true).get().getTotal().getSearch().getOpenContexts(), equalTo(0L));
+        });
+    }
+
+    /**
+     * Counts down once {@code coordinator} receives the response of {@code node} to a request of {@code action}.
+     */
+    private CountDownLatch responseReceived(String coordinator, String action, String node) {
+        CountDownLatch received = new CountDownLatch(1);
+        TransportMessageListener listener = new TransportMessageListener() {
+            @Override
+            @SuppressWarnings("rawtypes")
+            public void onResponseReceived(long requestId, Transport.ResponseContext context, int networkMessageSize) {
+                if (context != null && context.action().equals(action) && context.connection().getNode().getName().equals(node)) {
+                    received.countDown();
+                }
+            }
+        };
+        MockTransportService transport = (MockTransportService) internalCluster().getInstance(TransportService.class, coordinator);
+        transport.addMessageListener(listener);
+        removeMessageListeners.add(() -> transport.removeMessageListener(listener));
+        return received;
     }
 
     private static EsqlQueryRequest request(boolean fetchPhase) {

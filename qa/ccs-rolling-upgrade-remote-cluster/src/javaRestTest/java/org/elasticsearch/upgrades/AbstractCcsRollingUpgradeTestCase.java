@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.LogType;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -22,6 +23,7 @@ import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
+import java.io.InputStream;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.IntStream;
@@ -53,6 +55,10 @@ public abstract class AbstractCcsRollingUpgradeTestCase extends ESRestTestCase {
         .version(OLD_CLUSTER_VERSION, isOldClusterDetachedVersion())
         .nodes(REMOTE_NODE_NUM)
         .setting("xpack.security.enabled", "false")
+        // Track every Netty buffer so that a buffer a proxy node fails to release is reported in its log, see getRemoteNodeLog
+        .systemProperty("io.netty.leakDetection.level", "paranoid")
+        // Netty only tracks pooled buffers, but small heaps like the test ones default to the unpooled allocator
+        .systemProperty("es.use_unpooled_allocator", "false")
         .node(0, spec -> spec.setting("node.attr.gateway", "true"))
         .node(REMOTE_NODE_NUM - 1, spec -> spec.setting("node.attr.gateway", "true"))
         .build();
@@ -109,6 +115,14 @@ public abstract class AbstractCcsRollingUpgradeTestCase extends ESRestTestCase {
 
     protected static String getRemoteClusterRestAddresses() {
         return remoteCluster.getHttpAddresses();
+    }
+
+    protected static long getRemoteNodePid(int nodeIndex) {
+        return remoteCluster.getPid(nodeIndex);
+    }
+
+    protected static InputStream getRemoteNodeLog(int nodeIndex) {
+        return remoteCluster.getNodeLog(nodeIndex, LogType.SERVER);
     }
 
     @Override

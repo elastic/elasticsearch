@@ -54,6 +54,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.GroupedReleasables;
 import org.elasticsearch.core.Nullable;
@@ -110,7 +111,6 @@ import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldTermQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
 import org.elasticsearch.sourcebatch.SourceValueType;
-import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -129,7 +129,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
 
-import static org.apache.lucene.index.IndexWriter.MAX_TERM_LENGTH;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
 import static org.elasticsearch.index.mapper.FieldMapper.Parameter.useTimeSeriesDocValuesSkippers;
@@ -302,7 +301,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     DocValuesParameter.Values.Cardinality.HIGH
                 ),
                 m -> toType(m).docValuesParameters(),
-                indexSettings.getMode().isStrictColumnar()
+                indexSettings
             );
 
             this.dimension = TimeSeriesParams.dimensionParam(
@@ -491,6 +490,9 @@ public final class KeywordFieldMapper extends FieldMapper {
             return new Parameter<?>[] {
                 indexed,
                 docValuesParameters,
+                docValuesParameters.multiValue(),
+                docValuesParameters.nullability(),
+                docValuesParameters.onFailure(),
                 stored,
                 nullValue,
                 eagerGlobalOrdinals,
@@ -1582,6 +1584,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     private final DocValuesFieldFactory dvFactory;
     private final String indexOptions;
     private final FieldType fieldType;
+    private final int maxValueLength;
     private final String normalizerName;
     private final boolean normalizerSkipStoreOriginalValue;
     private final boolean splitQueriesOnWhitespace;
@@ -1622,6 +1625,9 @@ public final class KeywordFieldMapper extends FieldMapper {
         );
         this.indexOptions = builder.indexOptions.getValue();
         this.fieldType = freezeAndDeduplicateFieldType(fieldType);
+        boolean useLuceneMaxTermLength = this.fieldType.indexOptions() != IndexOptions.NONE
+            || mappedFieldType.usesBinaryDocValues() == false;
+        this.maxValueLength = builder.indexSettings.maxValueLength(useLuceneMaxTermLength);
         this.normalizerName = builder.normalizer.getValue();
         this.normalizerSkipStoreOriginalValue = builder.normalizerSkipStoreOriginalValue.getValue();
         this.splitQueriesOnWhitespace = builder.splitQueriesOnWhitespace.getValue();
@@ -1774,15 +1780,14 @@ public final class KeywordFieldMapper extends FieldMapper {
         return docValuesParameters().multiValue() == false;
     }
 
-    // TODO: make the batch supply a recycler to wire up recycling instead of NON_RECYCLING_INSTANCE.
-    private static EscfColumnBuilder mergeStringColumn() {
-        EscfColumnBuilder b = new EscfColumnBuilder(CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+    private static EscfColumnBuilder mergeStringColumn(Recycler<BytesRef> recycler) {
+        EscfColumnBuilder b = new EscfColumnBuilder(CollisionPolicy.MERGE, recycler);
         b.lockScalar(EscfColumnKind.STRING);
         return b;
     }
 
-    private static EscfColumnBuilder mergeLongColumn() {
-        EscfColumnBuilder b = new EscfColumnBuilder(CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+    private static EscfColumnBuilder mergeLongColumn(Recycler<BytesRef> recycler) {
+        EscfColumnBuilder b = new EscfColumnBuilder(CollisionPolicy.MERGE, recycler);
         b.lockScalar(EscfColumnKind.LONG);
         return b;
     }
@@ -1854,11 +1859,11 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         // TODO: make the batch return these column builders to wire up recycling
         try (
-            EscfColumnBuilder terms = emitTerms ? mergeStringColumn() : null;
-            EscfColumnBuilder binaryDvs = emitDvs ? mergeStringColumn() : null;
-            EscfColumnBuilder dvCounts = emitDvs && columnar == false ? mergeLongColumn() : null;
-            EscfColumnBuilder fallback = emitFallback ? mergeStringColumn() : null;
-            EscfColumnBuilder fallbackCounts = emitFallback ? mergeLongColumn() : null
+            EscfColumnBuilder terms = emitTerms ? mergeStringColumn(ctx.recycler()) : null;
+            EscfColumnBuilder binaryDvs = emitDvs ? mergeStringColumn(ctx.recycler()) : null;
+            EscfColumnBuilder dvCounts = emitDvs && columnar == false ? mergeLongColumn(ctx.recycler()) : null;
+            EscfColumnBuilder fallback = emitFallback ? mergeStringColumn(ctx.recycler()) : null;
+            EscfColumnBuilder fallbackCounts = emitFallback ? mergeLongColumn(ctx.recycler()) : null
         ) {
             int currentDoc = -1;
             boolean ignoredThisDoc = false;
@@ -1993,7 +1998,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     continue;
                 }
 
-                if (binaryValue.length > MAX_TERM_LENGTH) {
+                if (binaryValue.length > maxValueLength) {
                     throw largeTermException(binaryValue);
                 }
 
@@ -2099,13 +2104,13 @@ public final class KeywordFieldMapper extends FieldMapper {
         // try-with-resources header; the group releases whichever builders were actually created.
         try (GroupedReleasables pending = new GroupedReleasables(4)) {
             EscfColumnBuilder values = source.leafValueKind() != EscfColumnKind.STRING && emitSharedColumn
-                ? pending.add(mergeStringColumn())
+                ? pending.add(mergeStringColumn(ctx.recycler()))
                 : null;
-            final EscfColumnBuilder payloadDvs = emitDvs && columnarPayload ? pending.add(mergeStringColumn()) : null;
+            final EscfColumnBuilder payloadDvs = emitDvs && columnarPayload ? pending.add(mergeStringColumn(ctx.recycler())) : null;
             final StringBinaryPayload.Builder payload = payloadDvs != null ? new StringBinaryPayload.Builder() : null;
-            final EscfColumnBuilder fallback = emitFallback ? pending.add(mergeStringColumn()) : null;
+            final EscfColumnBuilder fallback = emitFallback ? pending.add(mergeStringColumn(ctx.recycler())) : null;
             // multi_value=true fallback needs a counts sidecar matching SeparateCount format.
-            final EscfColumnBuilder fallbackCounts = emitFallback && multiValue ? pending.add(mergeLongColumn()) : null;
+            final EscfColumnBuilder fallbackCounts = emitFallback && multiValue ? pending.add(mergeLongColumn(ctx.recycler())) : null;
 
             int currentDoc = -1;
             boolean valueSeenThisDoc = false;
@@ -2149,7 +2154,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                         if (emptyStringReadAsNull && values == null && emitSharedColumn) {
                             // An empty string is a value in the source column, unlike a null, so the output cannot
                             // be that column itself: build one that leaves this value out, as an ignored one does.
-                            values = pending.add(mergeStringColumn());
+                            values = pending.add(mergeStringColumn(ctx.recycler()));
                             EscfColumnTransforms.backfillUtf8Before(values, source, currentDoc, elementsThisDoc);
                         }
                         continue;  // null without null_value -> absent (row-path parity)
@@ -2184,7 +2189,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     // exclude this doc's value from the output. Lazily create the builder and backfill
                     // all accepted values from before this doc (plus already-accepted elements of this doc).
                     if (values == null && emitSharedColumn) {
-                        values = pending.add(mergeStringColumn());
+                        values = pending.add(mergeStringColumn(ctx.recycler()));
                         EscfColumnTransforms.backfillUtf8Before(values, source, currentDoc, elementsThisDoc);
                     }
                     if (fallback != null) {
@@ -2195,7 +2200,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     }
                     continue;
                 }
-                if (binaryValue.length > MAX_TERM_LENGTH) {
+                if (binaryValue.length > maxValueLength) {
                     throw largeTermException(binaryValue);
                 }
 
@@ -2263,7 +2268,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             "Document contains at least one immense term in field=\""
                 + fieldType().name()
                 + "\" (whose UTF8 encoding is longer than the max length "
-                + MAX_TERM_LENGTH
+                + maxValueLength
                 + "), all of which were skipped. Please correct the analyzer to not produce such terms."
                 + " The prefix of the first immense term is: '"
                 + Arrays.toString(prefix)
@@ -2403,11 +2408,12 @@ public final class KeywordFieldMapper extends FieldMapper {
             context.getRoutingFields().addString(fieldType().name(), binaryValue);
         }
 
-        // If the UTF8 encoding of the field value is bigger than the max length 32766, Lucene will fail the indexing request and, to
-        // roll back the changes, will mark the (possibly partially indexed) document as deleted. This results in deletes, even in an
-        // append-only workload, which in turn leads to slower merges, as these will potentially have to fall back to MergeStrategy.DOC
-        // instead of MergeStrategy.BULK. To avoid this, we do a preflight check here before indexing the document into Lucene.
-        if (binaryValue.length > MAX_TERM_LENGTH) {
+        // If an indexed or SORTED_SET value is longer than MAX_TERM_LENGTH (32766 bytes), Lucene fails the indexing request and, to roll
+        // back the changes, marks the (possibly partially indexed) document as deleted. This results in deletes, even in an append-only
+        // workload, which in turn leads to slower merges, as these will potentially have to fall back to MergeStrategy.DOC instead of
+        // MergeStrategy.BULK. To avoid this, we do a preflight check here before indexing the document into Lucene. Other values have no
+        // Lucene limit, so in columnar index modes they are checked against the non-indexed field limit from the index settings instead.
+        if (binaryValue.length > maxValueLength) {
             throw largeTermException(binaryValue);
         }
 

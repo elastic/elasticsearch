@@ -16,7 +16,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
-import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceStringGroup;
@@ -47,7 +46,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.inference.InferenceString.fromStringList;
-import static org.elasticsearch.inference.InferenceStringTests.createRandomUsingDataTypes;
+import static org.elasticsearch.inference.InferenceStringTests.createRandomNonTextEmbeddingInput;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.xpack.inference.Utils.TIMEOUT;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
@@ -274,7 +273,7 @@ public abstract class InferenceServiceTestCase extends ESTestCase {
         try (var inferenceService = createInferenceService()) {
             Assume.assumeFalse(inferenceService.supportsNonTextEmbeddingContent());
 
-            var nonTextInput = new InferenceStringGroup(createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT))));
+            var nonTextInput = new InferenceStringGroup(createRandomNonTextEmbeddingInput());
             var exceptionMessage = Strings.format(
                 "The %s service does not support embedding with non-text inputs",
                 inferenceService.name()

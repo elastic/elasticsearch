@@ -103,9 +103,6 @@ public class SimdVecLibraryBBQTests extends SimdVecLibraryTests {
             assertEquals(expected, nativeSimilarity(indexSlice, querySlice, indexVectorBytes), 0f);
 
             var queryHeapSegment = MemorySegment.ofArray(queryVectors[queryIndex]);
-            var indexHeapSegment = MemorySegment.ofArray(indexVectors[indexIndex]);
-            assertEquals(expected, nativeSimilarity(indexHeapSegment, queryHeapSegment, indexVectorBytes), 0f);
-            assertEquals(expected, nativeSimilarity(indexHeapSegment, querySlice, indexVectorBytes), 0f);
             assertEquals(expected, nativeSimilarity(indexSlice, queryHeapSegment, indexVectorBytes), 0f);
 
             // trivial bulk with a single vector

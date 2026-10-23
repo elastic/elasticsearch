@@ -11,7 +11,6 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -42,6 +41,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.LongSupplier;
+
+import static org.elasticsearch.core.Strings.truncateForError;
 
 /** A formatter for values as returned by the fielddata/doc-values APIs. */
 public interface DocValueFormat extends NamedWriteable {
@@ -466,11 +467,7 @@ public interface DocValueFormat extends NamedWriteable {
                 case "true":
                     return 1;
             }
-            throw new IllegalArgumentException(
-                "Cannot parse boolean ["
-                    + Strings.cleanTruncate(value, Strings.MAX_INPUT_LENGTH_IN_ERROR)
-                    + "], expected either [true] or [false]"
-            );
+            throw new IllegalArgumentException("Cannot parse boolean [" + truncateForError(value) + "], expected either [true] or [false]");
         }
 
         @Override

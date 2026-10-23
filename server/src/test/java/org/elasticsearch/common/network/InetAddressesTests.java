@@ -17,7 +17,6 @@
 
 package org.elasticsearch.common.network;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.Text;
@@ -31,6 +30,7 @@ import java.util.Enumeration;
 import java.util.List;
 import java.util.Locale;
 
+import static org.elasticsearch.core.Strings.MAX_INPUT_LENGTH_IN_ERROR;
 import static org.hamcrest.Matchers.equalTo;
 
 public class InetAddressesTests extends ESTestCase {
@@ -301,8 +301,8 @@ public class InetAddressesTests extends ESTestCase {
     }
 
     public void testLongInputIsTruncatedInError() {
-        String ip = "x".repeat(randomIntBetween(10_000, 100_000));
-        String kept = ip.substring(0, Strings.MAX_INPUT_LENGTH_IN_ERROR);
+        String ip = "x".repeat(2 * MAX_INPUT_LENGTH_IN_ERROR);
+        String kept = ip.substring(0, MAX_INPUT_LENGTH_IN_ERROR) + "...";
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> InetAddresses.forString(ip));
         assertEquals("'" + kept + "' is not an IP string literal.", e.getMessage());
         e = expectThrows(IllegalArgumentException.class, () -> InetAddresses.encodeAsIpv6(new Text(ip)));
@@ -310,28 +310,30 @@ public class InetAddressesTests extends ESTestCase {
         e = expectThrows(IllegalArgumentException.class, () -> InetAddresses.parseCidr(ip));
         assertEquals("Expected [ip/prefix] but was [" + kept + "]", e.getMessage());
 
-        String digits = "1".repeat(randomIntBetween(10_000, 100_000));
+        String digits = "1".repeat(2 * MAX_INPUT_LENGTH_IN_ERROR);
         e = expectThrows(NumberFormatException.class, () -> InetAddresses.parseCidr("1.2.3.4/" + digits));
-        assertEquals("For input string: \"" + digits.substring(0, Strings.MAX_INPUT_LENGTH_IN_ERROR) + "\"", e.getMessage());
+        assertEquals("For input string: \"" + digits.substring(0, MAX_INPUT_LENGTH_IN_ERROR) + "..." + "\"", e.getMessage());
 
         // The scope ID after % is not parsed, so it can be long while the address is valid
-        String mapped = "::ffff:1.2.3.4%" + "x".repeat(randomIntBetween(10_000, 100_000));
+        String mapped = "::ffff:1.2.3.4%" + "x".repeat(2 * MAX_INPUT_LENGTH_IN_ERROR);
         e = expectThrows(IllegalArgumentException.class, () -> InetAddresses.parseCidr(mapped + "/24"));
         assertThat(
             e.getMessage(),
             Matchers.startsWith(
                 "CIDR notation is not allowed with IPv6-mapped IPv4 address ["
-                    + mapped.substring(0, Strings.MAX_INPUT_LENGTH_IN_ERROR)
+                    + mapped.substring(0, MAX_INPUT_LENGTH_IN_ERROR)
+                    + "..."
                     + "] as"
             )
         );
 
         // Leading zeros keep the prefix length an int, so the error is the range check, which repeats the whole input
-        String cidr = "1.2.3.4/" + "0".repeat(randomIntBetween(10_000, 100_000)) + "33";
+        String cidr = "1.2.3.4/" + "0".repeat(2 * MAX_INPUT_LENGTH_IN_ERROR) + "33";
         e = expectThrows(IllegalArgumentException.class, () -> InetAddresses.parseCidr(cidr));
         assertEquals(
             "Illegal prefix length [33] in ["
-                + cidr.substring(0, Strings.MAX_INPUT_LENGTH_IN_ERROR)
+                + cidr.substring(0, MAX_INPUT_LENGTH_IN_ERROR)
+                + "..."
                 + "]. Must be 0-32 for IPv4 ranges, 0-128 for IPv6 ranges",
             e.getMessage()
         );

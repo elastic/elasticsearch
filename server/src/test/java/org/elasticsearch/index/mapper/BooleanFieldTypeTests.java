@@ -13,11 +13,12 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
-import org.elasticsearch.common.Strings;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+
+import static org.elasticsearch.core.Strings.MAX_INPUT_LENGTH_IN_ERROR;
 
 public class BooleanFieldTypeTests extends FieldTypeTestCase {
 
@@ -52,10 +53,10 @@ public class BooleanFieldTypeTests extends FieldTypeTestCase {
 
     public void testLongIllegalValueIsTruncatedInError() {
         MappedFieldType ft = new BooleanFieldMapper.BooleanFieldType("field");
-        String value = "x".repeat(randomIntBetween(10_000, 100_000));
+        String value = "x".repeat(2 * MAX_INPUT_LENGTH_IN_ERROR);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ft.termQuery(value, MOCK_CONTEXT));
         assertEquals(
-            "Can't parse boolean value [" + value.substring(0, Strings.MAX_INPUT_LENGTH_IN_ERROR) + "], expected [true] or [false]",
+            "Can't parse boolean value [" + value.substring(0, MAX_INPUT_LENGTH_IN_ERROR) + "..." + "], expected [true] or [false]",
             e.getMessage()
         );
     }

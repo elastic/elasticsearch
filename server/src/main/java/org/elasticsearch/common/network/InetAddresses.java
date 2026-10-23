@@ -17,7 +17,6 @@
 
 package org.elasticsearch.common.network;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.XContentString;
@@ -30,6 +29,8 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Locale;
+
+import static org.elasticsearch.core.Strings.truncateForError;
 
 public class InetAddresses {
     private static final int IPV4_PART_COUNT = 4;
@@ -465,11 +466,7 @@ public class InetAddresses {
 
     private static IllegalArgumentException invalidIpStringLiteral(byte[] ipUtf8, int offset, int length) {
         String ip = new String(ipUtf8, offset, length, StandardCharsets.UTF_8);
-        return new IllegalArgumentException(String.format(Locale.ROOT, "'%s' is not an IP string literal.", truncate(ip)));
-    }
-
-    private static String truncate(String input) {
-        return Strings.cleanTruncate(input, Strings.MAX_INPUT_LENGTH_IN_ERROR);
+        return new IllegalArgumentException(String.format(Locale.ROOT, "'%s' is not an IP string literal.", truncateForError(ip)));
     }
 
     /**
@@ -506,7 +503,7 @@ public class InetAddresses {
             if (addressString.contains(":") && address.getAddress().length == 4) {
                 throw new IllegalArgumentException(
                     "CIDR notation is not allowed with IPv6-mapped IPv4 address ["
-                        + truncate(addressString)
+                        + truncateForError(addressString)
                         + "] as it introduces ambiguity as to whether the prefix length should be interpreted as a v4 prefix length or a"
                         + " v6 prefix length"
                 );
@@ -516,20 +513,20 @@ public class InetAddresses {
                 prefixLength = Integer.parseInt(fields[1]);
             } catch (NumberFormatException e) {
                 // The JDK message repeats the whole input
-                throw new NumberFormatException("For input string: \"" + truncate(fields[1]) + "\"");
+                throw new NumberFormatException("For input string: \"" + truncateForError(fields[1]) + "\"");
             }
             if (prefixLength < 0 || prefixLength > 8 * address.getAddress().length) {
                 throw new IllegalArgumentException(
                     "Illegal prefix length ["
                         + prefixLength
                         + "] in ["
-                        + truncate(maskedAddress)
+                        + truncateForError(maskedAddress)
                         + "]. Must be 0-32 for IPv4 ranges, 0-128 for IPv6 ranges"
                 );
             }
             return new Tuple<>(address, prefixLength);
         } else {
-            throw new IllegalArgumentException("Expected [ip/prefix] but was [" + truncate(maskedAddress) + "]");
+            throw new IllegalArgumentException("Expected [ip/prefix] but was [" + truncateForError(maskedAddress) + "]");
         }
     }
 

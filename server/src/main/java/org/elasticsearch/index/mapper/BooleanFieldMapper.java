@@ -74,6 +74,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.core.Strings.truncateForError;
 import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
 import static org.elasticsearch.index.mapper.FieldMapper.Parameter.useTimeSeriesDocValuesSkippers;
 
@@ -365,9 +366,7 @@ public class BooleanFieldMapper extends FieldMapper {
                 case "true" -> Values.TRUE;
                 case "false" -> Values.FALSE;
                 default -> throw new IllegalArgumentException(
-                    "Can't parse boolean value ["
-                        + Strings.cleanTruncate(sValue, Strings.MAX_INPUT_LENGTH_IN_ERROR)
-                        + "], expected [true] or [false]"
+                    "Can't parse boolean value [" + truncateForError(sValue) + "], expected [true] or [false]"
                 );
             };
         }

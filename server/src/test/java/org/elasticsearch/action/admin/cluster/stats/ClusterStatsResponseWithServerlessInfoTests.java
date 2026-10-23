@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.nullValue;
  * Focused on the gating logic (totalQueries > 0, tagsConfig != null, searchTierStats != null) and the
  * top-level queries sum that is computed at render time rather than stored.
  */
-public class ClusterStatsResponseProjectRoutingTests extends ESTestCase {
+public class ClusterStatsResponseWithServerlessInfoTests extends ESTestCase {
 
     public void testProjectRoutingBlock_absent_when_allCountersZero() throws Exception {
         ObjectPath json = toObjectPath(buildResponse(new ProjectRoutingUsageSnapshot(), null));

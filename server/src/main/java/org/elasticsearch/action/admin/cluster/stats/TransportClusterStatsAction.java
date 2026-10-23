@@ -116,6 +116,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
     private final ProjectRoutingUsageHolder projectRoutingUsageHolder;
     @Nullable
     private final ClusterStatsTagsProvider tagsProvider;
+    @Nullable
     private final SearchTierStatsProvider searchTierStatsProvider;
 
     private final Executor clusterStateStatsExecutor;
@@ -214,9 +215,11 @@ public class TransportClusterStatsAction extends TransportNodesAction<
                     null
                 );
             }
-            TagsConfigSnapshot tagsConfig = (tagsProvider != null) ? tagsProvider.getTagsConfig(clusterService.state()) : null;
+            // compute both provider sections from the same cluster state snapshot
+            ClusterState clusterState = clusterService.state();
+            TagsConfigSnapshot tagsConfig = (tagsProvider != null) ? tagsProvider.getTagsConfig(clusterState) : null;
             SearchTierStats searchTierStats = (searchTierStatsProvider != null)
-                ? searchTierStatsProvider.getSearchTierStats(clusterService.state())
+                ? searchTierStatsProvider.getSearchTierStats(clusterState)
                 : null;
             return new ClusterStatsResponse(
                 System.currentTimeMillis(),

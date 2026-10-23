@@ -753,6 +753,24 @@ warning:Line 4:3: [FILLNULL] the fill value could not be applied to the followin
 2024-10-23T13:53:55.832Z | 5033754             | Connection error?      | null
 ;
 
+fillNullNullifyModePatternReportsAFieldNullifiedForALaterCommand
+required_capability: fillnull_late_loaded_columns
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM partial_mapping_sample_data
+| FILLNULL "x" ON m*
+| KEEP @timestamp, message, missing_field
+| SORT @timestamp DESC
+| LIMIT 2
+;
+warning:Line 3:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [missing_field]
+
+@timestamp:date          | message:keyword        | missing_field:null
+2024-10-23T13:55:01.543Z | Connected to 10.1.0.1! | null
+2024-10-23T13:53:55.832Z | Connection error?      | null
+;
+
 fillNullNullifyModeExplicitTargetOnNullTypedUnmappedField
 required_capability: fillnull
 required_capability: optional_fields_nullify_tech_preview
@@ -1509,4 +1527,65 @@ warning:Line 3:3: [FILLNULL] the fill value could not be applied to the followin
 
 ul:unsigned_long | i:integer
 null             | 7
+;
+
+fillNullThenInlineStatsGroupsByTheFilledColumn
+required_capability: fillnull
+required_capability: inline_stats
+
+FROM employees
+| WHERE emp_no >= 10007 AND emp_no <= 10012
+| KEEP emp_no, gender
+| FILLNULL "Unknown" ON gender
+| INLINE STATS c = COUNT(*) BY gender
+| SORT emp_no
+;
+
+emp_no:integer | c:long | gender:keyword
+10007          | 2      | F
+10008          | 1      | M
+10009          | 2      | F
+10010          | 3      | Unknown
+10011          | 3      | Unknown
+10012          | 3      | Unknown
+;
+
+fillNullThenLookupJoinOnTheFilledKey
+required_capability: fillnull
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE emp_no >= 10010 AND emp_no <= 10014
+| EVAL language_code = CASE(languages == 5, null, languages)
+| FILLNULL 1 ON language_code
+| LOOKUP JOIN languages_lookup ON language_code
+| KEEP emp_no, language_code, language_name
+| SORT emp_no
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10010          | 4                     | German
+10011          | 1                     | English
+10012          | 1                     | English
+10013          | 1                     | English
+10014          | 1                     | English
+;
+
+fillNullChainedOnTheSameColumnThenMvExpand
+required_capability: fillnull
+
+FROM employees
+| WHERE emp_no >= 10008 AND emp_no <= 10011
+| KEEP emp_no, gender
+| FILLNULL "x" ON gender
+| FILLNULL "y" ON gender
+| MV_EXPAND gender
+| SORT emp_no
+;
+
+emp_no:integer | gender:keyword
+10008          | M
+10009          | F
+10010          | x
+10011          | x
 ;

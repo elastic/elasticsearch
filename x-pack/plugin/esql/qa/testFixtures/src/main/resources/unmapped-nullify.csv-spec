@@ -1812,3 +1812,27 @@ FROM sample_data
 @timestamp:date          | client_ip:ip | event_duration:long
 2023-10-23T13:55:01.543Z | 172.21.3.15  | 1756467
 ;
+
+fillNullAllColumnsBeforeKeepOnUnmappedSourceIndicesUnderNullify
+required_capability: optional_fields_nullify_tech_preview
+required_capability: optional_fields_load_all_fillnull
+required_capability: fix_parsing_subobjects_false_dynamic_false
+required_capability: fillnull_late_loaded_columns
+
+SET unmapped_fields="nullify"\;
+FROM unmapped_source_stored, unmapped_source_mapped METADATA _index, _source
+| FILLNULL "none" ON *
+| KEEP _index, id, a, a.b, deep.l1.l2.l3, arr, objarr, objarr.j, objarr.k, nest.inner.leaf, _source
+| WHERE id::long IN (6,7,8)
+| SORT id::long, _index
+;
+warning:Line 3:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [a, objarr]
+
+_index:keyword         | id:keyword | a:null | a.b:keyword | deep.l1.l2.l3:keyword | arr:keyword | objarr:null | objarr.j:keyword | objarr.k:keyword | nest.inner.leaf:keyword | _source:_source
+unmapped_source_mapped | 6          | null   | none        | none                  | none        | null        | none             | [p, q]           | none                    | "{""id"":""6"",""objarr"":[{""k"":""p""},{""k"":""q""}]}"
+unmapped_source_stored | 6          | null   | none        | none                  | none        | null        | none             | none             | none                    | "{""id"":""6"",""objarr"":[{""k"":""p""},{""k"":""q""}]}"
+unmapped_source_mapped | 7          | null   | none        | none                  | none        | null        | s                | r                | none                    | "{""id"":""7"",""objarr"":[{""k"":""r""},{""j"":""s""}]}"
+unmapped_source_stored | 7          | null   | none        | none                  | none        | null        | none             | none             | none                    | "{""id"":""7"",""objarr"":[{""k"":""r""},{""j"":""s""}]}"
+unmapped_source_mapped | 8          | null   | none        | none                  | none        | null        | none             | none             | [t, u]                  | "{""id"":""8"",""nest"":[{""inner"":[{""leaf"":""t""}]},{""inner"":[{""leaf"":""u""}]}]}"
+unmapped_source_stored | 8          | null   | none        | none                  | none        | null        | none             | none             | none                    | "{""id"":""8"",""nest"":[{""inner"":[{""leaf"":""t""}]},{""inner"":[{""leaf"":""u""}]}]}"
+;

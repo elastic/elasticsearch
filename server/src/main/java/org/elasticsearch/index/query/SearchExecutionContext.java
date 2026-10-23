@@ -40,7 +40,6 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.FielddataOperation;
@@ -53,10 +52,10 @@ import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.UnmappedFields;
 import org.elasticsearch.index.query.support.AutoPrefilteringScope;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.search.QueryParserHelper;
@@ -135,6 +134,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private boolean cacheable = true;
     private final SetOnce<Boolean> frozen = new SetOnce<>();
     private Set<String> fieldsInIndex = null;
+    private UnmappedFields unmappedFields = null;
 
     private final Map<String, Query> namedQueries = new HashMap<>();
     private NestedScope nestedScope;
@@ -644,6 +644,18 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return indexSortConfig.hasPrimarySortOnField(field);
     }
 
+    /**
+     * Whether a range query on the field can use Lucene's {@code IndexSortSortedNumericDocValuesRangeQuery}.
+     */
+    public boolean canUseIndexSortRangeQuery(String field) {
+        // NOTE: Workaround for a Lucene bug, see https://github.com/elastic/elasticsearch/issues/162656.
+        // That query binary searches the values of all documents in a segment and needs them sorted.
+        // The index sort only applies to the root document of a block, so the values of the nested
+        // documents are not in sort order.
+        // Remove this check once Lucene handles segments with document blocks.
+        return nestedLookup() == NestedLookup.EMPTY && indexSortedOnField(field);
+    }
+
     public ParsedQuery toQuery(QueryBuilder queryBuilder) {
         reset();
         try {
@@ -786,39 +798,29 @@ public class SearchExecutionContext extends QueryRewriteContext {
         if (searcher == null) {
             return false;
         }
-        if (fieldsInIndex == null) {
-            fieldsInIndex = new HashSet<>();
+        Set<String> fields = fieldsInIndex;
+        if (fields == null) {
+            Set<String> names = new HashSet<>();
             for (LeafReaderContext ctx : searcher.getIndexReader().leaves()) {
                 FieldInfos fis = ctx.reader().getFieldInfos();
                 for (FieldInfo fi : fis) {
-                    fieldsInIndex.add(fi.name);
+                    names.add(fi.name);
                 }
             }
+            // Immutable, so that a thread racing on the unsynchronized field can only see a complete set.
+            fields = fieldsInIndex = Set.copyOf(names);
         }
-        return fieldsInIndex.contains(fieldname);
+        return fields.contains(fieldname);
     }
 
     /**
-     * Whether a document of this shard may hold, in its {@code _source}, a field that the mapping does not declare. It
-     * returns {@code false} when the index mode is strict columnar and unmapped fields are not routed to the flattened
-     * {@code _unmapped} field, when {@code _source} is synthetic and no segment has an {@code _ignored_source} field, and
-     * when {@code _source} is stored, no mapping the index has or had can keep an unmapped field (see
-     * {@link IndexSettings#retainsUnmappedFields()} and {@link RootObjectMapper#canRetainUnmappedFields()}) and no segment
-     * has an {@code _ignored} field. Without a searcher it returns {@code true} unless the index mode decides.
+     * The fields of this shard's documents that its mapping does not declare.
      */
-    public boolean mayHoldUnmappedFields() {
-        if (indexSettings.getMode().isStrictColumnar() && indexSettings.isFlattenedUnmappedFieldsEnabled() == false) {
-            return false;
+    public UnmappedFields unmappedFields() {
+        if (unmappedFields == null) {
+            unmappedFields = new UnmappedFields(indexSettings, mappingLookup, searcher == null ? null : this::fieldExistsInIndex);
         }
-        if (searcher == null) {
-            return true;
-        }
-        if (mappingLookup.isSourceSynthetic()) {
-            return fieldExistsInIndex(IgnoredSourceFieldMapper.NAME);
-        }
-        return indexSettings.retainsUnmappedFields()
-            || mappingLookup.getMapping().getRoot().canRetainUnmappedFields()
-            || fieldExistsInIndex(IgnoredFieldMapper.NAME);
+        return unmappedFields;
     }
 
     /**

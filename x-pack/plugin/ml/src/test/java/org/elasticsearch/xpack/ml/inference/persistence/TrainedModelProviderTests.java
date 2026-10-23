@@ -33,6 +33,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
@@ -629,6 +630,18 @@ public class TrainedModelProviderTests extends ESTestCase {
      * NoShardAvailableActionException.
      */
     public void testGetInferenceStatsRetriesOnNoShardAvailableActionException() {
+        assertGetInferenceStatsRetriesOn(new NoShardAvailableActionException(null, "no shard available"));
+    }
+
+    /**
+     * Verifies that getInferenceStats retries when a per-item MultiSearchResponse failure is a 403 because a shard is being
+     * restored: restores are expected to be short.
+     */
+    public void testGetInferenceStatsRetriesOnShardRestoringException() {
+        assertGetInferenceStatsRetriesOn(new ShardRestoringException("stats-index", randomUUID()));
+    }
+
+    private void assertGetInferenceStatsRetriesOn(Exception firstFailure) {
         try (
             var threadPool = createThreadPool(
                 new ScalingExecutorBuilder(MachineLearning.UTILITY_THREAD_POOL_NAME, 0, 1, TimeValue.timeValueMinutes(10), false)
@@ -647,8 +660,7 @@ public class TrainedModelProviderTests extends ESTestCase {
                         listener.onResponse((Response) new ClusterHealthResponse());
                     } else if (request instanceof MultiSearchRequest multiSearchRequest) {
                         if (multiSearchCallCount.incrementAndGet() == 1) {
-                            var items = new MultiSearchResponse.Item[] {
-                                new MultiSearchResponse.Item(null, new NoShardAvailableActionException(null, "no shard available")) };
+                            var items = new MultiSearchResponse.Item[] { new MultiSearchResponse.Item(null, firstFailure) };
                             var msResponse = new MultiSearchResponse(items, 0L);
                             try {
                                 listener.onResponse((Response) msResponse);

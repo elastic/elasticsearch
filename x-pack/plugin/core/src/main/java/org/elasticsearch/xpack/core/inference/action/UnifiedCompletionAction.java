@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.inference.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -31,6 +32,12 @@ public class UnifiedCompletionAction extends ActionType<InferenceAction.Response
     }
 
     public static class Request extends BaseInferenceActionRequest {
+
+        /**
+         * Template ids owned by the Elastic Inference Service start with a dot, mirroring the dot-prefixed endpoint ids it owns.
+         */
+        public static final String TEMPLATE_ID_PREFIX = ".";
+
         public static Request parseRequest(
             String inferenceEntityId,
             TaskType taskType,
@@ -101,25 +108,65 @@ public class UnifiedCompletionAction extends ActionType<InferenceAction.Response
 
         @Override
         public ActionRequestValidationException validate() {
-            if (unifiedCompletionRequest.body().messages() == null) {
-                var e = new ActionRequestValidationException();
-                e.addValidationError("Field [messages] cannot be null");
-                return e;
+            var body = unifiedCompletionRequest.body();
+            var messages = body.messages();
+            var template = body.template();
+
+            if (messages == null && template == null) {
+                return validationError("Field [messages] cannot be null");
             }
 
-            if (unifiedCompletionRequest.body().messages().isEmpty()) {
-                var e = new ActionRequestValidationException();
-                e.addValidationError("Field [messages] cannot be an empty array");
-                return e;
+            if (messages != null && template != null) {
+                return validationError("Fields [messages] and [template] are mutually exclusive");
+            }
+
+            if (messages != null && messages.isEmpty()) {
+                return validationError("Field [messages] cannot be an empty array");
+            }
+
+            if (template != null) {
+                var templateError = validateTemplate(body);
+                if (templateError != null) {
+                    return templateError;
+                }
             }
 
             if (taskType.isAnyOrSame(TaskType.CHAT_COMPLETION) == false) {
-                var e = new ActionRequestValidationException();
-                e.addValidationError("Field [taskType] must be [chat_completion]");
-                return e;
+                return validationError("Field [taskType] must be [chat_completion]");
             }
 
             return null;
+        }
+
+        /**
+         * Structural checks only. The service that owns the template validates the variables against the template's schema.
+         * Tool fields are rejected because tool definitions carry descriptions and parameter schemas, which is prompt content
+         * the caller must not author when a template is used.
+         */
+        private static ActionRequestValidationException validateTemplate(UnifiedCompletionRequestBody body) {
+            var template = body.template();
+            if (Strings.isNullOrBlank(template.id())) {
+                return validationError("Field [template.id] cannot be empty");
+            }
+            if (template.id().startsWith(TEMPLATE_ID_PREFIX) == false) {
+                return validationError("Field [template.id] must start with a dot ([.])");
+            }
+            if (template.version() < 1) {
+                return validationError("Field [template.version] must be a positive integer");
+            }
+            if (body.tools() != null && body.tools().isEmpty() == false) {
+                return validationError("Field [tools] cannot be specified with [template]");
+            }
+            if (body.toolChoice() != null) {
+                return validationError("Field [tool_choice] cannot be specified with [template]");
+            }
+            return null;
+        }
+
+        private static ActionRequestValidationException validationError(String message) {
+            var e = new ActionRequestValidationException();
+            e.addValidationError(message);
+            return e;
         }
 
         @Override

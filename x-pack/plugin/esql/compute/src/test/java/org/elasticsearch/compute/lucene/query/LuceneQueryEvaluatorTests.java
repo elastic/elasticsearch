@@ -29,9 +29,12 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
+import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.lucene.AlwaysReferencedIndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.ShardContext;
@@ -129,6 +132,74 @@ public abstract class LuceneQueryEvaluatorTests<T extends Block, U extends Block
      * Chceks that the collected results at the given position corresponds to a match or no match
      */
     protected abstract void assertCollectedResultMatch(T resultVector, int position, boolean isMatch);
+
+    /**
+     * Dense ranges of a single segment can arrive in any order, for example when a
+     * date-bucketed {@code STATS} is split into one query slice per bucket and a
+     * driver handles a later bucket first. Each range must be evaluated correctly
+     * regardless of the ranges seen before it.
+     */
+    public void testDenseRangesInAnyOrder() throws IOException {
+        int docCount = 40;
+        // Preserve insertion order because the expected matches depend on doc ID parity.
+        try (
+            BaseDirectoryWrapper dir = newDirectory();
+            RandomIndexWriter writer = new RandomIndexWriter(random(), dir, newIndexWriterConfig().setMergePolicy(newLogMergePolicy()))
+        ) {
+            for (int i = 0; i < docCount; i++) {
+                writer.addDocument(List.of(new KeywordField(FIELD, i % 2 == 0 ? "even" : "odd", Field.Store.NO)));
+            }
+            writer.forceMerge(1);
+            try (DirectoryReader reader = writer.getReader()) {
+                assertThat(reader.leaves().size(), equalTo(1));
+                IndexSearcher searcher = new IndexSearcher(reader);
+                BlockFactory blockFactory = blockFactory();
+                var shards = new IndexedByShardIdFromSingleton<>(
+                    new LuceneQueryEvaluator.ShardConfig(new TermQuery(new Term(FIELD, "even")), searcher)
+                );
+                try (ExpressionEvaluator evaluator = createEvaluator(blockFactory, shards)) {
+                    // Later range first, then an earlier one, an overlapping one, a later one and finally the start.
+                    int[][] ranges = { { 20, 25 }, { 5, 10 }, { 8, 22 }, { 30, 39 }, { 0, 3 } };
+                    for (int[] range : ranges) {
+                        int length = range[1] - range[0] + 1;
+                        int[] docs = new int[length];
+                        for (int i = 0; i < length; i++) {
+                            docs[i] = range[0] + i;
+                        }
+                        DocVector docVector = new DocVector(
+                            AlwaysReferencedIndexedByShardId.INSTANCE,
+                            blockFactory.newConstantIntVector(0, length),
+                            blockFactory.newConstantIntVector(0, length),
+                            blockFactory.newIntArrayVector(docs, length),
+                            DocVector.config().singleSegmentNonDecreasing(true)
+                        );
+                        Page page = new Page(docVector.asBlock());
+                        try (@SuppressWarnings("unchecked")
+                        T matches = (T) evaluator.eval(page)) {
+                            for (int i = 0; i < length; i++) {
+                                assertEvaluatedResultMatch(matches, i, docs[i] % 2 == 0);
+                            }
+                        } finally {
+                            page.releaseBlocks();
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Checks that the result of {@link #createEvaluator} at the given position corresponds to a match or no match.
+     */
+    protected abstract void assertEvaluatedResultMatch(T resultVector, int position, boolean isMatch);
+
+    /**
+     * Create the evaluator to test directly, without an operator around it.
+     */
+    protected abstract ExpressionEvaluator createEvaluator(
+        BlockFactory blockFactory,
+        IndexedByShardId<LuceneQueryEvaluator.ShardConfig> shards
+    );
 
     public void testTermQuery() throws IOException {
         Set<String> values = values();

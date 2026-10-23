@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_load_all_single_source_column, optional_fields_load_all_v2 ]
+          capabilities: [ optional_fields_load_all_single_source_column, optional_fields_load_all_column_from_shard, optional_fields_load_all_v2 ]
       reason: >
         copy_to targets and multi-fields are the two mapping features that create a queryable field name
         which NEVER appears in _source. LOAD_ALL reads only _source, so such a name is unrecoverable for any
@@ -112,6 +112,11 @@ setup:
           - { "index": { "_index": "la_dyn_template", "_id": "1" } }
           - { "id": "1", "blob_payload": { "deep": { "leaf": "kept" } }, "indexed": 3 }
 
+  # Dynamic mapping updates are not acknowledged by every node, so wait until all nodes have applied them.
+  - do:
+      cluster.health:
+        wait_for_events: languid
+
 ---
 teardown:
   - do:
@@ -177,13 +182,20 @@ teardown:
 
 ---
 'multi-fields: a partially mapped text parent is not loadable, and t.kw never is':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ optional_fields_warn_non_loadable_punk_combined ]
+      reason: "single, shorter warning for non-loadable partially unmapped fields"
   # Two separate reasons for the same null. t is text in one index and unmapped in the other, and text has
   # no implicit conversion from KEYWORD, so ES|QL warns and declines to serve it from _source at all - a
   # partially mapped keyword would have been loaded (see 303). t.kw is a multi-field, so it has no _source
   # key in any index and could not be recovered even if its type allowed it.
   - do:
       allowed_warnings:
-        - "Field [t] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices"
+        - "Field [t] is unmapped in some indices and has no implicit conversion from KEYWORD; it is null in those indices"
       esql.query:
         body:
           query: 'SET unmapped_fields="load"; FROM la_multifield, la_copyto_absent | KEEP id, t, t.kw | SORT id | LIMIT 5'

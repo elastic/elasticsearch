@@ -19,7 +19,10 @@ import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
 
@@ -29,6 +32,10 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
             try (var response = run(syncEsqlQueryRequest("FROM test-view"))) {
                 assertOk(response);
                 assertResultConcreteIndices(response, "view-index");
+            }
+            try (var response = run(syncEsqlQueryRequest("FROM test-view,-view-index"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "view-index"); // exclusion is not carried into inner view
             }
         }
     }
@@ -52,6 +59,26 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
             try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM test-*"))) {
                 assertOk(response);
                 assertResultConcreteIndices(response, "test-index", "view-index"); // views are opt in
+            }
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM test-*,-test-view"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "test-index"); // views can be excluded using concrete expression
+            }
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM test-*,-*-view"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "test-index"); // views can be excluded using wildcard expression
+            }
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM test-*,-*-index"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "view-index"); // index can be excluded using wildcard expression
+            }
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM test-*,-view-index"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "test-index", "view-index");// does not exclude inner index by concrete expression
+            }
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM test-*,-view-index"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "test-index", "view-index");// does not exclude inner index by wildcard expression
             }
         }
     }
@@ -103,15 +130,18 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testWildcardsMatchViewsIsAppliedToAllNestedViews() {
+    public void testWildcardsMatchViewsDoesNotApplyInsideNestedViews() {
         try (
             var outer = createView("outer", "FROM middle");
             var middle = createView("middle", "FROM inner*");
             var inner = createView("inner", "ROW source=\"inner\"");
         ) {
+            // The caller's wildcards_match_views stops at the view boundary (settings_scoped_at_view_boundaries):
+            // the wildcard inside middle's body only matches indices — none here — and never the inner view, so
+            // the setting makes no difference. Views still compose by exact name (outer's body reaches middle).
             try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM outer"))) {
                 assertOk(response);
-                assertResultConcreteIndices(response, "inner");
+                assertEmpty(response);
             }
             try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=false; FROM outer"))) {
                 assertOk(response);
@@ -188,6 +218,57 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
                 VerificationException.class,
                 containsString("Unknown index [test-view::failures]"),
                 () -> run(syncEsqlQueryRequest("FROM test-view::failures")).close()
+            );
+        }
+    }
+
+    public void testUnknownIndexErrorDescribesViews() {
+        assertAcked(client().admin().indices().prepareCreate("index1").setMapping("f1", "type=integer"));
+        indexRandom(true, false, prepareIndex("index1").setSource(Map.of("f1", 42)));
+        try (
+            var unresolvable = createView("unresolvable", randomFrom("FROM missing", "FROM missing | KEEP f1"));
+            var outer = createView("outer", "FROM unresolvable | KEEP f1");
+            var resolvable = createView("resolvable", "FROM index1 | KEEP f1")
+        ) {
+            expectThrows(
+                VerificationException.class,
+                containsString("Unknown index [missing] referenced by view [unresolvable]"),
+                () -> run(syncEsqlQueryRequest("FROM unresolvable")).close()
+            );
+            expectThrows(
+                VerificationException.class,
+                containsString("Unknown index [missing] referenced by view [outer -> unresolvable]"),
+                () -> run(syncEsqlQueryRequest("FROM index1, outer")).close()
+            );
+            expectThrows(
+                VerificationException.class,
+                containsString("Unknown index [missing] referenced by view [unresolvable]"),
+                () -> run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM unresolv*")).close()
+            );
+            expectThrows(
+                VerificationException.class,
+                containsString("Unknown index [missing] referenced by view [unresolvable]"),
+                () -> run(syncEsqlQueryRequest("FROM index1 | WHERE f1 IN (FROM unresolvable | KEEP f1)")).close()
+            );
+            expectThrows(
+                VerificationException.class,
+                containsString("Unknown index [missing] referenced by view [unresolvable]"),
+                () -> run(syncEsqlQueryRequest("FROM missing, unresolvable")).close()
+            );
+            // "FROM missing" is compacted into the outer pattern and keeps query order. "FROM missing | KEEP f1" stays a separate
+            // pattern, and separate patterns are registered in pattern-text order.
+            expectThrows(
+                VerificationException.class,
+                anyOf(
+                    containsString("Unknown index [other-missing,missing] ([missing] referenced by view [unresolvable])"),
+                    containsString("Unknown index [missing,other-missing] ([missing] referenced by view [unresolvable])")
+                ),
+                () -> run(syncEsqlQueryRequest("FROM other-missing, unresolvable")).close()
+            );
+            expectThrows(
+                VerificationException.class,
+                allOf(containsString("Unknown index [missing]"), not(containsString("referenced by view"))),
+                () -> run(syncEsqlQueryRequest("FROM missing, resolvable")).close()
             );
         }
     }

@@ -64,7 +64,6 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryTask;
 import org.elasticsearch.xpack.esql.action.EsqlResponseListener;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
@@ -78,7 +77,6 @@ import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
-import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.querylog.EsqlLogContext;
 import org.elasticsearch.xpack.esql.querylog.EsqlLogContextBuilder;
@@ -255,7 +253,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             bigArrays,
             blockFactoryProvider.blockFactory(),
             operatorFactoryRegistry,
-            dataSourceModule.formatReaderRegistry()
+            dataSourceModule.formatReaderRegistry(),
+            client
         );
 
         this.activityLogger = new QueryLogger<>(
@@ -470,14 +469,15 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         // EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning (which stops the planning span).
         var ci = result.completionInfo();
         var qp = result.executionInfo().queryProfile();
+        // Read once and shared by the APM/phone-home and billing paths so the two cannot report different CPU values.
+        long executionCpu = ci.cpuNanos();
+        long readCpu = ci.readCpuNanos();
+        long planningCpu = qp.planningCpuNanos();
+        long splitDiscoveryCpu = qp.splitDiscoveryCpuNanos();
         // APM and phone-home CPU recording — independent of the billing listener so that a failure
         // here never silently suppresses the billing call below.
         try {
-            // planning().timeSpan() is non-null by the time we reach the success path:
-            // EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning calls planning().stop() before execution starts.
-            planExecutor.dataSourceModule()
-                .externalSourceMetrics()
-                .recordQueryCpu(ci.cpuNanos(), ci.readCpuNanos(), qp.planning().timeSpan().durationInNanos(), qp.splitDiscoveryCpuNanos());
+            planExecutor.dataSourceModule().externalSourceMetrics().recordQueryCpu(executionCpu, readCpu, planningCpu, splitDiscoveryCpu);
         } catch (Exception ex) {
             logger.warn("failed to record query CPU metrics", ex);
         }
@@ -490,17 +490,19 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                         QueryMetricsListener.PLANNING_NANOS,
                         qp.planning().timeSpan().durationInNanos(),
                         QueryMetricsListener.PLANNING_CPU_NANOS,
-                        qp.planningCpuNanos(),
+                        planningCpu,
                         QueryMetricsListener.CPU_NANOS,
-                        ci.cpuNanos(),
+                        executionCpu,
+                        QueryMetricsListener.DRIVER_NANOS,
+                        ci.driverNanos(),
                         QueryMetricsListener.READ_NANOS,
                         ci.readNanos(),
                         QueryMetricsListener.READ_CPU_NANOS,
-                        ci.readCpuNanos(),
+                        readCpu,
                         QueryMetricsListener.SPLIT_DISCOVERY_NANOS,
                         qp.splitDiscoveryNanos(),
                         QueryMetricsListener.SPLIT_DISCOVERY_CPU_NANOS,
-                        qp.splitDiscoveryCpuNanos(),
+                        splitDiscoveryCpu,
                         QueryMetricsListener.BYTES_READ,
                         ci.bytesRead()
                     )
@@ -595,10 +597,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, boolean profileEnabled, Versioned<Result> versionedResult) {
-        // Already flattened into the _unmapped_fields column by EsqlSession.
         var result = versionedResult.inner();
-        assert result.schema().stream().noneMatch(a -> a instanceof UnmappedFieldsAttribute)
-            : UnmappedFieldsAttribute.ATTRIBUTE_NAME + " reached the response unflattened: " + Expressions.names(result.schema());
         // A lenient external read (e.g. a external_max_record_size truncation under a non-strict error_mode) returns fewer
         // records than the source held. Surface that as is_partial on the response — the structured counterpart of
         // the client Warning header — here at the single Result->response chokepoint, so every execution path
@@ -647,6 +646,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 result.completionInfo().readNanos(),
                 result.completionInfo().readCpuNanos(),
                 result.completionInfo().cpuNanos(),
+                result.completionInfo().driverNanos(),
                 profile,
                 request.columnar(),
                 asyncExecutionId,
@@ -669,6 +669,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             result.completionInfo().readNanos(),
             result.completionInfo().readCpuNanos(),
             result.completionInfo().cpuNanos(),
+            result.completionInfo().driverNanos(),
             profile,
             request.columnar(),
             null,

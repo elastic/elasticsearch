@@ -532,3 +532,8 @@ tests:
   - :server:internalClusterTest
   method: testBulkRequestCombinesDynamicMappingUpdates
   issue: https://github.com/elastic/elasticsearch/issues/163174
+- class: org.elasticsearch.upgrades.MlAssignmentPlannerUpgradeIT
+  tasks:
+  - :x-pack:qa:rolling-upgrade:v9.5.6#bwcTest
+  method: testMlAssignmentPlannerUpgrade {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/158099

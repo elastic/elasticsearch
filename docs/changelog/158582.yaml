@@ -1,0 +1,5 @@
+area: Distributed
+issues: [156374]
+pr: 158582
+summary: Avoid rendering cluster state when not verbose
+type: bug

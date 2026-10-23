@@ -18,6 +18,7 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
@@ -56,7 +57,16 @@ public final class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChang
     private int skippedOperations;
     private long lastSeenSeqNo;
 
-    private record SearchRecord(FieldDoc doc, boolean isTombstone, long seqNo, long primaryTerm, long version, long size) {
+    private record SearchRecord(
+        FieldDoc doc,
+        boolean isTombstone,
+        boolean isDocValuesUpdate,
+        BytesRef docValuesUpdatePayload,
+        long seqNo,
+        long primaryTerm,
+        long version,
+        long size
+    ) {
         int index() {
             return doc.shardIndex;
         }
@@ -175,9 +185,12 @@ public final class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChang
             int index = scoreDoc.shardIndex;
             var primaryTerm = combinedDocValues.docPrimaryTerm(segmentDocID);
             assert primaryTerm > 0 : "nested child document must be excluded";
+            boolean isDocValuesUpdate = combinedDocValues.isDocValuesUpdate(segmentDocID);
             documentRecords[index] = new SearchRecord(
                 (FieldDoc) scoreDoc,
                 combinedDocValues.isTombstone(segmentDocID),
+                isDocValuesUpdate,
+                isDocValuesUpdate ? combinedDocValues.docValuesUpdatePayload(segmentDocID) : null,
                 combinedDocValues.docSeqNo(segmentDocID),
                 primaryTerm,
                 combinedDocValues.docVersion(segmentDocID),
@@ -214,6 +227,11 @@ public final class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChang
                 for (int j = i; j < documentRecords.size(); j++) {
                     var record = documentRecords.get(j);
                     if (record.isTombstone()) {
+                        continue;
+                    }
+                    // A doc-values-update history document is reconstructed from its own payload, not through the source loader, so it
+                    // is excluded here (it also carries no recovery-source size).
+                    if (record.isDocValuesUpdate()) {
                         continue;
                     }
                     if (record.hasRecoverySourceSize() == false) {
@@ -278,7 +296,16 @@ public final class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChang
             assert leafIdDocValues == null : "id shouldn't exist in doc values if id mode is document";
             id = fieldLoader.id();
         }
-        if (docRecord.isTombstone() && id == null) {
+        if (docRecord.isDocValuesUpdate()) {
+            assert docRecord.isTombstone() == false : "a doc-values-update history document must not be a tombstone";
+            assert assertDocSoftDeleted(context.reader(), segmentDocID) : "doc-values update but soft_deletes field is not set";
+            return Translog.DocValuesUpdate.fromHistoryPayload(
+                docRecord.seqNo(),
+                docRecord.primaryTerm(),
+                docRecord.version(),
+                docRecord.docValuesUpdatePayload()
+            );
+        } else if (docRecord.isTombstone() && id == null) {
             assert docRecord.version() == 1L : "Noop tombstone should have version 1L; actual version [" + docRecord.version() + "]";
             assert assertDocSoftDeleted(context.reader(), segmentDocID) : "Noop but soft_deletes field is not set [" + docRecord + "]";
             return new Translog.NoOp(docRecord.seqNo(), docRecord.primaryTerm(), "null");

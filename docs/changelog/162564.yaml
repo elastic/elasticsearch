@@ -1,0 +1,5 @@
+area: Infra/Scripting
+issues: []
+pr: 162564
+summary: Charge the source document when a script reads params._source
+type: enhancement

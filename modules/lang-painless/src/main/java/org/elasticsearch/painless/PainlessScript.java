@@ -148,6 +148,14 @@ public interface PainlessScript {
     default void _pollCancellation() {}
 
     /**
+     * Wraps the {@code params} map so a read of {@code _source} charges the document parse. The compiler calls this where it
+     * declares the {@code params} local, only with tracking on. A {@code null} map stays {@code null}.
+     */
+    default Map<String, Object> $trackParams(Map<String, Object> params) {
+        return params == null ? null : new ChargedParams(this, params);
+    }
+
+    /**
      * Adds {@code bytes} to this instance's running allocation total and returns the new total; tracking-enabled generated
      * classes override it to update {@code $allocBytes}. On the interface so Java code handed the script (e.g. an injected
      * augmented method) can charge the same counter. Default throws because non-opted-in scripts have no counter.

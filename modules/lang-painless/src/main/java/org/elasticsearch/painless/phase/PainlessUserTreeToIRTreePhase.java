@@ -311,7 +311,20 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
                 irInvokeCallMemberNode.attachDecoration(
                     new IRDFunction(new LocalFunction(getMethod.getName(), returnType, List.of(), true, false))
                 );
-                irDeclarationNode.setExpressionNode(irInvokeCallMemberNode);
+                ExpressionNode irExpressionNode = irInvokeCallMemberNode;
+
+                // With tracking on, params is wrapped so a read of _source charges the document parse.
+                if ("params".equals(name) && returnType == Map.class && scriptScope.getCompilerSettings().isAllocationTrackingEnabled()) {
+                    InvokeCallMemberNode irTrackParamsNode = new InvokeCallMemberNode(internalLocation);
+                    irTrackParamsNode.attachDecoration(new IRDExpressionType(Map.class));
+                    irTrackParamsNode.attachDecoration(
+                        new IRDFunction(new LocalFunction("$trackParams", Map.class, List.of(Map.class), true, false))
+                    );
+                    irTrackParamsNode.addArgumentNode(irInvokeCallMemberNode);
+                    irExpressionNode = irTrackParamsNode;
+                }
+
+                irDeclarationNode.setExpressionNode(irExpressionNode);
             }
         }
     }

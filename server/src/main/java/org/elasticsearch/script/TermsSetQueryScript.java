@@ -14,13 +14,11 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 public abstract class TermsSetQueryScript {
 
@@ -29,7 +27,6 @@ public abstract class TermsSetQueryScript {
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("terms_set", Factory.class);
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
-    @SuppressWarnings("unchecked")
     private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of("doc", value -> {
         deprecationLogger.warn(
             DeprecationCategory.SCRIPTING,
@@ -46,7 +43,7 @@ public abstract class TermsSetQueryScript {
                 + "is deprecated in favor of directly accessing [doc]."
         );
         return value;
-    }, "_source", value -> ((Supplier<Source>) value).get().source());
+    }, "_source", DynamicMap.SOURCE_FUNCTION);
 
     /**
      * The generic runtime parameters for the script.

@@ -64,11 +64,7 @@ public abstract class AbstractFieldScript extends DocBasedScript {
         );
     }
 
-    @SuppressWarnings("unchecked")
-    private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of(
-        "_source",
-        value -> ((Supplier<Source>) value).get().source()
-    );
+    private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of("_source", DynamicMap.SOURCE_FUNCTION);
 
     protected final String fieldName;
     protected final Supplier<Source> source;

@@ -16,14 +16,12 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 public class ScriptedMetricAggContexts {
 
@@ -68,7 +66,6 @@ public class ScriptedMetricAggContexts {
 
         private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
 
-        @SuppressWarnings("unchecked")
         private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of("doc", value -> {
             deprecationLogger.warn(
                 DeprecationCategory.SCRIPTING,
@@ -93,7 +90,7 @@ public class ScriptedMetricAggContexts {
                     + "is deprecated in favor of using [state]."
             );
             return value;
-        }, "_source", value -> ((Supplier<Source>) value).get().source());
+        }, "_source", DynamicMap.SOURCE_FUNCTION);
 
         private final Map<String, Object> params;
         private final Map<String, Object> state;

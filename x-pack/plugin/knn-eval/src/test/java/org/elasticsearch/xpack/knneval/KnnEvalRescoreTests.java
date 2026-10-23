@@ -98,7 +98,7 @@ public class KnnEvalRescoreTests extends ESTestCase {
         assertFalse(quantized.isExact());
     }
 
-    public void testRejectsKnobsOfTheOtherFamily() {
+    public void testRejectsSettingsOfTheOtherFamily() {
         String role = randomAlphaOfLength(8);
         String graphType = randomFrom(GRAPH_TYPES);
         assertThat(
@@ -126,7 +126,7 @@ public class KnnEvalRescoreTests extends ESTestCase {
         rescoreFor(randomFrom(QUANTIZED_GRAPH_TYPES)).validateSettings(oversample, role);
     }
 
-    public void testEveryIndexTypeAcceptsItsOwnKnobs() {
+    public void testEveryIndexTypeAcceptsItsOwnSettings() {
         String role = randomAlphaOfLength(8);
         rescoreFor("bbq_disk").validateSettings(
             new KnnEvalSettings(randomVisitPercentage(), null, randomBoolean() ? null : randomOversample(), false),

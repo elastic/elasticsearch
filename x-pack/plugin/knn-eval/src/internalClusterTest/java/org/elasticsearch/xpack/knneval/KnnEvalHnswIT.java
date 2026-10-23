@@ -24,9 +24,12 @@ import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-/** Every HNSW flavor is evaluated alike, so each run draws one flavor, its early-termination setting and its data at random. */
+/** Every HNSW index_options type is evaluated alike, so each run draws one type, its early-termination setting and its data at random. */
 public class KnnEvalHnswIT extends ESIntegTestCase {
 
     private static final int DIMS = 64; // bbq_hnsw's minimum
@@ -37,14 +40,14 @@ public class KnnEvalHnswIT extends ESIntegTestCase {
         return List.of(KnnEvalPlugin.class);
     }
 
-    private String flavor;
+    private String indexOptionsType;
     private boolean quantized;
     private boolean earlyTermination;
     private int docs;
 
     private void createIndex() throws IOException {
-        flavor = randomFrom("hnsw", "int8_hnsw", "int4_hnsw", "bbq_hnsw");
-        quantized = flavor.equals("hnsw") == false;
+        indexOptionsType = randomFrom("hnsw", "int8_hnsw", "int4_hnsw", "bbq_hnsw");
+        quantized = indexOptionsType.equals("hnsw") == false;
         earlyTermination = randomBoolean();
         docs = randomIntBetween(10, 30);
         assertAcked(
@@ -55,7 +58,7 @@ public class KnnEvalHnswIT extends ESIntegTestCase {
                     .put(DenseVectorFieldMapper.HNSW_EARLY_TERMINATION.getKey(), earlyTermination)
             ).setMapping(Strings.format("""
                 { "properties": { "emb": { "type": "dense_vector", "dims": %d, "index": true, "similarity": "l2_norm",
-                  "index_options": { "type": "%s" } } } }""", DIMS, flavor))
+                  "index_options": { "type": "%s" } } } }""", DIMS, indexOptionsType))
         );
         List<IndexRequestBuilder> requests = new ArrayList<>();
         for (int i = 0; i < docs; i++) {
@@ -109,22 +112,21 @@ public class KnnEvalHnswIT extends ESIntegTestCase {
         assertEquals(entryCount, response.getResults().size());
         for (KnnEvalResponse.KnnSettingsResult result : response.getResults()) {
             if (result.recall() != null) {
-                assertThat(
-                    result.recall(),
-                    org.hamcrest.Matchers.both(org.hamcrest.Matchers.greaterThanOrEqualTo(0.0))
-                        .and(org.hamcrest.Matchers.lessThanOrEqualTo(1.0))
-                );
+                assertThat(result.recall(), both(greaterThanOrEqualTo(0.0)).and(lessThanOrEqualTo(1.0)));
             }
         }
     }
 
-    public void testKnobsOfTheOtherFamilyAreRejected() throws IOException {
+    public void testSettingsOfTheOtherFamilyAreRejected() throws IOException {
         createIndex();
         IllegalArgumentException visit = expectThrows(
             IllegalArgumentException.class,
             () -> evaluate(1, "{ \"visit_percentage\": " + randomFloatBetween(0.0f, 100.0f, true) + " }")
         );
-        assertThat(visit.getMessage(), containsString("[visit_percentage] applies only to bbq_disk, but the field is [" + flavor + "]"));
+        assertThat(
+            visit.getMessage(),
+            containsString("[visit_percentage] applies only to bbq_disk, but the field is [" + indexOptionsType + "]")
+        );
 
         String oversample = "{ \"num_candidates\": 10, \"rescore_vector\": { \"oversample\": "
             + randomFloatBetween(1.0f, 10.0f, true)

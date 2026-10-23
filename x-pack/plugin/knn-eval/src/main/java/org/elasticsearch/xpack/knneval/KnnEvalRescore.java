@@ -25,7 +25,7 @@ record KnnEvalRescore(
     Map<String, KnnEvalResponse.IndexInfo> indexInfo
 ) {
 
-    /** Index types whose search knobs differ, so each needs its own validation and default baseline. */
+    /** Index types whose search settings differ, so each needs its own validation and default baseline. */
     enum IndexType {
         BBQ_DISK("bbq_disk", false, true),
         HNSW("hnsw", true, false),
@@ -110,7 +110,7 @@ record KnnEvalRescore(
         return new KnnEvalSettings(null, numCandidates, indexType.isQuantized() ? BASELINE_OVERSAMPLE : null, false);
     }
 
-    /** Rejects a knob of the other index family, which would be ignored or change what the setting means. */
+    /** Rejects a setting of the other index family, which would be ignored or change what the setting means. */
     void validateSettings(KnnEvalSettings settings, String role) {
         String problem = null;
         if (indexType.isGraph() && settings.getVisitPercentage() != null) {

@@ -88,3 +88,82 @@ setup:
           knn_settings:
             - visit_percentage: 5
   - match: { error.reason: "/\\[visit_percentage\\]\\sapplies\\sonly\\sto\\sbbq_disk.*/" }
+
+---
+"Caller supplied query vectors get the full-size default baseline":
+  - do:
+      knn_eval:
+        index: hnsw_plain
+        body:
+          field: emb
+          k: 5
+          query_source:
+            from: vectors
+            vectors:
+              - id: q1
+                query_vector: [-0.3523, -0.6983, 0.3019, -0.8551, 0.0718, -0.2686, -0.884, 0.0149, -0.925, -0.1327, -0.8603, -0.8186, -0.151, 0.6537, -0.7524, -0.5535, 0.2549, 0.8954, 0.1542, -0.2066, 0.9525, -0.9068, 0.7169, -0.4208, -0.7115, -0.7644, -0.383, 0.6323, -0.6385, 0.1632, 0.2778, -0.2552, 0.0955, -0.8744, -0.8808, -0.5881, 0.3608, -0.1448, -0.3717, 0.1711, -0.0936, -0.4005, 0.5888, 0.398, -0.5118, 0.1488, 0.0504, 0.7503, 0.4589, -0.4241, 0.9603, -0.7639, -0.1638, 0.5143, -0.696, -0.0221, -0.9216, 0.3364, 0.5291, 0.1461, 0.751, -0.3725, 0.3906, 0.1887]
+          knn_settings:
+            - num_candidates: 12
+
+  # no sampled document to leave out, so the beam is not one short of the limit
+  - match: { baseline.num_candidates: 10000 }
+  - length: { failures: 0 }
+  - match: { results.0.recall: 1.0 }
+
+---
+"An explicit baseline on an hnsw field is used as given":
+  - do:
+      knn_eval:
+        index: hnsw_plain
+        body:
+          field: emb
+          k: 5
+          query_source:
+            from: docs
+            size: 5
+            seed: 42
+          baseline:
+            num_candidates: 12
+          knn_settings:
+            - num_candidates: 5
+
+  - match: { baseline.num_candidates: 12 }
+  - length: { results: 1 }
+  - length: { failures: 0 }
+
+---
+"visit_percentage is rejected in the baseline of a graph field":
+  - do:
+      catch: bad_request
+      knn_eval:
+        index: hnsw_plain
+        body:
+          field: emb
+          k: 5
+          query_source:
+            from: docs
+            size: 5
+            seed: 42
+          baseline:
+            visit_percentage: 20
+          knn_settings:
+            - num_candidates: 5
+  - match: { error.reason: "/.*applies\\sonly\\sto\\sbbq_disk.*in\\sthe\\sbaseline.*/" }
+
+---
+"An empty settings entry searches with the default num_candidates":
+  - do:
+      knn_eval:
+        index: hnsw_plain
+        body:
+          field: emb
+          k: 5
+          query_source:
+            from: docs
+            size: 5
+            seed: 42
+          knn_settings:
+            - {}
+
+  - length: { results: 1 }
+  - length: { failures: 0 }

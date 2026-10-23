@@ -198,16 +198,13 @@ public abstract class AbstractSemanticHighlighterTests extends MapperServiceTest
         );
     }
 
-    @SuppressWarnings("unchecked")
-    public void testNoSemanticField() throws Exception {
+    /**
+     * Highlighting a document without a value for the semantic field returns no highlight instead of failing: no chunks are indexed,
+     * so there is no scorer for the extracted queries (see <a href="https://github.com/elastic/elasticsearch/issues/128975">#128975</a>).
+     */
+    public void testNoSemanticFieldValue() throws Exception {
         float[] vector = readDenseVector(queryData.get("embeddings"));
-        var fieldType = (SemanticFieldMapper.SemanticFieldType) mapperService.mappingLookup().getFieldType(SEMANTIC_FIELD);
-
-        QueryBuilder knnQuery = createKnnQuery(
-            mapperService.mappingLookup().getFieldType(fieldType.getEmbeddingsField().fullPath()),
-            vector,
-            null
-        );
+        QueryBuilder knnQuery = createKnnQuery(mapperService.mappingLookup().getFieldType(SEMANTIC_FIELD), vector, null);
         var query = new BoolQueryBuilder().should(knnQuery).should(new MatchAllQueryBuilder());
         var shardRequest = createShardSearchRequest(query);
         var sourceToParse = new SourceToParse("0", new BytesArray("{}"), XContentType.JSON);

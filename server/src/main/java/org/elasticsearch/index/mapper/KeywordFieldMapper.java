@@ -810,6 +810,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.emptyStringAsNull = false;
         }
 
+        @Override
         public boolean usesBinaryDocValues() {
             return diskFormat.isBinary();
         }

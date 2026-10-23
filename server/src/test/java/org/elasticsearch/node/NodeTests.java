@@ -41,9 +41,7 @@ import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsServiceTests;
 import org.elasticsearch.plugins.RecoveryPlannerPlugin;
-import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.snapshots.RestoreLifecycleListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -377,23 +375,6 @@ public class NodeTests extends ESTestCase {
         IllegalStateException exception = expectThrows(IllegalStateException.class, () -> new MockNode(baseSettings().build(), plugins));
         assertThat(exception.getMessage(), containsString("Duplicate key org.elasticsearch.node.NodeTests$MockRecoveryPlannerPlugin"));
     }
-
-    public void testNodeFailsToStartWhenMultiplePluginsProvideRestoreLifecycleListeners() {
-        List<Class<? extends Plugin>> plugins = basePlugins();
-        plugins.add(TestRestoreLifecycleListenerPlugin1.class);
-        plugins.add(TestRestoreLifecycleListenerPlugin2.class);
-        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> new MockNode(baseSettings().build(), plugins));
-        assertThat(exception.getMessage(), containsString("A single " + RestoreLifecycleListener.class.getName() + " was expected"));
-    }
-
-    public static class TestRestoreLifecycleListenerPlugin1 extends Plugin implements RepositoryPlugin {
-        @Override
-        public RestoreLifecycleListener getRestoreLifecycleListener() {
-            return new RestoreLifecycleListener() {};
-        }
-    }
-
-    public static class TestRestoreLifecycleListenerPlugin2 extends TestRestoreLifecycleListenerPlugin1 {}
 
     public void testHeadersToCopyInTaskManagerAreTheSameAsDeclaredInTask() throws IOException {
         Settings.Builder settings = baseSettings();

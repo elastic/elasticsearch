@@ -34,6 +34,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -49,18 +50,28 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.concurrent.atomic.AtomicReferenceArray;
+import java.util.concurrent.atomic.LongAdder;
 
 /**
- * The coordinator's operator for a {@link FetchExec}. For each page of the cut it sends one fetch request to each node
- * that holds some of the page's documents, and appends the fetched columns to the rows, in the order of the cut.
+ * The coordinator's operator for a {@link FetchExec}. It groups the pages of the cut into batches, sends one fetch request
+ * per batch to each node that holds some of the batch's documents, and appends the fetched columns to the rows, in the
+ * order of the cut.
  * <p>
- * {@link AsyncOperator} keeps the pages in order and limits how many fetch at the same time. The responses arrive on other
+ * A {@code TopN} cut is usually one page, so one batch. A {@code LIMIT} cut passes on the pages of the exchange as they
+ * arrive, and those can be small, down to the matches of one segment each. A page leaves at once when no batch fetches.
+ * While batches fetch, the pages that arrive wait, and leave together once they fill a batch or a batch ends. So a stream
+ * of small pages costs a few requests instead of one per page, and full pages still fetch up to
+ * {@link Batching#maxBatchesInFlight} at the same time.
+ * <p>
+ * {@link AsyncOperator} keeps the pages in order and limits how many the operator holds. The responses arrive on other
  * threads, which only store them. The driver thread then puts the fetched columns next to the rows, with the block factory
  * of the driver. A fetch frees no reader context: the query frees them all once it ends.
  * <p>
@@ -73,9 +84,53 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
     private static final Logger logger = LogManager.getLogger(FetchOperator.class);
 
     /**
-     * The pages of the cut that fetch at the same time. A cut is usually one page, and a few at large limits.
+     * The batches that fetch at the same time.
      */
-    public static final int MAX_OUTSTANDING_PAGES = 4;
+    public static final int MAX_BATCHES_IN_FLIGHT = 4;
+
+    /**
+     * The pages of the cut the operator holds at once: fetching, waiting for a batch, or fetched and not out yet. Well above
+     * {@link #MAX_BATCHES_IN_FLIGHT}, so the pages that arrive while those batches fetch can wait and leave together. These
+     * are rows of the cut, which never holds more rows than its limit.
+     */
+    public static final int MAX_PAGES_HELD = 64;
+
+    /**
+     * How the operator groups the pages of the cut into batches.
+     *
+     * @param maxPagesHeld       the pages it holds at once: fetching, waiting for a batch, or fetched and not out yet
+     * @param maxBatchesInFlight the batches that fetch at the same time
+     * @param maxBatchRows       the rows a batch takes from the pages that wait, and the rows that must wait before a batch
+     *                           leaves while others fetch. A batch takes at least one page, so a larger page goes alone.
+     */
+    public record Batching(int maxPagesHeld, int maxBatchesInFlight, int maxBatchRows) {
+        public Batching {
+            if (maxBatchesInFlight < 1) {
+                throw new IllegalArgumentException("maxBatchesInFlight must be positive but was [" + maxBatchesInFlight + "]");
+            }
+            if (maxPagesHeld < maxBatchesInFlight) {
+                throw new IllegalArgumentException(
+                    "maxPagesHeld [" + maxPagesHeld + "] must be at least maxBatchesInFlight [" + maxBatchesInFlight + "]"
+                );
+            }
+            if (maxBatchRows < 1) {
+                throw new IllegalArgumentException("maxBatchRows must be positive but was [" + maxBatchRows + "]");
+            }
+        }
+
+        /**
+         * Batches whose fetched columns fill about one page of {@link Operator#TARGET_PAGE_SIZE}, the size the source
+         * operators aim for, so the responses of a batch stay about as large as a page.
+         */
+        static Batching forFetched(List<Attribute> fetched) {
+            int rowSize = 0;
+            for (Attribute attribute : fetched) {
+                rowSize += attribute.dataType().estimatedSize();
+            }
+            int maxBatchRows = Math.max(Operator.MIN_TARGET_PAGE_SIZE, Operator.TARGET_PAGE_SIZE / Math.max(1, rowSize));
+            return new Batching(MAX_PAGES_HELD, MAX_BATCHES_IN_FLIGHT, maxBatchRows);
+        }
+    }
 
     /**
      * Sends the fetch requests of one query, each as a child of the task of the query, with the index expressions the
@@ -107,18 +162,18 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
     }
 
     /**
-     * @param docChannel          the input channel that holds the documents of the rows
-     * @param fetchedTypes        the element type of each fetched column
-     * @param fetchPlan           the plan each node runs to load the fetched columns
-     * @param maxOutstandingPages the pages of the cut that fetch at the same time
-     * @param failures            decides whether the query goes on without the rows of a failed fetch, and records the shards
-     *                            it went on without
+     * @param docChannel   the input channel that holds the documents of the rows
+     * @param fetchedTypes the element type of each fetched column
+     * @param fetchPlan    the plan each node runs to load the fetched columns
+     * @param batching     how the pages of the cut group into batches
+     * @param failures     decides whether the query goes on without the rows of a failed fetch, and records the shards it
+     *                     went on without
      */
     public record Factory(
         int docChannel,
         List<ElementType> fetchedTypes,
         PhysicalPlan fetchPlan,
-        int maxOutstandingPages,
+        Batching batching,
         Client client,
         FetchFailures failures
     ) implements OperatorFactory {
@@ -139,12 +194,12 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
             List<ElementType> fetchedTypes = fetched.stream()
                 .map(a -> PlannerUtils.toElementType(a.dataType(), MappedFieldType.FieldExtractPreference.NONE))
                 .toList();
-            return new Factory(docChannel, fetchedTypes, fetchPlan, MAX_OUTSTANDING_PAGES, client, failures);
+            return new Factory(docChannel, fetchedTypes, fetchPlan, Batching.forFetched(fetched), client, failures);
         }
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new FetchOperator(driverContext, docChannel, fetchedTypes, fetchPlan, maxOutstandingPages, client, failures);
+            return new FetchOperator(driverContext, docChannel, fetchedTypes, fetchPlan, batching, client, failures);
         }
 
         @Override
@@ -154,17 +209,36 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
     }
 
     /**
-     * One page of the cut and the fetched columns of its documents: the pages of every node, one node after the other in
-     * the order of the batch.
-     *
-     * @param responseRows for each row of the cut, the row of {@code fetched} that holds its values, or {@code -1} to drop
-     *                     the row because the fetch of its shard failed
+     * The result of one page of the cut. The pages of a batch come out one after the other, so the first one carries the
+     * whole batch and the others only take the pages it gathered for them.
      */
-    record Fetched(Page cut, FetchBatchPlanner.Batch batch, List<Page> fetched, int[] responseRows) {}
+    sealed interface Fetched permits FetchedBatch, LaterPageOfBatch {}
+
+    /**
+     * The result of the first page of a batch: the pages of the batch and the fetched columns of their documents, the pages
+     * of every node one node after the other in the order of the batch.
+     *
+     * @param responseRows for each row of the pages of the batch, in order, the row of {@code fetched} that holds its
+     *                     values, or {@code -1} to drop the row because the fetch of its shard failed
+     */
+    record FetchedBatch(List<Page> cuts, FetchBatchPlanner.Batch batch, List<Page> fetched, int[] responseRows) implements Fetched {}
+
+    /**
+     * The result of a later page of a batch. The first page of the batch owns its rows and gathers them.
+     */
+    enum LaterPageOfBatch implements Fetched {
+        INSTANCE
+    }
+
+    /**
+     * A page of the cut that waits for a batch.
+     */
+    private record QueuedPage(Page cut, ActionListener<Fetched> listener) {}
 
     private final int docChannel;
     private final List<ElementType> fetchedTypes;
     private final PhysicalPlan fetchPlan;
+    private final Batching batching;
     private final Client client;
     private final FetchFailures fetchFailures;
     /**
@@ -175,27 +249,39 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
      * The request to each node that answered, added by the thread that receives its response.
      */
     private final Queue<NodeRequest> requests = ConcurrentCollections.newQueue();
+    /**
+     * The pages that wait for a batch, in the order of the cut. Guards {@link #queuedRows} and {@link #batchesInFlight} too.
+     */
+    private final Deque<QueuedPage> queued = new ArrayDeque<>();
+    private int queuedRows;
+    private int batchesInFlight;
+    // a batch can go out from the thread that ended the batch before it
+    private final LongAdder documents = new LongAdder();
+    private final LongAdder planNanos = new LongAdder();
 
     // touched by the driver thread only
     private long rowsReceived;
-    private long documents;
     private int pagesEmitted;
-    private long planNanos;
     private long gatherNanos;
+    /**
+     * The pages the first page of a batch gathered for the later pages of the batch, which come out next.
+     */
+    private final Deque<Page> gatheredForLaterPages = new ArrayDeque<>();
 
     FetchOperator(
         DriverContext driverContext,
         int docChannel,
         List<ElementType> fetchedTypes,
         PhysicalPlan fetchPlan,
-        int maxOutstandingPages,
+        Batching batching,
         Client client,
         FetchFailures fetchFailures
     ) {
-        super(driverContext, client.threadContext(), maxOutstandingPages);
+        super(driverContext, client.threadContext(), batching.maxPagesHeld());
         this.docChannel = docChannel;
         this.fetchedTypes = fetchedTypes;
         this.fetchPlan = fetchPlan;
+        this.batching = batching;
         this.client = client;
         this.fetchFailures = fetchFailures;
         this.nodeHeaders = new ResponseHeadersCollector(client.threadContext());
@@ -204,33 +290,140 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
     @Override
     protected void performAsync(Page cut, ActionListener<Fetched> listener) {
         rowsReceived += cut.getPositionCount();
+        synchronized (queued) {
+            queued.addLast(new QueuedPage(cut, listener));
+            queuedRows += cut.getPositionCount();
+        }
+        sendQueuedPages();
+    }
+
+    /**
+     * Sends the pages that wait as batches. A batch takes the next pages in the order of the cut while their rows fit
+     * {@link Batching#maxBatchRows}. It leaves at once when no batch fetches. While batches fetch, it leaves only once the
+     * pages that wait fill it, up to {@link Batching#maxBatchesInFlight} batches at once. Otherwise the pages wait for a
+     * batch to end. Runs on the driver thread when a page arrives, and on the thread that ended a batch.
+     */
+    private void sendQueuedPages() {
+        while (true) {
+            List<QueuedPage> pages;
+            synchronized (queued) {
+                if (queued.isEmpty() || batchesInFlight >= batching.maxBatchesInFlight()) {
+                    return;
+                }
+                if (batchesInFlight > 0 && queuedRows < batching.maxBatchRows()) {
+                    return;
+                }
+                pages = takeBatch();
+                batchesInFlight++;
+            }
+            sendBatch(pages);
+        }
+    }
+
+    /**
+     * Takes the next pages that wait while their rows fit {@link Batching#maxBatchRows}, and at least one.
+     */
+    private List<QueuedPage> takeBatch() {
+        assert Thread.holdsLock(queued);
+        List<QueuedPage> pages = new ArrayList<>();
+        int rows = 0;
+        do {
+            QueuedPage page = queued.removeFirst();
+            pages.add(page);
+            rows += page.cut().getPositionCount();
+        } while (queued.isEmpty() == false && rows + queued.peekFirst().cut().getPositionCount() <= batching.maxBatchRows());
+        queuedRows -= rows;
+        return pages;
+    }
+
+    private void sendBatch(List<QueuedPage> pages) {
+        List<Page> cuts = pages.stream().map(QueuedPage::cut).toList();
+        ActionListener<FetchedBatch> listener = endingTheBatch(pages);
         FetchBatchPlanner.Batch batch;
         long planStart = System.nanoTime();
         try {
-            batch = FetchBatchPlanner.plan(List.of(cut), docChannel);
+            batch = FetchBatchPlanner.plan(cuts, docChannel);
         } catch (Exception e) {
             listener.onFailure(e);
             return;
         }
-        planNanos += System.nanoTime() - planStart;
-        int pageDocuments = batch.nodes().stream().mapToInt(FetchBatchPlanner.NodeBatch::docCount).sum();
-        documents += pageDocuments;
+        planNanos.add(System.nanoTime() - planStart);
+        int batchDocuments = batch.nodes().stream().mapToInt(FetchBatchPlanner.NodeBatch::docCount).sum();
+        documents.add(batchDocuments);
         if (batch.nodes().isEmpty()) {
-            listener.onResponse(new Fetched(cut, batch, List.of(), batch.responseRows()));
+            listener.onResponse(new FetchedBatch(cuts, batch, List.of(), batch.responseRows()));
             return;
         }
-        logger.debug("fetching [{}] documents for [{}] rows from [{}] nodes", pageDocuments, cut.getPositionCount(), batch.nodes().size());
-        new PageFetch(cut, batch, listener).send();
+        logger.debug(
+            "fetching [{}] documents for the [{}] rows of [{}] pages from [{}] nodes",
+            batchDocuments,
+            batch.responseRows().length,
+            cuts.size(),
+            batch.nodes().size()
+        );
+        new BatchFetch(cuts, batch, listener).send();
     }
 
     /**
-     * The requests of one page of the cut. Completes the listener of the page once every node answered or failed: with the
-     * pages of every node whose fetch didn't fail and the rows to drop, or with the failure that fails the query.
+     * Ends a batch and completes the listener of every page of it: the first page gets the batch, the others get their turn
+     * to take the pages it gathers for them. The batch stops counting as in flight before its pages complete, so a page that
+     * arrives once the driver has their output leaves at once. Then the pages that waited leave.
+     * <p>
+     * A failure fails every page of the batch, then the pages that wait, and only then ends the batch, so no batch goes out
+     * for a query that fails.
      */
-    private final class PageFetch {
-        private final Page cut;
+    private ActionListener<FetchedBatch> endingTheBatch(List<QueuedPage> pages) {
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(FetchedBatch fetched) {
+                batchEnded();
+                pages.getFirst().listener().onResponse(fetched);
+                for (QueuedPage page : pages.subList(1, pages.size())) {
+                    page.listener().onResponse(LaterPageOfBatch.INSTANCE);
+                }
+                sendQueuedPages();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                for (QueuedPage page : pages) {
+                    page.listener().onFailure(e);
+                }
+                failQueuedPages(e);
+                batchEnded();
+            }
+        };
+    }
+
+    private void batchEnded() {
+        synchronized (queued) {
+            batchesInFlight--;
+        }
+    }
+
+    /**
+     * Fails the pages that wait for a batch, so no batch goes out for them.
+     */
+    private void failQueuedPages(Exception e) {
+        List<QueuedPage> dropped;
+        synchronized (queued) {
+            dropped = new ArrayList<>(queued);
+            queued.clear();
+            queuedRows = 0;
+        }
+        for (QueuedPage page : dropped) {
+            page.listener().onFailure(e);
+        }
+    }
+
+    /**
+     * The requests of one batch. Completes the listener of the batch once every node answered or failed: with the pages of
+     * every node whose fetch didn't fail and the rows to drop, or with the failure that fails the query.
+     */
+    private final class BatchFetch {
+        private final List<Page> cuts;
         private final FetchBatchPlanner.Batch batch;
-        private final ActionListener<Fetched> listener;
+        private final ActionListener<FetchedBatch> listener;
         /**
          * The failures that fail the query.
          */
@@ -244,12 +437,12 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
          */
         private final int[] firstShardOfNode;
         /**
-         * For each shard of the batch, {@code 1} once its fetch failed and the page goes on without its rows.
+         * For each shard of the batch, {@code 1} once its fetch failed and the batch goes on without its rows.
          */
         private final AtomicIntegerArray failedShards;
 
-        PageFetch(Page cut, FetchBatchPlanner.Batch batch, ActionListener<Fetched> listener) {
-            this.cut = cut;
+        BatchFetch(List<Page> cuts, FetchBatchPlanner.Batch batch, ActionListener<FetchedBatch> listener) {
+            this.cuts = cuts;
             this.batch = batch;
             this.listener = listener;
             this.fetchedByNode = new AtomicReferenceArray<>(batch.nodes().size());
@@ -275,7 +468,7 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
                         nodeFailed(n, new NoNodeAvailableException("node [" + node.nodeId() + "] left the cluster"));
                         continue;
                     }
-                    // a second completion would release the reference of the node twice and complete the page too early
+                    // a second completion would release the reference of the node twice and complete the batch too early
                     ActionListener<FetchResponse> nodeListener = ActionListener.notifyOnce(
                         new NodeListener(n, node, target.getName(), refs.acquire())
                     );
@@ -289,7 +482,7 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
         }
 
         /**
-         * Runs on the thread of the last node to answer, or on the driver thread when no request went out.
+         * Runs on the thread of the last node to answer, or on the thread that sent the batch when no request went out.
          */
         private void onResponded() {
             Exception failure = failures.getFailure();
@@ -303,16 +496,16 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
                 }
             }
             if (failure != null) {
-                // the operator releases the cut of a failed page
+                // the operator releases the pages of a failed batch
                 FetchResponse.releasePages(fetched);
                 listener.onFailure(failure);
                 return;
             }
-            listener.onResponse(new Fetched(cut, batch, fetched, responseRows()));
+            listener.onResponse(new FetchedBatch(cuts, batch, fetched, responseRows()));
         }
 
         /**
-         * The response row of each row of the cut, {@code -1} for the rows of the shards whose fetch failed.
+         * The response row of each row of the batch, {@code -1} for the rows of the shards whose fetch failed.
          */
         private int[] responseRows() {
             boolean[] failed = new boolean[failedShards.length()];
@@ -325,7 +518,7 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
         }
 
         /**
-         * The fetch from node {@code n} failed as a whole. The page goes on without the rows of its shards, or the failure
+         * The fetch from node {@code n} failed as a whole. The batch goes on without the rows of its shards, or the failure
          * fails the query.
          */
         private void nodeFailed(int n, Exception e) {
@@ -350,7 +543,7 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
         }
 
         /**
-         * The page goes on without the rows of shard {@code s} of node {@code n}, and the query reports the shard as failed.
+         * The batch goes on without the rows of shard {@code s} of node {@code n}, and the query reports the shard as failed.
          */
         private void shardFailed(int n, int s, Exception failure) {
             FetchBatchPlanner.NodeBatch node = batch.nodes().get(n);
@@ -360,7 +553,7 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
 
         /**
          * Stores the pages of one node, or collects its failure, before it releases the reference of the node. So once the
-         * last node answered, the page finds every node's pages or a failure. Runs on the thread that receives the
+         * last node answered, the batch finds every node's pages or a failure. Runs on the thread that receives the
          * response, and never throws: the transport would complete the listener a second time.
          */
         private final class NodeListener implements ActionListener<FetchResponse> {
@@ -415,7 +608,7 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
             }
 
             /**
-             * Checks that the response answers the request shard by shard, and lets the page go on without the shards whose
+             * Checks that the response answers the request shard by shard, and lets the batch go on without the shards whose
              * fetch failed. Returns {@code false} when a failure fails the query. A response that doesn't match its request
              * always fails it, because its rows can't be put next to the right documents.
              */
@@ -493,8 +686,7 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
     }
 
     /**
-     * Appends the fetched columns to the rows of the next page of the cut. Runs on the driver thread, with the block
-     * factory of the driver.
+     * The next page of the cut with its fetched columns. Runs on the driver thread, with the block factory of the driver.
      */
     @Override
     public Page getOutput() {
@@ -502,30 +694,55 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
         if (result == null) {
             return null;
         }
+        pagesEmitted++;
+        return switch (result) {
+            case FetchedBatch batch -> gather(batch);
+            case LaterPageOfBatch later -> gatheredForLaterPages.removeFirst();
+        };
+    }
+
+    /**
+     * Appends the fetched columns to the rows of every page of the batch. Returns the first page, and keeps the others for
+     * the later pages of the batch.
+     */
+    private Page gather(FetchedBatch batch) {
         long gatherStart = System.nanoTime();
-        // releases the cut and the fetched pages, also when it fails
+        // releases the pages of the batch and the fetched pages, also when it fails
         List<Page> gathered = FetchGather.gather(
             driverContext().blockFactory(),
-            List.of(result.cut()),
-            result.fetched(),
+            batch.cuts(),
+            batch.fetched(),
             fetchedTypes,
-            result.responseRows(),
-            result.batch().deduplicated()
+            batch.responseRows(),
+            batch.batch().deduplicated()
         );
         gatherNanos += System.nanoTime() - gatherStart;
-        assert gathered.size() == 1 : "one page out for each page of the cut, but got " + gathered.size();
-        pagesEmitted++;
+        assert gathered.size() == batch.cuts().size() : "one page out for each page of the batch, but got " + gathered.size();
+        gatheredForLaterPages.addAll(gathered.subList(1, gathered.size()));
         return gathered.getFirst();
     }
 
     @Override
     protected void releaseFetchedOnAnyThread(Fetched result) {
-        // the fetched pages already allow passing to another driver
-        Releasables.closeExpectNoException(() -> releasePageOnAnyThread(result.cut()), () -> FetchResponse.releasePages(result.fetched()));
+        switch (result) {
+            // the fetched pages already allow passing to another driver
+            case FetchedBatch batch -> Releasables.closeExpectNoException(
+                () -> batch.cuts().forEach(AsyncOperator::releasePageOnAnyThread),
+                () -> FetchResponse.releasePages(batch.fetched())
+            );
+            case LaterPageOfBatch later -> {
+                // the first page of the batch owns the rows
+            }
+        }
     }
 
     @Override
     protected void doClose() {
+        failQueuedPages(new TaskCancelledException("the fetch operator closed before the page went out"));
+        Page gathered;
+        while ((gathered = gatheredForLaterPages.pollFirst()) != null) {
+            gathered.releaseBlocks();
+        }
         nodeHeaders.finish();
     }
 
@@ -536,9 +753,9 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
             completedPages,
             processNanos,
             rowsReceived,
-            documents,
+            documents.sum(),
             pagesEmitted,
-            planNanos,
+            planNanos.sum(),
             gatherNanos,
             List.copyOf(requests)
         );
@@ -550,9 +767,9 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
     }
 
     /**
-     * What the fetch did and where its time went. The process time runs from planning the requests of a page to the last
-     * response of the page, summed over the pages. The query phase already counted the documents, so the totals of a
-     * profile don't count them again.
+     * What the fetch did and where its time went. The process time runs from the arrival of a page to the last response of
+     * its batch, summed over the pages. The query phase already counted the documents, so the totals of a profile don't
+     * count them again.
      */
     public static final class Status extends AsyncOperator.Status {
         public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -574,7 +791,7 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
          * @param pagesEmitted pages of rows with their fetched columns
          * @param planNanos    grouping the documents of the cut into requests
          * @param gatherNanos  appending the fetched columns to the rows
-         * @param requests     the request to each node that answered, one per node and page of the cut
+         * @param requests     the request to each node that answered, one per node and batch of the cut
          */
         public Status(
             long receivedPages,

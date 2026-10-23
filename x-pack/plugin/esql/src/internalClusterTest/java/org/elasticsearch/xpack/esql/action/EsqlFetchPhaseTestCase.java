@@ -35,7 +35,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -160,6 +162,44 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
         }
         assertThat(rows, equalTo(expected));
         assertFetched(run, 64);
+    }
+
+    /**
+     * A plain {@code LIMIT} over many small segments gets a small page from the exchange for each of them. The pages that
+     * arrive while earlier batches fetch leave together, so the query sends fewer than half as many fetch requests as it
+     * gets pages.
+     */
+    public void testAPlainLimitOverManySmallSegmentsBatchesItsPages() {
+        String index = indexName + "_segments";
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                // no merges, so every refresh leaves a small segment on each shard that got documents
+                .setSettings(indexSettings(4, 0).put("index.merge.policy.segments_per_tier", 100))
+                .setMapping("unique_sort", "type=long", "payload", "type=keyword")
+        );
+        int refreshes = 25;
+        int docsPerRefresh = 8;
+        for (int r = 0; r < refreshes; r++) {
+            BulkRequestBuilder bulk = client().prepareBulk();
+            for (int d = 0; d < docsPerRefresh; d++) {
+                int doc = r * docsPerRefresh + d;
+                bulk.add(prepareIndex(index).setSource("unique_sort", doc, "payload", "payload-" + doc));
+            }
+            bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        }
+
+        Run run = runQuery("FROM " + index + " | LIMIT 1000 | KEEP unique_sort, payload", true);
+        List<List<Object>> rows = new ArrayList<>(run.rows());
+        rows.sort(Comparator.comparing(row -> (Long) row.getFirst()));
+        List<List<Object>> expected = new ArrayList<>();
+        for (long doc = 0; doc < refreshes * docsPerRefresh; doc++) {
+            expected.add(List.of(doc, "payload-" + doc));
+        }
+        assertThat(rows, equalTo(expected));
+        FetchOperator.Status fetch = coordinatorFetch(run);
+        assertThat("a page per segment, so at least one per refresh", fetch.receivedPages(), greaterThanOrEqualTo((long) refreshes));
+        // each page holds the documents of one segment, so without batching every page would cost a request
+        assertThat("fetch requests", (long) fetch.requests().size(), lessThan(fetch.receivedPages() / 2));
     }
 
     /**
@@ -849,6 +889,19 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
             .sum();
         assertThat("documents the fetch loaded", documents, equalTo((long) rows));
 
+        FetchOperator.Status status = coordinatorFetch(run);
+        assertThat("documents the coordinator asked for", status.documents(), equalTo((long) rows));
+        assertThat(
+            "documents the nodes answered",
+            status.requests().stream().mapToLong(FetchOperator.NodeRequest::documents).sum(),
+            equalTo((long) rows)
+        );
+    }
+
+    /**
+     * The status of the one fetch operator of the coordinator.
+     */
+    private static FetchOperator.Status coordinatorFetch(Run run) {
         List<FetchOperator.Status> coordinator = run.drivers()
             .stream()
             .flatMap(driver -> driver.operators().stream())
@@ -857,13 +910,7 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
             .map(FetchOperator.Status.class::cast)
             .toList();
         assertThat("one fetch on the coordinator", coordinator, hasSize(1));
-        FetchOperator.Status status = coordinator.getFirst();
-        assertThat("documents the coordinator asked for", status.documents(), equalTo((long) rows));
-        assertThat(
-            "documents the nodes answered",
-            status.requests().stream().mapToLong(FetchOperator.NodeRequest::documents).sum(),
-            equalTo((long) rows)
-        );
+        return coordinator.getFirst();
     }
 
     protected static void assertNotFetched(Run run) {

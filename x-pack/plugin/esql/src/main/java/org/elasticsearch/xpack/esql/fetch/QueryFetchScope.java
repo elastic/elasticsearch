@@ -22,7 +22,7 @@ import java.util.function.Supplier;
  * @param rootTask       the task of the query. Every fetch request is its child, so cancelling the query cancels them.
  * @param completionInfo acquires a listener for the drivers of one fetch request. The query adds them to its own
  *                       counters and profile.
- * @param docOrigins     numbers the origins of the documents the TopN of the query keeps. The coordinator releases it
+ * @param docOrigins     numbers the origins of the documents that reach the cut of the query. The coordinator releases it
  *                       when its compute ends.
  * @param fetchFailures  the shards whose fetch failed, which the query reports once its computes are done
  */

@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AdjustableSemaphore;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -53,6 +54,7 @@ public class RecoverySettings {
 
     private static final Logger logger = LogManager.getLogger(RecoverySettings.class);
 
+    private static final long ONE_MB_IN_BYTES = 1024 * 1024L;
     /**
      * Undocumented setting, used to override the total physical available memory in tests
      **/
@@ -506,8 +508,11 @@ public class RecoverySettings {
     }
 
     private void computeMaxBytesPerSec(Settings settings) {
-        // limit as computed before 8.1.0
-        final long defaultBytesPerSec = Math.max(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.get(settings).getBytes(), 0L);
+        // limit as computed before 8.1.0, default should never lower than 1MB
+        final long defaultBytesPerSec = Math.max(
+            INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.get(settings).getBytes(),
+            Assertions.ENABLED ? 0L : ONE_MB_IN_BYTES
+        );
 
         // available network bandwidth
         final long networkBandwidthBytesPerSec = Math.max(availableNetworkBandwidth.getBytes(), 0L);

@@ -226,7 +226,7 @@ public class AlibabaCloudSearchService extends SenderService<AlibabaCloudSearchM
             var serviceSettings = embeddingsModel.getServiceSettings();
 
             var similarityFromModel = serviceSettings.similarity();
-            var similarityToUse = similarityFromModel == null ? SimilarityMeasure.COSINE : similarityFromModel;
+            var similarityToUse = SimilarityMeasure.similarityOrDefault(similarityFromModel);
             var updatedServiceSettings = new AlibabaCloudSearchEmbeddingsServiceSettings(
                 new AlibabaCloudSearchServiceSettings(
                     serviceSettings.getCommonSettings().modelId(),

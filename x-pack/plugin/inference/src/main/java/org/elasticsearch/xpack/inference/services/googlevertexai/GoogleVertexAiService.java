@@ -253,7 +253,7 @@ public class GoogleVertexAiService extends SenderService<GoogleVertexAiModel> im
             var serviceSettings = embeddingsModel.getServiceSettings();
 
             var similarityFromModel = serviceSettings.similarity();
-            var similarityToUse = similarityFromModel == null ? SimilarityMeasure.COSINE : similarityFromModel;
+            var similarityToUse = SimilarityMeasure.similarityOrDefault(similarityFromModel);
             var updatedServiceSettings = new GoogleVertexAiEmbeddingsServiceSettings(
                 serviceSettings.location(),
                 serviceSettings.projectId(),

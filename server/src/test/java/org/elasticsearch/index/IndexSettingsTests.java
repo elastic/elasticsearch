@@ -1748,6 +1748,7 @@ public class IndexSettingsTests extends ESTestCase {
             .put(IndexSettings.TIME_SERIES_BATCH_INDEXING.getKey(), false)
             .build();
         assertFalse(IndexSettings.BATCH_INDEXING.get(columnarOptOut));
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { IndexSettings.TIME_SERIES_BATCH_INDEXING });
     }
 
     public void testBatchIndexingExplicitSettingWinsOverFallback() {

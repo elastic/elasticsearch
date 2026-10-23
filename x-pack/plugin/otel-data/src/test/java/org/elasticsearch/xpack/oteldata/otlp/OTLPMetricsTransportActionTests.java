@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.http.HttpTransportSettings;
@@ -439,6 +440,7 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
         assertTrue(
             metricsAction.canUseBatchIndexing(true, batchIndexingProject(target, IndexSettings.TIME_SERIES_BATCH_INDEXING.getKey()), groups)
         );
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { IndexSettings.TIME_SERIES_BATCH_INDEXING });
         assertTrue(metricsAction.canUseBatchIndexing(true, batchIndexingProject(target, IndexSettings.BATCH_INDEXING.getKey()), groups));
         assertFalse(metricsAction.canUseBatchIndexing(true, batchIndexingProject(target, null), groups));
     }

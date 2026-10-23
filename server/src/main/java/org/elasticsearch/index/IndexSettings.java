@@ -706,7 +706,8 @@ public final class IndexSettings {
         "index.time_series.batch_indexing",
         false,
         Property.Final,
-        Property.IndexScope
+        Property.IndexScope,
+        Property.DeprecatedWarning
     );
 
     /**

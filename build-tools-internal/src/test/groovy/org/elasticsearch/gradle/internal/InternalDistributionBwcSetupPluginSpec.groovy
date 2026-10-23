@@ -222,6 +222,34 @@ class InternalDistributionBwcSetupPluginSpec extends Specification {
         new File(uniqueGradleUserHome, "wrapper/dists").list().toList() == ["gradle-9.1-bin"]
     }
 
+    def "seedUniqueGradleUserHome syncs init.d in place"() {
+        given:
+        File sourceGradleUserHome = new File(tempDir, "source")
+        String wrapperDistributionPath = "wrapper/dists/gradle-9.1-bin"
+        writeReadyWrapperDistribution(new File(sourceGradleUserHome, wrapperDistributionPath))
+        new File(sourceGradleUserHome, "init.d/changed.gradle").with {
+            parentFile.mkdirs()
+            text = "new"
+        }
+        new File(sourceGradleUserHome, "init.d/added.gradle").text = "added"
+        File uniqueGradleUserHome = new File(tempDir, "unique")
+        File targetInitDir = new File(uniqueGradleUserHome, "init.d")
+        new File(targetInitDir, "changed.gradle").with {
+            parentFile.mkdirs()
+            text = "old"
+        }
+        new File(targetInitDir, "stale.gradle").text = "stale"
+
+        when:
+        InternalDistributionBwcSetupPlugin.seedUniqueGradleUserHome(sourceGradleUserHome, uniqueGradleUserHome, wrapperDistributionPath)
+
+        then:
+        new File(targetInitDir, "changed.gradle").text == "new"
+        new File(targetInitDir, "added.gradle").text == "added"
+        new File(targetInitDir, "stale.gradle").exists() == false
+        targetInitDir.list().toList().toSet() == ["changed.gradle", "added.gradle"].toSet()
+    }
+
     private static void writeReadyWrapperDistribution(File wrapperDistributionDir) {
         String extractedGradleDirName = wrapperDistributionDir.name.endsWith("-bin")
             ? wrapperDistributionDir.name.substring(0, wrapperDistributionDir.name.length() - "-bin".length())

@@ -11,7 +11,6 @@ package org.elasticsearch.index.mapper.blockloader;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.datageneration.FieldType;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.BinaryDVBlockLoaderTestCase;
 import org.elasticsearch.index.mapper.BlockLoaderTestCase;
 

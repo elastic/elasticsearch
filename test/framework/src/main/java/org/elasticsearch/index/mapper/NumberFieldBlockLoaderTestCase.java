@@ -245,10 +245,7 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
             fieldMapping.put("scaling_factor", "1");
         }
 
-        var mapping = new Mapping(
-            Map.of("_doc", Map.of("properties", Map.of("field", fieldMapping))),
-            Map.of("field", fieldMapping)
-        );
+        var mapping = new Mapping(Map.of("_doc", Map.of("properties", Map.of("field", fieldMapping))), Map.of("field", fieldMapping));
 
         Object expected = expected(mapping.lookup().get("field"), value, new TestContext(false, false));
 
@@ -275,10 +272,7 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
             fieldMapping.put("scaling_factor", "1");
         }
 
-        var mapping = new Mapping(
-            Map.of("_doc", Map.of("properties", Map.of("field", fieldMapping))),
-            Map.of("field", fieldMapping)
-        );
+        var mapping = new Mapping(Map.of("_doc", Map.of("properties", Map.of("field", fieldMapping))), Map.of("field", fieldMapping));
 
         Object expected = expected(mapping.lookup().get("field"), value, new TestContext(false, false));
 

@@ -1,5 +1,5 @@
 ---
-navigation_title: "API"
+navigation_title: "Manage with API"
 description: "Create, get, list, delete, and test ES|QL Data Federation data sources with the /_query/data_source API."
 applies_to:
   stack: experimental 9.5+
@@ -30,14 +30,6 @@ Data sources are managed under the `/_query/data_source` endpoint. All data sour
 The create request does not validate connectivity to the external system.
 
 {applies_to}`stack: experimental 9.6+` To verify that credentials and endpoint are correct before saving, use the [test connection](#test-a-connection) endpoint.
-
-:::{important}
-Data source names follow the same naming rules as index names: lowercase only, at most 255 bytes, and they cannot begin with `-`, `_`, or `+`, contain spaces, or contain the characters `\ / * ? " < > |`.
-:::
-
-A cluster holds at most 100 data sources by default. In {{stack}} deployments, if you need more than 100 data sources, then you can raise the limit using the [`esql.data_sources.max_count`](esql-data-federation-cluster-settings.md#object-limits) cluster setting.
-
-The optional `description` can be at most 1,000 characters long.
 
 ::::{tab-set}
 :group: api-ref
@@ -81,6 +73,14 @@ curl -X PUT "${ELASTICSEARCH_URL}/_query/data_source/prod_s3_logs" \
 :::{tip}
 For step-by-step guides on setting up each authentication model in AWS, refer to the [Amazon S3 authentication models](esql-data-federation-s3.md#s3-auth-models).
 :::
+
+### Naming rules and limits
+
+A create or update request is rejected when it breaks one of these rules or limits:
+
+- **Name**: Follows the same rules as index names. Lowercase only and at most 255 bytes. Can't begin with `-`, `_`, or `+`, and can't contain spaces or the characters `\ / * ? " < > |`.
+- **Description**: At most 1,000 characters.
+- **Number of data sources**: At most 100 per cluster by default. In {{stack}} deployments, you can raise the limit with the [`esql.data_sources.max_count`](esql-data-federation-cluster-settings.md#object-limits) cluster setting.
 
 ## Get a data source
 

@@ -12,6 +12,7 @@ package org.elasticsearch.common;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.ESTestCase;
 
+import static org.elasticsearch.core.Strings.MAX_INPUT_LENGTH_IN_ERROR;
 import static org.hamcrest.Matchers.is;
 
 public class BooleansTests extends ESTestCase {
@@ -70,6 +71,30 @@ public class BooleansTests extends ESTestCase {
                 () -> Booleans.parseBoolean(nonBoolean.toCharArray(), 0, nonBoolean.length(), defaultValue)
             );
         }
+    }
+
+    public void testLongNonBooleanIsTruncatedInError() {
+        String value = "x".repeat(2 * MAX_INPUT_LENGTH_IN_ERROR);
+        String expected = "Failed to parse value ["
+            + value.substring(0, MAX_INPUT_LENGTH_IN_ERROR)
+            + "..."
+            + "] as only [true] or [false] are allowed.";
+        assertEquals(expected, expectThrows(IllegalArgumentException.class, () -> Booleans.parseBoolean(value)).getMessage());
+        assertEquals(
+            expected,
+            expectThrows(IllegalArgumentException.class, () -> Booleans.parseBoolean(value.toCharArray(), 0, value.length(), false))
+                .getMessage()
+        );
+
+        // A surrogate pair across the cut is dropped whole
+        String emoji = "x".repeat(MAX_INPUT_LENGTH_IN_ERROR - 1) + "\uD83D\uDE00" + value;
+        assertEquals(
+            "Failed to parse value ["
+                + emoji.substring(0, MAX_INPUT_LENGTH_IN_ERROR - 1)
+                + "..."
+                + "] as only [true] or [false] are allowed.",
+            expectThrows(IllegalArgumentException.class, () -> Booleans.parseBoolean(emoji)).getMessage()
+        );
     }
 
     public void testParseBoolean() {

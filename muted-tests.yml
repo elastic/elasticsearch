@@ -443,8 +443,3 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.RevertModelSnapshotIT
   method: testRevertModelSnapshot_DeleteInterveningResults
   issue: https://github.com/elastic/elasticsearch/issues/161086
-- class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
-  tasks:
-  - :integTest
-  method: falls back to local build when mode=auto and DRA manifest commit does not match remote tracking ref
-  issue: https://github.com/elastic/elasticsearch/issues/163172

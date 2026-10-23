@@ -78,9 +78,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherIT
   method: testForceCommitPrefetch
   issue: https://github.com/elastic/elasticsearch/issues/147847
-- class: org.elasticsearch.search.aggregations.metrics.LargeTopHitsIT
-  method: test500Queries
-  issue: https://github.com/elastic/elasticsearch/issues/148056
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testStressWithRelocationFailures
   issue: https://github.com/elastic/elasticsearch/issues/148129
@@ -385,9 +382,6 @@ tests:
 - class: org.elasticsearch.xpack.search.AsyncSearchActionIT
   method: testRemoveAsyncIndex
   issue: https://github.com/elastic/elasticsearch/issues/161316
-- class: org.elasticsearch.integration.FieldLevelSecurityTests
-  method: testPercolatorConstantKeywordQueryDependsOnIndexingUsersFls
-  issue: https://github.com/elastic/elasticsearch/issues/161396
 - class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRecoveryIT
   method: testPeerRecovery
   issue: https://github.com/elastic/elasticsearch/issues/161463
@@ -412,8 +406,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessCommitNotificationsIT
   method: testVbccRemainsServableUntilSearchTierNotificationCompletes
   issue: https://github.com/elastic/elasticsearch/issues/161667
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/161781
 - class: org.elasticsearch.xpack.stateless.StatelessResizeIT
   method: testSplitAfterResharding
   issue: https://github.com/elastic/elasticsearch/issues/161783
@@ -523,3 +515,46 @@ tests:
 - class: org.elasticsearch.xpack.wildcard.search.WildcardAutomatonBreakerIT
   method: testAutomatonStaysChargedUntilSearchContextReleased
   issue: https://github.com/elastic/elasticsearch/issues/162754
+- class: org.elasticsearch.columnar.string.StringColumnMetadataTests
+  method: testRoundTrip
+  issue: https://github.com/elastic/elasticsearch/issues/162976
+- class: org.elasticsearch.xpack.stateless.recovery.BlockRefreshUponIndexCreationIT
+  method: testRefreshBlockRemovedAfterDelay
+  issue: https://github.com/elastic/elasticsearch/issues/162990
+- class: org.elasticsearch.xpack.logsdb.patterntext.PatternTextIntegrationTests
+  tasks:
+  - :x-pack:plugin:logsdb:test
+  issue: https://github.com/elastic/elasticsearch/issues/163084
+- class: org.elasticsearch.upgrades.ColumnarIndexModesFullClusterRestartIT
+  tasks:
+  - :qa:full-cluster-restart:v8.19.24#bwcTest
+  - :qa:full-cluster-restart:v9.5.6#bwcTest
+  - :qa:full-cluster-restart:v9.6.0#bwcTest
+  method: testLogsdbColumnar {cluster=OLD}
+  issue: https://github.com/elastic/elasticsearch/issues/163086
+- class: org.elasticsearch.upgrades.ColumnarIndexModesFullClusterRestartIT
+  tasks:
+  - :qa:full-cluster-restart:v8.19.24#bwcTest
+  - :qa:full-cluster-restart:v9.5.6#bwcTest
+  - :qa:full-cluster-restart:v9.6.0#bwcTest
+  method: testColumnar {cluster=OLD}
+  issue: https://github.com/elastic/elasticsearch/issues/163088
+- class: org.elasticsearch.upgrades.ColumnarIndexModesFullClusterRestartIT
+  tasks:
+  - :qa:full-cluster-restart:v8.19.24#bwcTest
+  - :qa:full-cluster-restart:v9.5.6#bwcTest
+  - :qa:full-cluster-restart:v9.6.0#bwcTest
+  method: testLogsdbColumnar {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/163091
+- class: org.elasticsearch.upgrades.ColumnarIndexModesFullClusterRestartIT
+  tasks:
+  - :qa:full-cluster-restart:v8.19.24#bwcTest
+  - :qa:full-cluster-restart:v9.5.6#bwcTest
+  - :qa:full-cluster-restart:v9.6.0#bwcTest
+  method: testColumnar {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/163093
+- class: org.elasticsearch.xpack.stateless.commits.UploadQueueControllerServiceIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testDisableThrottlingUsingTheSetting
+  issue: https://github.com/elastic/elasticsearch/issues/163114

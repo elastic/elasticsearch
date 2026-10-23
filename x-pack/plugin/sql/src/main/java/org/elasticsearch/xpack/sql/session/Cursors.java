@@ -110,7 +110,7 @@ public final class Cursors {
         }
         try (SqlStreamInput in = SqlStreamInput.fromString(base64, WRITEABLE_REGISTRY, VERSION)) {
             return in.readOptionalWriteable(BasicFormatter::new);
-        } catch (IOException ex) {
+        } catch (IOException | RuntimeException ex) {
             throw new SqlIllegalArgumentException("Unexpected failure reading cursor", ex);
         }
     }
@@ -151,7 +151,14 @@ public final class Cursors {
             } else {
                 return internalDecodeFromStringWithZone(in.readString(), writeableRegistry);
             }
-        } catch (IOException ex) {
+        } catch (SqlIllegalArgumentException ex) {
+            // already the right type and message, whether it came from the nested call above or
+            // from inside the stream itself, so it must not be wrapped in a second one
+            throw ex;
+        } catch (IOException | RuntimeException ex) {
+            // the cursor is whatever was in the request, so a broken one fails in ways that are
+            // not IOException: bad base64, a negative or oversized array length, an unknown
+            // writeable name. they all mean the same thing to the caller
             throw new SqlIllegalArgumentException("Unexpected failure reading cursor", ex);
         }
     }

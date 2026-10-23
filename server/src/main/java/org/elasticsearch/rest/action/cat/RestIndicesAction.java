@@ -85,7 +85,7 @@ public class RestIndicesAction extends AbstractCatAction {
     @Override
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-        final IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, IndicesOptions.strictExpand());
+        final IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, IndicesOptions.strictExpandHidden());
         final TimeValue masterNodeTimeout = getMasterNodeTimeout(request);
         final boolean includeUnloadedSegments = request.paramAsBoolean("include_unloaded_segments", false);
 

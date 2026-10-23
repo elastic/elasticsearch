@@ -577,6 +577,67 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * {@code time_zone} is not scoped at view boundaries: the caller's {@code SET} applies to the whole query, view bodies
+     * included. Its cluster default must behave the same way, so a view's date logic follows the cluster's time zone.
+     * Truncating to the day is time-zone sensitive, and the instant is just past midnight in UTC, still the previous day at -05:00.
+     */
+    public void testClusterDefaultOfTimeZoneReachesViewBody() {
+        assertAcked(indicesAdmin().prepareCreate("tz_source").setMapping("d", "type=date"));
+        prepareIndex("tz_source").setSource("d", "2026-01-01T00:30:00Z").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        assertAcked(createView("tz_view", "FROM tz_source | EVAL truncated = DATE_TRUNC(1 day, d) | KEEP truncated"));
+        String utc = "2026-01-01T00:00:00.000Z";
+        String minusFive = "2025-12-31T00:00:00.000-05:00";
+
+        assertThat(firstValue("FROM tz_view"), equalTo(utc));
+        // The caller's SET reaches inside the view.
+        assertThat(firstValue("SET time_zone=\"-05:00\"; FROM tz_view"), equalTo(minusFive));
+
+        String key = "esql.query.settings.time_zone";
+        updateClusterSettings(org.elasticsearch.common.settings.Settings.builder().put(key, "-05:00"));
+        try {
+            // The cluster default reaches inside the view exactly as the caller's SET does, also nested and next to an index.
+            assertAcked(createView("tz_outer_view", "FROM tz_view"));
+            assertThat(firstValue("FROM tz_view"), equalTo(minusFive));
+            assertThat(firstValue("FROM tz_outer_view"), equalTo(minusFive));
+            assertThat(
+                firstValue("FROM tz_source, tz_view | EVAL truncated = COALESCE(truncated, DATE_TRUNC(1 day, d)) | KEEP truncated"),
+                equalTo(minusFive)
+            );
+            // And the caller's SET still beats it, inside the view too.
+            assertThat(firstValue("SET time_zone=\"Z\"; FROM tz_view"), equalTo(utc));
+        } finally {
+            updateClusterSettings(org.elasticsearch.common.settings.Settings.builder().putNull(key));
+        }
+    }
+
+    /**
+     * {@code approximation} is not scoped at view boundaries either: a query over a view is approximated, or not, the same way
+     * whether the caller's {@code SET} or the cluster default turned it on.
+     */
+    public void testClusterDefaultOfApproximationActsLikeSetOverView() {
+        setupWildcardViewsData();
+        assertAcked(createView("approx_view", "FROM wcv_data | STATS c = COUNT(*)"));
+        Boolean viaSet;
+        try (var resp = run("SET approximation=true; FROM approx_view")) {
+            viaSet = resp.approximationApplied();
+        }
+        String key = "esql.query.settings.approximation";
+        updateClusterSettings(org.elasticsearch.common.settings.Settings.builder().put(key, "true"));
+        try (var resp = run("FROM approx_view")) {
+            assertThat(resp.approximationApplied(), equalTo(viaSet));
+        } finally {
+            updateClusterSettings(org.elasticsearch.common.settings.Settings.builder().putNull(key));
+        }
+        assertThat("SET approximation applies to a query over a view", viaSet, org.hamcrest.Matchers.notNullValue());
+    }
+
+    private String firstValue(String query) {
+        try (var resp = run(query)) {
+            return getValuesList(resp).get(0).get(0).toString();
+        }
+    }
+
     public void testLoadSetInsideViewLoadsFullyUnmappedField() {
         setupUnmappedIndices();
         assertAcked(createView("load_view", """

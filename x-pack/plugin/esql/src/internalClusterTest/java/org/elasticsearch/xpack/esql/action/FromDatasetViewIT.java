@@ -898,6 +898,28 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
     }
 
     /**
+     * Like the caller's {@code SET}, the cluster default of {@code wildcards_match_datasets} applies to the caller's own wildcards
+     * and not to a view body's: the view returns the same rows whatever the cluster is configured with.
+     */
+    public void testClusterDefaultOfWildcardsMatchDatasetsDoesNotReachViewBody() {
+        registerEmployees();
+        registerEmployeesAlt();
+        createView("emp_star_view", "FROM employees*");
+        String key = "esql.query.settings.wildcards_match_datasets";
+        updateClusterSettings(Settings.builder().put(key, true));
+        try {
+            try (var response = run(syncEsqlQueryRequest("FROM employees* | KEEP emp_no | SORT emp_no"))) {
+                assertThat(getValuesList(response), equalTo(List.of(List.of(1), List.of(2), List.of(3), List.of(10), List.of(11))));
+            }
+            try (var response = run(syncEsqlQueryRequest("FROM emp_star_view | STATS c = COUNT(*)"))) {
+                assertThat(getValuesList(response), equalTo(List.of(List.of(0L))));
+            }
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(key));
+        }
+    }
+
+    /**
      * The caller's SET stops at the outer view, whose body has no wildcard of its own. The nested view's wildcard is the nested
      * view's business, so adding the SET to the outer view would change nothing and nothing is reported.
      */

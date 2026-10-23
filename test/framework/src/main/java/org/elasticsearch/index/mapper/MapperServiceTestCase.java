@@ -11,11 +11,16 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.lucene104.Lucene104Codec;
+import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
+import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
@@ -107,6 +112,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -189,8 +195,12 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
     }
 
     protected final DocumentMapper createColumnarModeDocumentMapper(XContentBuilder mappings) throws IOException {
+        return createColumnarModeMapperService(mappings).documentMapper();
+    }
+
+    protected final MapperService createColumnarModeMapperService(XContentBuilder mappings) throws IOException {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
-        return createMapperService(settings, mappings).documentMapper();
+        return createMapperService(settings, mappings);
     }
 
     /**
@@ -478,29 +488,15 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         CheckedConsumer<RandomIndexWriter, IOException> builder,
         CheckedConsumer<DirectoryReader, IOException> test
     ) throws IOException {
-        IndexSortConfig sortConfig = new IndexSortConfig(mapperService.getIndexSettings());
-        Sort indexSort = sortConfig.buildIndexSort(
-            mapperService::fieldType,
-            (ft, s) -> ft.fielddataBuilder(FieldDataContext.noRuntimeFields("index", "")).build(null, null)
-        );
-        IndexWriterConfig iwc = new IndexWriterConfig(
-            IndexShard.buildIndexAnalyzer(mapperService, mapperService.getMapperMetrics().tokenCountingMetrics())
-        ).setCodec(
-            new PerFieldMapperCodec(
-                Lucene104Codec.Mode.BEST_SPEED,
-                ElasticsearchStoredFieldsFormat.Mode.LUCENE,
-                ElasticsearchStoredFieldsFormat.Mode.LUCENE,
-                mapperService,
-                BigArrays.NON_RECYCLING_INSTANCE,
-                null
-            )
-        );
-        if (indexSort != null) {
-            iwc.setIndexSort(indexSort);
-        }
-        try (Directory dir = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc)) {
+        try (
+            Directory dir = newDirectory();
+            RandomIndexWriter iw = TestIndexWriterBuilder.mapped(mapperService)
+                .overrideAnalyzer(IndexShard.buildIndexAnalyzer(mapperService, mapperService.getMapperMetrics().tokenCountingMetrics()))
+                .build(dir)
+        ) {
             builder.accept(iw);
             try (DirectoryReader reader = iw.getReader()) {
+                assertDocValuesWrittenAsMapped(mapperService, reader);
                 test.accept(reader);
             }
         }
@@ -922,6 +918,9 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
     }
 
     protected SearchExecutionContext createSearchExecutionContext(MapperService mapperService, IndexSearcher searcher, Settings settings) {
+        if (searcher != null) {
+            assertDocValuesWrittenAsMapped(mapperService, searcher.getIndexReader());
+        }
         Settings mergedSettings = Settings.builder().put(mapperService.getIndexSettings().getSettings()).put(settings).build();
         IndexMetadata indexMetadata = IndexMetadata.builder(mapperService.getIndexSettings().getIndexMetadata())
             .settings(mergedSettings)
@@ -969,31 +968,81 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         ).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
     }
 
-    protected RandomIndexWriter indexWriterForSyntheticSource(Directory directory) throws IOException {
-        // MockAnalyzer (rarely) produces random payloads that lead to failures during assertReaderEquals.
-        return new RandomIndexWriter(random(), directory, new StandardAnalyzer());
+    protected RandomIndexWriter indexWriterForSyntheticSource(MapperService mapperService, Directory directory) throws IOException {
+        return TestIndexWriterBuilder.mapped(mapperService).build(directory);
     }
 
-    protected final String syntheticSource(DocumentMapper mapper, CheckedConsumer<XContentBuilder, IOException> build) throws IOException {
-        return syntheticSource(mapper, null, build);
+    /**
+     * Asserts that every doc values field in {@code reader} was written with the format production picks for it from the
+     * mapping of {@code mapperService}. A field that production leaves to Lucene's default format is not checked, since
+     * Lucene's test framework randomizes that format on purpose.
+     */
+    protected static void assertDocValuesWrittenAsMapped(MapperService mapperService, IndexReader reader) {
+        final PerFieldMapperCodec codec = productionCodec(mapperService);
+        final Map<String, String> mismatches = new TreeMap<>();
+        for (LeafReaderContext leaf : reader.leaves()) {
+            for (FieldInfo info : leaf.reader().getFieldInfos()) {
+                if (info.getDocValuesType() == DocValuesType.NONE) {
+                    continue;
+                }
+                final DocValuesFormat expected = codec.getDocValuesFormatForField(info.name);
+                if (expected instanceof Lucene90DocValuesFormat) {
+                    continue;
+                }
+                final String written = info.getAttribute(PerFieldDocValuesFormat.PER_FIELD_FORMAT_KEY);
+                if (expected.getName().equals(written) == false) {
+                    mismatches.put(info.name, "mapped to [" + expected.getName() + "] but written with [" + written + "]");
+                }
+            }
+        }
+        assertTrue("doc values written with a format other than the mapping picks: " + mismatches, mismatches.isEmpty());
+    }
+
+    protected static DocValuesFormat productionDocValuesFormat(MapperService mapperService, String field) {
+        return productionCodec(mapperService).getDocValuesFormatForField(field);
+    }
+
+    static Sort productionIndexSort(MapperService mapperService) {
+        return new IndexSortConfig(mapperService.getIndexSettings()).buildIndexSort(
+            mapperService::fieldType,
+            (ft, s) -> ft.fielddataBuilder(FieldDataContext.noRuntimeFields("index", "")).build(null, null)
+        );
+    }
+
+    static PerFieldMapperCodec productionCodec(MapperService mapperService) {
+        return new PerFieldMapperCodec(
+            Lucene104Codec.Mode.BEST_SPEED,
+            ElasticsearchStoredFieldsFormat.Mode.LUCENE,
+            ElasticsearchStoredFieldsFormat.Mode.LUCENE,
+            mapperService,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            null
+        );
+    }
+
+    protected final String syntheticSource(MapperService mapperService, CheckedConsumer<XContentBuilder, IOException> build)
+        throws IOException {
+        return syntheticSource(mapperService, null, build);
     }
 
     protected final String syntheticSource(
-        DocumentMapper mapper,
+        MapperService mapperService,
         @Nullable SourceFilter sourceFilter,
         CheckedConsumer<XContentBuilder, IOException> build
     ) throws IOException {
+        DocumentMapper mapper = mapperService.documentMapper();
         try (Directory directory = newDirectory()) {
-            RandomIndexWriter iw = indexWriterForSyntheticSource(directory);
+            RandomIndexWriter iw = indexWriterForSyntheticSource(mapperService, directory);
             ParsedDocument doc = mapper.parse(source(build));
             doc.updateSeqID(0, 0);
             doc.version().setLongValue(0);
             iw.addDocuments(doc.docs());
             iw.close();
             try (DirectoryReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
+                assertDocValuesWrittenAsMapped(mapperService, indexReader);
                 String syntheticSourceFiltered = syntheticSource(mapper, sourceFilter, indexReader, doc.docs().size() - 1);
                 String syntheticSource = syntheticSource(mapper, null, indexReader, doc.docs().size() - 1);
-                roundTripSyntheticSource(mapper, syntheticSource, indexReader);
+                roundTripSyntheticSource(mapperService, syntheticSource, indexReader);
                 return syntheticSourceFiltered;
             }
         }
@@ -1009,9 +1058,10 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
      * That's the point, really. It'll just be "close enough" for
      * round tripping.
      */
-    private void roundTripSyntheticSource(DocumentMapper mapper, String syntheticSource, DirectoryReader reader) throws IOException {
+    private void roundTripSyntheticSource(MapperService mapperService, String syntheticSource, DirectoryReader reader) throws IOException {
+        DocumentMapper mapper = mapperService.documentMapper();
         try (Directory roundTripDirectory = newDirectory()) {
-            RandomIndexWriter roundTripIw = indexWriterForSyntheticSource(roundTripDirectory);
+            RandomIndexWriter roundTripIw = indexWriterForSyntheticSource(mapperService, roundTripDirectory);
             ParsedDocument doc = mapper.parse(new SourceToParse("1", new BytesArray(syntheticSource), XContentType.JSON));
             // Process root and nested documents in the same way as the normal indexing chain (assuming a single document)
             doc.updateSeqID(0, 0);

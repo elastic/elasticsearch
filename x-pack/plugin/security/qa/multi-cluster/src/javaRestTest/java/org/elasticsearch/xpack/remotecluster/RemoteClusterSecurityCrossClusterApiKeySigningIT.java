@@ -14,6 +14,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
@@ -371,30 +372,35 @@ public class RemoteClusterSecurityCrossClusterApiKeySigningIT extends AbstractRe
         assertBusy(() -> {
             // Iterate over all nodes in the fulfilling cluster
             for (int i = 0; i < fulfillingCluster.getNumNodes(); i++) {
-                final List<String> allLines = fulfillingCluster.readNodeLogIncludingRolled(i, LogType.AUDIT);
+                try (var auditLog = fulfillingCluster.getNodeLog(i, LogType.AUDIT)) {
+                    final List<String> allLines = Streams.readAllLines(auditLog);
 
-                String expectedLogFragment = "event.action\":\"" + eventAction + "\"";
+                    String expectedLogFragment = "event.action\":\"" + eventAction + "\"";
 
-                boolean foundNewDetailedLog = allLines.stream()
-                    .filter(line -> line.contains(expectedLogFragment))
-                    .filter(line -> line.contains("request.name"))
-                    .anyMatch(line -> {
-                        try {
-                            String tsString = extractAuditLogTimestamp(line, "timestamp");
-                            long logTimeMillis = parseLogTimestamp(tsString);
+                    boolean foundNewDetailedLog = allLines.stream()
+                        .filter(line -> line.contains(expectedLogFragment))
+                        .filter(line -> line.contains("request.name"))
+                        .anyMatch(line -> {
+                            try {
+                                String tsString = extractAuditLogTimestamp(line, "timestamp");
+                                long logTimeMillis = parseLogTimestamp(tsString);
 
-                            // Make sure log occurred after the test had started
-                            return logTimeMillis >= startTimeMillis;
-                        } catch (Exception e) {
-                            return false;
-                        }
-                    });
+                                // Make sure log occurred after the test had started
+                                return logTimeMillis >= startTimeMillis;
+                            } catch (Exception e) {
+                                return false;
+                            }
+                        });
 
-                assertThat(
-                    "Audit log must contain the expected NEW detailed " + eventAction.replace("_", " ") + " entry.",
-                    foundNewDetailedLog,
-                    equalTo(true)
-                );
+                    assertThat(
+                        "Audit log must contain the expected NEW detailed " + eventAction.replace("_", " ") + " entry.",
+                        foundNewDetailedLog,
+                        equalTo(true)
+                    );
+                } catch (IOException e) {
+                    logger.warn("Failed to read audit log for node [{}].", i, e);
+                    throw e;
+                }
             }
         });
     }

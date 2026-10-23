@@ -12,18 +12,18 @@ package org.elasticsearch.test.cluster.local;
 import org.elasticsearch.test.cluster.LogType;
 import org.jspecify.annotations.Nullable;
 
-import java.io.BufferedReader;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.SequenceInputStream;
 import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.SortedMap;
@@ -34,15 +34,17 @@ import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 
 /**
- * Reads a node's log together with every file log4j rolled it into, so that a line written just before a rollover is
+ * Opens a node's log together with every file log4j rolled it into, so that a line written just before a rollover is
  * still found.
  * <p>
  * Log4j rolls a log by renaming the live file, creating a new live file right after, and gzipping the renamed file on
- * another thread before deleting it. A reader can therefore see the live file missing, the renamed file disappear
- * between listing and reading, or a {@code .gz} that is still being written. A rollover between listing the rolled files
- * and reading the live file would also drop the lines that just moved out of the live file, so the rolled files are
- * listed again after reading and the read is repeated if they changed. These states last milliseconds, so the read is
- * retried a few times before giving up.
+ * another thread before deleting it. Logs that keep a fixed window of rolled files also delete the oldest file and rename
+ * the others down one slot once the window is full. A reader can therefore see the live file missing, a rolled file
+ * disappear between listing and opening it, or a {@code .gz} that is still being written. A rollover while the files are
+ * being opened would also drop or repeat lines, so the rolled files are listed again once everything is open and the open
+ * is repeated if any of them changed. An opened file keeps its content when log4j later renames or deletes it, so the
+ * returned stream stays consistent while it is read. These states last milliseconds, so the open is retried a few times
+ * before giving up.
  */
 final class RolledLogReader {
 
@@ -55,54 +57,57 @@ final class RolledLogReader {
 
     private RolledLogReader() {}
 
-    static List<String> readAllLines(Path logsDir, String clusterName, LogType logType) {
-        return readAllLines(logsDir, clusterName, logType, ATTEMPTS, RETRY_DELAY, () -> {});
+    static InputStream open(Path logsDir, String clusterName, LogType logType) {
+        return open(logsDir, clusterName, logType, ATTEMPTS, RETRY_DELAY, () -> {});
     }
 
     /**
-     * @param afterListingRolled runs right after the rolled files are listed, so tests can roll the log over at the point
-     *                           where it is easiest to lose lines
+     * @param checkpoint runs after the rolled files are listed and after each file is opened, so tests can roll the log
+     *                   over at the points where it is easiest to lose lines
      */
-    static List<String> readAllLines(
-        Path logsDir,
-        String clusterName,
-        LogType logType,
-        int attempts,
-        Duration retryDelay,
-        Runnable afterListingRolled
-    ) {
+    static InputStream open(Path logsDir, String clusterName, LogType logType, int attempts, Duration retryDelay, Runnable checkpoint) {
         Path live = logsDir.resolve(logType.resolveFilename(clusterName));
+        if (Files.isDirectory(logsDir) == false) {
+            throw new IllegalArgumentException("Log file " + live + " does not exist.");
+        }
         IOException lastFailure = null;
         for (int attempt = 0; attempt < attempts; attempt++) {
             if (attempt > 0) {
                 sleep(retryDelay);
             }
-            SortedMap<RolledFile, Path> rolled = listRolledFiles(logsDir, clusterName, logType);
-            afterListingRolled.run();
-            if (Files.exists(live) == false) {
-                // The live file may have been renamed by its first rollover after the rolled files were listed.
-                if (listRolledFiles(logsDir, clusterName, logType).isEmpty()) {
-                    throw new IllegalArgumentException("Log file " + live + " does not exist.");
-                }
-                continue;
-            }
+            List<InputStream> opened = new ArrayList<>();
+            boolean handedOver = false;
             try {
-                List<String> lines = new ArrayList<>();
-                for (Path file : rolled.values()) {
-                    lines.addAll(readLines(file));
+                SortedMap<RolledFile, FileIdentity> rolled = listRolledFiles(logsDir, clusterName, logType);
+                checkpoint.run();
+                if (Files.exists(live) == false) {
+                    // The live file may have been renamed by its first rollover after the rolled files were listed.
+                    if (listRolledFiles(logsDir, clusterName, logType).isEmpty()) {
+                        throw new IllegalArgumentException("Log file " + live + " does not exist.");
+                    }
+                    continue;
                 }
-                lines.addAll(readLines(live));
-                if (listRolledFiles(logsDir, clusterName, logType).keySet().equals(rolled.keySet())) {
-                    return lines;
+                for (FileIdentity file : rolled.values()) {
+                    opened.add(openRolledFile(file.path()));
+                    checkpoint.run();
+                }
+                opened.add(Files.newInputStream(live));
+                if (listRolledFiles(logsDir, clusterName, logType).equals(rolled)) {
+                    handedOver = true;
+                    return new SequenceInputStream(Collections.enumeration(opened));
                 }
             } catch (NoSuchFileException | EOFException e) {
                 lastFailure = e;
             } catch (IOException e) {
-                throw new UncheckedIOException("Failed to read log file " + live + " and the files it was rolled into", e);
+                throw new UncheckedIOException("Failed to open log file " + live + " and the files it was rolled into", e);
+            } finally {
+                if (handedOver == false) {
+                    closeAll(opened);
+                }
             }
         }
         throw new IllegalStateException(
-            "Log file " + live + " was still being rolled over after " + attempts + " attempts to read it",
+            "Log file " + live + " was still being rolled over after " + attempts + " attempts to open it",
             lastFailure
         );
     }
@@ -111,21 +116,21 @@ final class RolledLogReader {
      * Rolled files oldest first. While log4j is compressing a file, the renamed file is complete and the {@code .gz}
      * beside it is not, so the renamed file is used.
      */
-    private static SortedMap<RolledFile, Path> listRolledFiles(Path logsDir, String clusterName, LogType logType) {
+    private static SortedMap<RolledFile, FileIdentity> listRolledFiles(Path logsDir, String clusterName, LogType logType)
+        throws IOException {
         Pattern pattern = rolledFilenamePattern(clusterName, logType);
-        SortedMap<RolledFile, Path> rolled = new TreeMap<>(ORDER);
+        SortedMap<RolledFile, FileIdentity> rolled = new TreeMap<>(ORDER);
         try (Stream<Path> files = Files.list(logsDir)) {
             for (Path file : files.toList()) {
                 Matcher matcher = pattern.matcher(file.getFileName().toString());
                 if (matcher.matches()) {
                     RolledFile rolledFile = new RolledFile(matcher.group("date"), Long.parseLong(matcher.group("index")));
                     if (matcher.group("gz") == null || rolled.containsKey(rolledFile) == false) {
-                        rolled.put(rolledFile, file);
+                        BasicFileAttributes attributes = Files.readAttributes(file, BasicFileAttributes.class);
+                        rolled.put(rolledFile, new FileIdentity(file, attributes.fileKey(), attributes.size()));
                     }
                 }
             }
-        } catch (IOException e) {
-            throw new UncheckedIOException("Failed to list log directory " + logsDir, e);
         }
         return rolled;
     }
@@ -155,15 +160,26 @@ final class RolledLogReader {
         );
     }
 
-    private static List<String> readLines(Path file) throws IOException {
-        try (
-            InputStream in = Files.newInputStream(file);
-            InputStream decoded = file.getFileName().toString().endsWith(".gz") ? new GZIPInputStream(in) : in;
-            BufferedReader reader = new BufferedReader(new InputStreamReader(decoded, StandardCharsets.UTF_8))
-        ) {
-            return reader.lines().toList();
-        } catch (UncheckedIOException e) {
-            throw e.getCause();
+    private static InputStream openRolledFile(Path file) throws IOException {
+        InputStream in = Files.newInputStream(file);
+        if (file.getFileName().toString().endsWith(".gz") == false) {
+            return in;
+        }
+        try {
+            return new GZIPInputStream(in);
+        } catch (IOException e) {
+            in.close();
+            throw e;
+        }
+    }
+
+    private static void closeAll(List<InputStream> streams) {
+        for (InputStream stream : streams) {
+            try {
+                stream.close();
+            } catch (IOException e) {
+                // Nothing was read from these streams, and closing the others matters more than this failure.
+            }
         }
     }
 
@@ -180,4 +196,10 @@ final class RolledLogReader {
      * Identifies a rolled file independently of whether it has been compressed yet.
      */
     private record RolledFile(@Nullable String date, long index) {}
+
+    /**
+     * What occupies a rolled file's slot. A rename into the slot changes the file key, or the size where the filesystem has
+     * no file keys. Compressing the file changes the path.
+     */
+    private record FileIdentity(Path path, @Nullable Object fileKey, long size) {}
 }

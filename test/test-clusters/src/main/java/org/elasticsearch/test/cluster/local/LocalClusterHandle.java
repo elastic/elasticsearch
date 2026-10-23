@@ -112,18 +112,12 @@ public interface LocalClusterHandle extends ClusterHandle {
     void upgradeToVersion(Version version, Runnable onNodeUpgradeComplete);
 
     /**
-     * Returns an {@link InputStream} for the given node log. This is only the live file: lines written before the log
-     * rolled over are not included, see {@link #readNodeLogIncludingRolled}.
+     * Returns an {@link InputStream} for the given node log: the files log4j rolled it into, oldest first, followed by the
+     * live file. Logs roll when they reach a size limit, and some of them also at local midnight, so reading only the live
+     * file would miss a line written just before a rollover. The content is what a run that never rolled over would have
+     * logged, unless log4j has already deleted the oldest rolled files.
      */
     InputStream getNodeLog(int index, LogType logType);
-
-    /**
-     * Returns every line of the given node log, oldest first, including the files log4j rolled it into. Logs roll when
-     * they reach a size limit, and some of them also at local midnight, so a line written just before a rollover is no
-     * longer in the live file returned by {@link #getNodeLog}. Use this when a test looks for a line it caused to be
-     * logged.
-     */
-    List<String> readNodeLogIncludingRolled(int index, LogType logType);
 
     /**
      * Returns the {@link Path} to the given node's config directory.

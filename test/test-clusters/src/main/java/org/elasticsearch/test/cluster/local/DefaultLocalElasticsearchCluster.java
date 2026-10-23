@@ -177,12 +177,6 @@ public class DefaultLocalElasticsearchCluster<S extends LocalClusterSpec, H exte
     }
 
     @Override
-    public List<String> readNodeLogIncludingRolled(int index, LogType logType) {
-        checkHandle();
-        return handle.readNodeLogIncludingRolled(index, logType);
-    }
-
-    @Override
     public Path getNodeConfigPath(int index) {
         checkHandle();
         return handle.getNodeConfigPath(index);

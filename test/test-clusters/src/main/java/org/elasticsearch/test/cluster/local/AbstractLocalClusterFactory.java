@@ -267,21 +267,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         }
 
         public InputStream getLog(LogType logType) {
-            Path logFile = logsDir.resolve(logType.resolveFilename(spec.getCluster().getName()));
-            if (Files.exists(logFile)) {
-                try {
-                    return Files.newInputStream(logFile);
-                } catch (IOException e) {
-                    LOGGER.error("Failed to read log file of type '{}' for node {} at '{}'", logType, this, logFile);
-                    throw new RuntimeException(e);
-                }
-            }
-
-            throw new IllegalArgumentException("Log file " + logFile + " does not exist.");
-        }
-
-        List<String> readLogIncludingRolled(LogType logType) {
-            return RolledLogReader.readAllLines(logsDir, spec.getCluster().getName(), logType);
+            return RolledLogReader.open(logsDir, spec.getCluster().getName(), logType);
         }
 
         public LocalNodeSpec getSpec() {

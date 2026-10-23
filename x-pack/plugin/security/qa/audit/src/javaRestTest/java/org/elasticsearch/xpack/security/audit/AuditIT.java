@@ -13,6 +13,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -202,14 +203,16 @@ public class AuditIT extends ESRestTestCase {
             assertThat(body, containsString("\"data_source\""));
             var requestId = (String) event.get(LoggingAuditTrail.REQUEST_ID_FIELD_NAME);
 
-            var events = findEvents(
-                cluster.readNodeLogIncludingRolled(0, LogType.AUDIT),
-                AuditLevel.ACCESS_GRANTED,
-                e -> EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME.equals(e.get(LoggingAuditTrail.ACTION_FIELD_NAME))
-                    && e.get(LoggingAuditTrail.REQUEST_ID_FIELD_NAME).equals(requestId)
-            );
-            assertThat(events, hasSize(1));
-            assertThat(events.get(0), hasEntry(LoggingAuditTrail.DATA_SOURCES_FIELD_NAME, List.of(dataSourceName)));
+            try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
+                var events = findEvents(
+                    Streams.readAllLines(auditLog),
+                    AuditLevel.ACCESS_GRANTED,
+                    e -> EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME.equals(e.get(LoggingAuditTrail.ACTION_FIELD_NAME))
+                        && e.get(LoggingAuditTrail.REQUEST_ID_FIELD_NAME).equals(requestId)
+                );
+                assertThat(events, hasSize(1));
+                assertThat(events.get(0), hasEntry(LoggingAuditTrail.DATA_SOURCES_FIELD_NAME, List.of(dataSourceName)));
+            }
         });
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         assertPutDataset(
@@ -233,17 +236,19 @@ public class AuditIT extends ESRestTestCase {
         assertThat(deleteDatasetResponse.getStatusLine().getStatusCode(), equalTo(200));
 
         assertBusy(() -> {
-            final List<String> lines = cluster.readNodeLogIncludingRolled(0, LogType.AUDIT);
-            final List<Map<String, Object>> events = findSecurityConfigChangeEvents(lines, "delete_dataset", deleteStart).stream()
-                .filter(e -> e.get(LoggingAuditTrail.DELETE_CONFIG_FIELD_NAME) != null)
-                .toList();
-            if (events.isEmpty()) {
-                fail("Could not find a [delete_dataset] security_config_change event for [" + datasetName + "]");
+            try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
+                final List<String> lines = Streams.readAllLines(auditLog);
+                final List<Map<String, Object>> events = findSecurityConfigChangeEvents(lines, "delete_dataset", deleteStart).stream()
+                    .filter(e -> e.get(LoggingAuditTrail.DELETE_CONFIG_FIELD_NAME) != null)
+                    .toList();
+                if (events.isEmpty()) {
+                    fail("Could not find a [delete_dataset] security_config_change event for [" + datasetName + "]");
+                }
+                assertThat(events, hasSize(1));
+                final Map<String, Object> event = events.get(0);
+                final Map<String, Object> dataSource = asMap(asMap(event.get(LoggingAuditTrail.DELETE_CONFIG_FIELD_NAME)).get("dataset"));
+                assertThat(dataSource, equalTo(Map.of("names", List.of(datasetName))));
             }
-            assertThat(events, hasSize(1));
-            final Map<String, Object> event = events.get(0);
-            final Map<String, Object> dataSource = asMap(asMap(event.get(LoggingAuditTrail.DELETE_CONFIG_FIELD_NAME)).get("dataset"));
-            assertThat(dataSource, equalTo(Map.of("names", List.of(datasetName))));
         }, 5, TimeUnit.SECONDS);
 
         var deleteDatasourceRequest = new Request("DELETE", "/_query/data_source/" + dataSourceName);
@@ -251,17 +256,21 @@ public class AuditIT extends ESRestTestCase {
         assertThat(deleteDatasourceResponse.getStatusLine().getStatusCode(), equalTo(200));
 
         assertBusy(() -> {
-            final List<String> lines = cluster.readNodeLogIncludingRolled(0, LogType.AUDIT);
-            final List<Map<String, Object>> events = findSecurityConfigChangeEvents(lines, "delete_data_source", deleteStart).stream()
-                .filter(e -> e.get(LoggingAuditTrail.DELETE_CONFIG_FIELD_NAME) != null)
-                .toList();
-            if (events.isEmpty()) {
-                fail("Could not find a [delete_data_source] security_config_change event for [" + datasetName + "]");
+            try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
+                final List<String> lines = Streams.readAllLines(auditLog);
+                final List<Map<String, Object>> events = findSecurityConfigChangeEvents(lines, "delete_data_source", deleteStart).stream()
+                    .filter(e -> e.get(LoggingAuditTrail.DELETE_CONFIG_FIELD_NAME) != null)
+                    .toList();
+                if (events.isEmpty()) {
+                    fail("Could not find a [delete_data_source] security_config_change event for [" + datasetName + "]");
+                }
+                assertThat(events, hasSize(1));
+                final Map<String, Object> event = events.get(0);
+                final Map<String, Object> dataSource = asMap(
+                    asMap(event.get(LoggingAuditTrail.DELETE_CONFIG_FIELD_NAME)).get("data_source")
+                );
+                assertThat(dataSource, equalTo(Map.of("names", List.of(dataSourceName))));
             }
-            assertThat(events, hasSize(1));
-            final Map<String, Object> event = events.get(0);
-            final Map<String, Object> dataSource = asMap(asMap(event.get(LoggingAuditTrail.DELETE_CONFIG_FIELD_NAME)).get("data_source"));
-            assertThat(dataSource, equalTo(Map.of("names", List.of(dataSourceName))));
         }, 5, TimeUnit.SECONDS);
     }
 
@@ -493,25 +502,27 @@ public class AuditIT extends ESRestTestCase {
         assertThat(reason, containsString(EsqlDatasetActionNames.ESQL_AUTHORIZE_DATASET_DATASOURCE_ACTION_NAME));
 
         assertBusy(() -> {
-            final List<String> lines = cluster.readNodeLogIncludingRolled(0, LogType.AUDIT);
-            final List<Map<String, Object>> events = findEvents(lines, AuditLevel.ACCESS_DENIED, e -> {
-                if (username.equals(e.get(LoggingAuditTrail.PRINCIPAL_FIELD_NAME)) == false) {
-                    return false;
-                }
-                var tstamp = ZonedDateTime.parse(String.valueOf(e.get(LoggingAuditTrail.TIMESTAMP)), TSTAMP_FORMATTER).toInstant();
-                if (tstamp.isBefore(start)) {
-                    return false;
-                }
-                return EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME.equals(e.get(LoggingAuditTrail.ACTION_FIELD_NAME));
-            });
-            assertThat(events, hasSize(1));
-            final Map<String, Object> event = events.get(0);
-            assertThat(event, hasEntry("type", "audit"));
-            assertThat(event, hasKey(LoggingAuditTrail.NODE_ID_FIELD_NAME));
-            assertThat(event, hasKey(LoggingAuditTrail.REQUEST_ID_FIELD_NAME));
-            assertThat(event, hasEntry(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "transport"));
-            assertThat(event, hasEntry(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME, "rest"));
-            assertThat(event, hasEntry(LoggingAuditTrail.DATA_SOURCES_FIELD_NAME, List.of(dataSourceName)));
+            try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
+                final List<String> lines = Streams.readAllLines(auditLog);
+                final List<Map<String, Object>> events = findEvents(lines, AuditLevel.ACCESS_DENIED, e -> {
+                    if (username.equals(e.get(LoggingAuditTrail.PRINCIPAL_FIELD_NAME)) == false) {
+                        return false;
+                    }
+                    var tstamp = ZonedDateTime.parse(String.valueOf(e.get(LoggingAuditTrail.TIMESTAMP)), TSTAMP_FORMATTER).toInstant();
+                    if (tstamp.isBefore(start)) {
+                        return false;
+                    }
+                    return EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME.equals(e.get(LoggingAuditTrail.ACTION_FIELD_NAME));
+                });
+                assertThat(events, hasSize(1));
+                final Map<String, Object> event = events.get(0);
+                assertThat(event, hasEntry("type", "audit"));
+                assertThat(event, hasKey(LoggingAuditTrail.NODE_ID_FIELD_NAME));
+                assertThat(event, hasKey(LoggingAuditTrail.REQUEST_ID_FIELD_NAME));
+                assertThat(event, hasEntry(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "transport"));
+                assertThat(event, hasEntry(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME, "rest"));
+                assertThat(event, hasEntry(LoggingAuditTrail.DATA_SOURCES_FIELD_NAME, List.of(dataSourceName)));
+            }
         }, 5, TimeUnit.SECONDS);
     }
 
@@ -634,15 +645,17 @@ public class AuditIT extends ESRestTestCase {
 
     private List<Map<String, Object>> findRestEvents(AuditLevel level, String principal, Request request, Instant start)
         throws IOException {
-        return findEvents(cluster.readNodeLogIncludingRolled(0, LogType.AUDIT), level, e -> {
-            if (principal.equals(e.get(LoggingAuditTrail.PRINCIPAL_FIELD_NAME)) == false
-                || request.getEndpoint().equals(e.get(LoggingAuditTrail.URL_PATH_FIELD_NAME)) == false
-                || request.getMethod().equals(e.get(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME)) == false) {
-                return false;
-            }
-            Instant tstamp = ZonedDateTime.parse(String.valueOf(e.get(LoggingAuditTrail.TIMESTAMP)), TSTAMP_FORMATTER).toInstant();
-            return tstamp.isBefore(start) == false;
-        });
+        try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
+            return findEvents(Streams.readAllLines(auditLog), level, e -> {
+                if (principal.equals(e.get(LoggingAuditTrail.PRINCIPAL_FIELD_NAME)) == false
+                    || request.getEndpoint().equals(e.get(LoggingAuditTrail.URL_PATH_FIELD_NAME)) == false
+                    || request.getMethod().equals(e.get(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME)) == false) {
+                    return false;
+                }
+                Instant tstamp = ZonedDateTime.parse(String.valueOf(e.get(LoggingAuditTrail.TIMESTAMP)), TSTAMP_FORMATTER).toInstant();
+                return tstamp.isBefore(start) == false;
+            });
+        }
     }
 
     public void testFilteringOfCloneApiKeyRequestBody() throws Exception {
@@ -748,24 +761,28 @@ public class AuditIT extends ESRestTestCase {
             // The same request is also recorded as a security config change. Other tests create API keys too, so the
             // event is picked out by the key's unique name rather than by time alone.
             assertBusy(() -> {
-                final List<String> lines = cluster.readNodeLogIncludingRolled(0, LogType.AUDIT);
-                final List<Map<String, Object>> events = findSecurityConfigChangeEvents(lines, "create_apikey", start).stream()
-                    .filter(
-                        e -> apiKeyName.equals(asMap(asMap(e.get(LoggingAuditTrail.CREATE_CONFIG_FIELD_NAME)).get("apikey")).get("name"))
-                    )
-                    .toList();
-                if (events.isEmpty()) {
-                    fail("Could not find a [create_apikey] security_config_change event for [" + apiKeyName + "]");
+                try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
+                    final List<String> lines = Streams.readAllLines(auditLog);
+                    final List<Map<String, Object>> events = findSecurityConfigChangeEvents(lines, "create_apikey", start).stream()
+                        .filter(
+                            e -> apiKeyName.equals(
+                                asMap(asMap(e.get(LoggingAuditTrail.CREATE_CONFIG_FIELD_NAME)).get("apikey")).get("name")
+                            )
+                        )
+                        .toList();
+                    if (events.isEmpty()) {
+                        fail("Could not find a [create_apikey] security_config_change event for [" + apiKeyName + "]");
+                    }
+                    assertThat(events, hasSize(1));
+                    final Map<String, Object> event = events.get(0);
+                    final Map<String, Object> grant = asMap(asMap(event.get(LoggingAuditTrail.CREATE_CONFIG_FIELD_NAME)).get("grant"));
+                    assertThat(grant, hasEntry("type", "_user_managed_service_account"));
+                    assertThat(grant, hasEntry("has_service_account_token", true));
+                    assertThat(grant, not(hasKey("has_access_token")));
+                    assertThat(grant, not(hasKey("user")));
+                    assertThat(grant, not(hasKey("run_as")));
+                    assertThat(toJson(event), not(containsString(serviceAccountToken)));
                 }
-                assertThat(events, hasSize(1));
-                final Map<String, Object> event = events.get(0);
-                final Map<String, Object> grant = asMap(asMap(event.get(LoggingAuditTrail.CREATE_CONFIG_FIELD_NAME)).get("grant"));
-                assertThat(grant, hasEntry("type", "_user_managed_service_account"));
-                assertThat(grant, hasEntry("has_service_account_token", true));
-                assertThat(grant, not(hasKey("has_access_token")));
-                assertThat(grant, not(hasKey("user")));
-                assertThat(grant, not(hasKey("run_as")));
-                assertThat(toJson(event), not(containsString(serviceAccountToken)));
             }, 5, TimeUnit.SECONDS);
         } finally {
             final Request deleteRequest = new Request("DELETE", "/_security/service/" + namespace + "/" + serviceName);
@@ -828,16 +845,18 @@ public class AuditIT extends ESRestTestCase {
         Instant start = auditTimestampNow();
         executeRequest(request);
         assertBusy(() -> {
-            final List<String> lines = cluster.readNodeLogIncludingRolled(0, LogType.AUDIT);
-            final List<Map<String, Object>> events = findSecurityConfigChangeEvents(lines, eventAction, start);
-            if (events.isEmpty()) {
-                fail("Could not find any [" + eventAction + "] security_config_change events in [" + String.join("\n", lines) + "]");
+            try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
+                final List<String> lines = Streams.readAllLines(auditLog);
+                final List<Map<String, Object>> events = findSecurityConfigChangeEvents(lines, eventAction, start);
+                if (events.isEmpty()) {
+                    fail("Could not find any [" + eventAction + "] security_config_change events in [" + String.join("\n", lines) + "]");
+                }
+                assertThat(events, hasSize(1));
+                final Map<String, Object> event = events.get(0);
+                assertThat(event, hasEntry("type", "audit"));
+                assertThat(event, hasEntry(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, eventAction));
+                assertions.accept(event);
             }
-            assertThat(events, hasSize(1));
-            final Map<String, Object> event = events.get(0);
-            assertThat(event, hasEntry("type", "audit"));
-            assertThat(event, hasEntry(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, eventAction));
-            assertions.accept(event);
         }, 5, TimeUnit.SECONDS);
     }
 
@@ -849,35 +868,38 @@ public class AuditIT extends ESRestTestCase {
         Instant start = auditTimestampNow();
         Response response = executeRequest(request);
         assertBusy(() -> {
-            final List<String> lines = cluster.readNodeLogIncludingRolled(0, LogType.AUDIT);
-            final List<Map<String, Object>> events = findEvents(lines, eventType, e -> {
-                if (API_USER.equals(e.get(LoggingAuditTrail.PRINCIPAL_FIELD_NAME)) == false) {
-                    return false;
+            try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
+                final List<String> lines = Streams.readAllLines(auditLog);
+                final List<Map<String, Object>> events = findEvents(lines, eventType, e -> {
+                    if (API_USER.equals(e.get(LoggingAuditTrail.PRINCIPAL_FIELD_NAME)) == false) {
+                        return false;
+                    }
+                    // Match the request under test by path so a preceding setup call (same principal) that
+                    // flushes into this time window cannot make hasSize(1) fail spuriously.
+                    if (request.getEndpoint().equals(e.get(LoggingAuditTrail.URL_PATH_FIELD_NAME)) == false) {
+                        return false;
+                    }
+                    Instant tstamp = ZonedDateTime.parse(String.valueOf(e.get(LoggingAuditTrail.TIMESTAMP)), TSTAMP_FORMATTER).toInstant();
+                    if (tstamp.isBefore(start)) {
+                        return false;
+                    }
+                    return true;
+                });
+                if (events.isEmpty()) {
+                    fail("Could not find any [" + eventType + "] events for [" + API_USER + "] in [" + String.join("\n", lines) + "]");
                 }
-                // Match the request under test by path so a preceding setup call (same principal) that
-                // flushes into this time window cannot make hasSize(1) fail spuriously.
-                if (request.getEndpoint().equals(e.get(LoggingAuditTrail.URL_PATH_FIELD_NAME)) == false) {
-                    return false;
-                }
-                Instant tstamp = ZonedDateTime.parse(String.valueOf(e.get(LoggingAuditTrail.TIMESTAMP)), TSTAMP_FORMATTER).toInstant();
-                if (tstamp.isBefore(start)) {
-                    return false;
-                }
-                return true;
-            });
-            if (events.isEmpty()) {
-                fail("Could not find any [" + eventType + "] events for [" + API_USER + "] in [" + String.join("\n", lines) + "]");
+                assertThat(events, hasSize(1));
+                final Map<String, Object> event = events.get(0);
+                assertThat(event, hasEntry("type", "audit"));
+                assertThat(event, hasKey(LoggingAuditTrail.NODE_ID_FIELD_NAME));
+                assertThat(event, hasKey(LoggingAuditTrail.REQUEST_ID_FIELD_NAME));
+                assertThat(event, hasEntry(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "rest"));
+                assertThat(event, hasEntry(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME, "rest"));
+                assertThat(event, hasEntry(LoggingAuditTrail.URL_PATH_FIELD_NAME, request.getEndpoint()));
+                assertThat(event, hasEntry(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME, request.getMethod()));
+                assertions.accept(event);
+
             }
-            assertThat(events, hasSize(1));
-            final Map<String, Object> event = events.get(0);
-            assertThat(event, hasEntry("type", "audit"));
-            assertThat(event, hasKey(LoggingAuditTrail.NODE_ID_FIELD_NAME));
-            assertThat(event, hasKey(LoggingAuditTrail.REQUEST_ID_FIELD_NAME));
-            assertThat(event, hasEntry(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "rest"));
-            assertThat(event, hasEntry(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME, "rest"));
-            assertThat(event, hasEntry(LoggingAuditTrail.URL_PATH_FIELD_NAME, request.getEndpoint()));
-            assertThat(event, hasEntry(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME, request.getMethod()));
-            assertions.accept(event);
         }, 5, TimeUnit.SECONDS);
         return response;
     }
@@ -943,35 +965,43 @@ public class AuditIT extends ESRestTestCase {
 
     private void assertPutDatasource(String dataSourceName, Map<String, String> details, Instant start) throws Exception {
         assertBusy(() -> {
-            final List<String> lines = cluster.readNodeLogIncludingRolled(0, LogType.AUDIT);
-            final List<Map<String, Object>> events = findSecurityConfigChangeEvents(lines, "put_data_source", start).stream()
-                .filter(
-                    e -> dataSourceName.equals(asMap(asMap(e.get(LoggingAuditTrail.PUT_CONFIG_FIELD_NAME)).get("data_source")).get("name"))
-                )
-                .toList();
-            if (events.isEmpty()) {
-                fail("Could not find a [put_data_source] security_config_change event for [" + dataSourceName + "]");
+            try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
+                final List<String> lines = Streams.readAllLines(auditLog);
+                final List<Map<String, Object>> events = findSecurityConfigChangeEvents(lines, "put_data_source", start).stream()
+                    .filter(
+                        e -> dataSourceName.equals(
+                            asMap(asMap(e.get(LoggingAuditTrail.PUT_CONFIG_FIELD_NAME)).get("data_source")).get("name")
+                        )
+                    )
+                    .toList();
+                if (events.isEmpty()) {
+                    fail("Could not find a [put_data_source] security_config_change event for [" + dataSourceName + "]");
+                }
+                assertThat(events, hasSize(1));
+                final Map<String, Object> event = events.get(0);
+                final Map<String, Object> dataSource = asMap(asMap(event.get(LoggingAuditTrail.PUT_CONFIG_FIELD_NAME)).get("data_source"));
+                assertThat(dataSource, equalTo(details));
             }
-            assertThat(events, hasSize(1));
-            final Map<String, Object> event = events.get(0);
-            final Map<String, Object> dataSource = asMap(asMap(event.get(LoggingAuditTrail.PUT_CONFIG_FIELD_NAME)).get("data_source"));
-            assertThat(dataSource, equalTo(details));
         }, 5, TimeUnit.SECONDS);
     }
 
     private void assertPutDataset(String datasetName, Map<String, String> details, Instant start) throws Exception {
         assertBusy(() -> {
-            final List<String> lines = cluster.readNodeLogIncludingRolled(0, LogType.AUDIT);
-            final List<Map<String, Object>> events = findSecurityConfigChangeEvents(lines, "put_dataset", start).stream()
-                .filter(e -> datasetName.equals(asMap(asMap(e.get(LoggingAuditTrail.PUT_CONFIG_FIELD_NAME)).get("dataset")).get("name")))
-                .toList();
-            if (events.isEmpty()) {
-                fail("Could not find a [put_dataset] security_config_change event for [" + datasetName + "]");
+            try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
+                final List<String> lines = Streams.readAllLines(auditLog);
+                final List<Map<String, Object>> events = findSecurityConfigChangeEvents(lines, "put_dataset", start).stream()
+                    .filter(
+                        e -> datasetName.equals(asMap(asMap(e.get(LoggingAuditTrail.PUT_CONFIG_FIELD_NAME)).get("dataset")).get("name"))
+                    )
+                    .toList();
+                if (events.isEmpty()) {
+                    fail("Could not find a [put_dataset] security_config_change event for [" + datasetName + "]");
+                }
+                assertThat(events, hasSize(1));
+                final Map<String, Object> event = events.get(0);
+                final Map<String, Object> dataSource = asMap(asMap(event.get(LoggingAuditTrail.PUT_CONFIG_FIELD_NAME)).get("dataset"));
+                assertThat(dataSource, equalTo(details));
             }
-            assertThat(events, hasSize(1));
-            final Map<String, Object> event = events.get(0);
-            final Map<String, Object> dataSource = asMap(asMap(event.get(LoggingAuditTrail.PUT_CONFIG_FIELD_NAME)).get("dataset"));
-            assertThat(dataSource, equalTo(details));
         }, 5, TimeUnit.SECONDS);
     }
 }

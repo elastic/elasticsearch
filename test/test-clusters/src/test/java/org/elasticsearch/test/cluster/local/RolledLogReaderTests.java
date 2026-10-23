@@ -14,9 +14,13 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
+import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -32,7 +36,6 @@ import java.util.zip.GZIPOutputStream;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertThrows;
@@ -130,7 +133,7 @@ public class RolledLogReaderTests {
         creator.start();
         try {
             assertThat(
-                RolledLogReader.readAllLines(logs, CLUSTER, LogType.AUDIT, 500, Duration.ofMillis(10), () -> {}),
+                readLines(RolledLogReader.open(logs, CLUSTER, LogType.AUDIT, 500, Duration.ofMillis(10), () -> {})),
                 is(List.of("rolled", "live"))
             );
         } finally {
@@ -143,22 +146,22 @@ public class RolledLogReaderTests {
         Path logs = tmp.getRoot().toPath();
         Path live = logs.resolve("test-cluster_audit.json");
         write(live, "before midnight");
-        AtomicInteger listings = new AtomicInteger();
+        AtomicInteger checkpoints = new AtomicInteger();
 
         // The first listing finds no rolled file, then log4j renames the live file before the reader checks for it and
         // only recreates it before the next attempt.
-        List<String> lines = RolledLogReader.readAllLines(logs, CLUSTER, LogType.AUDIT, 3, NO_WAIT, () -> {
+        List<String> lines = readLines(RolledLogReader.open(logs, CLUSTER, LogType.AUDIT, 3, NO_WAIT, () -> {
             try {
-                int listing = listings.incrementAndGet();
-                if (listing == 1) {
+                int checkpoint = checkpoints.incrementAndGet();
+                if (checkpoint == 1) {
                     Files.move(live, logs.resolve("test-cluster_audit-2026-10-18-1.json"));
-                } else if (listing == 2) {
+                } else if (checkpoint == 2) {
                     write(live, "after midnight");
                 }
             } catch (IOException e) {
                 throw new AssertionError(e);
             }
-        });
+        }));
 
         assertThat(lines, is(List.of("before midnight", "after midnight")));
     }
@@ -173,13 +176,12 @@ public class RolledLogReaderTests {
     }
 
     @Test
-    public void testFailsWhenCompressedFileStaysTruncated() throws IOException {
+    public void testTruncatedCompressedFileFailsTheRead() throws IOException {
         Path logs = tmp.getRoot().toPath();
         Files.write(logs.resolve("test-cluster_audit-2026-10-18-1.json.gz"), truncatedGzip("rolled"));
         write(logs.resolve("test-cluster_audit.json"), "live");
 
-        IllegalStateException e = assertThrows(IllegalStateException.class, () -> read(logs, LogType.AUDIT));
-        assertThat(e.getCause(), instanceOf(EOFException.class));
+        assertThrows(EOFException.class, () -> read(logs, LogType.AUDIT));
     }
 
     @Test
@@ -190,7 +192,7 @@ public class RolledLogReaderTests {
         write(live, "2");
         AtomicBoolean rolled = new AtomicBoolean();
 
-        List<String> lines = RolledLogReader.readAllLines(logs, CLUSTER, LogType.AUDIT, 3, NO_WAIT, () -> {
+        List<String> lines = readLines(RolledLogReader.open(logs, CLUSTER, LogType.AUDIT, 3, NO_WAIT, () -> {
             if (rolled.compareAndSet(false, true)) {
                 try {
                     Files.move(live, logs.resolve("test-cluster_audit-2026-10-19-1.json"));
@@ -199,9 +201,45 @@ public class RolledLogReaderTests {
                     throw new AssertionError(e);
                 }
             }
-        });
+        }));
 
         assertThat(lines, is(List.of("1", "2", "3")));
+    }
+
+    @Test
+    public void testRereadsWhenFixedWindowShiftsWhileFilesAreOpened() throws IOException {
+        Path logs = tmp.getRoot().toPath();
+        Path live = logs.resolve("test-cluster_deprecation.json");
+        // Different lengths, so the shift is visible from file sizes alone where the filesystem has no file keys.
+        writeGzip(logs.resolve("test-cluster_deprecation-1.json.gz"), "a");
+        writeGzip(logs.resolve("test-cluster_deprecation-2.json.gz"), "bb");
+        writeGzip(logs.resolve("test-cluster_deprecation-3.json.gz"), "ccc");
+        writeGzip(logs.resolve("test-cluster_deprecation-4.json.gz"), "dddd");
+        write(live, "live");
+        AtomicInteger checkpoints = new AtomicInteger();
+
+        // The deprecation log keeps at most 4 rolled files. Once the window is full, a rollover deletes file 1 and renames
+        // every other file down one slot, so the same names hold different content. Roll over after the first file is
+        // opened.
+        List<String> lines = readLines(RolledLogReader.open(logs, CLUSTER, LogType.DEPRECATION, 3, NO_WAIT, () -> {
+            if (checkpoints.incrementAndGet() == 2) {
+                try {
+                    Files.delete(logs.resolve("test-cluster_deprecation-1.json.gz"));
+                    for (int i = 2; i <= 4; i++) {
+                        Files.move(
+                            logs.resolve("test-cluster_deprecation-" + i + ".json.gz"),
+                            logs.resolve("test-cluster_deprecation-" + (i - 1) + ".json.gz")
+                        );
+                    }
+                    writeGzip(logs.resolve("test-cluster_deprecation-4.json.gz"), "live");
+                    write(live, "new live");
+                } catch (IOException e) {
+                    throw new AssertionError(e);
+                }
+            }
+        }));
+
+        assertThat(lines, is(List.of("bb", "ccc", "dddd", "live", "new live")));
     }
 
     @Test
@@ -239,7 +277,7 @@ public class RolledLogReaderTests {
         writer.start();
         try {
             while (done.get() == false) {
-                List<String> lines = RolledLogReader.readAllLines(logs, CLUSTER, LogType.AUDIT, 1000, Duration.ofMillis(1), () -> {});
+                List<String> lines = readLines(RolledLogReader.open(logs, CLUSTER, LogType.AUDIT, 1000, Duration.ofMillis(1), () -> {}));
                 // The writer may be midway through appending the last line.
                 for (int i = 0; i < lines.size() - 1; i++) {
                     assertThat("line " + i + " of " + lines, lines.get(i), is(Integer.toString(i + 1)));
@@ -254,8 +292,16 @@ public class RolledLogReaderTests {
         assertThat(read(logs, LogType.AUDIT), is(expected));
     }
 
-    private static List<String> read(Path logs, LogType logType) {
-        return RolledLogReader.readAllLines(logs, CLUSTER, logType, 3, NO_WAIT, () -> {});
+    private static List<String> read(Path logs, LogType logType) throws IOException {
+        return readLines(RolledLogReader.open(logs, CLUSTER, logType, 3, NO_WAIT, () -> {}));
+    }
+
+    private static List<String> readLines(InputStream log) throws IOException {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(log, StandardCharsets.UTF_8))) {
+            return reader.lines().toList();
+        } catch (UncheckedIOException e) {
+            throw e.getCause();
+        }
     }
 
     private static void write(Path file, String... lines) throws IOException {

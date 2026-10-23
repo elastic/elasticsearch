@@ -44,20 +44,9 @@ public class MutedTestPlugin implements Plugin<Project> {
                 spec.getParameters().getAdditionalFiles().set(additionalFiles);
             });
 
-        if (mutedTestsEnabled) {
-            project.getTasks().withType(Test.class).configureEach(test -> {
-                test.filter(filter -> {
-                    for (String exclude : mutedTestsProvider.get().getExcludePatternsForTask(test.getPath())) {
-                        filter.excludeTestsMatching(exclude);
-                    }
-                });
-            });
-        }
-
-        // Don't fail when all tests are ignored when running in CI
         project.getTasks().withType(Test.class).configureEach(test -> {
             test.filter(filter -> {
-                for (String exclude : mutedTestsProvider.get().getExcludePatterns()) {
+                for (String exclude : mutedTestsProvider.get().getExcludePatternsForTask(test.getPath())) {
                     filter.excludeTestsMatching(exclude);
                 }
 

@@ -97,6 +97,15 @@ public interface TokenFilterFactory {
     }
 
     /**
+     * Whether this filter was built from a fallback because a lenient load of its resource failed, e.g. a
+     * synonyms set that was missing or could not be read. {@link ReloadableCustomAnalyzer} retries the load
+     * on the next shard recovery instead of treating the fallback as loaded.
+     */
+    default boolean isDegraded() {
+        return false;
+    }
+
+    /**
      * Returns a value-typed key used by {@link AnalysisRegistry} to share analyzers that reference
      * this factory across indices. Two factories whose {@code sharingKey()} results are equal (via
      * {@code Object.equals}/{@code hashCode} on the returned value) are treated as behaviorally

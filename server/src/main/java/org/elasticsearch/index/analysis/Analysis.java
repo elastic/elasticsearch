@@ -461,6 +461,21 @@ public class Analysis {
         SynonymsManagementAPIService synonymsManagementAPIService,
         boolean ignoreMissing
     ) {
+        return getRulesFromIndex(synonymsSets, synonymsManagementAPIService, ignoreMissing).reader();
+    }
+
+    /**
+     * Synonym rules read from the {@code .synonyms} index. {@code degraded} is set when {@code ignoreMissing}
+     * swallowed a failure to load them, so {@code reader} holds no rules rather than the sets' rules.
+     */
+    public record IndexRules(Reader reader, boolean degraded) {}
+
+    public static IndexRules getRulesFromIndex(
+        Set<String> synonymsSets,
+        SynonymsManagementAPIService synonymsManagementAPIService,
+        boolean ignoreMissing
+    ) {
+        boolean degraded = false;
         PlainActionFuture<PagedResult<SynonymRule>> future = new PlainActionFuture<>();
         synonymsManagementAPIService.getSynonymSetRules(synonymsSets, ignoreMissing, future);
 
@@ -483,13 +498,14 @@ public class Analysis {
                 logger.error(message, e);
             }
             result = new PagedResult<>(0, new SynonymRule[0]);
+            degraded = true;
         }
 
         StringBuilder sb = new StringBuilder();
         for (SynonymRule rule : result.pageResults()) {
             sb.append(rule.synonyms()).append(System.lineSeparator());
         }
-        return new StringReader(sb.toString());
+        return new IndexRules(new StringReader(sb.toString()), degraded);
     }
 
     private static boolean isNotEntitled(IOException ioe) {

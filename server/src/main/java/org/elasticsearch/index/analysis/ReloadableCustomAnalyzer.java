@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.IndexService.IndexCreationContext;
 
 import java.io.Reader;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -152,10 +153,30 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
     // written under the monitor, before lastReloadToken.
     private volatile RuntimeException lastReloadFailure;
 
-    // Set once this instance has loaded its resources (synonyms etc.) at least once. The initial load is
-    // deferred to shard recovery (a null-token reload); because one instance is shared across indices it
-    // only needs to load once per node, so later null-token reloads are no-ops. Volatile for shouldReload().
-    private volatile boolean loaded;
+    /**
+     * Whether this instance has loaded its resources (synonyms etc.). The initial load is deferred to shard
+     * recovery (a null-token reload); because one instance is shared across indices it only needs to load
+     * once per node, so null-token reloads are no-ops once {@link #LOADED}.
+     */
+    public enum LoadState {
+        /** No recovery load has completed yet. */
+        NOT_LOADED,
+        /** Every filter loaded its resources. Later recovery loads are no-ops. */
+        LOADED,
+        /**
+         * Built, but a lenient filter could not load its resource and fell back to partial or empty rules
+         * (see {@link TokenFilterFactory#isDegraded()}). The next recovery load retries rather than leaving
+         * every later sharer with the fallback.
+         */
+        DEGRADED
+    }
+
+    // Volatile for shouldReload().
+    private volatile LoadState loadState = LoadState.NOT_LOADED;
+
+    public LoadState loadState() {
+        return loadState;
+    }
 
     // Set by close() when the last sharer releases this instance. reload() discards its result rather than
     // mutate an unreferenced analyzer; getStoredComponents() fails fast with AlreadyClosedException.
@@ -174,7 +195,7 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
             return false;
         }
         if (token == null) {
-            return loaded == false;
+            return loadState != LoadState.LOADED;
         }
         if (token == lastReloadToken) {
             // Already attempted for this request: re-enter reload() only to replay a remembered failure.
@@ -190,7 +211,7 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
      * <ul>
      *   <li>a {@code null} token is the deferred initial resource load fired by shard recovery; because
      *       one instance is shared across indices it only needs to load once per node, so it is a no-op
-     *       once {@link #loaded};</li>
+     *       once {@link LoadState#LOADED};</li>
      *   <li>a non-null token is an explicit {@code _reload_search_analyzers} request. The first sharer
      *       carrying a given token attempts the rebuild; later sharers carrying the same token observe its
      *       outcome rather than rebuild — coasting if it succeeded (the rebuild published in place) or
@@ -211,7 +232,7 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
             return;
         }
         if (reloadToken == null) {
-            if (loaded) {
+            if (loadState == LoadState.LOADED) {
                 // Initial resource load already done (possibly by a concurrent recovery claim). Skip the
                 // rebuild rather than re-read the source on every shard opening.
                 return;
@@ -251,7 +272,9 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
             return;
         }
         this.components = rebuilt;
-        this.loaded = true;
+        this.loadState = Arrays.stream(rebuilt.getTokenFilters()).anyMatch(TokenFilterFactory::isDegraded)
+            ? LoadState.DEGRADED
+            : LoadState.LOADED;
         // Publish the token now that the rebuild succeeded, clearing any failure from an earlier token.
         // Clear the failure before the token, matching the ordering shouldReload() relies on.
         if (reloadToken != null) {

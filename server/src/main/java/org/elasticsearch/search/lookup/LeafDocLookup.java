@@ -33,6 +33,7 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
     private final Function<String, MappedFieldType> fieldTypeLookup;
     private final BiFunction<MappedFieldType, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataLookup;
     private final LeafReaderContext reader;
+    private final ScriptFieldMemoryEstimator scriptFieldMemoryEstimator;
 
     /*
       Field factories require a privileged action to advance to docids (files could be loaded). This wrapper
@@ -77,9 +78,19 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
         BiFunction<MappedFieldType, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataLookup,
         LeafReaderContext reader
     ) {
+        this(fieldTypeLookup, fieldDataLookup, reader, ScriptFieldMemoryEstimator.NO_OP);
+    }
+
+    LeafDocLookup(
+        Function<String, MappedFieldType> fieldTypeLookup,
+        BiFunction<MappedFieldType, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataLookup,
+        LeafReaderContext reader,
+        ScriptFieldMemoryEstimator scriptFieldMemoryEstimator
+    ) {
         this.fieldTypeLookup = fieldTypeLookup;
         this.fieldDataLookup = fieldDataLookup;
         this.reader = reader;
+        this.scriptFieldMemoryEstimator = scriptFieldMemoryEstimator;
     }
 
     public void setDocument(int docId) {
@@ -106,14 +117,28 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
         // uses doc values then we share to avoid double-loading
         FieldFactoryWrapper fieldFactory;
         if (docFactory != null && indexFieldData instanceof SourceValueFetcherIndexFieldData == false) {
+            // Shared with the doc-access reader, which was already accounted for when it was opened.
             fieldFactory = docFactory;
         } else {
             fieldFactory = new FieldFactoryWrapper(indexFieldData.load(reader).getScriptFieldFactory(fieldName));
+            accountDecodeMemory(fieldName, fieldFactory);
         }
 
         fieldFactoryCache.put(fieldName, fieldFactory);
 
         return fieldFactory;
+    }
+
+    /**
+     * Accounts the decode buffer a newly opened reader retains, if it reports one, against the request circuit breaker.
+     * Called once per reader opened by this leaf lookup; the accounted memory is released when the leaf is done being
+     * collected, or at the latest when the request ends. See {@link ScriptFieldMemoryEstimator}.
+     */
+    private void accountDecodeMemory(String fieldName, FieldFactoryWrapper wrapper) {
+        long decodeBytes = wrapper.factory.maxDecodeBytes();
+        if (decodeBytes > 0) {
+            scriptFieldMemoryEstimator.account(decodeBytes, fieldName, reader);
+        }
     }
 
     public Field<?> getScriptField(String fieldName) {
@@ -155,6 +180,7 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
         if (docFactory == null) {
             IndexFieldData<?> indexFieldData = fieldDataLookup.apply(fieldType, SEARCH);
             docFactory = new FieldFactoryWrapper(indexFieldData.load(reader).getScriptFieldFactory(fieldName));
+            accountDecodeMemory(fieldName, docFactory);
         }
 
         docFactoryCache.put(fieldName, docFactory);

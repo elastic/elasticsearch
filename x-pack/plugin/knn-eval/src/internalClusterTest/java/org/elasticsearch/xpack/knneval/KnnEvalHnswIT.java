@@ -88,11 +88,14 @@ public class KnnEvalHnswIT extends ESIntegTestCase {
         int k = randomIntBetween(1, 5);
         List<String> entries = new ArrayList<>();
         int entryCount = randomIntBetween(1, 3);
+        int numCandidates = randomIntBetween(k, 2 * docs);
         for (int i = 0; i < entryCount; i++) {
             String rescore = quantized && randomBoolean()
                 ? ", \"rescore_vector\": { \"oversample\": " + randomFloatBetween(1.0f, 10.0f, true) + " }"
                 : "";
-            entries.add("{ \"num_candidates\": " + randomIntBetween(k, 2 * docs) + rescore + " }");
+            entries.add("{ \"num_candidates\": " + numCandidates + rescore + " }");
+            // strictly increasing: the spec rejects duplicate entries
+            numCandidates += randomIntBetween(1, 5);
         }
 
         KnnEvalResponse response = evaluate(k, String.join(",", entries));

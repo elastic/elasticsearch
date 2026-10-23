@@ -303,11 +303,11 @@ public final class OtelSdkSettings {
      * Both timeouts cover every attempt together.
      *
      * <p>Five attempts wait 5s, 10s, 20s, and 40s: 75s before the SDK's ±20% jitter, and 60–90s after it, so the last
-     * attempt is never earlier than 60s. 100s is longer than the longest jittered window, so the deadline does not cut
-     * off that attempt. OkHttp's default 10s read and write timeouts still bound each attempt. Metrics and traces keep
+     * attempt is never earlier than 60s. Allowing 10s per attempt adds 50s, for a total of up to about 140s.
+     * The 150s timeout leaves room for that window. OkHttp's default read and write timeouts are 10s. Metrics and traces keep
      * {@link #OTLP_RETRY_POLICY}, which is sized to finish inside one {@link #TELEMETRY_EXPORT_INTERVAL}.
      */
-    public static final Duration TELEMETRY_LOGS_EXPORT_TIMEOUT = Duration.ofSeconds(100);
+    public static final Duration TELEMETRY_LOGS_EXPORT_TIMEOUT = Duration.ofSeconds(150);
 
     /** Retry policy for audit and query log OTLP export. See {@link #TELEMETRY_LOGS_EXPORT_TIMEOUT}. */
     public static final RetryPolicy TELEMETRY_LOGS_RETRY_POLICY = RetryPolicy.builder()
@@ -319,7 +319,7 @@ public final class OtelSdkSettings {
 
     /**
      * Maximum number of log records the {@code BatchLogRecordProcessor} buffers before dropping.
-     * A retried batch can be held for up to about 90s, so 10_000 records is about 110 records/s over that window,
+     * A retried batch can be held for up to about 140s, so 10_000 records is about 70 records/s over that window,
      * and about 30 MB at 3 KB/record.
      */
     public static final Setting<Integer> TELEMETRY_LOGS_MAX_QUEUE_SIZE = Setting.intSetting(

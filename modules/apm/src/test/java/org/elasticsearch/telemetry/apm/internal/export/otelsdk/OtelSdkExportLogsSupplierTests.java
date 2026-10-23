@@ -106,7 +106,7 @@ public class OtelSdkExportLogsSupplierTests extends ESTestCase {
         assertThat(policy.getInitialBackoff(), equalTo(Duration.ofSeconds(5)));
         assertThat(policy.getBackoffMultiplier(), equalTo(2.0d));
         assertThat(policy.getMaxBackoff(), equalTo(Duration.ofSeconds(40)));
-        assertThat(OtelSdkSettings.TELEMETRY_LOGS_EXPORT_TIMEOUT, equalTo(Duration.ofSeconds(100)));
+        assertThat(OtelSdkSettings.TELEMETRY_LOGS_EXPORT_TIMEOUT, equalTo(Duration.ofSeconds(150)));
     }
 
     public void testInstallWithCustomConnectTimeoutAndQueueSizeDoesNotThrow() {

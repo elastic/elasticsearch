@@ -874,165 +874,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     }
 
     // ------------------------------------------------------------------------------------------------------------------------------------
-    // External changes
-    // ------------------------------------------------------------------------------------------------------------------------------------
-
-    @Override
-    public void applyClusterState(ClusterChangedEvent event) {
-        try {
-            if (event.localNodeMaster()) {
-                // We don't remove old master when master flips anymore. So, we need to check for change in master
-                SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(event.state());
-                final boolean newMaster = event.previousState().nodes().isLocalNodeElectedMaster() == false;
-                externalChangesBatcher.processExternalChanges(
-                    newMaster || SnapshotsServiceUtils.removedNodesCleanupNeeded(snapshotsInProgress, event.nodesDelta().removedNodes()),
-                    snapshotsInProgress.nodeIdsForRemovalChanged(SnapshotsInProgress.get(event.previousState()))
-                        || (event.routingTableChanged()
-                            && SnapshotsServiceUtils.waitingShardsStartedOrUnassigned(snapshotsInProgress, event))
-                );
-
-                if (newMaster
-                    || event.state().metadata().nodeShutdowns().equals(event.previousState().metadata().nodeShutdowns()) == false) {
-                    updateNodeIdsToRemoveQueue.submitTask(
-                        "SnapshotsService#updateNodeIdsToRemove",
-                        new UpdateNodeIdsForRemovalTask(),
-                        null
-                    );
-                }
-            } else {
-                final List<Runnable> readyToResolveListeners = new ArrayList<>();
-                // line-up mutating concurrent operations which can be in form of clusterApplierService and masterService tasks
-                // to completion and deletion listeners, see #failAllListenersOnMasterFailOver
-                synchronized (repositoriesRunningRepositoryDataWriteTasks) {
-                    // We have snapshot listeners but are not the master anymore. Fail all waiting listeners except for those that
-                    // already have their snapshots finalizing (those that are already finalizing will fail on their own from to update
-                    // the cluster state).
-                    for (final Snapshot snapshot : snapshotCompletionListeners.keySet()) {
-                        if (endingSnapshots.add(snapshot)) {
-                            failSnapshotCompletionListeners(
-                                snapshot,
-                                new SnapshotException(snapshot, "no longer master"),
-                                readyToResolveListeners::add
-                            );
-                            assert endingSnapshots.contains(snapshot) == false : snapshot;
-                        }
-                    }
-                    if (snapshotDeletionListeners.isEmpty() == false) {
-                        final Exception cause = new NotMasterException("no longer master");
-                        for (final Iterator<List<ActionListener<Void>>> it = snapshotDeletionListeners.values().iterator(); it.hasNext();) {
-                            final List<ActionListener<Void>> listeners = it.next();
-                            readyToResolveListeners.add(() -> SnapshotsServiceUtils.failListenersIgnoringException(listeners, cause));
-                            it.remove();
-                        }
-                    }
-                }
-                // fail snapshot listeners outside mutex
-                readyToResolveListeners.forEach(Runnable::run);
-            }
-
-            // Clean up any now-obsolete deletion-start batchers
-            synchronized (snapshotDeletionStartBatchers) {
-                snapshotDeletionStartBatchers.keySet().removeAll(event.projectDelta().removed());
-                for (var perProjectDeletionStartBatchers : snapshotDeletionStartBatchers.entrySet()) {
-                    perProjectDeletionStartBatchers.getValue()
-                        .keySet()
-                        .retainAll(repositoriesService.getProjectRepositories(perProjectDeletionStartBatchers.getKey()).keySet());
-                }
-            }
-        } catch (Exception e) {
-            assert false : new AssertionError(e);
-            logger.warn("Failed to update snapshot state ", e);
-        }
-        assert assertConsistentWithClusterState(event.state());
-    }
-
-    private record UpdateNodeIdsForRemovalTask() implements ClusterStateTaskListener {
-        @Override
-        public void onFailure(Exception e) {
-            // must be a master failover, and the new master will retry so nbd
-            assert MasterService.isPublishFailureException(e) : e;
-        }
-
-        static ClusterState executeBatch(
-            ClusterStateTaskExecutor.BatchExecutionContext<UpdateNodeIdsForRemovalTask> batchExecutionContext
-        ) {
-            for (ClusterStateTaskExecutor.TaskContext<UpdateNodeIdsForRemovalTask> taskContext : batchExecutionContext.taskContexts()) {
-                taskContext.success(() -> {});
-            }
-
-            final var clusterState = batchExecutionContext.initialState();
-            final var snapshotsInProgress = SnapshotsInProgress.get(clusterState);
-            final var newSnapshotsInProgress = snapshotsInProgress.withUpdatedNodeIdsForRemoval(clusterState);
-            if (newSnapshotsInProgress != snapshotsInProgress) {
-                return ClusterState.builder(clusterState).putCustom(SnapshotsInProgress.TYPE, newSnapshotsInProgress).build();
-            }
-            return clusterState;
-        }
-    }
-
-    private final MasterServiceTaskQueue<UpdateNodeIdsForRemovalTask> updateNodeIdsToRemoveQueue;
-
-    private boolean assertConsistentWithClusterState(ClusterState currentState) {
-        // submit the assertion to the master because it has to run when the publication has completely finished
-        submitUnbatchedTask("assertConsistentWithClusterStateAtEndOfPublish", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
-            @Override
-            public ClusterState execute(ClusterState state) {
-                final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(state);
-                if (snapshotsInProgress.isEmpty() == false) {
-                    synchronized (endingSnapshots) {
-                        final Set<Snapshot> runningSnapshots = Stream.concat(
-                            snapshotsInProgress.asStream().map(SnapshotsInProgress.Entry::snapshot),
-                            endingSnapshots.stream()
-                        ).collect(Collectors.toSet());
-                        final Set<Snapshot> snapshotListenerKeys = snapshotCompletionListeners.keySet();
-                        assert runningSnapshots.containsAll(snapshotListenerKeys)
-                            : "Saw completion listeners for unknown snapshots in "
-                                + snapshotListenerKeys
-                                + " but running snapshots are "
-                                + runningSnapshots;
-                    }
-                }
-                final SnapshotDeletionsInProgress snapshotDeletionsInProgress = SnapshotDeletionsInProgress.get(state);
-                if (snapshotDeletionsInProgress.hasDeletionsInProgress()) {
-                    synchronized (repositoryOperations.runningDeletions) {
-                        final Set<String> runningDeletes = Stream.concat(
-                            snapshotDeletionsInProgress.getEntries().stream().map(SnapshotDeletionsInProgress.Entry::uuid),
-                            repositoryOperations.runningDeletions.stream()
-                        ).collect(Collectors.toSet());
-                        final Set<String> deleteListenerKeys = snapshotDeletionListeners.keySet();
-                        assert runningDeletes.containsAll(deleteListenerKeys)
-                            : "Saw deletions listeners for unknown uuids in "
-                                + deleteListenerKeys
-                                + " but running deletes are "
-                                + runningDeletes;
-                    }
-                }
-                return state;
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                assert MasterService.isPublishFailureException(e) : e;
-            }
-        });
-        assert SnapshotsServiceUtils.assertNoDanglingSnapshots(currentState);
-        synchronized (snapshotDeletionStartBatchers) {
-            assert currentState.metadata().projects().keySet().containsAll(snapshotDeletionStartBatchers.keySet());
-            assert snapshotDeletionStartBatchers.entrySet()
-                .stream()
-                .allMatch(
-                    e -> RepositoriesMetadata.get(currentState.metadata().getProject(e.getKey()))
-                        .repositories()
-                        .stream()
-                        .map(RepositoryMetadata::name)
-                        .collect(Collectors.toSet())
-                        .containsAll(e.getValue().keySet())
-                );
-        }
-        return true;
-    }
-
-    // ------------------------------------------------------------------------------------------------------------------------------------
     // Snapshot deletion
     // ------------------------------------------------------------------------------------------------------------------------------------
 
@@ -1571,6 +1412,165 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         public String toString() {
             return "RemoveSnapshotDeletionAndContinueTask[" + deleteEntry + "]";
         }
+    }
+
+    // ------------------------------------------------------------------------------------------------------------------------------------
+    // External changes
+    // ------------------------------------------------------------------------------------------------------------------------------------
+
+    @Override
+    public void applyClusterState(ClusterChangedEvent event) {
+        try {
+            if (event.localNodeMaster()) {
+                // We don't remove old master when master flips anymore. So, we need to check for change in master
+                SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(event.state());
+                final boolean newMaster = event.previousState().nodes().isLocalNodeElectedMaster() == false;
+                externalChangesBatcher.processExternalChanges(
+                    newMaster || SnapshotsServiceUtils.removedNodesCleanupNeeded(snapshotsInProgress, event.nodesDelta().removedNodes()),
+                    snapshotsInProgress.nodeIdsForRemovalChanged(SnapshotsInProgress.get(event.previousState()))
+                        || (event.routingTableChanged()
+                            && SnapshotsServiceUtils.waitingShardsStartedOrUnassigned(snapshotsInProgress, event))
+                );
+
+                if (newMaster
+                    || event.state().metadata().nodeShutdowns().equals(event.previousState().metadata().nodeShutdowns()) == false) {
+                    updateNodeIdsToRemoveQueue.submitTask(
+                        "SnapshotsService#updateNodeIdsToRemove",
+                        new UpdateNodeIdsForRemovalTask(),
+                        null
+                    );
+                }
+            } else {
+                final List<Runnable> readyToResolveListeners = new ArrayList<>();
+                // line-up mutating concurrent operations which can be in form of clusterApplierService and masterService tasks
+                // to completion and deletion listeners, see #failAllListenersOnMasterFailOver
+                synchronized (repositoriesRunningRepositoryDataWriteTasks) {
+                    // We have snapshot listeners but are not the master anymore. Fail all waiting listeners except for those that
+                    // already have their snapshots finalizing (those that are already finalizing will fail on their own from to update
+                    // the cluster state).
+                    for (final Snapshot snapshot : snapshotCompletionListeners.keySet()) {
+                        if (endingSnapshots.add(snapshot)) {
+                            failSnapshotCompletionListeners(
+                                snapshot,
+                                new SnapshotException(snapshot, "no longer master"),
+                                readyToResolveListeners::add
+                            );
+                            assert endingSnapshots.contains(snapshot) == false : snapshot;
+                        }
+                    }
+                    if (snapshotDeletionListeners.isEmpty() == false) {
+                        final Exception cause = new NotMasterException("no longer master");
+                        for (final Iterator<List<ActionListener<Void>>> it = snapshotDeletionListeners.values().iterator(); it.hasNext();) {
+                            final List<ActionListener<Void>> listeners = it.next();
+                            readyToResolveListeners.add(() -> SnapshotsServiceUtils.failListenersIgnoringException(listeners, cause));
+                            it.remove();
+                        }
+                    }
+                }
+                // fail snapshot listeners outside mutex
+                readyToResolveListeners.forEach(Runnable::run);
+            }
+
+            // Clean up any now-obsolete deletion-start batchers
+            synchronized (snapshotDeletionStartBatchers) {
+                snapshotDeletionStartBatchers.keySet().removeAll(event.projectDelta().removed());
+                for (var perProjectDeletionStartBatchers : snapshotDeletionStartBatchers.entrySet()) {
+                    perProjectDeletionStartBatchers.getValue()
+                        .keySet()
+                        .retainAll(repositoriesService.getProjectRepositories(perProjectDeletionStartBatchers.getKey()).keySet());
+                }
+            }
+        } catch (Exception e) {
+            assert false : new AssertionError(e);
+            logger.warn("Failed to update snapshot state ", e);
+        }
+        assert assertConsistentWithClusterState(event.state());
+    }
+
+    private record UpdateNodeIdsForRemovalTask() implements ClusterStateTaskListener {
+        @Override
+        public void onFailure(Exception e) {
+            // must be a master failover, and the new master will retry so nbd
+            assert MasterService.isPublishFailureException(e) : e;
+        }
+
+        static ClusterState executeBatch(
+            ClusterStateTaskExecutor.BatchExecutionContext<UpdateNodeIdsForRemovalTask> batchExecutionContext
+        ) {
+            for (ClusterStateTaskExecutor.TaskContext<UpdateNodeIdsForRemovalTask> taskContext : batchExecutionContext.taskContexts()) {
+                taskContext.success(() -> {});
+            }
+
+            final var clusterState = batchExecutionContext.initialState();
+            final var snapshotsInProgress = SnapshotsInProgress.get(clusterState);
+            final var newSnapshotsInProgress = snapshotsInProgress.withUpdatedNodeIdsForRemoval(clusterState);
+            if (newSnapshotsInProgress != snapshotsInProgress) {
+                return ClusterState.builder(clusterState).putCustom(SnapshotsInProgress.TYPE, newSnapshotsInProgress).build();
+            }
+            return clusterState;
+        }
+    }
+
+    private final MasterServiceTaskQueue<UpdateNodeIdsForRemovalTask> updateNodeIdsToRemoveQueue;
+
+    private boolean assertConsistentWithClusterState(ClusterState currentState) {
+        // submit the assertion to the master because it has to run when the publication has completely finished
+        submitUnbatchedTask("assertConsistentWithClusterStateAtEndOfPublish", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
+            @Override
+            public ClusterState execute(ClusterState state) {
+                final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(state);
+                if (snapshotsInProgress.isEmpty() == false) {
+                    synchronized (endingSnapshots) {
+                        final Set<Snapshot> runningSnapshots = Stream.concat(
+                            snapshotsInProgress.asStream().map(SnapshotsInProgress.Entry::snapshot),
+                            endingSnapshots.stream()
+                        ).collect(Collectors.toSet());
+                        final Set<Snapshot> snapshotListenerKeys = snapshotCompletionListeners.keySet();
+                        assert runningSnapshots.containsAll(snapshotListenerKeys)
+                            : "Saw completion listeners for unknown snapshots in "
+                                + snapshotListenerKeys
+                                + " but running snapshots are "
+                                + runningSnapshots;
+                    }
+                }
+                final SnapshotDeletionsInProgress snapshotDeletionsInProgress = SnapshotDeletionsInProgress.get(state);
+                if (snapshotDeletionsInProgress.hasDeletionsInProgress()) {
+                    synchronized (repositoryOperations.runningDeletions) {
+                        final Set<String> runningDeletes = Stream.concat(
+                            snapshotDeletionsInProgress.getEntries().stream().map(SnapshotDeletionsInProgress.Entry::uuid),
+                            repositoryOperations.runningDeletions.stream()
+                        ).collect(Collectors.toSet());
+                        final Set<String> deleteListenerKeys = snapshotDeletionListeners.keySet();
+                        assert runningDeletes.containsAll(deleteListenerKeys)
+                            : "Saw deletions listeners for unknown uuids in "
+                                + deleteListenerKeys
+                                + " but running deletes are "
+                                + runningDeletes;
+                    }
+                }
+                return state;
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assert MasterService.isPublishFailureException(e) : e;
+            }
+        });
+        assert SnapshotsServiceUtils.assertNoDanglingSnapshots(currentState);
+        synchronized (snapshotDeletionStartBatchers) {
+            assert currentState.metadata().projects().keySet().containsAll(snapshotDeletionStartBatchers.keySet());
+            assert snapshotDeletionStartBatchers.entrySet()
+                .stream()
+                .allMatch(
+                    e -> RepositoriesMetadata.get(currentState.metadata().getProject(e.getKey()))
+                        .repositories()
+                        .stream()
+                        .map(RepositoryMetadata::name)
+                        .collect(Collectors.toSet())
+                        .containsAll(e.getValue().keySet())
+                );
+        }
+        return true;
     }
 
     // ------------------------------------------------------------------------------------------------------------------------------------

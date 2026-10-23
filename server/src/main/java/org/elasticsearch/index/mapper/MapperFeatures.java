@@ -135,6 +135,7 @@ public class MapperFeatures implements FeatureSpecification {
     );
     public static final NodeFeature COLUMNAR_DROPS_DYNAMIC_FALSE_FIELDS = new NodeFeature("mapper.columnar.drops_dynamic_false_fields");
     static final NodeFeature COLUMNAR_SUPPORTS_SHAPE_FIELDS = new NodeFeature("mapper.columnar.supports_shape_fields");
+    public static final NodeFeature COLUMNAR_STORED_SOURCE_FILTER_FIX = new NodeFeature("mapper.columnar_stored.source_filter_fix");
     public static final NodeFeature TSDB_METRIC_TEMPORALITY_SUPPORT = new NodeFeature("mapper.tsdb.metric_temporality_support");
     public static final NodeFeature PUT_MAPPING_NO_TYPES_CHECK = new NodeFeature("indices.put_mapping.no_types_check");
     public static final NodeFeature MULTI_VALUED_BINARY_INDEX_SORT_SPARSE_FIX = new NodeFeature(
@@ -232,6 +233,7 @@ public class MapperFeatures implements FeatureSpecification {
             COLUMNAR_IP_INLINE_ARRAY_ORDER_BINARY_DOC_VALUES,
             COLUMNAR_DROPS_DYNAMIC_FALSE_FIELDS,
             COLUMNAR_SUPPORTS_SHAPE_FIELDS,
+            COLUMNAR_STORED_SOURCE_FILTER_FIX,
             DOC_VALUES_MULTI_VALUE_INDEX_SETTING,
             DOC_VALUES_MULTI_VALUE_FALSE_ALIAS,
             DOC_VALUES_EXTENDED_FORM_ONLY_IN_COLUMNAR,

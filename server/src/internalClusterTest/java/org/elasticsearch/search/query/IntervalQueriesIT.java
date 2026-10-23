@@ -125,7 +125,8 @@ public class IntervalQueriesIT extends ESIntegTestCase {
 
     /**
      * A regexp rule matching more distinct terms of a segment than the max clause count fails the search with a 400 that
-     * keeps Lucene's message. The internal cluster runs in this JVM, so its limit is {@link IndexSearcher#getMaxClauseCount()}.
+     * names the field and keeps Lucene's message. The internal cluster runs in this JVM, so lowering
+     * {@link IndexSearcher#setMaxClauseCount(int)} lowers the limit its nodes apply.
      */
     public void testExpansionLimitIsBadRequest() {
         assertAcked(prepareCreate("index").setSettings(indexSettings(1, 0)).setMapping("""
@@ -137,22 +138,23 @@ public class IntervalQueriesIT extends ESIntegTestCase {
                 }
             }
             """));
+        indexRandom(true, prepareIndex("index").setId("1").setSource("text", "t0 t1 t2 t3 t4 t5"));
 
-        int termCount = IndexSearcher.getMaxClauseCount() + 1;
-        StringBuilder text = new StringBuilder();
-        for (int i = 0; i < termCount; i++) {
-            text.append('t').append(i).append(' ');
-        }
-        indexRandom(true, prepareIndex("index").setId("1").setSource("text", text.toString()));
-
-        SearchPhaseExecutionException e = expectThrows(
-            SearchPhaseExecutionException.class,
-            prepareSearch("index").setQuery(new IntervalQueryBuilder("text", new IntervalsSourceProvider.Regexp("t.*", null, null)))
-        );
-        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(e.toString(), containsString("expanded to too many terms"));
-        for (ShardSearchFailure failure : e.shardFailures()) {
-            assertThat(failure.status(), equalTo(RestStatus.BAD_REQUEST));
+        int originalMaxClauses = IndexSearcher.getMaxClauseCount();
+        try {
+            IndexSearcher.setMaxClauseCount(5);
+            SearchPhaseExecutionException e = expectThrows(
+                SearchPhaseExecutionException.class,
+                prepareSearch("index").setQuery(new IntervalQueryBuilder("text", new IntervalsSourceProvider.Regexp("t.*", null, null)))
+            );
+            assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+            assertThat(e.toString(), containsString("[intervals] rule on field [text]"));
+            assertThat(e.toString(), containsString("expanded to too many terms (limit 5); use a more selective pattern"));
+            for (ShardSearchFailure failure : e.shardFailures()) {
+                assertThat(failure.status(), equalTo(RestStatus.BAD_REQUEST));
+            }
+        } finally {
+            IndexSearcher.setMaxClauseCount(originalMaxClauses);
         }
     }
 

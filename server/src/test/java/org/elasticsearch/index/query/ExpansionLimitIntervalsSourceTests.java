@@ -80,9 +80,12 @@ public class ExpansionLimitIntervalsSourceTests extends ESTestCase {
     }
 
     private static void assertExpansionLimitException(IllegalArgumentException e) {
-        assertThat(e.getMessage(), containsString("expanded to too many terms (limit 1)"));
         assertThat(e.getCause(), instanceOf(IllegalStateException.class));
-        assertThat(e.getCause().getMessage(), equalTo(e.getMessage()));
+        assertThat(e.getCause().getMessage(), containsString("expanded to too many terms (limit 1)"));
+        assertThat(
+            e.getMessage(),
+            equalTo("[intervals] rule on field [" + FIELD + "] " + e.getCause().getMessage() + "; use a more selective pattern")
+        );
         assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.BAD_REQUEST));
     }
 

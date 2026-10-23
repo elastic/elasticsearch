@@ -26,10 +26,12 @@ import java.util.Objects;
  * <p>
  * Lucene enforces the expansion limit while it iterates the terms of a segment, when the scorer or the matches are
  * built, and reports it as an {@link IllegalStateException}. The request is what exceeds the limit, so this source
- * rethrows that exception as an {@link IllegalArgumentException}, which makes the search fail with a 400 and keeps
- * Lucene's message. Every other method delegates to the wrapped source, so equality, the query string and visitors
- * behave as they do for the wrapped source.
+ * rethrows that exception as an {@link IllegalArgumentException}, which makes the search fail with a 400. The message
+ * names the field, keeps Lucene's message and asks for a more selective pattern. Every other method delegates to the
+ * wrapped source, so equality, the query string and visitors behave as they do for the wrapped source.
  */
+// TODO: remove once Lucene throws IndexSearcher.TooManyClauses for intervals over-expansion (apache/lucene#16899)
+// and TooManyClauses is mapped to a 400.
 final class ExpansionLimitIntervalsSource extends IntervalsSource {
 
     /**
@@ -48,7 +50,7 @@ final class ExpansionLimitIntervalsSource extends IntervalsSource {
         try {
             return in.intervals(field, ctx);
         } catch (IllegalStateException e) {
-            throw translate(e);
+            throw translate(field, e);
         }
     }
 
@@ -57,13 +59,16 @@ final class ExpansionLimitIntervalsSource extends IntervalsSource {
         try {
             return in.matches(field, ctx, doc);
         } catch (IllegalStateException e) {
-            throw translate(e);
+            throw translate(field, e);
         }
     }
 
-    private static RuntimeException translate(IllegalStateException e) {
+    private static RuntimeException translate(String field, IllegalStateException e) {
         if (isExpansionLimit(e)) {
-            return new IllegalArgumentException(e.getMessage(), e);
+            return new IllegalArgumentException(
+                "[intervals] rule on field [" + field + "] " + e.getMessage() + "; use a more selective pattern",
+                e
+            );
         }
         return e;
     }

@@ -36,6 +36,7 @@ import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.elasticsearch.xpack.esql.view.ViewService;
@@ -55,6 +56,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.startsWith;
 
 public class ViewIT extends AbstractEsqlIntegTestCase {
 
@@ -107,9 +109,42 @@ public class ViewIT extends AbstractEsqlIntegTestCase {
     public void testSetIsRejected() {
         expectThrows(
             ElasticsearchException.class,
-            containsString("SET statements are not allowed in views"),
+            containsString("SET [time_zone] is not allowed in views"),
             () -> createView("my_view", "SET time_zone=\"Europe/Berlin\"; FROM index")
         );
+    }
+
+    public void testBoundaryScopedSettingsAreAccepted() {
+        assertAcked(createView("load_view", "SET unmapped_fields=\"load\"; FROM index"));
+        assertAcked(createView("null_view", "SET unmapped_fields=\"nullify\"; FROM index"));
+        assertAcked(createView("views_view", "SET wildcards_match_views=true; FROM index"));
+        assertAcked(createView("datasets_view", "SET wildcards_match_datasets=false; FROM index"));
+    }
+
+    public void testLoadAllInsideViewIsRejected() {
+        expectThrows(
+            ElasticsearchException.class,
+            containsString("SET unmapped_fields=\"LOAD_ALL\" is not supported in views"),
+            () -> createView("my_view", "SET unmapped_fields=\"LOAD_ALL\"; FROM index")
+        );
+    }
+
+    public void testTsWithoutStatsIsRejected() {
+        expectThrows(
+            IllegalArgumentException.class,
+            containsString("view [ts-view] uses TS, which must be followed by a STATS command"),
+            () -> createView("ts-view", "TS metrics | WHERE cpu > 1 | KEEP cpu")
+        );
+    }
+
+    public void testTsWithStatsIsAccepted() {
+        assertAcked(createView("ts-view", "TS metrics | STATS max(cpu) BY host"));
+        assertAcked(createView("ts-view", "TS metrics | FORK (STATS max(cpu)) (WHERE cpu > 1)"));
+    }
+
+    public void testPromqlIsAccepted() {
+        assertAcked(createView("promql-view", "PROMQL index=metrics step=1m cpu_avg=(avg(cpu))"));
+        assertAcked(createView("promql-view", "PROMQL index=metrics step=1m cpu_avg=(avg(cpu)) | WHERE cpu_avg > 1 | KEEP cpu_avg"));
     }
 
     public void testCannotCreateAliasToView() {
@@ -189,11 +224,6 @@ public class ViewIT extends AbstractEsqlIntegTestCase {
             containsString("Views are not supported in TS command, found view(s) [ts-view-1]"),
             () -> run("TS ts-source,ts-view-1 | EVAL f2=2").close()
         );
-
-        assertAcked(createView("ts-view-2", "TS ts-source | EVAL f1=1"));
-        try (EsqlQueryResponse response = run("FROM ts-view-2 | STATS total = sum(cpu) BY f1 | EVAL f2=2")) {
-            assertThat(getValuesList(response), equalTo(List.of(List.of(60L, 1, 2))));
-        }
     }
 
     public void testViewOverSystemIndex() {
@@ -308,6 +338,29 @@ public class ViewIT extends AbstractEsqlIntegTestCase {
                 new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { viewName }, true)
             )
         );
+    }
+
+    public void testCommandLimitSettingAppliesToQueriesThatExpandViews() {
+        assertAcked(indicesAdmin().prepareCreate("source-index").setMapping("f1", "type=integer"));
+        prepareIndex("source-index").setSource("f1", 42).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        String pipes = " | WHERE f1 > 0".repeat(300);
+        assertAcked(createView("long-view", "FROM source-index" + pipes));
+        String query = "FROM long-view" + pipes;
+
+        expectThrows(
+            VerificationException.class,
+            startsWith("ES|QL query exceeded the maximum of [500] plan nodes allowed after expanding views, subqueries and FORKs."),
+            () -> run(query)
+        );
+
+        try {
+            updateClusterSettings(Settings.builder().put(EsqlFlags.ESQL_MAX_COMMAND_COUNT.getKey(), 1000));
+            try (EsqlQueryResponse response = run(query)) {
+                assertThat(getValuesList(response), equalTo(List.of(List.of(42))));
+            }
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(EsqlFlags.ESQL_MAX_COMMAND_COUNT.getKey()));
+        }
     }
 
     public void testEnsureReservedViewExists() {

@@ -14,7 +14,6 @@ import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.ImpactsEnum;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.OrdinalMap;
@@ -45,6 +44,7 @@ import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.FeatureFlag;
@@ -116,7 +116,6 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -1683,6 +1682,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
     private final boolean passthrough;
     private final PreserveLeafArrays preserveLeafArrays;
     private final boolean writeDimensionRouting;
+    private final int maxKeyedValueLength;
 
     private FlattenedFieldMapper(
         String leafName,
@@ -1700,6 +1700,8 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         this.writeDimensionRouting = builder.dimensions.getValue().isEmpty() == false
             && builder.indexSettings.getIndexRouting() instanceof IndexRouting.ExtractFromSource efs
             && efs.extractDimensionsWhileMapping();
+        boolean useLuceneMaxTermLength = mappedFieldType.indexType().hasTerms() || builder.usesBinaryDocValues == false;
+        this.maxKeyedValueLength = builder.indexSettings.maxValueLength(useLuceneMaxTermLength);
         this.fieldParser = new FlattenedFieldParser(
             mappedFieldType.name(),
             mappedFieldType.name() + KEYED_FIELD_SUFFIX,
@@ -1715,7 +1717,8 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             builder.preserveLeafArrays.get(),
             builder.indexSettings.getIndexVersionCreated(),
             this.writeDimensionRouting,
-            ((RootFlattenedFieldType) mappedFieldType).usesArrayOrderBinaryDocValues()
+            ((RootFlattenedFieldType) mappedFieldType).usesArrayOrderBinaryDocValues(),
+            maxKeyedValueLength
         );
         this.preserveLeafArrays = builder.preserveLeafArrays.get();
     }
@@ -1938,7 +1941,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
 
         final BytesRef nullValueBytes = builder.nullValue.get() != null ? new BytesRef(builder.nullValue.get()) : null;
 
-        try (EscfColumnBuilder keyed = mergeStringColumn(); EscfColumnBuilder counts = mergeLongColumn()) {
+        try (EscfColumnBuilder keyed = mergeStringColumn(ctx.recycler()); EscfColumnBuilder counts = mergeLongColumn(ctx.recycler())) {
             final BytesRefBuilder docBlob = new BytesRefBuilder();
             int seedEstimate = 0;
             for (int k = 0; k < columnCount; k++) {
@@ -1979,8 +1982,13 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                                         + "] exceeds ignore_above; the ignored-values channel is not yet supported"
                                 );
                             }
-                            if (keyPrefix.length + value.length > IndexWriter.MAX_TERM_LENGTH) {
-                                throw immenseKeyedValueException(relativeKeys[k], value.length);
+                            if (keyPrefix.length + value.length > maxKeyedValueLength) {
+                                throw FlattenedFieldParser.overLimitSizeKeyedValueException(
+                                    fieldType().name(),
+                                    relativeKeys[k],
+                                    value.length,
+                                    maxKeyedValueLength
+                                );
                             }
                         }
 
@@ -2012,15 +2020,14 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         }
     }
 
-    // TODO: make the batch supply a recycler to wire up recycling instead of NON_RECYCLING_INSTANCE.
-    private static EscfColumnBuilder mergeStringColumn() {
-        EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+    private static EscfColumnBuilder mergeStringColumn(Recycler<BytesRef> recycler) {
+        EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, recycler);
         b.lockScalar(EscfColumnKind.STRING);
         return b;
     }
 
-    private static EscfColumnBuilder mergeLongColumn() {
-        EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+    private static EscfColumnBuilder mergeLongColumn(Recycler<BytesRef> recycler) {
+        EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, recycler);
         b.lockScalar(EscfColumnKind.LONG);
         return b;
     }
@@ -2034,24 +2041,6 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             }
         }
         return count;
-    }
-
-    /** Mirrors the row path's immense-keyed-value error in {@link FlattenedFieldParser}. */
-    private IllegalArgumentException immenseKeyedValueException(String key, int valueLength) {
-        return new IllegalArgumentException(
-            "Flattened field ["
-                + fieldType().name()
-                + "] contains one immense field"
-                + " whose keyed encoding is longer than the allowed max length of "
-                + IndexWriter.MAX_TERM_LENGTH
-                + " bytes. Key length: "
-                + key.length()
-                + ", value length: "
-                + valueLength
-                + " for key starting with ["
-                + key.substring(0, Math.min(key.length(), 50))
-                + "]"
-        );
     }
 
     /**
@@ -2117,5 +2106,20 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         }
 
         return super.syntheticSourceSupport();
+    }
+
+    /**
+     * The synthetic source loader of the {@code _unmapped} sink that wraps this mapper. It reads the doc values with exactly the
+     * configuration this mapper wrote them with.
+     */
+    UnmappedSinkSyntheticFieldLoader unmappedSinkSyntheticFieldLoader() {
+        return new UnmappedSinkSyntheticFieldLoader(
+            fullPath(),
+            fieldType().ignoreAbove.valuesPotentiallyIgnored() ? fullPath() + KEYED_IGNORED_VALUES_FIELD_SUFFIX : null,
+            builder.usesBinaryDocValues,
+            builder.storeIgnoredFieldsInBinaryDocValues,
+            preserveLeafArrays,
+            fieldType().usesArrayOrderBinaryDocValues()
+        );
     }
 }

@@ -16,6 +16,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.columnar.ColumnarNegatedQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -317,7 +318,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         }
         // lucene deduplicates filter clauses.
         addDeduplicatedBooleanClauses(context, booleanQueryBuilder, filterClauses, BooleanClause.Occur.FILTER, queryVisitor);
-        BooleanQuery booleanQuery = booleanQueryBuilder.build();
+        BooleanQuery booleanQuery = requireColumnarExclusions(booleanQueryBuilder.build());
         if (booleanQuery.clauses().isEmpty()) {
             Queries.ALL_DOCS_INSTANCE.visit(queryVisitor);
             return Queries.ALL_DOCS_INSTANCE;
@@ -325,6 +326,40 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
 
         Query query = Queries.applyMinimumShouldMatch(booleanQuery, minimumShouldMatch);
         return adjustPureNegative ? fixNegativeQueryIfNeeded(query, queryVisitor) : query;
+    }
+
+    /**
+     * Turns a {@code MUST_NOT} clause that scans a ColumNAR column into a required clause that matches what it does not.
+     *
+     * <p>Lucene confirms a prohibited clause on every document it can reach, and a column scan can reach them all, so
+     * {@code a AND NOT b} decodes most of {@code b}'s column however few documents {@code a} leaves. As a required clause
+     * Lucene confirms it only on the documents the cheaper clauses kept. See {@link ColumnarNegatedQuery}.
+     *
+     * <p>This applies to a clause on its own, not only next to a required one: ES|QL builds each {@code NOT} as a bool
+     * query of its own, which Lucene folds into the enclosing conjunction only when it rewrites.
+     *
+     * <p>Left alone are bool queries with {@code should} clauses, whose {@code minimum_should_match} semantics are not worth
+     * disturbing, and a pure-negative query that {@code adjust_pure_negative: false} asks to match nothing.
+     */
+    private BooleanQuery requireColumnarExclusions(BooleanQuery query) {
+        if (shouldClauses.isEmpty() == false || mustNotClauses.isEmpty()) {
+            return query;
+        }
+        if (adjustPureNegative == false && mustClauses.isEmpty() && filterClauses.isEmpty()) {
+            return query;
+        }
+        BooleanQuery.Builder rewritten = new BooleanQuery.Builder();
+        boolean changed = false;
+        for (BooleanClause clause : query.clauses()) {
+            Query required = clause.occur() == BooleanClause.Occur.MUST_NOT ? ColumnarNegatedQuery.asFilter(clause.query()) : null;
+            if (required == null) {
+                rewritten.add(clause);
+            } else {
+                rewritten.add(required, BooleanClause.Occur.FILTER);
+                changed = true;
+            }
+        }
+        return changed ? rewritten.build() : query;
     }
 
     private void addBooleanClauses(

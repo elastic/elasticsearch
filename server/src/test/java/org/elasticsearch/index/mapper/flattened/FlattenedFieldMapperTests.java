@@ -1016,4 +1016,10 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             assertFalse(info, rightIterator.hasNext());
         }
     }
+
+    @Override
+    protected boolean supportsIndexSortRangeTest() {
+        // NOTE: The values of a flattened field are objects, not the scalar sample values.
+        return false;
+    }
 }

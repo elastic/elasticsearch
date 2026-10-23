@@ -145,4 +145,46 @@ public class TranslogOperationAsserterTests extends EngineTestCase {
             assertFalse(regularAsserter.assertSameIndexOperation(o1, o2));
         }
     }
+
+    public void testSyntheticAsserterComparesValuesButNotKeyOrder() throws Exception {
+        TranslogOperationAsserter syntheticAsserter = TranslogOperationAsserter.withEngineConfig(engineConfig(true));
+        TranslogOperationAsserter regularAsserter = TranslogOperationAsserter.withEngineConfig(engineConfig(false));
+        {
+            var o1 = toIndexOp("""
+                {
+                    "b": "unmapped-b",
+                    "value": "value-1",
+                    "a": "unmapped-a"
+                }
+                """);
+            var o2 = toIndexOp("""
+                {
+                    "value": "value-1",
+                    "b": "unmapped-b",
+                    "a": "unmapped-a"
+                }
+                """);
+            assertTrue(syntheticAsserter.assertSameIndexOperation(o1, o2));
+            assertTrue(syntheticAsserter.assertSameIndexOperation(o2, o1));
+            assertFalse(regularAsserter.assertSameIndexOperation(o1, o2));
+        }
+        {
+            var o1 = toIndexOp("""
+                {
+                    "b": "unmapped-b",
+                    "value": "value-1",
+                    "a": "unmapped-a"
+                }
+                """);
+            var o2 = toIndexOp("""
+                {
+                    "value": "value-1",
+                    "b": "unmapped-b",
+                    "a": "other"
+                }
+                """);
+            assertFalse(syntheticAsserter.assertSameIndexOperation(o1, o2));
+            assertFalse(regularAsserter.assertSameIndexOperation(o1, o2));
+        }
+    }
 }

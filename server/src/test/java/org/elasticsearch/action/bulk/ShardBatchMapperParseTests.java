@@ -18,6 +18,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -35,8 +37,10 @@ import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.After;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -88,7 +92,7 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
      * Calls {@code resolveMappers} then {@code mapColumnBatch} over the full batch (no chunking).
      * Returns the {@link EngineBatch}, or {@code null} if the columnar path was not taken.
      */
-    private static EngineBatch mapBatch(IndexShard shard, BulkItemRequest[] items, SourceBatch batch) {
+    private EngineBatch mapBatch(IndexShard shard, BulkItemRequest[] items, SourceBatch batch) {
         final BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(
             batch.schema(),
             shard.mapperService().mappingLookup(),
@@ -97,16 +101,32 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
         if (resolution == null) {
             return null;
         }
-        return ShardBatchMapper.mapColumnBatch(
-            items,
-            batch,
-            shard,
-            0,
-            items.length,
-            resolution,
-            Engine.Operation.Origin.PRIMARY,
-            BytesRefRecycler.NON_RECYCLING_INSTANCE
+        return releaseAfterTest(
+            ShardBatchMapper.mapColumnBatch(items, batch, shard, 0, items.length, resolution, Engine.Operation.Origin.PRIMARY, recycler)
         );
+    }
+
+    /**
+     * Leak-tracking recycler, so that the leak check in {@code ESTestCase#after} covers every page the mappers take on the real
+     * {@code mapColumnBatch} path, including the path that falls back after a mapper fails. A non-recycling recycler would hide a leak.
+     */
+    private final BytesRefRecycler recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
+
+    private final List<EngineBatch> engineBatches = new ArrayList<>();
+
+    /** Remembers {@code engineBatch}, which may be {@code null} after a fallback, so that it is released when the test ends. */
+    private EngineBatch releaseAfterTest(EngineBatch engineBatch) {
+        if (engineBatch != null) {
+            engineBatches.add(engineBatch);
+        }
+        return engineBatch;
+    }
+
+    /** Runs before {@code ESTestCase#after}, which fails the test if a page of the recycler is still out. */
+    @After
+    public void releaseEngineBatches() {
+        Releasables.close(engineBatches);
+        engineBatches.clear();
     }
 
     /**
@@ -457,15 +477,8 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
                 assertEquals("should have one group", 1, resolution.columnGroups().length);
 
                 // First chunk [0, 2).
-                EngineBatch chunk1 = ShardBatchMapper.mapColumnBatch(
-                    items,
-                    fullBatch,
-                    shard,
-                    0,
-                    2,
-                    resolution,
-                    Engine.Operation.Origin.PRIMARY,
-                    BytesRefRecycler.NON_RECYCLING_INSTANCE
+                EngineBatch chunk1 = releaseAfterTest(
+                    ShardBatchMapper.mapColumnBatch(items, fullBatch, shard, 0, 2, resolution, Engine.Operation.Origin.PRIMARY, recycler)
                 );
                 assertNotNull("chunk1 mapping should succeed", chunk1);
                 chunk1.columns().fillPrimaryTerm(1L);
@@ -480,15 +493,8 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
                 assertTrue("chunk1 doc1: flat._keyed present", c1.fields().stream().anyMatch(f -> "flat._keyed".equals(f.name())));
 
                 // Second chunk [2, 4).
-                EngineBatch chunk2 = ShardBatchMapper.mapColumnBatch(
-                    items,
-                    fullBatch,
-                    shard,
-                    2,
-                    4,
-                    resolution,
-                    Engine.Operation.Origin.PRIMARY,
-                    BytesRefRecycler.NON_RECYCLING_INSTANCE
+                EngineBatch chunk2 = releaseAfterTest(
+                    ShardBatchMapper.mapColumnBatch(items, fullBatch, shard, 2, 4, resolution, Engine.Operation.Origin.PRIMARY, recycler)
                 );
                 assertNotNull("chunk2 mapping should succeed", chunk2);
                 chunk2.columns().fillPrimaryTerm(1L);

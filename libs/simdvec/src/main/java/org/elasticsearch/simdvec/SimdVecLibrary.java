@@ -395,6 +395,20 @@ public abstract class SimdVecLibrary {
         @VectorSegment(countParam = "count", elementBits = Float.SIZE) MemorySegment scores
     );
 
+    /**
+     * Computes {@code result = a @ v} in exact int32 arithmetic, where {@code a} is a row-major
+     * {@code rows x cols} matrix and {@code v} has {@code cols} values.
+     */
+    @Function("vec_sgemv_i8")
+    @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
+    public abstract void sgemvI8(
+        @MatrixSegment(rowsParam = "rows", colsParam = "cols", elementBits = Byte.SIZE) MemorySegment a,
+        @VectorSegment(countParam = "cols", elementBits = Byte.SIZE) MemorySegment v,
+        int rows,
+        int cols,
+        @VectorSegment(countParam = "rows", elementBits = Integer.SIZE) MemorySegment result
+    );
+
     @Function("vec_doti8_bulk_sparse")
     @Critical
     protected abstract void dotProductI8BulkSparse_raw(

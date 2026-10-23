@@ -506,6 +506,17 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         return sum;
     }
 
+    /**
+     * Not supported.
+     *
+     * @deprecated Use {@link #search(Query, CollectorManager)} instead.
+     */
+    @Deprecated
+    @Override
+    public final void search(Query query, Collector collector) {
+        throw new UnsupportedOperationException("use search(Query, CollectorManager) instead");
+    }
+
     @Override
     public <C extends Collector, T> T search(Query query, CollectorManager<C, T> collectorManager) throws IOException {
         final C firstCollector = collectorManager.newCollector();

@@ -957,7 +957,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * A multi-character value beyond the four escapes is rejected only when {@code strict} (the PUT-time
+     * A multi-character value beyond the two escapes is rejected only when {@code strict} (the PUT-time
      * validator): datasets registered before that gate existed carry values like {@code delimiter: "||"}
      * and read today by truncating to the first character, so the query path must keep truncating —
      * an upgrade cannot turn a working (if misconfigured) dataset into a query-time error. New
@@ -977,12 +977,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
         if ("\\t".equals(s)) {
             return '\t';
         }
-        if ("\\n".equals(s)) {
-            return '\n';
-        }
-        if ("\\r".equals(s)) {
-            return '\r';
-        }
         if ("\\\\".equals(s)) {
             return '\\';
         }
@@ -990,7 +984,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             return s.charAt(0);
         }
         throw new IllegalArgumentException(
-            "Invalid character value for [" + settingName + "] [" + value + "]: expected a single character or one of \\t, \\n, \\r, \\\\"
+            "Invalid character value for [" + settingName + "] [" + value + "]: expected a single character or one of \\t, \\\\"
         );
     }
 

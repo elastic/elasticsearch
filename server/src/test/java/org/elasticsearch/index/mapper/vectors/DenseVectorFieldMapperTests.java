@@ -1471,7 +1471,6 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     public void testDefaultsUnderVectordbColumnarIndexMode() throws Exception {
-        assumeTrue("vectordb_columnar index mode requires snapshot build", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = new DenseVectorTestSettingsBuilder().indexMode(IndexMode.VECTORDB_COLUMNAR).build();
         MapperService mapperService = createMapperService(settings, fieldMapping(b -> new DenseVectorMappingBuilder().dims(8).build(b)));
         DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.mappingLookup().getMapper("field");
@@ -1480,7 +1479,6 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     public void testExplicitElementTypeOverridesVectordbColumnarModeDefault() throws Exception {
-        assumeTrue("vectordb_columnar index mode requires snapshot build", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = new DenseVectorTestSettingsBuilder().indexMode(IndexMode.VECTORDB_COLUMNAR).build();
         MapperService mapperService = createMapperService(
             settings,

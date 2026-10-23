@@ -31,7 +31,8 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  *   <li>105 fields per document: 38 string values (47% of them empty) and 67 integers.</li>
  *   <li>10.1% of string values contain a backslash escape, about 3.8 per document and 38% of all
  *       string-value bytes. 85% of the escapes are {@code \/} (the data was written by PHP's
- *       {@code json_encode}), 9% are unicode escapes (a backslash, {@code u} and four hex digits) and 6% are {@code \f}.</li>
+ *       {@code json_encode}), 9% are unicode escapes (a backslash, {@code u} and four hex digits)
+ *       and 6% are {@code \f}.</li>
  *   <li>{@code URL} is escaped in 99% of documents and {@code Referer} in 95%. Both begin with
  *       {@code http:\/\/} so the first escape sits about 5 bytes in, and they average roughly 4.5
  *       escapes each. {@code Title} is long (mean 226 bytes, raw UTF-8 Cyrillic) and escaped in 19%.</li>

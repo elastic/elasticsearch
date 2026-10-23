@@ -577,18 +577,32 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                                 // https://github.com/elastic/elasticsearch/issues/157669
                                 // Operand shapes that produce them: without aggregations (#157671), label functions (#157672).
                                 failures.add(fail(lp, "vector matching requires operands with concrete label sets [{}]", lp.sourceText()));
-                            } else if (scalarOperand == false && pairsMetricsInSeparateSeries(binaryOperator)) {
-                                // Implicit ignoring(__name__) over opaque operands needs the same runtime-defined match keys.
-                                // https://github.com/elastic/elasticsearch/issues/157669
-                                failures.add(
-                                    fail(
-                                        lp,
-                                        "binary operations between different metrics require aggregating both operands by the "
-                                            + "labels to match on, such as sum by (instance) (a) / sum by (instance) (b) [{}]",
-                                        lp.sourceText()
-                                    )
-                                );
-                            }
+                            } else if (scalarOperand == false
+                                && hasSourceBackedExpression(binaryOperator.left()) != hasSourceBackedExpression(binaryOperator.right())
+                                && (hasConcreteLabels(binaryOperator.left()) == false
+                                    || hasConcreteLabels(binaryOperator.right()) == false)) {
+                                        // vector(s) is one series with no labels, so it pairs only with series that have no labels
+                                        // either: telling those apart needs the match keys of the TODO above.
+                                        failures.add(
+                                            fail(
+                                                lp,
+                                                "binary operations between vector() and a vector without a concrete label set "
+                                                    + "are not supported at this time [{}]",
+                                                lp.sourceText()
+                                            )
+                                        );
+                                    } else if (scalarOperand == false && pairsMetricsInSeparateSeries(binaryOperator)) {
+                                        // Implicit ignoring(__name__) over opaque operands needs the same runtime-defined match keys.
+                                        // https://github.com/elastic/elasticsearch/issues/157669
+                                        failures.add(
+                                            fail(
+                                                lp,
+                                                "binary operations between different metrics require aggregating both operands by the "
+                                                    + "labels to match on, such as sum by (instance) (a) / sum by (instance) (b) [{}]",
+                                                lp.sourceText()
+                                            )
+                                        );
+                                    }
                     }
                     if (binaryOperator instanceof VectorBinaryComparison comp) {
                         if (comp.match() == VectorMatch.NONE && root.get() == false) {

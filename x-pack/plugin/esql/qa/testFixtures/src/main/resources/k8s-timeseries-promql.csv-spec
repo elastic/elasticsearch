@@ -1292,6 +1292,92 @@ result:double     | step:datetime
 3.141592653589793 | 2024-05-10T01:00:00.000Z
 ;
 
+// `vector(time())` is one series, so its scalar is the step time whatever the number of stored series.
+scalar_of_vector_time
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_scalar
+required_capability: fix_promql_constant_is_one_series
+PROMQL index=k8s step=1h result=(scalar(vector(time())));
+
+result:double | step:datetime
+1.7153028E9   | 2024-05-10T01:00:00.000Z
+;
+
+scalar_of_vector_time_with_bounds
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_scalar
+required_capability: fix_promql_constant_is_one_series
+PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(scalar(vector(time())));
+
+result:double | step:datetime
+1.7152992E9   | 2024-05-10T00:00:00.000Z
+1.7153028E9   | 2024-05-10T01:00:00.000Z
+;
+
+// An aggregate over `vector(1)` reduces its one series, not one copy per stored series.
+sum_vector_without_bounds
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_constant_is_one_series
+PROMQL index=k8s step=1h result=(sum(vector(1)));
+
+result:double | step:datetime
+1.0           | 2024-05-10T01:00:00.000Z
+;
+
+count_vector_without_bounds
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_constant_is_one_series
+PROMQL index=k8s step=1h result=(count(vector(1)));
+
+result:double | step:datetime
+1.0           | 2024-05-10T01:00:00.000Z
+;
+
+quantile_vector_without_bounds
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_constant_is_one_series
+PROMQL index=k8s step=1h result=(quantile(0.5, vector(1)));
+
+result:double | step:datetime
+1.0           | 2024-05-10T01:00:00.000Z
+;
+
+// Without a start, an aggregate over `vector(1)` pairs with another aggregate by step; `sum(network.cost)` is 61.
+sum_metric_over_count_vector_without_bounds
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_constant_is_one_series
+PROMQL index=k8s step=1h result=(sum(network.cost) / count(vector(1)));
+
+result:double | step:datetime
+61.0          | 2024-05-10T01:00:00.000Z
+;
+
+sum_vector_plus_sum_metric_without_bounds
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_constant_is_one_series
+PROMQL index=k8s step=1h result=(sum(vector(1)) + sum(network.cost));
+
+result:double | step:datetime
+62.0          | 2024-05-10T01:00:00.000Z
+;
+
+sum_vector_plus_sum_vector_without_bounds
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_constant_is_one_series
+PROMQL index=k8s step=1h result=(sum(vector(1)) + sum(vector(2)));
+
+result:double | step:datetime
+3.0           | 2024-05-10T01:00:00.000Z
+;
+
 scalar_sum_global
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2

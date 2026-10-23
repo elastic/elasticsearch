@@ -153,7 +153,13 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
                 LogicalPlan sampled = emitLimitRatioFilter(childResult);
                 return childResult.with(sampled, childResult.schema(), childResult.value());
             }
-            return childResult;
+            // A constant is at most one series per step, so ranking it only decides whether k keeps that series.
+            var kept = new Filter(
+                source(),
+                childResult.plan(),
+                new GreaterThanOrEqual(source(), k(), new Literal(source(), 1, DataType.INTEGER))
+            );
+            return childResult.with(kept, childResult.schema(), childResult.value());
         }
 
         var schema = isLimitRatio ? childResult.schema() : union(childResult.schema(), finite(partitions));
@@ -175,9 +181,12 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
     ) {
         ReductionGrouping grouping = reductionGrouping(context, table, partitions);
         var order = (Order) buildEsqlFunction(table.value(), promqlContext);
-        // Prometheus converts k with an integer cast: `topk(1.5, v)` keeps one series, and a k below one keeps none.
-        Expression k = new ToInteger(source(), new Floor(source(), parameters().getFirst()));
-        return new TopNBy(source(), grouping.plan(), order != null ? List.of(order) : List.of(), k, grouping.groupings());
+        return new TopNBy(source(), grouping.plan(), order != null ? List.of(order) : List.of(), k(), grouping.groupings());
+    }
+
+    /** Prometheus converts k with an integer cast: {@code topk(1.5, v)} keeps one series, and a k below one keeps none. */
+    private Expression k() {
+        return new ToInteger(source(), new Floor(source(), parameters().getFirst()));
     }
 
     /**

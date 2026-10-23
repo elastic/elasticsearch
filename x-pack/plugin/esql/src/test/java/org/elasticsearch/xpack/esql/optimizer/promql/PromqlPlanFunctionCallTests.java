@@ -85,7 +85,35 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         assertConstantResult("ceil(vector(3.14159))", equalTo(4.0));
         assertConstantResult("pi()", equalTo(Math.PI));
         assertConstantResult("abs(vector(-1))", equalTo(1.0));
-        assertConstantResult("quantile(0.5, vector(1))", equalTo(1.0));
+    }
+
+    /**
+     * {@code vector(1)} is a single series per step, not one per source series: the operator reduces the one row per step
+     * of an initial step-only aggregate rather than folding over every series of the index, so {@code sum(vector(1))} is
+     * {@code 1} and never the series count.
+     */
+    public void testAggregateOverLabelLessVectorReducesSingleSeries() {
+        assertReducesSingleSeries("sum(vector(1))", Sum.class);
+        assertReducesSingleSeries("sum by (pod) (vector(1))", Sum.class);
+        assertReducesSingleSeries("sum without (pod) (vector(1))", Sum.class);
+        assertReducesSingleSeries("quantile(0.5, vector(1))", Percentile.class);
+    }
+
+    private void assertReducesSingleSeries(String expr, Class<? extends AggregateFunction> function) {
+        LogicalPlan plan = planPromql("PROMQL index=k8s step=1h result=(" + expr + ")", false);
+        List<Aggregate> reductions = plan.collect(Aggregate.class)
+            .stream()
+            .filter(agg -> agg.aggregates().stream().anyMatch(e -> e.anyMatch(function::isInstance)))
+            .toList();
+        assertThat(expr, reductions, hasSize(1));
+        List<Aggregate> perStep = reductions.getFirst()
+            .child()
+            .collect(Aggregate.class)
+            .stream()
+            .filter(agg -> agg instanceof TimeSeriesAggregate == false)
+            .toList();
+        assertThat(expr, perStep, hasSize(1));
+        assertThat(expr, Expressions.names(perStep.getFirst().groupings()), contains("step"));
     }
 
     /** Prometheus: a duration literal is a float literal in seconds - {@code 1h30m} is {@code 5400}, {@code 1ms} is {@code 0.001}. */

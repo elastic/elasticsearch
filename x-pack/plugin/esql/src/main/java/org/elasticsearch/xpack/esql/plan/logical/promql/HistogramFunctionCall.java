@@ -92,7 +92,7 @@ public abstract sealed class HistogramFunctionCall extends PromqlFunctionCall pe
         List<String> le = List.of(HistogramFunctionCall.LE_LABEL);
         TranslationSchema childRequired = union(union(subtract(context.required(), le), open(le)), finite(le));
         IntermediateResult result = context.withRequired(childRequired).translate(child());
-        if (result.kind().constant) {
+        if (result.isEmpty()) {
             return result;
         }
 

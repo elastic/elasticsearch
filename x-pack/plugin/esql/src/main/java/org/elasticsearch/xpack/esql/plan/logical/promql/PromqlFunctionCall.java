@@ -161,7 +161,7 @@ public abstract sealed class PromqlFunctionCall extends UnaryPlan implements Pro
      */
     protected final IntermediateResult translateValueFunction(TranslationContext context) {
         IntermediateResult child = context.translate(child());
-        if (child.kind().constant) {
+        if (child.isEmpty()) {
             return child;
         }
         Expression window = AggregateFunction.NO_WINDOW;

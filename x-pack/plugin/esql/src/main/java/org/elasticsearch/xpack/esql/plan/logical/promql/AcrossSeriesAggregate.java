@@ -190,8 +190,16 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
         };
         TranslationContext childTranslation = context.withRequired(childRequired);
         IntermediateResult ir = childTranslation.translate(child());
-        if (ir.kind().constant) {
+        if (ir.isEmpty()) {
             return ir;
+        }
+        // A constant vector is one `{}` series per step whatever the source holds: the aggregate regroups its
+        // compile-time table (`sum(vector(1))` is 1), never one copy of it per stored series.
+        ir = context.doTranslateTryInline(ir);
+        if (ir.kind().afterInitialAggregation == false && context.isOverAnyRow(ir)) {
+            // Not inlined (the query has no start): collapse the value, which reads nothing but the step, to its one
+            // series per step so the operator aggregates across it alone.
+            ir = context.collapse(ir, ir.schema(), ir.value());
         }
         TranslationSchema schema = switch (grouping()) {
             case BY -> finite(TranslationContext.mapFinite(output()));

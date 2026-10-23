@@ -63,6 +63,11 @@ public final class ScalarConversionFunction extends PromqlFunctionCall {
             Expression value = new ToDouble(source(), child.value());
             return new IntermediateResult(child.plan(), TranslationSchema.EMPTY, value, child.step(), child.pendingFilter());
         }
+        if (child.kind().afterInitialAggregation == false && context.isOverAnyRow(child)) {
+            // A value that reads nothing but the step is one series (`vector(time())`): its own value, never a
+            // reduction over one copy per stored series.
+            return child.with(child.plan(), TranslationSchema.EMPTY, new ToDouble(source(), child.value()));
+        }
         var scalarExpr = new Scalar(source(), child.value());
         return child.kind().afterInitialAggregation
             ? context.regroup(child, TranslationSchema.EMPTY, false, scalarExpr)

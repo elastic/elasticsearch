@@ -55,6 +55,8 @@ import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
+import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult.Kind;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
@@ -251,23 +253,22 @@ public record TranslationContext(
             plan = pushDownSrcTimestampFilter(plan, filter);
         }
 
-        if (ir.kind().constant == false) {
-            // TimeSeriesAggregate always applies because InstantSelectors adds implicit last_over_time().
-            // TODO: with metric references without last_over_time, a plain Aggregate could do (#141501 discussion).
-            if (ir.kind().afterInitialAggregation == false) {
-                IntermediateResult collapsed = collapse(ir.with(plan, ir.schema(), value), ir.schema(), value);
-                plan = collapsed.plan();
-                value = collapsed.value();
-            }
-            if (branch instanceof VectorBinaryComparison comparison && comparison.filterMode()) {
-                VectorMatch match = comparison.match();
-                if ((match.filter() != VectorMatch.Filter.NONE || match.grouping() != Joining.NONE) == false) {
-                    // Filter-mode comparison (metric > x): keep the left operand's value, filter rows by the comparison.
-                    // A vector-matched comparison already applied its filter inside the join translation.
-                    ToDouble right = new ToDouble(comparison.right().source(), ((LiteralSelector) comparison.right()).literal());
-                    var condition = comparison.op().asFunction().create(comparison.source(), value, right, configuration());
-                    plan = new Filter(comparison.source(), plan, condition);
-                }
+        // TimeSeriesAggregate always applies because InstantSelectors adds implicit last_over_time().
+        // TODO: with metric references without last_over_time, a plain Aggregate could do (#141501 discussion).
+        if (ir.kind().afterInitialAggregation == false) {
+            IntermediateResult collapsed = collapse(ir.with(plan, ir.schema(), value), ir.schema(), value);
+            plan = collapsed.plan();
+            value = collapsed.value();
+        }
+        if (branch instanceof VectorBinaryComparison comparison && comparison.filterMode()) {
+            VectorMatch match = comparison.match();
+            if ((match.filter() != VectorMatch.Filter.NONE || match.grouping() != Joining.NONE) == false) {
+                // Filter-mode comparison (metric > x): keep the left operand's value, filter rows by the comparison - a
+                // constant included (`vector(1) > 2` is empty). A vector-matched comparison already applied its filter
+                // inside the join translation.
+                ToDouble right = new ToDouble(comparison.right().source(), ((LiteralSelector) comparison.right()).literal());
+                var condition = comparison.op().asFunction().create(comparison.source(), value, right, configuration());
+                plan = new Filter(comparison.source(), plan, condition);
             }
         }
 
@@ -283,7 +284,7 @@ public record TranslationContext(
     }
 
     /** Folds a branch whose value depends on nothing but the step column into a compile-time step/value relation. */
-    private IntermediateResult doTranslateTryInline(IntermediateResult result) {
+    public IntermediateResult doTranslateTryInline(IntermediateResult result) {
         Attribute stepAttr = cmd.stepAttribute();
         if (result.kind().constant
             || cmd.start().value() == null
@@ -294,6 +295,15 @@ public record TranslationContext(
         var step = plan.output().getFirst();
         var value = result.value().transformUp(Attribute.class, attr -> attr.semanticEquals(stepAttr) ? step : attr);
         return new IntermediateResult(plan, result.schema(), value, step, result.pendingFilter(), Kind.CONSTANT);
+    }
+
+    /** Whether the value refers to nothing but a step column: an expression any table with a step column can carry. */
+    public boolean isOverAnyRow(IntermediateResult t) {
+        return t.value().references().stream().allMatch(ref -> isStep(t, ref));
+    }
+
+    public boolean isStep(IntermediateResult t, Attribute attribute) {
+        return attribute.semanticEquals(t.step()) || attribute.semanticEquals(cmd.stepAttribute());
     }
 
     /**
@@ -341,7 +351,9 @@ public record TranslationContext(
     }
 
     private static IntermediateResult table(LogicalPlan plan, IntermediateResult input, TranslationSchema schema, Alias value) {
-        return new IntermediateResult(plan, schema, value.toAttribute(), input.step(), input.pendingFilter(), Kind.AFTER_INITIAL_AGGREGATE);
+        // an aggregate over a constant table is still a compile-time relation over the query's steps
+        Kind kind = input.kind().constant ? Kind.CONSTANT : Kind.AFTER_INITIAL_AGGREGATE;
+        return new IntermediateResult(plan, schema, value.toAttribute(), input.step(), input.pendingFilter(), kind);
     }
 
     /**
@@ -636,13 +648,16 @@ public record TranslationContext(
         /* The translator tracks what it built instead of inspecting the plan. */
         Kind kind
     ) {
-        /** The lifecycle of an intermediate result. A constant is always a finished (aggregation-free) local relation. */
+        /**
+         * The lifecycle of an intermediate result. A constant is a finished compile-time relation that reads no source: a
+         * local relation, or a regroup, evaluation or filter composed over one.
+         */
         public enum Kind {
             BEFORE_INITIAL_AGGREGATE(false, false),
             AFTER_INITIAL_AGGREGATE(true, false),
             CONSTANT(true, true);
 
-            /** A local relation needs no source filtering or aggregation. */
+            /** A compile-time relation needs no source filtering or initial aggregation. */
             public final boolean constant;
             /** Value expressions above this boundary must materialize before being consumed. */
             public final boolean afterInitialAggregation;
@@ -671,6 +686,11 @@ public record TranslationContext(
         /** The value as a defined column; only valid on a finished table. */
         public Attribute valueColumn() {
             return (Attribute) value;
+        }
+
+        /** A table with no rows at all - the relation of a query over no matching index; there is nothing to compute over it. */
+        public boolean isEmpty() {
+            return plan instanceof LocalRelation local && local.supplier() == EmptyLocalSupplier.EMPTY;
         }
 
         /** The attribute carrying a label in this table's plan, or null when the table lacks it. */

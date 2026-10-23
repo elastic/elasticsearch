@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
-import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult.Kind;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -169,7 +168,7 @@ public final class MetadataManipulationFunction extends PromqlFunctionCall {
         // The child must expose the labels the derivation reads, on top of whatever the enclosing translation requires.
         TranslationSchema childRequired = union(context.required(), finite(sourceLabels()));
         IntermediateResult child = context.withRequired(childRequired).translate(child());
-        if (child.kind().constant) {
+        if (child.isEmpty()) {
             return child;
         }
 
@@ -198,14 +197,7 @@ public final class MetadataManipulationFunction extends PromqlFunctionCall {
             plan = new Project(context.cmd().source(), plan, unshadowed);
         }
         TranslationSchema schema = union(aggregated.schema(), finite(List.of(name)));
-        return new IntermediateResult(
-            plan,
-            schema,
-            aggregated.value(),
-            aggregated.step(),
-            aggregated.pendingFilter(),
-            Kind.AFTER_INITIAL_AGGREGATE
-        );
+        return aggregated.with(plan, schema, aggregated.value());
     }
 
     /**

@@ -731,6 +731,12 @@ redirects:
     many:
       - to: 'reference/query-languages/esql/functions-operators/search-functions.md'
         anchors: { 'esql-limitations-text-fields' }
+      # Runtime search behavior moved to its own page
+      - to: 'reference/query-languages/esql/esql-runtime-search.md'
+        anchors:
+          'esql-limitations-full-text-search-expressions':
+          'esql-limitations-full-text-search-analyzer': 'esql-runtime-search-analyzers'
+          'esql-limitations-full-text-search-scoring': 'esql-runtime-search-scoring'
 
   # ES|QL Data Federation: dataset management, settings, schema, and file formats split out of the datasets page
   'reference/query-languages/esql/esql-data-federation-datasets.md':

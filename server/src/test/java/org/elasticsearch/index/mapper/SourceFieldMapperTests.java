@@ -20,6 +20,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -44,6 +45,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -1039,6 +1041,69 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             Source source = sourceLeaf.source(sfLoader, rootDocId);
             assertThat(source.internalSourceRef().utf8ToString(), equalTo("{\"comments\":[{\"stars\":[50,10,30]},{\"stars\":[20,40]}]}"));
         });
+    }
+
+    /**
+     * Verifies that a document whose columnar_stored blob fails half way, while a nested child is being written, leaves nothing
+     * behind for the next document. The thread reuses the source loader, and the nested field reuses the leaf of its children, so
+     * the reset after a failure has to reach the loaders of the fields inside the nested object as well.
+     */
+    public void testColumnarStoredSourceResetsNestedLoadersAfterFailedWrite() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+            .build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {
+            b.startObject("comments");
+            {
+                b.field("type", "nested");
+                b.startObject("properties");
+                {
+                    b.startObject("message").field("type", "keyword").endObject();
+                    b.startObject("votes").field("type", "long").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        // Enough values that the JSON generator flushes its buffer, and so hits the failing stream, while the first child is written.
+        List<String> manyValues = IntStream.range(0, 4000).mapToObj(i -> "v" + i).toList();
+        ParsedDocument failing = mapperService.documentMapper().parse(source(b -> {
+            b.startArray("comments");
+            b.startObject().field("message", manyValues).field("votes", 1).endObject();
+            b.startObject().field("message", "second").field("votes", 2).endObject();
+            b.endArray();
+        }));
+        ParsedDocument next = mapperService.documentMapper().parse(source(b -> {
+            b.startObject("comments").field("message", "ok").field("votes", 3).endObject();
+        }));
+        // The writer runs before postParse attaches the whole-document blob, so the documents it gets do not carry one yet.
+        for (ParsedDocument parsed : List.of(failing, next)) {
+            parsed.rootDoc().getFields().removeIf(f -> f.name().equals(IgnoredSourceFieldMapper.NAME));
+        }
+
+        ColumnarSourceWriter writer = new ColumnarSourceWriter(null);
+        MappingLookup mappingLookup = mapperService.mappingLookup();
+        OutputStream failingStream = new OutputStream() {
+            @Override
+            public void write(int b) throws IOException {
+                throw new IOException("boom");
+            }
+        };
+        // Not closed: closing flushes, which would throw again.
+        XContentBuilder failingBuilder = new XContentBuilder(JsonXContent.jsonXContent, failingStream);
+        IOException e = expectThrows(
+            IOException.class,
+            () -> writer.write(mappingLookup, failing.docs(), failing.rootDoc(), failingBuilder)
+        );
+        assertThat(e.getMessage(), equalTo("boom"));
+
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            writer.write(mappingLookup, next.docs(), next.rootDoc(), builder);
+            assertThat(Strings.toString(builder), equalTo("{\"comments\":{\"message\":\"ok\",\"votes\":3}}"));
+        }
     }
 
     /**

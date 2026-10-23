@@ -179,6 +179,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.indices.cluster.IndexRemovalReason.DELETED;
+import static org.elasticsearch.indices.cluster.IndexRemovalReason.NO_LONGER_ASSIGNED;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.elasticsearch.search.SearchService.QUERY_PHASE_PARALLEL_COLLECTION_ENABLED;
 import static org.elasticsearch.search.SearchService.SEARCH_WORKER_THREADS_ENABLED;
@@ -338,10 +339,10 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     /**
-     * {@link SearchService#freeReaderContext} and a shard close that is not an index removal must not cancel a
-     * stuck scroll fetch. The query phase frees single-session readers itself, and
-     * {@link SearchService#freeAllContextsForShard} is also used when a shard is reassigned. Relocation closes
-     * the shard without {@link SearchService#beforeIndexRemoved}.
+     * {@link SearchService#freeReaderContext} and an index removal that does not free search contexts (such as
+     * {@code NO_LONGER_ASSIGNED} on relocation) must not cancel a stuck scroll fetch. The query phase frees
+     * single-session readers itself, and {@link SearchService#freeAllContextsForShard} is also used when a shard
+     * is reassigned.
      */
     public void testFreeReaderContextDoesNotCancelInFlightScroll() throws Exception {
         ParkedScrollQueryBuilder.reset();
@@ -357,7 +358,11 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         PlainActionFuture<SearchResponse> scrollFuture = new PlainActionFuture<>();
         try {
             ParkedScrollQueryBuilder.arm.set(true);
-            client().prepareSearchScroll(opened.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).execute(scrollFuture);
+            // The framework releases the response once the listener returns, so take our own reference to inspect it later.
+            client().prepareSearchScroll(opened.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).execute(ActionListener.wrap(r -> {
+                r.incRef();
+                scrollFuture.onResponse(r);
+            }, scrollFuture::onFailure));
             assertTrue("scroll fetch did not reach the open SearchContext", ParkedScrollQueryBuilder.parked.await(10, TimeUnit.SECONDS));
 
             SearchService service = getInstanceFromNode(SearchService.class);
@@ -367,24 +372,20 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             assertFalse("freeReaderContext cancelled an in-flight scroll fetch", ParkedScrollQueryBuilder.cancelled.get());
 
             IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-            IndexShard indexShard = indicesService.indexServiceSafe(resolveIndex("index")).getShard(0);
-            service.beforeIndexShardClosed(indexShard.shardId(), indexShard, Settings.EMPTY);
-            assertFalse("shard close cancelled an in-flight scroll fetch", ParkedScrollQueryBuilder.cancelled.get());
+            service.beforeIndexRemoved(indicesService.indexServiceSafe(resolveIndex("index")), NO_LONGER_ASSIGNED);
+            assertFalse("a non-freeing index removal cancelled an in-flight scroll fetch", ParkedScrollQueryBuilder.cancelled.get());
         } finally {
             ParkedScrollQueryBuilder.release.set(true);
             opened.decRef();
-            try {
-                scrollFuture.actionGet(10, TimeUnit.SECONDS).decRef();
-            } catch (Exception | AssertionError e) {
-                // The reader was freed while the fetch was parked. A delivered response may already be closed.
-            }
+            // Wait for the parked fetch to exit and close its SearchContext before reset() clears the flags.
+            scrollFuture.actionGet(10, TimeUnit.SECONDS).decRef();
             ParkedScrollQueryBuilder.reset();
         }
     }
 
     /**
      * A scroll fetch holds its {@link SearchContext} until {@code executeFetchPhase} returns, and engine close waits
-     * on that searcher. Deleting the index must cancel the in-flight task from {@link SearchService#beforeIndexShardClosed}
+     * on that searcher. Deleting the index must cancel the in-flight task from {@link SearchService#beforeIndexRemoved}
      * so shard close can finish and the context is released.
      */
     public void testScrollFetchContextClosedWhenIndexRemoved() throws Exception {
@@ -413,23 +414,19 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             awaitIndexShardCloseAsyncTasks();
             assertBusy(
                 () -> assertTrue(
-                    "in-flight scroll SearchContext was not cancelled by shard close",
+                    "in-flight scroll SearchContext was not cancelled by index removal",
                     ParkedScrollQueryBuilder.cancelled.get()
-                ),
-                2,
-                TimeUnit.SECONDS
+                )
             );
             assertEquals(0, service.getActiveContexts());
+
+            // The cancelled fetch must fail the scroll rather than complete it.
+            final var e = expectThrows(SearchPhaseExecutionException.class, () -> scrollFuture.actionGet(10, TimeUnit.SECONDS));
+            assertEquals(1, e.shardFailures().length);
+            assertNotNull(ExceptionsHelper.unwrap(e.shardFailures()[0].getCause(), TaskCancelledException.class));
         } finally {
             ParkedScrollQueryBuilder.release.set(true);
             opened.decRef();
-            try {
-                // Wait until the parked fetch exits and closes its SearchContext, before reset() clears the flag.
-                // The transport may already have released the response.
-                scrollFuture.actionGet(10, TimeUnit.SECONDS).decRef();
-            } catch (Exception | AssertionError e) {
-                // A cancelled scroll has no response. A delivered response may already be closed by the transport.
-            }
             ParkedScrollQueryBuilder.reset();
         }
     }
@@ -610,10 +607,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                     throw ex;
                 } catch (IllegalStateException ex) {
                     assertEquals(AbstractRefCounted.ALREADY_CLOSED_MESSAGE, ex.getMessage());
-                } catch (SearchContextMissingException | TaskCancelledException ex) {
-                    // index removal frees the reader and cancels the in-flight shard task
-                } catch (ElasticsearchException ex) {
-                    assertThat(ExceptionsHelper.unwrapCause(ex), instanceOf(TaskCancelledException.class));
+                } catch (SearchContextMissingException ex) {
+                    // that's fine
                 }
             }
         } finally {

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.internal;
 
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
@@ -27,6 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -54,7 +56,7 @@ public class ReaderContext implements Releasable {
     private final List<Releasable> onCloses = new CopyOnWriteArrayList<>();
     // Phases still inside the try-with-resources that owns their SearchContext. Closed only when
     // those phases return, which does not happen if this reader is freed while they are blocked.
-    private final List<CancellableTask> inFlightSearches = new CopyOnWriteArrayList<>();
+    private final Set<CancellableTask> inFlightSearches = ConcurrentCollections.newConcurrentSet();
 
     private final long startTimeInNano = System.nanoTime();
 

@@ -74,6 +74,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -157,6 +158,10 @@ public class ApproximationSupportTests extends ESTestCase {
 
         // HIGHLIGHT is not supported;
         Highlight.class,
+
+        // INTO writes its rows to an index rather than returning them, so approximating one would not shorten an
+        // answer, it would persist an approximate one and leave no sign that it had.
+        Into.class,
 
         // PromQL plans are not supported yet.
         // They require chained stats commands.

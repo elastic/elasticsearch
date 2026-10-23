@@ -200,7 +200,6 @@ public final class SampleRecord {
             ((Number) source.get("multiplicity")).longValue(),
             ((Number) source.get("weighted_multiplicity")).doubleValue(),
             ((Number) source.get("inclusion_probability")).doubleValue(),
-            ((Number) source.get("seen_probability")).doubleValue(),
             captureRate
         );
         GroundTruth groundTruth = source.get("ground_truth") == null ? null : parseGroundTruth(map(source.get("ground_truth")));
@@ -273,7 +272,6 @@ public final class SampleRecord {
         builder.field("multiplicity", weights.multiplicity());
         builder.field("weighted_multiplicity", weights.weightedMultiplicity());
         builder.field("inclusion_probability", weights.inclusionProbability());
-        builder.field("seen_probability", weights.seenProbability());
         builder.field("capture_rate", weights.captureRate());
     }
 

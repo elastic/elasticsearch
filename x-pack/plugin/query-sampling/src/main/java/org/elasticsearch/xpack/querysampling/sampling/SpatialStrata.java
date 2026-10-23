@@ -30,6 +30,9 @@ import java.util.function.Supplier;
  * The factor is computed at arrival and recorded in the draw probability, so estimates stay unbiased. Use β mildly:
  * unequal weights cost precision. Queries arriving before the fit have no cluster.
  * <p>
+ * The clusters are fitted once per node: afterwards each query moves its centroid by a running mean and the counts do not
+ * decay, so after a shift in the queries the balance weakens until the node restarts. The estimates stay unbiased.
+ * <p>
  * One instance lives as long as the node and keeps the clusters of a space (a field and its dimensions) for each one it
  * meets, at most {@link #MAX_SPACES}: the fields that are searched are not known in advance, and queries of a space
  * beyond the limit are not grouped, which gives them a factor of 1.

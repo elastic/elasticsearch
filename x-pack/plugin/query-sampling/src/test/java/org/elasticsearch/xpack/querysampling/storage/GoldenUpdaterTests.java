@@ -238,7 +238,7 @@ public class GoldenUpdaterTests extends ESTestCase {
             "sampler",
             fp(n),
             new CapturedSearch(query, List.of(), 1, 1.0),
-            new TrackedQuery.Weights(1, 1.0, 1.0, 1.0, 1.0),
+            new TrackedQuery.Weights(1, 1.0, 1.0, 1.0),
             pickedAt,
             pickedAt,
             new GroundTruth(List.of(new CapturedSearch.Hit("idx" + n, groundTruthId, 1f)), state),

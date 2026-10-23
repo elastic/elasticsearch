@@ -21,7 +21,6 @@ public final class TrackedQuery {
     private long multiplicity;
     private double weightedMultiplicity;
     private double lastArrivalWeight;
-    private double logUnseen;
     private double logSurvival;
     private boolean sampled;
     private Stratum stratum;
@@ -33,8 +32,6 @@ public final class TrackedQuery {
         multiplicity++;
         weightedMultiplicity += weight;
         lastArrivalWeight = weight;
-        // each arrival this one stands for was captured with chance 1/weight; -infinity for weight 1 (certainly seen)
-        logUnseen += weight * Math.log1p(-1.0 / weight);
     }
 
     /** An arrival kept as an event counts once; its chance of being kept is capture rate times slice rate. */
@@ -43,14 +40,6 @@ public final class TrackedQuery {
         event.recordArrival(1.0 / captureRate);
         event.recordDraw(captureRate * sliceRate);
         return event;
-    }
-
-    /**
-     * Estimated probability that the query was captured at least once. Never-captured queries are unknown to the
-     * tracker, so this says how much of the population the known ones stand for.
-     */
-    private double seenProbability() {
-        return -Math.expm1(logUnseen);
     }
 
     // called for every arrival, also after the query was picked, so the inclusion probability reflects all draws
@@ -67,16 +56,10 @@ public final class TrackedQuery {
      * pipeline thread and read by others. {@code multiplicity} counts captures, {@code weightedMultiplicity} estimates
      * arrivals and is unbiased when the capture rate changes over time.
      */
-    public record Weights(
-        long multiplicity,
-        double weightedMultiplicity,
-        double inclusionProbability,
-        double seenProbability,
-        double captureRate
-    ) {}
+    public record Weights(long multiplicity, double weightedMultiplicity, double inclusionProbability, double captureRate) {}
 
     public synchronized Weights weights() {
-        return new Weights(multiplicity, weightedMultiplicity, inclusionProbability(), seenProbability(), 1.0 / lastArrivalWeight);
+        return new Weights(multiplicity, weightedMultiplicity, inclusionProbability(), 1.0 / lastArrivalWeight);
     }
 
     @Nullable

@@ -77,7 +77,6 @@ final class IndexDefinitions {
         field(builder, "multiplicity", "long");
         field(builder, "weighted_multiplicity", "double");
         field(builder, "inclusion_probability", "double");
-        field(builder, "seen_probability", "double");
         field(builder, "capture_rate", "double");
         field(builder, "spatial_space", "keyword");
         field(builder, "spatial_cluster", "integer");

@@ -195,8 +195,8 @@ public final class QuerySamplingSettings {
     );
 
     /**
-     * γ, the scale of the pick probability: a first-seen query is picked with about 0.69·γ, falling as it is
-     * searched more.
+     * γ, the scale of the pick probability: the first captured arrival of a query is picked with
+     * {@code min(1, γ·ln(1 + 1/capture_rate))}, about 0.69·γ when every search is captured, falling as it is searched more.
      */
     public static final Setting<Double> ACCEPTANCE_SCALE = Setting.doubleSetting(
         "xpack.query_sampling.acceptance_scale",
@@ -208,8 +208,8 @@ public final class QuerySamplingSettings {
     );
 
     /**
-     * Estimated search count from which a query is always picked, so that estimates do not hinge on one coin
-     * flip. 1 picks every captured query.
+     * Captured arrivals from which a query is always picked, so that estimates do not hinge on one coin flip. Head
+     * picks are not limited by {@link #MAX_PICKS_PER_HOUR} or {@link #TARGET_PICKS_PER_HOUR}. 1 picks every captured query.
      */
     public static final Setting<Long> HEAD_THRESHOLD = Setting.longSetting(
         "xpack.query_sampling.head_threshold",

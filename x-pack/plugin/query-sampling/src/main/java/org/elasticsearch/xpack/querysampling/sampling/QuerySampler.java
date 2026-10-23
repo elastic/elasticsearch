@@ -21,9 +21,13 @@ import java.util.function.LongSupplier;
 /**
  * Decides which distinct queries are picked. The {@code w}-th arrival is accepted with probability
  * {@code γ·ln(1 + 1/w)}, so picks grow with the log of popularity and a few popular queries cannot fill the sample.
- * Captured arrivals stand for several (weight), so the probability is {@code γ·ln((1 + w) / (1 + w − weight))}, which
- * does not depend on the capture fraction. Head queries are always accepted so estimates do not swing on one coin
- * flip. Picks are tilted by {@link SpatialStrata} and {@link HardnessStrata}, and γ is adjusted by {@link ScaleRegulator}.
+ * Captured arrivals stand for several (weight), so the probability is {@code γ·ln((1 + w) / (1 + w − weight))}: over a
+ * query's life the probabilities add up to {@code γ·ln(1 + w)} whatever the capture fraction, but one arrival's does
+ * depend on it, and the first captured arrival is accepted with {@code γ·ln(1 + weight)}, capped at 1. Head queries,
+ * captured at least the head threshold times, are always accepted so estimates do not swing on one coin flip; captures
+ * are counted rather than estimated searches, since one capture stands for many searches and would make any captured
+ * query look popular. Picks are tilted by {@link SpatialStrata} and {@link HardnessStrata}, and γ is adjusted by
+ * {@link ScaleRegulator}.
  */
 public final class QuerySampler {
 
@@ -42,7 +46,7 @@ public final class QuerySampler {
 
     /**
      * @param scale         γ, the probability scale
-     * @param headThreshold estimated multiplicity from which a query is always picked
+     * @param headThreshold captured arrivals from which a query is always picked
      */
     public QuerySampler(double scale, long headThreshold, Random random, PickBudget budget, SpatialStrata spatial) {
         this(scale, headThreshold, random, budget, spatial, System::nanoTime);
@@ -111,7 +115,7 @@ public final class QuerySampler {
         regulate();
         TrackedQuery.Weights weights = query.weights();
         double multiplicity = weights.weightedMultiplicity();
-        boolean head = multiplicity >= headThreshold;
+        boolean head = weights.multiplicity() >= headThreshold;
         double probability = 1.0;
         if (head == false) {
             double strata = spatial.factor(query.stratum()) * hardness.factor(query.hardness());

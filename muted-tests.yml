@@ -65,9 +65,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeMetricsIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/156079
-- class: org.elasticsearch.xpack.esql.spatial.SpatialPushDownGeoShapeIT
-  method: testQuantizedXY
-  issue: https://github.com/elastic/elasticsearch/issues/156084
 - class: org.elasticsearch.xpack.transform.integration.continuous.TransformContinuousIT
   method: testContinuousEvents
   issue: https://github.com/elastic/elasticsearch/issues/153782

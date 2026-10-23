@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.spatial;
 import org.apache.lucene.geo.XYEncodingUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.geometry.Point;
 import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
 
 public class SpatialPushDownCartesianShapeIT extends SpatialPushDownShapeTestCase {
@@ -52,9 +51,12 @@ public class SpatialPushDownCartesianShapeIT extends SpatialPushDownShapeTestCas
     }
 
     @Override
-    protected Point quantizePoint(Point point) {
-        double x = XYEncodingUtils.decode(XYEncodingUtils.encode((float) point.getX()));
-        double y = XYEncodingUtils.decode(XYEncodingUtils.encode((float) point.getY()));
-        return new Point(x, y);
+    protected double quantizeX(double x) {
+        return XYEncodingUtils.decode(XYEncodingUtils.encode((float) x));
+    }
+
+    @Override
+    protected double quantizeY(double y) {
+        return XYEncodingUtils.decode(XYEncodingUtils.encode((float) y));
     }
 }

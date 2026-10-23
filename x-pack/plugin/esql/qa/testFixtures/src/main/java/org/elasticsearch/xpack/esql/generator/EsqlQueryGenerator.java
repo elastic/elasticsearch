@@ -96,6 +96,11 @@ public class EsqlQueryGenerator {
     public static final String COLUMN_ORIGINAL_TYPES = "original_types";
 
     /**
+     * Advertised by clusters whose {@code TOP} accepts keyword and text output fields (#151767).
+     */
+    static final String TOP_OUTPUT_FIELD_STRING_CAPABILITY = "fn_top_output_field_string";
+
+    /**
      * These are commands that are at the beginning of the query, eg. FROM
      */
     static List<CommandGenerator> SOURCE_COMMANDS = List.of(FromGenerator.INSTANCE, RowGenerator.INSTANCE);
@@ -541,7 +546,7 @@ public class EsqlQueryGenerator {
             }
             case 7 -> {
                 // top(..., outputField) accepts: double, integer, long, date, and keyword and text since #151767
-                Set<String> topOutputFieldTypes = context.clusterSupports("fn_top_output_field_string")
+                Set<String> topOutputFieldTypes = context.clusterSupports(TOP_OUTPUT_FIELD_STRING_CAPABILITY)
                     ? Set.of("double", "integer", "long", "date", "datetime", "keyword", "text")
                     : Set.of("double", "integer", "long", "date", "datetime");
                 String topField = randomNameOrNullOrConst(typeSafeExpression(previousOutput, topOutputFieldTypes, allowUnmapped));

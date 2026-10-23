@@ -64,6 +64,7 @@ public class HighlightGenerator implements CommandGenerator {
         QueryExecutor executor,
         GenerationContext context
     ) {
+        // Not an earlier HIGHLIGHT_V*: the prefix (#153125) and analyzer (#154185) options and full-text queries (#153313) came later.
         if (context.clusterSupports(EsqlCapabilities.Cap.HIGHLIGHT_V6) == false) {
             return EMPTY_DESCRIPTION;
         }

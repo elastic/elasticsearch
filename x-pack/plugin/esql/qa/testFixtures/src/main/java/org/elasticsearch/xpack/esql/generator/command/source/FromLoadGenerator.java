@@ -16,13 +16,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BooleanSupplier;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.test.ESTestCase.randomDouble;
 
 /**
  * Source command generator that prepends a {@code SET unmapped_fields="load"|"load_all";} prefix, forcing unmapped fields to load from
- * {@code _source}. {@code load_all} is snapshot-only, so {@link #LOAD_ALL_INSTANCE} degrades to a plain FROM when its capability is off.
+ * {@code _source}. {@code load_all} is snapshot-only, so {@link #LOAD_ALL_INSTANCE} degrades to a plain FROM when the cluster under test
+ * doesn't advertise its capability.
  */
 public class FromLoadGenerator extends FromGenerator {
 
@@ -32,16 +33,16 @@ public class FromLoadGenerator extends FromGenerator {
     /** Both loading-mode prefixes, so the allowed-failure checks recognize either without drifting apart. */
     public static final Set<String> LOAD_PREFIXES = Set.of(SET_LOAD_PREFIX, SET_LOAD_ALL_PREFIX);
 
-    public static final FromLoadGenerator INSTANCE = new FromLoadGenerator(SET_LOAD_PREFIX, () -> true);
+    public static final FromLoadGenerator INSTANCE = new FromLoadGenerator(SET_LOAD_PREFIX, context -> true);
     public static final FromLoadGenerator LOAD_ALL_INSTANCE = new FromLoadGenerator(
         SET_LOAD_ALL_PREFIX,
-        EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2::isEnabled
+        context -> context.clusterSupports(EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2)
     );
 
     private final String setPrefix;
-    private final BooleanSupplier enabled;
+    private final Predicate<GenerationContext> enabled;
 
-    private FromLoadGenerator(String setPrefix, BooleanSupplier enabled) {
+    private FromLoadGenerator(String setPrefix, Predicate<GenerationContext> enabled) {
         this.setPrefix = setPrefix;
         this.enabled = enabled;
     }
@@ -54,12 +55,12 @@ public class FromLoadGenerator extends FromGenerator {
         QueryExecutor executor,
         GenerationContext context
     ) {
-        if (enabled.getAsBoolean() == false) {
+        if (enabled.test(context) == false) {
             return super.generate(previousCommands, previousOutput, schema, executor, context);
         }
         StringBuilder result = new StringBuilder();
         result.append(setPrefix);
-        if (randomDouble() < QUERY_APPROXIMATION_SETTING_PROBABILITY) {
+        if (context.clusterSupports(EsqlCapabilities.Cap.APPROXIMATION_V7) && randomDouble() < QUERY_APPROXIMATION_SETTING_PROBABILITY) {
             result.append(randomQueryApproximationSettings());
         }
         Map<String, Object> commandContext = new HashMap<>();

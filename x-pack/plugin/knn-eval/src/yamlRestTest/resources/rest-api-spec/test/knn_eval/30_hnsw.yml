@@ -62,6 +62,7 @@ setup:
             - num_candidates: 12
 
   - match: { baseline.num_candidates: 9999 }
+  - match: { baseline_vector_ops_kind: full_precision_visit }
   - match: { index_info.hnsw_plain.hnsw_early_termination: true }
   - is_false: baseline.exact
   - is_false: baseline.rescore_vector

@@ -18,12 +18,7 @@ import java.util.List;
 import java.util.Map;
 
 /** Validates a DiskBBQ or HNSW-family mapping, picks the matching baseline, and detects capped rescore windows. */
-record KnnEvalRescore(
-    IndexType indexType,
-    @Nullable Float mappingOversample,
-    boolean autoCalibrate,
-    Map<String, KnnEvalResponse.IndexInfo> indexInfo
-) {
+record KnnEvalRescore(IndexType indexType, @Nullable Float mappingOversample, boolean autoCalibrate) {
 
     /** Index types whose search settings differ, so each needs its own validation and default baseline. */
     enum IndexType {
@@ -76,11 +71,15 @@ record KnnEvalRescore(
     static final int MAX_NUM_CANDIDATES = KnnSearchBuilder.NUM_CANDS_LIMIT;
 
     static KnnEvalRescore fromFieldMapping(String field, @Nullable Map<String, Object> fieldMapping) {
-        Map<?, ?> indexOptions = fieldMapping != null && fieldMapping.get(INDEX_OPTIONS_FIELD) instanceof Map<?, ?> m ? m : Map.of();
+        boolean hasIndexOptions = fieldMapping != null && fieldMapping.get(INDEX_OPTIONS_FIELD) instanceof Map<?, ?>;
+        Map<?, ?> indexOptions = hasIndexOptions ? (Map<?, ?>) fieldMapping.get(INDEX_OPTIONS_FIELD) : Map.of();
         IndexType indexType = IndexType.fromMappingName(indexOptions.get(TYPE_FIELD));
         if (indexType == null) {
+            String found = hasIndexOptions == false ? Strings.format("no [%s] in mapping [%s]", INDEX_OPTIONS_FIELD, fieldMapping)
+                : indexOptions.get(TYPE_FIELD) == null ? Strings.format("no [%s.%s]", INDEX_OPTIONS_FIELD, TYPE_FIELD)
+                : Strings.format("[%s]", indexOptions.get(TYPE_FIELD));
             throw new IllegalArgumentException(
-                Strings.format("field [%s] must use [index_options.type] of %s, found [%s]", field, SUPPORTED, indexOptions.get(TYPE_FIELD))
+                Strings.format("field [%s] must use [%s.%s] of %s, found %s", field, INDEX_OPTIONS_FIELD, TYPE_FIELD, SUPPORTED, found)
             );
         }
         Float mappingOversample = null;
@@ -91,16 +90,14 @@ record KnnEvalRescore(
         return new KnnEvalRescore(
             indexType,
             mappingOversample,
-            indexType == IndexType.BBQ_DISK && Boolean.TRUE.equals(indexOptions.get(AUTO_CALIBRATE_FIELD)),
-            Map.of()
+            indexType == IndexType.BBQ_DISK && Boolean.TRUE.equals(indexOptions.get(AUTO_CALIBRATE_FIELD))
         );
     }
 
-    KnnEvalRescore withIndexInfo(Map<String, KnnEvalResponse.IndexInfo> indexInfo) {
-        return new KnnEvalRescore(indexType, mappingOversample, autoCalibrate, indexInfo);
-    }
-
-    /** Bounded, never exact: the deepest beam for graphs, a fifth of the postings for DiskBBQ. */
+    /**
+     * Bounded, never exact: the deepest beam for graphs, a fifth of the postings for DiskBBQ. DiskBBQ's baseline leaves
+     * {@code num_candidates} unset because an explicit {@code visit_percentage} makes it inert.
+     */
     KnnEvalSettings defaultBaseline(boolean sampling) {
         if (indexType.isGraph() == false) {
             return new KnnEvalSettings(BBQ_DISK_BASELINE_VISIT_PERCENTAGE, null, BASELINE_OVERSAMPLE, false);
@@ -118,8 +115,6 @@ record KnnEvalRescore(
                 "[visit_percentage] applies only to bbq_disk, but the field is [%s]; use [num_candidates]",
                 indexType.mappingName
             );
-        } else if (indexType.isGraph() == false && settings.getNumCandidates() != null) {
-            problem = "[num_candidates] applies only to the hnsw family, but the field is [bbq_disk]; use [visit_percentage]";
         } else if (indexType.isQuantized() == false && settings.getRescoreOversample() != null) {
             problem = "[rescore_vector] does not apply to an unquantized [hnsw] field";
         }

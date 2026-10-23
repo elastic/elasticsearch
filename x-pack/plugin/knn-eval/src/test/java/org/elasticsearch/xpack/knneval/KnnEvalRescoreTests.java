@@ -56,9 +56,19 @@ public class KnnEvalRescoreTests extends ESTestCase {
         for (Map<String, Object> mapping : Arrays.<Map<String, Object>>asList(Map.of("type", "dense_vector"), null)) {
             assertThat(
                 expectThrows(IllegalArgumentException.class, () -> KnnEvalRescore.fromFieldMapping("emb", mapping)).getMessage(),
-                allOf(containsString("field [emb] must use [index_options.type] of [bbq_disk"), containsString("found [null]"))
+                allOf(
+                    containsString("field [emb] must use [index_options.type] of [bbq_disk"),
+                    containsString("found no [index_options] in mapping [")
+                )
             );
         }
+        assertThat(
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> KnnEvalRescore.fromFieldMapping("emb", Map.of("type", "dense_vector", "index_options", Map.of()))
+            ).getMessage(),
+            containsString("found no [index_options.type]")
+        );
     }
 
     private static final List<String> GRAPH_TYPES = List.of("hnsw", "int8_hnsw", "int4_hnsw", "bbq_hnsw");
@@ -78,13 +88,13 @@ public class KnnEvalRescoreTests extends ESTestCase {
 
     public void testDefaultBaselineIsBoundedAndNeverExact() {
         boolean sampling = randomBoolean();
+        int maxCandidates = sampling ? KnnEvalRescore.MAX_NUM_CANDIDATES - 1 : KnnEvalRescore.MAX_NUM_CANDIDATES;
         KnnEvalSettings disk = rescoreFor("bbq_disk").defaultBaseline(sampling);
         assertEquals(20.0f, disk.getVisitPercentage(), 0.0f);
         assertEquals(100.0f, disk.getRescoreOversample(), 0.0f);
         assertNull(disk.getNumCandidates());
         assertFalse(disk.isExact());
 
-        int maxCandidates = sampling ? KnnEvalRescore.MAX_NUM_CANDIDATES - 1 : KnnEvalRescore.MAX_NUM_CANDIDATES;
         KnnEvalSettings hnsw = rescoreFor("hnsw").defaultBaseline(sampling);
         assertEquals(maxCandidates, hnsw.getNumCandidates().intValue());
         assertNull(hnsw.getRescoreOversample());
@@ -111,13 +121,7 @@ public class KnnEvalRescoreTests extends ESTestCase {
                 containsString(", in the " + role + " ")
             )
         );
-        assertThat(
-            expectThrows(
-                IllegalArgumentException.class,
-                () -> rescoreFor("bbq_disk").validateSettings(new KnnEvalSettings(null, randomNumCandidates(), null, false), role)
-            ).getMessage(),
-            containsString("[num_candidates] applies only to the hnsw family, but the field is [bbq_disk]; use [visit_percentage]")
-        );
+        rescoreFor("bbq_disk").validateSettings(new KnnEvalSettings(null, randomNumCandidates(), null, false), role);
         KnnEvalSettings oversample = new KnnEvalSettings(null, randomNumCandidates(), randomOversample(), false);
         assertThat(
             expectThrows(IllegalArgumentException.class, () -> rescoreFor("hnsw").validateSettings(oversample, role)).getMessage(),

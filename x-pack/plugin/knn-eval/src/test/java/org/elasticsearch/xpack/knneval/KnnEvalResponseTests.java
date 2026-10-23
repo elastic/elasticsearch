@@ -55,7 +55,7 @@ public class KnnEvalResponseTests extends AbstractWireSerializingTestCase<KnnEva
     }
 
     private static Map<String, IndexInfo> randomIndexInfo() {
-        return randomMap(0, 3, () -> Tuple.tuple(randomAlphaOfLength(8), new IndexInfo(randomFrom(new Boolean[] { null, true, false }))));
+        return randomMap(0, 3, () -> Tuple.tuple(randomAlphaOfLength(8), new IndexInfo(randomBoolean())));
     }
 
     @Override
@@ -91,7 +91,11 @@ public class KnnEvalResponseTests extends AbstractWireSerializingTestCase<KnnEva
     }
 
     private static String randomVectorOpsKind() {
-        return randomFrom(KnnEvalResponse.FULL_PRECISION_SCAN, KnnEvalResponse.QUANTIZED_VISIT_PLUS_RESCORE);
+        return randomFrom(
+            KnnEvalResponse.FULL_PRECISION_SCAN,
+            KnnEvalResponse.FULL_PRECISION_VISIT,
+            KnnEvalResponse.QUANTIZED_VISIT_PLUS_RESCORE
+        );
     }
 
     private static KnnSettingsResult randomResult() {

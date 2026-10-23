@@ -31,6 +31,9 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
     /** Counts full-precision comparisons across all matching vectors. */
     static final String FULL_PRECISION_SCAN = "full_precision_scan";
 
+    /** Counts full-precision visits on an unquantized graph; there is nothing to rescore. */
+    static final String FULL_PRECISION_VISIT = "full_precision_visit";
+
     /** Counts quantized visits plus full-precision rescoring work. */
     static final String QUANTIZED_VISIT_PLUS_RESCORE = "quantized_visit_plus_rescore";
 
@@ -203,25 +206,23 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
     }
 
     /** Per-index facts the evaluation can't vary; early termination can stop a graph search short of {@code num_candidates}. */
-    public record IndexInfo(@Nullable Boolean hnswEarlyTermination) implements Writeable, ToXContentObject {
+    public record IndexInfo(boolean hnswEarlyTermination) implements Writeable, ToXContentObject {
 
         static final ParseField HNSW_EARLY_TERMINATION_FIELD = new ParseField("hnsw_early_termination");
 
         IndexInfo(StreamInput in) throws IOException {
-            this(in.readOptionalBoolean());
+            this(in.readBoolean());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalBoolean(hnswEarlyTermination);
+            out.writeBoolean(hnswEarlyTermination);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            if (hnswEarlyTermination != null) {
-                builder.field(HNSW_EARLY_TERMINATION_FIELD.getPreferredName(), hnswEarlyTermination);
-            }
+            builder.field(HNSW_EARLY_TERMINATION_FIELD.getPreferredName(), hnswEarlyTermination);
             return builder.endObject();
         }
     }

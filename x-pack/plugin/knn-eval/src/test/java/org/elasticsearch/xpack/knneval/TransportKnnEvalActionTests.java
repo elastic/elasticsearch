@@ -905,7 +905,8 @@ public class TransportKnnEvalActionTests extends ESTestCase {
             calibratedSpec,
             false,
             calibratedSpec.getQueries(),
-            new KnnEvalRescore(KnnEvalRescore.IndexType.BBQ_DISK, 3.0f, true, Map.of())
+            new KnnEvalRescore(KnnEvalRescore.IndexType.BBQ_DISK, 3.0f, true),
+            Map.of()
         ).buildResponse();
         assertFalse(calibratedResponse.getBaseline().rescoreWindowCapped());
         assertFalse(calibratedResponse.getResults().get(0).knnSettings().rescoreWindowCapped());
@@ -922,9 +923,23 @@ public class TransportKnnEvalActionTests extends ESTestCase {
             explicitSpec,
             false,
             explicitSpec.getQueries(),
-            new KnnEvalRescore(KnnEvalRescore.IndexType.BBQ_DISK, 3.0f, true, Map.of())
+            new KnnEvalRescore(KnnEvalRescore.IndexType.BBQ_DISK, 3.0f, true),
+            Map.of()
         ).buildResponse().getResults().get(0).knnSettings();
         assertTrue(explicit.rescoreWindowCapped());
+    }
+
+    public void testBaselineVectorOpsKindFollowsIndexType() {
+        KnnEvalSpec spec = specWithBaseline(new KnnEvalSettings(null, 100, null, false));
+        for (KnnEvalRescore.IndexType type : KnnEvalRescore.IndexType.values()) {
+            String kind = new KnnEvalState(spec, false, spec.getQueries(), new KnnEvalRescore(type, null, false), Map.of()).buildResponse()
+                .getBaselineVectorOpsKind();
+            assertEquals(
+                type.name(),
+                type == KnnEvalRescore.IndexType.HNSW ? KnnEvalResponse.FULL_PRECISION_VISIT : KnnEvalResponse.QUANTIZED_VISIT_PLUS_RESCORE,
+                kind
+            );
+        }
     }
 
     /** The caller never invoked the mapping action, so the refusal must name this endpoint and the privilege. */
@@ -1357,12 +1372,11 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         KnnEvalRescore graph = new KnnEvalRescore(
             KnnEvalRescore.IndexType.valueOf(randomFrom("HNSW", "INT8_HNSW", "INT4_HNSW", "BBQ_HNSW")),
             null,
-            false,
-            Map.of()
+            false
         );
         assertEquals(expected, TransportKnnEvalAction.indexInfo(graph, built, requested));
 
-        KnnEvalRescore disk = new KnnEvalRescore(KnnEvalRescore.IndexType.BBQ_DISK, null, false, Map.of());
+        KnnEvalRescore disk = new KnnEvalRescore(KnnEvalRescore.IndexType.BBQ_DISK, null, false);
         assertEquals(Map.of(), TransportKnnEvalAction.indexInfo(disk, built, requested));
     }
 }

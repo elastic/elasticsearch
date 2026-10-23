@@ -220,6 +220,30 @@ teardown:
   - match: { results.1.recall: 1.0 }
 
 ---
+"num_candidates is accepted on a bbq_disk field":
+  - do:
+      knn_eval:
+        index: knn_eval_test
+        body:
+          field: emb
+          k: 5
+          query_source:
+            from: docs
+            size: 30
+          baseline:
+            visit_percentage: 100
+            num_candidates: 100
+          knn_settings:
+            - num_candidates: 10
+            - num_candidates: 100
+
+  - length: { results: 2 }
+  - length: { failures: 0 }
+  - match: { baseline.num_candidates: 100 }
+  - match: { results.0.knn_settings.num_candidates: 10 }
+  - match: { results.0.included_queries: 30 }
+
+---
 "A field must resolve identically across indices":
   - do:
       indices.create:

@@ -280,6 +280,10 @@ public class TextFieldMapperTests extends MapperTestCase {
         b.field("type", "text");
     }
 
+    public void testExplicitDocValuesFalseMatchesDefault() throws IOException {
+        assertExplicitDocValuesFalseMatchesDisabledDefault();
+    }
+
     public void testDefaults() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());

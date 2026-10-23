@@ -792,3 +792,16 @@ redirects:
         anchors:
           's3': 's3'
           's3-endpoint-requirements': 's3-endpoint-requirements'
+
+  # Node-scoped settings moved out of index-settings into configuration-reference.
+  # The cluster.routing.allocation.total_shards_per_node setting is now documented
+  # in the cluster-level shard allocation and routing settings page. This sends the
+  # old #cluster-total-shards-per-node anchor to the setting for legacy external links.
+  # The anchor itself is kept on the index-settings page temporarily for a docs-content link.
+  'reference/elasticsearch/index-settings/total-shards-per-node.md':
+    to: 'reference/elasticsearch/index-settings/total-shards-per-node.md'
+    anchors: {} # pass-through unlisted anchors in the `many` ruleset
+    many:
+      - to: 'reference/elasticsearch/configuration-reference/cluster-level-shard-allocation-routing-settings.md'
+        anchors:
+          'cluster-total-shards-per-node': 'cluster-routing-allocation-total-shards-per-node'

@@ -67,7 +67,7 @@ Change settings in these cases:
 
 For CSV and TSV files, the settings you're most likely to change are grouped under **Commonly adjusted settings**, with each field's default shown below it:
 
-![The Commonly adjusted settings for a CSV dataset: Delimiter, Quote mode, Header row, Skip rows, Date and time format, Null value, and Encoding, each with its default value](images/data-federation/add-dataset-optional-settings-csv.png)
+![The first fields under Commonly adjusted settings for a CSV dataset: Delimiter, Quote mode, and Header row, each with its default value](images/data-federation/add-dataset-optional-settings-csv.png)
 
 To learn what each setting does, refer to [dataset settings](esql-data-federation-dataset-settings.md).
 

@@ -89,7 +89,7 @@ public class LinkerHelper {
      */
     public static void assertLive(MemorySegment segment) {
         assert segment.scope().isAlive()
-            : "raw address requires its memory segment to be kept alive. " + "Avoid closing or dropping references to its Arena";
+            : "raw address requires its memory segment to be kept alive. Avoid closing or dropping references to its Arena";
     }
 
     /**

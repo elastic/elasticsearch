@@ -32,7 +32,7 @@ public final class MemorySegmentES92NativeInt7VectorsScorer extends MemorySegmen
         assert q.length == dimensions;
         return IndexInputUtils.withSlice(in, dimensions, scratch, segment -> {
             final MemorySegment querySegment = MemorySegment.ofArray(q);
-            return (long) DISTANCE_FUNCS.dotProductI7u(querySegment, segment, dimensions);
+            return (long) DISTANCE_FUNCS.dotProductI7u(segment, querySegment, dimensions);
         });
     }
 

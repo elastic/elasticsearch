@@ -182,8 +182,8 @@ public abstract class SimdVecLibrary {
     @Function("vec_doti7u")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract int dotProductI7u(
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment a,
-        @RawAddress @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment b,
+        @RawAddress @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment document,
+        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
         int length
     );
 
@@ -243,8 +243,8 @@ public abstract class SimdVecLibrary {
     @Function("vec_sqri7u")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract int squareDistanceI7u(
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment b,
+        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment document,
+        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
         int length
     );
 
@@ -277,14 +277,13 @@ public abstract class SimdVecLibrary {
     //
     // Int4 is asymmetric: the query holds one value per byte (`2 * documentBytes`) while the document
     // packs two nibbles per byte (`documentBytes`). `documentBytes` is the *packed* byte count, not the
-    // logical dimension count. Note the single-vector form takes the query first and the packed document
-    // second.
+    // logical dimension count.
 
     @Function("vec_doti4")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract int dotProductI4(
-        @VectorSegment(countParam = "documentBytes", elementBits = 2 * Byte.SIZE) MemorySegment query,
         @RawAddress @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment document,
+        @VectorSegment(countParam = "documentBytes", elementBits = 2 * Byte.SIZE) MemorySegment query,
         int documentBytes
     );
 
@@ -348,8 +347,8 @@ public abstract class SimdVecLibrary {
     @Function("vec_cosi8")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract float cosineI8(
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment b,
+        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment document,
+        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
         int length
     );
 
@@ -381,8 +380,8 @@ public abstract class SimdVecLibrary {
     @Function("vec_doti8")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract float dotProductI8(
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment b,
+        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment document,
+        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
         int length
     );
 
@@ -414,8 +413,8 @@ public abstract class SimdVecLibrary {
     @Function("vec_sqri8")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract float squareDistanceI8(
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment b,
+        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment document,
+        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
         int length
     );
 
@@ -451,8 +450,8 @@ public abstract class SimdVecLibrary {
     @Function("vec_dotf32")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract float dotProductF32(
-        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment b,
+        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment document,
+        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment query,
         int length
     );
 
@@ -508,8 +507,8 @@ public abstract class SimdVecLibrary {
     @Function("vec_sqrf32")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract float squareDistanceF32(
-        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment b,
+        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment document,
+        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment query,
         int length
     );
 

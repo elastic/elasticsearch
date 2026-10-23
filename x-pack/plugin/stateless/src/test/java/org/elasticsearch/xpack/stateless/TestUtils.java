@@ -9,12 +9,14 @@ package org.elasticsearch.xpack.stateless;
 
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.TimeProvider;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
@@ -22,15 +24,21 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.FillCacheMemoryPressure;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges;
+import org.elasticsearch.xpack.stateless.commits.MergeBlobInjectingStatelessCommitService;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitCleaner;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -92,12 +100,62 @@ public class TestUtils {
     }
 
     public static class StatelessPluginWithTrialLicense extends StatelessPlugin {
+
+        /**
+         * Whether a merge blob is written in the object store next to each BCC uploaded by the plugin, to make sure that merge blobs have
+         * no impact on nodes while nothing writes them yet, see {@link MergeBlobInjectingStatelessCommitService}. It is only enabled by the
+         * {@code internalClusterTestWithMergeBlobs} Gradle task.
+         *
+         * TODO: remove it once merge blobs are written in production
+         */
+        private static final boolean MERGE_BLOBS_INJECTION_ENABLED = Booleans.parseBoolean(
+            System.getProperty("es.test.stateless.merge_blobs.injection.enabled", "false")
+        );
+
         public StatelessPluginWithTrialLicense(Settings settings) {
             super(settings);
         }
 
         protected XPackLicenseState getLicenseState() {
             return new XPackLicenseState(System::currentTimeMillis, new XPackLicenseStatus(License.OperationMode.TRIAL, true, null));
+        }
+
+        @Override
+        protected StatelessCommitService createStatelessCommitService(
+            Settings settings,
+            ObjectStoreService objectStoreService,
+            ClusterService clusterService,
+            IndicesService indicesService,
+            Client client,
+            StatelessCommitCleaner commitCleaner,
+            StatelessSharedBlobCacheService cacheService,
+            SharedBlobCacheWarmingService cacheWarmingService,
+            TelemetryProvider telemetryProvider
+        ) {
+            if (MERGE_BLOBS_INJECTION_ENABLED == false) {
+                return super.createStatelessCommitService(
+                    settings,
+                    objectStoreService,
+                    clusterService,
+                    indicesService,
+                    client,
+                    commitCleaner,
+                    cacheService,
+                    cacheWarmingService,
+                    telemetryProvider
+                );
+            }
+            return new MergeBlobInjectingStatelessCommitService(
+                settings,
+                objectStoreService,
+                clusterService,
+                indicesService,
+                client,
+                commitCleaner,
+                cacheService,
+                cacheWarmingService,
+                telemetryProvider
+            );
         }
     }
 

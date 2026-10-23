@@ -65,6 +65,10 @@ Change settings in these cases:
 - Your folder paths encode values in a pattern other than `key=value`: set **Partition detection** to **Template** and describe the pattern.
 - Some rows are malformed: by default, one bad row fails the query. To skip bad rows or read their bad fields as null, change **Error mode**.
 
+For CSV and TSV files, the settings you're most likely to change are grouped under **Commonly adjusted settings**, with each field's default shown below it:
+
+![The Commonly adjusted settings for a CSV dataset: Delimiter, Quote mode, Header row, Skip rows, Date and time format, Null value, and Encoding, each with its default value](images/data-federation/add-dataset-optional-settings-csv.png)
+
 To learn what each setting does, refer to [dataset settings](esql-data-federation-dataset-settings.md).
 
 ### Schema mappings

@@ -122,9 +122,6 @@ class TopHitsAggregator extends MetricsAggregator {
         }
     }
 
-    /**
-     * Whether the top documents are collected with a {@code BucketedSort} and not with Lucene collectors. For tests.
-     */
     boolean usesBucketedSort() {
         return bucketedTopHits != null;
     }
@@ -142,7 +139,7 @@ class TopHitsAggregator extends MetricsAggregator {
 
     @Override
     public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
-        if (bucketedTopHits != null) {
+        if (usesBucketedSort()) {
             return bucketedTopHits.getLeafCollector(aggCtx, sub);
         }
         // Create leaf collectors here instead of at the aggregator level. Otherwise in case this collector get invoked
@@ -215,9 +212,6 @@ class TopHitsAggregator extends MetricsAggregator {
         };
     }
 
-    /**
-     * The top documents of a bucket from the Lucene collectors, or {@code null} if nothing was collected for it.
-     */
     private TopDocsAndMaxScore luceneTopDocs(long owningBucketOrdinal) throws IOException {
         Collectors collectors = topDocsCollectors.get(owningBucketOrdinal);
         if (collectors == null) {
@@ -246,7 +240,7 @@ class TopHitsAggregator extends MetricsAggregator {
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        final TopDocsAndMaxScore topDocsAndMaxScore = bucketedTopHits != null
+        final TopDocsAndMaxScore topDocsAndMaxScore = usesBucketedSort()
             ? bucketedTopHits.topDocs(owningBucketOrdinal, subSearchContext)
             : luceneTopDocs(owningBucketOrdinal);
         if (topDocsAndMaxScore == null) {

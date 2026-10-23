@@ -42,8 +42,9 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
     private final boolean trackScores;
     private final Optional<SortAndFormats> sort;
     /**
-     * The sorts the {@link #sort} was built from, or {@code null} if there are none. A {@link BucketedTopHits} is built from the
-     * sort builders and not from the built sort.
+     * The sort definitions from the request that {@link #sort} was built from, or {@code null} if the request has no sort. Keeping them
+     * is needed because {@link #sort} holds Lucene sort fields, which are what the Lucene collectors use, while a
+     * {@link BucketedTopHits} has to build its own {@code BucketedSort} and that can only be done from the sort definitions.
      */
     @Nullable
     private final List<SortBuilder<?>> sortBuilders;

@@ -43,42 +43,21 @@ import java.util.function.Function;
 
 /**
  * Collects the top documents of every bucket of a {@code top_hits} aggregation with a {@link BucketedSort}.
- * <p>
+ * Only a single sort on a numeric field is supported, and only when the values it reports are of the type the sort field of the
+ * shard result declares.
  * The Lucene collectors {@link TopHitsAggregator} otherwise uses are one collector per bucket, and for every segment one leaf
- * collector per bucket that opens its own doc values readers for the sort. None of that is accounted for, and on a high
- * cardinality parent aggregation it is several kilobytes per bucket. A {@link BucketedSort} keeps the top documents of all buckets
- * in {@link BigArrays}, opens the doc values once per segment, and is accounted for by the request circuit breaker.
- * </p>
- * <p>
+ * collector per bucket that opens its own doc values readers for the sort.
  * Everything the Lucene collectors provide to the shard result is reproduced here: the doc ids in the same order, including the
  * lower doc id winning among equal sort values; the sort values as the raw type the Lucene comparator would have produced; the
  * exact number of hits of the bucket; and, with {@code track_scores}, the highest score of any document in the bucket.
- * </p>
- * <p>
- * The lower doc id winning among equal sort values relies on the documents being collected in increasing doc id order, which an
- * aggregator is fed in, segment after segment, and which a deferred collection keeps when it replays them. See
- * {@link BucketedSort.TieBreakingExtraData}.
- * </p>
- * <p>
  * The state is indexed by bucket ordinal, as it is for a {@code max} or a {@code top_metrics}, so it grows with the highest ordinal
- * collected and not with the number of buckets that have documents. A {@code terms} gives its sub-aggregations dense ordinals:
- * collecting depth first remaps the global ordinals in the order it sees them, and collecting breadth first defers the
- * sub-aggregation and replays the documents of the buckets it keeps with their ordinals rebased to {@code 0..n}. The state also
- * reserves {@code from + size} slots, 12 bytes each, the first time a bucket is seen, whether the bucket ends up with that many
- * documents or not, all of it charged to the request circuit breaker.
- * </p>
- * <p>
- * Only a single sort on a numeric field is supported, and only when the values it reports are of the type the sort field of the
- * shard result declares. {@link #tryCreate} returns {@code null} for anything else, and {@link TopHitsAggregator} keeps using the
- * Lucene collectors for it.
- * </p>
+ * collected and not with the number of buckets that have documents.
  */
 final class BucketedTopHits implements Releasable {
 
     /**
      * Stores the global doc id next to each entry of the {@link BucketedSort} and makes the lower doc id win among equal sort
-     * values, which is what a Lucene {@code TopFieldCollector} does. Without it which of several tied documents stays in a full
-     * bucket would depend on their position in the heap.
+     * values, which is what a Lucene {@code TopFieldCollector} does.
      */
     private static final class DocIds implements BucketedSort.TieBreakingExtraData, Releasable {
         private final BigArrays bigArrays;
@@ -148,8 +127,6 @@ final class BucketedTopHits implements Releasable {
     /**
      * Builds the collection for a {@code top_hits}, or returns {@code null} if it cannot be used and the Lucene collectors have
      * to be. This is decided here, once, when the aggregator is created.
-     *
-     * @param sortBuilders the sorts of the {@code top_hits}, or {@code null} if it has none
      */
     @Nullable
     static BucketedTopHits tryCreate(
@@ -223,13 +200,6 @@ final class BucketedTopHits implements Releasable {
     /**
      * The raw values a kind of {@link BucketedSort} reports: the type of Lucene sort they belong to, and how to turn a
      * {@link SortValue} back into the raw value the Lucene comparator for the same sort holds in {@link FieldDoc#fields}.
-     * <p>
-     * The shard results are merged with those raw values, so they have to be of the type the comparator would have given: an
-     * {@link Integer} for int, short and byte fields, a {@link Long} for the other integral types and dates, a {@link Float} and
-     * a {@link Double}. A {@code NaN} is the exception to a sort value having a number: {@link SortValue#from(double)} turns it
-     * into an empty value, which has none. The Lucene comparators sort it after every other value and report it as {@code NaN},
-     * so it is turned back into one.
-     * </p>
      */
     private record RawValues(SortField.Type type, Function<SortValue, Object> convert) {}
 

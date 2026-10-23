@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.FloatArray;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
@@ -119,18 +120,6 @@ public abstract class BucketedSort implements Releasable {
     /**
      * An {@link ExtraData} that also decides which of two entries wins when their sort values are equal. Without one, which
      * of several tied entries stays in a full bucket is arbitrary, because it depends on where they sit in the heap.
-     * <p>
-     * A caller that has to match the tie-breaking of a Lucene {@code TopFieldCollector}, which keeps the lower doc id, stores the
-     * doc id as extra data and implements this interface over it. Sorts whose extra data does not implement it behave exactly
-     * as before.
-     * </p>
-     * <p>
-     * This only decides between entries that are already kept. A document that arrives with a value equal to the worst kept one
-     * is never better than it, whatever its doc id, because {@link Leaf#collect} checks it against the worst entry on the value
-     * alone. That gives the lower doc id the win among equal values only if documents are collected in increasing doc id order,
-     * which is how a Lucene {@code TopFieldCollector} is fed too, and which a caller relying on this has to guarantee. Documents
-     * collected out of doc id order can keep a later document over an earlier one with the same value.
-     * </p>
      */
     public interface TieBreakingExtraData extends ExtraData {
         /**
@@ -145,6 +134,12 @@ public abstract class BucketedSort implements Releasable {
     private final int bucketSize;
     protected final ExtraData extra;
     /**
+     * The {@link #extra} if it breaks ties, or {@code null} if it does not, which is the case for every sort but a {@code top_hits}.
+     * It is worked out once here so that comparing two equal values only has to check for {@code null}.
+     */
+    @Nullable
+    private final TieBreakingExtraData tieBreaker;
+    /**
      * {@code true} if the bucket is in heap mode, {@code false} if
      * it is still gathering.
      */
@@ -156,6 +151,7 @@ public abstract class BucketedSort implements Releasable {
         this.format = format;
         this.bucketSize = bucketSize;
         this.extra = extra;
+        this.tieBreaker = extra instanceof TieBreakingExtraData tieBreaking ? tieBreaking : null;
         heapMode = new BitArray(1, bigArrays);
     }
 
@@ -278,7 +274,7 @@ public abstract class BucketedSort implements Releasable {
      * {@link TieBreakingExtraData}.
      */
     protected final boolean tieBreak(long lhs, long rhs) {
-        return extra instanceof TieBreakingExtraData tieBreaker && tieBreaker.betterOnTie(lhs, rhs);
+        return tieBreaker != null && tieBreaker.betterOnTie(lhs, rhs);
     }
 
     /**

@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -109,12 +110,13 @@ public class UnusedStatsRemover implements MlDataRemover {
     private void executeDeleteUnusedStatsDocs(QueryBuilder dbq, float requestsPerSec, ActionListener<Boolean> listener) {
         var writableIndices = WritableIndexExpander.getInstance().getWritableIndices(MlStatsIndex.indexPattern());
 
-        RoutingTable routingTable = clusterService.state().routingTable(client.projectResolver().getProjectId());
+        ClusterState clusterState = clusterService.state();
+        RoutingTable routingTable = clusterState.routingTable();
 
         // Newly created indices appear in the cluster state before their shards can serve searches, thereby failing the whole query.
         var indicesToQuery = writableIndices.stream().filter(index -> {
             IndexRoutingTable indexRoutingTable = routingTable.index(index);
-            return indexRoutingTable != null && indexRoutingTable.readyForSearch();
+            return indexRoutingTable != null && indexRoutingTable.readyForSearch(clusterState);
         }).toList();
 
         if (indicesToQuery.isEmpty()) {

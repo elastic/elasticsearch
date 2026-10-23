@@ -1,0 +1,6 @@
+pr: 161106
+summary: Fix multi_terms aggregation failing when an index is missing a term field
+area: Aggregations
+type: bug
+issues:
+  - 138245

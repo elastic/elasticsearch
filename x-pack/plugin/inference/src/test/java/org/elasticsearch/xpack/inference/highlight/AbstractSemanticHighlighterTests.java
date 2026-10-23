@@ -93,18 +93,9 @@ public abstract class AbstractSemanticHighlighterTests extends MapperServiceTest
     @SuppressWarnings("unchecked")
     public void testDenseVector() throws Exception {
         float[] vector = readDenseVector(queryData.get("embeddings"));
-        var fieldType = (SemanticFieldMapper.SemanticFieldType) mapperService.mappingLookup().getFieldType(SEMANTIC_FIELD);
-        KnnVectorQueryBuilder knnQuery = new KnnVectorQueryBuilder(
-            fieldType.getEmbeddingsField().fullPath(),
-            vector,
-            10,
-            10,
-            10f,
-            null,
-            null
+        var shardRequest = createShardSearchRequest(
+            createKnnQuery(mapperService.mappingLookup().getFieldType(SEMANTIC_FIELD), vector, null)
         );
-        NestedQueryBuilder nestedQueryBuilder = new NestedQueryBuilder(fieldType.getChunksField().fullPath(), knnQuery, ScoreMode.Max);
-        var shardRequest = createShardSearchRequest(nestedQueryBuilder);
 
         String[] expectedScorePassages = ((List<String>) queryData.get("expected_by_score")).toArray(String[]::new);
         for (int i = 0; i < expectedScorePassages.length; i++) {
@@ -136,19 +127,9 @@ public abstract class AbstractSemanticHighlighterTests extends MapperServiceTest
     @SuppressWarnings("unchecked")
     public void testDenseVectorWithSimilarityThreshold() throws Exception {
         float[] vector = readDenseVector(queryData.get("embeddings"));
-        var fieldType = (SemanticFieldMapper.SemanticFieldType) mapperService.mappingLookup().getFieldType(SEMANTIC_FIELD);
-
-        KnnVectorQueryBuilder knnQuery = new KnnVectorQueryBuilder(
-            fieldType.getEmbeddingsField().fullPath(),
-            vector,
-            10,
-            10,
-            10f,
-            null,
-            0.85f
+        var shardRequest = createShardSearchRequest(
+            createKnnQuery(mapperService.mappingLookup().getFieldType(SEMANTIC_FIELD), vector, 0.85f)
         );
-        NestedQueryBuilder nestedQueryBuilder = new NestedQueryBuilder(fieldType.getChunksField().fullPath(), knnQuery, ScoreMode.Max);
-        var shardRequest = createShardSearchRequest(nestedQueryBuilder);
 
         String[] expectedPassages = ((List<String>) queryData.get("expected_with_similarity_threshold")).toArray(String[]::new);
         assertHighlightOneDoc(
@@ -166,19 +147,9 @@ public abstract class AbstractSemanticHighlighterTests extends MapperServiceTest
     @SuppressWarnings("unchecked")
     public void testDenseVectorWithDiskBBQandSimilarityThreshold() throws Exception {
         float[] vector = readDenseVector(queryData.get("embeddings"));
-        var fieldType = (SemanticFieldMapper.SemanticFieldType) mapperService.mappingLookup().getFieldType(SEMANTIC_FIELD_DISK_BBQ);
-
-        KnnVectorQueryBuilder knnQuery = new KnnVectorQueryBuilder(
-            fieldType.getEmbeddingsField().fullPath(),
-            vector,
-            10,
-            10,
-            10f,
-            null,
-            0.85f
+        var shardRequest = createShardSearchRequest(
+            createKnnQuery(mapperService.mappingLookup().getFieldType(SEMANTIC_FIELD_DISK_BBQ), vector, 0.85f)
         );
-        NestedQueryBuilder nestedQueryBuilder = new NestedQueryBuilder(fieldType.getChunksField().fullPath(), knnQuery, ScoreMode.Max);
-        var shardRequest = createShardSearchRequest(nestedQueryBuilder);
 
         String[] expectedPassages = ((List<String>) queryData.get("expected_with_similarity_threshold")).toArray(String[]::new);
         assertHighlightOneDoc(
@@ -196,19 +167,9 @@ public abstract class AbstractSemanticHighlighterTests extends MapperServiceTest
     @SuppressWarnings("unchecked")
     public void testDenseVectorWithDiskBBQ() throws Exception {
         float[] vector = readDenseVector(queryData.get("embeddings"));
-        var fieldType = (SemanticFieldMapper.SemanticFieldType) mapperService.mappingLookup().getFieldType(SEMANTIC_FIELD_DISK_BBQ);
-
-        KnnVectorQueryBuilder knnQuery = new KnnVectorQueryBuilder(
-            fieldType.getEmbeddingsField().fullPath(),
-            vector,
-            10,
-            10,
-            10f,
-            null,
-            null
+        var shardRequest = createShardSearchRequest(
+            createKnnQuery(mapperService.mappingLookup().getFieldType(SEMANTIC_FIELD_DISK_BBQ), vector, null)
         );
-        NestedQueryBuilder nestedQueryBuilder = new NestedQueryBuilder(fieldType.getChunksField().fullPath(), knnQuery, ScoreMode.Max);
-        var shardRequest = createShardSearchRequest(nestedQueryBuilder);
 
         String[] expectedScorePassages = ((List<String>) queryData.get("expected_by_score")).toArray(String[]::new);
         for (int i = 0; i < expectedScorePassages.length; i++) {
@@ -242,13 +203,9 @@ public abstract class AbstractSemanticHighlighterTests extends MapperServiceTest
         float[] vector = readDenseVector(queryData.get("embeddings"));
         var fieldType = (SemanticFieldMapper.SemanticFieldType) mapperService.mappingLookup().getFieldType(SEMANTIC_FIELD);
 
-        KnnVectorQueryBuilder knnQuery = new KnnVectorQueryBuilder(
-            fieldType.getEmbeddingsField().fullPath(),
+        QueryBuilder knnQuery = createKnnQuery(
+            mapperService.mappingLookup().getFieldType(fieldType.getEmbeddingsField().fullPath()),
             vector,
-            10,
-            10,
-            10f,
-            null,
             null
         );
         var query = new BoolQueryBuilder().should(knnQuery).should(new MatchAllQueryBuilder());
@@ -308,7 +265,7 @@ public abstract class AbstractSemanticHighlighterTests extends MapperServiceTest
     }
 
     /** Creates a knn query on {@code fieldType}, nested in its chunks for a semantic field. */
-    private static QueryBuilder createKnnQuery(MappedFieldType fieldType, float[] vector, @Nullable Float similarity) {
+    static QueryBuilder createKnnQuery(MappedFieldType fieldType, float[] vector, @Nullable Float similarity) {
         String nestedPath = null;
         final String vectorField;
         if (fieldType instanceof SemanticFieldMapper.SemanticFieldType semanticFieldType) {

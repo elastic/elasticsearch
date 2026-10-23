@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.parquet.bytes.BytesInput;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
@@ -21,6 +22,7 @@ import org.apache.parquet.column.page.PageReader;
 import org.apache.parquet.column.values.ValuesReader;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.PrimitiveType;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -68,10 +70,14 @@ import java.util.function.IntConsumer;
  *
  * <p>For dictionary-encoded BINARY/UTF8 columns, {@code readBytesBatch} takes an ordinal
  * fast path that emits an {@link OrdinalBytesRefBlock} so downstream {@code BlockHash} can
- * hash only the {@code k} dictionary entries instead of the {@code N} row values. The
+ * hash only the {@code k} dictionary entries instead of the {@code N} row values. Per batch,
+ * the reader decides based on how many distinct entries the batch references: a single
+ * entry with no nulls becomes a constant block, too few repeats per entry fall back to a
+ * materialized {@code BytesRefBlock}, and a batch touching only a subset of the dictionary gets a
+ * dictionary compacted to that subset. When the batch references the whole dictionary, the
  * dictionary bytes are deep-copied into a {@link BytesRefArray} once per chunk and that
- * array is shared across every batch in the chunk via its atomic ref-count
- * ({@link BytesRefArray} extends {@code AbstractRefCounted}). Each emitted batch creates a
+ * array is shared across batches that reference the whole dictionary via its atomic ref-count
+ * ({@link BytesRefArray} extends {@code AbstractRefCounted}). Each such batch creates a
  * fresh {@code BytesRefArrayVector} wrapper that holds one ref to the shared array; the
  * wrapper itself is single-driver-owned (its non-thread-safe ref counter is never shared)
  * and decRefs the shared array when the block is closed. This decoupling lets pages be
@@ -134,6 +140,7 @@ final class PageColumnReader implements Releasable {
      */
     private BytesRefArray cachedDictArray;
     private Dictionary cachedDictArraySource;
+    private OrdinalRemap ordinalRemap = null;
 
     private final DefinitionLevelDecoder defDecoder = new DefinitionLevelDecoder();
     private final PlainValueDecoder plainDecoder = new PlainValueDecoder();
@@ -1252,7 +1259,15 @@ final class PageColumnReader implements Releasable {
         // hash only k dictionary entries instead of N row values. Skip for UUID, where each
         // value needs per-row byte formatting that the ordinal path does not perform.
         if (dictionary != null && isUuid == false) {
-            return readBytesBatchAsOrdinals(maxRows, blockFactory);
+            // Skip the ordinal path when the whole chunk is too sparse to expect dense batches. The 1.5x ratio is a
+            // rough estimate, deliberately looser than OrdinalBytesRefBlock#isDense (2x), because the chunk count
+            // includes nulls and a sparse chunk can still have a few dense batches; not emitting ordinal blocks for
+            // those batches is acceptable. The density check in each batch still decides whether an ordinal block
+            // is emitted.
+            final boolean maybeDense = pageReader.getTotalValueCount() > 3L * (dictionary.getMaxId() + 1) / 2L;
+            if (maybeDense) {
+                return readBytesBatchAsOrdinals(maxRows, blockFactory);
+            }
         }
         if (maxDefLevel == 0) {
             return readRequiredBytesBatch(maxRows, blockFactory, isUuid);
@@ -1477,43 +1492,43 @@ final class PageColumnReader implements Releasable {
     }
 
     private Block buildOrdinalResult(int[] ordinals, WordMask nulls, int produced, BlockFactory blockFactory) {
-        BytesRef[] dict = dictDecoder.getDictionaryBytesRefs(dictionary);
         if (produced == 0) {
             return blockFactory.newConstantNullBlock(0);
         }
-        if (nulls != null && nulls.popCount() == produced) {
+        final int nullCount = nulls == null ? 0 : nulls.popCount();
+        if (nullCount == produced) {
             return blockFactory.newConstantNullBlock(produced);
         }
-        // Non-null, all-equal indices: emit a constant block to skip the ordinal indirection.
-        if (nulls == null || nulls.isEmpty()) {
-            int constantOrdinal = detectConstantOrdinal(ordinals, produced);
-            if (constantOrdinal >= 0) {
-                return blockFactory.newConstantBytesRefBlockWith(Utf8Sanitizer.sanitize(dict[constantOrdinal]), produced);
-            }
+        BytesRef[] dict = dictDecoder.getDictionaryBytesRefs(dictionary);
+        if (ordinalRemap == null) {
+            // The block factory is passed per call, so there is no guarantee that a single block factory is used.
+            // The remap lives across batches, so account the memory usage to the root request breaker instead.
+            // TODO: pass the block factory in the constructor and use its breaker instead.
+            ordinalRemap = new OrdinalRemap(blockFactory.parent().breaker());
+        }
+        final int uniqueOrdinals = ordinalRemap.processOneBatch(dict.length, ordinals, nulls, nullCount, produced);
+        if (nullCount == 0 && uniqueOrdinals == 1) {
+            return blockFactory.newConstantBytesRefBlockWith(Utf8Sanitizer.sanitize(dict[ordinalRemap.referencedOrds[0]]), produced);
+        }
+        if (OrdinalBytesRefBlock.isDense(produced - nullCount, uniqueOrdinals) == false) {
+            return finishMaterializedFallback(ordinals, nulls, produced, 0, blockFactory);
         }
         IntBlock ordinalsBlock = null;
         BytesRefVector dictVector = null;
         try {
-            ordinalsBlock = buildOrdinalsBlock(ordinals, nulls, produced, blockFactory);
-            dictVector = buildDictionaryVector(dict, blockFactory);
+            if (uniqueOrdinals == dict.length) {
+                ordinalsBlock = buildOrdinalsBlock(ordinals, nulls, produced, blockFactory);
+                dictVector = buildDictionaryVector(dict, blockFactory);
+            } else {
+                ordinalRemap.remapOrdinals(ordinals, nulls, nullCount, produced);
+                ordinalsBlock = buildOrdinalsBlock(ordinals, nulls, produced, blockFactory);
+                dictVector = ordinalRemap.buildReferencedDictionaryVector(dict, blockFactory);
+            }
             return new OrdinalBytesRefBlock(ordinalsBlock, dictVector);
         } catch (Throwable e) {
             ParquetReadFailures.closePreservingCause(e, ordinalsBlock, dictVector);
             throw e;
         }
-    }
-
-    private static int detectConstantOrdinal(int[] ordinals, int produced) {
-        if (produced == 0) {
-            return -1;
-        }
-        int first = ordinals[0];
-        for (int i = 1; i < produced; i++) {
-            if (ordinals[i] != first) {
-                return -1;
-            }
-        }
-        return first;
     }
 
     private IntBlock buildOrdinalsBlock(int[] ordinals, WordMask nulls, int produced, BlockFactory blockFactory) {
@@ -1583,6 +1598,8 @@ final class PageColumnReader implements Releasable {
 
     @Override
     public void close() {
+        Releasables.close(ordinalRemap);
+        ordinalRemap = null;
         releaseCachedDictArray();
     }
 
@@ -2037,6 +2054,123 @@ final class PageColumnReader implements Releasable {
             if (nulls.get(offset + i) == false) {
                 output[offset + i] = packed[pi++];
             }
+        }
+    }
+
+    /**
+     * Compacts the ordinals of a batch to the entries it actually references, so the emitted
+     * {@link OrdinalBytesRefBlock} carries a dictionary for the batch rather than the whole chunk.
+     */
+    private static final class OrdinalRemap implements Releasable {
+        private int[] assignedOrds;
+        private int[] referencedOrds;
+        private int uniqueCount;
+        private final CircuitBreaker breaker;
+
+        OrdinalRemap(CircuitBreaker breaker) {
+            this.breaker = breaker;
+        }
+
+        private void prepare(int dictSize, int numOrdinals) {
+            if (assignedOrds == null || assignedOrds.length < dictSize) {
+                final long oldBytes = assignedOrds == null ? 0 : estimateBytesOfArray(assignedOrds.length);
+                final long newBytes = estimateBytesOfArray(dictSize);
+                breaker.addEstimateBytesAndMaybeBreak(newBytes, "PageColumnReader#parquet_ordinal_remap");
+                assignedOrds = UninitializedArrays.newIntArray(dictSize);
+                Arrays.fill(assignedOrds, -1);
+                breaker.addWithoutBreaking(-oldBytes);
+            } else {
+                for (int i = 0; i < uniqueCount; i++) {
+                    assignedOrds[referencedOrds[i]] = -1;
+                }
+            }
+            uniqueCount = 0;
+            final int maxUnique = Math.min(numOrdinals, dictSize);
+            if (referencedOrds == null || referencedOrds.length < maxUnique) {
+                final long oldBytes = referencedOrds == null ? 0 : estimateBytesOfArray(referencedOrds.length);
+                final long newBytes = estimateBytesOfArray(maxUnique);
+                breaker.addEstimateBytesAndMaybeBreak(newBytes, "PageColumnReader#parquet_ordinal_remap");
+                referencedOrds = UninitializedArrays.newIntArray(maxUnique);
+                breaker.addWithoutBreaking(-oldBytes);
+            }
+        }
+
+        /**
+         * Computes the referenced ordinals and returns how many unique ordinals are referenced in this batch.
+         */
+        int processOneBatch(int dictSize, int[] ordinals, WordMask nulls, int nullCount, int produced) {
+            prepare(dictSize, ordinals.length);
+            int nextOrd = 0;
+            if (nullCount == 0) {
+                for (int i = 0; i < produced; i++) {
+                    int ord = ordinals[i];
+                    int assigned = assignedOrds[ord];
+                    if (assigned == -1) {
+                        assigned = nextOrd++;
+                        assignedOrds[ord] = assigned;
+                        referencedOrds[assigned] = ord;
+                    }
+                }
+            } else {
+                for (int i = 0; i < produced; i++) {
+                    if (nulls.get(i)) {
+                        continue;
+                    }
+                    int ord = ordinals[i];
+                    int assigned = assignedOrds[ord];
+                    if (assigned == -1) {
+                        assigned = nextOrd++;
+                        assignedOrds[ord] = assigned;
+                        referencedOrds[assigned] = ord;
+                    }
+                }
+            }
+            uniqueCount = nextOrd;
+            return uniqueCount;
+        }
+
+        /**
+         * Rewrites non-null ordinals in place using the mapping from {@link #processOneBatch}.
+         */
+        void remapOrdinals(int[] ordinals, WordMask nulls, int nullCount, int produced) {
+            if (nullCount == 0) {
+                for (int i = 0; i < produced; i++) {
+                    ordinals[i] = assignedOrds[ordinals[i]];
+                }
+            } else {
+                for (int i = 0; i < produced; i++) {
+                    if (nulls.get(i) == false) {
+                        ordinals[i] = assignedOrds[ordinals[i]];
+                    }
+                }
+            }
+        }
+
+        private BytesRefVector buildReferencedDictionaryVector(BytesRef[] dict, BlockFactory blockFactory) {
+            try (BytesRefVector.Builder builder = blockFactory.newBytesRefVectorBuilder(uniqueCount)) {
+                for (int j = 0; j < uniqueCount; j++) {
+                    builder.appendBytesRef(Utf8Sanitizer.sanitize(dict[referencedOrds[j]]));
+                }
+                return builder.build();
+            }
+        }
+
+        private static long estimateBytesOfArray(int arrayLength) {
+            return RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Integer.BYTES * arrayLength);
+        }
+
+        @Override
+        public void close() {
+            long totalBytes = 0;
+            if (assignedOrds != null) {
+                totalBytes += estimateBytesOfArray(assignedOrds.length);
+                assignedOrds = null;
+            }
+            if (referencedOrds != null) {
+                totalBytes += estimateBytesOfArray(referencedOrds.length);
+                referencedOrds = null;
+            }
+            breaker.addWithoutBreaking(-totalBytes);
         }
     }
 }

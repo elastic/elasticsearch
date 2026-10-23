@@ -8,20 +8,24 @@
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.parquet.ParquetReadOptions;
+import org.apache.parquet.column.Encoding;
 import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.example.data.Group;
 import org.apache.parquet.example.data.simple.SimpleGroupFactory;
+import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.example.ExampleParquetWriter;
+import org.apache.parquet.hadoop.metadata.BlockMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.io.OutputFile;
 import org.apache.parquet.io.PositionOutputStream;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Types;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.aggregation.blockhash.LongBytesRefBlockHash;
@@ -38,8 +42,9 @@ import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -55,13 +60,18 @@ import java.io.InputStream;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.IntFunction;
 
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.BINARY;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT64;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 
 /**
  * End-to-end tests verifying that {@link PageColumnReader} emits an
@@ -73,7 +83,7 @@ import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT64;
  * the {@code N} row values, which is the win we are after for high-cardinality string
  * GROUP BY on Parquet.
  */
-public class ParquetOrdinalBytesRefTests extends ESTestCase {
+public class ParquetOrdinalBytesRefTests extends ComputeTestCase {
 
     private static final int BATCH_SIZE = 1000;
 
@@ -81,7 +91,7 @@ public class ParquetOrdinalBytesRefTests extends ESTestCase {
 
     @Before
     public void initBlockFactory() throws Exception {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
+        blockFactory = blockFactory();
     }
 
     public void testDictionaryEncodedColumnEmitsOrdinalBlock() throws IOException {
@@ -99,6 +109,114 @@ public class ParquetOrdinalBytesRefTests extends ESTestCase {
         byte[] data = writeStringFile(numRows, true, row -> row % 7 == 0 ? null : "color_" + (row % dictSize));
 
         verifyDictionaryEncoded(data, numRows, true, row -> row % 7 == 0 ? null : "color_" + (row % dictSize));
+    }
+
+    public void testEmitCompactOrdinalsForDenseBatches() throws IOException {
+        int numRows = 3 * BATCH_SIZE;
+        final boolean withNulls = randomBoolean();
+        final IntFunction<String> valueFor = row -> withNulls && row % 7 == 0 ? null
+            : (row / BATCH_SIZE) % 2 == 0 ? "shared_" + (row % 4)
+            : "unique_" + row;
+        byte[] data = writeStringFile(numRows, withNulls, valueFor);
+        assertDictionaryEncoded(data);
+        List<Page> pages = readAll(data);
+        int ordinalPages = 0;
+        try {
+            for (Page page : pages) {
+                BytesRefBlock bytesBlock = page.getBlock(0);
+                Set<BytesRef> distinctValues = distinctValues(bytesBlock);
+                OrdinalBytesRefBlock ordinals = bytesBlock.asOrdinals();
+                if (ordinals != null) {
+                    BytesRefVector dict = ordinals.getDictionaryVector();
+                    Set<BytesRef> dictEntries = distinctValues(dict.asBlock());
+                    assertThat("dictionary must not have dangling references", distinctValues, equalTo(dictEntries));
+                    assertThat("dictionary must not have duplicates", dictEntries, hasSize(dict.getPositionCount()));
+                    assertTrue(ordinals.isDense());
+                    ordinalPages++;
+                } else {
+                    assertFalse(OrdinalBytesRefBlock.isDense(bytesBlock.getTotalValueCount(), distinctValues.size()));
+                }
+            }
+            assertThat(ordinalPages, greaterThanOrEqualTo(1));
+            assertPageValues(pages, numRows, valueFor);
+        } finally {
+            Releasables.close(pages);
+        }
+    }
+
+    /**
+     * Skip the ordinals path completely if the global density is less than 1.5
+     */
+    public void testSkipOrdinalsForSparseGlobally() throws IOException {
+        int numRows = 4_200;
+        final boolean withNulls = randomBoolean();
+        final IntFunction<String> valueFor = row -> withNulls && row % 13 == 0 ? null
+            : row < BATCH_SIZE ? "shared_" + (row % 4)
+            : "unique_" + row;
+        byte[] data = writeStringFile(numRows, withNulls, valueFor);
+        assertDictionaryEncoded(data);
+        List<Page> pages = readAll(data);
+        try {
+            BytesRefBlock first = pages.get(0).getBlock(0);
+            assertTrue(
+                "first batch must be dense on its own",
+                OrdinalBytesRefBlock.isDense(first.getTotalValueCount(), distinctValues(first).size())
+            );
+            for (Page page : pages) {
+                BytesRefBlock bytesBlock = page.getBlock(0);
+                assertNull("should skip ordinal path entirely if global density is too low", bytesBlock.asOrdinals());
+            }
+            assertPageValues(pages, numRows, valueFor);
+        } finally {
+            Releasables.close(pages);
+        }
+    }
+
+    static Set<BytesRef> distinctValues(BytesRefBlock block) {
+        Set<BytesRef> values = new HashSet<>(block.getPositionCount());
+        for (int p = 0; p < block.getPositionCount(); p++) {
+            int valueCount = block.getValueCount(p);
+            int first = block.getFirstValueIndex(p);
+            for (int v = 0; v < valueCount; v++) {
+                values.add(block.getBytesRef(first + v, new BytesRef()));
+            }
+        }
+        return values;
+    }
+
+    private static void assertPageValues(List<Page> pages, int numRows, IntFunction<String> valueFor) {
+        int row = 0;
+        BytesRef scratch = new BytesRef();
+        for (Page page : pages) {
+            BytesRefBlock block = page.getBlock(0);
+            for (int p = 0; p < page.getPositionCount(); p++, row++) {
+                String expected = valueFor.apply(row);
+                if (expected == null) {
+                    assertTrue("row " + row, block.isNull(p));
+                } else {
+                    assertEquals("row " + row, new BytesRef(expected), block.getBytesRef(p, scratch));
+                }
+            }
+        }
+        assertEquals(numRows, row);
+    }
+
+    private void assertDictionaryEncoded(byte[] data) throws IOException {
+        ParquetReadOptions options = ParquetReadOptions.builder(new PlainParquetConfiguration()).build();
+        FooterByteCache footerCache = FooterByteCache.fromSettings(Settings.EMPTY);
+        try (
+            ParquetFileReader reader = ParquetFileReader.open(
+                new ParquetStorageObjectAdapter(storageObject(data), footerCache, blockFactory.breaker()),
+                options
+            )
+        ) {
+            for (BlockMetaData rowGroup : reader.getRowGroups()) {
+                for (ColumnChunkMetaData chunk : rowGroup.getColumns()) {
+                    assertTrue(chunk.getPath() + " has no dictionary page", chunk.hasDictionaryPage());
+                    assertFalse(chunk.getPath() + " fell back to PLAIN", chunk.getEncodings().contains(Encoding.PLAIN));
+                }
+            }
+        }
     }
 
     /**

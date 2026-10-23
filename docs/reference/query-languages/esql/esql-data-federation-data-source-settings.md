@@ -10,7 +10,7 @@ products:
 
 # Data source settings reference for {{esql}} Data Federation
 
-Data source settings control how {{es}} connects and authenticates to an external storage system. Add settings to the `settings` object when you [create or update a data source](esql-data-federation-sources.md#create-or-update-a-data-source), or fill in the matching fields in the **Connect data source** flyout in {{kib}}. The available settings depend on the data source `type`.
+Data source settings control how {{es}} connects and authenticates to an external storage system. Add settings to the `settings` object when you [create or update a data source](esql-data-federation-manage-data-sources-api.md#create-or-update-a-data-source), or fill in the matching fields in the **Connect data source** flyout in {{kib}}. The available settings depend on the data source `type`.
 
 :::{include} _snippets/data-federation/experimental-warning.md
 :::

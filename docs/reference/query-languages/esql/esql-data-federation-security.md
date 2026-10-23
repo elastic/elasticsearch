@@ -78,6 +78,29 @@ A role configures these privileges as follows. The example grants querying `sale
 }
 ```
 
+:::{note}
+The {{esql}} Data Federation UI in {{kib}} requires the cluster `manage` privilege. A role with only `global.data_source` privileges can manage data sources with the API, but not in the UI.
+:::
+
+### Grant data source privileges in {{kib}}
+```{applies_to}
+stack: experimental 9.6+
+```
+
+You can grant `global.data_source` privileges from the {{kib}} role editor:
+
+1. Find **Roles** in the navigation menu or use the global search field, then create or edit a role.
+2. Under **Data source privileges**, click **Add data source privilege**.
+3. In **Data sources**, enter the data source names or patterns, such as `acme_*`.
+4. In **Privileges**, select the privileges to grant. The options are the same as in the API: `create`, `read_metadata`, `delete`, `read`, and `manage`.
+
+The **Data source privileges** section appears with the other {{es}} privileges:
+
+:::{image} images/data-federation/role-editor-data-source-privileges.png
+:alt: The Data source privileges section of the Kibana role editor, with fields for data source patterns and privileges
+:width: 800px
+:::
+
 ## Next steps
 
 Continue with the following security and configuration tasks:

@@ -110,9 +110,9 @@ public class RemoteIndexResolutionIT extends AbstractCrossClusterTestCase {
         setSkipUnavailable(REMOTE_CLUSTER_1, true);
         try (
             var response = run(
-                syncEsqlQueryRequest("FROM " + REMOTE_CLUSTER_1 + ":index-1," + REMOTE_CLUSTER_1 + ":nonexisting-1").includeCCSMetadata(
-                    true
-                )
+                withRandomAllowPartialResult(
+                    syncEsqlQueryRequest("FROM " + REMOTE_CLUSTER_1 + ":index-1," + REMOTE_CLUSTER_1 + ":nonexisting-1")
+                ).includeCCSMetadata(true)
             )
         ) {
             assertPartial(response); // passes when the present index has no fields and no documents

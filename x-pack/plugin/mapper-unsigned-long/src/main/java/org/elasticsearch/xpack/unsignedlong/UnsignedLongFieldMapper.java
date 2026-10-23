@@ -584,10 +584,12 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths, IndexSettings indexSettings) {
             return new SourceValueFetcher(sourcePaths, nullValueFormatted, indexSettings.getIgnoredSourceFormat()) {
                 @Override
+                protected boolean isNullEquivalent(Object value) {
+                    return "".equals(value);
+                }
+
+                @Override
                 protected Object parseSourceValue(Object value) {
-                    if (value.equals("")) {
-                        return nullValueFormatted;
-                    }
                     long ulValue = parseUnsignedLong(value);
                     if (ulValue >= 0) {
                         return ulValue;

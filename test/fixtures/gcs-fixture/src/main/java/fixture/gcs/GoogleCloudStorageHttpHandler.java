@@ -36,9 +36,11 @@ import java.net.URLDecoder;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -126,6 +128,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 final int maxResults = Integer.parseInt(params.getOrDefault("maxResults", String.valueOf(defaultPageLimit.get())));
                 final String delimiter = params.getOrDefault("delimiter", "");
                 final String pageToken = params.get("pageToken");
+                final Set<String> requestedItemFields = parseRequestedItemFields(params.get("fields"));
 
                 final MockGcsBlobStore.PageOfBlobs pageOfBlobs;
                 if (pageToken != null) {
@@ -134,7 +137,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                     pageOfBlobs = mockGcsBlobStore.listBlobs(maxResults, delimiter, prefix);
                 }
 
-                ListBlobsResponse response = new ListBlobsResponse(bucket, pageOfBlobs);
+                ListBlobsResponse response = new ListBlobsResponse(bucket, pageOfBlobs, requestedItemFields);
                 try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
                     response.toXContent(builder, ToXContent.EMPTY_PARAMS);
                     BytesReference responseBytes = BytesReference.bytes(builder);
@@ -324,7 +327,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                     builder.field("done", done);
                     if (done) {
                         assert rewriteResponse.dstBlob() != null;
-                        writeBlobAsXContent(rewriteResponse.dstBlob(), builder, bucket, "resource");
+                        writeBlobAsXContent(rewriteResponse.dstBlob(), builder, bucket, "resource", null);
                     } else {
                         builder.field("rewriteToken", rewriteResponse.rewriteToken());
                     }
@@ -460,7 +463,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
 
     private void writeBlobVersionAsJson(HttpExchange exchange, MockGcsBlobStore.BlobVersion newBlobVersion) throws IOException {
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
-            writeBlobAsXContent(newBlobVersion, builder, bucket, null);
+            writeBlobAsXContent(newBlobVersion, builder, bucket, null, null);
             BytesReference responseBytes = BytesReference.bytes(builder);
             exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
             exchange.sendResponseHeaders(RestStatus.OK.getStatus(), responseBytes.length());
@@ -583,7 +586,9 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
         }).orElseThrow(() -> failAndThrow("Empty batch item"));
     }
 
-    record ListBlobsResponse(String bucket, MockGcsBlobStore.PageOfBlobs pageOfBlobs) implements ToXContent {
+    record ListBlobsResponse(String bucket, MockGcsBlobStore.PageOfBlobs pageOfBlobs, @Nullable Set<String> requestedItemFields)
+        implements
+            ToXContent {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -594,7 +599,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
             }
             builder.startArray("items");
             for (MockGcsBlobStore.BlobVersion blobVersion : pageOfBlobs().blobs()) {
-                writeBlobAsXContent(blobVersion, builder, bucket, null);
+                writeBlobAsXContent(blobVersion, builder, bucket, null, requestedItemFields);
             }
             builder.endArray();
             builder.field("prefixes", pageOfBlobs.prefixes());
@@ -607,7 +612,8 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
         MockGcsBlobStore.BlobVersion blobVersion,
         XContentBuilder builder,
         String bucket,
-        @Nullable String fieldName
+        @Nullable String fieldName,
+        @Nullable Set<String> requestedItemFields
     ) throws IOException {
         if (fieldName == null) {
             builder.startObject();
@@ -617,14 +623,49 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
         builder.field("kind", "storage#object");
         builder.field("bucket", bucket);
         builder.field("name", blobVersion.path());
-        builder.field("id", blobVersion.path());
-        builder.field("size", String.valueOf(blobVersion.contents().length()));
-        builder.field("generation", String.valueOf(blobVersion.generation()));
-        builder.field("updated", ISO_MILLIS_UTC.format(blobVersion.lastModified()));
-        if (blobVersion.storageClass() != null) {
+        if (requestedItemFields == null || requestedItemFields.contains("id")) {
+            builder.field("id", blobVersion.path());
+        }
+        if (requestedItemFields == null || requestedItemFields.contains("size")) {
+            builder.field("size", String.valueOf(blobVersion.contents().length()));
+        }
+        if (requestedItemFields == null || requestedItemFields.contains("generation")) {
+            builder.field("generation", String.valueOf(blobVersion.generation()));
+        }
+        if (requestedItemFields == null || requestedItemFields.contains("updated")) {
+            builder.field("updated", ISO_MILLIS_UTC.format(blobVersion.lastModified()));
+        }
+        if (blobVersion.storageClass() != null && (requestedItemFields == null || requestedItemFields.contains("storageClass"))) {
             builder.field("storageClass", blobVersion.storageClass());
         }
         builder.endObject();
+    }
+
+    /**
+     * Parses the GCS {@code fields} query parameter to extract the set of per-item field names.
+     * Returns {@code null} when no restriction is requested (emit all fields).
+     * Handles both {@code items(name,size)} and {@code items/name,items/size} formats.
+     */
+    @Nullable
+    static Set<String> parseRequestedItemFields(@Nullable String fields) {
+        if (fields == null) {
+            return null;
+        }
+        var result = new HashSet<String>();
+        var matcher = FIELDS_ITEMS_PATTERN.matcher(fields);
+        if (matcher.find()) {
+            for (var f : matcher.group(1).split(",")) {
+                result.add(f.trim());
+            }
+        } else {
+            for (var token : fields.split(",")) {
+                token = token.trim();
+                if (token.startsWith("items/")) {
+                    result.add(token.substring("items/".length()));
+                }
+            }
+        }
+        return result;
     }
 
     private void sendError(HttpExchange exchange, MockGcsBlobStore.GcsRestException e) throws IOException {
@@ -664,6 +705,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
     }
 
     private static final Pattern STORAGE_CLASS_PATTERN = Pattern.compile("\"storageClass\"\\s*:\\s*\"([^\"]*)\"");
+    private static final Pattern FIELDS_ITEMS_PATTERN = Pattern.compile("items\\(([^)]+)\\)");
 
     /**
      * Extracts the {@code storageClass} field from a request body containing GCS object metadata JSON. The body may be gzip-compressed

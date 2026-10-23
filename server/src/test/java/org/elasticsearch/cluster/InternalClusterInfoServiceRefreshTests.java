@@ -17,7 +17,6 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
@@ -26,12 +25,12 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.mockito.Mockito;
 
@@ -160,8 +159,6 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
                         listener.onResponse(
                             (Response) new NodesStatsResponse(new ClusterName("cluster"), List.of(nodeStats("node-id", 1_000L)), List.of())
                         );
-                    } else if (request instanceof IndicesStatsRequest) {
-                        listener.onFailure(new IllegalStateException("indices stats not used by this test"));
                     } else {
                         fail("unexpected action: " + action.name());
                     }
@@ -339,8 +336,6 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
                             (Response) new NodesStatsResponse(new ClusterName("cluster"), List.of(nodeStats("node-id", 1_000L)), List.of())
                         );
                     }
-                } else if (request instanceof IndicesStatsRequest) {
-                    listener.onFailure(new IllegalStateException("indices stats not used by this test"));
                 } else {
                     fail("unexpected action: " + action.name());
                 }
@@ -363,7 +358,8 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
 
         static RefreshTestContext create(Settings settings) {
             final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-            final ThreadPool threadPool = new TestThreadPool(InternalClusterInfoServiceRefreshTests.class.getSimpleName());
+            final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
+            final ThreadPool threadPool = deterministicTaskQueue.getThreadPool();
             return new RefreshTestContext(settings, threadPool, ClusterServiceUtils.createClusterService(threadPool, clusterSettings));
         }
 
@@ -394,7 +390,6 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
         @Override
         public void close() {
             clusterService.close();
-            terminate(threadPool);
         }
     }
 }

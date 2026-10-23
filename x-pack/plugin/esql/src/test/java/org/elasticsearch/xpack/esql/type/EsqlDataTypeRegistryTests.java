@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -83,7 +84,17 @@ public class EsqlDataTypeRegistryTests extends ESTestCase {
         IndexResolution resolution = IndexResolver.mergedMappings(
             "idx-*",
             false,
-            new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, false, false, flattenedDataTypeEnabled),
+            new IndexResolver.FieldsInfo(
+                caps,
+                new ArrayList<>(),
+                TransportVersion.current(),
+                false,
+                false,
+                false,
+                false,
+                false,
+                flattenedDataTypeEnabled
+            ),
             false,
             IndexResolver.DO_NOT_GROUP
         );
@@ -111,7 +122,7 @@ public class EsqlDataTypeRegistryTests extends ESTestCase {
         IndexResolution resolution = IndexResolver.mergedMappings(
             "idx-*",
             false,
-            new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, false, false, true),
+            new IndexResolver.FieldsInfo(caps, new ArrayList<>(), TransportVersion.current(), false, false, false, false, false, true),
             false,
             IndexResolver.DO_NOT_GROUP
         );

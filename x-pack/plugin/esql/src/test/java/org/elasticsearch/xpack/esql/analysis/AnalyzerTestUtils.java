@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -155,7 +156,7 @@ public final class AnalyzerTestUtils {
     }
 
     public static IndexResolver.FieldsInfo fieldsInfoOnCurrentVersion(FieldCapabilitiesResponse caps) {
-        return new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, false, true, true);
+        return new IndexResolver.FieldsInfo(caps, new ArrayList<>(), TransportVersion.current(), false, false, false, false, true, true);
     }
 
     public static IndexResolution mergedResolution(String indexPattern, FieldCapabilitiesResponse caps) {

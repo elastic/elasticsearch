@@ -39,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toSet;
@@ -150,7 +151,7 @@ public class EsqlCCSUtils {
             List<FieldCapabilitiesFailure> clusterFailures = entry.getValue();
 
             Exception unavailableClusterException = null;
-            List<Object> unresolvedIndices = new ArrayList<>();
+            Set<String> unresolvedIndices = new TreeSet<>();
 
             for (FieldCapabilitiesFailure clusterFailure : clusterFailures) {
                 if (Objects.equals(clusterAlias, RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
@@ -160,8 +161,9 @@ public class EsqlCCSUtils {
                     unavailableClusterException = clusterFailure.getException();
                     break;
                 }
-
-                // TODO detect unresolved indices
+                if (clusterFailure.getException() instanceof IndexResolver.RemoteIndexNotFoundException re) {
+                    unresolvedIndices.addAll(re.getIndices());
+                }
             }
 
             if (unavailableClusterException != null) {
@@ -175,7 +177,10 @@ public class EsqlCCSUtils {
                 );
                 markClusterWithFinalStateAndNoShardsOrThrow(execInfo, clusterAlias, Cluster.Status.SKIPPED, e);
             } else if (unresolvedIndices.isEmpty() == false) {
-
+                VerificationException e = new VerificationException(
+                    Strings.format("Unknown index [%s]", String.join(", ", unresolvedIndices))
+                );
+                markClusterWithFinalStateAndNoShardsOrThrow(execInfo, clusterAlias, Cluster.Status.SKIPPED, e);
             }
         }
     }

@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -48,6 +47,7 @@ import java.util.UUID;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.elasticsearch.xpack.esql.plugin.RemoteIndexResolutionIT.withRandomAllowPartialResult;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -350,45 +350,39 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
         indexRandom(true, "index-1", 1);
 
         expectThrows(
-            IndexNotFoundException.class,
-            equalTo("no such index [nonexisting-1]"), // fails when present index is non-empty
-            () -> run(syncEsqlQueryRequest("FROM index-1,nonexisting-1"))
+            VerificationException.class,
+            equalTo("Unknown index [nonexisting-1]"),
+            () -> run(withRandomAllowPartialResult(syncEsqlQueryRequest("FROM index-1,nonexisting-1")))
         );
         expectThrows(
-            IndexNotFoundException.class,
-            equalTo("no such index [nonexisting-1]"), // fails with explicit allowPartialResults=false
-            () -> run(syncEsqlQueryRequest("FROM index-1,nonexisting-1").allowPartialResults(false))
-        );
-        expectThrows(
-            IndexNotFoundException.class,
-            equalTo("no such index [nonexisting-1]"), // fails when present index is non-empty even if allow_partial=true
-            () -> run(syncEsqlQueryRequest("FROM index-1,nonexisting-1").allowPartialResults(true))
-        );
-        expectThrows(
-            IndexNotFoundException.class,
-            equalTo("no such index [nonexisting-1]"), // only the first missing index is reported
+            VerificationException.class,
+            equalTo("Unknown index [nonexisting-1,nonexisting-2]"), // all missing indices are reported
             () -> run(syncEsqlQueryRequest("FROM index-1,nonexisting-1,nonexisting-2"))
         );
 
         assertAcked(client().admin().indices().prepareCreate("index-2").setMapping("field", "type=keyword"));
         expectThrows(
-            IndexNotFoundException.class,
-            equalTo("no such index [nonexisting-1]"), // fails when present index has no documents and non-empty mapping
+            VerificationException.class,
+            equalTo("Unknown index [nonexisting-1]"), // fails when present index has no documents and non-empty mapping
             () -> run(syncEsqlQueryRequest("FROM index-2,nonexisting-1"))
         );
 
         assertAcked(client().admin().indices().prepareCreate("index-3"));
-        try (var response = run(syncEsqlQueryRequest("FROM index-3,nonexisting-1"))) {
-            assertOk(response); // passes when the present index has no fields and no documents
-        }
         expectThrows(
-            IndexNotFoundException.class,
-            equalTo("no such index [nonexisting-1]"), // still fails if there is at least one non-empty existing index
+            VerificationException.class,
+            equalTo("Unknown index [nonexisting-1]"), // fails when the present index has no fields and no documents
+            () -> run(syncEsqlQueryRequest("FROM index-3,nonexisting-1"))
+        );
+        expectThrows(
+            VerificationException.class,
+            equalTo("Unknown index [nonexisting-1]"), // fails if there is at least one non-empty existing index
             () -> run(syncEsqlQueryRequest("FROM index-1,index-3,nonexisting-1"))
         );
-        try (var response = run(syncEsqlQueryRequest("FROM index-1,index-2,index-3,nonexisting-1 | LIMIT 0"))) {
-            assertOk(response); // passes when not reading from the index
-        }
+        expectThrows(
+            VerificationException.class,
+            equalTo("Unknown index [nonexisting-1]"), // fails when not reading from the index
+            () -> run(syncEsqlQueryRequest("FROM index-1,index-2,index-3,nonexisting-1 | LIMIT 0"))
+        );
     }
 
     public void testResolutionWithFilter() {

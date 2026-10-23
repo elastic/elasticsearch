@@ -52,7 +52,6 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -422,15 +421,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ByteSizeValue.of(1, ByteSizeUnit.MB),
         ByteSizeValue.of(1, ByteSizeUnit.MB),
         ByteSizeValue.ofBytes(Long.MAX_VALUE),
-        Property.Dynamic,
-        Property.NodeScope
-    );
-
-    private static final FeatureFlag BOOST_PROFILE_FEATURE_FLAG = new FeatureFlag("boost_profile");
-
-    public static final Setting<Boolean> BOOST_PROFILE_ENABLED = Setting.boolSetting(
-        "search.boost_profile.enabled",
-        BOOST_PROFILE_FEATURE_FLAG.isEnabled(),
         Property.Dynamic,
         Property.NodeScope
     );

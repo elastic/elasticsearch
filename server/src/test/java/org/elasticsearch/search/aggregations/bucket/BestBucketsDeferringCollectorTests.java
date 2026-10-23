@@ -18,6 +18,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
@@ -70,7 +71,8 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
 
         indexWriter.close();
         IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newSearcher(indexReader);
+        // Sequential: replay assertions are on one deferring collector instance.
+        IndexSearcher indexSearcher = newSearcher(indexReader, true, true, false);
 
         TermQuery termQuery = new TermQuery(new Term("field", String.valueOf(randomInt(maxNumValues))));
         Query rewrittenQuery = indexSearcher.rewrite(termQuery);
@@ -85,7 +87,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
         Set<Integer> deferredCollectedDocIds = new HashSet<>();
         collector.setDeferredCollector(Collections.singleton(bla(deferredCollectedDocIds)));
         collector.preCollection();
-        indexSearcher.search(termQuery, collector.asCollector());
+        indexSearcher.search(termQuery, singleThreadedCollectorManager(collector.asCollector()));
         collector.postCollection();
         collector.prepareSelectedBuckets(BigArrays.NON_RECYCLING_INSTANCE.newLongArray(1, true));
 
@@ -99,7 +101,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
         deferredCollectedDocIds = new HashSet<>();
         collector.setDeferredCollector(Collections.singleton(bla(deferredCollectedDocIds)));
         collector.preCollection();
-        indexSearcher.search(Queries.ALL_DOCS_INSTANCE, collector.asCollector());
+        indexSearcher.search(Queries.ALL_DOCS_INSTANCE, singleThreadedCollectorManager(collector.asCollector()));
         collector.postCollection();
         collector.prepareSelectedBuckets(BigArrays.NON_RECYCLING_INSTANCE.newLongArray(1, true));
 
@@ -227,7 +229,8 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
                 writer.addDocument(d);
             }
             try (IndexReader reader = DirectoryReader.open(dir)) {
-                IndexSearcher searcher = newSearcher(reader);
+                // Sequential: breaker events are recorded on one deferring collector instance.
+                IndexSearcher searcher = newSearcher(reader, true, true, false);
                 Query query = new TermQuery(new Term("field", "seg2"));
                 List<Long> events = new ArrayList<>();
                 BestBucketsDeferringCollector dc = setupCollector(searcher, query, events);
@@ -481,7 +484,8 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
 
     private static void withSearcher(SearcherTest body, int... docsPerSegment) throws IOException {
         try (Directory dir = buildIndex(docsPerSegment); IndexReader reader = DirectoryReader.open(dir)) {
-            body.run(newSearcher(reader));
+            // Sequential: replay/breaker assertions are on one deferring collector instance.
+            body.run(newSearcher(reader, true, true, false));
         }
     }
 
@@ -489,7 +493,8 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
     private static void runBreakerTest(BreakerTest body, int... docsPerSegment) throws IOException {
         int[] segments = docsPerSegment.length == 0 ? new int[] { 5, 5 } : docsPerSegment;
         try (Directory dir = buildIndex(segments); IndexReader reader = DirectoryReader.open(dir)) {
-            IndexSearcher searcher = newSearcher(reader);
+            // Sequential: breaker events are recorded on one deferring collector instance.
+            IndexSearcher searcher = newSearcher(reader, true, true, false);
             List<Long> events = new ArrayList<>();
             body.run(searcher, setupCollector(searcher, Queries.ALL_DOCS_INSTANCE, events), events);
             assertThat("net byte balance must be zero", events.stream().mapToLong(Long::longValue).sum(), equalTo(0L));
@@ -525,8 +530,8 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
     }
 
     /** Wraps {@code dc} in a {@link Collector} that creates a leaf per segment using {@code factory}. */
-    private static Collector delegatingCollector(BestBucketsDeferringCollector dc, LeafFactory factory) {
-        return new Collector() {
+    private static CollectorManager<Collector, Void> delegatingCollector(BestBucketsDeferringCollector dc, LeafFactory factory) {
+        return singleThreadedCollectorManager(new Collector() {
             @Override
             public ScoreMode scoreMode() {
                 return ScoreMode.COMPLETE_NO_SCORES;
@@ -537,7 +542,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
                 LeafBucketCollector delegate = dc.getLeafCollector(new AggregationExecutionContext(context, null, null, null));
                 return factory.create(delegate);
             }
-        };
+        });
     }
 
     private static LongArray toLongArray(long... lons) {
@@ -560,7 +565,8 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
             }
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader);
+                // Sequential: replay assertions are on one deferring collector instance.
+                IndexSearcher indexSearcher = newSearcher(indexReader, true, true, false);
 
                 Query query = Queries.ALL_DOCS_INSTANCE;
                 BestBucketsDeferringCollector deferringCollector = new BestBucketsDeferringCollector(
@@ -573,7 +579,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
                 CollectingBucketCollector finalCollector = new CollectingBucketCollector();
                 deferringCollector.setDeferredCollector(Collections.singleton(finalCollector));
                 deferringCollector.preCollection();
-                indexSearcher.search(query, new Collector() {
+                indexSearcher.search(query, singleThreadedCollectorManager(new Collector() {
                     @Override
                     public ScoreMode scoreMode() {
                         return ScoreMode.COMPLETE_NO_SCORES;
@@ -586,7 +592,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
                         );
                         return leafCollector.apply(deferringCollector, delegate);
                     }
-                });
+                }));
                 deferringCollector.postCollection();
                 verify.accept(deferringCollector, finalCollector);
             }

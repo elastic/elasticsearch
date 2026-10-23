@@ -219,9 +219,10 @@ public final class AsymmetricHashingQuantizer {
     /**
      * Rotates the orthonormal basis {@code pT} (shape {@code (nDims, originalDim)}) into the projection W^T = R P^T.
      * The subspace is all that PCA determines; R then spreads the variance over the projected coordinates (a random
-     * rotation does so on average), which the scalar quantization that follows needs. R is a random orthogonal matrix, unless Procrustes iterations
-     * are configured and the projected sample has at least {@code nDims} vectors. Below that the matrix whose polar
-     * factor the Procrustes step computes has rank less than {@code nDims}, and the factor is not orthogonal.
+     * rotation does so on average), which the scalar quantization that follows needs. R is a random orthogonal matrix,
+     * unless Procrustes iterations are configured and the projected sample has at least {@code nDims} vectors. Below
+     * that the matrix whose polar factor the Procrustes step computes has rank less than {@code nDims}, and the factor
+     * is not orthogonal.
      *
      * @return W^T, shape {@code (nDims, originalDim)}
      */

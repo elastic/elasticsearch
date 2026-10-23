@@ -38,10 +38,10 @@ import java.util.Map;
 public class AiIndexTemplateRegistry extends IndexTemplateRegistry {
 
     // This number must be incremented when we make changes to built-in templates.
-    static final int REGISTRY_VERSION = 4;
+    static final int REGISTRY_VERSION = 5;
 
     // The computed checksum of all templates and components that are registered in this registry.
-    static final String COMPUTED_CHECKSUM = "ddf8f49f";
+    static final String COMPUTED_CHECKSUM = "5ee6e0c5";
 
     public static final String TEMPLATE_VERSION_VARIABLE = "xpack.stack.ai-index.template.version";
 

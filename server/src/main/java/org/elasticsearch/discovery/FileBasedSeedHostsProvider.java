@@ -48,7 +48,9 @@ public class FileBasedSeedHostsProvider implements SeedHostsProvider {
     private List<String> getHostsList() {
         if (Files.exists(unicastHostsFilePath)) {
             try (Stream<String> lines = Files.lines(unicastHostsFilePath)) {
-                return lines.filter(line -> line.startsWith("#") == false) // lines starting with `#` are comments
+                return lines.map(String::strip)
+                    .filter(line -> line.isEmpty() == false)
+                    .filter(line -> line.startsWith("#") == false) // lines starting with `#` are comments
                     .toList();
             } catch (IOException e) {
                 logger.warn(() -> "failed to read file [" + unicastHostsFilePath + "]", e);

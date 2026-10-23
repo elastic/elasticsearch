@@ -211,6 +211,7 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
                         l2.onResponse(null);
                     }
                 }).addListener(l.delegateFailureAndWrap((l3, warmingInputs) -> {
+                    indexShard.ensureRecoveryNotCancelled();
                     final var resumeRecovery = new ActionListener<Void>() {
                         @Override
                         public void onResponse(Void unused) {

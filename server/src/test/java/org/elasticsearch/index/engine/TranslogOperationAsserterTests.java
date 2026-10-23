@@ -218,7 +218,6 @@ public class TranslogOperationAsserterTests extends EngineTestCase {
         assertFalse(asserter.assertSameIndexOperation(o1, o2));
     }
 
-
     public void testFieldPresentInOnlyOneOperationIsRejected() throws Exception {
         TranslogOperationAsserter asserter = TranslogOperationAsserter.withEngineConfig(engineConfig(true));
         var o1 = toIndexOp("""

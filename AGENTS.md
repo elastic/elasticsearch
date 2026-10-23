@@ -189,3 +189,6 @@ Stay aligned with `CONTRIBUTING.md`, `BUILDING.md`, and `TESTING.asciidoc`; this
 
 ## Documentation
 When building or editing docs, read `docs/AGENTS.md` first.
+
+## Benchmarks
+When working on mappers, the columnar or batch indexing path, or asked about indexing performance or its benchmarks, read `benchmarks/AGENTS.md` first.

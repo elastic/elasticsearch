@@ -799,7 +799,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
      */
     private void logDeclinedWorker(DiscoveryNode declined, DiscoveryNode fallback, int splits, String sessionId) {
         LOGGER.debug(
-            "external worker [{}] has not applied the cluster state this query was planned from; rerouting [{}] splits to [{}], session [{}]",
+            "external worker [{}] has not applied the cluster state this query was planned from; "
+                + "rerouting [{}] splits to [{}], session [{}]",
             declined.getName(),
             splits,
             fallback.getName(),

@@ -311,6 +311,7 @@ final class PlainValues {
 
         /** Null when every value has {@link #constantLength}. */
         private final LongValues starts;
+        private final long numLengthBlocks;
         private final LongBlocks.Reader lengths;
         private final int lengthShift;
         private final int lengthMask;
@@ -339,6 +340,7 @@ final class PlainValues {
             this.chunkTargetBytes = meta.chunkTargetBytes();
             if (meta.constant()) {
                 this.starts = null;
+                this.numLengthBlocks = 0;
                 this.lengths = null;
                 this.lengthShift = 0;
                 this.lengthMask = 0;
@@ -348,6 +350,7 @@ final class PlainValues {
                 return;
             }
             final int lengthBlockSize = meta.lengths().blockSize();
+            this.numLengthBlocks = meta.lengths().numBlocks();
             this.lengthShift = Integer.numberOfTrailingZeros(lengthBlockSize);
             this.lengthMask = lengthBlockSize - 1;
             this.starts = MonotonicReader.open(
@@ -365,6 +368,36 @@ final class PlainValues {
 
         long numValues() {
             return numValues;
+        }
+
+        /**
+         * Prefetches the values at {@code [firsts[i], firsts[i] + counts[i])}, a block at a time, in one stage: a column of one
+         * length its value blocks, which their addresses locate, and any other column its blocks of lengths and the bytes
+         * each of them covers, which the navigation file locates.
+         */
+        void prefetch(long[] firsts, long[] counts, int count) throws IOException {
+            long last = -1;
+            for (int i = 0; i < count; i++) {
+                for (long address = firsts[i]; address < firsts[i] + counts[i]; address++) {
+                    if (constantLength >= 0) {
+                        final long block = address >>> valuesShift;
+                        if (block != last) {
+                            last = block;
+                            final long first = block << valuesShift;
+                            chunks.prefetch(first * constantLength, (Math.min(first + valuesPerBlock, numValues) - first) * constantLength);
+                        }
+                    } else {
+                        final long block = address >>> lengthShift;
+                        if (block != last) {
+                            last = block;
+                            lengths.prefetchBlocks(block, block);
+                            final long start = starts.get(block);
+                            final long end = block + 1 < numLengthBlocks ? starts.get(block + 1) : chunks.length();
+                            chunks.prefetch(start, end - start);
+                        }
+                    }
+                }
+            }
         }
 
         /** Whether the slot at {@code valueAddress} is null, which its code says. */

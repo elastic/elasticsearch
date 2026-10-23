@@ -45,6 +45,15 @@ public final class PlainStringColumnReader extends StringColumnReader {
         this.hasNullSlots = column.hasNullSlots();
     }
 
+    /** See {@link PlainValues.Reader#prefetch}. */
+    @Override
+    public boolean prefetchValues(int stage, long[] firsts, long[] counts, int count) throws IOException {
+        if (values != null) {
+            values.prefetch(firsts, counts, count);
+        }
+        return false;
+    }
+
     @Override
     public int byteLengthAt(long valueAddress) throws IOException {
         return values.length(valueAddress);

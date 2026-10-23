@@ -53,6 +53,31 @@ final class SlotAddressReader {
         );
     }
 
+    /**
+     * Prefetches the blocks of counts of the documents at {@code ranks[0, count)}, in ascending order.
+     *
+     * @return whether it prefetched anything
+     */
+    boolean prefetch(long[] ranks, int count) throws IOException {
+        long runStart = -1;
+        long runEnd = -1;
+        for (int i = 0; i < count; i++) {
+            final long block = ranks[i] >>> blockShift;
+            if (runStart >= 0 && block <= runEnd + 1) {
+                runEnd = block;
+                continue;
+            }
+            if (runStart >= 0) {
+                counts.prefetchBlocks(runStart, runEnd);
+            }
+            runStart = runEnd = block;
+        }
+        if (runStart >= 0) {
+            counts.prefetchBlocks(runStart, runEnd);
+        }
+        return runStart >= 0;
+    }
+
     /** The value address of the document at {@code rank}. */
     long firstValueAddress(int rank) throws IOException {
         ensureBlock(rank >>> blockShift);

@@ -86,7 +86,7 @@ highlight_query
 
 
 matched_fields
-:   Combine matches on multiple fields to highlight a single field. This is most intuitive for multifields that analyze the same string in different ways. Valid for the `unified` and fvh` highlighters, but the behavior of this option is different for each highlighter.
+:   Combine matches on multiple fields to highlight a single field. This is most intuitive for multifields that analyze the same string in different ways. Valid for the `unified` and `fvh` highlighters, but the behavior of this option is different for each highlighter.
 
 For the `unified` highlighter:
 

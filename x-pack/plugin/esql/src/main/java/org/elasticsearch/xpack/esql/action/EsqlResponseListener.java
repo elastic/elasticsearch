@@ -140,10 +140,11 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
                     releasable
                 );
             } else if (mediaType == ArrowFormat.INSTANCE) {
-                ArrowResponse arrowResponse = new ArrowResponse(
-                    esqlResponse.columns().stream().map(c -> new ArrowResponse.Column(c.type(), c.name())).toList(),
-                    esqlResponse.pages()
-                );
+                boolean dropNullColumns = restRequest.paramAsBoolean(EsqlQueryResponse.DROP_NULL_COLUMNS_OPTION, false);
+                var columns = esqlResponse.columns().stream().map(c -> new ArrowResponse.Column(c.type(), c.name())).toList();
+                ArrowResponse arrowResponse = dropNullColumns
+                    ? new ArrowResponse(columns, esqlResponse.pages(), esqlResponse.nullColumns())
+                    : new ArrowResponse(columns, esqlResponse.pages());
                 restResponse = RestResponse.chunked(RestStatus.OK, arrowResponse, Releasables.wrap(arrowResponse, releasable));
             } else {
                 restResponse = RestResponse.chunked(

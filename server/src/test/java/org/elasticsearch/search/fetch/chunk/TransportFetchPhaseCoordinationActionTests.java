@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.fetch.chunk;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -71,6 +72,7 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
 
+    private static final int NO_RANK = -1;
     private static final ShardId TEST_SHARD_ID = new ShardId(new Index("test-index", "test-uuid"), 0);
 
     private ThreadPool threadPool;
@@ -392,6 +394,75 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
         assertThat("the breaker holds exactly what the result carries", used, equalTo(charged));
         // The action gives the result back in a finally after this listener returns, on the handler's thread.
         assertBusy(() -> assertThat("releasing the result gives the charge back", breaker.getUsed(), equalTo(0L)));
+    }
+
+    /**
+     * A data node that falls back to a classic fetch, and predates writing positions for this coordinator, serializes the hits
+     * into lastChunkBytes without position prefixes. The coordinator must return the classic hits as they are instead of decoding
+     * those bytes.
+     */
+    public void testDoExecutePassesClassicFallbackResultThrough() {
+        float[] scores = { 3.25f, 1.5f, 0.75f };
+        transportService.registerRequestHandler(
+            FETCH_ID_ACTION_NAME,
+            threadPool.executor(ThreadPool.Names.GENERIC),
+            ShardFetchSearchRequest::new,
+            (req, channel, task) -> {
+                FetchSearchResult result = createFetchSearchResult();
+                try {
+                    SearchHit[] hits = new SearchHit[scores.length];
+                    for (int i = 0; i < hits.length; i++) {
+                        SearchHit hit = new SearchHit(i, "doc-" + i);
+                        hit.score(scores[i]);
+                        hit.sourceRef(new BytesArray("{\"id\":" + i + "}"));
+                        hits[i] = hit;
+                    }
+                    result.shardResult(new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), scores[0]), null);
+                    BytesStreamOutput out = new BytesStreamOutput();
+                    for (SearchHit hit : hits) {
+                        hit.writeTo(out);
+                    }
+                    result.setLastChunkBytes(out.bytes(), hits.length);
+                    result.setLastChunkSequenceStart(0L);
+                    channel.sendResponse(result);
+                } finally {
+                    result.decRef();
+                }
+            }
+        );
+
+        TransportFetchPhaseCoordinationAction.Request request = new TransportFetchPhaseCoordinationAction.Request(
+            createShardFetchSearchRequest(),
+            transportService.getLocalNode(),
+            Collections.emptyMap(),
+            l -> {},
+            l -> {},
+            e -> {}
+        );
+
+        // Take a reference before the data node's handler releases the result, so the assertions can run on the test thread.
+        PlainActionFuture<FetchSearchResult> future = new PlainActionFuture<>();
+        action.doExecute(createTask(123L), request, future.map(response -> {
+            FetchSearchResult fetched = response.getResult();
+            fetched.mustIncRef();
+            return fetched;
+        }));
+        FetchSearchResult result = future.actionGet(10, TimeUnit.SECONDS);
+        try {
+            SearchHit[] hits = result.hits().getHits();
+            assertThat(hits.length, equalTo(scores.length));
+            for (int i = 0; i < hits.length; i++) {
+                SearchHit hit = hits[i];
+                assertThat(hit.getId(), equalTo("doc-" + i));
+                assertThat(hit.getScore(), equalTo(scores[i]));
+                assertThat(hit.getRank(), equalTo(NO_RANK));
+            }
+            assertNull(result.getLastChunkBytes());
+            assertThat(result.getLastChunkHitCount(), equalTo(0));
+            assertThat(result.getLastChunkSequenceStart(), equalTo(-1L));
+        } finally {
+            result.decRef();
+        }
     }
 
     public void testDoExecuteIgnoresLastChunkBytesWhenHitCountIsZero() {

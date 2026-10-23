@@ -1,0 +1,2 @@
+id:keyword,@timestamp:date,attributes,meta,attributes_info,tag:keyword
+u1,2024-01-02T00:00:00.000Z,{"host":"d"\,"env":"dev"},{"labels":{"team":"green"}\,"owner":"cy"},{"total":"2"},z

@@ -10,9 +10,11 @@ package org.elasticsearch.simdvec.internal.vectorization;
 
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitUtil;
+import org.elasticsearch.lucene.store.SegmentBufferScratch;
 import org.elasticsearch.simdvec.BBQEncoding;
+import org.elasticsearch.simdvec.BulkMask;
 import org.elasticsearch.simdvec.ESVectorUtil;
-import org.elasticsearch.simdvec.internal.BufferScratch;
+import org.elasticsearch.simdvec.internal.HeapBufferScratch;
 
 import java.io.IOException;
 
@@ -43,7 +45,10 @@ public class BBQDotProduct {
     /** Byte length of the query vector, {@code queryBits * planeBytes} */
     protected final int queryBytes;
 
-    protected final BufferScratch scratch = new BufferScratch();
+    protected final SegmentBufferScratch scratch = new SegmentBufferScratch();
+
+    /** Heap scratch for the scalar implementations below, which read the data vector in Java. */
+    private final HeapBufferScratch heapScratch = new HeapBufferScratch();
 
     /**
      * Factory method for a scalar dot-product implementation.
@@ -93,7 +98,7 @@ public class BBQDotProduct {
         /*
          * Basic generalized dot-product implementation using AND popcount on byte arrays
          */
-        byte[] data = scratch.apply(docBytes);
+        byte[] data = heapScratch.apply(docBytes);
         in.readBytes(data, 0, docBytes);
 
         long dot = 0;
@@ -119,17 +124,14 @@ public class BBQDotProduct {
     /**
      * Scores a subset of the next {@code count} data vectors, advancing the input past all of them
      * so a block can be consumed whole even when most of it is filtered out.
-     * Positions not listed in {@code offsets} are left untouched.
+     * The scores at the positions not selected in {@code mask} are unspecified and must not be read.
      *
-     * @param offsets      positions within the block to score, strictly ascending and all less than {@code count}
-     * @param offsetsCount number of valid entries in {@code offsets}
-     * @param scores       receives the score at each listed position
+     * @param mask   bit {@code i} selects the vector at position {@code i}; no bit at or above {@code count} is set
+     * @param scores receives the score at each selected position
      */
-    public void dotProductBulkOffsets(byte[] query, int[] offsets, int offsetsCount, float[] scores, int count) throws IOException {
-        int next = 0;
+    public void dotProductBulkMasked(byte[] query, int mask, float[] scores, int count) throws IOException {
         for (int i = 0; i < count; i++) {
-            if (next < offsetsCount && offsets[next] == i) {
-                next++;
+            if (BulkMask.isSelected(mask, i)) {
                 scores[i] = dotProduct(query);
             } else {
                 in.skipBytes(docBytes);

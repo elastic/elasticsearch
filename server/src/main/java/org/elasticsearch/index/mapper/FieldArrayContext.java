@@ -109,6 +109,20 @@ public class FieldArrayContext {
         offsets.recordNull();
     }
 
+    /**
+     * Records a value of {@code field} that was not indexed, because of {@code ignore_above} or {@code ignore_malformed}, and so
+     * occupies no offsets slot. Such values live in field-specific fallback storage that the field's synthetic source loader
+     * reads back, but an {@code _ignored_source} entry for the field suppresses that loader at load time. So when the encoded
+     * offsets turn out too large for a sorted doc value and the array is moved to {@code _ignored_source} (see
+     * {@link #recordOffset(String, Comparable, CheckedBiConsumer)}), the recorded ignored values are written into that entry at
+     * their original position in the array. They are not part of the encoded offsets.
+     *
+     * @param encodedValue the ignored value, encoded like {@link XContentDataHelper#encodeToken} does
+     */
+    public void recordIgnored(String field, BytesRef encodedValue) {
+        offsetsFor(field).recordIgnored(encodedValue);
+    }
+
     void maybeRecordEmptyArray(String field) {
         offsetsFor(field).markEmptyArray();
     }
@@ -145,9 +159,11 @@ public class FieldArrayContext {
      * Fallback for a leaf array whose encoded offsets exceed {@link IndexWriter#MAX_TERM_LENGTH}: rebuilds the array from the
      * recorded offsets, in original element order, and stores it in {@code _ignored_source}. The {@code _ignored_source} entry
      * takes precedence over the field's own synthetic source loader at load time (see {@code ObjectMapper}'s synthetic source
-     * field loader), so the values are not synthesized twice. When the array cannot be preserved in {@code _ignored_source}
-     * the document is rejected, like it was before this fallback existed, but with an earlier and clearer error than the one
-     * Lucene produces for an oversized sorted doc value.
+     * field loader), so the values are not synthesized twice. Since that also suppresses the field-specific storage of values
+     * that were ignored (e.g. {@code ignore_above} or {@code ignore_malformed}), the ignored values recorded via
+     * {@link #recordIgnored(String, BytesRef)} are written into the entry too, at their original position. When the array cannot
+     * be preserved in {@code _ignored_source} the document is rejected, like it was before this fallback existed, but with an
+     * earlier and clearer error than the one Lucene produces for an oversized sorted doc value.
      */
     private static void storeArrayInIgnoredSource(
         DocumentParserContext context,
@@ -166,10 +182,11 @@ public class FieldArrayContext {
         }
         assert offsetsFieldName.endsWith(OFFSETS_FIELD_NAME_SUFFIX) : offsetsFieldName;
         String fieldName = offsetsFieldName.substring(0, offsetsFieldName.length() - OFFSETS_FIELD_NAME_SUFFIX.length());
-        if (context.isFieldIgnored(fieldName)) {
-            // Some values of this field were not indexed (e.g. ignore_above or ignore_malformed) and so have no recorded slot;
-            // they live in field-specific fallback storage that the _ignored_source entry would suppress at load time, so the
-            // array cannot be preserved in _ignored_source without losing those values.
+        List<Offsets.IgnoredValue> ignoredValues = offsets.ignoredValues();
+        if (ignoredValues.isEmpty() && context.isFieldIgnored(fieldName)) {
+            // Some values of this field were not indexed (e.g. ignore_above or ignore_malformed), but the mapper did not record
+            // them here. They live in field-specific fallback storage that the _ignored_source entry would suppress at load
+            // time, so the array cannot be preserved in _ignored_source without losing those values.
             throw new IllegalArgumentException(
                 oversizedOffsetsMessage(offsetsFieldName, encodedSize)
                     + " and the array cannot be preserved in [_ignored_source] because some values of ["
@@ -187,15 +204,25 @@ public class FieldArrayContext {
             }
         }
         String leafName = leafName(context, fieldName);
-        // Slots recorded via recordNull keep their null and are written as explicit null values below.
+        // Slots recorded via recordNull keep their null and are written as explicit null values below. Ignored values have no
+        // slot; each one is written before the slot it was recorded ahead of, which restores its original position.
         try (XContentBuilder builder = XContentBuilder.builder(context.parser().contentType().xContent())) {
             builder.startArray();
-            for (Comparable<?> slotValue : slotValues) {
+            int nextIgnored = 0;
+            for (int slot = 0; slot < slotValues.length; slot++) {
+                while (nextIgnored < ignoredValues.size() && ignoredValues.get(nextIgnored).slot() == slot) {
+                    XContentDataHelper.decodeAndWrite(builder, ignoredValues.get(nextIgnored++).encodedValue());
+                }
+                Comparable<?> slotValue = slotValues[slot];
                 if (slotValue == null) {
                     builder.nullValue();
                 } else {
                     fallbackWriter.accept(builder, slotValue);
                 }
+            }
+            // Ignored values that came after the last slot.
+            for (; nextIgnored < ignoredValues.size(); nextIgnored++) {
+                XContentDataHelper.decodeAndWrite(builder, ignoredValues.get(nextIgnored).encodedValue());
             }
             builder.endArray();
             int parentOffset = fieldName.lastIndexOf(leafName);
@@ -382,6 +409,16 @@ public class FieldArrayContext {
         // encoded offsets are too large for a sorted doc value.
         private CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> fallbackWriter;
 
+        // Values that were not indexed (ignore_above, ignore_malformed) and so occupy no slot. Only used to rebuild the array
+        // for _ignored_source when the encoded offsets are too large for a sorted doc value; not part of the encoded offsets.
+        private List<IgnoredValue> ignoredValues;
+
+        /**
+         * An ignored value and the slot it was recorded ahead of, i.e. the number of slots recorded before it. Equals the total
+         * slot count when the ignored value came after the last slot.
+         */
+        record IgnoredValue(int slot, BytesRef encodedValue) {}
+
         // Inline single-value state — non-null while no second value/null/empty-array marker has been recorded yet
         private Comparable<?> pendingValue;
 
@@ -412,6 +449,19 @@ public class FieldArrayContext {
 
         public void markEmptyArray() {
             startRecording();
+        }
+
+        public void recordIgnored(BytesRef encodedValue) {
+            if (ignoredValues == null) {
+                ignoredValues = new ArrayList<>(2);
+            }
+            // currentOffset() also counts the inline pending value, which startRecording() later backfills at slot 0.
+            ignoredValues.add(new IgnoredValue(currentOffset(), encodedValue));
+        }
+
+        /** The ignored values in recording order, so by non-decreasing {@link IgnoredValue#slot()}. */
+        List<IgnoredValue> ignoredValues() {
+            return ignoredValues == null ? List.of() : ignoredValues;
         }
 
         public int currentOffset() {

@@ -182,6 +182,48 @@ public abstract class OffsetDocValuesLoaderTestCase extends MapperServiceTestCas
     }
 
     /**
+     * Like {@link #testOversizedOffsetArrayFallsBackToIgnoredSource()}, but some of the array's values are malformed and ignored
+     * via {@code ignore_malformed}. Such values get no offsets slot and are stored in the field's own fallback storage, which the
+     * {@code _ignored_source} entry suppresses at load time. So the entry carries the malformed values itself, at their original
+     * position in the array.
+     */
+    public void testOversizedOffsetArrayWithMalformedValuesFallsBackToIgnoredSource() throws Exception {
+        assumeTrue("field type has no ignore_malformed parameter", randomMalformedValue() != null);
+        int numSlots = IndexWriter.MAX_TERM_LENGTH + between(1, 500);
+        List<Object> values = new ArrayList<>(numSlots);
+        for (int i = 0; i < numSlots; i++) {
+            values.add(randomBoolean() && randomBoolean() ? null : randomValue());
+        }
+        // Cover the first and last position, several in between, and two adjacent ones.
+        values.addFirst(randomMalformedValue());
+        values.addLast(randomMalformedValue());
+        int adjacent = between(1, values.size() - 1);
+        values.add(adjacent, randomMalformedValue());
+        values.add(adjacent, randomMalformedValue());
+        for (int i = 0; i < between(1, 10); i++) {
+            values.add(between(1, values.size() - 1), randomMalformedValue());
+        }
+
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("field");
+        minimalMapping(mapping);
+        mapping.field("ignore_malformed", true);
+        mapping.endObject().endObject().endObject().endObject();
+        try (var mapperService = createMapperService(mapping)) {
+            var mapper = mapperService.documentMapper();
+
+            var doc = mapper.parse(source(b -> b.field("field", values)));
+            assertThat(doc.rootDoc().getFields("field.offsets"), Matchers.empty());
+
+            String expected;
+            try (XContentBuilder b = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                b.startObject().field("field", values).endObject();
+                expected = Strings.toString(b);
+            }
+            assertThat(syntheticSource(mapper, b -> b.field("field", values)), Matchers.equalTo(expected));
+        }
+    }
+
+    /**
      * Like {@link #testOversizedOffsetArrayFallsBackToIgnoredSource()}, but the field is mapped dynamically by the very
      * document that holds the oversized array, so the field's mapper is not part of the mapping lookup while the document
      * is parsed. A dynamic template pins the field type under test, since plain dynamic mapping only produces a few types.
@@ -278,6 +320,15 @@ public abstract class OffsetDocValuesLoaderTestCase extends MapperServiceTestCas
     protected abstract String getFieldTypeName();
 
     protected abstract Object randomValue();
+
+    /**
+     * A value that the field type under test rejects, and ignores with {@code ignore_malformed: true}, or {@code null} when the
+     * field type has no {@code ignore_malformed} parameter. By default a string of letters, which none of the field types with
+     * {@code ignore_malformed} parses.
+     */
+    protected Object randomMalformedValue() {
+        return randomAlphaOfLength(10);
+    }
 
     protected void verifyOffsets(String source) throws IOException {
         verifyOffsets(source, source);

@@ -10,7 +10,9 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexWriter;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
@@ -26,20 +28,26 @@ public class KeywordOffsetDocValuesLoaderTests extends OffsetDocValuesLoaderTest
     }
 
     /**
-     * When an array's encoded offsets exceed {@link IndexWriter#MAX_TERM_LENGTH} and some of its values were ignored
-     * (here via {@code ignore_above}), the array cannot be moved to {@code _ignored_source} either: the entry would
-     * suppress the separately stored ignored values at load time. Such documents are rejected, with a clearer and
-     * earlier error than the one Lucene produces for an oversized sorted doc value.
+     * When an array's encoded offsets exceed {@link IndexWriter#MAX_TERM_LENGTH} and some of its values were ignored via
+     * {@code ignore_above}, the array is still moved to {@code _ignored_source}. The entry suppresses the field's own storage of
+     * ignored values at load time, so it carries the ignored values itself, at their original position in the array.
      */
-    public void testOversizedOffsetArrayWithIgnoredValuesIsRejected() throws Exception {
+    public void testOversizedOffsetArrayWithIgnoredValuesFallsBackToIgnoredSource() throws Exception {
         int numSlots = IndexWriter.MAX_TERM_LENGTH + between(1, 500);
         List<Object> values = new ArrayList<>(numSlots);
         for (int i = 0; i < numSlots; i++) {
-            values.add(randomValue());
+            values.add(randomBoolean() && randomBoolean() ? null : randomValue());
         }
-        // A value longer than ignore_above gets no offsets slot and is stored in the field's own fallback storage.
-        String ignoredValue = randomAlphaOfLength(20);
-        values.add(between(0, values.size() - 1), ignoredValue);
+        // Values longer than ignore_above get no offsets slot and are stored in the field's own fallback storage. Cover the
+        // first and last position, several in between, and two adjacent ones.
+        values.addFirst(randomAlphaOfLength(20));
+        values.addLast(randomAlphaOfLength(20));
+        int adjacent = between(1, values.size() - 1);
+        values.add(adjacent, randomAlphaOfLength(20));
+        values.add(adjacent, randomAlphaOfLength(20));
+        for (int i = 0; i < between(1, 10); i++) {
+            values.add(between(1, values.size() - 1), randomAlphaOfLength(20));
+        }
 
         XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("field");
         minimalMapping(mapping);
@@ -48,10 +56,22 @@ public class KeywordOffsetDocValuesLoaderTests extends OffsetDocValuesLoaderTest
         try (var mapperService = createMapperService(mapping)) {
             var mapper = mapperService.documentMapper();
 
-            var exception = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.field("field", values))));
-            assertThat(exception.getCause().getMessage(), Matchers.containsString("encoded offsets of field [field.offsets]"));
-            assertThat(exception.getCause().getMessage(), Matchers.containsString("because some values of [field] were ignored"));
+            var doc = mapper.parse(source(b -> b.field("field", values)));
+            assertThat(doc.rootDoc().getFields("field.offsets"), Matchers.empty());
+
+            String expected;
+            try (XContentBuilder b = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                b.startObject().field("field", values).endObject();
+                expected = Strings.toString(b);
+            }
+            assertThat(syntheticSource(mapper, b -> b.field("field", values)), Matchers.equalTo(expected));
         }
+    }
+
+    @Override
+    protected Object randomMalformedValue() {
+        // keyword has no ignore_malformed; see testOversizedOffsetArrayWithIgnoredValuesFallsBackToIgnoredSource for ignore_above
+        return null;
     }
 
     public void testOffsetNestedArray() throws Exception {

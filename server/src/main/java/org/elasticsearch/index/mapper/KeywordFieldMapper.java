@@ -2339,6 +2339,16 @@ public final class KeywordFieldMapper extends FieldMapper {
                 context.getOffSetContext().recordOffset(offsetsFieldName, value.bytes(), OFFSETS_FALLBACK);
             } else if (value == null) {
                 context.getOffSetContext().recordNull(offsetsFieldName, OFFSETS_FALLBACK);
+            } else {
+                // The value tripped ignore_above: a field that records offsets has doc values, so that is the only reason a non-null
+                // value is not indexed. It gets no slot, but is recorded so that the _ignored_source fallback for oversized offsets
+                // can carry it; the field's own storage of ignored values is suppressed by an _ignored_source entry.
+                var utfBytes = value.bytes();
+                context.getOffSetContext()
+                    .recordIgnored(
+                        offsetsFieldName,
+                        XContentDataHelper.encodeString(new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length()))
+                    );
             }
         }
     }

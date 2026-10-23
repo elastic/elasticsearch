@@ -135,7 +135,7 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
 
     IndexingMemoryController(Settings settings, IndexingMemoryLimits limits, ThreadPool threadPool, Iterable<IndexShard> indexServices) {
         this.indexShards = indexServices;
-        this.indexingBuffer = limits.indexBufferBytes();
+        this.indexingBuffer = limits.indexBufferSize().getBytes();
 
         this.inactiveTime = SHARD_INACTIVE_TIME_SETTING.get(settings);
         // we need to have this relatively small to free up heap quickly enough

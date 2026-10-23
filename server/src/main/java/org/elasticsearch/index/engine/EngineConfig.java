@@ -229,7 +229,7 @@ public final class EngineConfig {
         if (maxBufferSize != null) {
             indexingBufferSize = MemorySizeValue.parseBytesSizeValueOrHeapRatio(maxBufferSize, escapeHatchProperty);
         } else {
-            indexingBufferSize = ByteSizeValue.ofBytes(indexingMemoryLimits.indexBufferBytes());
+            indexingBufferSize = indexingMemoryLimits.indexBufferSize();
         }
         this.queryCache = queryCache;
         this.queryCachingPolicy = queryCachingPolicy;

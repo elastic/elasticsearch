@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.indices.IndexingMemoryController;
 
 /**
@@ -21,23 +22,23 @@ import org.elasticsearch.indices.IndexingMemoryController;
 public interface IndexingMemoryLimits {
 
     /** The limit on the bytes held by in-flight coordinating operations. */
-    long coordinatingLimitBytes();
+    ByteSizeValue coordinatingLimit();
 
     /** The limit on the bytes held by in-flight coordinating and primary operations combined. */
-    long primaryLimitBytes();
+    ByteSizeValue primaryLimit();
 
     /** The limit on the bytes held by in-flight replica operations. */
-    long replicaLimitBytes();
+    ByteSizeValue replicaLimit();
 
     /** The largest single operation that will be accepted. */
-    long maxOperationSizeBytes();
+    ByteSizeValue maxOperationSize();
 
     /** Bulks are split into {@link IndexingPressure#SPLIT_BULK_HIGH_WATERMARK_SIZE} chunks once indexing memory use reaches this. */
-    long splitBulkHighWatermarkBytes();
+    ByteSizeValue splitBulkHighWatermark();
 
     /** Bulks are split into {@link IndexingPressure#SPLIT_BULK_LOW_WATERMARK_SIZE} chunks once indexing memory use reaches this. */
-    long splitBulkLowWatermarkBytes();
+    ByteSizeValue splitBulkLowWatermark();
 
     /** The budget for the indexing buffers of all active shards on the node. */
-    long indexBufferBytes();
+    ByteSizeValue indexBufferSize();
 }

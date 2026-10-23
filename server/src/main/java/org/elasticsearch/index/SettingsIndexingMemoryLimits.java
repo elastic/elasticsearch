@@ -21,25 +21,25 @@ import static org.elasticsearch.indices.IndexingMemoryController.MIN_INDEX_BUFFE
  */
 public final class SettingsIndexingMemoryLimits implements IndexingMemoryLimits {
 
-    private final long coordinatingLimit;
-    private final long primaryLimit;
-    private final long replicaLimit;
-    private final long maxOperationSize;
-    private final long splitBulkHighWatermark;
-    private final long splitBulkLowWatermark;
-    private final long indexBuffer;
+    private final ByteSizeValue coordinatingLimit;
+    private final ByteSizeValue primaryLimit;
+    private final ByteSizeValue replicaLimit;
+    private final ByteSizeValue maxOperationSize;
+    private final ByteSizeValue splitBulkHighWatermark;
+    private final ByteSizeValue splitBulkLowWatermark;
+    private final ByteSizeValue indexBufferSize;
 
     public SettingsIndexingMemoryLimits(Settings settings) {
-        this.coordinatingLimit = IndexingPressure.MAX_COORDINATING_BYTES.get(settings).getBytes();
-        this.primaryLimit = IndexingPressure.MAX_PRIMARY_BYTES.get(settings).getBytes();
-        this.replicaLimit = IndexingPressure.MAX_REPLICA_BYTES.get(settings).getBytes();
-        this.maxOperationSize = IndexingPressure.MAX_OPERATION_SIZE.get(settings).getBytes();
-        this.splitBulkHighWatermark = IndexingPressure.SPLIT_BULK_HIGH_WATERMARK.get(settings).getBytes();
-        this.splitBulkLowWatermark = IndexingPressure.SPLIT_BULK_LOW_WATERMARK.get(settings).getBytes();
-        this.indexBuffer = indexBuffer(settings);
+        this.coordinatingLimit = IndexingPressure.MAX_COORDINATING_BYTES.get(settings);
+        this.primaryLimit = IndexingPressure.MAX_PRIMARY_BYTES.get(settings);
+        this.replicaLimit = IndexingPressure.MAX_REPLICA_BYTES.get(settings);
+        this.maxOperationSize = IndexingPressure.MAX_OPERATION_SIZE.get(settings);
+        this.splitBulkHighWatermark = IndexingPressure.SPLIT_BULK_HIGH_WATERMARK.get(settings);
+        this.splitBulkLowWatermark = IndexingPressure.SPLIT_BULK_LOW_WATERMARK.get(settings);
+        this.indexBufferSize = indexBufferSize(settings);
     }
 
-    private static long indexBuffer(Settings settings) {
+    private static ByteSizeValue indexBufferSize(Settings settings) {
         ByteSizeValue indexingBuffer = INDEX_BUFFER_SIZE_SETTING.get(settings);
 
         String indexingBufferSetting = settings.get(INDEX_BUFFER_SIZE_SETTING.getKey());
@@ -55,41 +55,41 @@ public final class SettingsIndexingMemoryLimits implements IndexingMemoryLimits 
                 indexingBuffer = maxIndexingBuffer;
             }
         }
-        return indexingBuffer.getBytes();
+        return indexingBuffer;
     }
 
     @Override
-    public long coordinatingLimitBytes() {
+    public ByteSizeValue coordinatingLimit() {
         return coordinatingLimit;
     }
 
     @Override
-    public long primaryLimitBytes() {
+    public ByteSizeValue primaryLimit() {
         return primaryLimit;
     }
 
     @Override
-    public long replicaLimitBytes() {
+    public ByteSizeValue replicaLimit() {
         return replicaLimit;
     }
 
     @Override
-    public long maxOperationSizeBytes() {
+    public ByteSizeValue maxOperationSize() {
         return maxOperationSize;
     }
 
     @Override
-    public long splitBulkHighWatermarkBytes() {
+    public ByteSizeValue splitBulkHighWatermark() {
         return splitBulkHighWatermark;
     }
 
     @Override
-    public long splitBulkLowWatermarkBytes() {
+    public ByteSizeValue splitBulkLowWatermark() {
         return splitBulkLowWatermark;
     }
 
     @Override
-    public long indexBufferBytes() {
-        return indexBuffer;
+    public ByteSizeValue indexBufferSize() {
+        return indexBufferSize;
     }
 }

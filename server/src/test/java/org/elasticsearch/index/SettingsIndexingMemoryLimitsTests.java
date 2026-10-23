@@ -10,6 +10,7 @@
 package org.elasticsearch.index;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.elasticsearch.indices.IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING;
@@ -31,13 +32,13 @@ public class SettingsIndexingMemoryLimitsTests extends ESTestCase {
                 .put(INDEX_BUFFER_SIZE_SETTING.getKey(), "100mb")
                 .build()
         );
-        assertThat(limits.coordinatingLimitBytes(), equalTo(1L << 20));
-        assertThat(limits.primaryLimitBytes(), equalTo(2L << 20));
-        assertThat(limits.replicaLimitBytes(), equalTo(3L << 20));
-        assertThat(limits.maxOperationSizeBytes(), equalTo(4L << 20));
-        assertThat(limits.splitBulkHighWatermarkBytes(), equalTo(5L << 20));
-        assertThat(limits.splitBulkLowWatermarkBytes(), equalTo(6L << 20));
-        assertThat(limits.indexBufferBytes(), equalTo(100L << 20));
+        assertThat(limits.coordinatingLimit(), equalTo(ByteSizeValue.ofBytes(1L << 20)));
+        assertThat(limits.primaryLimit(), equalTo(ByteSizeValue.ofBytes(2L << 20)));
+        assertThat(limits.replicaLimit(), equalTo(ByteSizeValue.ofBytes(3L << 20)));
+        assertThat(limits.maxOperationSize(), equalTo(ByteSizeValue.ofBytes(4L << 20)));
+        assertThat(limits.splitBulkHighWatermark(), equalTo(ByteSizeValue.ofBytes(5L << 20)));
+        assertThat(limits.splitBulkLowWatermark(), equalTo(ByteSizeValue.ofBytes(6L << 20)));
+        assertThat(limits.indexBufferSize(), equalTo(ByteSizeValue.ofBytes(100L << 20)));
     }
 
     public void testIndexBufferClampsApplyToPercentagesOnly() {
@@ -46,12 +47,12 @@ public class SettingsIndexingMemoryLimitsTests extends ESTestCase {
             .put(MAX_INDEX_BUFFER_SIZE_SETTING.getKey(), "300mb");
 
         var belowMin = Settings.builder().put(clamps.build()).put(INDEX_BUFFER_SIZE_SETTING.getKey(), "1b").build();
-        assertThat(new SettingsIndexingMemoryLimits(belowMin).indexBufferBytes(), equalTo(1L));
+        assertThat(new SettingsIndexingMemoryLimits(belowMin).indexBufferSize(), equalTo(ByteSizeValue.ofBytes(1L)));
 
         var tinyPercent = Settings.builder().put(clamps.build()).put(INDEX_BUFFER_SIZE_SETTING.getKey(), "0.0001%").build();
-        assertThat(new SettingsIndexingMemoryLimits(tinyPercent).indexBufferBytes(), equalTo(200L << 20));
+        assertThat(new SettingsIndexingMemoryLimits(tinyPercent).indexBufferSize(), equalTo(ByteSizeValue.ofBytes(200L << 20)));
 
         var hugePercent = Settings.builder().put(clamps.build()).put(INDEX_BUFFER_SIZE_SETTING.getKey(), "100%").build();
-        assertThat(new SettingsIndexingMemoryLimits(hugePercent).indexBufferBytes(), equalTo(300L << 20));
+        assertThat(new SettingsIndexingMemoryLimits(hugePercent).indexBufferSize(), equalTo(ByteSizeValue.ofBytes(300L << 20)));
     }
 }

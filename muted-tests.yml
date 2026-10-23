@@ -518,10 +518,6 @@ tests:
 - class: org.elasticsearch.columnar.string.StringColumnMetadataTests
   method: testRoundTrip
   issue: https://github.com/elastic/elasticsearch/issues/162976
-- class: org.elasticsearch.xpack.logsdb.patterntext.PatternTextIntegrationTests
-  tasks:
-  - :x-pack:plugin:logsdb:test
-  issue: https://github.com/elastic/elasticsearch/issues/163084
 - class: org.elasticsearch.xpack.stateless.commits.UploadQueueControllerServiceIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest

@@ -536,3 +536,8 @@ tests:
   - :qa:mixed-cluster:v9.2.8#yamlRestTest
   method: testSingleValuedString
   issue: https://github.com/elastic/elasticsearch/issues/162971
+- class: org.elasticsearch.xpack.stateless.objectstore.AzureBccWriteStallIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testRetryWhileFirstTryStillReadsUploadsCorrectBcc
+  issue: https://github.com/elastic/elasticsearch/issues/163111

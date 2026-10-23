@@ -27,11 +27,9 @@ import java.util.Objects;
 import java.util.function.UnaryOperator;
 
 import static java.util.Map.entry;
+import static org.elasticsearch.core.Strings.truncateForError;
 
 class JavaDateFormatter implements DateFormatter {
-
-    /** Maximum length of the input kept in a parse error. */
-    static final int MAX_INPUT_LENGTH_IN_ERROR = 1024;
 
     @SuppressWarnings("unchecked")
     private static <T extends DateTimeParser> T defaultRoundUp(T parser) {
@@ -219,7 +217,7 @@ class JavaDateFormatter implements DateFormatter {
             return doParse(input, roundupParsers);
         } catch (Exception e) {
             throw new IllegalArgumentException(
-                "failed to parse date field [" + Strings.cleanTruncate(input, MAX_INPUT_LENGTH_IN_ERROR) + "] with format [" + format + "]",
+                "failed to parse date field [" + truncateForError(input) + "] with format [" + format + "]",
                 e
             );
         }
@@ -235,7 +233,7 @@ class JavaDateFormatter implements DateFormatter {
             return doParse(input, parsers);
         } catch (Exception e) {
             throw new IllegalArgumentException(
-                "failed to parse date field [" + Strings.cleanTruncate(input, MAX_INPUT_LENGTH_IN_ERROR) + "] with format [" + format + "]",
+                "failed to parse date field [" + truncateForError(input) + "] with format [" + format + "]",
                 e
             );
         }

@@ -24,6 +24,7 @@ import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
 
+import static org.elasticsearch.core.Strings.MAX_INPUT_LENGTH_IN_ERROR;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -424,9 +425,9 @@ public class JavaDateMathParserTests extends ESTestCase {
     }
 
     public void testLongIllegalDateIsTruncatedInError() {
-        String date = "123bogus" + "x".repeat(randomIntBetween(10_000, 100_000));
+        String date = "123bogus" + "x".repeat(2 * MAX_INPUT_LENGTH_IN_ERROR);
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> parser.parse(date, () -> 0));
-        String kept = date.substring(0, JavaDateFormatter.MAX_INPUT_LENGTH_IN_ERROR);
+        String kept = date.substring(0, MAX_INPUT_LENGTH_IN_ERROR) + "...";
         String causeMessage = "failed to parse date field [" + kept + "] with format [date_optional_time||epoch_millis]";
         assertEquals(causeMessage, e.getCause().getMessage());
         assertEquals(
@@ -436,22 +437,16 @@ public class JavaDateMathParserTests extends ESTestCase {
     }
 
     public void testLongDateMathNumberIsTruncatedInError() {
-        String math = "+" + "1".repeat(randomIntBetween(10_000, 100_000)) + "d";
+        String math = "+" + "1".repeat(2 * MAX_INPUT_LENGTH_IN_ERROR) + "d";
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> parser.parse("now" + math, () -> 0));
-        assertEquals(
-            "invalid number in date math [" + math.substring(0, JavaDateFormatter.MAX_INPUT_LENGTH_IN_ERROR) + "]",
-            e.getMessage()
-        );
+        assertEquals("invalid number in date math [" + math.substring(0, MAX_INPUT_LENGTH_IN_ERROR) + "...]", e.getMessage());
         assertNull(e.getCause());
     }
 
     public void testLongIllegalDateMathIsTruncatedInError() {
-        String math = "+1" + "a".repeat(randomIntBetween(10_000, 100_000));
+        String math = "+1" + "a".repeat(2 * MAX_INPUT_LENGTH_IN_ERROR);
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> parser.parse("now" + math, () -> 0));
-        assertEquals(
-            "unit [a] not supported for date math [" + math.substring(0, JavaDateFormatter.MAX_INPUT_LENGTH_IN_ERROR) + "]",
-            e.getMessage()
-        );
+        assertEquals("unit [a] not supported for date math [" + math.substring(0, MAX_INPUT_LENGTH_IN_ERROR) + "...]", e.getMessage());
     }
 
     public void testOnlyCallsNowIfNecessary() {

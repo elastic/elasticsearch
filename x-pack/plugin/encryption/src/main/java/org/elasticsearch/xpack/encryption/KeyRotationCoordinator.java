@@ -566,7 +566,7 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
     record RetireKeysTask(long cutoffDeactivationMillis, String expectedActiveKeyId) implements KeyRotationTask {
         @Override
         public String description() {
-            return "project encryption key retire (cutoff=" + cutoffDeactivationMillis + ")";
+            return "project encryption key retire (cutoff=" + cutoffDeactivationMillis + ", expectedActiveKeyId=" + expectedActiveKeyId + ")";
         }
     }
 

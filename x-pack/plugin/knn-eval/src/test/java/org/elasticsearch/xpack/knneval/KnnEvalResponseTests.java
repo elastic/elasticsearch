@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.knneval;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -18,7 +17,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.vectors.RescoreVectorBuilder;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.knneval.KnnEvalResponse.KnnSettingsResult;
@@ -186,11 +184,5 @@ public class KnnEvalResponseTests extends AbstractWireSerializingTestCase<KnnEva
         String json = Strings.toString(response(null));
         assertThat(json, not(containsString("hnsw_early_termination")));
         assertThat(Strings.toString(response(false)), containsString("\"hnsw_early_termination\":false"));
-    }
-
-    public void testEarlyTerminationIsDroppedForOlderNodes() throws IOException {
-        TransportVersion older = TransportVersionUtils.getPreviousVersion(KnnEvalResponse.KNN_EVAL_HNSW_EARLY_TERMINATION);
-        assertNull(copyInstance(response(true), older).getHnswEarlyTermination());
-        assertEquals(Boolean.TRUE, copyInstance(response(true), TransportVersion.current()).getHnswEarlyTermination());
     }
 }

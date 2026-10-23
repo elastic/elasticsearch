@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.knneval;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -42,8 +41,6 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
     static final ParseField RESULTS_FIELD = new ParseField("results");
     static final ParseField FAILURES_FIELD = new ParseField("failures");
     static final ParseField HNSW_EARLY_TERMINATION_FIELD = new ParseField("hnsw_early_termination");
-
-    static final TransportVersion KNN_EVAL_HNSW_EARLY_TERMINATION = TransportVersion.fromName("knn_eval_hnsw_early_termination");
 
     private final String queryFrom;
     private final ReportedSettings baseline;
@@ -83,7 +80,7 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
         this.baselineVectorOpsKind = in.readString();
         this.results = in.readCollectionAsList(KnnSettingsResult::new);
         this.failures = in.readMap(StreamInput::readException);
-        this.hnswEarlyTermination = in.getTransportVersion().supports(KNN_EVAL_HNSW_EARLY_TERMINATION) ? in.readOptionalBoolean() : null;
+        this.hnswEarlyTermination = in.readOptionalBoolean();
     }
 
     public String getQueryFrom() {
@@ -129,9 +126,7 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
         out.writeString(baselineVectorOpsKind);
         out.writeCollection(results);
         out.writeMap(failures, StreamOutput::writeException);
-        if (out.getTransportVersion().supports(KNN_EVAL_HNSW_EARLY_TERMINATION)) {
-            out.writeOptionalBoolean(hnswEarlyTermination);
-        }
+        out.writeOptionalBoolean(hnswEarlyTermination);
     }
 
     @Override

@@ -1,6 +1,7 @@
 area: Store
 issues:
- - 148129
+ - 153282
+ - 48129
 pr: 149084
 summary: Fix missing versions in version map
 type: bug

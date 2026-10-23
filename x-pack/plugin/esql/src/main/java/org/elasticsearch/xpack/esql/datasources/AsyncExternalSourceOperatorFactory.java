@@ -1074,10 +1074,15 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * Whether {@code e} is the expected race of a driver that finished while this producer was opening its next
      * unit: the extract operator closed the {@link SourceExtractors} registry, which only happens after the driver
      * closed the source and so finished {@code buffer}. A closed registry with a live buffer is a wiring bug and
-     * is not matched, so it still fails the query instead of silently truncating results.
+     * is not matched, so it still fails the query instead of silently truncating results. A match is logged at
+     * {@code DEBUG} so the frequency of the race stays observable even though the exception is dropped.
      */
     private static boolean isRegistryClosedAfterBufferFinished(Throwable e, AsyncExternalSourceBuffer buffer) {
-        return e instanceof SourceExtractors.ClosedException && buffer.noMoreInputs();
+        if (e instanceof SourceExtractors.ClosedException && buffer.noMoreInputs()) {
+            logger.debug("driver finished while the source was opening its next unit; ending the source without a failure");
+            return true;
+        }
+        return false;
     }
 
     /**

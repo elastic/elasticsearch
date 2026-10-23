@@ -188,10 +188,15 @@ public abstract class AbstractOrdinalRunsTests extends ESTestCase {
         runTest(docs, randomBoolean(), AbstractOrdinalRunsTests::assertRuns);
     }
 
-    /** A series reported by two hosts has two runs; only the first is recorded and the documents of the second are strays. */
+    /**
+     * A series reported by two hosts has two runs; only the first is recorded and the documents of the second are strays. With a
+     * single series the two runs are adjacent and merge into one, as the writer only sees the ordinals: that is what the delete
+     * tombstones of the last live series do under the grouped time series sort, and readers clip that case (see
+     * {@code TSDBSyntheticIdDocValuesHolder#liveRunsEnd}).
+     */
     public void testStraysWhenSeriesSpanHosts() throws Exception {
         List<Doc> docs = new ArrayList<>();
-        int numSeries = between(1, 100);
+        int numSeries = between(2, 100);
         for (int series = 0; series < numSeries; series++) {
             BytesRef seriesValue = new BytesRef(String.format(java.util.Locale.ROOT, "series-%05d", series));
             docs.add(new Doc(new BytesRef("host-0"), seriesValue));

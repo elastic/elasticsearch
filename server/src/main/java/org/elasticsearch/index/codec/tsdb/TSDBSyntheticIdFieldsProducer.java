@@ -242,7 +242,7 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
                 int currentTsIdOrd = docTsIdOrd != null ? docTsIdOrd : docValues.docTsIdOrdinal(docID);
                 nextDocID = docID + 1;
                 // Skip documents without _tsid (NOOP tombstones)
-                final int runEnd = runs.endDoc(currentTsIdOrd);
+                final int runEnd = docValues.tsIdRunEnd(currentTsIdOrd);
                 while (nextDocID < runEnd && docValues.hasTsIdDocValue(nextDocID) == false) {
                     nextDocID++;
                 }
@@ -321,6 +321,11 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
             int firstDocID = docValues.findFirstDocWithTsIdOrdinalEqualTo(tsIdOrd);
             assert firstDocID != DocIdSetIterator.NO_MORE_DOCS;
             assert firstDocID >= 0 : firstDocID;
+            final var runs = docValues.tsIdRuns();
+            final int tsIdRunEnd = docValues.tsIdRunEnd(tsIdOrd);
+            // Under the grouped sort the documents of the _tsid end with its run and must not be scanned past it: the tombstones
+            // that may follow carry the same _tsid. Otherwise the scan runs until the ordinal changes.
+            final int scanEnd = runs != null ? tsIdRunEnd : maxDocs;
 
             // Extract the timestamp
             final long timestamp = TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(id);
@@ -358,7 +363,6 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
                 // Within the _tsid, documents are sorted by descending timestamp, so blocks whose minimum timestamp is greater than the
                 // one we're looking for only contain documents that precede the ceiling and can be skipped. Blocks that may contain
                 // documents of another _tsid must not be skipped: the ceiling might be their first document, whatever its timestamp.
-                final int tsIdRunEnd = docValues.tsIdRunEnd(tsIdOrd);
                 while (skipper.minDocID(0) != DocIdSetIterator.NO_MORE_DOCS
                     && skipper.maxDocID(0) < tsIdRunEnd
                     && skipper.minValue(0) > timestamp) {
@@ -379,7 +383,7 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
             final var randomAccessTimestamps = docValues.randomAccessTimestamps();
             if (randomAccessTimestamps != null) {
                 int lo = nextDocID;
-                int hi = docValues.tsIdRunEnd(tsIdOrd);
+                int hi = tsIdRunEnd;
                 while (lo < hi) {
                     final int mid = (lo + hi) >>> 1;
                     if (randomAccessTimestamps.valueAt(mid) > timestamp) {
@@ -395,7 +399,7 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
             long nextDocTimestamp;
 
             // Iterate over documents to find the first one matching the timestamp
-            for (; nextDocID < maxDocs; nextDocID++) {
+            for (; nextDocID < scanEnd; nextDocID++) {
                 // Skip documents without _tsid (NOOP tombstones)
                 if (docValues.hasTsIdDocValue(nextDocID) == false) {
                     continue;
@@ -408,7 +412,6 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
                     // Past the documents of the _tsid without a match: the ceiling is the first document of the next _tsid. When
                     // _tsid is the primary sort field that is this document; otherwise it is the start of the run of the next
                     // ordinal, if there is one.
-                    final var runs = docValues.tsIdRuns();
                     if (runs == null) {
                         assert nextDocTsIdOrd == tsIdOrd + 1 : nextDocTsIdOrd + " != " + (tsIdOrd + 1);
                         docID = nextDocID;
@@ -450,6 +453,13 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
                     docTimestamp = nextDocTimestamp;
                     return SeekStatus.NOT_FOUND;
                 }
+            }
+            if (runs != null && tsIdOrd + 1 < docValues.getTsIdValueCount()) {
+                // The run of the _tsid is exhausted without a match: the ceiling is the first document of the next ordinal's run
+                docID = runs.firstDoc(tsIdOrd + 1);
+                docTsIdOrd = tsIdOrd + 1;
+                docTimestamp = null;
+                return SeekStatus.NOT_FOUND;
             }
             resetDocID(DocIdSetIterator.NO_MORE_DOCS);
             return SeekStatus.END;

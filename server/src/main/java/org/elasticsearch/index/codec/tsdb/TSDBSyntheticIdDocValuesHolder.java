@@ -57,6 +57,11 @@ class TSDBSyntheticIdDocValuesHolder {
      * from the {@link OrdinalRunsDocValues.OrdinalRuns} of the segment.
      */
     private final boolean tsIdPrimarySorted;
+    /**
+     * The index sort field ahead of every other one, or {@code null} if _tsid is the primary sort field or the segment has no
+     * documents with a value for it. See {@link #liveRunsEnd()}.
+     */
+    private final @Nullable FieldInfo primarySortFieldInfo;
 
     private SortedNumericDocValues timestampDocValues; // sorted desc. order
     private SortedDocValues routingHashDocValues; // sorted asc. order
@@ -71,6 +76,8 @@ class TSDBSyntheticIdDocValuesHolder {
     // Resolved once; null when _tsid is the primary sort field or the segment has no _tsid values.
     private OrdinalRunsDocValues.OrdinalRuns tsIdRuns;
     private boolean tsIdRunsResolved;
+    // Resolved once, see #liveRunsEnd()
+    private int liveRunsEnd = -1;
     // tsids in the same segment have the same length
     private int tsidFixedLength = -1;
     // Keep around the latest tsId ordinal and value
@@ -80,6 +87,7 @@ class TSDBSyntheticIdDocValuesHolder {
     TSDBSyntheticIdDocValuesHolder(SegmentInfo segmentInfo, FieldInfos fieldInfos, DocValuesProducer docValuesProducer) {
         this.maxDocs = segmentInfo.maxDoc();
         this.tsIdPrimarySorted = tsIdIsPrimarySortField(segmentInfo);
+        this.primarySortFieldInfo = tsIdPrimarySorted ? null : fieldInfos.fieldInfo(segmentInfo.getIndexSort().getSort()[0].getField());
         this.tsIdFieldInfo = safeFieldInfo(fieldInfos, TSDBSyntheticIdPostingsFormat.TS_ID);
         this.timestampFieldInfo = safeFieldInfo(fieldInfos, TSDBSyntheticIdPostingsFormat.TIMESTAMP);
         this.routingHashFieldInfo = safeFieldInfo(fieldInfos, TSDBSyntheticIdPostingsFormat.TS_ROUTING_HASH);
@@ -143,15 +151,64 @@ class TSDBSyntheticIdDocValuesHolder {
     }
 
     /**
+     * Returns the first document of the region at the end of the segment whose documents have no value for the primary index sort
+     * field, or {@code maxDocs} if every document has one. Under the grouped sort those are the delete tombstones: they carry the
+     * _tsid of the deleted document but none of the sort keys ahead of it, so they trail the segment, sorted by _tsid and timestamp
+     * among themselves. When the tombstones of the last live _tsid directly follow its documents, the run recorded for that
+     * ordinal (see {@link OrdinalRunsWriter}) spans both and is not sorted by timestamp as a whole, so it is clipped here, see
+     * {@link #tsIdRunEnd}. Runs that start in the region (ordinals with tombstones only) are left intact.
+     */
+    private int liveRunsEnd() throws IOException {
+        if (liveRunsEnd == -1) {
+            if (primarySortFieldInfo == null) {
+                liveRunsEnd = 0;
+            } else {
+                // Bisect for the first document from which the field has no more values; every probe needs a fresh iterator, as
+                // doc values only advance.
+                int lo = 0;
+                int hi = maxDocs;
+                while (lo < hi) {
+                    int mid = (lo + hi) >>> 1;
+                    if (primarySortFieldValues().advance(mid) == DocIdSetIterator.NO_MORE_DOCS) {
+                        hi = mid;
+                    } else {
+                        lo = mid + 1;
+                    }
+                }
+                liveRunsEnd = lo;
+            }
+        }
+        return liveRunsEnd;
+    }
+
+    private DocIdSetIterator primarySortFieldValues() throws IOException {
+        return switch (primarySortFieldInfo.getDocValuesType()) {
+            case SORTED -> docValuesProducer.getSorted(primarySortFieldInfo);
+            case SORTED_SET -> docValuesProducer.getSortedSet(primarySortFieldInfo);
+            case NUMERIC -> docValuesProducer.getNumeric(primarySortFieldInfo);
+            case SORTED_NUMERIC -> docValuesProducer.getSortedNumeric(primarySortFieldInfo);
+            case BINARY -> docValuesProducer.getBinary(primarySortFieldInfo);
+            case NONE -> throw new IllegalStateException("Index sort field [" + primarySortFieldInfo.getName() + "] has no doc values");
+        };
+    }
+
+    /** The end of the run of {@code tsIdOrd}, without the tombstones that may directly follow its documents, see {@link #liveRunsEnd}. */
+    private int clippedRunEnd(OrdinalRunsDocValues.OrdinalRuns runs, int tsIdOrd) throws IOException {
+        final int end = runs.endDoc(tsIdOrd);
+        final int liveEnd = liveRunsEnd();
+        return runs.firstDoc(tsIdOrd) < liveEnd && liveEnd < end ? liveEnd : end;
+    }
+
+    /**
      * Returns a document id past all the documents of {@code tsIdOrd} that precedes all the documents of greater _tsid ordinals: the
-     * exact end of the run of the ordinal under the grouped sort, and, when _tsid is the primary sort field, the document the
-     * skipper reports the next ordinal from (every document before it has an ordinal at most {@code tsIdOrd}). Returns
-     * {@code maxDocs} if no document has a greater ordinal.
+     * end of the run of the ordinal under the grouped sort (see {@link #clippedRunEnd}), and, when _tsid is the primary sort field,
+     * the document the skipper reports the next ordinal from (every document before it has an ordinal at most {@code tsIdOrd}).
+     * Returns {@code maxDocs} if no document has a greater ordinal.
      */
     int tsIdRunEnd(int tsIdOrd) throws IOException {
         var runs = tsIdRuns();
         if (runs != null) {
-            return runs.endDoc(tsIdOrd);
+            return clippedRunEnd(runs, tsIdOrd);
         }
         int nextStartDocID = findStartDocIDForTsIdOrd(tsIdOrd + 1);
         return nextStartDocID == DocIdSetIterator.NO_MORE_DOCS ? maxDocs : nextStartDocID;
@@ -181,7 +238,7 @@ class TSDBSyntheticIdDocValuesHolder {
      */
     int lastDocInTermOrder() throws IOException {
         var runs = tsIdRuns();
-        int from = runs != null ? runs.endDoc(getTsIdValueCount() - 1) : maxDocs;
+        int from = runs != null ? clippedRunEnd(runs, getTsIdValueCount() - 1) : maxDocs;
         for (int doc = from - 1; doc >= 0; doc--) {
             if (hasTsIdDocValue(doc)) {
                 return doc;

@@ -69,6 +69,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.TreeMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -640,6 +641,60 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
             }
             try (var reader = DirectoryReader.open(writer)) {
                 assertThat("the sorted delete-term walk dropped deletes", reader.numDocs(), equalTo(0));
+            }
+        });
+    }
+
+    /**
+     * Under the grouped sort the delete tombstones trail the segment: they carry the _tsid of the deleted document but none of the
+     * sort keys ahead of it. The tombstones of the last time series directly follow its live documents, so the run recorded for
+     * that _tsid ordinal spans both and is not sorted by timestamp as a whole. The seek must not stray into the tombstones, or
+     * Lucene applies the soft delete to a tombstone and the live document survives.
+     */
+    public void testDeletesOfTheLastTimeSeriesUnderGroupedSort() throws IOException {
+        dimensionGroupField = "hostname";
+        runTest((writer, parser) -> {
+            final int routing = randomNonNegativeInt();
+            final long baseTimestamp = Instant.now().toEpochMilli();
+            final int numDocs = randomIntBetween(10, 2_000);
+            final var ids = new ArrayList<BytesRef>();
+            for (int i = 0; i < numDocs; i++) {
+                var doc = new Doc(baseTimestamp + i, "vm-dev-a", "cpu-load", randomInt(), 1, routing);
+                writer.addDocument(parser.parse(doc));
+                ids.add(uidEncodedSyntheticId(doc));
+            }
+            if (randomBoolean()) {
+                // The tombstones then trail their own segment
+                writer.flush();
+            }
+            final var deleted = new HashSet<>(randomSubsetOf(ids));
+            for (var uid : deleted) {
+                writer.softUpdateDocument(new Term(IdFieldMapper.NAME, uid), syntheticIdTombstone(uid), Lucene.newSoftDeletesField());
+            }
+            try (var reader = DirectoryReader.open(writer)) {
+                assertThat(reader.numDocs(), equalTo(numDocs - deleted.size()));
+                // Every remaining id still resolves to its live document, and no deleted one does
+                final var live = new HashSet<BytesRef>();
+                for (var context : reader.leaves()) {
+                    var leaf = context.reader();
+                    var termsEnum = leaf.terms(IdFieldMapper.NAME).iterator();
+                    var liveDocs = leaf.getLiveDocs();
+                    PostingsEnum postings = null;
+                    for (var uid : ids) {
+                        if (termsEnum.seekExact(uid) == false) {
+                            continue;
+                        }
+                        postings = termsEnum.postings(postings, PostingsEnum.NONE);
+                        for (int doc = postings.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = postings.nextDoc()) {
+                            if (liveDocs == null || liveDocs.get(doc)) {
+                                live.add(uid);
+                            }
+                        }
+                    }
+                }
+                for (var uid : ids) {
+                    assertThat("live " + uid, live.contains(uid), equalTo(deleted.contains(uid) == false));
+                }
             }
         });
     }

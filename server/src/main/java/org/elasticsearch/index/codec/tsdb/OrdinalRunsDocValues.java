@@ -26,6 +26,10 @@ import java.io.IOException;
  * tombstones: they carry the {@code _tsid} of the deleted document but none of the sort keys ahead of it, so they sort to the end of
  * the segment. They are soft-deleted and are never resolved by an {@code _id} lookup, which only needs the live documents, so not
  * enumerating their synthetic ids is acceptable (see {@code ParsedDocument#deleteTombstone}).
+ * <p>
+ * The runs are recorded from the ordinals alone, so when the tombstones of the last live {@code _tsid} directly follow its documents
+ * the run of that ordinal spans both. Readers that need the live documents only clip such a run at the first document without a value
+ * for the primary sort field, see {@code TSDBSyntheticIdDocValuesHolder#liveRunsEnd}.
  */
 public interface OrdinalRunsDocValues {
 

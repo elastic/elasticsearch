@@ -19,6 +19,7 @@ import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.LeafFieldComparator;
 import org.apache.lucene.search.LongValues;
 import org.apache.lucene.search.Pruning;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BitSet;
@@ -92,7 +93,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         this.alwaysMatchTailQuery = true;
     }
 
-    private SortedNumericLongValues loadDocValues(LeafReaderContext context) {
+    protected SortedNumericLongValues getValues(LeafReaderContext context) throws IOException {
         final LeafNumericFieldData data = indexFieldData.load(context);
         SortedNumericLongValues values;
         if (data instanceof SortedNumericIndexFieldData.NanoSecondFieldData) {
@@ -103,8 +104,10 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         return converter != null ? converter.apply(values) : values;
     }
 
+    protected void setScorer(LeafReaderContext context, Scorable scorer) {}
+
     DenseLongValues getLongValues(LeafReaderContext context, long missingValue) throws IOException {
-        final SortedNumericLongValues values = loadDocValues(context);
+        final SortedNumericLongValues values = getValues(context);
         if (nested == null) {
             var longValues = sortMode.select(values);
             if (longValues instanceof DenseLongValues denseLongValues) {
@@ -132,6 +135,13 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
                     @Override
                     protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field) throws IOException {
                         return wrap(getLongValues(context, lMissingValue), maxDoc);
+                    }
+
+                    @Override
+                    public void setScorer(Scorable scorer) throws IOException {
+                        // the base class feeds the scorer to the competitive iterator builder, which skipping relies on
+                        super.setScorer(scorer);
+                        LongValuesComparatorSource.this.setScorer(context, scorer);
                     }
 
                     @Override

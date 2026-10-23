@@ -80,12 +80,18 @@ public final class Scripts {
     }
 
     public static ScriptTemplate nullSafeSort(ScriptTemplate script) {
-        String methodName = script.outputType().isNumeric() ? "nullSafeSortNumeric" : "nullSafeSortString";
-        return new ScriptTemplate(
-            formatTemplate(format(Locale.ROOT, "{ql}.%s(%s)", methodName, script.template())),
-            script.params(),
-            script.outputType()
-        );
+        DataType outputType = script.outputType();
+        String template;
+        if (outputType.isNumeric() == false) {
+            template = format(Locale.ROOT, "{ql}.nullSafeSortString(%s)", script.template());
+        } else if (outputType.isRational() || outputType == DataTypes.UNSIGNED_LONG) {
+            template = format(Locale.ROOT, "{ql}.nullSafeSortNumeric(%s)", script.template());
+        } else {
+            // Inlined rather than a whitelisted helper so the script also compiles on nodes that predate the long sort type
+            // during a rolling upgrade; those nodes run it as a plain number sort.
+            template = format(Locale.ROOT, "def sv = %s; return sv == null ? 0L : ((Number) sv).longValue();", script.template());
+        }
+        return new ScriptTemplate(formatTemplate(template), script.params(), script.outputType());
     }
 
     public static ScriptTemplate and(ScriptTemplate left, ScriptTemplate right) {

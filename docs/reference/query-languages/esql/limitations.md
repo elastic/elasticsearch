@@ -206,9 +206,10 @@ which can appear anywhere in the query.
 
 ### Runtime search [esql-limitations-full-text-search-runtime]
 
-{applies_to}`stack: preview =9.5, ga 9.6+` {applies_to}`serverless: ga`
-`MATCH`, the `:` operator and `MATCH_PHRASE` can search expressions and other values that have no
-index behind them, such as a column computed by `EVAL`. This is called
+`MATCH` and the `:` operator {applies_to}`stack: preview =9.5, ga 9.6+` {applies_to}`serverless: ga`
+and `MATCH_PHRASE` {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga`
+can search expressions and other values that have no index behind them, such as a column computed by `EVAL`.
+This is called
 [runtime search](/reference/query-languages/esql/esql-runtime-search.md), and it has these limitations:
 
 * It is usually slower than a search on an indexed field, because it analyzes every row that

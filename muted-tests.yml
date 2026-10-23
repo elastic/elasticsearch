@@ -521,6 +521,7 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/163048
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   tasks:
+  - :qa:mixed-cluster:v9.1.9#yamlRestTest
   - :qa:mixed-cluster:v9.5.6#yamlRestTest
   issue: https://github.com/elastic/elasticsearch/issues/163053
 - class: org.elasticsearch.test.rest.yaml.CcsSearchYamlTestSuiteIT

@@ -80,6 +80,12 @@ import java.util.function.Function;
  *       can still touch external storage before this backstop fires.</li>
  * </ul>
  *
+ * <p>Availability is one gate; which credentials a shipped plan reads with is another, and is not decided here. A
+ * node that does have federation rebinds every dataset-backed external source in an arriving plan to its own
+ * registered definition before planning it ({@link DatasetConfigResolver}), so the plan chooses neither the storage
+ * config nor the resource it reads; only the snapshot-only inline {@code EXTERNAL} command, which has no definition,
+ * keeps its own.
+ *
  * <p>Because any node can be the coordinating node for a query and any node can receive a data
  * source / dataset create request, both levers must agree across <em>all</em> nodes for a consistent
  * result.

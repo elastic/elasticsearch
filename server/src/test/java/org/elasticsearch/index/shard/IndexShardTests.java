@@ -4571,6 +4571,7 @@ public class IndexShardTests extends IndexShardTestCase {
             primary.getLastSearcherAccess()
         );
         assertTrue(lastSearchAccess < primary.getLastSearcherAccess());
+        makeSearchActive(primary);
         try (Engine.Searcher searcher = primary.acquireSearcher("test")) {
             assertEquals(2, searcher.getIndexReader().numDocs());
         }
@@ -4588,6 +4589,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         });
         latch.await();
+        scopedSettings.applySettings(settings);
 
         // Index a document while shard is search is idle and ensure scheduleRefresh(...) returns false:
         logger.info("--> index doc while shard search is idle");
@@ -4612,6 +4614,391 @@ public class IndexShardTests extends IndexShardTestCase {
             assertEquals(3, searcher.getIndexReader().numDocs());
         }
         closeShards(primary);
+    }
+
+    /**
+     * Search-idle indexing does not set {@link IndexShard#hasRefreshPending()} until the next scheduled refresh. A search that arrives
+     * in that window must still see those writes.
+     */
+    public void testEnsureShardSearchActiveRefreshesIdleShardWithoutPendingLocation() throws Exception {
+        // Longer than the 200ms cached clock tick, so the shard cannot look idle right after ensureShardSearchActive records an access.
+        // A zero value keeps every shard idle, which would hide an idle check made after that access.
+        IndexShard primary = newShardWithOneRefreshedDoc(TimeValue.timeValueMillis(500));
+        try {
+            indexDoc(primary, "_doc", "1", "{\"foo\" : \"bar\"}");
+            assertBusy(() -> assertTrue(primary.isSearchIdle()));
+            assertFalse(primary.hasRefreshPending());
+
+            CountDownLatch latch = new CountDownLatch(1);
+            AtomicBoolean registered = new AtomicBoolean();
+            primary.ensureShardSearchActive(wasRegistered -> {
+                registered.set(wasRegistered);
+                latch.countDown();
+            });
+            safeAwait(latch);
+            assertTrue(registered.get());
+            assertThat(visibleDocs(primary), equalTo(2));
+            assertFalse(primary.hasRefreshPending());
+        } finally {
+            closeShards(primary);
+        }
+    }
+
+    public void testEnsureShardSearchActiveDoesNotRefreshActiveShardWithoutPendingLocation() throws Exception {
+        IndexShard primary = newShardWithOneRefreshedDoc(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getDefault(Settings.EMPTY));
+        try {
+            indexDoc(primary, "_doc", "1", "{\"foo\" : \"bar\"}");
+            assertFalse(primary.isSearchIdle());
+            assertThat(visibleDocs(primary), equalTo(1));
+            long refreshesBefore = primary.refreshStats().getTotal();
+
+            AtomicReference<Boolean> registered = new AtomicReference<>();
+            primary.ensureShardSearchActive(registered::set);
+            assertThat(registered.get(), is(false));
+            assertFalse(primary.hasRefreshPending());
+            flushThreadPoolExecutor(threadPool, ThreadPool.Names.REFRESH);
+            assertThat(primary.refreshStats().getTotal(), equalTo(refreshesBefore));
+            assertThat(visibleDocs(primary), equalTo(1));
+        } finally {
+            closeShards(primary);
+        }
+    }
+
+    /**
+     * {@link Engine#maybeRefresh} skips the refresh when another refresh holds the lock. The search must then keep waiting for a refresh
+     * that covers the pending location instead of running against the old reader.
+     */
+    public void testEnsureShardSearchActiveWaitsWhenForkedRefreshIsSkipped() throws Exception {
+        // Stands in for losing the refresh lock to a concurrent refresh, which cannot be arranged deterministically with a real engine.
+        final EngineFactory engineFactory = config -> new InternalEngine(config) {
+            @Override
+            public void maybeRefresh(String source, ActionListener<Engine.RefreshResult> listener) {
+                if ("ensure-shard-search-active".equals(source)) {
+                    listener.onResponse(Engine.RefreshResult.NO_REFRESH);
+                    return;
+                }
+                super.maybeRefresh(source, listener);
+            }
+        };
+        IndexShard primary = newStartedShard(true, Settings.EMPTY, engineFactory);
+        try {
+            indexDoc(primary, "_doc", "0");
+            PlainActionFuture<Boolean> refreshed = new PlainActionFuture<>();
+            primary.scheduledRefresh(refreshed);
+            assertTrue(refreshed.actionGet());
+
+            Settings searchIdleSettings = Settings.builder()
+                .put(primary.indexSettings().getSettings())
+                .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.ZERO)
+                .build();
+            primary.indexSettings().getScopedSettings().applySettings(searchIdleSettings);
+            indexDoc(primary, "_doc", "1");
+            PlainActionFuture<Boolean> deferred = new PlainActionFuture<>();
+            primary.scheduledRefresh(deferred);
+            assertFalse(deferred.actionGet());
+            assertTrue(primary.hasRefreshPending());
+            makeSearchActive(primary);
+
+            PlainActionFuture<Boolean> searchActive = new PlainActionFuture<>();
+            primary.ensureShardSearchActive(searchActive::onResponse);
+            flushThreadPoolExecutor(threadPool, ThreadPool.Names.REFRESH);
+            assertFalse(searchActive.isDone());
+
+            PlainActionFuture<Boolean> scheduled = new PlainActionFuture<>();
+            primary.scheduledRefresh(scheduled);
+            assertTrue(scheduled.actionGet());
+            assertThat(safeGet(searchActive), is(true));
+            assertThat(visibleDocs(primary), equalTo(2));
+        } finally {
+            closeShards(primary);
+        }
+    }
+
+    /**
+     * {@link IndexShard#ensureShardSearchActive} runs on transport workers, and checking a search-idle shard calls
+     * {@link Engine#refreshNeeded} and {@link Engine#getTranslogLastWriteLocation}, which can block. The check must run elsewhere, and a
+     * search that arrives while it runs must still wait for the refresh.
+     */
+    public void testEnsureShardSearchActiveChecksIdleShardOffCallingThread() throws Exception {
+        final AtomicReference<Thread> callingThread = new AtomicReference<>();
+        final CountDownLatch locationReadStarted = new CountDownLatch(1);
+        final CountDownLatch releaseLocation = new CountDownLatch(1);
+        // Fails a check made on the calling thread, and holds the location read so that both searches below arrive during the check.
+        final EngineFactory engineFactory = config -> new InternalEngine(config) {
+            @Override
+            public boolean refreshNeeded() {
+                assertThat(Thread.currentThread(), not(sameInstance(callingThread.get())));
+                return super.refreshNeeded();
+            }
+
+            @Override
+            public Translog.Location getTranslogLastWriteLocation() {
+                if (callingThread.get() != null) {
+                    assertThat(Thread.currentThread(), not(sameInstance(callingThread.get())));
+                    locationReadStarted.countDown();
+                    safeAwait(releaseLocation);
+                }
+                return super.getTranslogLastWriteLocation();
+            }
+        };
+        // Longer than the 200ms cached clock tick, so the second search sees the shard as idle only if the first has not marked it
+        // active before recording its pending location.
+        IndexShard primary = newShardWithOneRefreshedDoc(engineFactory, TimeValue.timeValueMillis(500));
+        try {
+            indexDoc(primary, "_doc", "1", "{\"foo\" : \"bar\"}");
+            assertBusy(() -> assertTrue(primary.isSearchIdle()));
+
+            callingThread.set(Thread.currentThread());
+            PlainActionFuture<Boolean> first = new PlainActionFuture<>();
+            primary.ensureShardSearchActive(first::onResponse);
+            safeAwait(locationReadStarted);
+            PlainActionFuture<Boolean> second = new PlainActionFuture<>();
+            primary.ensureShardSearchActive(second::onResponse);
+            assertFalse(first.isDone());
+            assertFalse(second.isDone());
+
+            releaseLocation.countDown();
+            assertThat(safeGet(first), is(true));
+            assertThat(safeGet(second), is(true));
+            callingThread.set(null);
+            assertThat(visibleDocs(primary), equalTo(2));
+        } finally {
+            releaseLocation.countDown();
+            callingThread.set(null);
+            closeShards(primary);
+        }
+    }
+
+    /**
+     * Can-match acquires a searcher before the query phase calls {@link IndexShard#ensureShardSearchActive}, which ends search-idle
+     * without checking for writes the reader cannot see. The query must still wait for them.
+     */
+    public void testEnsureShardSearchActiveRefreshesAfterCanMatchOnIdleShard() throws Exception {
+        // Longer than the 200ms cached clock tick, so the can-match access really makes the shard search active.
+        IndexShard primary = newShardWithOneRefreshedDoc(TimeValue.timeValueMillis(500));
+        try {
+            indexDoc(primary, "_doc", "1", "{\"foo\" : \"bar\"}");
+            assertBusy(() -> assertTrue(primary.isSearchIdle()));
+            assertFalse(primary.hasRefreshPending());
+            try (Engine.Searcher searcher = primary.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE)) {
+                assertThat(searcher.getIndexReader().numDocs(), equalTo(1));
+            }
+            assertFalse(primary.isSearchIdle());
+
+            PlainActionFuture<Boolean> searchActive = new PlainActionFuture<>();
+            primary.ensureShardSearchActive(searchActive::onResponse);
+            assertThat(safeGet(searchActive), is(true));
+            assertThat(visibleDocs(primary), equalTo(2));
+
+            makeSearchActive(primary);
+            AtomicReference<Boolean> registered = new AtomicReference<>();
+            primary.ensureShardSearchActive(registered::set);
+            assertThat(registered.get(), is(false));
+        } finally {
+            closeShards(primary);
+        }
+    }
+
+    /**
+     * A search-idle check that finds nothing to refresh must not cover a can-match access that ended search-idle while it ran: a write
+     * acknowledged before that access is not visible to the check.
+     */
+    public void testEnsureShardSearchActiveKeepsCanMatchRequestThatArrivesDuringIdleCheck() throws Exception {
+        final AtomicBoolean pauseCheck = new AtomicBoolean();
+        final CountDownLatch checkPaused = new CountDownLatch(1);
+        final CountDownLatch resumeCheck = new CountDownLatch(1);
+        // Pauses the first search's check right after it finds nothing to refresh, so that a write and a can-match access land before it
+        // marks the shard active.
+        final EngineFactory engineFactory = config -> new InternalEngine(config) {
+            @Override
+            public boolean refreshNeeded() {
+                final boolean refreshNeeded = super.refreshNeeded();
+                if (pauseCheck.compareAndSet(true, false)) {
+                    checkPaused.countDown();
+                    safeAwait(resumeCheck);
+                }
+                return refreshNeeded;
+            }
+        };
+        // Longer than the 200ms cached clock tick, so the can-match access really makes the shard search active.
+        IndexShard primary = newShardWithOneRefreshedDoc(engineFactory, TimeValue.timeValueMillis(500));
+        try {
+            assertBusy(() -> assertTrue(primary.isSearchIdle()));
+            assertFalse(primary.getEngine().refreshNeeded());
+
+            pauseCheck.set(true);
+            PlainActionFuture<Boolean> first = new PlainActionFuture<>();
+            primary.ensureShardSearchActive(first::onResponse);
+            safeAwait(checkPaused);
+
+            indexDoc(primary, "_doc", "1", "{\"foo\" : \"bar\"}");
+            try (Engine.Searcher searcher = primary.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE)) {
+                assertThat(searcher.getIndexReader().numDocs(), equalTo(1));
+            }
+            resumeCheck.countDown();
+            assertThat(safeGet(first), is(true));
+            assertFalse(primary.isSearchIdle());
+
+            PlainActionFuture<Boolean> second = new PlainActionFuture<>();
+            primary.ensureShardSearchActive(second::onResponse);
+            assertThat(safeGet(second), is(true));
+            assertThat(visibleDocs(primary), equalTo(2));
+        } finally {
+            resumeCheck.countDown();
+            closeShards(primary);
+        }
+    }
+
+    public void testEnsureShardSearchActiveReleasesCallerWhenShardClosesDuringIdleCheck() throws Exception {
+        IndexShard primary = newShardWithOneRefreshedDoc(TimeValue.ZERO);
+        final CountDownLatch releaseRefreshThreads = new CountDownLatch(1);
+        boolean closed = false;
+        try {
+            indexDoc(primary, "_doc", "1", "{\"foo\" : \"bar\"}");
+            // Hold every refresh thread so that the search-idle check stays queued while the shard closes.
+            final int refreshThreads = threadPool.info(ThreadPool.Names.REFRESH).getMax();
+            final CountDownLatch refreshThreadsBusy = new CountDownLatch(refreshThreads);
+            for (int i = 0; i < refreshThreads; i++) {
+                threadPool.executor(ThreadPool.Names.REFRESH).execute(() -> {
+                    refreshThreadsBusy.countDown();
+                    safeAwait(releaseRefreshThreads);
+                });
+            }
+            safeAwait(refreshThreadsBusy);
+
+            PlainActionFuture<Boolean> searchActive = new PlainActionFuture<>();
+            primary.ensureShardSearchActive(searchActive::onResponse);
+            PlainActionFuture<Void> closeFuture = new PlainActionFuture<>();
+            primary.close("test", false, EsExecutors.DIRECT_EXECUTOR_SERVICE, closeFuture);
+            safeGet(closeFuture);
+            closed = true;
+            assertFalse(searchActive.isDone());
+
+            try (var mockLog = MockLog.capture(IndexShard.class)) {
+                mockLog.addExpectation(
+                    new MockLog.UnseenEventExpectation(
+                        "search-idle failure warning",
+                        IndexShard.class.getCanonicalName(),
+                        Level.WARN,
+                        "unexpected failure while making a search-idle shard search active"
+                    )
+                );
+                releaseRefreshThreads.countDown();
+                assertThat(safeGet(searchActive), is(true));
+                mockLog.assertAllExpectationsMatched();
+            }
+        } finally {
+            releaseRefreshThreads.countDown();
+            if (closed) {
+                IOUtils.close(primary.store());
+            } else {
+                closeShards(primary);
+            }
+        }
+    }
+
+    public void testEnsureShardSearchActiveReleasesIdleShardWithNothingToRefresh() throws Exception {
+        IndexShard primary = newShardWithOneRefreshedDoc(TimeValue.ZERO);
+        try {
+            assertFalse(primary.getEngine().refreshNeeded());
+            long refreshesBefore = primary.refreshStats().getTotal();
+            Thread callingThread = Thread.currentThread();
+            AtomicReference<Thread> listenerThread = new AtomicReference<>();
+            PlainActionFuture<Boolean> searchActive = new PlainActionFuture<>();
+            primary.ensureShardSearchActive(registered -> {
+                listenerThread.set(Thread.currentThread());
+                searchActive.onResponse(registered);
+            });
+            assertThat(safeGet(searchActive), is(true));
+            assertThat(listenerThread.get(), not(sameInstance(callingThread)));
+            assertFalse(primary.hasRefreshPending());
+            flushThreadPoolExecutor(threadPool, ThreadPool.Names.REFRESH);
+            assertThat(primary.refreshStats().getTotal(), equalTo(refreshesBefore));
+            assertThat(visibleDocs(primary), equalTo(1));
+        } finally {
+            closeShards(primary);
+        }
+    }
+
+    private IndexShard newShardWithOneRefreshedDoc(TimeValue searchIdleAfter) throws IOException {
+        return newShardWithOneRefreshedDoc(new InternalEngineFactory(), searchIdleAfter);
+    }
+
+    private IndexShard newShardWithOneRefreshedDoc(EngineFactory engineFactory, TimeValue searchIdleAfter) throws IOException {
+        IndexShard primary = newStartedShard(true, Settings.EMPTY, engineFactory);
+        indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
+        PlainActionFuture<Boolean> refreshed = new PlainActionFuture<>();
+        primary.scheduledRefresh(refreshed);
+        assertTrue(refreshed.actionGet());
+        Settings searchIdleSettings = Settings.builder()
+            .put(primary.indexSettings().getSettings())
+            .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), searchIdleAfter)
+            .build();
+        primary.indexSettings().getScopedSettings().applySettings(searchIdleSettings);
+        return primary;
+    }
+
+    /**
+     * Makes a search-idle shard search active again without touching its pending refresh location, so that
+     * {@link IndexShard#ensureShardSearchActive} forks the refresh itself rather than first forking its search-idle check.
+     */
+    private static void makeSearchActive(IndexShard shard) {
+        Settings settings = Settings.builder()
+            .put(shard.indexSettings().getSettings())
+            .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), IndexSettings.INDEX_SEARCH_IDLE_AFTER.getDefault(Settings.EMPTY))
+            .build();
+        shard.indexSettings().getScopedSettings().applySettings(settings);
+        assertFalse(shard.isSearchIdle());
+    }
+
+    private static int visibleDocs(IndexShard shard) {
+        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+            return searcher.getIndexReader().numDocs();
+        }
+    }
+
+    /**
+     * Indexing writes Lucene before the translog, so a scheduled refresh can find a refresh needed while the translog end is still the
+     * position the last refresh covered. The location it records then looks already visible to the refresh listeners.
+     */
+    public void testEnsureShardSearchActiveRefreshesWhenPendingLocationPredatesWrite() throws Exception {
+        final AtomicReference<Translog.Location> heldLastWriteLocation = new AtomicReference<>();
+        // Holds the translog end at its value before the write, as a scheduled refresh sees it while that write is between its Lucene
+        // and translog steps. The real gap cannot be paused from a test.
+        final EngineFactory engineFactory = config -> new InternalEngine(config) {
+            @Override
+            public Translog.Location getTranslogLastWriteLocation() {
+                final Translog.Location held = heldLastWriteLocation.get();
+                return held != null ? held : super.getTranslogLastWriteLocation();
+            }
+        };
+        IndexShard primary = newStartedShard(true, Settings.EMPTY, engineFactory);
+        try {
+            indexDoc(primary, "_doc", "0");
+            PlainActionFuture<Boolean> refreshed = new PlainActionFuture<>();
+            primary.scheduledRefresh(refreshed);
+            assertTrue(refreshed.actionGet());
+
+            Settings searchIdleSettings = Settings.builder()
+                .put(primary.indexSettings().getSettings())
+                .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.ZERO)
+                .build();
+            primary.indexSettings().getScopedSettings().applySettings(searchIdleSettings);
+            heldLastWriteLocation.set(primary.getEngine().getTranslogLastWriteLocation());
+            indexDoc(primary, "_doc", "1");
+            PlainActionFuture<Boolean> deferred = new PlainActionFuture<>();
+            primary.scheduledRefresh(deferred);
+            assertFalse(deferred.actionGet());
+            assertTrue(primary.hasRefreshPending());
+            heldLastWriteLocation.set(null);
+
+            PlainActionFuture<Boolean> searchActive = new PlainActionFuture<>();
+            primary.ensureShardSearchActive(searchActive::onResponse);
+            assertThat(safeGet(searchActive), is(true));
+            assertThat(visibleDocs(primary), equalTo(2));
+        } finally {
+            closeShards(primary);
+        }
     }
 
     public void testEnsureShardSearchActiveDispatchesListenerOffRefreshThread() throws Exception {
@@ -4771,6 +5158,7 @@ public class IndexShardTests extends IndexShardTestCase {
             primary.scheduledRefresh(deferred);
             assertFalse(deferred.actionGet());
             assertTrue("a refresh should be pending while the shard is search idle", primary.hasRefreshPending());
+            makeSearchActive(primary);
 
             // Hold every refresh thread so that the refresh forked below stays queued while the shard closes underneath it.
             final int refreshThreads = threadPool.info(ThreadPool.Names.REFRESH).getMax();
@@ -4856,6 +5244,7 @@ public class IndexShardTests extends IndexShardTestCase {
         primary.scheduledRefresh(deferred);
         assertFalse(deferred.actionGet());
         assertTrue("a refresh should be pending while the shard is search idle", primary.hasRefreshPending());
+        makeSearchActive(primary);
 
         try (var mockLog = MockLog.capture(IndexShard.class)) {
             mockLog.addExpectation(

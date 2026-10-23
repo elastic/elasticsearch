@@ -326,6 +326,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final RefreshListeners refreshListeners;
 
     private final AtomicLong lastSearcherAccess = new AtomicLong();
+    // Counts searchers acquired outside ensureShardSearchActive that ended search-idle; incremented before lastSearcherAccess is written,
+    // so a caller that sees the shard as active also sees the request.
+    private final AtomicLong searchIdleCheckRequests = new AtomicLong();
+    // The highest request count read before a search-idle check started; that check covers every request up to it.
+    private final AtomicLong searchIdleCheckRequestsCovered = new AtomicLong();
     private final AtomicReference<Translog.Location> pendingRefreshLocation = new AtomicReference<>();
     private final RefreshPendingLocationListener refreshPendingLocationListener;
     private final RefreshFieldHasValueListener refreshFieldHasValueListener;
@@ -1927,6 +1932,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private void markSearcherAccessed() {
+        if (isSearchIdle()) {
+            searchIdleCheckRequests.incrementAndGet();
+        }
+        markSearcherAccessedAfterIdleCheck();
+    }
+
+    private void markSearcherAccessedAfterIdleCheck() {
         lastSearcherAccess.lazySet(threadPool.relativeTimeInMillis());
     }
 
@@ -4800,12 +4812,62 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * active again and all pending refresh translog location has been refreshed. A refresh may be executed to avoid waiting for
      * {@link #scheduledRefresh(ActionListener)} to be invoked. If there is no pending refresh location registered the provided listener
      * will be invoked immediately.
+     * <p>
+     * A search-idle shard only records its pending refresh location on the next {@link #scheduledRefresh(ActionListener)}. If the shard
+     * was search idle and has writes that are not visible yet, the location is recorded here as well, so that a search arriving before
+     * that scheduled refresh still waits for them. The same check runs when a searcher acquired elsewhere, such as by can-match, ended
+     * search-idle and no check has started since. That check can block and this method runs on transport workers, so for a search-idle
+     * shard it runs on a refresh thread and the listener is invoked asynchronously.
      *
      * @param listener the listener to invoke once the pending refresh location is visible. The listener will be called with
-     *                 <code>true</code> if the listener was registered to wait for a refresh.
+     *                 <code>true</code> if it is invoked asynchronously, after waiting for a refresh or for the search-idle check.
      */
     public final void ensureShardSearchActive(Consumer<Boolean> listener) {
-        markSearcherAccessed(); // move the shard into non-search idle
+        // Read lastSearcherAccess (in isSearchIdle) before the request counts; markSearcherAccessed() writes them in the opposite order.
+        if ((isSearchIdle() || searchIdleCheckRequests.get() > searchIdleCheckRequestsCovered.get())
+            && indexSettings.isExplicitRefresh() == false) {
+            threadPool.executor(ThreadPool.Names.REFRESH).execute(new AbstractRunnable() {
+                private final AtomicBoolean completed = new AtomicBoolean();
+
+                private void complete() {
+                    if (completed.compareAndSet(false, true)) {
+                        listener.accept(true);
+                    }
+                }
+
+                @Override
+                protected void doRun() {
+                    // Only requests made before the check starts are covered by it; a later one leaves the next call to check again.
+                    final long requests = searchIdleCheckRequests.get();
+                    // Record before awaitPendingRefresh marks the access: a concurrent caller that sees the shard as active must also see
+                    // the location.
+                    setRefreshPendingIfNeeded();
+                    searchIdleCheckRequestsCovered.accumulateAndGet(requests, Math::max);
+                    awaitPendingRefresh(registered -> complete());
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // Release the caller rather than leave it waiting; a closed shard fails the request when it acquires a searcher.
+                    if (e instanceof AlreadyClosedException == false && state != IndexShardState.CLOSED) {
+                        logger.warn("unexpected failure while making a search-idle shard search active", e);
+                    }
+                    complete();
+                }
+
+                @Override
+                public void onRejection(Exception e) {
+                    assert false : "refresh thread pool uses an unbounded queue";
+                    onFailure(e);
+                }
+            });
+            return;
+        }
+        awaitPendingRefresh(listener);
+    }
+
+    private void awaitPendingRefresh(Consumer<Boolean> listener) {
+        markSearcherAccessedAfterIdleCheck(); // move the shard into non-search idle
         final Translog.Location location = pendingRefreshLocation.get();
         if (location != null) {
             addRefreshListener(location, (result) -> {
@@ -4845,13 +4907,33 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Variant of {@link #ensureShardSearchActive(Consumer)} that dispatches the listener on {@code responseExecutor} when a refresh was
-     * pending, keeping non-trivial search-side work off the refresh-completing thread (often an indexing or recovery thread). When no
-     * refresh is pending the listener runs inline on the calling thread; if dispatching fails it is invoked inline with {@code true}.
+     * Records the pending refresh location of a search-idle shard whose external reader is behind, as
+     * {@link #scheduledRefresh(ActionListener)} would. Engines that disallow the search-idle optimization are skipped, because
+     * {@link #scheduledRefresh(ActionListener)} never defers their refreshes. May block on the engine and translog locks.
+     */
+    private void setRefreshPendingIfNeeded() {
+        final Engine engine = getEngineOrNull();
+        if (engine == null || engine.allowSearchIdleOptimization() == false) {
+            return;
+        }
+        try {
+            if (engine.refreshNeeded()) {
+                setRefreshPending(engine);
+            }
+        } catch (AlreadyClosedException | EngineException e) {
+            // refreshNeeded() already failed the engine on an I/O error, and the search fails once it acquires a searcher.
+        }
+    }
+
+    /**
+     * Variant of {@link #ensureShardSearchActive(Consumer)} that dispatches the listener on {@code responseExecutor} when it completes
+     * asynchronously, keeping non-trivial search-side work off the refresh-completing thread (often an indexing or recovery thread). When
+     * no search-idle check is needed and no refresh is pending the listener runs inline on the calling thread; if dispatching fails it is
+     * invoked inline with {@code true}.
      *
-     * @param responseExecutor the executor on which to invoke the listener when it was registered to wait for a refresh
+     * @param responseExecutor the executor on which to invoke the listener when it completes asynchronously
      * @param listener         the listener to invoke once the pending refresh location is visible. The listener will be called with
-     *                         <code>true</code> if the listener was registered to wait for a refresh.
+     *                         <code>true</code> if it completed asynchronously.
      */
     public final void ensureShardSearchActive(Executor responseExecutor, Consumer<Boolean> listener) {
         Objects.requireNonNull(responseExecutor);

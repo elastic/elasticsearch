@@ -854,11 +854,16 @@ public class AzureBlobStore implements BlobStore {
                 final BlobServiceClient syncClient = client.getSyncClient();
                 final BlobClient blobSyncClient = syncClient.getBlobContainerClient(container).getBlobClient(blobName);
                 try {
-                    final long partSize = maxCopySizeBeforeMultipart();
                     // Put Block From URL requires the source to be public or authorized by a SAS in the source URL,
                     // see https://learn.microsoft.com/en-us/rest/api/storageservices/put-block-from-url
-                    // A block blob can also have at most 50,000 committed blocks.
-                    if (Strings.hasText(sasToken) && blobSize > partSize && blobSize <= MAX_BLOCKS_PER_BLOB * partSize) {
+                    if (Strings.hasText(sasToken) && blobSize > maxCopySizeBeforeMultipart()) {
+                        // A block blob can have at most 50,000 blocks, so use larger parts if the configured size requires more.
+                        // The part size should always be within the max of 4,000 MiB since the max blob size is 4,000 MiB * 50,000,
+                        // see https://learn.microsoft.com/en-us/rest/api/storageservices/put-block-from-url#remarks
+                        final long partSize = Math.max(
+                            maxCopySizeBeforeMultipart(),
+                            (blobSize + MAX_BLOCKS_PER_BLOB - 1) / MAX_BLOCKS_PER_BLOB
+                        );
                         final BlockBlobClient blockBlobClient = blobSyncClient.getBlockBlobClient();
                         final int nbParts = ConcurrentMultipartHelper.numberOfParts(blobSize, partSize);
                         final String[] blockIds = new String[nbParts];

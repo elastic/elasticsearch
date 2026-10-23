@@ -69,11 +69,13 @@ public class LinkerHelper {
     }
 
     public static void assertRawAddressNative(MemorySegment segment) {
-        assert segment.isNative() : "raw address requires a native memory segment";
+        // null is left to the downcall, which rejects it the same way with or without -ea
+        assert segment == null || segment.isNative() : "raw address requires a native memory segment";
     }
 
     public static void assertNative(MemorySegment segment) {
-        assert segment.isNative() : "non-critical bindings require native memory segments";
+        // null is left to the downcall, which rejects it the same way with or without -ea
+        assert segment == null || segment.isNative() : "non-critical bindings require native memory segments";
     }
 
     /**

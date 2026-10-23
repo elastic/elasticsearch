@@ -21,7 +21,9 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
+import org.elasticsearch.index.mapper.DimensionGroupFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MetricNameHashFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SliceKeyFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
@@ -119,8 +121,8 @@ public final class IndexSortConfig {
             }
         }
 
-        public static final SortDefault NO_SORT, TIME_SERIES_SORT, TIMESTAMP_SORT, HOSTNAME_TIMESTAMP_SORT, HOSTNAME_TIMESTAMP_BWC_SORT,
-            MESSAGE_PATTERN_TIMESTAMP_SORT, HOSTNAME_MESSAGE_PATTERN_TIMESTAMP_SORT;
+        public static final SortDefault NO_SORT, TIME_SERIES_SORT, TIME_SERIES_DIMENSION_GROUP_SORT, TIMESTAMP_SORT,
+            HOSTNAME_TIMESTAMP_SORT, HOSTNAME_TIMESTAMP_BWC_SORT, MESSAGE_PATTERN_TIMESTAMP_SORT, HOSTNAME_MESSAGE_PATTERN_TIMESTAMP_SORT;
 
         static {
             NO_SORT = new SortDefault(Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
@@ -130,6 +132,21 @@ public final class IndexSortConfig {
                 List.of("asc", "desc"),
                 List.of("min", "max"),
                 List.of("_last", "_last")
+            );
+
+            // Time series indices that group the series of one metric by a dimension (see
+            // IndexSettings#TIME_SERIES_DIMENSION_GROUP_FIELD): the tsid is still a sort key so that the documents of one
+            // series stay contiguous and sorted by timestamp, but it is no longer the primary one.
+            TIME_SERIES_DIMENSION_GROUP_SORT = new SortDefault(
+                List.of(
+                    MetricNameHashFieldMapper.NAME,
+                    DimensionGroupFieldMapper.NAME,
+                    TimeSeriesIdFieldMapper.NAME,
+                    DataStreamTimestampFieldMapper.DEFAULT_PATH
+                ),
+                List.of("asc", "asc", "asc", "desc"),
+                List.of("min", "min", "min", "max"),
+                List.of("_last", "_last", "_last", "_last")
             );
 
             TIMESTAMP_SORT = new SortDefault(
@@ -184,7 +201,7 @@ public final class IndexSortConfig {
             }
 
             if (IndexMode.isTsdbName(indexMode)) {
-                return TIME_SERIES_SORT;
+                return IndexSettings.useTimeSeriesDimensionGroupSort(settings) ? TIME_SERIES_DIMENSION_GROUP_SORT : TIME_SERIES_SORT;
             } else if (IndexMode.LOGSDB.getName().equals(indexMode) || IndexMode.LOGSDB_COLUMNAR.getName().equals(indexMode)) {
                 var version = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings);
                 if (version.onOrAfter(IndexVersions.LOGSB_OPTIONAL_SORTING_ON_HOST_NAME)

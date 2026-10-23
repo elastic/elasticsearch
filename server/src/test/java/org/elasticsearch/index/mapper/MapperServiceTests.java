@@ -589,6 +589,9 @@ public class MapperServiceTests extends MapperServiceTestCase {
                 }
                 boolean isTimeSeriesField = builtIn.equals("_tsid") || builtIn.equals("_ts_routing_hash");
                 boolean isTimeSeriesMode = mapperService.getIndexSettings().getMode().equals(IndexMode.TIME_SERIES);
+                // _metric_name_hash and _dimension_group are mapped only on time-series indices with the grouped sort
+                boolean isGroupSortField = builtIn.equals(MetricNameHashFieldMapper.NAME) || builtIn.equals(DimensionGroupFieldMapper.NAME);
+                boolean isGroupSort = mapperService.getIndexSettings().useTimeSeriesDimensionGroupSort();
                 // _slice_key is mapped only on slice-enabled indices, like the time-series fields on time-series indices.
                 boolean isSliceOnlyField = builtIn.equals(SliceKeyFieldMapper.NAME);
                 boolean isSliceEnabled = mapperService.getIndexSettings().isSliceEnabled();
@@ -596,6 +599,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
                     && mapperService.getIndexSettings().isFlattenedUnmappedFieldsEnabled() == false;
 
                 if ((isTimeSeriesField && isTimeSeriesMode == false)
+                    || (isGroupSortField && isGroupSort == false)
                     || (isSliceOnlyField && isSliceEnabled == false)
                     || isAbsentUnmappedSink) {
                     assertFalse(

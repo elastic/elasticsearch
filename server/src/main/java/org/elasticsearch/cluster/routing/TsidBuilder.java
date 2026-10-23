@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.routing;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.util.ByteUtils;
@@ -242,12 +243,20 @@ public class TsidBuilder {
         return murmur3Hasher.digestHash();
     }
 
+    /**
+     * Builds the tsid for an index created at {@code indexVersion} with default settings. Production code that has the index
+     * metadata at hand must use {@link #buildTsid(TsidLayout)} with {@link TsidLayout#forIndex(IndexMetadata)} instead.
+     */
     public final BytesRef buildTsid(IndexVersion indexVersion) {
-        if (useSingleBytePrefixLayout(indexVersion)) {
-            return buildSingleBytePrefixTsid();
-        } else {
-            return buildMultiBytePrefixTsid();
-        }
+        return buildTsid(TsidLayout.forVersion(indexVersion));
+    }
+
+    public final BytesRef buildTsid(TsidLayout layout) {
+        return switch (layout.kind()) {
+            case MULTI_BYTE_PREFIX -> buildMultiBytePrefixTsid();
+            case SINGLE_BYTE_PREFIX -> buildSingleBytePrefixTsid();
+            case NO_PREFIX -> buildNoPrefixTsid();
+        };
     }
 
     public static boolean useSingleBytePrefixLayout(IndexVersion indexVersion) {
@@ -331,6 +340,20 @@ public class TsidBuilder {
         writeHash128(hashBuffer, tsid, 0);
         tsid[0] = computeSingleBytePrefix(hashBuffer);
         return new BytesRef(tsid);
+    }
+
+    /**
+     * The layout of indices that sort on {@code _metric_name_hash} and {@code _dimension_group} ahead of the tsid: the metric
+     * similarity lives in those fields, so the tsid is the plain full hash and keeps all of its bits for uniqueness.
+     */
+    private BytesRef buildNoPrefixTsid() {
+        throwIfEmpty();
+        Collections.sort(dimensions);
+        murmur3Hasher.reset();
+        for (Dimension dim : dimensions) {
+            murmur3Hasher.addLongs(dim.pathHash.h1, dim.pathHash.h2, dim.valueHash.h1, dim.valueHash.h2);
+        }
+        return writeNoPrefixTsid(murmur3Hasher.digestHash());
     }
 
     private byte computeSingleBytePrefix(MurmurHash3.Hash128 scratch) {
@@ -466,6 +489,13 @@ public class TsidBuilder {
         final byte[] tsid = new byte[FULL_HASH_BYTES];
         writeHash128(fullHash, tsid, 0);
         tsid[0] = prefixByte;
+        return new BytesRef(tsid);
+    }
+
+    /** The no-prefix layout, mirroring {@link #buildNoPrefixTsid}: the 16-byte full hash, untouched. */
+    static BytesRef writeNoPrefixTsid(MurmurHash3.Hash128 fullHash) {
+        final byte[] tsid = new byte[FULL_HASH_BYTES];
+        writeHash128(fullHash, tsid, 0);
         return new BytesRef(tsid);
     }
 

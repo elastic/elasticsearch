@@ -12,6 +12,7 @@ package org.elasticsearch.indices;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
+import org.elasticsearch.index.mapper.DimensionGroupFieldMapper;
 import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -25,6 +26,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.MetricNameHashFieldMapper;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
@@ -90,6 +92,8 @@ public class IndicesModuleTests extends ESTestCase {
         RoutingFieldMapper.NAME,
         TimeSeriesIdFieldMapper.NAME,
         TimeSeriesRoutingHashFieldMapper.NAME,
+        MetricNameHashFieldMapper.NAME,
+        DimensionGroupFieldMapper.NAME,
         SliceKeyFieldMapper.NAME,
         IndexFieldMapper.NAME,
         IndexModeFieldMapper.NAME,

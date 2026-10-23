@@ -22,11 +22,11 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.cluster.routing.TsidBuilder;
+import org.elasticsearch.cluster.routing.TsidLayout;
 import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
 import org.elasticsearch.common.hash.MurmurHash3.Hash128;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xpack.oteldata.otlp.AbstractOTLPTransportAction;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.ExemplarDocumentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
@@ -415,19 +415,19 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
         /**
          * Builds the metric document TSID using the hash of its grouped metric names.
          */
-        public BytesRef buildMetricTsid(String metricNamesHash, IndexVersion indexVersion) {
+        public BytesRef buildMetricTsid(String metricNamesHash, TsidLayout tsidLayout) {
             TsidBuilder finalTsidBuilder = new TsidBuilder(tsidBuilder.size() + 1).addAll(tsidBuilder)
                 .addStringDimension(MetricDocumentBuilder.METRIC_NAMES_HASH_FIELD, metricNamesHash);
-            return finalTsidBuilder.buildTsid(indexVersion);
+            return finalTsidBuilder.buildTsid(tsidLayout);
         }
 
         /**
          * Builds an exemplar document TSID using its metric name.
          */
-        public BytesRef buildExemplarTsid(String metricName, IndexVersion indexVersion) {
+        public BytesRef buildExemplarTsid(String metricName, TsidLayout tsidLayout) {
             TsidBuilder finalTsidBuilder = new TsidBuilder(tsidBuilder.size() + 1).addAll(tsidBuilder)
                 .addStringDimension(ExemplarDocumentBuilder.METRIC_NAME_FIELD, metricName);
-            return finalTsidBuilder.buildTsid(indexVersion);
+            return finalTsidBuilder.buildTsid(tsidLayout);
         }
 
         public boolean addDataPoint(Set<String> ignoredDataPointMessages, DataPoint dataPoint) {

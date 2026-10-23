@@ -26,7 +26,6 @@ import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.codec.tsdb.PartitionedDocValues;
-import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 
 import java.io.IOException;
@@ -795,7 +794,7 @@ public final class LuceneSliceQueue {
             final Map<Integer, Map<Integer, PrefixGroup>> firstByteGroups = new TreeMap<>();
             PartitionedDocValues.PrefixPartitions prefixPartitions = null;
             for (LeafReaderContext leaf : leaves) {
-                var tsidValues = leaf.reader().getSortedDocValues(TimeSeriesIdFieldMapper.NAME);
+                var tsidValues = leaf.reader().getSortedDocValues(PartitionedDocValues.partitionedField(leaf.reader()));
                 if (tsidValues == null) {
                     continue; // empty
                 }

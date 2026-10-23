@@ -9,8 +9,10 @@
 
 package org.elasticsearch.index.codec.tsdb;
 
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Sort;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 
@@ -45,13 +47,26 @@ public interface PartitionedDocValues {
     int prefixPartitionBits();
 
     /**
-     * Check if the given index searcher can be partitioned by tsid prefix.
+     * The field the prefix partitions of a time series segment are written for: the primary index sort field, which is {@code _tsid}
+     * unless the index uses the grouped sort (see {@code IndexSettings#TIME_SERIES_DIMENSION_GROUP_FIELD}), in which case it is
+     * {@code _metric_name_hash} and a partition spans the series of one (hash prefix of a) metric.
+     */
+    static String partitionedField(LeafReader reader) {
+        Sort sort = reader.getMetaData().sort();
+        if (sort == null || sort.getSort().length == 0) {
+            return TimeSeriesIdFieldMapper.NAME;
+        }
+        return sort.getSort()[0].getField();
+    }
+
+    /**
+     * Check if the given index searcher can be partitioned by the prefix of its primary sort field.
      * @param searcher the index searcher to check
-     * @return true if all non-empty segments support tsid prefix partitioning
+     * @return true if all non-empty segments support prefix partitioning
      */
     static boolean canPartitionByTsidPrefix(IndexSearcher searcher) throws IOException {
         for (LeafReaderContext leafContext : searcher.getLeafContexts()) {
-            var sortedDV = leafContext.reader().getSortedDocValues(TimeSeriesIdFieldMapper.NAME);
+            var sortedDV = leafContext.reader().getSortedDocValues(partitionedField(leafContext.reader()));
             // empty segment
             if (sortedDV == null) {
                 continue;

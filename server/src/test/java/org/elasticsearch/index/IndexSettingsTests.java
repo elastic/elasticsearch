@@ -1115,6 +1115,40 @@ public class IndexSettingsTests extends ESTestCase {
         assertTrue(indexMetadata.useTimeSeriesSyntheticId());
     }
 
+    /**
+     * Synthetic ids stay on by default under the grouped time series sort: the segments then record the runs of documents of each
+     * _tsid (see {@code OrdinalRunsDocValues}), which the synthetic _id lookup uses instead of _tsid being the primary sort field.
+     */
+    public void testSyntheticIdOnWithDimensionGroupSort() {
+        IndexVersion version = IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TIME_SERIES_DIMENSION_GROUP_SORT);
+        Settings.Builder settings = Settings.builder()
+            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), CodecService.DEFAULT_CODEC)
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some-routing");
+        if (randomBoolean()) {
+            settings.put(IndexSettings.TIME_SERIES_DIMENSION_GROUP_FIELD.getKey(), "some-routing");
+        }
+        if (randomBoolean()) {
+            settings.put(IndexSettings.SYNTHETIC_ID.getKey(), true);
+        }
+        IndexMetadata indexMetadata = newIndexMeta("some-index", settings.build(), version);
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        assertTrue(indexSettings.useTimeSeriesDimensionGroupSort());
+        assertTrue(indexSettings.useTimeSeriesSyntheticId());
+        assertTrue(indexMetadata.useTimeSeriesSyntheticId());
+
+        // disabling the grouped sort leaves the default alone
+        Settings disabled = Settings.builder()
+            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), CodecService.DEFAULT_CODEC)
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some-routing")
+            .put(IndexSettings.TIME_SERIES_DIMENSION_GROUP_FIELD.getKey(), "")
+            .build();
+        IndexSettings disabledSettings = new IndexSettings(newIndexMeta("some-index", disabled, version), Settings.EMPTY);
+        assertFalse(disabledSettings.useTimeSeriesDimensionGroupSort());
+        assertTrue(disabledSettings.useTimeSeriesSyntheticId());
+    }
+
     public void testSyntheticIdDefaultValueFalse() {
         IndexVersion version = IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD);
         IndexMode mode = IndexMode.TIME_SERIES;

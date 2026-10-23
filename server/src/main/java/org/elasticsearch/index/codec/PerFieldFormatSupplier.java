@@ -35,12 +35,14 @@ import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.DimensionGroupFieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MetricNameHashFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
@@ -74,6 +76,9 @@ public class PerFieldFormatSupplier {
         Set<String> includeMetaField = new HashSet<>(3);
         includeMetaField.add(TimeSeriesIdFieldMapper.NAME);
         includeMetaField.add(TimeSeriesRoutingHashFieldMapper.NAME);
+        // The grouped time series sort keys: the primary sort field must use the tsdb codec for its prefix partitions.
+        includeMetaField.add(MetricNameHashFieldMapper.NAME);
+        includeMetaField.add(DimensionGroupFieldMapper.NAME);
         includeMetaField.add(SeqNoFieldMapper.NAME);
         includeMetaField.add(IgnoredSourceFieldMapper.NAME);
         includeMetaField.add(IdFieldMapper.NAME);

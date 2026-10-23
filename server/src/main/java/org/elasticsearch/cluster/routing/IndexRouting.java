@@ -599,7 +599,7 @@ public abstract sealed class IndexRouting {
                 hash = ByteUtils.readIntLE(idBytes, idBytes.length - 9);
             } else if (useTimeSeriesSyntheticId) {
                 var uid = new BytesRef(idBytes);
-                assert Uid.encodeId(id).equals(uid);
+                assert assertSyntheticUid(id, uid);
                 // For TSDB with synthetic ids, the hash is stored as the id suffix.
                 hash = TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId(uid);
             } else {
@@ -607,6 +607,18 @@ public abstract sealed class IndexRouting {
                 hash = ByteUtils.readIntLE(idBytes, 0);
             }
             return routingFunction.shardNum(hash);
+        }
+
+        /** The uid of a synthetic id is its decoded bytes, with an escape byte ahead when the first byte could be a Uid type marker. */
+        private static boolean assertSyntheticUid(String id, BytesRef uid) {
+            BytesRef encoded = Uid.encodeId(id);
+            if (encoded.equals(uid)) {
+                return true;
+            }
+            assert encoded.length == uid.length + 1 : encoded + " vs " + uid;
+            assert Byte.toUnsignedInt(encoded.bytes[encoded.offset]) == Uid.BASE64_ESCAPE : encoded;
+            assert new BytesRef(encoded.bytes, encoded.offset + 1, encoded.length - 1).equals(uid) : encoded + " vs " + uid;
+            return true;
         }
 
         @Override
@@ -718,6 +730,8 @@ public abstract sealed class IndexRouting {
         public static final class ForIndexDimensions extends ExtractFromSource {
 
             private final Predicate<String> isDimensionField;
+            /** Resolved once from the index metadata; every tsid of the index is built with it. */
+            private final TsidLayout tsidLayout;
 
             ForIndexDimensions(IndexMetadata metadata, RoutingFunction routingFunction, IndexReshardingMetadata reshardingMetadata) {
                 super(metadata, routingFunction, reshardingMetadata, metadata.getTimeSeriesDimensions());
@@ -728,6 +742,11 @@ public abstract sealed class IndexRouting {
                         + " for ForIndexDimensions routing but was "
                         + metadata.getCreationVersion();
                 this.isDimensionField = Regex.simpleMatcher(metadata.getTimeSeriesDimensions().toArray(String[]::new));
+                this.tsidLayout = TsidLayout.forIndex(metadata);
+            }
+
+            public TsidLayout tsidLayout() {
+                return tsidLayout;
             }
 
             @Override
@@ -754,15 +773,18 @@ public abstract sealed class IndexRouting {
              * not-yet-handed-off split target.
              */
             int shardIdForExtractedTsid(TsidBuilder tsidBuilder, IndexRequest indexRequest) {
-                BytesRef tsid = tsidBuilder.buildTsid(creationVersion);
+                BytesRef tsid = tsidBuilder.buildTsid(tsidLayout);
                 indexRequest.tsid(tsid);
                 int h = hash(tsid);
                 setRecordedHash(h);
                 return rerouteWritesIfResharding(routingFunction.shardNum(h));
             }
 
-            /** Used by {@link DimensionsExtractor} to evaluate the dimension-path predicate once per leaf column. */
-            boolean matchesField(String fieldName) {
+            /**
+             * Used by {@link DimensionsExtractor} to evaluate the dimension-path predicate once per leaf column, and by the
+             * metadata mappers that derive per-document values from the dimensions of a document.
+             */
+            public boolean matchesField(String fieldName) {
                 return isDimensionField.test(fieldName);
             }
 
@@ -778,7 +800,7 @@ public abstract sealed class IndexRouting {
                 } catch (IOException | ParsingException e) {
                     throw new IllegalArgumentException("Error extracting tsid: " + e.getMessage(), e);
                 }
-                return b.buildTsid(creationVersion);
+                return b.buildTsid(tsidLayout);
             }
 
             /**
@@ -831,7 +853,7 @@ public abstract sealed class IndexRouting {
                 }
 
                 if (allPreSet == false) {
-                    BytesRef[] tsids = ColumnarTsidCalculator.computeTsids(batch, this::matchesField, creationVersion, rows);
+                    BytesRef[] tsids = ColumnarTsidCalculator.computeTsids(batch, this::matchesField, tsidLayout, rows);
                     for (int i = 0; i < requests.length; i++) {
                         requests[i].tsid(tsids[i]);
                         int h = hash(tsids[i]);

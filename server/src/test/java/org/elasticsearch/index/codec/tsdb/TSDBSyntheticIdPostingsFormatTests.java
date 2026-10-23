@@ -27,6 +27,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.TsidBuilder;
+import org.elasticsearch.cluster.routing.TsidLayout;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
@@ -90,10 +91,12 @@ import static org.hamcrest.Matchers.nullValue;
 public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
 
     private static int metricHash;
+    private static String dimensionGroupField;
 
     @Before
     public void setUpMetricsNameField() throws Exception {
         metricHash = randomIntBetween(1, 255);
+        dimensionGroupField = randomBoolean() ? "hostname" : "";
     }
 
     /**
@@ -920,6 +923,9 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
         final List<String> dimensions = List.of("hostname", "metric.field", "_metric_names_hash");
         var settings = indexSettings(IndexVersion.current(), 1, 0).put(IndexSettings.SYNTHETIC_ID.getKey(), true)
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            // Either the tsid-first sort, or the grouped sort that puts the metric name hash and the host ahead of the tsid, under
+            // which the documents of a tsid are still contiguous but the tsids are not in order (see OrdinalRunsDocValues)
+            .put(IndexSettings.TIME_SERIES_DIMENSION_GROUP_FIELD.getKey(), dimensionGroupField)
             .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), dimensions);
         if (disableSkippers) {
             settings.put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), false);
@@ -1087,7 +1093,8 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
         return new TsidBuilder().addIntDimension("_metric_names_hash", metricHash)
             .addStringDimension("hostname", doc.hostName())
             .addStringDimension("metric.field", doc.metricField())
-            .buildTsid(IndexVersion.current());
+            // the grouped sort drops the prefix byte of the tsid, the tsid-first sort keeps it
+            .buildTsid(new TsidLayout(IndexVersion.current(), dimensionGroupField.isEmpty() == false));
     }
 
     /**

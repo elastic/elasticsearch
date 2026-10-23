@@ -67,7 +67,7 @@ public class ColumnarTsidCalculatorTests extends ESTestCase {
 
         // Columnar path
         EscfBatch batch = EscfEncoder.encode(sources, XContentType.JSON);
-        BytesRef[] actual = ColumnarTsidCalculator.computeTsids(batch, strategy::matchesField, strategy.creationVersion);
+        BytesRef[] actual = ColumnarTsidCalculator.computeTsids(batch, strategy::matchesField, strategy.tsidLayout());
 
         assertThat("result length", actual.length, equalTo(sources.size()));
         for (int i = 0; i < sources.size(); i++) {
@@ -400,24 +400,51 @@ public class ColumnarTsidCalculatorTests extends ESTestCase {
         return (IndexRouting.ExtractFromSource.ForIndexDimensions) IndexRouting.fromIndexMetadata(md);
     }
 
+    private static IndexRouting.ExtractFromSource.ForIndexDimensions forIndexDimensions(
+        IndexVersion version,
+        String dimensionGroupField,
+        String... dimensionPaths
+    ) {
+        Settings settings = Settings.builder()
+            .put(SETTING_INDEX_VERSION_CREATED.getKey(), version)
+            .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), dimensionPaths)
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexSettings.TIME_SERIES_DIMENSION_GROUP_FIELD.getKey(), dimensionGroupField)
+            .build();
+        IndexMetadata md = IndexMetadata.builder("test").settings(settings).numberOfShards(8).numberOfReplicas(0).build();
+        return (IndexRouting.ExtractFromSource.ForIndexDimensions) IndexRouting.fromIndexMetadata(md);
+    }
+
+    /** Parity across all three tsid layouts: multi-byte prefix, single prefix byte, and no prefix (dimension group sort). */
     private static void assertParityForBothLayouts(List<BytesReference> sources, String... dimensionPaths) throws IOException {
-        List<IndexVersion> versions = List.of(
-            IndexVersionUtils.randomVersionBetween(
-                IndexVersions.TSID_CREATED_DURING_ROUTING,
-                IndexVersionUtils.getPreviousVersion(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG)
+        List<IndexRouting.ExtractFromSource.ForIndexDimensions> strategies = List.of(
+            forIndexDimensions(
+                IndexVersionUtils.randomVersionBetween(
+                    IndexVersions.TSID_CREATED_DURING_ROUTING,
+                    IndexVersionUtils.getPreviousVersion(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG)
+                ),
+                dimensionPaths
             ),
-            IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE)
+            forIndexDimensions(
+                IndexVersionUtils.randomVersionBetween(
+                    IndexVersions.TSID_SINGLE_PREFIX_BYTE,
+                    IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_DIMENSION_GROUP_SORT)
+                ),
+                dimensionPaths
+            ),
+            forIndexDimensions(
+                IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TIME_SERIES_DIMENSION_GROUP_SORT),
+                "",
+                dimensionPaths
+            ),
+            forIndexDimensions(IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TIME_SERIES_DIMENSION_GROUP_SORT), dimensionPaths)
         );
-        boolean sawSingleByte = false;
-        boolean sawMultiByte = false;
-        for (IndexVersion version : versions) {
-            boolean singleByte = TsidBuilder.useSingleBytePrefixLayout(version);
-            sawSingleByte |= singleByte;
-            sawMultiByte |= singleByte == false;
-            assertColumnarMatchesSourceParser(sources, forIndexDimensions(version, dimensionPaths));
+        Set<TsidLayout.Kind> seen = new HashSet<>();
+        for (var strategy : strategies) {
+            seen.add(strategy.tsidLayout().kind());
+            assertColumnarMatchesSourceParser(sources, strategy);
         }
-        assertTrue("expected to cover the single-byte-prefix layout", sawSingleByte);
-        assertTrue("expected to cover the multi-byte-prefix layout", sawMultiByte);
+        assertThat("expected to cover every layout", seen, equalTo(Set.of(TsidLayout.Kind.values())));
     }
 
     /**

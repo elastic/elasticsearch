@@ -16,6 +16,7 @@ import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -50,6 +51,12 @@ class TSDBSyntheticIdDocValuesHolder {
     private final int maxDocs;
     private final boolean hasTsIdSkipper;
     private final boolean hasTimestampSkipper;
+    /**
+     * Whether _tsid is the primary index sort field, so that _tsid ordinals ascend with document ids. Otherwise (the grouped time
+     * series sort) the documents of a _tsid are still contiguous but the runs are not in ordinal order, and their position comes
+     * from the {@link OrdinalRunsDocValues.OrdinalRuns} of the segment.
+     */
+    private final boolean tsIdPrimarySorted;
 
     private SortedNumericDocValues timestampDocValues; // sorted desc. order
     private SortedDocValues routingHashDocValues; // sorted asc. order
@@ -61,14 +68,18 @@ class TSDBSyntheticIdDocValuesHolder {
     private boolean randomAccessTimestampsResolved;
     private RandomAccessNumericValues randomAccessTsIdOrds;
     private boolean randomAccessTsIdOrdsResolved;
+    // Resolved once; null when _tsid is the primary sort field or the segment has no _tsid values.
+    private OrdinalRunsDocValues.OrdinalRuns tsIdRuns;
+    private boolean tsIdRunsResolved;
     // tsids in the same segment have the same length
     private int tsidFixedLength = -1;
     // Keep around the latest tsId ordinal and value
     private int cachedTsIdOrd = -1;
     private BytesRef cachedTsId;
 
-    TSDBSyntheticIdDocValuesHolder(FieldInfos fieldInfos, DocValuesProducer docValuesProducer, int maxDocs) {
-        this.maxDocs = maxDocs;
+    TSDBSyntheticIdDocValuesHolder(SegmentInfo segmentInfo, FieldInfos fieldInfos, DocValuesProducer docValuesProducer) {
+        this.maxDocs = segmentInfo.maxDoc();
+        this.tsIdPrimarySorted = tsIdIsPrimarySortField(segmentInfo);
         this.tsIdFieldInfo = safeFieldInfo(fieldInfos, TSDBSyntheticIdPostingsFormat.TS_ID);
         this.timestampFieldInfo = safeFieldInfo(fieldInfos, TSDBSyntheticIdPostingsFormat.TIMESTAMP);
         this.routingHashFieldInfo = safeFieldInfo(fieldInfos, TSDBSyntheticIdPostingsFormat.TS_ROUTING_HASH);
@@ -87,6 +98,96 @@ class TSDBSyntheticIdDocValuesHolder {
             throw new IllegalArgumentException(message);
         }
         return fi;
+    }
+
+    /**
+     * Whether the segment is sorted on _tsid first (the time series sort), as opposed to the grouped time series sort that puts the
+     * metric name hash and the dimension group ahead of it. A segment without an index sort is treated as tsid-first, which is what
+     * tests that index synthetic id documents by hand rely on.
+     */
+    static boolean tsIdIsPrimarySortField(SegmentInfo segmentInfo) {
+        var indexSort = segmentInfo.getIndexSort();
+        return indexSort == null
+            || indexSort.getSort().length == 0
+            || TSDBSyntheticIdPostingsFormat.TS_ID.equals(indexSort.getSort()[0].getField());
+    }
+
+    /**
+     * Returns the runs of documents of each _tsid ordinal, or {@code null} when _tsid is the primary sort field (the ordinals then
+     * ascend with the document ids and the runs are not needed) or the segment has no _tsid values. Throws if the segment is not
+     * sorted on _tsid first and holds no runs: its documents cannot be located by _tsid then, and synthetic ids can't work.
+     */
+    @Nullable
+    OrdinalRunsDocValues.OrdinalRuns tsIdRuns() throws IOException {
+        if (tsIdPrimarySorted) {
+            return null;
+        }
+        if (tsIdRunsResolved == false) {
+            tsIdRunsResolved = true;
+            var sortedDocValues = docValuesProducer.getSorted(tsIdFieldInfo);
+            if (sortedDocValues.getValueCount() == 0) {
+                return null;
+            }
+            if (sortedDocValues instanceof OrdinalRunsDocValues runsDocValues) {
+                tsIdRuns = runsDocValues.ordinalRuns();
+            }
+            if (tsIdRuns == null) {
+                throw new IllegalStateException(
+                    "Segment is not sorted on ["
+                        + TSDBSyntheticIdPostingsFormat.TS_ID
+                        + "] first and holds no ordinal runs for it, so synthetic _ids cannot be looked up"
+                );
+            }
+        }
+        return tsIdRuns;
+    }
+
+    /**
+     * Returns a document id past all the documents of {@code tsIdOrd} that precedes all the documents of greater _tsid ordinals: the
+     * exact end of the run of the ordinal under the grouped sort, and, when _tsid is the primary sort field, the document the
+     * skipper reports the next ordinal from (every document before it has an ordinal at most {@code tsIdOrd}). Returns
+     * {@code maxDocs} if no document has a greater ordinal.
+     */
+    int tsIdRunEnd(int tsIdOrd) throws IOException {
+        var runs = tsIdRuns();
+        if (runs != null) {
+            return runs.endDoc(tsIdOrd);
+        }
+        int nextStartDocID = findStartDocIDForTsIdOrd(tsIdOrd + 1);
+        return nextStartDocID == DocIdSetIterator.NO_MORE_DOCS ? maxDocs : nextStartDocID;
+    }
+
+    /**
+     * Returns the document holding the smallest synthetic _id of the segment, or {@link DocIdSetIterator#NO_MORE_DOCS} if no
+     * document has a _tsid.
+     */
+    int firstDocInTermOrder() throws IOException {
+        var runs = tsIdRuns();
+        if (runs != null) {
+            return runs.firstDoc(0);
+        }
+        for (int doc = 0; doc < maxDocs; doc++) {
+            if (hasTsIdDocValue(doc)) {
+                return doc;
+            }
+        }
+        return DocIdSetIterator.NO_MORE_DOCS;
+    }
+
+    /**
+     * Returns the document holding the greatest synthetic _id of the segment, or {@link DocIdSetIterator#NO_MORE_DOCS} if no
+     * document has a _tsid. Documents of a _tsid are sorted by descending timestamp, so that is the last document of the greatest
+     * _tsid, skipping over the NOOP tombstones that may follow it.
+     */
+    int lastDocInTermOrder() throws IOException {
+        var runs = tsIdRuns();
+        int from = runs != null ? runs.endDoc(getTsIdValueCount() - 1) : maxDocs;
+        for (int doc = from - 1; doc >= 0; doc--) {
+            if (hasTsIdDocValue(doc)) {
+                return doc;
+            }
+        }
+        return DocIdSetIterator.NO_MORE_DOCS;
     }
 
     /**
@@ -181,7 +282,9 @@ class TSDBSyntheticIdDocValuesHolder {
         if (cachedTsIdOrd != -1 && cachedTsIdOrd == tsIdOrdinal) {
             return cachedTsId;
         }
-        if (tsIdDocValues == null || tsIdDocValues.ordValue() > tsIdOrdinal) {
+        // The ordinal of the current document is only defined once the iterator is positioned, which the ordinal runs path (see
+        // #tsIdRuns) does not need before building a term.
+        if (tsIdDocValues == null || (isPositioned(tsIdDocValues) && tsIdDocValues.ordValue() > tsIdOrdinal)) {
             tsIdDocValues = docValuesProducer.getSorted(tsIdFieldInfo);
             cachedTsIdOrd = -1;
             cachedTsId = null;
@@ -194,6 +297,10 @@ class TSDBSyntheticIdDocValuesHolder {
             cachedTsId = BytesRef.deepCopyOf(tsId);
         }
         return tsId;
+    }
+
+    private static boolean isPositioned(SortedDocValues docValues) {
+        return docValues.docID() >= 0 && docValues.docID() != DocIdSetIterator.NO_MORE_DOCS;
     }
 
     /**
@@ -227,6 +334,11 @@ class TSDBSyntheticIdDocValuesHolder {
      * </p>
      */
     int findFirstDocWithTsIdOrdinalEqualOrGreaterThan(int tsIdOrd) throws IOException {
+        var runs = tsIdRuns();
+        if (runs != null) {
+            // Every ordinal has documents, so the first document with an ordinal at least tsIdOrd is the start of its own run
+            return runs.firstDoc(tsIdOrd);
+        }
         int startDocId = findStartDocIDForTsIdOrd(tsIdOrd);
         assert startDocId != DocIdSetIterator.NO_MORE_DOCS : startDocId;
 
@@ -277,6 +389,10 @@ class TSDBSyntheticIdDocValuesHolder {
      * </p>
      */
     int findFirstDocWithTsIdOrdinalEqualTo(int tsIdOrd) throws IOException {
+        var runs = tsIdRuns();
+        if (runs != null) {
+            return runs.firstDoc(tsIdOrd);
+        }
         int startDocId = findStartDocIDForTsIdOrd(tsIdOrd);
         assert startDocId != DocIdSetIterator.NO_MORE_DOCS : startDocId;
 

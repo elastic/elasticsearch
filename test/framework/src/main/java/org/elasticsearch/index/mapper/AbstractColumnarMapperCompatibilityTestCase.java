@@ -289,15 +289,18 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
         final IndexRequest[] requests = buildIndexRequests(docs, sourceBytesArray);
         final MappingLookup mappingLookup = mapperService.mappingLookup();
         final IndexSettings indexSettings = mapperService.getIndexSettings();
+        // The encoded batch is attached to the operation batch, as ShardBatchMapper sees it, so that metadata mappers deriving
+        // values from source columns can reach it through BatchMappingContext#sourceBatch().
         try (
+            EscfBatch escfBatch = encode(Arrays.asList(sourceBytesArray), encoder);
             BatchMappingContext ctx = new BatchMappingContext(
-                EngineTestCase.initFromRequests(requests),
+                EngineTestCase.initFromRequests(requests, escfBatch),
                 mappingLookup,
                 indexSettings,
                 new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))
             )
         ) {
-            try (EscfBatch escfBatch = encode(Arrays.asList(sourceBytesArray), encoder)) {
+            {
                 // Resolve the schema leaves exactly as production does, so the harness exercises every fallback decision that
                 // ShardBatchMapper makes before it calls a mapper, not just the mapper's own behaviour.
                 final ShardBatchMapper.BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(

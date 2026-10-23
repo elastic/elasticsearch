@@ -19,9 +19,11 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.DimensionGroupFieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MetricNameHashFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SliceKeyFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
@@ -370,12 +372,94 @@ public class IndexSortSettingsTests extends ESTestCase {
                 .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some_dimension")
                 .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
                 .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
+                // the tsid-first sort; see testTimeSeriesModeDimensionGroupSort for the default of new indices
+                .put(IndexSettings.TIME_SERIES_DIMENSION_GROUP_FIELD.getKey(), "")
                 .build()
         );
         Sort sort = buildIndexSort(indexSettings, TimeSeriesIdFieldMapper.FIELD_TYPE, new DateFieldMapper.DateFieldType("@timestamp"));
         assertThat(sort.getSort(), arrayWithSize(2));
         assertThat(sort.getSort()[0].getField(), equalTo("_tsid"));
         assertThat(sort.getSort()[1].getField(), equalTo("@timestamp"));
+    }
+
+    /**
+     * Time series indices created on or after {@link IndexVersions#TIME_SERIES_DIMENSION_GROUP_SORT} sort on the metric name hash
+     * and the dimension group ahead of the tsid, unless the dimension group field is set to an empty string.
+     */
+    public void testTimeSeriesModeDimensionGroupSort() {
+        IndexVersion version = IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TIME_SERIES_DIMENSION_GROUP_SORT);
+        Settings.Builder settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "time_series")
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some_dimension")
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z");
+        if (randomBoolean()) {
+            settings.put(IndexSettings.TIME_SERIES_DIMENSION_GROUP_FIELD.getKey(), "some_dimension");
+        }
+        IndexSettings indexSettings = indexSettings(settings.build(), version);
+        assertTrue(indexSettings.useTimeSeriesDimensionGroupSort());
+        Sort sort = buildIndexSort(
+            indexSettings,
+            MetricNameHashFieldMapper.FIELD_TYPE,
+            DimensionGroupFieldMapper.FIELD_TYPE,
+            TimeSeriesIdFieldMapper.FIELD_TYPE,
+            new DateFieldMapper.DateFieldType("@timestamp")
+        );
+        assertThat(sort.getSort(), arrayWithSize(4));
+        assertThat(sort.getSort()[0].getField(), equalTo("_metric_name_hash"));
+        assertThat(sort.getSort()[0].getReverse(), equalTo(false));
+        assertThat(sort.getSort()[1].getField(), equalTo("_dimension_group"));
+        assertThat(sort.getSort()[1].getReverse(), equalTo(false));
+        assertThat(sort.getSort()[2].getField(), equalTo("_tsid"));
+        assertThat(sort.getSort()[2].getReverse(), equalTo(false));
+        assertThat(sort.getSort()[3].getField(), equalTo("@timestamp"));
+        assertThat(sort.getSort()[3].getReverse(), equalTo(true));
+
+        // the new metadata fields are required by the sort
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> buildIndexSort(indexSettings, TimeSeriesIdFieldMapper.FIELD_TYPE, new DateFieldMapper.DateFieldType("@timestamp"))
+        );
+        assertThat(e.getMessage(), equalTo("unknown index sort field:[_metric_name_hash] required by [index.mode=time_series]"));
+    }
+
+    public void testTimeSeriesModeDimensionGroupSortDisabled() {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "time_series")
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some_dimension")
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
+            .put(IndexSettings.TIME_SERIES_DIMENSION_GROUP_FIELD.getKey(), "")
+            .build();
+        IndexSettings indexSettings = indexSettings(
+            settings,
+            IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TIME_SERIES_DIMENSION_GROUP_SORT)
+        );
+        assertFalse(indexSettings.useTimeSeriesDimensionGroupSort());
+        Sort sort = buildIndexSort(indexSettings, TimeSeriesIdFieldMapper.FIELD_TYPE, new DateFieldMapper.DateFieldType("@timestamp"));
+        assertThat(sort.getSort(), arrayWithSize(2));
+        assertThat(sort.getSort()[0].getField(), equalTo("_tsid"));
+        assertThat(sort.getSort()[1].getField(), equalTo("@timestamp"));
+    }
+
+    public void testTimeSeriesModeDimensionGroupSortBeforeVersion() {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "time_series")
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some_dimension")
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
+            .build();
+        IndexSettings indexSettings = indexSettings(
+            settings,
+            IndexVersionUtils.randomVersionBetween(
+                IndexVersions.TSID_SINGLE_PREFIX_BYTE,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_DIMENSION_GROUP_SORT)
+            )
+        );
+        assertFalse(indexSettings.useTimeSeriesDimensionGroupSort());
+        Sort sort = buildIndexSort(indexSettings, TimeSeriesIdFieldMapper.FIELD_TYPE, new DateFieldMapper.DateFieldType("@timestamp"));
+        assertThat(sort.getSort(), arrayWithSize(2));
+        assertThat(sort.getSort()[0].getField(), equalTo("_tsid"));
     }
 
     public void testTimeSeriesModeNoTimestamp() {
@@ -385,6 +469,7 @@ public class IndexSortSettingsTests extends ESTestCase {
                 .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some_dimension")
                 .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
                 .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
+                .put(IndexSettings.TIME_SERIES_DIMENSION_GROUP_FIELD.getKey(), "")
                 .build()
         );
         Exception e = expectThrows(IllegalArgumentException.class, () -> buildIndexSort(indexSettings, TimeSeriesIdFieldMapper.FIELD_TYPE));

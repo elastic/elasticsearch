@@ -47,6 +47,7 @@ import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.compress.LZ4;
 import org.apache.lucene.util.packed.DirectMonotonicReader;
+import org.apache.lucene.util.packed.DirectReader;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
@@ -60,6 +61,8 @@ import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Base class for TSDB doc values producers.
@@ -81,6 +84,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     private final int maxDoc;
     final int version;
     private final int primarySortFieldNumber;
+    private final Set<Integer> secondarySortFieldNumbers;
     private final boolean merging;
     private final long[] skipIndexJumpLengthPerLevel;
     private static final int DEFAULT_NUMERIC_BLOCK_SHIFT = 7;
@@ -115,6 +119,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         this.skippers = new IntObjectHashMap<>();
         this.maxDoc = state.segmentInfo.maxDoc();
         this.primarySortFieldNumber = primarySortFieldNumber(state.segmentInfo, state.fieldInfos);
+        this.secondarySortFieldNumbers = secondarySortFieldNumbers(state.segmentInfo, state.fieldInfos);
         this.merging = false;
         this.formatConfig = formatConfig;
         this.skipIndexJumpLengthPerLevel = AbstractTSDBDocValuesConsumer.skipIndexJumpLengths(
@@ -226,6 +231,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         this.maxDoc = original.maxDoc;
         this.version = original.version;
         this.primarySortFieldNumber = original.primarySortFieldNumber;
+        this.secondarySortFieldNumbers = original.secondarySortFieldNumbers;
         this.merging = true;
         this.skipIndexJumpLengthPerLevel = original.skipIndexJumpLengthPerLevel;
         this.formatConfig = original.formatConfig;
@@ -1485,6 +1491,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         implements
             BlockLoader.OptionalColumnAtATimeReader,
             PartitionedDocValues,
+            OrdinalRunsDocValues,
             RandomAccessNumericValues.Provider {
 
         @Override
@@ -1558,6 +1565,30 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             } else {
                 return null;
             }
+        }
+
+        @Override
+        public OrdinalRuns ordinalRuns() throws IOException {
+            if (entry instanceof OrdinalRunsEntry runs) {
+                final RandomAccessInput runStartsData = data.randomAccessSlice(runs.runStartsOffset, runs.runStartsLength);
+                final LongValues runStarts = DirectMonotonicReader.getInstance(runs.runStartsMeta, runStartsData);
+                final RandomAccessInput runEndsData = data.randomAccessSlice(runs.runEndsOffset, runs.runEndsLength);
+                final LongValues runEnds = DirectMonotonicReader.getInstance(runs.runEndsMeta, runEndsData);
+                final RandomAccessInput ordToRunData = data.randomAccessSlice(runs.ordToRunOffset, runs.ordToRunLength);
+                final LongValues ordToRun = DirectReader.getInstance(ordToRunData, runs.ordToRunBitsPerValue);
+                return new OrdinalRuns() {
+                    @Override
+                    public int firstDoc(int ord) {
+                        return Math.toIntExact(runStarts.get(ordToRun.get(ord)));
+                    }
+
+                    @Override
+                    public int endDoc(int ord) {
+                        return Math.toIntExact(runEnds.get(ordToRun.get(ord)));
+                    }
+                };
+            }
+            return null;
         }
     }
 
@@ -2193,6 +2224,26 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         return -1;
     }
 
+    /**
+     * Returns the field numbers of the index sort fields other than the primary one, whichever their direction. Their ordinal runs
+     * are recorded when the field is written (see {@link OrdinalRunsWriter}), so this decides the layout of their metadata.
+     */
+    public static Set<Integer> secondarySortFieldNumbers(SegmentInfo segmentInfo, FieldInfos fieldInfos) {
+        final var indexSort = segmentInfo.getIndexSort();
+        if (indexSort == null || indexSort.getSort().length < 2) {
+            return Set.of();
+        }
+        final Set<Integer> fieldNumbers = new HashSet<>();
+        final SortField[] sortFields = indexSort.getSort();
+        for (int i = 1; i < sortFields.length; i++) {
+            FieldInfo fieldInfo = fieldInfos.fieldInfo(sortFields[i].getField());
+            if (fieldInfo != null) {
+                fieldNumbers.add(fieldInfo.number);
+            }
+        }
+        return fieldNumbers;
+    }
+
     private void readFields(IndexInput meta, FieldInfos infos, int version, int numericBlockShift) throws IOException {
         for (int fieldNumber = meta.readInt(); fieldNumber != -1; fieldNumber = meta.readInt()) {
             FieldInfo info = infos.fieldInfo(fieldNumber);
@@ -2210,7 +2261,14 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             } else if (type == AbstractTSDBDocValuesConsumer.SORTED) {
                 sorted.put(
                     info.number,
-                    readSorted(version, meta, numericBlockShift, formatConfig.termsBlockLz4Shift(), info.number == primarySortFieldNumber)
+                    readSorted(
+                        version,
+                        meta,
+                        numericBlockShift,
+                        formatConfig.termsBlockLz4Shift(),
+                        info.number == primarySortFieldNumber,
+                        secondarySortFieldNumbers.contains(info.number)
+                    )
                 );
             } else if (type == AbstractTSDBDocValuesConsumer.SORTED_SET) {
                 sortedSets.put(
@@ -2220,7 +2278,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                         meta,
                         numericBlockShift,
                         formatConfig.termsBlockLz4Shift(),
-                        info.number == primarySortFieldNumber
+                        info.number == primarySortFieldNumber,
+                        secondarySortFieldNumbers.contains(info.number)
                     )
                 );
             } else if (type == AbstractTSDBDocValuesConsumer.SORTED_NUMERIC) {
@@ -2383,8 +2442,14 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
-    private SortedEntry readSorted(int version, IndexInput meta, int numericBlockShift, int termsDictBlockLz4Shift, boolean primarySorted)
-        throws IOException {
+    private SortedEntry readSorted(
+        int version,
+        IndexInput meta,
+        int numericBlockShift,
+        int termsDictBlockLz4Shift,
+        boolean primarySorted,
+        boolean secondarySorted
+    ) throws IOException {
         SortedEntry entry = new SortedEntry();
         entry.ordsEntry = new NumericEntry();
         entry.termsDictEntry = new TermsDictEntry();
@@ -2400,6 +2465,23 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 partitioned.partitionDataLength = meta.readVLong();
                 return partitioned;
             }
+            if (secondarySorted && version >= TSDBDocValuesFormatConfig.VERSION_SORT_FIELD_ORDINAL_RUNS && meta.readByte() == 1) {
+                // Written by OrdinalRunsWriter#flush
+                OrdinalRunsEntry runs = new OrdinalRunsEntry();
+                runs.ordsEntry = entry.ordsEntry;
+                runs.termsDictEntry = entry.termsDictEntry;
+                runs.numRuns = meta.readVInt();
+                runs.runStartsOffset = meta.readLong();
+                runs.runStartsMeta = DirectMonotonicReader.loadMeta(meta, runs.numRuns, meta.readVInt());
+                runs.runStartsLength = meta.readLong();
+                runs.runEndsOffset = meta.readLong();
+                runs.runEndsMeta = DirectMonotonicReader.loadMeta(meta, runs.numRuns, meta.readVInt());
+                runs.runEndsLength = meta.readLong();
+                runs.ordToRunOffset = meta.readLong();
+                runs.ordToRunBitsPerValue = meta.readByte();
+                runs.ordToRunLength = meta.readLong();
+                return runs;
+            }
         } else {
             readOrdinalField(meta, entry.ordsEntry, numericBlockShift);
             readTermDict(meta, entry.termsDictEntry, termsDictBlockLz4Shift);
@@ -2412,13 +2494,21 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         IndexInput meta,
         int numericBlockShift,
         int termsDictBlockLz4Shift,
-        boolean primarySorted
+        boolean primarySorted,
+        boolean secondarySorted
     ) throws IOException {
         SortedSetEntry entry = new SortedSetEntry();
         byte multiValued = meta.readByte();
         switch (multiValued) {
             case 0: // singlevalued
-                entry.singleValueEntry = readSorted(version, meta, numericBlockShift, termsDictBlockLz4Shift, primarySorted);
+                entry.singleValueEntry = readSorted(
+                    version,
+                    meta,
+                    numericBlockShift,
+                    termsDictBlockLz4Shift,
+                    primarySorted,
+                    secondarySorted
+                );
                 return entry;
             case 1: // multivalued
                 break;
@@ -3129,6 +3219,20 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         int partitionNumBits;
         long partitionStartPointer;
         long partitionDataLength;
+    }
+
+    /** A secondary sort field with the first run of documents of each ordinal, see {@link OrdinalRunsWriter}. */
+    static class OrdinalRunsEntry extends SortedEntry {
+        int numRuns;
+        long runStartsOffset;
+        long runStartsLength;
+        DirectMonotonicReader.Meta runStartsMeta;
+        long runEndsOffset;
+        long runEndsLength;
+        DirectMonotonicReader.Meta runEndsMeta;
+        long ordToRunOffset;
+        long ordToRunLength;
+        int ordToRunBitsPerValue;
     }
 
     static class SortedSetEntry {

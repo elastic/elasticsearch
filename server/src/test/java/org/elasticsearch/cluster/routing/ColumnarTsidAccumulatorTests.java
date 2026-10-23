@@ -40,9 +40,18 @@ public class ColumnarTsidAccumulatorTests extends ESTestCase {
         return IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE);
     }
 
+    private static List<TsidLayout> allLayouts() {
+        IndexVersion groupedVersion = IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TIME_SERIES_DIMENSION_GROUP_SORT);
+        return List.of(
+            new TsidLayout(multiBytePrefixVersion(), false),
+            new TsidLayout(singleBytePrefixVersion(), false),
+            new TsidLayout(groupedVersion, true)
+        );
+    }
+
     private static void assertAccumulatorMatchesTsidBuilder(List<List<Dim>> rows) {
-        for (IndexVersion version : List.of(multiBytePrefixVersion(), singleBytePrefixVersion())) {
-            boolean singleByte = TsidBuilder.useSingleBytePrefixLayout(version);
+        for (TsidLayout layout : allLayouts()) {
+            IndexVersion version = layout.creationVersion();
             BufferedMurmur3Hasher hasher = new BufferedMurmur3Hasher(0L);
 
             // Reference: row-major through TsidBuilder, dimensions added in source order.
@@ -53,7 +62,7 @@ public class ColumnarTsidAccumulatorTests extends ESTestCase {
                     MurmurHash3.Hash128 pathHash = TsidBuilder.hashPath(hasher, d.path());
                     builder.addPrehashedDimension(d.path(), pathHash.h1, pathHash.h2, d.valueH1(), d.valueH2());
                 }
-                expected[r] = builder.buildTsid(version);
+                expected[r] = builder.buildTsid(layout);
             }
 
             // Under test: column-major folding. Distinct paths sorted, one path group each.
@@ -63,7 +72,7 @@ public class ColumnarTsidAccumulatorTests extends ESTestCase {
                     sortedPaths.add(d.path());
                 }
             }
-            ColumnarTsidAccumulator accumulator = ColumnarTsidAccumulator.create(rows.size(), singleByte);
+            ColumnarTsidAccumulator accumulator = ColumnarTsidAccumulator.create(rows.size(), layout.kind());
             int pathGroup = TsidBuilder.NO_PATH_GROUP;
             for (String path : sortedPaths) {
                 pathGroup++;
@@ -79,9 +88,9 @@ public class ColumnarTsidAccumulatorTests extends ESTestCase {
             }
             BytesRef[] actual = accumulator.build();
 
-            assertThat("row count, version " + version, actual.length, equalTo(rows.size()));
+            assertThat("row count, layout " + layout, actual.length, equalTo(rows.size()));
             for (int r = 0; r < rows.size(); r++) {
-                assertThat("row " + r + ", version " + version, actual[r], equalTo(expected[r]));
+                assertThat("row " + r + ", layout " + layout, actual[r], equalTo(expected[r]));
             }
         }
     }

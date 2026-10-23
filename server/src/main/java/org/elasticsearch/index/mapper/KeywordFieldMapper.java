@@ -1532,6 +1532,11 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         /** Values that have more chars than the return value of this method will
          *  be skipped at parsing time. */
+        /** The value indexed in place of an explicit {@code null}, or {@code null} if nulls are left out. */
+        public String nullValue() {
+            return nullValue;
+        }
+
         public IgnoreAbove ignoreAbove() {
             return ignoreAbove;
         }

@@ -53,9 +53,11 @@ when the nested branches can be flattened into one branch point.
 
 ::::{applies-switch}
 :::{applies-item} { "stack": "ga 9.6+", "serverless": "ga" }
-Two user-written `FORK` commands are not allowed along the same uninterrupted
-pipeline. A merge created by a view or `FROM` subquery separates pipelines, so
-separate branches can contain their own `FORK` commands.
+A query can use multiple `FORK` commands when views or multi-source `FROM`
+commands create separate source branches, but each uninterrupted pipeline can
+contain only one. Refer to the
+[`FORK` limitations](/reference/query-languages/esql/commands/fork.md#limitations)
+for supported patterns and examples.
 :::
 :::{applies-item} stack: preview 9.1-9.3, ga 9.4-9.5
 Only one `FORK` command is allowed per query, so nested branches aren't possible.

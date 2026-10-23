@@ -24,7 +24,9 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.Terms;
+import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
@@ -1861,6 +1863,17 @@ public abstract class Engine implements Closeable {
          */
         public String source() {
             return source;
+        }
+
+        /**
+         * Not supported.
+         *
+         * @deprecated Use {@link #search(Query, CollectorManager)} instead.
+         */
+        @Deprecated
+        @Override
+        public void search(Query query, Collector collector) {
+            throw new UnsupportedOperationException("use search(Query, CollectorManager) instead");
         }
 
         public DirectoryReader getDirectoryReader() {

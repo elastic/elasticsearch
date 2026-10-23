@@ -32,6 +32,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -481,19 +482,82 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
         var indexNode = startIndexNode();
         ensureStableCluster(2);
 
+        for (IndexMode indexMode : List.of(IndexMode.STANDARD, IndexMode.LOGSDB, IndexMode.LOGSDB_COLUMNAR)) {
+            var indexName = randomIdentifier();
+            assertAcked(
+                prepareCreate(indexName).setSettings(
+                    indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+                        .put(IndexSettings.MODE.getKey(), indexMode.getName())
+                        .build()
+                ).setMapping("""
+                    {
+                      "properties": {
+                        "@timestamp": {
+                          "type": "date",
+                          "format": "epoch_millis"
+                        }
+                      }
+                    }
+                    """)
+            );
+            ensureGreen(indexName);
+
+            List<Long> minInCommits = new ArrayList<>();
+            List<Long> maxInCommits = new ArrayList<>();
+            int commitsCount = randomIntBetween(1, 5);
+            for (int i = 0; i < commitsCount; i++) {
+                int newDocsCount = randomIntBetween(1, 10);
+                long minPerCommit = Long.MAX_VALUE;
+                long maxPerCommit = Long.MIN_VALUE;
+                var bulkRequest = client().prepareBulk();
+                for (int j = 0; j < newDocsCount; j++) {
+                    long timestamp = randomLongBetween(Long.MIN_VALUE + 1, Long.MAX_VALUE);
+                    minPerCommit = Math.min(minPerCommit, timestamp);
+                    maxPerCommit = Math.max(maxPerCommit, timestamp);
+                    bulkRequest.add(new IndexRequest(indexName).source("@timestamp", timestamp));
+                }
+                assertNoFailures(bulkRequest.get());
+                assertNoFailures(client().admin().indices().prepareRefresh(indexName).execute().get());
+                minInCommits.add(minPerCommit);
+                maxInCommits.add(maxPerCommit);
+            }
+            assertPendingCommitTimestampRanges(indexNode, indexName, indexMode.getName(), minInCommits, maxInCommits);
+        }
+    }
+
+    public void testTimestampFieldValueRangeForTimeSeries() throws Exception {
+        startMasterOnlyNode();
+        var indexNode = startIndexNode();
+        ensureStableCluster(2);
+
         var indexName = randomIdentifier();
-        createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
+        assertAcked(
+            prepareCreate(indexName).setSettings(
+                indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+                    .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+                    .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "host")
+                    .build()
+            ).setMapping("""
+                {
+                  "properties": {
+                    "@timestamp": {
+                      "type": "date",
+                      "format": "epoch_millis"
+                    },
+                    "host": {
+                      "type": "keyword",
+                      "time_series_dimension": true
+                    }
+                  }
+                }
+                """)
+        );
         ensureGreen(indexName);
-        assertAcked(client().admin().indices().preparePutMapping(indexName).setSource("""
-                     {
-                       "properties": {
-                         "@timestamp": {
-                           "type": "date",
-                           "format": "epoch_millis"
-                         }
-                       }
-                     }
-            """).get());
+
+        Settings indexSettings = clusterService().state().projectState().metadata().index(indexName).getSettings();
+        long startMillis = IndexSettings.TIME_SERIES_START_TIME.get(indexSettings).toEpochMilli();
+        long endMillis = IndexSettings.TIME_SERIES_END_TIME.get(indexSettings).toEpochMilli();
+        long lowerMillis = Math.max(0L, startMillis);
 
         List<Long> minInCommits = new ArrayList<>();
         List<Long> maxInCommits = new ArrayList<>();
@@ -504,27 +568,36 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
             long maxPerCommit = Long.MIN_VALUE;
             var bulkRequest = client().prepareBulk();
             for (int j = 0; j < newDocsCount; j++) {
-                long timestamp = randomLongBetween(Long.MIN_VALUE + 1, Long.MAX_VALUE);
+                long timestamp = randomLongBetween(lowerMillis, endMillis - 1);
                 minPerCommit = Math.min(minPerCommit, timestamp);
                 maxPerCommit = Math.max(maxPerCommit, timestamp);
-                bulkRequest.add(new IndexRequest(indexName).source("@timestamp", timestamp));
+                bulkRequest.add(new IndexRequest(indexName).source("@timestamp", timestamp, "host", "a"));
             }
             assertNoFailures(bulkRequest.get());
             assertNoFailures(client().admin().indices().prepareRefresh(indexName).execute().get());
             minInCommits.add(minPerCommit);
             maxInCommits.add(maxPerCommit);
         }
+        assertPendingCommitTimestampRanges(indexNode, indexName, IndexMode.TIME_SERIES.getName(), minInCommits, maxInCommits);
+    }
 
+    private void assertPendingCommitTimestampRanges(
+        String indexNode,
+        String indexName,
+        String indexMode,
+        List<Long> minInCommits,
+        List<Long> maxInCommits
+    ) {
         var shardId = findIndexShard(indexName).shardId();
         var statelessCommitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
         var vBcc = statelessCommitService.getCurrentVirtualBcc(shardId);
-        assertNotNull(vBcc);
-        assertThat(vBcc.getPendingCompoundCommits().size(), is(commitsCount));
-        for (int i = 0; i < commitsCount; i++) {
-            var pendingCC = vBcc.getPendingCompoundCommits().get(i);
-            assertNotNull(pendingCC.getStatelessCompoundCommit().timestampFieldValueRange());
-            assertThat(pendingCC.getStatelessCompoundCommit().timestampFieldValueRange().minMillis(), is(minInCommits.get(i)));
-            assertThat(pendingCC.getStatelessCompoundCommit().timestampFieldValueRange().maxMillis(), is(maxInCommits.get(i)));
+        assertNotNull(indexMode, vBcc);
+        assertThat(indexMode, vBcc.getPendingCompoundCommits().size(), is(minInCommits.size()));
+        for (int i = 0; i < minInCommits.size(); i++) {
+            var range = vBcc.getPendingCompoundCommits().get(i).getStatelessCompoundCommit().timestampFieldValueRange();
+            assertNotNull(indexMode + " commit " + i, range);
+            assertThat(indexMode + " commit " + i + " min", range.minMillis(), is(minInCommits.get(i)));
+            assertThat(indexMode + " commit " + i + " max", range.maxMillis(), is(maxInCommits.get(i)));
         }
     }
 

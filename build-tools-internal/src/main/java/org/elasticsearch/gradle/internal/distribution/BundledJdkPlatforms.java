@@ -12,7 +12,6 @@ package org.elasticsearch.gradle.internal.distribution;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -32,18 +31,6 @@ public final class BundledJdkPlatforms {
      * The platforms a JDK is bundled for, in the order the bundled JDKs are registered.
      */
     public static final List<String> PLATFORMS = List.of("darwin", "windows", "linux");
-
-    /**
-     * Platform specific directories that modules (e.g. ML) ship native code in. These use the {@code x86_64}
-     * nomenclature rather than {@code x64}.
-     */
-    private static final List<String> MODULE_PLATFORM_DIRECTORIES = List.of(
-        "linux-x86_64",
-        "linux-aarch64",
-        "windows-x86_64",
-        "darwin-x86_64",
-        "darwin-aarch64"
-    );
 
     private BundledJdkPlatforms() {}
 
@@ -87,26 +74,17 @@ public final class BundledJdkPlatforms {
     }
 
     /**
-     * The name of the directory modules ship native code for the given platform and architecture in.
+     * The directory holding the security configuration, such as {@code cacerts} and {@code blocked.certs}, relative to
+     * the root of the bundled JDK for the given platform. The macOS JDK is an application bundle with its home in
+     * {@code Contents/Home}.
+     *
+     * @param platform one of {@code linux}, {@code darwin} or {@code windows}
      */
-    public static String modulePlatformDirectory(String platform, String architecture) {
-        String directory = platform + "-" + ("x64".equals(architecture) ? "x86_64" : architecture);
-        if (MODULE_PLATFORM_DIRECTORIES.contains(directory) == false) {
-            throw new IllegalArgumentException("Unknown module platform [" + platform + "-" + architecture + "]");
-        }
-        return directory;
-    }
-
-    /**
-     * The platform specific module directories that must be excluded from a distribution for the given platform and
-     * architecture. A platform independent distribution ({@code platform == null}) keeps all of them.
-     */
-    public static List<String> excludedModulePlatformDirectories(String platform, String architecture) {
-        if (platform == null) {
-            return List.of();
-        }
-        List<String> excluded = new ArrayList<>(MODULE_PLATFORM_DIRECTORIES);
-        excluded.remove(modulePlatformDirectory(platform, architecture));
-        return List.copyOf(excluded);
+    public static String securityDir(String platform) {
+        return switch (platform) {
+            case "linux", "windows" -> "lib/security";
+            case "darwin" -> "Contents/Home/lib/security";
+            default -> throw new IllegalArgumentException("Unknown platform [" + platform + "]");
+        };
     }
 }

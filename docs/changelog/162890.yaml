@@ -1,0 +1,5 @@
+area: Infra/Metrics
+issues: []
+pr: 162890
+summary: Read secure settings before they are closed
+type: bug

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.diskbbq;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -31,6 +32,7 @@ import static org.elasticsearch.license.DiskBBQLicensingIT.enableLicensing;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 @LuceneTestCase.SuppressCodecs("*")
@@ -47,7 +49,7 @@ public class SliceKnnDiskBBQIT extends ESIntegTestCase {
         return List.of(LocalStateDiskBBQ.class);
     }
 
-    public void testKnnSearchWithoutSliceDefaultsToAllSlices() {
+    public void testKnnSearchWithoutNamedSlicesIsRejected() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
 
         assertAcked(
@@ -84,11 +86,17 @@ public class SliceKnnDiskBBQIT extends ESIntegTestCase {
         ).actionGet();
         refresh("slice-knn-bbq-all");
 
-        // No _slice provided should default to _all and find documents from all slices
         final KnnSearchBuilder knn = new KnnSearchBuilder("vector", axisVector(64, 1), 10, 10, 100f, null, null);
         final SearchRequestBuilder search = prepareSearch("slice-knn-bbq-all").setKnnSearch(List.of(knn));
-
-        assertResponse(search, response -> { assertThat(response.getHits().getTotalHits().value(), equalTo(2L)); });
+        if (randomBoolean()) {
+            // selecting every slice does not name the slices to search
+            search.request().searchSlice(SliceIndexing.SLICE_ALL);
+        }
+        final Exception e = expectThrows(Exception.class, search);
+        assertThat(
+            ExceptionsHelper.stackTrace(e),
+            containsString("to perform knn search on field [vector], the slices to search must be selected by name")
+        );
     }
 
     public void testKnnSearchSlices() {

@@ -209,11 +209,11 @@ steps:
   - group: bwc-snapshots
     steps:
       - label: "{{matrix.BWC_VERSION}} / bwc-snapshots"
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints -Dtests.bwc.mode=gradle v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints -Dtests.bwc.mode=auto v$$BWC_VERSION#bwcTest
         timeout_in_minutes: 300
         matrix:
           setup:
-            BWC_VERSION: ["8.19.24", "9.4.9", "9.5.6", "9.6.0"]
+            BWC_VERSION: ["8.19.24", "9.4.9", "9.5.6", "9.6.0", "9.7.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404

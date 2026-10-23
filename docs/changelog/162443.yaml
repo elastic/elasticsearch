@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 162443
+summary: Charge enrich lookup sources to the request circuit breaker
+type: enhancement

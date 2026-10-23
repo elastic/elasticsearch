@@ -354,7 +354,7 @@ public class KnnEvalSpecTests extends ESTestCase {
         }
     }
 
-    public void testBaselineDefaultsToBoundedProxy() throws IOException {
+    public void testOmittedBaselineIsLeftForTheIndexTypeToResolve() throws IOException {
         for (String baseline : List.of("", "\"baseline\": {},")) {
             String json = """
                 {
@@ -366,9 +366,8 @@ public class KnnEvalSpecTests extends ESTestCase {
                 }""".replace("%s", baseline);
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
                 KnnEvalSpec spec = KnnEvalSpec.parse(parser);
+                assertTrue(spec.hasDefaultBaseline());
                 assertFalse(spec.getBaseline().isExact());
-                assertEquals(20.0f, spec.getBaseline().getVisitPercentage(), 0.0f);
-                assertEquals(100.0f, spec.getBaseline().getRescoreOversample(), 0.0f);
             }
         }
     }

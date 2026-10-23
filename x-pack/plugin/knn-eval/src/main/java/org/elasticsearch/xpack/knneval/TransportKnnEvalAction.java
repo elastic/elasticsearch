@@ -53,6 +53,7 @@ import org.elasticsearch.common.util.concurrent.ThrottledIterator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -72,6 +73,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /** Compares each candidate's top-k with the baseline's, using one PIT and sequential passes to keep changes and contention out. */
 public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalRequest, KnnEvalResponse> {
@@ -135,9 +138,10 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
             );
             return;
         }
+        ProjectMetadata project;
         Set<String> indices;
         try {
-            ProjectMetadata project = projectResolver.getProjectMetadata(clusterService.state());
+            project = projectResolver.getProjectMetadata(clusterService.state());
             // data streams included, as the PIT includes them
             indices = Set.of(indexNameExpressionResolver.concreteIndexNames(project, request.indicesOptions(), true, request.indices()));
             if (indices.isEmpty()) {
@@ -151,13 +155,22 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         resolveField(
             task,
             request,
+            project,
             indices,
-            listener.delegateFailureAndWrap((delegate, rescore) -> rejectNestedField(task, request, rescore, delegate))
+            listener.delegateFailureAndWrap(
+                (delegate, rescore) -> rejectNestedField(task, request, rescore, indexInfo(rescore, project, indices), delegate)
+            )
         );
     }
 
     /** Nested vectors need nested sampling, exact queries and parent-level recall; refused until supported. */
-    private void rejectNestedField(Task task, KnnEvalRequest request, KnnEvalRescore rescore, ActionListener<KnnEvalResponse> listener) {
+    private void rejectNestedField(
+        Task task,
+        KnnEvalRequest request,
+        KnnEvalRescore rescore,
+        Map<String, KnnEvalResponse.IndexInfo> indexInfo,
+        ActionListener<KnnEvalResponse> listener
+    ) {
         String field = request.getKnnEvalSpec().getField();
         FieldCapabilitiesRequest capabilitiesRequest = new FieldCapabilitiesRequest().indices(request.indices())
             .indicesOptions(request.indicesOptions())
@@ -176,7 +189,7 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
                         + "] does not support yet"
                 );
             }
-            openPointInTime(task, request, rescore, delegate);
+            openPointInTime(task, request, rescore, indexInfo, delegate);
         }));
     }
 
@@ -192,8 +205,14 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         return null;
     }
 
-    /** Checks the field maps to one supported DiskBBQ config across all of {@code indices}. */
-    private void resolveField(Task task, KnnEvalRequest request, Set<String> indices, ActionListener<KnnEvalRescore> listener) {
+    /** Checks the field maps to one supported DiskBBQ or HNSW-family config across all of {@code indices}. */
+    private void resolveField(
+        Task task,
+        KnnEvalRequest request,
+        ProjectMetadata project,
+        Set<String> indices,
+        ActionListener<KnnEvalRescore> listener
+    ) {
         KnnEvalSpec spec = request.getKnnEvalSpec();
         String field = spec.getField();
         GetFieldMappingsRequest mappingsRequest = new GetFieldMappingsRequest().indices(request.indices())
@@ -250,6 +269,22 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
             }
         }
         return null;
+    }
+
+    static Map<String, KnnEvalResponse.IndexInfo> indexInfo(KnnEvalRescore rescore, ProjectMetadata project, Set<String> indices) {
+        if (rescore.indexType().isGraph() == false) {
+            return Map.of();
+        }
+        return indices.stream()
+            .filter(index -> project.index(index) != null)
+            .collect(
+                Collectors.toMap(
+                    Function.identity(),
+                    index -> new KnnEvalResponse.IndexInfo(
+                        DenseVectorFieldMapper.HNSW_EARLY_TERMINATION.get(project.index(index).getSettings())
+                    )
+                )
+            );
     }
 
     private static void rejectDisabledIndices(ProjectMetadata project, Set<String> indices) {
@@ -322,6 +357,8 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
             throw new IllegalArgumentException("field [" + field + "] is not mapped in any of the target indices");
         }
         KnnEvalRescore rescore = KnnEvalRescore.fromFieldMapping(field, fieldMapping);
+        rescore.validateSettings(spec.getBaseline(), "baseline");
+        spec.getKnnSettings().forEach(candidate -> rescore.validateSettings(candidate, "knn_settings entry"));
         validateQueryDimensions(field, firstResolution.dims(), spec.getQueries());
         return rescore;
     }
@@ -349,7 +386,13 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         }
     }
 
-    private void openPointInTime(Task task, KnnEvalRequest request, KnnEvalRescore rescore, ActionListener<KnnEvalResponse> listener) {
+    private void openPointInTime(
+        Task task,
+        KnnEvalRequest request,
+        KnnEvalRescore rescore,
+        Map<String, KnnEvalResponse.IndexInfo> indexInfo,
+        ActionListener<KnnEvalResponse> listener
+    ) {
         OpenPointInTimeRequest openRequest = new OpenPointInTimeRequest(request.indices()).indicesOptions(request.indicesOptions())
             .keepAlive(POINT_IN_TIME_KEEP_ALIVE);
         setParentTask(task, openRequest);
@@ -357,7 +400,7 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
             BytesReference pointInTimeId = openResponse.getPointInTimeId();
             // runAfter always fires and run() routes throws to onFailure, so the PIT always closes
             ActionListener<KnnEvalResponse> closingListener = ActionListener.runAfter(delegate, () -> closePointInTime(pointInTimeId));
-            ActionListener.run(closingListener, l -> countVectors(task, request, rescore, pointInTimeId, l));
+            ActionListener.run(closingListener, l -> countVectors(task, request, rescore, indexInfo, pointInTimeId, l));
         }));
     }
 
@@ -365,19 +408,20 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         Task task,
         KnnEvalRequest request,
         KnnEvalRescore rescore,
+        Map<String, KnnEvalResponse.IndexInfo> indexInfo,
         BytesReference pointInTimeId,
         ActionListener<KnnEvalResponse> listener
     ) {
         KnnEvalSpec spec = request.getKnnEvalSpec();
         if (spec.getBaseline().isExact() == false) {
-            resolveQueries(task, request, rescore, pointInTimeId, listener);
+            resolveQueries(task, request, rescore, indexInfo, pointInTimeId, listener);
             return;
         }
         SearchRequest countRequest = KnnEvalSearches.buildVectorCountRequest(spec, pointInTimeId);
         setParentTask(task, countRequest);
         client.search(countRequest, listener.delegateFailureAndWrap((delegate, searchResponse) -> {
             validateExactWorkload(spec, searchResponse.getHits().getTotalHits().value());
-            resolveQueries(task, request, rescore, pointInTimeId, delegate);
+            resolveQueries(task, request, rescore, indexInfo, pointInTimeId, delegate);
         }));
     }
 
@@ -416,12 +460,25 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         Task task,
         KnnEvalRequest request,
         KnnEvalRescore rescore,
+        Map<String, KnnEvalResponse.IndexInfo> indexInfo,
         BytesReference pointInTimeId,
         ActionListener<KnnEvalResponse> listener
     ) {
-        KnnEvalSpec spec = request.getKnnEvalSpec();
+        KnnEvalSpec requested = request.getKnnEvalSpec();
+        KnnEvalSpec spec = requested.hasDefaultBaseline()
+            ? requested.withBaseline(rescore.defaultBaseline(requested.getQuerySource() instanceof KnnEvalQuerySource.DocsSource))
+            : requested;
         switch (spec.getQuerySource()) {
-            case KnnEvalQuerySource.VectorsSource vs -> evaluate(task, spec, vs.vectors(), false, rescore, pointInTimeId, listener);
+            case KnnEvalQuerySource.VectorsSource vs -> evaluate(
+                task,
+                spec,
+                vs.vectors(),
+                false,
+                rescore,
+                indexInfo,
+                pointInTimeId,
+                listener
+            );
             case KnnEvalQuerySource.DocsSource ds -> {
                 var sampleRequest = KnnEvalSearches.buildSampleRequest(spec, ds.sample(), pointInTimeId);
                 setParentTask(task, sampleRequest);
@@ -435,7 +492,7 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
                                 + "] returned no documents; check that the indices contain documents with that dense_vector field"
                         );
                     }
-                    evaluate(task, spec, sampledQueries, true, rescore, pointInTimeId, delegate);
+                    evaluate(task, spec, sampledQueries, true, rescore, indexInfo, pointInTimeId, delegate);
                 }));
             }
         }
@@ -447,10 +504,16 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         List<KnnEvalQuery> queries,
         boolean queryIsSampledFromDocuments,
         KnnEvalRescore rescore,
+        Map<String, KnnEvalResponse.IndexInfo> indexInfo,
         BytesReference pointInTimeId,
         ActionListener<KnnEvalResponse> listener
     ) {
-        new EvaluationRunner(task, new KnnEvalState(spec, queryIsSampledFromDocuments, queries, rescore), pointInTimeId, listener).run();
+        new EvaluationRunner(
+            task,
+            new KnnEvalState(spec, queryIsSampledFromDocuments, queries, rescore, indexInfo),
+            pointInTimeId,
+            listener
+        ).run();
     }
 
     private final class EvaluationRunner {

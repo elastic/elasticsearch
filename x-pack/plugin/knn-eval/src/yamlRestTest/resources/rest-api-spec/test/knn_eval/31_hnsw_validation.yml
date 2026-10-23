@@ -1,0 +1,244 @@
+---
+"Flat index types are rejected":
+  - do:
+      indices.create:
+        index: flat_idx
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              emb:
+                type: dense_vector
+                dims: 64
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: flat
+  - do:
+      catch: bad_request
+      knn_eval:
+        index: flat_idx
+        body:
+          field: emb
+          k: 5
+          query_source:
+            from: docs
+            size: 5
+            seed: 42
+          knn_settings:
+            - num_candidates: 12
+  - match: { error.reason: "/.*must\\suse\\s\\[index_options.type\\]\\sof.*found\\s\\[flat\\].*/" }
+
+---
+"A bbq_disk index and an hnsw index cannot be evaluated together":
+  - requires:
+      cluster_features: "mapper.bbq_disk_support"
+      reason: "bbq_disk index_options"
+  - do:
+      indices.create:
+        index: disk_idx
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              emb:
+                type: dense_vector
+                dims: 64
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: bbq_disk
+  - do:
+      indices.create:
+        index: hnsw_idx
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              emb:
+                type: dense_vector
+                dims: 64
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: hnsw
+  - do:
+      catch: bad_request
+      knn_eval:
+        index: disk_idx,hnsw_idx
+        body:
+          field: emb
+          k: 5
+          query_source:
+            from: docs
+            size: 5
+            seed: 42
+          knn_settings:
+            - num_candidates: 12
+  - match: { error.reason: "/.*resolves\\sdifferently\\sacross\\sindices.*/" }
+
+---
+"index_info reports early termination per index":
+  - do:
+      indices.create:
+        index: et_on
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              emb:
+                type: dense_vector
+                dims: 64
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: hnsw
+  - do:
+      indices.create:
+        index: et_off
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              dense_vector.hnsw_enable_early_termination: false
+          mappings:
+            properties:
+              emb:
+                type: dense_vector
+                dims: 64
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: hnsw
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "et_on", "_id": "1"}}'
+          - '{"emb": [-0.3523, -0.6983, 0.3019, -0.8551, 0.0718, -0.2686, -0.884, 0.0149, -0.925, -0.1327, -0.8603, -0.8186, -0.151, 0.6537, -0.7524, -0.5535, 0.2549, 0.8954, 0.1542, -0.2066, 0.9525, -0.9068, 0.7169, -0.4208, -0.7115, -0.7644, -0.383, 0.6323, -0.6385, 0.1632, 0.2778, -0.2552, 0.0955, -0.8744, -0.8808, -0.5881, 0.3608, -0.1448, -0.3717, 0.1711, -0.0936, -0.4005, 0.5888, 0.398, -0.5118, 0.1488, 0.0504, 0.7503, 0.4589, -0.4241, 0.9603, -0.7639, -0.1638, 0.5143, -0.696, -0.0221, -0.9216, 0.3364, 0.5291, 0.1461, 0.751, -0.3725, 0.3906, 0.1887]}'
+          - '{"index": {"_index": "et_on", "_id": "2"}}'
+          - '{"emb": [0.1598, -0.0876, 0.6799, 0.8894, -0.0518, 0.3283, -0.8787, 0.403, 0.2943, 0.9862, 0.6438, -0.4308, -0.2284, 0.3373, -0.9549, -0.0766, -0.6639, -0.7658, -0.8821, 0.5365, -0.7413, -0.5048, -0.2181, 0.7428, -0.8388, -0.1016, 0.0989, 0.7668, 0.6386, 0.728, -0.4432, -0.1694, -0.2825, 0.7684, 0.9155, -0.6982, -0.6476, -0.5361, -0.5333, -0.0301, 0.1782, -0.4745, -0.9918, -0.1621, -0.2615, 0.1327, 0.9062, 0.381, 0.031, 0.2352, 0.3524, -0.892, 0.7991, 0.5599, 0.749, 0.5957, -0.2152, -0.202, -0.7929, 0.2686, -0.8755, -0.8653, -0.5825, -0.6754]}'
+          - '{"index": {"_index": "et_on", "_id": "3"}}'
+          - '{"emb": [-0.3199, -0.8948, -0.9995, -0.6975, -0.7971, -0.2728, -0.949, 0.7487, 0.2281, -0.7029, -0.4955, -0.3052, -0.2717, -0.7543, 0.6979, 0.9862, -0.068, -0.0323, -0.8282, -0.7956, -0.3147, -0.4705, 0.6577, -0.6771, -0.9538, 0.902, 0.0565, -0.7068, 0.0863, -0.9459, 0.0562, 0.957, 0.7267, 0.3924, -0.4778, -0.2666, -0.6659, 0.5439, 0.0652, 0.5581, -0.3407, -0.5539, 0.623, 0.9699, 0.7053, 0.6122, 0.6367, 0.4797, -0.5465, 0.0353, -0.2889, -0.942, -0.9441, -0.4412, -0.4817, 0.385, 0.913, -0.1055, 0.874, 0.9761, 0.91, -0.2707, -0.5591, -0.5463]}'
+          - '{"index": {"_index": "et_off", "_id": "1"}}'
+          - '{"emb": [-0.3523, -0.6983, 0.3019, -0.8551, 0.0718, -0.2686, -0.884, 0.0149, -0.925, -0.1327, -0.8603, -0.8186, -0.151, 0.6537, -0.7524, -0.5535, 0.2549, 0.8954, 0.1542, -0.2066, 0.9525, -0.9068, 0.7169, -0.4208, -0.7115, -0.7644, -0.383, 0.6323, -0.6385, 0.1632, 0.2778, -0.2552, 0.0955, -0.8744, -0.8808, -0.5881, 0.3608, -0.1448, -0.3717, 0.1711, -0.0936, -0.4005, 0.5888, 0.398, -0.5118, 0.1488, 0.0504, 0.7503, 0.4589, -0.4241, 0.9603, -0.7639, -0.1638, 0.5143, -0.696, -0.0221, -0.9216, 0.3364, 0.5291, 0.1461, 0.751, -0.3725, 0.3906, 0.1887]}'
+          - '{"index": {"_index": "et_off", "_id": "2"}}'
+          - '{"emb": [0.1598, -0.0876, 0.6799, 0.8894, -0.0518, 0.3283, -0.8787, 0.403, 0.2943, 0.9862, 0.6438, -0.4308, -0.2284, 0.3373, -0.9549, -0.0766, -0.6639, -0.7658, -0.8821, 0.5365, -0.7413, -0.5048, -0.2181, 0.7428, -0.8388, -0.1016, 0.0989, 0.7668, 0.6386, 0.728, -0.4432, -0.1694, -0.2825, 0.7684, 0.9155, -0.6982, -0.6476, -0.5361, -0.5333, -0.0301, 0.1782, -0.4745, -0.9918, -0.1621, -0.2615, 0.1327, 0.9062, 0.381, 0.031, 0.2352, 0.3524, -0.892, 0.7991, 0.5599, 0.749, 0.5957, -0.2152, -0.202, -0.7929, 0.2686, -0.8755, -0.8653, -0.5825, -0.6754]}'
+          - '{"index": {"_index": "et_off", "_id": "3"}}'
+          - '{"emb": [-0.3199, -0.8948, -0.9995, -0.6975, -0.7971, -0.2728, -0.949, 0.7487, 0.2281, -0.7029, -0.4955, -0.3052, -0.2717, -0.7543, 0.6979, 0.9862, -0.068, -0.0323, -0.8282, -0.7956, -0.3147, -0.4705, 0.6577, -0.6771, -0.9538, 0.902, 0.0565, -0.7068, 0.0863, -0.9459, 0.0562, 0.957, 0.7267, 0.3924, -0.4778, -0.2666, -0.6659, 0.5439, 0.0652, 0.5581, -0.3407, -0.5539, 0.623, 0.9699, 0.7053, 0.6122, 0.6367, 0.4797, -0.5465, 0.0353, -0.2889, -0.942, -0.9441, -0.4412, -0.4817, 0.385, 0.913, -0.1055, 0.874, 0.9761, 0.91, -0.2707, -0.5591, -0.5463]}'
+  - do:
+      knn_eval:
+        index: et_on,et_off
+        body:
+          field: emb
+          k: 1
+          query_source:
+            from: docs
+            size: 3
+            seed: 1
+          knn_settings:
+            - num_candidates: 3
+  - match: { index_info.et_on.hnsw_early_termination: true }
+  - match: { index_info.et_off.hnsw_early_termination: false }
+
+---
+"A rescore_vector only entry is accepted on a quantized hnsw field":
+  - do:
+      indices.create:
+        index: int8_idx
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              emb:
+                type: dense_vector
+                dims: 64
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: int8_hnsw
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "int8_idx", "_id": "1"}}'
+          - '{"emb": [-0.3523, -0.6983, 0.3019, -0.8551, 0.0718, -0.2686, -0.884, 0.0149, -0.925, -0.1327, -0.8603, -0.8186, -0.151, 0.6537, -0.7524, -0.5535, 0.2549, 0.8954, 0.1542, -0.2066, 0.9525, -0.9068, 0.7169, -0.4208, -0.7115, -0.7644, -0.383, 0.6323, -0.6385, 0.1632, 0.2778, -0.2552, 0.0955, -0.8744, -0.8808, -0.5881, 0.3608, -0.1448, -0.3717, 0.1711, -0.0936, -0.4005, 0.5888, 0.398, -0.5118, 0.1488, 0.0504, 0.7503, 0.4589, -0.4241, 0.9603, -0.7639, -0.1638, 0.5143, -0.696, -0.0221, -0.9216, 0.3364, 0.5291, 0.1461, 0.751, -0.3725, 0.3906, 0.1887]}'
+          - '{"index": {"_index": "int8_idx", "_id": "2"}}'
+          - '{"emb": [0.1598, -0.0876, 0.6799, 0.8894, -0.0518, 0.3283, -0.8787, 0.403, 0.2943, 0.9862, 0.6438, -0.4308, -0.2284, 0.3373, -0.9549, -0.0766, -0.6639, -0.7658, -0.8821, 0.5365, -0.7413, -0.5048, -0.2181, 0.7428, -0.8388, -0.1016, 0.0989, 0.7668, 0.6386, 0.728, -0.4432, -0.1694, -0.2825, 0.7684, 0.9155, -0.6982, -0.6476, -0.5361, -0.5333, -0.0301, 0.1782, -0.4745, -0.9918, -0.1621, -0.2615, 0.1327, 0.9062, 0.381, 0.031, 0.2352, 0.3524, -0.892, 0.7991, 0.5599, 0.749, 0.5957, -0.2152, -0.202, -0.7929, 0.2686, -0.8755, -0.8653, -0.5825, -0.6754]}'
+          - '{"index": {"_index": "int8_idx", "_id": "3"}}'
+          - '{"emb": [-0.3199, -0.8948, -0.9995, -0.6975, -0.7971, -0.2728, -0.949, 0.7487, 0.2281, -0.7029, -0.4955, -0.3052, -0.2717, -0.7543, 0.6979, 0.9862, -0.068, -0.0323, -0.8282, -0.7956, -0.3147, -0.4705, 0.6577, -0.6771, -0.9538, 0.902, 0.0565, -0.7068, 0.0863, -0.9459, 0.0562, 0.957, 0.7267, 0.3924, -0.4778, -0.2666, -0.6659, 0.5439, 0.0652, 0.5581, -0.3407, -0.5539, 0.623, 0.9699, 0.7053, 0.6122, 0.6367, 0.4797, -0.5465, 0.0353, -0.2889, -0.942, -0.9441, -0.4412, -0.4817, 0.385, 0.913, -0.1055, 0.874, 0.9761, 0.91, -0.2707, -0.5591, -0.5463]}'
+  - do:
+      knn_eval:
+        index: int8_idx
+        body:
+          field: emb
+          k: 1
+          query_source:
+            from: docs
+            size: 3
+            seed: 1
+          knn_settings:
+            - rescore_vector:
+                oversample: 2
+
+  - length: { results: 1 }
+  - length: { failures: 0 }
+
+---
+"Two graph index types cannot be evaluated together":
+  - do:
+      indices.create:
+        index: plain_idx
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              emb:
+                type: dense_vector
+                dims: 64
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: hnsw
+  - do:
+      indices.create:
+        index: int8_idx
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              emb:
+                type: dense_vector
+                dims: 64
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: int8_hnsw
+  - do:
+      catch: bad_request
+      knn_eval:
+        index: plain_idx,int8_idx
+        body:
+          field: emb
+          k: 5
+          query_source:
+            from: docs
+            size: 5
+            seed: 42
+          knn_settings:
+            - num_candidates: 12
+  - match: { error.reason: "/.*resolves\\sdifferently\\sacross\\sindices.*/" }

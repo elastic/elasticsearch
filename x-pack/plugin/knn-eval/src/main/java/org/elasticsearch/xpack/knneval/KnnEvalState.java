@@ -30,6 +30,7 @@ final class KnnEvalState {
     final int searchSize;
 
     private final KnnEvalRescore rescore;
+    private final Map<String, KnnEvalResponse.IndexInfo> indexInfo;
     private final Map<String, KnnEvalRecall.BaselineResult> baselines = new HashMap<>();
     private final Map<String, Exception> failures = new HashMap<>();
     private final List<SettingAccumulator> settings;
@@ -38,11 +39,18 @@ final class KnnEvalState {
     private long baselineVectorOps;
     private List<KnnEvalQuery> evaluableQueries;
 
-    KnnEvalState(KnnEvalSpec spec, boolean queryIsSampledFromDocuments, List<KnnEvalQuery> queries, KnnEvalRescore rescore) {
+    KnnEvalState(
+        KnnEvalSpec spec,
+        boolean queryIsSampledFromDocuments,
+        List<KnnEvalQuery> queries,
+        KnnEvalRescore rescore,
+        Map<String, KnnEvalResponse.IndexInfo> indexInfo
+    ) {
         this.spec = spec;
         this.queryIsSampledFromDocuments = queryIsSampledFromDocuments;
         this.queries = List.copyOf(queries);
         this.rescore = rescore;
+        this.indexInfo = Map.copyOf(indexInfo);
         // the sampled document comes back and is dropped, so fetch one extra to leave k
         this.searchSize = queryIsSampledFromDocuments ? spec.getK() + 1 : spec.getK();
         this.settings = new ArrayList<>(spec.getKnnSettings().size());
@@ -124,10 +132,18 @@ final class KnnEvalState {
             reportedSettings(spec.getBaseline()),
             baselineTookMillis,
             baselineVectorOps,
-            spec.getBaseline().isExact() ? KnnEvalResponse.FULL_PRECISION_SCAN : KnnEvalResponse.QUANTIZED_VISIT_PLUS_RESCORE,
+            baselineVectorOpsKind(),
             results,
-            failures
+            failures,
+            indexInfo
         );
+    }
+
+    private String baselineVectorOpsKind() {
+        if (spec.getBaseline().isExact()) {
+            return KnnEvalResponse.FULL_PRECISION_SCAN;
+        }
+        return rescore.indexType().isQuantized() ? KnnEvalResponse.QUANTIZED_VISIT_PLUS_RESCORE : KnnEvalResponse.FULL_PRECISION_VISIT;
     }
 
     private KnnEvalResponse.ReportedSettings reportedSettings(KnnEvalSettings knnSettings) {

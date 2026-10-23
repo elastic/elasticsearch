@@ -38,8 +38,8 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
     static final ParseField KNN_SETTINGS_FIELD = new ParseField("knn_settings");
     static final ParseField ALLOW_EXACT_BASELINE_FIELD = new ParseField("allow_exact_baseline");
 
-    /** Bounded, so an omitted baseline can't scan every vector; exact must be explicit. */
-    private static final KnnEvalSettings DEFAULT_BASELINE = new KnnEvalSettings(20.0f, null, 100.0f, false);
+    /** All-null: resolved to an index-type default once the mapping is known. */
+    private static final KnnEvalSettings DEFAULT_BASELINE = new KnnEvalSettings(null, null, null, false);
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<KnnEvalSpec, Void> PARSER = new ConstructingObjectParser<>(
@@ -239,9 +239,17 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
         return querySource instanceof KnnEvalQuerySource.DocsSource ds ? ds.sample() : null;
     }
 
-    /** Never {@code null}: an omitted baseline is the bounded default. */
+    /** Never {@code null}; all-null means the index type's default. */
     public KnnEvalSettings getBaseline() {
         return baseline;
+    }
+
+    boolean hasDefaultBaseline() {
+        return DEFAULT_BASELINE.equals(baseline);
+    }
+
+    KnnEvalSpec withBaseline(KnnEvalSettings resolved) {
+        return new KnnEvalSpec(field, k, querySource, resolved, knnSettings, allowExactBaseline);
     }
 
     public List<KnnEvalSettings> getKnnSettings() {

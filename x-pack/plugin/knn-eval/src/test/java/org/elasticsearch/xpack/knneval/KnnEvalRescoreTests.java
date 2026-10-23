@@ -7,11 +7,15 @@
 
 package org.elasticsearch.xpack.knneval;
 
+import org.elasticsearch.search.vectors.RescoreVectorBuilder;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 
 public class KnnEvalRescoreTests extends ESTestCase {
@@ -23,29 +27,141 @@ public class KnnEvalRescoreTests extends ESTestCase {
         );
     }
 
-    public void testOnlyDiskBbqIsSupported() {
-        assertNotNull(rescoreFor("bbq_disk"));
-        for (String indexType : List.of("hnsw", "int8_hnsw", "int4_hnsw", "bbq_hnsw", "flat", "int8_flat", "int4_flat", "bbq_flat")) {
+    /** Unlike {@link #rescoreFor}, the mapping has no oversample, so nothing rescores unless the request says so. */
+    private static KnnEvalRescore withoutMappingOversample(String indexType) {
+        return KnnEvalRescore.fromFieldMapping("emb", Map.of("type", "dense_vector", "index_options", Map.of("type", indexType)));
+    }
+
+    public void testDiskBbqAndHnswFamilyAreSupported() {
+        for (String indexType : List.of("bbq_disk", "hnsw", "int8_hnsw", "int4_hnsw", "bbq_hnsw")) {
+            assertNotNull(rescoreFor(indexType));
+        }
+        // flat types scan every vector, so there is no search effort to evaluate; unknown types are reported alike
+        for (String indexType : List.of("flat", "int8_flat", "int4_flat", "bbq_flat", "made_up")) {
             assertThat(
                 expectThrows(
                     IllegalArgumentException.class,
                     () -> KnnEvalRescore.fromFieldMapping("emb", Map.of("type", "dense_vector", "index_options", Map.of("type", indexType)))
                 ).getMessage(),
-                containsString("field [emb] must use [index_options.type=bbq_disk], found [" + indexType + "]")
+                containsString(
+                    "field [emb] must use [index_options.type] of [bbq_disk, hnsw, int8_hnsw, int4_hnsw, bbq_hnsw], found ["
+                        + indexType
+                        + "]"
+                )
             );
         }
     }
 
-    public void testExplicitDiskBbqIndexOptionsAreRequired() {
+    public void testExplicitIndexOptionsAreRequired() {
+        for (Map<String, Object> mapping : Arrays.<Map<String, Object>>asList(Map.of("type", "dense_vector"), null)) {
+            assertThat(
+                expectThrows(IllegalArgumentException.class, () -> KnnEvalRescore.fromFieldMapping("emb", mapping)).getMessage(),
+                allOf(
+                    containsString("field [emb] must use [index_options.type] of [bbq_disk"),
+                    containsString("found no [index_options] in mapping [")
+                )
+            );
+        }
         assertThat(
-            expectThrows(IllegalArgumentException.class, () -> KnnEvalRescore.fromFieldMapping("emb", Map.of("type", "dense_vector")))
-                .getMessage(),
-            containsString("field [emb] must use [index_options.type=bbq_disk], found no [index_options] in mapping [{type=dense_vector}]")
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> KnnEvalRescore.fromFieldMapping("emb", Map.of("type", "dense_vector", "index_options", Map.of()))
+            ).getMessage(),
+            containsString("found no [index_options.type]")
         );
+    }
+
+    private static final List<String> GRAPH_TYPES = List.of("hnsw", "int8_hnsw", "int4_hnsw", "bbq_hnsw");
+    private static final List<String> QUANTIZED_GRAPH_TYPES = List.of("int8_hnsw", "int4_hnsw", "bbq_hnsw");
+
+    private static float randomVisitPercentage() {
+        return randomFloatBetween(0.0f, 100.0f, true);
+    }
+
+    private static int randomNumCandidates() {
+        return randomIntBetween(1, KnnEvalRescore.MAX_NUM_CANDIDATES);
+    }
+
+    private static float randomOversample() {
+        return randomFloatBetween(RescoreVectorBuilder.MIN_OVERSAMPLE, 10.0f, true);
+    }
+
+    public void testDefaultBaselineIsBoundedAndNeverExact() {
+        boolean sampling = randomBoolean();
+        int maxCandidates = sampling ? KnnEvalRescore.MAX_NUM_CANDIDATES - 1 : KnnEvalRescore.MAX_NUM_CANDIDATES;
+        KnnEvalSettings disk = rescoreFor("bbq_disk").defaultBaseline(sampling);
+        assertEquals(20.0f, disk.getVisitPercentage(), 0.0f);
+        assertEquals(100.0f, disk.getRescoreOversample(), 0.0f);
+        assertNull(disk.getNumCandidates());
+        assertFalse(disk.isExact());
+
+        KnnEvalSettings hnsw = rescoreFor("hnsw").defaultBaseline(sampling);
+        assertEquals(maxCandidates, hnsw.getNumCandidates().intValue());
+        assertNull(hnsw.getRescoreOversample());
+        assertNull(hnsw.getVisitPercentage());
+        assertFalse(hnsw.isExact());
+
+        KnnEvalSettings quantized = rescoreFor(randomFrom(QUANTIZED_GRAPH_TYPES)).defaultBaseline(sampling);
+        assertEquals(maxCandidates, quantized.getNumCandidates().intValue());
+        assertEquals(100.0f, quantized.getRescoreOversample(), 0.0f);
+        assertNull(quantized.getVisitPercentage());
+        assertFalse(quantized.isExact());
+    }
+
+    public void testRejectsSettingsOfTheOtherFamily() {
+        String role = randomAlphaOfLength(8);
+        String graphType = randomFrom(GRAPH_TYPES);
         assertThat(
-            expectThrows(IllegalArgumentException.class, () -> KnnEvalRescore.fromFieldMapping("emb", null)).getMessage(),
-            containsString("field [emb] must use [index_options.type=bbq_disk], found no [index_options] in mapping [null]")
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> rescoreFor(graphType).validateSettings(new KnnEvalSettings(randomVisitPercentage(), null, null, false), role)
+            ).getMessage(),
+            allOf(
+                containsString("[visit_percentage] applies only to bbq_disk, but the field is [" + graphType + "]"),
+                containsString(", in the " + role + " ")
+            )
         );
+        rescoreFor("bbq_disk").validateSettings(new KnnEvalSettings(null, randomNumCandidates(), null, false), role);
+        KnnEvalSettings oversample = new KnnEvalSettings(null, randomNumCandidates(), randomOversample(), false);
+        assertThat(
+            expectThrows(IllegalArgumentException.class, () -> rescoreFor("hnsw").validateSettings(oversample, role)).getMessage(),
+            containsString("does not apply to an unquantized [hnsw] field")
+        );
+        rescoreFor(randomFrom(QUANTIZED_GRAPH_TYPES)).validateSettings(oversample, role);
+    }
+
+    public void testEveryIndexTypeAcceptsItsOwnSettings() {
+        String role = randomAlphaOfLength(8);
+        rescoreFor("bbq_disk").validateSettings(
+            new KnnEvalSettings(randomVisitPercentage(), null, randomBoolean() ? null : randomOversample(), false),
+            role
+        );
+        String graphType = randomFrom(GRAPH_TYPES);
+        Float oversample = graphType.equals("hnsw") || randomBoolean() ? null : randomOversample();
+        rescoreFor(graphType).validateSettings(new KnnEvalSettings(null, randomNumCandidates(), oversample, false), role);
+        rescoreFor(randomFrom(Stream.concat(Stream.of("bbq_disk"), GRAPH_TYPES.stream()).toList())).validateSettings(
+            new KnnEvalSettings(null, null, null, true),
+            role
+        );
+    }
+
+    public void testAutoCalibrateAppliesOnlyToDiskBbq() {
+        String indexType = randomFrom(Stream.concat(Stream.of("bbq_disk"), GRAPH_TYPES.stream()).toList());
+        boolean autoCalibrate = randomBoolean();
+        KnnEvalRescore rescore = KnnEvalRescore.fromFieldMapping(
+            "emb",
+            Map.of("type", "dense_vector", "index_options", Map.of("type", indexType, "auto_calibrate", autoCalibrate))
+        );
+        assertEquals(indexType.equals("bbq_disk") && autoCalibrate, rescore.autoCalibrate());
+    }
+
+    public void testQuantizedScoresFollowTheIndexTypeAndRescoring() {
+        KnnEvalSettings noOversample = new KnnEvalSettings(null, randomNumCandidates(), null, false);
+        assertFalse(withoutMappingOversample("hnsw").returnsQuantizedScores(noOversample));
+        KnnEvalRescore quantized = withoutMappingOversample(randomFrom(QUANTIZED_GRAPH_TYPES));
+        assertTrue(quantized.returnsQuantizedScores(noOversample));
+        assertFalse(quantized.returnsQuantizedScores(new KnnEvalSettings(null, randomNumCandidates(), randomOversample(), false)));
+        assertFalse(quantized.returnsQuantizedScores(new KnnEvalSettings(null, null, null, true)));
     }
 
     public void testDetectsCappedRescoreWindow() {

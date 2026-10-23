@@ -52,7 +52,8 @@ public class BestDocsDeferringCollectorTests extends AggregatorTestCase {
 
         indexWriter.close();
         IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newSearcher(indexReader);
+        // Sequential: sampler disables query-phase parallel collection; replay is on one collector.
+        IndexSearcher indexSearcher = newSearcher(indexReader, true, true, false);
 
         TermQuery termQuery = new TermQuery(new Term("field", String.valueOf(randomInt(maxNumValues))));
         TopDocs topDocs = indexSearcher.search(termQuery, numDocs);
@@ -67,7 +68,7 @@ public class BestDocsDeferringCollectorTests extends AggregatorTestCase {
         Set<Integer> deferredCollectedDocIds = new HashSet<>();
         collector.setDeferredCollector(Collections.singleton(testCollector(deferredCollectedDocIds)));
         collector.preCollection();
-        indexSearcher.search(termQuery, collector.asCollector());
+        indexSearcher.search(termQuery, singleThreadedCollectorManager(collector.asCollector()));
         collector.postCollection();
         collector.prepareSelectedBuckets(BigArrays.NON_RECYCLING_INSTANCE.newLongArray(1, true));
 

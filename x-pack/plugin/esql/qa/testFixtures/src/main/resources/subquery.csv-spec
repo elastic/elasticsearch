@@ -1087,6 +1087,27 @@ book_no:keyword | _score:double
 6760            | 100.0
 ;
 
+// Same as subqueryInFromWithUserDefinedScoreInOneBranchThenRuntimeMatch, but 2nd branch has a non-zero score.
+subqueryInFromWithUserDefinedScoreInOneBranchNonZeroScoreInOtherThenRuntimeMatch
+required_capability: subquery_in_from_command
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: union_all_keeps_metadata_score
+
+FROM (FROM books METADATA _id | EVAL _score = 100.0), (FROM books METADATA _score | WHERE MATCH(author, "Tolkien"))
+| EVAL content = TO_TEXT(CONCAT("title: ", title))
+| WHERE MATCH(content, "Roverandom Beleriand")
+| KEEP book_no, _score
+| SORT book_no, _score
+;
+
+book_no:keyword | _score:double
+5469            | 1.5629040002822876
+5469            | 100.0
+6760            | 1.097223162651062
+6760            | 100.0
+;
+
 // An explicit null _score is as empty as the null the union fills in for a branch without one: the sibling's
 // rows are still scored and these stay null.
 subqueryInFromWithExplicitNullScoreInOneBranchThenRuntimeMatch

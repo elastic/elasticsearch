@@ -1,0 +1,6 @@
+area: Mapping
+issues:
+ - 163135
+pr: 163200
+summary: Store date array offsets natively with synthetic source
+type: enhancement

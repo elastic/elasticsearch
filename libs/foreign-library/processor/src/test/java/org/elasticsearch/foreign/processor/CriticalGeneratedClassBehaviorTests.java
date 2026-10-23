@@ -11,7 +11,6 @@ package org.elasticsearch.foreign.processor;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
-import java.lang.foreign.ValueLayout;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -88,11 +87,27 @@ public class CriticalGeneratedClassBehaviorTests extends ProcessorTestCase {
         assertEquals("equal 4-byte heap segments compare equal", 0, (int) lib.call("memcmp", a, b, 4L));
     }
 
-    /** Fills the whole segment with ascending byte values and returns it. */
-    private static MemorySegment fill(MemorySegment segment) {
-        for (int i = 0; i < segment.byteSize(); i++) {
-            segment.set(ValueLayout.JAVA_BYTE, i, (byte) i);
+    public void testNonCriticalBindingRequiresNativeSegment() throws Throwable {
+        ProcessorTestCase.LoadedLibrary lib = loadLibrary("test.MemCmpLib", """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            @LibrarySpecification
+            public interface MemCmpLib {
+                @Function("memcmp")
+                int memcmp(MemorySegment a, MemorySegment b, long n);
+            }
+            """);
+
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment nativeSegment = fill(arena.allocate(8));
+            MemorySegment other = fill(arena.allocate(8));
+            assertEquals(0, (int) lib.call("memcmp", nativeSegment, other, 8L));
+
+            MemorySegment heapSegment = MemorySegment.ofArray(new byte[8]);
+            AssertionError e = lib.expectThrows(AssertionError.class, "memcmp", heapSegment, other, 8L);
+            assertEquals("non-critical bindings require native memory segments", e.getMessage());
         }
-        return segment;
     }
 }

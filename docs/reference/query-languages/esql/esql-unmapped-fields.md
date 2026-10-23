@@ -89,8 +89,10 @@ In both cases, {{esql}} cannot use a Lucene index on `unmapped`, so it must read
 
 For the full list of restrictions, refer to the [`SET unmapped_fields`](directives/set.md#esql-unmapped_fields) reference.
 
-{applies_to}`stack: preview =9.5, ga 9.6+` {applies_to}`serverless: ga`
-`MATCH` and `MATCH_PHRASE` can search a loaded field. Because the loaded values have no index behind them, this is a
+* {applies_to}`stack: preview =9.5, ga 9.6+` {applies_to}`serverless: ga` `MATCH` can search a loaded field.
+* {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` `MATCH_PHRASE` can search a loaded field.
+
+Because the loaded values have no index behind them, this is a
 [runtime search](/reference/query-languages/esql/esql-runtime-search.md): it scans values row by row, and analyzes
 `text` values with the `standard` analyzer rather than the analyzer in the mapping, where the field is mapped.
 

@@ -661,9 +661,7 @@ public final class MappingLookup {
     public SourceLoader newSourceLoader(@Nullable SourceFilter filter, SourceFieldMetrics metrics) {
         if (isSourceSynthetic() || isSourceColumnarStored()) {
             return new SourceLoader.Synthetic(
-                // columnar_stored keeps a single _ignored_source entry, the whole-document blob named _source, which an include filter
-                // would drop by name. The root applies the filter while writing the blob out instead.
-                isSourceColumnarStored() ? null : filter,
+                filter,
                 () -> mapping.syntheticFieldLoader(filter, isSourceColumnarStored()),
                 metrics,
                 mapping.ignoredSourceFormat()

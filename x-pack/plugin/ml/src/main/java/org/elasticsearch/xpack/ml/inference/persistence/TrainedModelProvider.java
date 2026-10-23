@@ -67,6 +67,7 @@ import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -1084,10 +1085,12 @@ public class TrainedModelProvider {
                 // is not yellow within 2 s) are intentionally excluded: the health check is itself
                 // a wait-for-index-availability step, and a timeout there signals a persistent index
                 // problem rather than the momentary shard reassignment we are trying to ride out.
+                // ShardRestoringException is retried too: restores are expected to be short.
                 return org.elasticsearch.ExceptionsHelper.unwrap(
                     e,
                     SearchPhaseExecutionException.class,
-                    NoShardAvailableActionException.class
+                    NoShardAvailableActionException.class,
+                    ShardRestoringException.class
                 ) != null;
             }
         }.run();

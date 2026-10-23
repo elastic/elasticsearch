@@ -49,10 +49,23 @@ public class FileListCompactorTests extends ESTestCase {
     }
 
     private static GenericFileList listOf(Consumer<String> warningSink, String pattern, String... keys) {
+        return listOfWithVersions(warningSink, pattern, null, keys);
+    }
+
+    /**
+     * As {@link #listOf(Consumer, String, String...)}, but every file carries its own version, as an object store's
+     * listing does: {@code etag-<index>} for the file at that index, so a lost or swapped version shows at once.
+     */
+    private static GenericFileList versionedListOf(String pattern, String... keys) {
+        return listOfWithVersions(WarningSinks.FAILING, pattern, "etag-", keys);
+    }
+
+    private static GenericFileList listOfWithVersions(Consumer<String> warningSink, String pattern, String versionPrefix, String... keys) {
         Instant mtime = Instant.ofEpochMilli(1_700_000_000_000L);
         List<StorageEntry> entries = new ArrayList<>(keys.length);
         for (int i = 0; i < keys.length; i++) {
-            entries.add(new StorageEntry(StoragePath.of(keys[i]), 100L * (i + 1), mtime));
+            String version = versionPrefix == null ? null : versionPrefix + i;
+            entries.add(new StorageEntry(StoragePath.of(keys[i]), 100L * (i + 1), mtime, version));
         }
         PartitionMetadata pm = HivePartitionDetector.INSTANCE.detect(entries, warningSink);
         return new GenericFileList(entries, pattern, pm == null || pm.isEmpty() ? null : pm);
@@ -66,9 +79,46 @@ public class FileListCompactorTests extends ESTestCase {
             assertEquals("path at " + i, raw.path(i).toString(), compact.path(i).toString());
             assertEquals("size at " + i, raw.size(i), compact.size(i));
             assertEquals("mtime at " + i, raw.lastModifiedMillis(i), compact.lastModifiedMillis(i));
+            assertEquals("version at " + i, raw.version(i), compact.version(i));
         }
         assertEquals("exclusion warnings", raw.listingWarnings(), compact.listingWarnings());
+        PartitionMetadata rawPm = raw.partitionMetadata();
+        PartitionMetadata compactPm = compact.partitionMetadata();
+        if (rawPm != null && rawPm.isEmpty() == false) {
+            assertNotNull(compactPm);
+            assertFalse(compactPm.isEmpty());
+            assertEquals(rawPm.partitionColumns(), compactPm.partitionColumns());
+            for (int i = 0; i < raw.fileCount(); i++) {
+                for (String col : rawPm.partitionColumns().keySet()) {
+                    assertEquals(
+                        "partition [" + col + "] at " + i,
+                        rawPm.getValue(i, raw.path(i), col),
+                        compactPm.getValue(i, compact.path(i), col)
+                    );
+                }
+            }
+            if (compact != raw && directoriesRepeat(raw)) {
+                assertThat(
+                    "shared rows follow directories, including a dictionary listing",
+                    compactPm.rowCount(),
+                    Matchers.lessThan(compactPm.fileCount())
+                );
+            }
+        }
         return compact;
+    }
+
+    /** True when at least two listed files share a parent directory, so grouping can shrink the row count. */
+    private static boolean directoriesRepeat(GenericFileList raw) {
+        Set<String> parents = new HashSet<>();
+        for (int i = 0; i < raw.fileCount(); i++) {
+            StoragePath parent = raw.path(i).parentDirectory();
+            String key = parent == null ? "" : parent.toString();
+            if (parents.add(key) == false) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void assertPathsDistinct(FileList list) {
@@ -301,6 +351,58 @@ public class FileListCompactorTests extends ESTestCase {
         }
         FileList compact = assertRoundTrip(base, listOf(base + "**/*.parquet", keys.toArray(new String[0])));
         assertThat(compact, Matchers.instanceOf(DictionaryFileList.class));
+        assertEquals(compact.fileCount(), compact.partitionMetadata().rowCount());
+    }
+
+    /**
+     * Each file's object version survives the directory-grouped encoding: versions are unique per object, so grouping
+     * must keep one per file rather than one per directory, or a rewritten file would be read under its neighbour's
+     * version.
+     */
+    public void testVersionsSurviveDirectoryGroupedEncoding() {
+        String base = "s3://b/data/";
+        List<String> keys = new ArrayList<>();
+        int fileId = 0;
+        for (int year = 2023; year <= 2024; year++) {
+            for (int month = 1; month <= 12; month++) {
+                for (int part = 0; part < 20; part++) {
+                    keys.add(base + "year=" + year + "/month=" + month + "/part-" + (fileId++) + ".parquet");
+                }
+            }
+        }
+        FileList compact = assertRoundTrip(base, versionedListOf(base + "**/*.parquet", keys.toArray(new String[0])));
+        assertThat(compact, Matchers.instanceOf(DirectoryGroupedFileList.class));
+        assertEquals("etag-0", compact.version(0));
+        assertEquals("etag-" + (keys.size() - 1), compact.version(keys.size() - 1));
+    }
+
+    /** Each file's object version survives the dictionary encoding, which is the one a deep layout picks. */
+    public void testVersionsSurviveDictionaryEncoding() {
+        String base = "s3://b/data/";
+        List<String> keys = new ArrayList<>();
+        for (int month = 1; month <= 12; month++) {
+            for (int day = 1; day <= 28; day++) {
+                keys.add(base + "year=2024/month=" + month + "/day=" + day + "/data.parquet");
+            }
+        }
+        FileList compact = assertRoundTrip(base, versionedListOf(base + "**/*.parquet", keys.toArray(new String[0])));
+        assertThat(compact, Matchers.instanceOf(DictionaryFileList.class));
+        assertEquals("etag-" + (keys.size() - 1), compact.version(keys.size() - 1));
+    }
+
+    /** A listing whose store reported no versions compacts to a listing with none, and no encoding invents one. */
+    public void testUnversionedListingStaysUnversioned() {
+        String base = "s3://b/data/";
+        List<String> keys = new ArrayList<>();
+        for (int month = 1; month <= 12; month++) {
+            for (int day = 1; day <= 28; day++) {
+                keys.add(base + "year=2024/month=" + month + "/day=" + day + "/data.parquet");
+            }
+        }
+        FileList compact = assertRoundTrip(base, listOf(base + "**/*.parquet", keys.toArray(new String[0])));
+        for (int i = 0; i < compact.fileCount(); i++) {
+            assertNull("no version at " + i, compact.version(i));
+        }
     }
 
     // ------------------------------------------------------------------
@@ -423,8 +525,9 @@ public class FileListCompactorTests extends ESTestCase {
     }
 
     /**
-     * Partition maps are planning memory. {@link FileList#estimatedBytes()} stays the listing-cache weight and
-     * does not grow with them; {@link FileList#planningBytes()} adds 560 bytes per partitioned file.
+     * Partition value arrays are planning memory. {@link FileList#estimatedBytes()} stays the listing-cache
+     * weight and does not grow with them; {@link FileList#planningBytes()} adds
+     * {@link PartitionMetadata#planningBytes()}.
      */
     public void testPlanningBytesAddsPartitionMetadataOnGroupedList() {
         String base = "s3://b/d/";
@@ -432,18 +535,28 @@ public class FileListCompactorTests extends ESTestCase {
         FileList grouped = FileListCompactor.compact(base, raw);
         assertThat(grouped, Matchers.instanceOf(DirectoryGroupedFileList.class));
         assertFalse(grouped.partitionMetadata().isEmpty());
-        int partitionedFiles = grouped.partitionMetadata().filePartitionValues().size();
-        assertThat(partitionedFiles, Matchers.greaterThan(0));
-        assertEquals(grouped.estimatedBytes() + 560L * partitionedFiles, grouped.planningBytes());
+        // Two files under the same directory share one value row after DGF compaction.
+        assertEquals(2, grouped.partitionMetadata().fileCount());
+        assertEquals(1, grouped.partitionMetadata().rowCount());
+        assertEquals(grouped.estimatedBytes() + grouped.partitionMetadata().planningBytes(), grouped.planningBytes());
 
         // Same entries with and without partition metadata: estimatedBytes is the listing-cache weight and
-        // must not grow when the partition map is attached. planningBytes is the one that adds 560 per file.
+        // must not grow when the partition map is attached. planningBytes adds the columnar estimate.
         GenericFileList without = new GenericFileList(raw.files(), raw.originalPattern(), PartitionMetadata.EMPTY);
         GenericFileList with = new GenericFileList(raw.files(), raw.originalPattern(), grouped.partitionMetadata());
         assertEquals(without.estimatedBytes(), with.estimatedBytes());
         assertEquals(without.estimatedBytes(), without.planningBytes());
-        assertEquals(with.estimatedBytes() + 560L * with.partitionMetadata().filePartitionValues().size(), with.planningBytes());
+        assertEquals(with.estimatedBytes() + with.partitionMetadata().planningBytes(), with.planningBytes());
         assertThat(with.planningBytes(), Matchers.greaterThan(with.estimatedBytes()));
+    }
+
+    /** Values are looked up by listing position, so metadata covering a different file count must not be attached. */
+    public void testListingRejectsMisalignedPartitionMetadata() {
+        String base = "s3://b/d/";
+        GenericFileList raw = listOf(base + "**/*.parquet", base + "year=2024/f1.parquet", base + "year=2025/f2.parquet");
+        PartitionMetadata twoFiles = raw.partitionMetadata();
+        List<StorageEntry> oneFile = List.of(raw.files().get(0));
+        expectThrows(AssertionError.class, () -> new GenericFileList(oneFile, raw.originalPattern(), twoFiles));
     }
 
     /** Empty partition metadata adds nothing on top of {@link FileList#estimatedBytes()}. */

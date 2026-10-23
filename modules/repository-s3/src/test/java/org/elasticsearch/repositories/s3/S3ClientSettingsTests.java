@@ -184,6 +184,26 @@ public class S3ClientSettingsTests extends ESTestCase {
             See the breaking changes documentation for the next major version.""");
     }
 
+    public void testLegacyContentMd5CanBeSet() {
+        final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
+            Settings.builder().put("s3.client.other.legacy_content_md5", true).build()
+        );
+        assertThat(settings.get("default").legacyContentMd5, is(false));
+        assertThat(settings.get("other").legacyContentMd5, is(true));
+        assertWarnings("""
+            [s3.client.other.legacy_content_md5] setting was deprecated in Elasticsearch and will be removed in a future release. \
+            See the breaking changes documentation for the next major version.""");
+    }
+
+    public void testLegacyContentMd5CanBeSetPerRepository() {
+        final S3ClientSettings defaults = S3ClientSettings.load(Settings.EMPTY).get("default");
+        assertFalse(defaults.legacyContentMd5);
+        assertTrue(defaults.refine(Settings.builder().put("legacy_content_md5", true).build()).legacyContentMd5);
+        assertWarnings("""
+            [s3.client.placeholder.legacy_content_md5] setting was deprecated in Elasticsearch and will be removed in a future release. \
+            See the breaking changes documentation for the next major version.""");
+    }
+
     public void testRegionCanBeSet() {
         final String randomRegion = randomAlphaOfLength(5);
         final Map<String, S3ClientSettings> settings = S3ClientSettings.load(

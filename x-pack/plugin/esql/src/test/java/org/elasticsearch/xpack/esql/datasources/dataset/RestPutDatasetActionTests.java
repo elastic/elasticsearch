@@ -49,6 +49,14 @@ public class RestPutDatasetActionTests extends ESTestCase {
         );
     }
 
+    /** Same reasoning for the capability gating the description length rejection pin. */
+    public void testDescriptionLengthLimitCapabilityIsAdvertised() {
+        assertThat(
+            new RestPutDatasetAction(Set.of()).supportedCapabilities(),
+            hasItem(EsqlDataSourcesCapabilities.DATA_SOURCE_DESCRIPTION_LENGTH_LIMIT)
+        );
+    }
+
     public void testGetFilteredFieldsEmpty() {
         assertThat(new RestPutDatasetAction(Set.of()).getFilteredFields(), empty());
     }

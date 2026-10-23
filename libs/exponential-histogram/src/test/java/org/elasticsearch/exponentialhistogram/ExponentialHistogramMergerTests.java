@@ -410,6 +410,58 @@ public class ExponentialHistogramMergerTests extends ExponentialHistogramTestCas
         }
     }
 
+    public void testDifferenceDoesNotProduceMinGreaterThanMax() {
+        var noopBreaker = ExponentialHistogramCircuitBreaker.noop();
+        // Bucket 0 at scale 0 covers [1, 2), while the exact bounds came from values below that range.
+        // This can occur when an explicit histogram bucket is represented by its centroid in an exponential histogram.
+        ExponentialHistogram previous = ExponentialHistogram.builder(0, noopBreaker)
+            .setPositiveBucket(0, 1)
+            .sum(0.5)
+            .min(0.5)
+            .max(0.5)
+            .build();
+        ExponentialHistogram current = ExponentialHistogram.builder(0, noopBreaker)
+            .setPositiveBucket(0, 2)
+            .sum(1.25)
+            .min(0.5)
+            .max(0.75)
+            .build();
+
+        try (ExponentialHistogramMerger merger = ExponentialHistogramMerger.create(breaker())) {
+            assertThat(merger.setToDifference(current, previous), equalTo(true));
+            ExponentialHistogram difference = merger.get();
+            assertThat(difference.min(), equalTo(0.75));
+            assertThat(difference.max(), equalTo(0.75));
+            assertThat(difference.min(), lessThanOrEqualTo(difference.max()));
+        }
+    }
+
+    public void testDifferenceDoesNotProduceMaxLessThanMin() {
+        var noopBreaker = ExponentialHistogramCircuitBreaker.noop();
+        // Bucket 0 at scale 0 covers [1, 2), while the exact bounds came from values above that range.
+        // This can occur when an explicit histogram bucket is represented by its centroid in an exponential histogram.
+        ExponentialHistogram previous = ExponentialHistogram.builder(0, noopBreaker)
+            .setPositiveBucket(0, 1)
+            .sum(3.0)
+            .min(3.0)
+            .max(3.0)
+            .build();
+        ExponentialHistogram current = ExponentialHistogram.builder(0, noopBreaker)
+            .setPositiveBucket(0, 2)
+            .sum(5.5)
+            .min(2.5)
+            .max(3.0)
+            .build();
+
+        try (ExponentialHistogramMerger merger = ExponentialHistogramMerger.create(breaker())) {
+            assertThat(merger.setToDifference(current, previous), equalTo(true));
+            ExponentialHistogram difference = merger.get();
+            assertThat(difference.min(), equalTo(2.5));
+            assertThat(difference.max(), equalTo(2.5));
+            assertThat(difference.max(), greaterThanOrEqualTo(difference.min()));
+        }
+    }
+
     public void testDifferenceFailsWhenACountLessThanBCount() {
         ExponentialHistogram a = ExponentialHistogram.create(100, breaker(), 1.0, 2.0);
         autoReleaseOnTestEnd((ReleasableExponentialHistogram) a);

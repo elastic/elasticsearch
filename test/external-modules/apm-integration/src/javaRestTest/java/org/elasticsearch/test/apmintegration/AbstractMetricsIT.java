@@ -92,7 +92,7 @@ public abstract class AbstractMetricsIT extends AbstractTelemetryIT {
 
                     var histogramExpected = histogramAssertions.get(key);
                     if (histogramExpected != null
-                        && sampleValue instanceof ReceivedTelemetry.HistogramSample(var ignoredMidpoints, var ignoredBounds, var counts)) {
+                        && sampleValue instanceof ReceivedTelemetry.HistogramSample(var ignoredBounds, var counts)) {
                         int total = counts.stream().mapToInt(Integer::intValue).sum();
                         int remaining = histogramExpected - total;
                         // Pass once we have observed at least the expected number of counts. The retry loop below
@@ -149,17 +149,6 @@ public abstract class AbstractMetricsIT extends AbstractTelemetryIT {
                 }
             }
         }
-        // APM agent path: non-zero (midpoint, count) pairs in bucket order
-        List<Double> expectedMidpoints = new ArrayList<>();
-        List<Integer> expectedCounts = new ArrayList<>();
-        for (var entry : bucketCountMap.entrySet()) {
-            var bucketIndex = entry.getKey();
-            double lower = TestMeterUsages.CUSTOM_BOUNDARIES.get(bucketIndex - 1);
-            double upper = TestMeterUsages.CUSTOM_BOUNDARIES.get(bucketIndex);
-            expectedMidpoints.add(lower + (upper - lower) / 2.0);
-            expectedCounts.add(entry.getValue());
-        }
-        // OTLP path: full bounds list + all bucket counts including zeros
         List<Double> expectedBounds = TestMeterUsages.CUSTOM_BOUNDARIES.stream().map(Long::doubleValue).toList();
         int numBuckets = TestMeterUsages.CUSTOM_BOUNDARIES.size() + 1;
         List<Integer> expectedAllCounts = new ArrayList<>();
@@ -175,10 +164,9 @@ public abstract class AbstractMetricsIT extends AbstractTelemetryIT {
                     TestMeterUsages.CUSTOM_BOUNDARIES_DOUBLE_HISTOGRAM_NAME
                 )) {
                     var sample = m.samples().get(name);
-                    if (sample instanceof ReceivedTelemetry.HistogramSample(var midpoints, var bounds, var counts)) {
-                        if ((midpoints.equals(expectedMidpoints) && counts.equals(expectedCounts))
-                            || (bounds.equals(expectedBounds) && counts.equals(expectedAllCounts))) {
-                            logger.info("{} assertion PASSED (midpoints={}, counts={})", name, midpoints, counts);
+                    if (sample instanceof ReceivedTelemetry.HistogramSample(var bounds, var counts)) {
+                        if (bounds.equals(expectedBounds) && counts.equals(expectedAllCounts)) {
+                            logger.info("{} assertion PASSED (bounds={}, counts={})", name, bounds, counts);
                             finished.countDown();
                         }
                     }

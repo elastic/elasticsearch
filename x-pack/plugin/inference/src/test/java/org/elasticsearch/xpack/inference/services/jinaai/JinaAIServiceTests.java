@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.jinaai;
 
-import org.apache.http.HttpHeaders;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -1020,7 +1020,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
 
             assertThat(webServer.requests(), hasSize(1));
             assertThat(webServer.requests().getFirst().getUri().getQuery(), is(nullValue()));
-            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), is(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), is("application/json; charset=UTF-8"));
             assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), is(BEARER_PREFIX + API_KEY_VALUE));
 
             var expectedRequestMap = new HashMap<>(
@@ -1098,7 +1098,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
             );
 
             assertThat(webServer.requests(), hasSize(1));
-            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), is(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), is("application/json; charset=UTF-8"));
             assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), is(BEARER_PREFIX + API_KEY_VALUE));
 
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
@@ -1177,7 +1177,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
             );
 
             assertThat(webServer.requests(), hasSize(1));
-            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), is(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), is("application/json; charset=UTF-8"));
             assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), is(BEARER_PREFIX + API_KEY_VALUE));
 
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
@@ -1267,7 +1267,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                 )
             );
             assertThat(webServer.requests(), hasSize(1));
-            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), is(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), is("application/json; charset=UTF-8"));
             assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), is(BEARER_PREFIX + API_KEY_VALUE));
 
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
@@ -1353,7 +1353,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                 )
             );
             assertThat(webServer.requests(), hasSize(1));
-            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), is(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), is("application/json; charset=UTF-8"));
             assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), is(BEARER_PREFIX + API_KEY_VALUE));
 
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
@@ -1714,18 +1714,34 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
         }
     }
 
+    public void testRequiresSingleInputEmbeddingRequestForPdf() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            Model model = mock(Model.class);
+            var pdfInput = createRandomUsingDataTypes(EnumSet.of(PDF));
+            var nonPdfInput = createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(PDF)));
+
+            assertTrue(service.requiresSingleInputEmbeddingRequest(model, pdfInput));
+            assertFalse(service.requiresSingleInputEmbeddingRequest(model, nonPdfInput));
+        }
+    }
+
     public void testEmbeddingInfer_ReturnsError_MoreThanOneInputIncludingPdf_SingleInputPerGroup() throws IOException {
         testEmbeddingInfer_ReturnsError_MoreThanOneInputIncludingPdf(
             List.of(
                 new InferenceStringGroup(new InferenceString(PDF, BASE64, TEST_DATA_URI)),
-                new InferenceStringGroup(InferenceStringTests.createRandom())
+                new InferenceStringGroup(InferenceStringTests.createRandomEmbeddingInput())
             )
         );
     }
 
     public void testEmbeddingInfer_ReturnsError_MoreThanOneInputIncludingPdf_MultipleInputsInGroup() throws IOException {
         testEmbeddingInfer_ReturnsError_MoreThanOneInputIncludingPdf(
-            List.of(new InferenceStringGroup(List.of(new InferenceString(PDF, BASE64, TEST_DATA_URI), InferenceStringTests.createRandom())))
+            List.of(
+                new InferenceStringGroup(
+                    List.of(new InferenceString(PDF, BASE64, TEST_DATA_URI), InferenceStringTests.createRandomEmbeddingInput())
+                )
+            )
         );
     }
 
@@ -1854,7 +1870,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
 
             assertThat(webServer.requests(), hasSize(1));
             assertThat(webServer.requests().getFirst().getUri().getQuery(), nullValue());
-            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), is(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), is("application/json; charset=UTF-8"));
             assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), is(BEARER_PREFIX + API_KEY_VALUE));
 
             var expectedRequestMap = new HashMap<>(

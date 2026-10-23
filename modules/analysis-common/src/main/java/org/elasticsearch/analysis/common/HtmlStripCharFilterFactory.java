@@ -25,6 +25,8 @@ import static org.elasticsearch.common.util.set.Sets.newHashSet;
 public class HtmlStripCharFilterFactory extends AbstractCharFilterFactory {
     private final Set<String> escapedTags;
 
+    private final Object sharingKey;
+
     HtmlStripCharFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
         List<String> escapedTagsList = settings.getAsList("escaped_tags");
@@ -33,10 +35,18 @@ public class HtmlStripCharFilterFactory extends AbstractCharFilterFactory {
         } else {
             this.escapedTags = null;
         }
+        this.sharingKey = new Key(escapedTags);
     }
 
     @Override
     public Reader create(Reader tokenStream) {
         return new HTMLStripCharFilter(tokenStream, escapedTags);
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(Set<String> escapedTags) {}
 }

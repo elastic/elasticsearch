@@ -14,22 +14,25 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.memory.MemoryIndex;
-import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.SimpleCollector;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.lucene.search.SharedAutomaton;
+import org.elasticsearch.common.lucene.search.SharedAutomatonQuery;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -38,6 +41,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.LowercaseNormalizer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -94,7 +98,9 @@ import org.mockito.stubbing.Answer;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -107,8 +113,10 @@ import java.util.stream.Collectors;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -807,6 +815,142 @@ public class SearchExecutionContextTests extends ESTestCase {
         assertEquals("per-request pool must be drained on release", 0L, context.getQueryConstructionMemoryUsed());
     }
 
+    // ------------------------------------------------------------------
+    // Shared automata across the clauses of one request
+    // ------------------------------------------------------------------
+
+    /**
+     * A {@code query_string} with no explicit field expands one pattern over every mapped field. The automaton
+     * depends on the pattern alone, so those clauses must compile and charge one automaton between them.
+     */
+    public void testSharedAutomatonIsCompiledOncePerPatternAcrossFields() {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext("uuid", null), breaker);
+
+        Query first = new KeywordFieldMapper.KeywordFieldType("a").wildcardQuery("*passwd*", null, false, context);
+        long afterFirstClause = context.getQueryConstructionMemoryUsed();
+        assertThat(afterFirstClause, greaterThan(0L));
+
+        SharedAutomatonQuery second = (SharedAutomatonQuery) new KeywordFieldMapper.KeywordFieldType("b").wildcardQuery(
+            "*passwd*",
+            null,
+            false,
+            context
+        );
+
+        assertSame(sharedAutomatonOf(first), sharedAutomatonOf(second));
+        assertEquals(
+            "the second clause must charge its own shell only, not a second automaton",
+            afterFirstClause + second.unsharedRamBytesUsed(),
+            context.getQueryConstructionMemoryUsed()
+        );
+        assertThat(second.unsharedRamBytesUsed(), lessThan(sharedAutomatonOf(second).ramBytesUsed()));
+        assertNotEquals("clauses still differ by field", first, second);
+    }
+
+    public void testSharedAutomatonSeparatesPatternsAndCaseSensitivity() {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext("uuid", null), breaker);
+        MappedFieldType field = new KeywordFieldMapper.KeywordFieldType("a");
+
+        Query sensitive = field.wildcardQuery("*passwd*", null, false, context);
+        Query otherPattern = field.wildcardQuery("*secret*", null, false, context);
+        Query insensitive = field.wildcardQuery("*passwd*", null, true, context);
+
+        assertNotSame(sharedAutomatonOf(sensitive), sharedAutomatonOf(otherPattern));
+        assertNotSame(sharedAutomatonOf(sensitive), sharedAutomatonOf(insensitive));
+    }
+
+    /**
+     * Fields whose normalizers disagree resolve the same input to different patterns, so they must compile separate
+     * automata. This is why the cache is keyed on the pattern after normalization rather than on what the user typed.
+     */
+    public void testSharedAutomatonSeparatesFieldsWithDifferentNormalizers() {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext("uuid", null), breaker);
+
+        MappedFieldType plain = new KeywordFieldMapper.KeywordFieldType("plain");
+        MappedFieldType lowercasing = new KeywordFieldMapper.KeywordFieldType(
+            "lowercasing",
+            new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer())
+        );
+
+        Query onPlain = plain.wildcardQuery("*Passwd*", null, false, context);
+        Query onLowercasing = lowercasing.wildcardQuery("*Passwd*", null, false, context);
+        assertNotSame(
+            "a normalizer that rewrites the pattern must not reuse another field's automaton",
+            sharedAutomatonOf(onPlain),
+            sharedAutomatonOf(onLowercasing)
+        );
+
+        // Once both resolve to the same pattern they share again.
+        Query alreadyLower = plain.wildcardQuery("*passwd*", null, false, context);
+        assertSame(sharedAutomatonOf(onLowercasing), sharedAutomatonOf(alreadyLower));
+    }
+
+    public void testSharedAutomatonSpansIndexedAndDocValuesFields() {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext("uuid", null), breaker);
+
+        MappedFieldType indexed = new KeywordFieldMapper.KeywordFieldType("indexed");
+        MappedFieldType docValuesOnly = new KeywordFieldMapper.KeywordFieldType("dv", false, true, Map.of());
+
+        Query onIndexed = indexed.wildcardQuery("*passwd*", null, false, context);
+        Query onDocValues = docValuesOnly.wildcardQuery("*passwd*", null, false, context);
+
+        assertSame(sharedAutomatonOf(onIndexed), sharedAutomatonOf(onDocValues));
+        assertEquals(MultiTermQuery.DOC_VALUES_REWRITE, ((SharedAutomatonQuery) onDocValues).getRewriteMethod());
+    }
+
+    public void testSharedAutomatonAppliesToRegexp() {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext("uuid", null), breaker);
+
+        Query first = new KeywordFieldMapper.KeywordFieldType("a").regexpQuery("foo.*", 0, 0, 10, null, context);
+        Query second = new KeywordFieldMapper.KeywordFieldType("b").regexpQuery("foo.*", 0, 0, 10, null, context);
+        Query differentLimit = new KeywordFieldMapper.KeywordFieldType("a").regexpQuery("foo.*", 0, 0, 20, null, context);
+
+        assertSame(sharedAutomatonOf(first), sharedAutomatonOf(second));
+        assertNotSame(
+            "the determinize work limit changes what may be built, so it has to stay in the key",
+            sharedAutomatonOf(first),
+            sharedAutomatonOf(differentLimit)
+        );
+    }
+
+    public void testReleaseQueryConstructionMemoryDropsSharedAutomata() {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext("uuid", null), breaker);
+
+        Query before = new KeywordFieldMapper.KeywordFieldType("a").wildcardQuery("*passwd*", null, false, context);
+        context.releaseQueryConstructionMemory();
+        assertEquals(0L, breaker.used);
+
+        Query after = new KeywordFieldMapper.KeywordFieldType("a").wildcardQuery("*passwd*", null, false, context);
+        assertNotSame("automata must not outlive the request that charged them", sharedAutomatonOf(before), sharedAutomatonOf(after));
+        assertThat(breaker.used, greaterThan(0L));
+    }
+
+    /**
+     * Kinds are separate record types rather than one discriminator, so a key carrying the same pattern cannot
+     * collide across kinds and hand a clause the wrong automaton.
+     */
+    public void testAutomatonKeysOfDifferentKindsNeverCollide() {
+        AutomatonKey wildcard = new AutomatonKey.Wildcard("foo", false);
+        AutomatonKey regexp = new AutomatonKey.Regexp("foo", 0, 0, 10);
+
+        assertNotEquals(wildcard, regexp);
+        assertEquals(new AutomatonKey.Wildcard("foo", false), wildcard);
+        assertNotEquals(new AutomatonKey.Wildcard("foo", true), wildcard);
+        assertNotEquals(new AutomatonKey.Regexp("foo", 0, 0, 20), regexp);
+        assertEquals(ChildMemoryCircuitBreaker.CATEGORY_WILDCARD, wildcard.category());
+        assertEquals(ChildMemoryCircuitBreaker.CATEGORY_REGEXP, regexp.category());
+    }
+
+    private static SharedAutomaton sharedAutomatonOf(Query query) {
+        return asInstanceOf(SharedAutomatonQuery.class, query).getSharedAutomaton();
+    }
+
     /**
      * Minimal in-process breaker that tracks {@code used} and counts refund calls. Sufficient for
      * exercising the swap accounting in {@link SearchExecutionContext#addCircuitBreakerMemory(long, long, String)};
@@ -1006,6 +1150,7 @@ public class SearchExecutionContextTests extends ESTestCase {
                 mapperRegistry.getRuntimeFieldParsers()::get,
                 indexSettings.getIndexVersionCreated(),
                 () -> TransportVersion.current(),
+                f -> true,
                 searchExecutionContextSupplier,
                 ScriptCompiler.NONE,
                 indexAnalyzers,
@@ -1133,7 +1278,6 @@ public class SearchExecutionContextTests extends ESTestCase {
     }
 
     private static List<String> collect(String field, SearchExecutionContext searchExecutionContext, Query query) throws IOException {
-        List<String> result = new ArrayList<>();
         try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
             indexWriter.addDocument(List.of(new KeywordField("indexed_field", "first", Field.Store.YES)));
             indexWriter.addDocument(List.of(new KeywordField("indexed_field", "second", Field.Store.YES)));
@@ -1146,39 +1290,82 @@ public class SearchExecutionContextTests extends ESTestCase {
                 } else {
                     indexFieldData = searchExecutionContext.lookup().getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
                 }
-                searcher.search(query, new Collector() {
+                boolean useDocLookup = randomBoolean();
+                return searcher.search(query, new CollectorManager<ValueCollector, List<String>>() {
                     @Override
-                    public ScoreMode scoreMode() {
-                        return ScoreMode.COMPLETE_NO_SCORES;
+                    public ValueCollector newCollector() {
+                        return new ValueCollector(field, searchExecutionContext, indexFieldData, useDocLookup);
                     }
 
                     @Override
-                    public LeafCollector getLeafCollector(LeafReaderContext context) {
-                        return new LeafCollector() {
-                            @Override
-                            public void setScorer(Scorable scorer) {}
-
-                            @Override
-                            public void collect(int doc) throws IOException {
-                                ScriptDocValues<?> scriptDocValues;
-                                if (randomBoolean()) {
-                                    LeafDocLookup leafDocLookup = searchExecutionContext.lookup().getLeafSearchLookup(context).doc();
-                                    leafDocLookup.setDocument(doc);
-                                    scriptDocValues = leafDocLookup.get(field);
-                                } else {
-                                    scriptDocValues = indexFieldData.load(context).getScriptFieldFactory("test").toScriptDocValues();
-                                    ;
-                                }
-                                scriptDocValues.getSupplier().setNextDocId(doc);
-                                for (int i = 0; i < scriptDocValues.size(); i++) {
-                                    result.add(scriptDocValues.get(i).toString());
-                                }
-                            }
-                        };
+                    public List<String> reduce(Collection<ValueCollector> collectors) {
+                        List<CollectedValue> values = new ArrayList<>();
+                        for (ValueCollector collector : collectors) {
+                            values.addAll(collector.values);
+                        }
+                        values.sort(Comparator.comparingInt(CollectedValue::doc));
+                        return values.stream().map(CollectedValue::value).toList();
                     }
                 });
             }
-            return result;
+        }
+    }
+
+    private record CollectedValue(int doc, String value) {}
+
+    /**
+     * One collector per slice: each owns its leaf lookup / script doc values and the hits it collected.
+     */
+    private static final class ValueCollector extends SimpleCollector {
+        private final String field;
+        private final SearchExecutionContext searchExecutionContext;
+        private final IndexFieldData<?> indexFieldData;
+        private final boolean useDocLookup;
+        private final List<CollectedValue> values = new ArrayList<>();
+        private int docBase;
+        private LeafDocLookup leafDocLookup;
+        private ScriptDocValues<?> scriptDocValues;
+
+        ValueCollector(
+            String field,
+            SearchExecutionContext searchExecutionContext,
+            IndexFieldData<?> indexFieldData,
+            boolean useDocLookup
+        ) {
+            this.field = field;
+            this.searchExecutionContext = searchExecutionContext;
+            this.indexFieldData = indexFieldData;
+            this.useDocLookup = useDocLookup;
+        }
+
+        @Override
+        protected void doSetNextReader(LeafReaderContext context) {
+            docBase = context.docBase;
+            if (useDocLookup) {
+                leafDocLookup = searchExecutionContext.lookup().getLeafSearchLookup(context).doc();
+            } else {
+                scriptDocValues = indexFieldData.load(context).getScriptFieldFactory("test").toScriptDocValues();
+            }
+        }
+
+        @Override
+        public void collect(int doc) throws IOException {
+            final ScriptDocValues<?> docValues;
+            if (useDocLookup) {
+                leafDocLookup.setDocument(doc);
+                docValues = leafDocLookup.get(field);
+            } else {
+                scriptDocValues.getSupplier().setNextDocId(doc);
+                docValues = scriptDocValues;
+            }
+            for (int i = 0; i < docValues.size(); i++) {
+                values.add(new CollectedValue(docBase + doc, docValues.get(i).toString()));
+            }
+        }
+
+        @Override
+        public ScoreMode scoreMode() {
+            return ScoreMode.COMPLETE_NO_SCORES;
         }
     }
 }

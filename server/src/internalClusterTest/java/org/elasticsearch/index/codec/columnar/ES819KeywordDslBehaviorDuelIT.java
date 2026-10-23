@@ -11,14 +11,17 @@ package org.elasticsearch.index.codec.columnar;
 
 import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.codec.columnar.BehaviorCheck;
 import org.elasticsearch.test.codec.columnar.BehaviorDuelHarness;
 import org.elasticsearch.test.codec.columnar.BehaviorWritePlan;
+import org.elasticsearch.test.codec.columnar.DuelField;
 import org.elasticsearch.test.codec.columnar.DuelIndexAccess;
-import org.elasticsearch.test.codec.columnar.KeywordIndexConfig;
-import org.elasticsearch.test.codec.columnar.KeywordScenario;
+import org.elasticsearch.test.codec.columnar.DuelIndexConfig;
+import org.elasticsearch.test.codec.columnar.DuelScenario;
+import org.elasticsearch.test.codec.columnar.KeywordScenarios;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,10 +29,10 @@ import java.util.Random;
 import java.util.Set;
 
 /**
- * DSL keyword behavior duel of a columnar-mode index with the ColumNAR codec disabled (the ES819 tsdb
- * doc-values format, {@code ES819Version3TSDBDocValuesFormat} at current index versions) against a ColumNAR
- * contender. Both indices use the same strict columnar index mode and differ only in the keyword doc-values
- * format, so the duel isolates the codec substitution as the single variable and compares API-visible DSL
+ * DSL keyword behavior duel of a columnar-mode index created just before the ColumNAR codec (the ES819 tsdb
+ * doc-values format, {@code ES819Version3TSDBDocValuesFormat}) against a ColumNAR contender. Both indices use the
+ * same strict columnar index mode and differ only in the keyword doc-values format, so the duel isolates the
+ * codec substitution as the single variable and compares API-visible DSL
  * behavior, not doc-values bytes. It runs every named corpus scenario through the shared
  * {@link BehaviorDuelHarness}.
  */
@@ -39,7 +42,14 @@ import java.util.Set;
 @SuppressCodecs("*")
 public class ES819KeywordDslBehaviorDuelIT extends ESIntegTestCase {
 
+    private static final String KEYWORD_FIELD = "kw";
     private static final String DUEL_NAME = "es819_vs_columnar_dsl";
+
+    @Override
+    protected boolean forbidPrivateIndexSettings() {
+        // Need to set IndexVersion of baseline ES819 index.
+        return false;
+    }
 
     @Override
     protected Settings.Builder setRandomIndexSettings(final Random random, final Settings.Builder builder) {
@@ -49,66 +59,70 @@ public class ES819KeywordDslBehaviorDuelIT extends ESIntegTestCase {
     }
 
     public void testSingleDense() {
-        runDuel(KeywordScenario.singleDense());
+        runDuel(KeywordScenarios.singleDense());
     }
 
     public void testSingleSparse() {
-        runDuel(KeywordScenario.singleSparse());
+        runDuel(KeywordScenarios.singleSparse());
     }
 
     public void testMultiDense() {
-        runDuel(KeywordScenario.multiDense());
+        runDuel(KeywordScenarios.multiDense());
     }
 
     public void testMultiSparse() {
-        runDuel(KeywordScenario.multiSparse());
+        runDuel(KeywordScenarios.multiSparse());
     }
 
     public void testNulls() {
-        runDuel(KeywordScenario.nulls());
+        runDuel(KeywordScenarios.nulls());
     }
 
     public void testEmptyArrays() {
-        runDuel(KeywordScenario.emptyArrays());
+        runDuel(KeywordScenarios.emptyArrays());
     }
 
     public void testDuplicates() {
-        runDuel(KeywordScenario.duplicates());
+        runDuel(KeywordScenarios.duplicates());
     }
 
     public void testHighCardinality() {
-        runDuel(KeywordScenario.highCardinality());
+        runDuel(KeywordScenarios.highCardinality());
     }
 
     public void testUnicode() {
-        runDuel(KeywordScenario.unicode());
+        runDuel(KeywordScenarios.unicode());
     }
 
     public void testLongValues() {
-        runDuel(KeywordScenario.longValues());
+        runDuel(KeywordScenarios.longValues());
     }
 
     public void testRandomizedMixed() {
-        runDuel(KeywordScenario.randomizedMixed());
+        runDuel(KeywordScenarios.randomizedMixed());
     }
 
     public void testEmptyStrings() {
-        runDuel(KeywordScenario.emptyStrings());
+        runDuel(KeywordScenarios.emptyStrings());
     }
 
     public void testLargeCorpus() {
-        runDuel(KeywordScenario.largeCorpus());
+        runDuel(KeywordScenarios.largeCorpus());
     }
 
-    private void runDuel(final KeywordScenario scenario) {
+    public void testSingleValued() {
+        runDuel(KeywordScenarios.singleValued());
+    }
+
+    private void runDuel(final DuelScenario scenario) {
         final BehaviorDuelHarness harness = new BehaviorDuelHarness(client(), this::indexSettings, this::docValuesFormats);
         harness.run(
             DUEL_NAME,
             scenario,
             BehaviorWritePlan.random(),
-            KeywordIndexConfig.es819("kw_baseline"),
-            KeywordIndexConfig.columnar("kw_contender"),
-            checks()
+            DuelIndexConfig.es819("kw_baseline", IndexMode.COLUMNAR),
+            DuelIndexConfig.columnar("kw_contender", IndexMode.COLUMNAR),
+            List.of(DuelField.keyword(KEYWORD_FIELD, checks()))
         );
     }
 
@@ -122,8 +136,8 @@ public class ES819KeywordDslBehaviorDuelIT extends ESIntegTestCase {
         return DuelIndexAccess.indexSettings(internalCluster(), resolveIndex(indexName));
     }
 
-    private Set<String> docValuesFormats(final String indexName) {
+    private Set<String> docValuesFormats(final String indexName, final String field) {
         indicesAdmin().prepareRefresh(indexName).get();
-        return DuelIndexAccess.docValuesFormats(internalCluster(), resolveIndex(indexName), BehaviorDuelHarness.KEYWORD_FIELD);
+        return DuelIndexAccess.docValuesFormats(internalCluster(), resolveIndex(indexName), field);
     }
 }

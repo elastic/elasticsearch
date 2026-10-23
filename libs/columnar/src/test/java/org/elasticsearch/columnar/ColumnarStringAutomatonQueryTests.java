@@ -29,7 +29,9 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.IntFunction;
 
 import static org.elasticsearch.columnar.ColumnarStringQueryTestUtils.found;
@@ -220,8 +222,15 @@ public class ColumnarStringAutomatonQueryTests extends ESTestCase {
                 assertThat(hidden.leaves().get(0).reader().getBinaryDocValues(FIELD), not(instanceOf(StringColumnSource.class)));
                 final IndexSearcher searcher = new IndexSearcher(hidden);
                 assertEquals("every value, null slots aside", List.of(1, 2, 5, 6, 7), acceptedSlots(docs, "*"));
-                for (String pattern : new String[] { "", "*", "alph?", "alpha", "zzz*" }) {
+                final Map<String, Boolean> matchesSomething = new LinkedHashMap<>();
+                matchesSomething.put("*", true);
+                matchesSomething.put("alph?", true);
+                matchesSomething.put("alpha", true);
+                matchesSomething.put("zzz*", false);
+                for (final Map.Entry<String, Boolean> entry : matchesSomething.entrySet()) {
+                    final String pattern = entry.getKey();
                     final List<Integer> expected = acceptedSlots(docs, pattern);
+                    assertEquals("pattern [" + pattern + "] accepts a value", entry.getValue(), expected.isEmpty() == false);
                     assertFalse(
                         "a null slot and an absent document never match",
                         expected.contains(0) || expected.contains(3) || expected.contains(4) || expected.contains(8)

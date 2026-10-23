@@ -19,8 +19,9 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 
 /**
- * Checks the trust store of the JDK bundled with a distribution, which the build changes, see
- * {@code BundledJdkCacertsTask} and {@code distribution/build.gradle}.
+ * Checks the trust store of the JDK bundled with a distribution. The build changes it for archives and packages, see
+ * {@code BundledJdkCacertsTask} and {@code distribution/build.gradle}, while the Docker images replace it with the
+ * operating system's trust store.
  */
 public final class BundledJdkTrustStore {
 

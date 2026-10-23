@@ -14,6 +14,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.apache.http.client.fluent.Request;
+import org.elasticsearch.packaging.util.BundledJdkTrustStore;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ProcessInfo;
@@ -403,6 +404,15 @@ public class DockerTests extends PackagingTestCase {
         } else {
             fail("Unknown distribution: " + distribution.packaging);
         }
+    }
+
+    /**
+     * Check that the JDK doesn't trust the roots that compromised eMudhra intermediate CAs chain to. The Docker images
+     * replace the bundled JDK's `cacerts` with the operating system's, so this depends on the operating system's
+     * trust store rather than on the roots the build removes from the bundled JDK.
+     */
+    public void test042CompromisedRootsAreNotTrusted() {
+        BundledJdkTrustStore.assertRemovedRootsAreNotTrusted(sh, installation.bundledJdk);
     }
 
     /**

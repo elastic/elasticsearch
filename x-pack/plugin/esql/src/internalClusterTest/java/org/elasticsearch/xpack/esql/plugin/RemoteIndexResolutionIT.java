@@ -93,17 +93,13 @@ public class RemoteIndexResolutionIT extends AbstractCrossClusterTestCase {
         indexRandom(REMOTE_CLUSTER_1, true, "index-1", 1);
         assertAcked(client(REMOTE_CLUSTER_1).admin().indices().prepareCreate("index-2"));
 
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
         expectThrows(
             RemoteException.class,
             equalTo("Remote [cluster-a] encountered an error"), // fails when present index is non-empty
-            () -> run(syncEsqlQueryRequest("FROM " + REMOTE_CLUSTER_1 + ":index-1," + REMOTE_CLUSTER_1 + ":nonexisting-1"))
-        );
-        expectThrows(
-            RemoteException.class,
-            equalTo("Remote [cluster-a] encountered an error"), // allowPartialResults does not supress missing indices
             () -> run(
-                syncEsqlQueryRequest("FROM " + REMOTE_CLUSTER_1 + ":index-1," + REMOTE_CLUSTER_1 + ":nonexisting-1").allowPartialResults(
-                    true
+                withRandomAllowPartialResult(
+                    syncEsqlQueryRequest("FROM " + REMOTE_CLUSTER_1 + ":index-1," + REMOTE_CLUSTER_1 + ":nonexisting-1")
                 )
             )
         );
@@ -125,6 +121,15 @@ public class RemoteIndexResolutionIT extends AbstractCrossClusterTestCase {
         try (var response = run(syncEsqlQueryRequest("FROM " + REMOTE_CLUSTER_1 + ":index-2," + REMOTE_CLUSTER_1 + ":nonexisting-1"))) {
             assertOk(response); // passes when the present index has no fields and no documents
         }
+    }
+
+    private static EsqlQueryRequest withRandomAllowPartialResult(EsqlQueryRequest request) {
+        return switch (randomIntBetween(0, 2)) {
+            case 0 -> request; // default
+            case 1 -> request.allowPartialResults(true);
+            case 2 -> request.allowPartialResults(false);
+            default -> throw new IllegalStateException("Illegal random number between 0 and 2");
+        };
     }
 
     public void testResolvesLocalAndRemoteIndex() {

@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
@@ -461,6 +462,15 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
             slotsByKey.clear();
             totalSlotCount = 0;
 
+            // Skip the slots of the keys a reader must not see while decoding, rather than reading a copy without them
+            if (binary instanceof KeyFilteredSlots filtered) {
+                if (filtered.advanceExactStored(docId) == false) {
+                    return false;
+                }
+                totalSlotCount = decodeSlots(filtered.storedSlots(), filtered.storedSlotCount(), filtered::grants);
+                return totalSlotCount > 0;
+            }
+
             if (counts == null || counts.advanceExact(docId) == false) {
                 return false;
             }
@@ -471,12 +481,13 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
             }
             BytesRef bytes = binary.binaryValue();
 
-            decodeSlots(bytes, slotCount);
-            totalSlotCount = slotCount;
-            return slotCount > 0;
+            totalSlotCount = decodeSlots(bytes, slotCount, key -> true);
+            return totalSlotCount > 0;
         }
 
-        private void decodeSlots(BytesRef bytes, int slotCount) throws IOException {
+        /** Decodes the {@code slotCount} slots of {@code bytes} whose key {@code keys} accepts, and returns how many it decoded. */
+        private int decodeSlots(BytesRef bytes, int slotCount, Predicate<String> keys) throws IOException {
+            int decoded = 0;
             in.reset(bytes.bytes, bytes.offset, bytes.length);
             for (int i = 0; i < slotCount; i++) {
                 int prefix = in.readVInt();
@@ -484,6 +495,11 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
                 int remaining = bytes.length - (slotKeyStart - bytes.offset);
                 int keyLen = ESVectorUtil.indexOf(bytes.bytes, slotKeyStart, remaining, (byte) 0);
                 String key = new String(bytes.bytes, slotKeyStart, keyLen, StandardCharsets.UTF_8);
+                if (keys.test(key) == false) {
+                    in.setPosition(slotKeyStart + keyLen + 1 + (prefix == 0 ? 0 : prefix - 1));
+                    continue;
+                }
+                decoded++;
                 if (prefix == 0) {
                     // Null slot: [0]key\0
                     in.setPosition(slotKeyStart + keyLen + 1);
@@ -497,6 +513,7 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
                         .add(new BytesRef(bytes.bytes, valueStart, valueLen).utf8ToString());
                 }
             }
+            return decoded;
         }
 
         @Override

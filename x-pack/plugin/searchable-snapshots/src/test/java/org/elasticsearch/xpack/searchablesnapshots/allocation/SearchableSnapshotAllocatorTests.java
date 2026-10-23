@@ -27,6 +27,9 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
+import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
@@ -53,6 +56,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -222,6 +226,113 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
         allocateAllUnassigned(allocation, allocator);
         assertThat(allocation.routingNodes().assignedShards(shardId), empty());
         assertTrue(allocation.routingTable(projectId).index(shardId.getIndex()).allPrimaryShardsUnassigned());
+    }
+
+    public void testExplainDoesNotStartCacheFetches() {
+        final ShardId shardId = new ShardId("test", "_na_", 0);
+        final DiscoveryNode node = newNode("node-" + UUIDs.randomBase64UUID(random()));
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
+
+        final Metadata metadata = buildSingleShardIndexMetadata(shardId);
+        final GlobalRoutingTable routingTable = GlobalRoutingTableTestHelper.buildRoutingTable(
+            metadata,
+            (builder, index) -> builder.addAsRestore(index, randomSnapshotSource(shardId))
+        );
+        final ClusterState state = buildClusterState(List.of(node), metadata, routingTable);
+        final long cachedBytes = randomLongBetween(1, 1000);
+
+        final AtomicInteger fetches = new AtomicInteger();
+        final AtomicReference<ActionListener<TransportSearchableSnapshotCacheStoresAction.NodesCacheFilesMetadata>> pendingFetch =
+            new AtomicReference<>();
+        final Client client = new NoOpNodeClient(deterministicTaskQueue.getThreadPool()) {
+            @SuppressWarnings("unchecked")
+            @Override
+            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                if (action == TransportSearchableSnapshotCacheStoresAction.TYPE) {
+                    // Hold the response so the fetch stays in flight until the test completes it.
+                    fetches.incrementAndGet();
+                    pendingFetch.set((ActionListener<TransportSearchableSnapshotCacheStoresAction.NodesCacheFilesMetadata>) listener);
+                } else {
+                    throw new AssertionError("Unexpected action [" + action + "]");
+                }
+            }
+        };
+
+        final SearchableSnapshotAllocator allocator = new SearchableSnapshotAllocator(
+            client,
+            (reason, priority, listener) -> listener.onResponse(null),
+            new FrozenCacheInfoService()
+        );
+
+        // Nothing has been fetched yet, so explain waits and does not start a fetch.
+        AllocateUnassignedDecision decision = explain(allocator, deterministicTaskQueue, state);
+        assertEquals(AllocationDecision.AWAITING_INFO, decision.getAllocationDecision());
+        assertEquals(UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA, decision.getAllocationStatus());
+        assertEquals(0, fetches.get());
+        assertEquals(0, allocator.getNumberOfInFlightFetches());
+
+        final RoutingAllocation allocation = buildAllocation(
+            deterministicTaskQueue,
+            state,
+            randomNonNegativeLong(),
+            yesAllocationDeciders()
+        );
+
+        // Allocation starts the only fetch. Explain, while that fetch is in flight, must not start another.
+        allocateAllUnassigned(allocation, allocator);
+        assertEquals(1, fetches.get());
+        assertEquals(1, allocator.getNumberOfInFlightFetches());
+
+        decision = explain(allocator, deterministicTaskQueue, state);
+        assertEquals(AllocationDecision.AWAITING_INFO, decision.getAllocationDecision());
+        assertEquals(UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA, decision.getAllocationStatus());
+        assertEquals(1, fetches.get());
+        assertEquals(1, allocator.getNumberOfInFlightFetches());
+
+        // The cache sizes arrive. Explain can now use them without asking again.
+        pendingFetch.get()
+            .onResponse(
+                new TransportSearchableSnapshotCacheStoresAction.NodesCacheFilesMetadata(
+                    state.getClusterName(),
+                    List.of(new TransportSearchableSnapshotCacheStoresAction.NodeCacheFilesMetadata(node, cachedBytes)),
+                    List.of()
+                )
+            );
+        assertEquals(0, allocator.getNumberOfInFlightFetches());
+
+        decision = explain(allocator, deterministicTaskQueue, state);
+        assertEquals(AllocationDecision.YES, decision.getAllocationDecision());
+        assertEquals(node.getId(), decision.getTargetNode().getId());
+        assertEquals(1, fetches.get());
+
+        // A node that joined later has no cache data yet. Explain reports that and leaves the fetch for allocation.
+        final DiscoveryNode joinedNode = newNode("node-" + UUIDs.randomBase64UUID(random()));
+        final ClusterState stateWithNewNode = buildClusterState(List.of(node, joinedNode), metadata, routingTable);
+        decision = explain(allocator, deterministicTaskQueue, stateWithNewNode);
+        assertEquals(AllocationDecision.AWAITING_INFO, decision.getAllocationDecision());
+        assertEquals(UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA, decision.getAllocationStatus());
+        assertEquals(1, fetches.get());
+        assertEquals(0, allocator.getNumberOfInFlightFetches());
+    }
+
+    private static AllocateUnassignedDecision explain(
+        SearchableSnapshotAllocator allocator,
+        DeterministicTaskQueue deterministicTaskQueue,
+        ClusterState state
+    ) {
+        final RoutingAllocation allocation = buildAllocation(
+            deterministicTaskQueue,
+            state,
+            randomNonNegativeLong(),
+            yesAllocationDeciders()
+        );
+        allocation.debugDecision(true);
+        final ShardRouting unassigned = allocation.routingNodes().unassigned().iterator().next();
+        return allocator.explainUnassignedShardAllocation(unassigned, allocation);
     }
 
     private static Metadata buildSingleShardIndexMetadata(ShardId shardId) {

@@ -1526,7 +1526,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         ObjectStoreService objectStoreService = mock(ObjectStoreService.class);
         when(objectStoreService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
         doAnswer(invocation -> {
-            invocation.<Runnable>getArgument(2).run(); // as in ObjectStoreService, signal that the upload is about to start
+            invocation.<Runnable>getArgument(3).run(); // as in ObjectStoreService, signal that the upload is about to start
             if (uploads.incrementAndGet() == 1) {
                 safeAwait(firstUploadHangs); // hang the first upload so that the hedge completes the upload
             }
@@ -1606,7 +1606,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         ObjectStoreService objectStoreService = mock(ObjectStoreService.class);
         when(objectStoreService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
         doAnswer(invocation -> {
-            invocation.<Runnable>getArgument(2).run(); // as in ObjectStoreService, signal that the upload is about to start
+            invocation.<Runnable>getArgument(3).run(); // as in ObjectStoreService, signal that the upload is about to start
             uploads.incrementAndGet();
             invocation.<ActionListener<Void>>getArgument(4).onResponse(null);
             return null;
@@ -1673,7 +1673,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         ObjectStoreService objectStoreService = mock(ObjectStoreService.class);
         when(objectStoreService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
         doAnswer(invocation -> {
-            invocation.<Runnable>getArgument(2).run(); // as in ObjectStoreService, signal that the upload is about to start
+            invocation.<Runnable>getArgument(3).run(); // as in ObjectStoreService, signal that the upload is about to start
             safeAwait(uploads.incrementAndGet() == 1 ? firstUploadHangs : hedgeUploadHangs);
             invocation.<ActionListener<Void>>getArgument(4).onResponse(null);
             return null;

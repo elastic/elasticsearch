@@ -860,14 +860,14 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     public void uploadTranslogFile(
         String fileName,
         BytesReference reference,
-        Runnable onBeforeUpload,
         BooleanSupplier isAlreadyUploaded,
+        Runnable onBeforeUpload,
         ActionListener<Void> listener
     ) {
         enqueueTask(
             listener,
             uploadTranslogTaskRunner,
-            l -> new TranslogFileUploadTask(fileName, reference, onBeforeUpload, isAlreadyUploaded, l)
+            l -> new TranslogFileUploadTask(fileName, reference, isAlreadyUploaded, onBeforeUpload, l)
         );
     }
 
@@ -1590,21 +1590,21 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
 
         private final String fileName;
         private final BytesReference reference;
-        private final Runnable onBeforeUpload;
         private final BooleanSupplier isAlreadyUploaded;
+        private final Runnable onBeforeUpload;
         private final ActionListener<Void> listener;
 
         TranslogFileUploadTask(
             String fileName,
             BytesReference reference,
-            Runnable onBeforeUpload,
             BooleanSupplier isAlreadyUploaded,
+            Runnable onBeforeUpload,
             ActionListener<Void> listener
         ) {
             this.fileName = Objects.requireNonNull(fileName);
             this.reference = Objects.requireNonNull(reference);
-            this.onBeforeUpload = Objects.requireNonNull(onBeforeUpload);
             this.isAlreadyUploaded = Objects.requireNonNull(isAlreadyUploaded);
+            this.onBeforeUpload = Objects.requireNonNull(onBeforeUpload);
             this.listener = Objects.requireNonNull(listener);
         }
 

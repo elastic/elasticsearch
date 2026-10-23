@@ -543,9 +543,9 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             objectStoreService.uploadTranslogFile(
                 translog.metadata().name(),
                 translog.bytes().data(),
+                this::alreadyUploaded,
                 // only count the hedge if we are actually about to start uploading
                 translogUploadHedgesCounter::increment,
-                this::alreadyUploaded,
                 ActionListener.releaseAfter(
                     ActionListener.wrap(
                         unused -> uploaded(true, listener),
@@ -584,8 +584,8 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                 objectStoreService.uploadTranslogFile(
                     translog.metadata().name(),
                     translog.bytes().data(),
-                    onBeforeUpload,
                     this::alreadyUploaded,
+                    onBeforeUpload,
                     ActionListener.releaseAfter(ActionListener.wrap(unused -> {
                         logger.debug(() -> format("uploaded translog file [%s]", translog.metadata().name()));
                         uploaded(false, listener);

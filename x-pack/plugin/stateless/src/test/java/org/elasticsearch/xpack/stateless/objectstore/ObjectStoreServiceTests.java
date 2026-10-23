@@ -313,7 +313,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             assertThat(objectStoreService.lifecycleState(), equalTo(Lifecycle.State.CLOSED));
 
             final var future = new PlainActionFuture<Void>();
-            objectStoreService.uploadTranslogFile("translog-1", new BytesArray(new byte[] { 1, 2, 3 }), () -> {}, () -> false, future);
+            objectStoreService.uploadTranslogFile("translog-1", new BytesArray(new byte[] { 1, 2, 3 }), () -> false, () -> {}, future);
 
             // The listener must be failed (not stranded by a thrown error) so the caller can release its references.
             final var e = expectThrows(IllegalStateException.class, future::actionGet);
@@ -334,7 +334,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             assertThat(objectStoreService.lifecycleState(), equalTo(Lifecycle.State.STOPPED));
 
             final var future = new PlainActionFuture<Void>();
-            objectStoreService.uploadTranslogFile("translog-1", new BytesArray(new byte[] { 1, 2, 3 }), () -> {}, () -> false, future);
+            objectStoreService.uploadTranslogFile("translog-1", new BytesArray(new byte[] { 1, 2, 3 }), () -> false, () -> {}, future);
 
             final var e = expectThrows(IllegalStateException.class, future::actionGet);
             assertThat(e.getMessage(), startsWith("Object store service is not running"));
@@ -1351,7 +1351,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             // In case of no-delay, translog upload is fast and hence we log at DEBUG level
             var future1 = new PlainActionFuture<Void>();
             MockLog.assertThatLogger(() -> {
-                objectStoreService.uploadTranslogFile("translog-1", new BytesArray(new byte[] { 1 }), () -> {}, () -> false, future1);
+                objectStoreService.uploadTranslogFile("translog-1", new BytesArray(new byte[] { 1 }), () -> false, () -> {}, future1);
                 safeGet(future1);
             },
                 ObjectStoreService.class,
@@ -1374,7 +1374,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             // In case of a delay that exceeds the slow translog upload threshold we log at WARN level
             var future2 = new PlainActionFuture<Void>();
             MockLog.assertThatLogger(() -> {
-                objectStoreService.uploadTranslogFile("translog-2", new BytesArray(new byte[] { 2 }), () -> {}, () -> false, future2);
+                objectStoreService.uploadTranslogFile("translog-2", new BytesArray(new byte[] { 2 }), () -> false, () -> {}, future2);
                 safeGet(future2);
             },
                 ObjectStoreService.class,
@@ -1440,7 +1440,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
         ) {
             final var bytes = new BytesArray(randomByteArrayOfLength(between(1, 64) * 1024));
             final var future = new PlainActionFuture<Void>();
-            testHarness.objectStoreService.uploadTranslogFile("translog", bytes, () -> {}, () -> false, future);
+            testHarness.objectStoreService.uploadTranslogFile("translog", bytes, () -> false, () -> {}, future);
             safeGet(future);
 
             assertThat(
@@ -1510,8 +1510,8 @@ public class ObjectStoreServiceTests extends ESTestCase {
             objectStoreService.uploadTranslogFile(
                 "translog-1",
                 new BytesArray(new byte[] { 1 }),
-                () -> events.add("before translog-1"),
                 () -> false,
+                () -> events.add("before translog-1"),
                 firstFuture
             );
             safeAwait(firstUploadStarted);
@@ -1522,8 +1522,8 @@ public class ObjectStoreServiceTests extends ESTestCase {
             objectStoreService.uploadTranslogFile(
                 "translog-2",
                 new BytesArray(new byte[] { 2 }),
-                () -> events.add("before translog-2"),
                 () -> false,
+                () -> events.add("before translog-2"),
                 secondFuture
             );
             assertFalse(secondFuture.isDone());
@@ -1587,8 +1587,8 @@ public class ObjectStoreServiceTests extends ESTestCase {
             objectStoreService.uploadTranslogFile(
                 "translog-1",
                 new BytesArray(new byte[] { 1 }),
-                () -> events.add("before translog-1"),
                 () -> false,
+                () -> events.add("before translog-1"),
                 firstFuture
             );
             safeAwait(firstUploadStarted);
@@ -1599,8 +1599,8 @@ public class ObjectStoreServiceTests extends ESTestCase {
             objectStoreService.uploadTranslogFile(
                 "translog-2",
                 new BytesArray(new byte[] { 2 }),
-                () -> events.add("before translog-2"),
                 translogAlreadyUploaded::get,
+                () -> events.add("before translog-2"),
                 secondFuture
             );
             assertFalse(secondFuture.isDone());

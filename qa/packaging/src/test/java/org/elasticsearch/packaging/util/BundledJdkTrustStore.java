@@ -26,10 +26,11 @@ import static org.hamcrest.Matchers.not;
 public final class BundledJdkTrustStore {
 
     /**
-     * Roots the build removes from the bundled JDK's {@code cacerts}, by SHA-256 fingerprint in {@code keytool}'s format.
-     * Compromised eMudhra intermediate CAs chain to them.
+     * Roots that compromised eMudhra intermediate CAs chain to, by SHA-256 fingerprint in {@code keytool}'s format. The
+     * build removes them from the bundled JDK's {@code cacerts}, and the Docker images rely on the operating system's
+     * trust store not having them.
      */
-    private static final Map<String, String> REMOVED_ROOTS = Map.of(
+    private static final Map<String, String> DISTRUSTED_ROOTS = Map.of(
         "AAA Certificate Services",
         "D7:A7:A0:FB:5D:7E:27:31:D7:71:E9:48:4E:BC:DE:F7:1D:5F:0C:3E:0A:29:48:78:2B:C8:3E:E0:EA:69:9E:F4",
         "emSign ECC Root CA - G3",
@@ -39,7 +40,7 @@ public final class BundledJdkTrustStore {
     private BundledJdkTrustStore() {}
 
     /**
-     * Asserts that the bundled JDK's {@code cacerts} holds trusted certificates but none of the removed roots.
+     * Asserts that the bundled JDK's {@code cacerts} holds trusted certificates but none of the distrusted roots.
      *
      * @param sh the shell to run {@code keytool} with
      * @param jdkHome the bundled JDK's home directory, as seen by {@code sh}
@@ -57,8 +58,8 @@ public final class BundledJdkTrustStore {
             .toList();
 
         assertThat("Expected trusted certificates in the bundled JDK's cacerts", fingerprints, not(empty()));
-        REMOVED_ROOTS.forEach(
-            (name, fingerprint) -> assertThat("Expected " + name + " to be removed from cacerts", fingerprints, not(hasItem(fingerprint)))
+        DISTRUSTED_ROOTS.forEach(
+            (name, fingerprint) -> assertThat("Expected " + name + " not to be in cacerts", fingerprints, not(hasItem(fingerprint)))
         );
     }
 }

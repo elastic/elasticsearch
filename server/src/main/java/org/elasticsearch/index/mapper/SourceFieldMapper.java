@@ -727,7 +727,12 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         final EscfColumnBuilder blobs = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, context.recycler());
         blobs.lockScalar(EscfColumnKind.BINARY);
         try (blobs) {
-            final MappedColumns.RowCursor rows = context.rowCursor(SourceFieldMapper::isReadByColumnarSourceWriter);
+            // The batch writer reads the columns directly: each column is bound to the slot its values fill once, instead of
+            // assembling every document's IndexableFields through a row cursor and reading them back field by field.
+            final ColumnarSourceWriter.BatchWriter batchWriter = columnarSourceWriter.batchWriter(
+                context.mappingLookup(),
+                context.luceneColumns(SourceFieldMapper::isReadByColumnarSourceWriter)
+            );
             // Every blob of the batch is built in this one buffer: the constant entry prefix is written first, the JSON streams in
             // behind it, and the finished bytes are exposed in place (BytesRefStreamOutput.get) and handed to the column builder,
             // which copies them before the next document overwrites the buffer. This collapses the two intermediate copies that
@@ -737,13 +742,10 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             final byte[] blobPrefix = columnarStoredBlobPrefix();
             final BytesRefStreamOutput blobBuffer = new BytesRefStreamOutput();
             for (int d = 0; d < docCount; d++) {
-                rows.advance();
-                // The cursor's field list is only valid until the next advance(), which is fine: the blob is built before then.
-                final LuceneDocument doc = new LuceneDocument(rows.fields());
                 blobBuffer.reset();
                 blobBuffer.writeBytes(blobPrefix, 0, blobPrefix.length);
                 try (var builder = new XContentBuilder(XContentType.JSON.xContent(), blobBuffer)) {
-                    columnarSourceWriter.write(context.mappingLookup(), List.of(doc), doc, builder);
+                    batchWriter.writeNext(builder);
                 }
                 blobs.setBinary(d, blobBuffer.get());
             }
@@ -768,8 +770,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     /**
      * Whether {@link ColumnarSourceWriter} can read the fields of {@code column}: it only looks at doc values and stored fields, as
-     * {@code ReusableColumnarStoredLeafReader#repopulate} ignores every other field. Columns that only index terms (the inverted index
-     * of a text field, for instance) are left out, so that the row cursor does not build their fields for nothing.
+     * {@code ReusableColumnarStoredLeafReader} ignores every other field. Columns that only index terms (the inverted index
+     * of a text field, for instance) are left out, so that the batch writer does not bind or advance them for nothing.
      */
     private static boolean isReadByColumnarSourceWriter(LuceneColumn column) {
         final IndexableFieldType fieldType = column.toLuceneColumn().fieldType();

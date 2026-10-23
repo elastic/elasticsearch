@@ -12,6 +12,7 @@ package org.elasticsearch.sourcebatch;
 import org.apache.lucene.document.column.Column;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 
 import java.util.List;
@@ -82,5 +83,54 @@ public interface LuceneColumn extends SliceableColumn {
          * synchronously during {@code addDocument}.
          */
         void appendCurrentFields(List<? super IndexableField> out);
+    }
+
+    /**
+     * Creates a forward-only typed-value cursor over this column's current window: the value-level counterpart of
+     * {@link #rowFieldCursor()}, emitting the rows (and, for multi-value rows, elements) that cursor would, but as plain
+     * {@code long}/{@link org.apache.lucene.util.BytesRef} values instead of materialized {@link IndexableField}s. For callers that
+     * only read values back — such as {@code ColumnarSourceWriter}, which rebuilds {@code _source} from the mapped columns — this
+     * skips the field allocation and the per-field type dispatch of the field cursor.
+     *
+     * <p>Optional operation: a column that only feeds the inverted index (no doc values, nothing stored) has no values to read back
+     * and may throw {@link UnsupportedOperationException}.
+     */
+    RowValueCursor rowValueCursor();
+
+    /**
+     * A forward-only cursor over one column's typed values.
+     *
+     * @see LuceneColumn#rowValueCursor()
+     */
+    interface RowValueCursor {
+
+        /**
+         * Advances to the next value in this column's window and returns its batch-local row-id (0-based, relative to the column's
+         * current window), or {@link DocIdSetIterator#NO_MORE_DOCS} when the window is exhausted. Like
+         * {@link RowFieldCursor#nextDoc()}, a multi-value row repeats its row-id once per element.
+         */
+        int nextDoc();
+
+        /**
+         * Pushes the current value into {@code sink}, calling the one method that matches this column's value kind. Must be called
+         * only after {@link #nextDoc()} returns a valid (non-{@code NO_MORE_DOCS}) row-id. A {@link BytesRef}
+         * handed to the sink stays valid after the cursor advances, so the sink may hold on to it for the rest of the batch row.
+         */
+        void appendCurrentValue(RowValueSink sink);
+    }
+
+    /**
+     * Receives the typed values of a {@link RowValueCursor}. A column calls exactly the method matching its value kind; the
+     * defaults throw so that feeding a value to a consumer of the other kind fails loudly instead of corrupting data.
+     */
+    interface RowValueSink {
+
+        default void longValue(long value) {
+            throw new UnsupportedOperationException("this sink does not accept long values");
+        }
+
+        default void binaryValue(BytesRef value) {
+            throw new UnsupportedOperationException("this sink does not accept binary values");
+        }
     }
 }

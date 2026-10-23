@@ -171,6 +171,21 @@ public final class BatchMappingContext implements Releasable {
     }
 
     /**
+     * Returns the columns attached so far that {@code include} accepts, as a snapshot: columns attached later are not in the
+     * returned list, and detaching columns via {@link #removeColumnsIf} does not shrink it. For mappers that read the batch
+     * column-wise (e.g. through {@link LuceneColumn#rowValueCursor()}) rather than through a {@link #rowCursor(Predicate)}.
+     */
+    public List<LuceneColumn> luceneColumns(Predicate<? super LuceneColumn> include) {
+        final List<LuceneColumn> included = new ArrayList<>(columns.size());
+        for (LuceneColumn column : columns) {
+            if (include.test(column)) {
+                included.add(column);
+            }
+        }
+        return included;
+    }
+
+    /**
      * Detaches every column whose Lucene field name matches {@code nameFilter}. The backing data of a detached column stays registered
      * with this context and is released on {@link #close()}.
      */

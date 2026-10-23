@@ -333,6 +333,37 @@ public final class MappedColumns {
         }
 
         @Override
+        public LuceneColumn.RowValueCursor rowValueCursor() {
+            if (noOpRowPath) {
+                // Mirrors rowFieldCursor(): when a companion column owns the row-path emission for this field, this column
+                // contributes no values on either row-oriented path.
+                return new LuceneColumn.RowValueCursor() {
+                    @Override
+                    public int nextDoc() {
+                        return DocIdSetIterator.NO_MORE_DOCS;
+                    }
+
+                    @Override
+                    public void appendCurrentValue(LuceneColumn.RowValueSink sink) {}
+                };
+            }
+            // tuples() hands out the stable per-document BytesRef from the backing array, which satisfies the cursor's
+            // stays-valid-after-advance contract without copying.
+            final ObjectTupleCursor<BytesRef> cursor = tuples();
+            return new LuceneColumn.RowValueCursor() {
+                @Override
+                public int nextDoc() {
+                    return cursor.nextDoc();
+                }
+
+                @Override
+                public void appendCurrentValue(LuceneColumn.RowValueSink sink) {
+                    sink.binaryValue(cursor.value());
+                }
+            };
+        }
+
+        @Override
         public ObjectTupleCursor<BytesRef> tuples() {
             // srcIdx tracks position in the full backing array; doc is the batch-local id.
             return new ObjectTupleCursor<>() {

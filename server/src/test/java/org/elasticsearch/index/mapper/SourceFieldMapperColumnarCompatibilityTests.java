@@ -12,30 +12,44 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
 /**
  * Parity tests for the {@code columnar_stored} source blob that {@link SourceFieldMapper#postColumnarParse} builds, aimed at the
- * reused blob buffer: the batch path streams every document's JSON into one buffer behind a precomputed
+ * column-to-slot binding of {@link ColumnarSourceWriter.BatchWriter}: the batch path binds each column to its leaf-reader slot once
+ * per batch and streams values straight into the slots, instead of assembling a per-document field list and reading it back. These
+ * scenarios assert — through the {@link AbstractColumnarMapperCompatibilityTestCase} harness, which compares the blob bytes of both
+ * paths — that the bound sinks reproduce exactly what per-document field repopulation produces, in particular the per-document slot
+ * clearing, the first-value-wins rule of single-valued slots, and the add-every-value rule of multi-valued ones.
+ *
+ * <p>They also cover the reused blob buffer: the batch path streams every document's JSON into one buffer behind a precomputed
  * {@code SingularIgnoredSourceEncoding} header and {@code XContentDataHelper} type byte, where the row path encodes each document
- * through fresh builders and intermediate copies. These scenarios assert — through the
- * {@link AbstractColumnarMapperCompatibilityTestCase} harness, which compares the blob bytes of both paths — that the prefix bytes
- * and the buffer reuse reproduce the row path's encoding exactly.
+ * through fresh builders and intermediate copies. The scenarios assert that the prefix bytes and the buffer reuse reproduce the row
+ * path's encoding exactly.
  */
 public class SourceFieldMapperColumnarCompatibilityTests extends AbstractColumnarMapperCompatibilityTestCase {
 
     private static Settings columnarSettings() {
-        return Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        return Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
+            .build();
     }
 
-    private static XContentBuilder testMapping() throws IOException {
+    /**
+     * A mapping that declares more fields than any test document carries: the populated fields cover the slot kinds the batch path
+     * feeds (keyword, long, date, text with a keyword multi-field, object sub-fields, ignore_above fallback), and the
+     * {@code unused_*} fields register slots that no column of the batch binds to, which must stay absent from every document.
+     */
+    private static XContentBuilder wideMapping() throws IOException {
         return mapping(b -> {
-            b.startObject("kw").field("type", "keyword").endObject();
-            b.startObject("num").field("type", "long").endObject();
-            b.startObject("date").field("type", "date").endObject();
-            b.startObject("text");
+            b.startObject("present_kw").field("type", "keyword").endObject();
+            b.startObject("present_long").field("type", "long").endObject();
+            b.startObject("present_date").field("type", "date").endObject();
+            b.startObject("present_text");
             {
                 b.field("type", "text");
                 b.startObject("fields");
@@ -48,10 +62,88 @@ public class SourceFieldMapperColumnarCompatibilityTests extends AbstractColumna
             {
                 b.startObject("properties");
                 b.startObject("inner_kw").field("type", "keyword").endObject();
+                b.startObject("unused_inner_long").field("type", "long").endObject();
+                b.endObject();
+            }
+            b.endObject();
+            b.startObject("unused_kw").field("type", "keyword").endObject();
+            b.startObject("unused_long").field("type", "long").endObject();
+            b.startObject("unused_date").field("type", "date").endObject();
+            b.startObject("unused_text");
+            {
+                b.field("type", "text");
+                b.startObject("fields");
+                b.startObject("keyword").field("type", "keyword").endObject();
+                b.endObject();
+            }
+            b.endObject();
+            b.startObject("unused_obj");
+            {
+                b.startObject("properties");
+                b.startObject("inner_kw").field("type", "keyword").endObject();
                 b.endObject();
             }
             b.endObject();
         });
+    }
+
+    /**
+     * Documents that each carry a different sparse subset of the mapped fields, including one carrying nothing at all: a column's
+     * cursor only reports the documents that hold a value, so a slot filled for one document must come back cleared for the next —
+     * a stale slot would leak a value into a document that never had the field.
+     */
+    public void testSparseDocumentsUnderWideMapping() throws IOException {
+        assertColumnarMatchesXContent(
+            wideMapping(),
+            columnarSettings(),
+            batch(
+                "sparse subsets",
+                1L,
+                doc("d1", 1L, "{\"present_kw\":\"alpha\",\"present_long\":42}"),
+                doc("d2", 2L, "{}"),
+                doc("d3", 3L, "{\"present_date\":\"2026-10-17T12:00:00Z\",\"obj\":{\"inner_kw\":\"nested-value\"}}"),
+                doc("d4", 4L, "{\"present_text\":\"some full text value\",\"present_kw\":[\"a\",\"b\"]}"),
+                doc("d5", 5L, "{\"present_kw\":\"omega\",\"present_long\":7,\"present_date\":\"2026-01-01\"}")
+            )
+        );
+    }
+
+    /**
+     * An over-length {@code ignore_above} value takes the {@code _ignored_source}/{@code ._original} fallback route, whose entries
+     * are merged by the object-level loaders rather than the field's own: the scenario checks that the batch writer feeds those
+     * binary columns into their slots just as per-document repopulation would.
+     */
+    public void testIgnoreAboveFallbackSurvivesSlotBinding() throws IOException {
+        assertColumnarMatchesXContent(
+            wideMapping(),
+            columnarSettings(),
+            batch(
+                "ignore_above fallback",
+                1L,
+                doc("d1", 1L, "{\"capped\":\"waytoolongforthelimit\"}"),
+                doc("d2", 2L, "{\"capped\":\"short\",\"present_kw\":\"beta\"}"),
+                doc("d3", 3L, "{\"capped\":[\"tiny\",\"anotherwaytoolongvalue\"]}")
+            )
+        );
+    }
+
+    /**
+     * Batches whose column sets differ run back-to-back against the same mapper service: each batch binds its own columns against
+     * the thread's cached leaf reader, so bindings from a previous batch must neither linger nor be required for the next one.
+     */
+    public void testAlternatingColumnSetsAcrossBatches() throws IOException {
+        assertColumnarMatchesXContent(
+            wideMapping(),
+            columnarSettings(),
+            batch("only keyword", 1L, doc("d1", 1L, "{\"present_kw\":\"one\"}"), doc("d2", 2L, "{\"present_kw\":\"two\"}")),
+            batch("only long and object", 1L, doc("d3", 3L, "{\"present_long\":1,\"obj\":{\"inner_kw\":\"x\"}}")),
+            batch("only keyword again", 1L, doc("d4", 4L, "{\"present_kw\":\"three\"}")),
+            batch(
+                "wider mix",
+                1L,
+                doc("d5", 5L, "{\"present_kw\":\"four\",\"present_long\":9,\"present_date\":\"2026-05-05\",\"present_text\":\"t\"}")
+            )
+        );
     }
 
     /**
@@ -62,14 +154,18 @@ public class SourceFieldMapperColumnarCompatibilityTests extends AbstractColumna
     public void testShrinkingDocumentsReuseTheBlobBuffer() throws IOException {
         final String big = "x".repeat(500);
         assertColumnarMatchesXContent(
-            testMapping(),
+            wideMapping(),
             columnarSettings(),
             batch(
                 "shrinking docs",
                 1L,
-                doc("d1", 1L, "{\"kw\":\"" + big + "\",\"text\":\"" + big + " " + big + "\",\"num\":123456789012345}"),
-                doc("d2", 2L, "{\"kw\":[\"alpha\",\"beta\"],\"obj\":{\"inner_kw\":\"inner\"}}"),
-                doc("d3", 3L, "{\"num\":7}"),
+                doc(
+                    "d1",
+                    1L,
+                    "{\"present_kw\":\"" + big + "\",\"present_text\":\"" + big + " " + big + "\",\"present_long\":123456789012345}"
+                ),
+                doc("d2", 2L, "{\"present_kw\":[\"alpha\",\"beta\"],\"obj\":{\"inner_kw\":\"inner\"}}"),
+                doc("d3", 3L, "{\"present_long\":7}"),
                 doc("d4", 4L, "{}")
             )
         );
@@ -83,16 +179,16 @@ public class SourceFieldMapperColumnarCompatibilityTests extends AbstractColumna
     public void testAlternatingDocumentSizes() throws IOException {
         final String big = "y".repeat(300);
         assertColumnarMatchesXContent(
-            testMapping(),
+            wideMapping(),
             columnarSettings(),
             batch(
                 "alternating sizes",
                 1L,
-                doc("d1", 1L, "{\"num\":1}"),
-                doc("d2", 2L, "{\"kw\":\"" + big + "\",\"date\":\"2026-10-17T12:00:00Z\"}"),
+                doc("d1", 1L, "{\"present_long\":1}"),
+                doc("d2", 2L, "{\"present_kw\":\"" + big + "\",\"present_date\":\"2026-10-17T12:00:00Z\"}"),
                 doc("d3", 3L, "{\"capped\":\"waytoolongforthelimit\"}"),
-                doc("d4", 4L, "{\"text\":\"" + big + "\",\"kw\":[\"a\",\"b\",\"c\"],\"capped\":\"short\"}"),
-                doc("d5", 5L, "{\"date\":\"2026-01-01\"}")
+                doc("d4", 4L, "{\"present_text\":\"" + big + "\",\"present_kw\":[\"a\",\"b\",\"c\"],\"capped\":\"short\"}"),
+                doc("d5", 5L, "{\"present_date\":\"2026-01-01\"}")
             )
         );
     }
@@ -103,11 +199,11 @@ public class SourceFieldMapperColumnarCompatibilityTests extends AbstractColumna
      */
     public void testBufferIsPerBatch() throws IOException {
         assertColumnarMatchesXContent(
-            testMapping(),
+            wideMapping(),
             columnarSettings(),
-            batch("first", 1L, doc("d1", 1L, "{\"kw\":\"one\",\"num\":1}")),
-            batch("empty leading doc", 1L, doc("d2", 2L, "{}"), doc("d3", 3L, "{\"kw\":\"two\"}")),
-            batch("wider", 1L, doc("d4", 4L, "{\"kw\":\"three\",\"date\":\"2026-05-05\",\"obj\":{\"inner_kw\":\"x\"}}"))
+            batch("first", 1L, doc("d1", 1L, "{\"present_kw\":\"one\",\"present_long\":1}")),
+            batch("empty leading doc", 1L, doc("d2", 2L, "{}"), doc("d3", 3L, "{\"present_kw\":\"two\"}")),
+            batch("wider", 1L, doc("d4", 4L, "{\"present_kw\":\"three\",\"present_date\":\"2026-05-05\",\"obj\":{\"inner_kw\":\"x\"}}"))
         );
     }
 }

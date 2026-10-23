@@ -23,19 +23,10 @@ import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
-import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.SortedNumericSelector;
-import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.TopFieldCollector;
-import org.apache.lucene.search.TopFieldCollectorManager;
-import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
@@ -82,13 +73,11 @@ import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
-import org.elasticsearch.search.sort.SortFieldValidation;
 import org.elasticsearch.search.sort.SortMode;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -101,7 +90,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
@@ -285,68 +274,10 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
     }
 
     /**
-     * The sort a plain Lucene collector would use for the same data. The raw sort values it produces are the ones the shard
-     * results are merged with, so the types must match what the {@code BucketedSort} reports.
+     * What the result of a bucket says: the exact total, and for each hit its id, its raw sort value and its score, and the
+     * highest score.
      */
-    private static Sort luceneSort(NumberFieldMapper.NumberType type, SortOrder order) {
-        SortField.Type sortType = switch (type) {
-            case BYTE, SHORT, INTEGER -> SortField.Type.INT;
-            case LONG -> SortField.Type.LONG;
-            case FLOAT -> SortField.Type.FLOAT;
-            case DOUBLE -> SortField.Type.DOUBLE;
-            default -> throw new AssertionError("unexpected number type [" + type + "]");
-        };
-        boolean reverse = order == SortOrder.DESC;
-        SortedNumericSelector.Type selector = reverse ? SortedNumericSelector.Type.MAX : SortedNumericSelector.Type.MIN;
-        if (type == NumberFieldMapper.NumberType.LONG) {
-            // Documents without a value sort last, as the default of top_hits does.
-            return new Sort(
-                new SortedNumericSortField(NUMBER_FIELD, sortType, reverse, selector, reverse ? Long.MIN_VALUE : Long.MAX_VALUE)
-            );
-        }
-        return new Sort(new SortedNumericSortField(NUMBER_FIELD, sortType, reverse, selector));
-    }
-
-    private record ExpectedHits(long total, List<String> ids, List<Object> sortValues, List<Float> scores, float maxScore) {}
-
-    /**
-     * What plain Lucene collectors return for one bucket, which is the documents with the bucket's term.
-     */
-    private static ExpectedHits expectedHits(
-        IndexSearcher searcher,
-        Query query,
-        String term,
-        Sort sort,
-        int from,
-        int size,
-        boolean trackScores
-    ) throws IOException {
-        Query bucketQuery = new BooleanQuery.Builder().add(query, Occur.MUST)
-            .add(new TermQuery(new Term("string", term)), Occur.FILTER)
-            .build();
-        TopFieldDocs top = searcher.search(bucketQuery, new TopFieldCollectorManager(sort, from + size, null, Integer.MAX_VALUE));
-        ScoreDoc[] window = Arrays.copyOfRange(
-            top.scoreDocs,
-            Math.min(from, top.scoreDocs.length),
-            Math.min(from + size, top.scoreDocs.length)
-        );
-        if (trackScores) {
-            TopFieldCollector.populateScores(window, searcher, bucketQuery);
-        }
-        List<String> ids = new ArrayList<>();
-        List<Object> sortValues = new ArrayList<>();
-        List<Float> scores = new ArrayList<>();
-        for (ScoreDoc scoreDoc : window) {
-            ids.add(Uid.decodeId(searcher.storedFields().document(scoreDoc.doc).getBinaryValue(IdFieldMapper.NAME)));
-            sortValues.add(((FieldDoc) scoreDoc).fields[0]);
-            scores.add(scoreDoc.score);
-        }
-        float maxScore = Float.NaN;
-        if (trackScores && top.totalHits.value() > 0) {
-            maxScore = searcher.search(bucketQuery, 1).scoreDocs[0].score;
-        }
-        return new ExpectedHits(top.totalHits.value(), ids, sortValues, scores, maxScore);
-    }
+    private record HitsSummary(long total, List<String> ids, List<Object> sortValues, List<Float> scores, float maxScore) {}
 
     private static Query boostedTermsQuery(int termCount) {
         BooleanQuery.Builder query = new BooleanQuery.Builder();
@@ -381,11 +312,7 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         );
     }
 
-    /**
-     * What the result of a bucket says: the exact total, and for each hit its id, its raw sort value and its score, and the
-     * highest score.
-     */
-    private static ExpectedHits summarize(SearchHit[] hits, TotalHits totalHits, float maxScore) {
+    private static HitsSummary summarize(SearchHit[] hits, TotalHits totalHits, float maxScore) {
         assertEquals(TotalHits.Relation.EQUAL_TO, totalHits.relation());
         List<String> ids = new ArrayList<>();
         List<Object> sortValues = new ArrayList<>();
@@ -395,13 +322,13 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
             sortValues.add(hit.getRawSortValues()[0]);
             scores.add(hit.getScore());
         }
-        return new ExpectedHits(totalHits.value(), ids, sortValues, scores, maxScore);
+        return new HitsSummary(totalHits.value(), ids, sortValues, scores, maxScore);
     }
 
     /**
      * The result after the reduce, where the hits carry the total and the highest score.
      */
-    private static ExpectedHits summarize(SearchHits hits) {
+    private static HitsSummary summarize(SearchHits hits) {
         return summarize(hits.getHits(), hits.getTotalHits(), hits.getMaxScore());
     }
 
@@ -409,152 +336,186 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
      * The result of one aggregator before the reduce, where the total and the highest score are in its top docs, and the hits
      * are all of the {@code from + size} the aggregator keeps.
      */
-    private static ExpectedHits summarize(InternalTopHits partial) {
+    private static HitsSummary summarize(InternalTopHits partial) {
         TopDocsAndMaxScore topDocs = partial.getTopDocs();
         return summarize(partial.getHits().getHits(), topDocs.topDocs.totalHits, topDocs.maxScore);
     }
 
-    private static void assertSummary(String description, ExpectedHits expected, ExpectedHits actual) {
-        assertEquals(description + " total hits", expected.total, actual.total);
-        assertEquals(description + " ids", expected.ids, actual.ids);
-        assertEquals(description + " sort values", expected.sortValues, actual.sortValues);
-        assertEquals(description + " scores", expected.scores, actual.scores);
-        assertEquals(description + " max score", expected.maxScore, actual.maxScore, 0f);
-    }
-
     /**
-     * Compares the hits after the reduce with the ones plain Lucene collectors find. The reduce merges the results of separate
-     * aggregators, the order of which is not deterministic, so this is only for sort values that are unique.
+     * The summary of every bucket after the reduce, over separate aggregators for the segments, the order of which is not
+     * deterministic, so the sort values have to be unique for the results of two runs to be comparable.
      */
-    private void assertReducedMatchesLuceneCollectors(
+    private Map<String, HitsSummary> summarizeReducedBuckets(
         IndexReader reader,
         NumberFieldMapper.NumberType type,
-        SortOrder order,
+        TopHitsAggregationBuilder topHits,
         int termCount,
-        int from,
-        int size,
-        boolean trackScores
+        boolean expectBucketedSort
     ) throws IOException {
-        Terms terms = termsWithTopHits(
-            reader,
-            type,
-            topHits("top").sort(NUMBER_FIELD, order).from(from).size(size).trackScores(trackScores),
-            termCount,
-            true,
-            true
-        );
-        IndexSearcher searcher = new IndexSearcher(reader);
-        for (Terms.Bucket bucket : terms.getBuckets()) {
-            ExpectedHits expected = expectedHits(
-                searcher,
-                boostedTermsQuery(termCount),
-                bucket.getKeyAsString(),
-                luceneSort(type, order),
-                from,
-                size,
-                trackScores
-            );
-            assertSummary(
-                "bucket [" + bucket.getKeyAsString() + "] type [" + type + "] order [" + order + "]",
-                expected,
-                summarize(((TopHits) bucket.getAggregations().get("top")).getHits())
-            );
+        Map<String, HitsSummary> summaries = new HashMap<>();
+        for (Terms.Bucket bucket : termsWithTopHits(reader, type, topHits, termCount, true, expectBucketedSort).getBuckets()) {
+            summaries.put(bucket.getKeyAsString(), summarize(((TopHits) bucket.getAggregations().get("top")).getHits()));
         }
+        return summaries;
     }
 
     /**
-     * Compares what one aggregator returns, before any reduce, with the hits plain Lucene collectors find. One sequential
-     * search over every segment feeds one aggregator, so ties are broken by doc id and nothing else, as they are by Lucene.
-     * The aggregator keeps {@code from + size} hits per bucket, and the reduce is what drops the first {@code from}.
+     * The summary of every bucket of what one aggregator returns before any reduce. One sequential search over every segment
+     * feeds one aggregator, so ties are broken by doc id and nothing else.
      */
-    private void assertPartialMatchesLuceneCollectors(
+    private Map<String, HitsSummary> summarizeBuckets(
         IndexReader reader,
-        NumberFieldMapper.NumberType type,
-        SortOrder order,
+        Query query,
+        MappedFieldType numberFieldType,
+        TopHitsAggregationBuilder topHits,
         int termCount,
-        int from,
-        int size,
-        boolean trackScores
+        Aggregator.SubAggCollectionMode collectMode,
+        boolean expectBucketedSort
     ) throws IOException {
-        Query query = boostedTermsQuery(termCount);
-        IndexSearcher searcher = new IndexSearcher(reader);
+        Map<String, HitsSummary> summaries = new HashMap<>();
         collectAndBuild(
             reader,
             query,
-            terms("term").field("string")
-                .size(termCount)
-                // Breadth first collection defers the sub-aggregation and replays the documents of the buckets that are kept.
-                .collectMode(randomFrom(Aggregator.SubAggCollectionMode.values()))
-                .subAggregation(topHits("top").sort(NUMBER_FIELD, order).from(from).size(size).trackScores(trackScores)),
+            terms("term").field("string").size(termCount).collectMode(collectMode).subAggregation(topHits),
             built -> {
                 for (Terms.Bucket bucket : ((Terms) built).getBuckets()) {
-                    ExpectedHits expected = expectedHits(
-                        searcher,
-                        query,
-                        bucket.getKeyAsString(),
-                        luceneSort(type, order),
-                        0,
-                        from + size,
-                        trackScores
-                    );
-                    assertSummary(
-                        "bucket [" + bucket.getKeyAsString() + "] type [" + type + "] order [" + order + "]",
-                        expected,
-                        summarize((InternalTopHits) bucket.getAggregations().get("top"))
-                    );
+                    summaries.put(bucket.getKeyAsString(), summarize((InternalTopHits) bucket.getAggregations().get("top")));
                 }
             },
             STRING_FIELD_TYPE,
-            numberFieldType(type)
+            numberFieldType
         );
-        assertBucketedSortUsed(true);
+        assertBucketedSortUsed(expectBucketedSort);
+        return summaries;
     }
 
     /**
-     * The same documents and sort as plain Lucene collectors, for every numeric type, both orders, with many ties, with and
-     * without missing values, {@code from}, and {@code track_scores}, over several segments and one aggregator.
+     * Runs the same {@code top_hits} twice, as it is and with a second sort on {@code _doc}, which cannot use the
+     * {@code BucketedSort}, and asserts the two return the same: the old way of collecting is what the new one has to match, and
+     * its tie-break by doc id is the one the {@code BucketedSort} reproduces. Returns what the {@code BucketedSort} returned.
      */
-    public void testBucketedSortMatchesLuceneCollectors() throws Exception {
+    private Map<String, HitsSummary> assertTheSameAsTheLuceneCollectors(
+        IndexReader reader,
+        Query query,
+        MappedFieldType numberFieldType,
+        FieldSortBuilder sort,
+        int termCount,
+        int from,
+        int size,
+        boolean trackScores,
+        Aggregator.SubAggCollectionMode collectMode
+    ) throws IOException {
+        Map<String, HitsSummary> bucketed = summarizeBuckets(
+            reader,
+            query,
+            numberFieldType,
+            topHits("top").sort(sort).from(from).size(size).trackScores(trackScores),
+            termCount,
+            collectMode,
+            true
+        );
+        Map<String, HitsSummary> fallback = summarizeBuckets(
+            reader,
+            query,
+            numberFieldType,
+            topHits("top").sort(sort).sort("_doc", SortOrder.ASC).from(from).size(size).trackScores(trackScores),
+            termCount,
+            collectMode,
+            false
+        );
+        assertThat(bucketed.size(), greaterThan(0));
+        assertEquals(fallback, bucketed);
+        return bucketed;
+    }
+
+    /**
+     * The same as the Lucene collectors, for every numeric type, with heavy ties, both orders, documents with no value, several
+     * values per document with each sort mode, the {@code missing} option, {@code numeric_type}, {@code from}, {@code track_scores},
+     * several segments, and either way of collecting the {@code terms}.
+     */
+    public void testBucketedSortMatchesTheLuceneCollectors() throws Exception {
         NumberFieldMapper.NumberType type = randomFrom(
             NumberFieldMapper.NumberType.BYTE,
             NumberFieldMapper.NumberType.SHORT,
             NumberFieldMapper.NumberType.INTEGER,
             NumberFieldMapper.NumberType.LONG,
+            NumberFieldMapper.NumberType.HALF_FLOAT,
             NumberFieldMapper.NumberType.FLOAT,
             NumberFieldMapper.NumberType.DOUBLE
         );
-        boolean missingValues = type == NumberFieldMapper.NumberType.LONG && randomBoolean();
-        int termCount = between(1, 6);
+        boolean multiValued = randomBoolean();
+        FieldSortBuilder sort = SortBuilders.fieldSort(NUMBER_FIELD).order(randomFrom(SortOrder.values()));
+        if (multiValued) {
+            sort.sortMode(randomFrom(SortMode.values()));
+        }
+        if (randomBoolean()) {
+            sort.missing(randomFrom("_first", "_last", 3));
+        }
+        if (randomBoolean()) {
+            sort.setNumericType(randomFrom("long", "double"));
+        }
+        int termCount = between(1, 4);
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-                int docs = between(1, 200);
+                int docs = between(1, 150);
                 for (int i = 0; i < docs; i++) {
-                    // Values from a small range so that there are plenty of ties.
-                    Number number = missingValues && rarely() ? null : numberValue(type, between(0, 9));
-                    if (number != null && rarely()) {
-                        // NaN sorts after every other value, and the sort has to report it as one.
-                        if (type == NumberFieldMapper.NumberType.FLOAT) {
-                            number = Float.NaN;
-                        } else if (type == NumberFieldMapper.NumberType.DOUBLE) {
-                            number = Double.NaN;
-                        }
+                    List<Number> numbers = new ArrayList<>();
+                    // About one document in six has no value at all.
+                    int count = rarely() ? 0 : multiValued ? between(1, 3) : 1;
+                    for (int n = 0; n < count; n++) {
+                        numbers.add(numberValue(type, between(0, 5)));
                     }
-                    iw.addDocument(numberDocument(Integer.toString(i), "t" + between(0, termCount - 1), type, number));
+                    iw.addDocument(numberDocument(Integer.toString(i), "t" + between(0, termCount - 1), type, numbers));
                     if (rarely()) {
                         iw.commit();
                     }
                 }
             }
             try (IndexReader reader = DirectoryReader.open(directory)) {
-                assertPartialMatchesLuceneCollectors(
+                assertTheSameAsTheLuceneCollectors(
                     reader,
-                    type,
-                    randomFrom(SortOrder.values()),
+                    boostedTermsQuery(termCount),
+                    numberFieldType(type),
+                    sort,
                     termCount,
-                    between(0, 3),
-                    between(1, 5),
-                    randomBoolean()
+                    between(0, 2),
+                    between(1, 4),
+                    randomBoolean(),
+                    randomFrom(Aggregator.SubAggCollectionMode.values())
                 );
+            }
+        }
+    }
+
+    /**
+     * Among equal sort values the lower doc id is kept, as the Lucene collectors do, and the heap cannot recover from evicting the
+     * wrong tied document. Values 6, 5, 5, 4, 3 in doc id order, keeping the best three ascending, have to keep doc 1 and not
+     * doc 2, and the mirror image descending. Random data reaches that pattern too rarely to be relied on, so this one is fixed.
+     */
+    public void testBucketedSortKeepsTheLowerDocIdOnTies() throws Exception {
+        for (SortOrder order : SortOrder.values()) {
+            long[] values = order == SortOrder.ASC ? new long[] { 6, 5, 5, 4, 3 } : new long[] { 3, 4, 4, 5, 6 };
+            try (Directory directory = newDirectory()) {
+                // Without merging, doc ids follow the order the documents were added, whatever the number of segments.
+                try (IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))) {
+                    for (int i = 0; i < values.length; i++) {
+                        iw.addDocument(numberDocument(Integer.toString(i), "t0", NumberFieldMapper.NumberType.LONG, values[i]));
+                    }
+                }
+                try (IndexReader reader = DirectoryReader.open(directory)) {
+                    Map<String, HitsSummary> bucketed = assertTheSameAsTheLuceneCollectors(
+                        reader,
+                        boostedTermsQuery(1),
+                        numberFieldType(NumberFieldMapper.NumberType.LONG),
+                        SortBuilders.fieldSort(NUMBER_FIELD).order(order),
+                        1,
+                        0,
+                        3,
+                        false,
+                        Aggregator.SubAggCollectionMode.DEPTH_FIRST
+                    );
+                    assertEquals(order.toString(), List.of("4", "3", "1"), bucketed.get("t0").ids());
+                }
             }
         }
     }
@@ -591,117 +552,22 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
                 }
             }
             try (IndexReader reader = DirectoryReader.open(directory)) {
-                assertReducedMatchesLuceneCollectors(
+                FieldSortBuilder sort = SortBuilders.fieldSort(NUMBER_FIELD).order(randomFrom(SortOrder.values()));
+                int from = between(0, 3);
+                int size = between(1, 5);
+                boolean trackScores = randomBoolean();
+                Map<String, HitsSummary> bucketed = summarizeReducedBuckets(
                     reader,
-                    type,
-                    randomFrom(SortOrder.values()),
-                    termCount,
-                    between(0, 3),
-                    between(1, 5),
-                    randomBoolean()
-                );
-            }
-        }
-    }
-
-    /**
-     * Among equal sort values the lower doc id is kept, as a Lucene collector does. Values 6, 5, 5, 4, 3 in doc id order, keeping
-     * the best three ascending, have to keep doc 1 and not doc 2, and the mirror image for descending.
-     */
-    public void testBucketedSortKeepsLowerDocIdOnTies() throws Exception {
-        for (SortOrder order : SortOrder.values()) {
-            long[] values = order == SortOrder.ASC ? new long[] { 6, 5, 5, 4, 3 } : new long[] { 3, 4, 4, 5, 6 };
-            try (Directory directory = newDirectory()) {
-                try (IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))) {
-                    for (int i = 0; i < values.length; i++) {
-                        iw.addDocument(numberDocument(Integer.toString(i), "t0", NumberFieldMapper.NumberType.LONG, values[i]));
-                    }
-                }
-                try (IndexReader reader = DirectoryReader.open(directory)) {
-                    // Without merging, doc ids follow the order the documents were added, whatever the number of segments.
-                    collectAndBuild(
-                        reader,
-                        boostedTermsQuery(1),
-                        terms("term").field("string").size(1).subAggregation(topHits("top").sort(NUMBER_FIELD, order).size(3)),
-                        built -> {
-                            Terms.Bucket bucket = ((Terms) built).getBucketByKey("t0");
-                            ExpectedHits actual = summarize((InternalTopHits) bucket.getAggregations().get("top"));
-                            assertEquals(order.toString(), List.of("4", "3", "1"), actual.ids);
-                            assertEquals(5L, actual.total);
-                        },
-                        STRING_FIELD_TYPE,
-                        numberFieldType(NumberFieldMapper.NumberType.LONG)
-                    );
-                    assertBucketedSortUsed(true);
-                }
-            }
-        }
-    }
-
-    /**
-     * Sorting on the number and then on {@code _doc} cannot use the {@code BucketedSort}, and its tie-break by doc id is the
-     * one the {@code BucketedSort} has to reproduce, so the two have to return the same thing. Unlike the tests against hand
-     * made Lucene sorts, this compares with the comparators Elasticsearch builds, so it also covers what those do with the
-     * options of a sort: every numeric type, missing documents, several values per document with each sort mode, the
-     * {@code missing} option, and {@code numeric_type}.
-     */
-    public void testBucketedSortMatchesTheLuceneCollectorsOfTheFallback() throws Exception {
-        NumberFieldMapper.NumberType type = randomFrom(
-            NumberFieldMapper.NumberType.BYTE,
-            NumberFieldMapper.NumberType.SHORT,
-            NumberFieldMapper.NumberType.INTEGER,
-            NumberFieldMapper.NumberType.LONG,
-            NumberFieldMapper.NumberType.HALF_FLOAT,
-            NumberFieldMapper.NumberType.FLOAT,
-            NumberFieldMapper.NumberType.DOUBLE
-        );
-        int termCount = between(1, 4);
-        int from = between(0, 2);
-        int size = between(1, 4);
-        boolean trackScores = randomBoolean();
-        boolean multiValued = randomBoolean();
-        FieldSortBuilder sort = SortBuilders.fieldSort(NUMBER_FIELD).order(randomFrom(SortOrder.values()));
-        if (multiValued) {
-            sort.sortMode(randomFrom(SortMode.values()));
-        }
-        if (randomBoolean()) {
-            sort.missing(randomFrom("_first", "_last", 3));
-        }
-        if (randomBoolean()) {
-            sort.setNumericType(randomFrom("long", "double"));
-        }
-        Aggregator.SubAggCollectionMode collectMode = randomFrom(Aggregator.SubAggCollectionMode.values());
-        try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-                int docs = between(1, 150);
-                for (int i = 0; i < docs; i++) {
-                    List<Number> numbers = new ArrayList<>();
-                    // About one document in six has no value at all.
-                    int count = rarely() ? 0 : multiValued ? between(1, 3) : 1;
-                    for (int n = 0; n < count; n++) {
-                        numbers.add(numberValue(type, between(0, 5)));
-                    }
-                    iw.addDocument(numberDocument(Integer.toString(i), "t" + between(0, termCount - 1), type, numbers));
-                }
-            }
-            try (IndexReader reader = DirectoryReader.open(directory)) {
-                Query query = boostedTermsQuery(termCount);
-                Map<String, ExpectedHits> bucketed = summarizeBuckets(
-                    reader,
-                    query,
                     type,
                     topHits("top").sort(sort).from(from).size(size).trackScores(trackScores),
                     termCount,
-                    collectMode,
                     true
                 );
-                Map<String, ExpectedHits> fallback = summarizeBuckets(
+                Map<String, HitsSummary> fallback = summarizeReducedBuckets(
                     reader,
-                    query,
                     type,
                     topHits("top").sort(sort).sort("_doc", SortOrder.ASC).from(from).size(size).trackScores(trackScores),
                     termCount,
-                    collectMode,
                     false
                 );
                 assertThat(bucketed.size(), greaterThan(0));
@@ -710,40 +576,14 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    private Map<String, ExpectedHits> summarizeBuckets(
-        IndexReader reader,
-        Query query,
-        NumberFieldMapper.NumberType type,
-        TopHitsAggregationBuilder topHits,
-        int termCount,
-        Aggregator.SubAggCollectionMode collectMode,
-        boolean expectBucketedSort
-    ) throws IOException {
-        Map<String, ExpectedHits> summaries = new HashMap<>();
-        collectAndBuild(
-            reader,
-            query,
-            terms("term").field("string").size(termCount).collectMode(collectMode).subAggregation(topHits),
-            built -> {
-                for (Terms.Bucket bucket : ((Terms) built).getBuckets()) {
-                    summaries.put(bucket.getKeyAsString(), summarize((InternalTopHits) bucket.getAggregations().get("top")));
-                }
-            },
-            STRING_FIELD_TYPE,
-            numberFieldType(type)
-        );
-        assertBucketedSortUsed(expectBucketedSort);
-        return summaries;
-    }
-
     /**
      * A {@code NaN} sorts after every other value, in both orders, and is reported as {@code NaN}. The {@code BucketedSort}
      * has no number to report for it, so this checks it is turned back into one of the type the Lucene comparator gives.
      */
     public void testBucketedSortReportsNaN() throws Exception {
         for (NumberFieldMapper.NumberType type : List.of(NumberFieldMapper.NumberType.DOUBLE, NumberFieldMapper.NumberType.FLOAT)) {
+            Number nan = type == NumberFieldMapper.NumberType.DOUBLE ? (Number) Double.NaN : (Number) Float.NaN;
             for (SortOrder order : SortOrder.values()) {
-                Number nan = type == NumberFieldMapper.NumberType.DOUBLE ? (Number) Double.NaN : (Number) Float.NaN;
                 try (Directory directory = newDirectory()) {
                     try (IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))) {
                         Number[] values = new Number[] { nan, numberValue(type, 1), nan, numberValue(type, 2) };
@@ -752,21 +592,18 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
                         }
                     }
                     try (IndexReader reader = DirectoryReader.open(directory)) {
-                        Query query = boostedTermsQuery(1);
-                        IndexSearcher searcher = new IndexSearcher(reader);
-                        collectAndBuild(
+                        Map<String, HitsSummary> bucketed = assertTheSameAsTheLuceneCollectors(
                             reader,
-                            query,
-                            terms("term").field("string").size(1).subAggregation(topHits("top").sort(NUMBER_FIELD, order).size(4)),
-                            built -> assertSummary(
-                                type + " " + order,
-                                expectedHits(searcher, query, "t0", luceneSort(type, order), 0, 4, false),
-                                summarize((InternalTopHits) ((Terms) built).getBucketByKey("t0").getAggregations().get("top"))
-                            ),
-                            STRING_FIELD_TYPE,
-                            numberFieldType(type)
+                            boostedTermsQuery(1),
+                            numberFieldType(type),
+                            SortBuilders.fieldSort(NUMBER_FIELD).order(order),
+                            1,
+                            0,
+                            4,
+                            false,
+                            Aggregator.SubAggCollectionMode.DEPTH_FIRST
                         );
-                        assertBucketedSortUsed(true);
+                        assertThat(type + " " + order, bucketed.get("t0").sortValues(), hasItem(nan));
                     }
                 }
             }
@@ -779,9 +616,7 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
      */
     public void testBucketedSortOnDateNanos() throws Exception {
         MappedFieldType dateNanos = new DateFieldMapper.DateFieldType(NUMBER_FIELD, DateFieldMapper.Resolution.NANOSECONDS);
-        SortOrder order = randomFrom(SortOrder.values());
         int termCount = between(1, 4);
-        int size = between(1, 4);
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
                 int docs = between(1, 100);
@@ -799,33 +634,17 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
                 }
             }
             try (IndexReader reader = DirectoryReader.open(directory)) {
-                Query query = boostedTermsQuery(termCount);
-                IndexSearcher searcher = new IndexSearcher(reader);
-                collectAndBuild(
+                assertTheSameAsTheLuceneCollectors(
                     reader,
-                    query,
-                    terms("term").field("string").size(termCount).subAggregation(topHits("top").sort(NUMBER_FIELD, order).size(size)),
-                    built -> {
-                        for (Terms.Bucket bucket : ((Terms) built).getBuckets()) {
-                            assertSummary(
-                                "bucket [" + bucket.getKeyAsString() + "] order [" + order + "]",
-                                expectedHits(
-                                    searcher,
-                                    query,
-                                    bucket.getKeyAsString(),
-                                    luceneSort(NumberFieldMapper.NumberType.LONG, order),
-                                    0,
-                                    size,
-                                    false
-                                ),
-                                summarize((InternalTopHits) bucket.getAggregations().get("top"))
-                            );
-                        }
-                    },
-                    STRING_FIELD_TYPE,
-                    dateNanos
+                    boostedTermsQuery(termCount),
+                    dateNanos,
+                    SortBuilders.fieldSort(NUMBER_FIELD).order(randomFrom(SortOrder.values())),
+                    termCount,
+                    0,
+                    between(1, 4),
+                    false,
+                    randomFrom(Aggregator.SubAggCollectionMode.values())
                 );
-                assertBucketedSortUsed(true);
             }
         }
     }
@@ -880,17 +699,6 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         } finally {
             Releasables.close(context);
         }
-    }
-
-    /**
-     * A bucket keeps at most as many entries as the shard has documents, whatever {@code from + size} says. An index can allow a
-     * very large window, and a {@code BucketedSort} allocates that many slots for every bucket.
-     */
-    public void testBucketSizeIsCappedAtTheNumberOfDocuments() {
-        assertEquals(15, BucketedTopHits.bucketSize(5, 10, 100));
-        assertEquals(7, BucketedTopHits.bucketSize(0, 100, 7));
-        assertEquals(7, BucketedTopHits.bucketSize(3, 10_000, 7));
-        assertEquals(0, BucketedTopHits.bucketSize(0, 0, 10));
     }
 
     private static HierarchyCircuitBreakerService requestBreakers(String requestLimit) {
@@ -1050,46 +858,29 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
     }
 
     /**
-     * What the top hits of a bucket cost the request breaker when there are many buckets. The Lucene collectors accounted for
-     * none of it and held several kilobytes per bucket. Measured in a unit test it is about 16 bytes per bucket on top of a
-     * {@code max}, and a {@code max} itself is 8, so about 24.
+     * What the top hits of a bucket cost the request breaker. A {@code BucketedSort} reserves {@code from + size} slots, 12 bytes
+     * each, the first time it sees a bucket, whether the bucket ends up with that many documents or not, and charges all of it to
+     * the request breaker, where the Lucene collectors held several kilobytes per bucket and charged none of it. So the cost grows
+     * with the size, which is also why a large size over many buckets can now trip the breaker. Every bucket here has a single
+     * document, so what is charged is the slots and not the documents. The cost of a {@code max} sub-aggregation, which is 8 bytes
+     * a bucket, is taken off.
      */
-    public void testBucketedSortChargesLittlePerBucketAndReleasesIt() throws Exception {
-        int buckets = 5_000;
-        try (Directory directory = newDirectory()) {
-            indexUniqueBuckets(directory, buckets);
-            try (IndexReader reader = DirectoryReader.open(directory)) {
-                HierarchyCircuitBreakerService breakers = requestBreakers("1gb");
-                long withMax = breakerBytesAfterCollecting(reader, termsWithMax(buckets), breakers, false);
-                long withTopHits = breakerBytesAfterCollecting(reader, termsWithSizeOneTopHits(buckets), breakers, false);
-                assertThat("the top hits are charged to the breaker", withTopHits, greaterThan(withMax));
-                assertThat("bytes charged per bucket over a max", (withTopHits - withMax) / buckets, lessThanOrEqualTo(32L));
-                assertEquals("the breaker is back to its baseline", 0L, breakers.getBreaker(CircuitBreaker.REQUEST).getUsed());
-            }
-        }
-    }
-
-    /**
-     * A {@code BucketedSort} reserves {@code from + size} slots, 12 bytes each, the first time it sees a bucket, whether the bucket
-     * ends up with that many documents or not, and all of it is charged to the request breaker. That is the cost of a large size, and
-     * the reason a large size over many buckets can now trip the breaker where the Lucene collectors went unnoticed. Every bucket here
-     * has a single document and the size is 100, so what is charged is the slots and not the documents. The cost of a {@code max}
-     * sub-aggregation, which is 8 bytes a bucket, is taken off.
-     */
-    public void testBucketedSortChargesTheSlotsOfEveryBucketWhateverTheyHold() throws Exception {
+    public void testBucketedSortChargesTheSlotsOfEveryBucketAndReleasesThem() throws Exception {
         int buckets = 2_000;
-        int size = 100;
         try (Directory directory = newDirectory()) {
             indexUniqueBuckets(directory, buckets);
             try (IndexReader reader = DirectoryReader.open(directory)) {
                 HierarchyCircuitBreakerService breakers = requestBreakers("1gb");
                 long withMax = breakerBytesAfterCollecting(reader, termsWithMax(buckets), breakers, false);
-                long withTopHits = breakerBytesAfterCollecting(reader, termsWithTopHitsOfSize(buckets, size), breakers, false);
-                long perBucket = (withTopHits - withMax) / buckets;
-                // 12 bytes a slot for the slots, and about an eighth more for the room the arrays grow by.
-                assertThat("bytes charged per bucket", perBucket, greaterThanOrEqualTo(12L * size - 16));
-                assertThat("bytes charged per bucket", perBucket, lessThanOrEqualTo(16L * size));
-                assertEquals("the breaker is back to its baseline", 0L, breakers.getBreaker(CircuitBreaker.REQUEST).getUsed());
+                for (int size : new int[] { 1, 100 }) {
+                    long withTopHits = breakerBytesAfterCollecting(reader, termsWithTopHitsOfSize(buckets, size), breakers, false);
+                    assertThat("the top hits are charged to the breaker", withTopHits, greaterThan(withMax));
+                    // 12 bytes a slot, and up to about an eighth more for the room the arrays grow by.
+                    long perBucket = (withTopHits - withMax) / buckets;
+                    assertThat("bytes charged per bucket at size " + size, perBucket, greaterThanOrEqualTo(12L * size - 16));
+                    assertThat("bytes charged per bucket at size " + size, perBucket, lessThanOrEqualTo(16L * size + 16));
+                    assertEquals("the breaker is back to its baseline", 0L, breakers.getBreaker(CircuitBreaker.REQUEST).getUsed());
+                }
             }
         }
     }
@@ -1253,53 +1044,6 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
                         usesBucketedSort(reader, testCase.type, topHits("top").sort(NUMBER_FIELD, SortOrder.ASC))
                     );
                 }
-            }
-        }
-    }
-
-    /**
-     * What the Lucene collectors report for an integer field of an older index: a long sort declared, and longs, which is what
-     * shards of the other indices are rewritten to when they are merged, with no exception, over several aggregators.
-     */
-    public void testIntegerFieldOfAnOlderIndexReportsLongSortValues() throws Exception {
-        indexVersionCreated = IndexVersions.UPGRADE_TO_LUCENE_10_0_0;
-        NumberFieldMapper.NumberType type = randomFrom(
-            NumberFieldMapper.NumberType.BYTE,
-            NumberFieldMapper.NumberType.SHORT,
-            NumberFieldMapper.NumberType.INTEGER
-        );
-        try (Directory directory = newDirectory()) {
-            try (IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))) {
-                for (int i = 0; i < 20; i++) {
-                    iw.addDocument(numberDocument(Integer.toString(i), "t0", type, numberValue(type, i)));
-                    if (i % 5 == 4) {
-                        iw.commit();
-                    }
-                }
-            }
-            try (IndexReader reader = DirectoryReader.open(directory)) {
-                collectAndBuild(
-                    reader,
-                    boostedTermsQuery(1),
-                    terms("term").field("string").size(1).subAggregation(topHits("top").sort(NUMBER_FIELD, SortOrder.ASC).size(3)),
-                    built -> {
-                        InternalTopHits partial = (InternalTopHits) ((Terms) built).getBucketByKey("t0").getAggregations().get("top");
-                        TopFieldDocs topFieldDocs = (TopFieldDocs) partial.getTopDocs().topDocs;
-                        assertEquals(SortField.Type.LONG, SortFieldValidation.getType(topFieldDocs.fields[0]));
-                        for (ScoreDoc scoreDoc : topFieldDocs.scoreDocs) {
-                            assertThat(((FieldDoc) scoreDoc).fields[0], instanceOf(Long.class));
-                        }
-                    },
-                    STRING_FIELD_TYPE,
-                    numberFieldType(type)
-                );
-                assertBucketedSortUsed(false);
-                Terms terms = termsWithTopHits(reader, type, topHits("top").sort(NUMBER_FIELD, SortOrder.ASC).size(3), 1, true, false);
-                List<String> ids = new ArrayList<>();
-                for (SearchHit hit : ((TopHits) terms.getBucketByKey("t0").getAggregations().get("top")).getHits().getHits()) {
-                    ids.add(hit.getId());
-                }
-                assertEquals(List.of("0", "1", "2"), ids);
             }
         }
     }

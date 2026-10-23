@@ -412,6 +412,8 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/139398
 - class: org.elasticsearch.painless.heappressure.PainlessFieldAllocationIT
   issue: https://github.com/elastic/elasticsearch/issues/162575
+- class: org.elasticsearch.search.heappressure.LargeTermsFilterHeapPressureIT
+  issue: https://github.com/elastic/elasticsearch/issues/162788
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=cluster.state/20_filtering/Filtering the cluster state by indices should work in routing table and metadata}
   issue: https://github.com/elastic/elasticsearch/issues/162277
@@ -454,6 +456,8 @@ tests:
 - class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS1MissingIndicesIT
   method: testSearchesAgainstNonMatchingIndices
   issue: https://github.com/elastic/elasticsearch/issues/162565
+- class: org.elasticsearch.search.heappressure.TopHitsLeafCollectorHeapPressureIT
+  issue: https://github.com/elastic/elasticsearch/issues/162932
 - class: org.elasticsearch.painless.heappressure.RuntimeFieldHighlightHeapPressureIT
   method: testDoubleRuntimeFieldFromFreeTextSearch
   issue: https://github.com/elastic/elasticsearch/issues/162593
@@ -484,9 +488,6 @@ tests:
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=search.vectors/45_knn_search_byte/Test nonexistent field is match none}
   issue: https://github.com/elastic/elasticsearch/issues/162766
-- class: org.elasticsearch.action.RejectionActionIT
-  method: testRemoteReductionRejectionWithPendingCoordinatorReduction
-  issue: https://github.com/elastic/elasticsearch/issues/162791
 - class: org.elasticsearch.index.mapper.TextFieldPhraseWithoutPositionsTests
   method: testWithIndexPrefixes
   issue: https://github.com/elastic/elasticsearch/issues/162793
@@ -520,5 +521,23 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/163048
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   tasks:
+  - :qa:mixed-cluster:v9.1.9#yamlRestTest
+  - :qa:mixed-cluster:v9.2.8#yamlRestTest
   - :qa:mixed-cluster:v9.5.6#yamlRestTest
   issue: https://github.com/elastic/elasticsearch/issues/163053
+- class: org.elasticsearch.test.rest.yaml.CcsSearchYamlTestSuiteIT
+  tasks:
+  - :qa:ccs-common-rest:yamlRestTest
+  method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification multiple indexes}
+  issue: https://github.com/elastic/elasticsearch/issues/163082
+- class: org.elasticsearch.backwards.RareTermsIT
+  tasks:
+  - :qa:mixed-cluster:v9.1.9#yamlRestTest
+  - :qa:mixed-cluster:v9.2.8#yamlRestTest
+  method: testSingleValuedString
+  issue: https://github.com/elastic/elasticsearch/issues/162971
+- class: org.elasticsearch.xpack.stateless.objectstore.AzureBccWriteStallIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testRetryWhileFirstTryStillReadsUploadsCorrectBcc
+  issue: https://github.com/elastic/elasticsearch/issues/163111

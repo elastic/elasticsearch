@@ -418,7 +418,7 @@ public class RestSearchAction extends BaseRestHandler {
         if (suggestField != null) {
             String suggestText = request.param("suggest_text", request.param("q"));
             int suggestSize = request.paramAsInt("suggest_size", 5);
-            String suggestMode = request.param("suggest_mode");
+            String suggestMode = request.param("suggest_mode", "missing");
             return new SuggestBuilder().addSuggestion(
                 suggestField,
                 termSuggestion(suggestField).text(suggestText)

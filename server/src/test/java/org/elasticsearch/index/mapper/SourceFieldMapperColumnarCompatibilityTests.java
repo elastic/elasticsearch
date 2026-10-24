@@ -13,16 +13,17 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 
 /**
- * Parity tests for the {@code columnar_stored} source blob that {@link SourceFieldMapper#postColumnarParse} builds, aimed at the
- * reused blob buffer: the batch path streams every document's JSON into one buffer behind a precomputed
- * {@code SingularIgnoredSourceEncoding} header and {@code XContentDataHelper} type byte, where the row path encodes each document
- * through fresh builders and intermediate copies. These scenarios assert — through the
- * {@link AbstractColumnarMapperCompatibilityTestCase} harness, which compares the blob bytes of both paths — that the prefix bytes
- * and the buffer reuse reproduce the row path's encoding exactly.
+ * Tests for the {@code columnar_stored} source blob that {@link SourceFieldMapper} builds, aimed at the blob's content type
+ * ({@link SourceFieldMapper#COLUMNAR_BLOB_XCONTENT_TYPE}): the blob is encoded in SMILE rather than JSON, and every reader
+ * dispatches on the {@link XContentDataHelper} type byte, so the reconstructed {@code _source} the user sees must stay JSON and
+ * byte-identical in content to what a JSON blob produced. The batch-versus-row parity scenarios run through the
+ * {@link AbstractColumnarMapperCompatibilityTestCase} harness, which compares the blob bytes of both paths; the round-trip
+ * scenarios read the source back through the regular synthetic source loader.
  */
 public class SourceFieldMapperColumnarCompatibilityTests extends AbstractColumnarMapperCompatibilityTestCase {
 
@@ -75,6 +76,11 @@ public class SourceFieldMapperColumnarCompatibilityTests extends AbstractColumna
         );
     }
 
+    /** The intent of the change, pinned: the blob must not silently fall back to JSON. */
+    public void testBlobContentTypeIsSmile() {
+        assertEquals(XContentType.SMILE, SourceFieldMapper.COLUMNAR_BLOB_XCONTENT_TYPE);
+    }
+
     /**
      * Growing and shrinking across consecutive documents, with values whose encoded forms differ in kind (dates, multi-values,
      * the {@code ignore_above} fallback that embeds its own {@code _ignored_source} entry inside the blob): every document must
@@ -109,5 +115,56 @@ public class SourceFieldMapperColumnarCompatibilityTests extends AbstractColumna
             batch("empty leading doc", 1L, doc("d2", 2L, "{}"), doc("d3", 3L, "{\"kw\":\"two\"}")),
             batch("wider", 1L, doc("d4", 4L, "{\"kw\":\"three\",\"date\":\"2026-05-05\",\"obj\":{\"inner_kw\":\"x\"}}"))
         );
+    }
+
+    /**
+     * The batch and row paths encode through the same builder factory, so their SMILE blobs must stay byte-identical across value
+     * kinds whose SMILE encodings differ from JSON the most: strings (no escaping), longs and dates (binary numbers), repeated
+     * field names in objects (back-references), and the {@code ignore_above} fallback whose JSON-encoded sub-value is transcoded
+     * into the SMILE blob.
+     */
+    public void testBatchAndRowPathsProduceIdenticalSmileBlobs() throws IOException {
+        assertColumnarMatchesXContent(
+            testMapping(),
+            columnarSettings(),
+            batch(
+                "mixed kinds",
+                1L,
+                doc("d1", 1L, "{\"kw\":\"quote \\\" and backslash \\\\ and emoji \\u00e9\",\"num\":123456789012345}"),
+                doc("d2", 2L, "{\"date\":\"2026-10-17T12:00:00Z\",\"obj\":{\"inner_kw\":\"nested\"}}"),
+                doc("d3", 3L, "{\"capped\":\"waytoolongforthelimit\",\"kw\":[\"a\",\"b\"]}"),
+                doc("d4", 4L, "{}"),
+                doc("d5", 5L, "{\"text\":\"full text value\",\"num\":-7}")
+            )
+        );
+    }
+
+    /**
+     * End-to-end round trip through the synthetic source loader: the stored blob is SMILE, but reconstruction copies it into the
+     * caller's JSON builder, so the {@code _source} the user reads back must be the same JSON a JSON blob produced.
+     */
+    public void testSourceReadBackFromSmileBlobIsJson() throws IOException {
+        final DocumentMapper mapper = createMapperService(columnarSettings(), testMapping()).documentMapper();
+        final String synthetic = syntheticSource(mapper, b -> {
+            b.field("kw", "escaped \" value");
+            b.field("num", 123456789012345L);
+            b.field("date", "2026-10-17T12:00:00.000Z");
+            b.startObject("obj").field("inner_kw", "nested").endObject();
+        });
+        // Object sub-fields come back under their dotted path: that is how the columnar_stored blob reconstructs objects,
+        // independent of the blob's content type.
+        assertEquals("""
+            {"date":"2026-10-17T12:00:00.000Z","kw":"escaped \\" value","num":123456789012345,"obj.inner_kw":"nested"}""", synthetic);
+    }
+
+    /**
+     * The {@code ignore_above} fallback value travels as a JSON-encoded {@code _ignored_source} sub-entry that is transcoded into
+     * the SMILE blob at index time and back to JSON on read: the original value must survive both transcodings.
+     */
+    public void testIgnoreAboveFallbackSurvivesSmileRoundTrip() throws IOException {
+        final DocumentMapper mapper = createMapperService(columnarSettings(), testMapping()).documentMapper();
+        final String synthetic = syntheticSource(mapper, b -> { b.field("capped", "waytoolongforthelimit"); });
+        assertEquals("""
+            {"capped":"waytoolongforthelimit"}""", synthetic);
     }
 }

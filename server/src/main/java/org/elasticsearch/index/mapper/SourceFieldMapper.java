@@ -523,6 +523,22 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     }
 
     /**
+     * The {@link XContentType} the whole-document {@code columnar_stored} blob is encoded in. SMILE rather than JSON: the binary
+     * generator skips the string escaping and UTF-8 segment scanning that dominate JSON generation (profiles of columnar source
+     * indexing attributed ~20% of the blob-building CPU to it), writes repeated field names as back-references, and produces a
+     * smaller blob.
+     *
+     * <p>No index-version gate is needed: every value stored through {@link XContentDataHelper} carries its content type in the
+     * leading type byte, and every reader of the blob dispatches on it — the root object loader
+     * ({@code ObjectMapper.SyntheticSourceFieldLoader#write} via {@code decodeType}/{@code decodeAndWriteXContent}), ignored-source
+     * filtering ({@code IgnoredSourceFieldMapper#nameValueToMapped} via {@code getXContentType}), and the fallback block loaders
+     * ({@code FallbackSyntheticSourceBlockLoader} via {@code decodeType}). JSON blobs written by earlier versions therefore coexist
+     * with SMILE blobs in the same index. The {@code _source} returned to users stays JSON either way, because reconstruction
+     * copies the blob into the caller's builder ({@code SourceLoader.Synthetic}'s leaf builds JSON).
+     */
+    static final XContentType COLUMNAR_BLOB_XCONTENT_TYPE = XContentType.SMILE;
+
+    /**
      * Rebuilds the {@code _source} of one {@code columnar_stored} document from its Lucene fields and returns it in the encoding the
      * whole-document {@code _ignored_source} entry stores. The row path ({@link #postParse}) builds the entry's value here; the
      * columnar batch path ({@link #postColumnarParse}) streams the same {@link ColumnarSourceWriter} output into a reused buffer
@@ -533,7 +549,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
      */
     private BytesRef encodeColumnarSource(MappingLookup mappingLookup, List<LuceneDocument> allDocs, LuceneDocument doc)
         throws IOException {
-        try (var builder = XContentFactory.jsonBuilder()) {
+        try (var builder = XContentFactory.contentBuilder(COLUMNAR_BLOB_XCONTENT_TYPE)) {
             columnarSourceWriter.write(mappingLookup, allDocs, doc, builder);
             return XContentDataHelper.encodeXContentBuilder(builder);
         }
@@ -542,13 +558,17 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     /**
      * The constant prefix of every whole-document blob entry that {@link #postColumnarParse} stores: the
      * {@link IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding} header for name {@link #NAME} at parent offset 0, followed by
-     * the {@link XContentDataHelper} type byte of a JSON builder. The bytes are derived through the production encoders — an empty
-     * builder encodes to exactly its type byte — rather than assembled by hand, so they stay identical to what the row path
-     * ({@link #encodeColumnarSource} wrapped by {@code SingularIgnoredSourceEncoding.encode}) puts in front of the JSON.
+     * the {@link XContentDataHelper} type byte of a {@link #COLUMNAR_BLOB_XCONTENT_TYPE} builder. The bytes are derived through the
+     * production encoders rather than assembled by hand, so they stay identical to what the row path ({@link #encodeColumnarSource}
+     * wrapped by {@code SingularIgnoredSourceEncoding.encode}) puts in front of the blob. Only the first byte of an empty builder's
+     * encoding is the type byte: a binary format such as SMILE writes its stream header when the generator is created, so an empty
+     * builder encodes to the type byte plus that header, and the header must not be repeated here because the generator that
+     * builds each blob on the batch path writes it again.
      */
     private static byte[] columnarStoredBlobPrefix() throws IOException {
-        try (var builder = XContentFactory.jsonBuilder()) {
-            final BytesRef typeByte = XContentDataHelper.encodeXContentBuilder(builder);
+        try (var builder = XContentFactory.contentBuilder(COLUMNAR_BLOB_XCONTENT_TYPE)) {
+            final BytesRef encodedEmpty = XContentDataHelper.encodeXContentBuilder(builder);
+            final BytesRef typeByte = new BytesRef(encodedEmpty.bytes, encodedEmpty.offset, 1);
             final BytesRef prefix = IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding.encode(
                 // The encoding reads only the name, parent offset and value; there is no document to pass on the batch path.
                 new IgnoredSourceFieldMapper.NameValue(NAME, 0, typeByte, null)
@@ -728,12 +748,12 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         blobs.lockScalar(EscfColumnKind.BINARY);
         try (blobs) {
             final MappedColumns.RowCursor rows = context.rowCursor(SourceFieldMapper::isReadByColumnarSourceWriter);
-            // Every blob of the batch is built in this one buffer: the constant entry prefix is written first, the JSON streams in
+            // Every blob of the batch is built in this one buffer: the constant entry prefix is written first, the blob streams in
             // behind it, and the finished bytes are exposed in place (BytesRefStreamOutput.get) and handed to the column builder,
             // which copies them before the next document overwrites the buffer. This collapses the two intermediate copies that
             // encoding the builder bytes (XContentDataHelper.encodeXContentBuilder) and wrapping them in the entry header
             // (SingularIgnoredSourceEncoding.encode) would make per document, and reuses the buffer that
-            // XContentFactory.jsonBuilder() would allocate per document.
+            // XContentFactory.contentBuilder(COLUMNAR_BLOB_XCONTENT_TYPE) would allocate per document.
             final byte[] blobPrefix = columnarStoredBlobPrefix();
             final BytesRefStreamOutput blobBuffer = new BytesRefStreamOutput();
             for (int d = 0; d < docCount; d++) {
@@ -742,7 +762,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 final LuceneDocument doc = new LuceneDocument(rows.fields());
                 blobBuffer.reset();
                 blobBuffer.writeBytes(blobPrefix, 0, blobPrefix.length);
-                try (var builder = new XContentBuilder(XContentType.JSON.xContent(), blobBuffer)) {
+                try (var builder = new XContentBuilder(COLUMNAR_BLOB_XCONTENT_TYPE.xContent(), blobBuffer)) {
                     columnarSourceWriter.write(context.mappingLookup(), List.of(doc), doc, builder);
                 }
                 blobs.setBinary(d, blobBuffer.get());

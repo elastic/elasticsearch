@@ -15,7 +15,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.string.StringColumnOptions;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedConsumer;
@@ -140,8 +139,8 @@ public class BinaryFieldMapperColumnarTests extends MapperServiceTestCase {
         final MapperService mapperService = createMapperService(settings(SourceFieldMapper.Mode.COLUMNAR_STORED), binaryMapping(null));
         assertTrue(mapperService.mappingLookup().syntheticVectorFields().contains("bin"));
         final ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.array("bin", A, B).field("kwd", "k")));
-        final String blob = new BytesArray(doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME).binaryValue()).utf8ToString();
-        assertThat(blob.substring(blob.indexOf('{')), equalTo("{\"kwd\":\"k\"}"));
+        // The blob is stored in SMILE (SourceFieldMapper.COLUMNAR_BLOB_XCONTENT_TYPE), so decode it through its type byte.
+        assertThat(columnarBlobAsJson(doc), equalTo("{\"kwd\":\"k\"}"));
     }
 
     /** Synthetic source rebuilds every field from doc values, so nothing is patched in. */

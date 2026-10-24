@@ -1176,9 +1176,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             b.endArray();
         }));
 
-        BytesRef blob = doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME).binaryValue();
-        String encoded = new BytesArray(blob).utf8ToString();
-        assertThat(encoded.substring(encoded.indexOf('{')), equalTo("{\"kwd\":\"a\",\"nested\":[{\"kwd\":\"b\"},{\"kwd\":\"c\"}]}"));
+        assertThat(columnarBlobAsJson(doc), equalTo("{\"kwd\":\"a\",\"nested\":[{\"kwd\":\"b\"},{\"kwd\":\"c\"}]}"));
     }
 
     /**
@@ -1205,9 +1203,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             vectorValues(b);
         }));
 
-        BytesRef blob = doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME).binaryValue();
-        String encoded = new BytesArray(blob).utf8ToString();
-        assertThat(encoded.substring(encoded.indexOf('{')), equalTo("{\"kwd\":\"a\"}"));
+        assertThat(columnarBlobAsJson(doc), equalTo("{\"kwd\":\"a\"}"));
     }
 
     /** One field per storage layout a vector can use: the vector index, binary doc values, and a stored field. */

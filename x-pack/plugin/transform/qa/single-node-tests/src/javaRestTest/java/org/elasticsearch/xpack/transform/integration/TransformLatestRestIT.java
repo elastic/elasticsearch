@@ -14,11 +14,14 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
 public class TransformLatestRestIT extends TransformRestTestCase {
@@ -337,6 +340,136 @@ public class TransformLatestRestIT extends TransformRestTestCase {
 
         stopTransform(transformId, false);
         deleteIndex(sourceIndex);
+    }
+
+    /**
+     * Verifies that a continuous latest transform with a two-field unique key still resolves out-of-order
+     * data correctly, and rewrites only the pairs that changed.
+     *
+     * Checkpoint 2 changes (order-1, US) and (order-2, EU). Filtering on one terms list per field would also
+     * match (order-1, EU) and (order-2, US), which did not change, and rewrite them. The late document for
+     * (order-1, US) has a lower sort value than the one already indexed, so it must not replace it.
+     */
+    public void testContinuousLatestWithTwoFieldUniqueKeyRewritesOnlyChangedPairs() throws Exception {
+        String sourceIndex = "two_field_key_source";
+        String transformId = "two_field_key_latest";
+        String transformIndex = transformId + "-dest";
+        setupDataAccessRole(DATA_ACCESS_ROLE, sourceIndex, transformIndex);
+
+        Request createIndex = new Request("PUT", sourceIndex);
+        createIndex.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "order_id":        { "type": "keyword" },
+                  "region":          { "type": "keyword" },
+                  "status":          { "type": "keyword" },
+                  "updated_at":      { "type": "date" },
+                  "event_ingested":  { "type": "date" }
+                }
+              }
+            }""");
+        client().performRequest(createIndex);
+
+        long now = System.currentTimeMillis();
+
+        // checkpoint 1: all four pairs, ingested well in the past
+        doBulk(Strings.format("""
+            {"index":{"_index":"%1$s"}}
+            {"order_id":"order-1","region":"US","status":"accepted","updated_at":%2$d,"event_ingested":%3$d}
+            {"index":{"_index":"%1$s"}}
+            {"order_id":"order-1","region":"EU","status":"new","updated_at":%4$d,"event_ingested":%3$d}
+            {"index":{"_index":"%1$s"}}
+            {"order_id":"order-2","region":"US","status":"new","updated_at":%4$d,"event_ingested":%3$d}
+            {"index":{"_index":"%1$s"}}
+            {"order_id":"order-2","region":"EU","status":"pending","updated_at":%4$d,"event_ingested":%3$d}
+            """, sourceIndex, now + 5000, now - 10000, now + 1000), true);
+
+        Request createTransformRequest = createRequestWithAuth(
+            "PUT",
+            getTransformEndpoint() + transformId,
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
+        );
+        createTransformRequest.setJsonEntity(Strings.format("""
+            {
+              "source": { "index": "%s" },
+              "dest": { "index": "%s" },
+              "frequency": "1s",
+              "sync": {
+                "time": {
+                  "field": "event_ingested",
+                  "delay": "1s"
+                }
+              },
+              "latest": {
+                "unique_key": [ "order_id", "region" ],
+                "sort": "updated_at"
+              }
+            }""", sourceIndex, transformIndex));
+        Map<String, Object> createResponse = entityAsMap(client().performRequest(createTransformRequest));
+        assertThat(createResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        startAndWaitForContinuousTransform(transformId, transformIndex, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
+
+        Map<String, Map<String, Object>> afterFirstCheckpoint = readDestinationByPair(transformIndex);
+        assertThat(afterFirstCheckpoint.keySet(), containsInAnyOrder("order-1/US", "order-1/EU", "order-2/US", "order-2/EU"));
+
+        // checkpoint 2: a late document with a lower sort value for (order-1, US), a newer one for (order-2, EU)
+        long ingestedNow = System.currentTimeMillis();
+        doBulk(Strings.format("""
+            {"index":{"_index":"%1$s"}}
+            {"order_id":"order-1","region":"US","status":"pending","updated_at":%2$d,"event_ingested":%4$d}
+            {"index":{"_index":"%1$s"}}
+            {"order_id":"order-2","region":"EU","status":"shipped","updated_at":%3$d,"event_ingested":%4$d}
+            """, sourceIndex, now + 3000, now + 9000, ingestedNow), true);
+
+        waitForTransformCheckpoint(transformId, 2);
+        refreshIndex(transformIndex);
+
+        Map<String, Map<String, Object>> afterSecondCheckpoint = readDestinationByPair(transformIndex);
+        assertThat(afterSecondCheckpoint.keySet(), containsInAnyOrder("order-1/US", "order-1/EU", "order-2/US", "order-2/EU"));
+
+        // the latest document by sort value wins, whatever order the documents arrived in
+        assertThat(sourceOf(afterSecondCheckpoint, "order-1/US").get("status"), is(equalTo("accepted")));
+        assertThat(sourceOf(afterSecondCheckpoint, "order-2/EU").get("status"), is(equalTo("shipped")));
+        assertThat(sourceOf(afterSecondCheckpoint, "order-1/EU").get("status"), is(equalTo("new")));
+        assertThat(sourceOf(afterSecondCheckpoint, "order-2/US").get("status"), is(equalTo("new")));
+
+        // both changed pairs were recomputed, the other two were not touched
+        assertThat(versionOf(afterSecondCheckpoint, "order-1/US"), is(greaterThan(versionOf(afterFirstCheckpoint, "order-1/US"))));
+        assertThat(versionOf(afterSecondCheckpoint, "order-2/EU"), is(greaterThan(versionOf(afterFirstCheckpoint, "order-2/EU"))));
+        assertThat(versionOf(afterSecondCheckpoint, "order-1/EU"), is(equalTo(versionOf(afterFirstCheckpoint, "order-1/EU"))));
+        assertThat(versionOf(afterSecondCheckpoint, "order-2/US"), is(equalTo(versionOf(afterFirstCheckpoint, "order-2/US"))));
+
+        stopTransform(transformId, false);
+        deleteIndex(sourceIndex);
+    }
+
+    /** Destination hits keyed by "order_id/region", each holding the hit's _source and _version. */
+    private Map<String, Map<String, Object>> readDestinationByPair(String index) throws IOException {
+        Request searchRequest = new Request("GET", index + "/_search");
+        searchRequest.setJsonEntity("""
+            { "size": 100, "version": true }""");
+        Map<String, Object> searchResponse = entityAsMap(client().performRequest(searchRequest));
+
+        Map<String, Map<String, Object>> byPair = new HashMap<>();
+        for (Object hit : (List<?>) XContentMapValues.extractValue("hits.hits", searchResponse)) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> hitMap = (Map<String, Object>) hit;
+            @SuppressWarnings("unchecked")
+            Map<String, Object> source = (Map<String, Object>) hitMap.get("_source");
+            byPair.put(source.get("order_id") + "/" + source.get("region"), hitMap);
+        }
+        return byPair;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> sourceOf(Map<String, Map<String, Object>> byPair, String pair) {
+        return (Map<String, Object>) byPair.get(pair).get("_source");
+    }
+
+    private static int versionOf(Map<String, Map<String, Object>> byPair, String pair) {
+        return ((Number) byPair.get(pair).get("_version")).intValue();
     }
 
     private void assertSourceIndexContents(String indexName, int expectedNumDocs, String expectedMinTimestamp, String expectedMaxTimestamp)

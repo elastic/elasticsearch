@@ -29,7 +29,7 @@ public class CsvRecordSplitterTests extends ESTestCase {
 
     @Before
     public void initBlockFactory() throws Exception {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 
     public void testTsvFindLastRecordBoundaryWithLiteralMidFieldQuotes() throws IOException {
@@ -323,7 +323,9 @@ public class CsvRecordSplitterTests extends ESTestCase {
      * rather than constructing a {@link CsvRecordSplitter} directly, since a plain file never gets one.
      */
     private RecordSplitter productionSplitter(CsvFormatOptions options) {
-        return new CsvFormatReader(blockFactory).withOptions(options).recordSplitter();
+        // multiline_fields left unset would cut a quoting dialect on plain newlines, so ask for the quote-aware walk.
+        return ((CsvFormatReader) new CsvFormatReader(blockFactory).withOptions(options).withConfig(Map.of("multiline_fields", true)))
+            .recordSplitter();
     }
 
     /**

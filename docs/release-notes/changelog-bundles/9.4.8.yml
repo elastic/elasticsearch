@@ -1,6 +1,6 @@
 version: 9.4.8
-released: false
-generated: 2026-10-02T00:08:35.784816159Z
+released: true
+generated: 2026-10-06T14:34:33.714655752Z
 changelogs:
   - pr: 2841
     summary: Better messaging regarding OOM process termination
@@ -294,6 +294,12 @@ changelogs:
     area: Infra/Core
     type: upgrade
     issues: []
+    highlight:
+      notable: true
+      title: Security advisory
+      body: |-
+        The 9.4.8 release contains fixes for potential security vulnerabilities. Please see our [security advisory](https://discuss.elastic.co/c/announcements/security-announcements/31) for more details.
+      pr: 160501
   - pr: 160574
     summary: Warn on GROK typed conversion failure
     area: ES|QL

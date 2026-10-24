@@ -91,13 +91,35 @@ When management of the index is first taken over by {{ilm-init}}, `explain` show
 
 1. When the index was created. This timestamp is used to determine when to roll over the index.
 2. The time since the index creation (used for calculating when to rollover the index via the `max_age`).
-3. Shows if the index is being managed by {{ilm-init}}. If the index is not managed by {{ilm-init}} the other fields will not be shown.
+3. Shows if the index is being managed by {{ilm-init}}. If the index is not managed by {{ilm-init}} the other fields will not be shown. {applies_to}`stack: ga 9.6` Instead, the response includes an `unmanaged_reason` field explaining why the index is not managed. See [Check why an index is not managed](#explain-lifecycle-unmanaged).
 4. The name of the policy which {{ilm-init}} is using for this index.
 5. The timestamp used for the `min_age`.
 6. The age of the index (used for calculating when to enter the next phase).
 7. When the index entered the current phase.
 8. When the index entered the current action.
 9. When the index entered the current step.
+
+## Check why an index is not managed [explain-lifecycle-unmanaged]
+```{applies_to}
+stack: ga 9.6
+```
+
+If the index is not managed by {{ilm-init}}, `managed` is `false` and the response includes an `unmanaged_reason` field that explains why. For example, the index might not have an {{ilm-init}} policy configured:
+
+```console-result
+{
+  "indices": {
+    "my-index-000002": {
+      "index": "my-index-000002",
+      "managed": false,
+      "unmanaged_reason": "Index [my-index-000002] does not have an ILM policy configured." <1>
+    }
+  }
+}
+```
+% TESTRESPONSE[skip:the reason text depends on why the index is not managed]
+
+1. A human-readable explanation of why the index is not managed by {{ilm-init}}. This field is only present when `managed` is `false`.
 
 ## View the phase definition applied to an index
 

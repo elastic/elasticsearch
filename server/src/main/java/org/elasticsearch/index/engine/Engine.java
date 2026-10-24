@@ -24,7 +24,9 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.Terms;
+import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
@@ -99,6 +101,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transports;
@@ -1862,6 +1865,17 @@ public abstract class Engine implements Closeable {
             return source;
         }
 
+        /**
+         * Not supported.
+         *
+         * @deprecated Use {@link #search(Query, CollectorManager)} instead.
+         */
+        @Deprecated
+        @Override
+        public void search(Query query, Collector collector) {
+            throw new UnsupportedOperationException("use search(Query, CollectorManager) instead");
+        }
+
         public DirectoryReader getDirectoryReader() {
             if (getIndexReader() instanceof DirectoryReader) {
                 return (DirectoryReader) getIndexReader();
@@ -2506,6 +2520,14 @@ public abstract class Engine implements Closeable {
      * @return the number of translog operations have been recovered
      */
     public abstract int restoreLocalHistoryFromTranslog(TranslogRecoveryRunner translogRecoveryRunner) throws IOException;
+
+    /**
+     * Returns the decorator to use for parsing documents that are indexed by this engine. Engines that meter documents as they are
+     * indexed can override this to record size information, this includes operations that are replayed from the translog.
+     */
+    public XContentMeteringParserDecorator newMeteringParserDecorator() {
+        return XContentMeteringParserDecorator.NOOP;
+    }
 
     /**
      * Fills up the local checkpoints history with no-ops until the local checkpoint

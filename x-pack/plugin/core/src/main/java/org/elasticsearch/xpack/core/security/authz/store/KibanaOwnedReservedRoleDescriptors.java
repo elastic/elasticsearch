@@ -14,12 +14,15 @@ import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappin
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
+import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileAction;
 import org.elasticsearch.xpack.core.security.action.profile.GetProfilesAction;
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesAction;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountAction;
+import org.elasticsearch.xpack.core.security.action.service.QueryServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissionGroup;
@@ -95,6 +98,12 @@ class KibanaOwnedReservedRoleDescriptors {
                 ActivateProfileAction.NAME,
                 SuggestProfilesAction.NAME,
                 ProfileHasPrivilegesAction.NAME,
+                // To show the service account a workload runs as to users who can see the workload but cannot read
+                // security. Read-only actions are named individually because "read_security" also covers users, roles,
+                // API keys and service account tokens, and "manage_service_account" also covers creating and deleting
+                // tokens.
+                QueryServiceAccountAction.NAME,
+                GetServiceAccountAction.NAME,
                 "write_fleet_secrets",
                 // To facilitate ML UI functionality being controlled using Kibana security
                 // privileges
@@ -297,6 +306,12 @@ class KibanaOwnedReservedRoleDescriptors {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(ReservedRolesStore.ALERTING_V2_ALERT_VIEWS, ReservedRolesStore.ALERTING_V2_RULE_VIEWS)
                     .privileges("create_view")
+                    .build(),
+                // Nightshift source views. Kibana creates, updates and deletes them as the Kibana system user, so end users
+                // need no write privileges on them and cannot let a view drift from its saved object. Reads run as the user.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(ReservedRolesStore.NIGHTSHIFT_SOURCE_VIEWS)
+                    .privileges("create_view", "delete_view")
                     .build(),
                 // "Alerts as data" public index aliases used in Security Solution,
                 // Observability, etc.
@@ -775,6 +790,11 @@ class KibanaOwnedReservedRoleDescriptors {
                     .indices(".ai-index-idx-elastic-index", ".ai-index-idx-elastic-index-*")
                     .privileges("all")
                     .build(),
+                // Context Engine AI index backing stores, read by the Kibana usage collector.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("ai-index-idx-*", "ai-index-ds-*", ".ai-index-idx-*", ".ai-index-ds-*")
+                    .privileges("read")
+                    .build(),
                 // Context Engine feedback-loop signals. Per-space, regular (non-system)
                 // user indices that Kibana creates and manages via the storage adapter
                 // (one index per Kibana space: context-engine-signals-<space>).
@@ -850,6 +870,267 @@ class KibanaOwnedReservedRoleDescriptors {
                 + "Additionally, this role grants read access to the .monitoring-* indices "
                 + "and read and write access to the .reporting-* indices. "
                 + "Note: This role should not be assigned to users as the granted permissions may change between releases."
+        );
+    }
+
+    /*
+     * Roles for the service accounts of AlertZero workers (Kibana Security Solution). Each mirrors the worker's
+     * definition in WORKER_ROLE_DEFINITIONS (x-pack/solutions/security/plugins/alertzero/common/worker_roles.ts in Kibana),
+     * and covers the worker, its child workflows and the actions it can run without a human approver, in all spaces.
+     */
+    private static final String[] ALERTZERO_WORKER_CLUSTER_PRIVILEGES = { "monitor_inference" };
+
+    private static final RoleDescriptor.IndicesPrivileges[] ALERTZERO_WORKER_COMMON_INDICES = {
+        RoleDescriptor.IndicesPrivileges.builder()
+            .indices("ai-index-idx-security-investigations")
+            .privileges("read", "view_index_metadata", "index", "auto_configure")
+            .build(),
+        RoleDescriptor.IndicesPrivileges.builder().indices(".ai-index-idx-elastic-index").privileges("view_index_metadata").build() };
+
+    private static final String[] ALERTZERO_WORKER_COMMON_FEATURE_PRIVILEGES = {
+        "feature_alertzero.all",
+        "feature_agentBuilder.read",
+        "feature_contextEngine.all",
+        "feature_proposals.all",
+        "feature_actions.read" };
+
+    // package-private to expose to ReservedRoleStore
+    static RoleDescriptor alertZeroAlertTriage(String name) {
+        return alertZeroWorker(
+            name,
+            "Alert Triage",
+            new String[] {
+                "feature_workflowsManagement.minimal_read",
+                "feature_workflowsManagement.workflow_read",
+                "feature_workflowsManagement.workflow_read_managed",
+                "feature_workflowsManagement.workflow_execution_read",
+                "feature_workflowsManagement.workflow_execution_read_managed",
+                "feature_workflowsManagement.workflow_execute",
+                "feature_workflowsManagement.workflow_execution_cancel",
+                "feature_securitySolutionRulesV4.minimal_read",
+                "feature_securitySolutionNotes.all",
+                "feature_securitySolutionAlertsV1.all" },
+            RoleDescriptor.IndicesPrivileges.builder()
+                .indices(".alerts-security.alerts-*")
+                .privileges("read", "index", "maintenance")
+                .build(),
+            RoleDescriptor.IndicesPrivileges.builder()
+                .indices(".internal.alerts-security.alerts-*")
+                .privileges("index", "maintenance")
+                .build()
+        );
+    }
+
+    // package-private to expose to ReservedRoleStore
+    static RoleDescriptor alertZeroAttackDiscovery(String name) {
+        return alertZeroWorker(
+            name,
+            "Attack Discovery",
+            new String[] {
+                "feature_workflowsManagement.minimal_read",
+                "feature_workflowsManagement.workflow_read",
+                "feature_workflowsManagement.workflow_read_managed",
+                "feature_workflowsManagement.workflow_execution_read",
+                "feature_workflowsManagement.workflow_execution_read_managed",
+                "feature_workflowsManagement.workflow_execute",
+                "feature_securitySolutionAttackDiscovery.all",
+                "feature_securitySolutionAlertsV1.all" },
+            RoleDescriptor.IndicesPrivileges.builder()
+                .indices(".alerts-security.attack.discovery.alerts-*", ".adhoc.alerts-security.attack.discovery.alerts-*")
+                .privileges("read", "view_index_metadata", "index", "maintenance")
+                .build(),
+            RoleDescriptor.IndicesPrivileges.builder()
+                .indices(".internal.alerts-security.attack.discovery.alerts-*", ".internal.adhoc.alerts-security.attack.discovery.alerts-*")
+                .privileges("index", "maintenance")
+                .build(),
+            RoleDescriptor.IndicesPrivileges.builder()
+                .indices(".alerts-security.alerts-*")
+                .privileges("read", "view_index_metadata", "index", "maintenance")
+                .build(),
+            RoleDescriptor.IndicesPrivileges.builder()
+                .indices(".internal.alerts-security.alerts-*")
+                .privileges("index", "maintenance")
+                .build(),
+            RoleDescriptor.IndicesPrivileges.builder()
+                .indices("ai-index-idx-security-attack-fingerprints")
+                .privileges("read", "view_index_metadata", "index", "auto_configure")
+                .build(),
+            RoleDescriptor.IndicesPrivileges.builder()
+                .indices(".kibana-elastic-ai-assistant-anonymization-fields-*")
+                .privileges("read")
+                .build(),
+            RoleDescriptor.IndicesPrivileges.builder().indices("logs-endpoint.events.*", "entities-latest-*").privileges("read").build(),
+            RoleDescriptor.IndicesPrivileges.builder()
+                .indices(
+                    "apm-*-transaction*",
+                    "auditbeat-*",
+                    "endgame-*",
+                    "filebeat-*",
+                    "logs-*",
+                    "packetbeat-*",
+                    "traces-apm*",
+                    "winlogbeat-*"
+                )
+                .privileges("read")
+                .build()
+        );
+    }
+
+    // package-private to expose to ReservedRoleStore
+    static RoleDescriptor alertZeroEndpointAnalysis(String name) {
+        return alertZeroWorker(
+            name,
+            "Endpoint analysis",
+            new String[] {
+                "feature_siemV5.minimal_read",
+                "feature_siemV5.host_isolation_all",
+                "feature_siemV5.process_operations_all",
+                "feature_siemV5.actions_log_management_read",
+                "feature_securitySolutionAlertsV1.all" },
+            RoleDescriptor.IndicesPrivileges.builder()
+                .indices(".alerts-security.attack.discovery.alerts-*", ".adhoc.alerts-security.attack.discovery.alerts-*")
+                .privileges("read", "view_index_metadata", "index", "maintenance")
+                .build(),
+            RoleDescriptor.IndicesPrivileges.builder()
+                .indices(".internal.alerts-security.attack.discovery.alerts-*", ".internal.adhoc.alerts-security.attack.discovery.alerts-*")
+                .privileges("index", "maintenance")
+                .build(),
+            RoleDescriptor.IndicesPrivileges.builder()
+                .indices(".alerts-security.alerts-*")
+                .privileges("read", "view_index_metadata", "index", "maintenance")
+                .build(),
+            RoleDescriptor.IndicesPrivileges.builder()
+                .indices(".internal.alerts-security.alerts-*")
+                .privileges("index", "maintenance")
+                .build(),
+            RoleDescriptor.IndicesPrivileges.builder()
+                .indices(
+                    "logs-endpoint.events.process-*",
+                    "logs-endpoint.events.network-*",
+                    "logs-endpoint.events.file-*",
+                    "logs-endpoint.events.registry-*"
+                )
+                .privileges("read", "view_index_metadata")
+                .build()
+        );
+    }
+
+    // package-private to expose to ReservedRoleStore
+    static RoleDescriptor alertZeroThreatHunt(String name) {
+        return alertZeroWorker(
+            name,
+            "Continuous Threat Hunt",
+            new String[] {
+                "feature_siemV5.minimal_read",
+                "feature_siemV5.host_isolation_all",
+                "feature_siemV5.process_operations_all",
+                "feature_siemV5.actions_log_management_read" },
+            RoleDescriptor.IndicesPrivileges.builder()
+                .indices(
+                    "apm-*-transaction*",
+                    "auditbeat-*",
+                    "endgame-*",
+                    "filebeat-*",
+                    "logs-*",
+                    "packetbeat-*",
+                    "traces-apm*",
+                    "winlogbeat-*"
+                )
+                .privileges("read")
+                .build(),
+            RoleDescriptor.IndicesPrivileges.builder().indices("metrics-endpoint.metadata_current_*").privileges("read").build()
+        );
+    }
+
+    // package-private to expose to ReservedRoleStore
+    static RoleDescriptor alertZeroRuleTuning(String name) {
+        return alertZeroWorker(
+            name,
+            "Rule Tuning",
+            new String[] {
+                "feature_workflowsManagement.read",
+                "feature_securitySolutionRulesV4.read",
+                "feature_securitySolutionAlertsV1.all" },
+            RoleDescriptor.IndicesPrivileges.builder()
+                .indices(".alerts-security.alerts-*")
+                .privileges("read", "index", "maintenance", "view_index_metadata")
+                .build(),
+            RoleDescriptor.IndicesPrivileges.builder()
+                .indices(".internal.alerts-security.alerts-*")
+                .privileges("index", "maintenance")
+                .build(),
+            RoleDescriptor.IndicesPrivileges.builder()
+                .indices(".preview.alerts-security.alerts-*", ".internal.preview.alerts-security.alerts-*")
+                .privileges("read")
+                .build(),
+            RoleDescriptor.IndicesPrivileges.builder()
+                .indices(
+                    "apm-*-transaction*",
+                    "auditbeat-*",
+                    "endgame-*",
+                    "filebeat-*",
+                    "logs-*",
+                    "packetbeat-*",
+                    "traces-apm*",
+                    "winlogbeat-*"
+                )
+                .privileges("read", "view_index_metadata")
+                .build()
+        );
+    }
+
+    // package-private to expose to ReservedRoleStore
+    static RoleDescriptor alertZeroRuleCoverage(String name) {
+        return alertZeroWorker(
+            name,
+            "Rule Coverage",
+            new String[] { "feature_workflowsManagement.read", "feature_securitySolutionRulesV4.all", "feature_fleet.read" },
+            RoleDescriptor.IndicesPrivileges.builder()
+                .indices(".preview.alerts-security.alerts-*", ".internal.preview.alerts-security.alerts-*")
+                .privileges("read")
+                .build(),
+            RoleDescriptor.IndicesPrivileges.builder()
+                .indices(
+                    "apm-*-transaction*",
+                    "auditbeat-*",
+                    "endgame-*",
+                    "filebeat-*",
+                    "logs-*",
+                    "packetbeat-*",
+                    "traces-apm*",
+                    "winlogbeat-*"
+                )
+                .privileges("read", "view_index_metadata")
+                .build()
+        );
+    }
+
+    private static RoleDescriptor alertZeroWorker(
+        String name,
+        String workerName,
+        String[] featurePrivileges,
+        RoleDescriptor.IndicesPrivileges... indices
+    ) {
+        return new RoleDescriptor(
+            name,
+            ALERTZERO_WORKER_CLUSTER_PRIVILEGES,
+            ArrayUtils.concat(ALERTZERO_WORKER_COMMON_INDICES, indices),
+            new RoleDescriptor.ApplicationResourcePrivileges[] {
+                RoleDescriptor.ApplicationResourcePrivileges.builder()
+                    .application("kibana-.kibana")
+                    .resources("*")
+                    .privileges(ArrayUtils.concat(ALERTZERO_WORKER_COMMON_FEATURE_PRIVILEGES, featurePrivileges))
+                    .build() },
+            null,
+            null,
+            MetadataUtils.DEFAULT_RESERVED_METADATA,
+            null,
+            null,
+            null,
+            null,
+            "Grants the privileges required by the service account of the AlertZero "
+                + workerName
+                + " worker, in all Kibana spaces. Assign this role only to that service account."
         );
     }
 }

@@ -20,112 +20,13 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % ### Fixes [elasticsearch-next-fixes]
 % *
 
-## 9.4.8 [elasticsearch-9.4.8-release-notes]
-```{applies_to}
-stack: ga 9.4.8
-```
-
-### Features and enhancements [elasticsearch-9.4.8-features-enhancements]
-
-Aggregations:
-* Cap `multi_terms` aggregation at 128 fields [#157906](https://github.com/elastic/elasticsearch/pull/157906)
-
-Authorization:
-* [XM Cyber] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system` [#160185](https://github.com/elastic/elasticsearch/pull/160185)
-
-ES|QL:
-* Bump Parquet Hadoop Bundle [#158981](https://github.com/elastic/elasticsearch/pull/158981)
-* Bump `OpenTelemetry` to 1.62.0 in GCS modules [#152499](https://github.com/elastic/elasticsearch/pull/152499)
-* Bump zstd-jni to 1.5.7-16 [#159621](https://github.com/elastic/elasticsearch/pull/159621)
-
-Inference:
-* [Inference API] Pass reasoning effort through to OpenAI chat completion [#156505](https://github.com/elastic/elasticsearch/pull/156505)
-
-Infra/Core:
-* Upgrade Jackson to 2.21.7 [#160501](https://github.com/elastic/elasticsearch/pull/160501)
-
-Machine Learning:
-* Add EuroBERT and Jina v5 ops to graph validation allowlist [#3015](https://github.com/elastic/ml-cpp/pull/3015)
-* Better error handling regarding quantiles state documents [#2894](https://github.com/elastic/ml-cpp/pull/2894)
-* Better handling of invalid JSON state documents [#2895](https://github.com/elastic/ml-cpp/pull/2895)
-* Better messaging regarding OOM process termination [#2841](https://github.com/elastic/ml-cpp/pull/2841)
-* Downgrade log severity for a batch of recoverable errors [#2889](https://github.com/elastic/ml-cpp/pull/2889)
-* Harden pytorch_inference with TorchScript model graph validation [#3008](https://github.com/elastic/ml-cpp/pull/3008) (issue: [#2890](https://github.com/elastic/ml-cpp/issues/2890))
-* Improve adherence to memory limits for the bucket gatherer [#2848](https://github.com/elastic/ml-cpp/pull/2848)
-* Report the actual memory usage of the autodetect process [#2846](https://github.com/elastic/ml-cpp/pull/2846)
-* Restrict file system access for pytorch models [#2851](https://github.com/elastic/ml-cpp/pull/2851)
-* Update the PyTorch library to version 2.7.1 [#2863](https://github.com/elastic/ml-cpp/pull/2863)
-
-Network:
-* Netty upgrade 4.1.138.Final [#159561](https://github.com/elastic/elasticsearch/pull/159561)
-
-
-### Fixes [elasticsearch-9.4.8-fixes]
-
-CRUD:
-* Fix replica divergence on sequence numbers disabled indices [#158870](https://github.com/elastic/elasticsearch/pull/158870) (issue: [#150408](https://github.com/elastic/elasticsearch/issues/150408))
-
-Distributed:
-* Allocation explain no longer starts gateway shard data fetches [#157766](https://github.com/elastic/elasticsearch/pull/157766) (issue: [#155449](https://github.com/elastic/elasticsearch/issues/155449))
-
-ES|QL:
-* Circuitbreak Base64 and `MvConcat/Zip` [#159659](https://github.com/elastic/elasticsearch/pull/159659)
-* Fix NPE when folding regex [#158768](https://github.com/elastic/elasticsearch/pull/158768) (issue: [#158748](https://github.com/elastic/elasticsearch/issues/158748))
-* Fix analyzer loop on repeated conversions [#159257](https://github.com/elastic/elasticsearch/pull/159257)
-* Fix nested fields conflicting with object fields [#158573](https://github.com/elastic/elasticsearch/pull/158573) (issue: [#154011](https://github.com/elastic/elasticsearch/issues/154011))
-* Reject TRANGE queries with a null start or offset [#159125](https://github.com/elastic/elasticsearch/pull/159125)
-* Warn on GROK typed conversion failure [#160574](https://github.com/elastic/elasticsearch/pull/160574) (issue: [#160564](https://github.com/elastic/elasticsearch/issues/160564))
-
-Engine:
-* Handle refresh exceptions in `ensureShardSearchActive` [#159526](https://github.com/elastic/elasticsearch/pull/159526)
-
-Extract&Transform:
-* Limit the connector description length [#159638](https://github.com/elastic/elasticsearch/pull/159638)
-
-Geo:
-* Bound geometry nesting depth at construction [#160004](https://github.com/elastic/elasticsearch/pull/160004)
-* Fix H3 great-circle latitude correction edge selection [#160228](https://github.com/elastic/elasticsearch/pull/160228) (issue: [#159682](https://github.com/elastic/elasticsearch/issues/159682))
-
-Inference:
-* Convert `RecursiveChunker` to iterative and cap separator list size [#158589](https://github.com/elastic/elasticsearch/pull/158589)
-
-Infra/Core:
-* Skip unrelated files when scanning config dir for log4j2.properties [#150016](https://github.com/elastic/elasticsearch/pull/150016)
-
-Machine Learning:
-* Auto-stop datafeed after consecutive extraction failures [#159554](https://github.com/elastic/elasticsearch/pull/159554) (issue: [#158426](https://github.com/elastic/elasticsearch/issues/158426))
-* Detect level changes which coincide with detecting new seasonality [#3209](https://github.com/elastic/ml-cpp/pull/3209) (issue: [#2730](https://github.com/elastic/ml-cpp/issues/2730))
-* Fail closed on incomplete `TorchScript` pre-load state-hook scan [#3149](https://github.com/elastic/ml-cpp/pull/3149)
-* Fail gracefully when restoring a categorizer with an out-of-range token ID [#3143](https://github.com/elastic/ml-cpp/pull/3143)
-* Fix flaky CIoManagerTest/testFileIoGood test [#3017](https://github.com/elastic/ml-cpp/pull/3017)
-* Fix flaky concurrent LFU cache count invariant under lock timeouts [#3090](https://github.com/elastic/ml-cpp/pull/3090)
-* Mark ML controller non-dumpable before accepting commands [#3081](https://github.com/elastic/ml-cpp/pull/3081)
-* Prevent AD job reopen from exhausting search scroll contexts during mass reassignment [#154925](https://github.com/elastic/elasticsearch/pull/154925) (issue: [#153260](https://github.com/elastic/elasticsearch/issues/153260))
-* Reject TorchScript custom state hooks before load and forbid inductor::_reinterpret_tensor [#3078](https://github.com/elastic/ml-cpp/pull/3078)
-* Reject non-native ABIs in ML seccomp filter (socketcall/getuid collision) [#3080](https://github.com/elastic/ml-cpp/pull/3080)
-* Stabilize uncertain trend forecasts [#3189](https://github.com/elastic/ml-cpp/pull/3189) (issue: [#2772](https://github.com/elastic/ml-cpp/issues/2772))
-
-SQL:
-* Fix NPE/CCE in `ReplaceSumWithStats` on nested SUM [#159256](https://github.com/elastic/elasticsearch/pull/159256) (issue: [#159250](https://github.com/elastic/elasticsearch/issues/159250))
-
-Search:
-* Fix mixed-version CCS PIT bug (IllegalArgumentException unknown transport version) [#159248](https://github.com/elastic/elasticsearch/pull/159248) (issue: [#158991](https://github.com/elastic/elasticsearch/issues/158991))
-* Fix request breaker leak in the rank feature phase [#158951](https://github.com/elastic/elasticsearch/pull/158951)
-* Fix sorted search failures on empty shard results [#160132](https://github.com/elastic/elasticsearch/pull/160132)
-* Improve consistency checks for PIT ids [#160179](https://github.com/elastic/elasticsearch/pull/160179)
-* Release `top_hits` hits when CCS merge reduce fails [#160363](https://github.com/elastic/elasticsearch/pull/160363)
-* Release late shard results after a phase failure [#160439](https://github.com/elastic/elasticsearch/pull/160439) (issue: [#160321](https://github.com/elastic/elasticsearch/issues/160321))
-* Tolerate missing remote indices during the inference rewrite [#160207](https://github.com/elastic/elasticsearch/pull/160207) (issue: [#160203](https://github.com/elastic/elasticsearch/issues/160203))
-
-Security:
-* Consistency improvements for shard-level requests [#159691](https://github.com/elastic/elasticsearch/pull/159691)
-
-TSDB:
-* Reject Prometheus remote write 2.0 requests [#159987](https://github.com/elastic/elasticsearch/pull/159987)
-
-
-
 ## 9.5.5 [elasticsearch-9.5.5-release-notes]
+
+### Highlights [elasticsearch-9.5.5-highlights]
+
+::::{dropdown} Security advisory
+The 9.5.5 release contains fixes for potential security vulnerabilities. Please see our [security advisory](https://discuss.elastic.co/c/announcements/security-announcements/31) for more details.
+::::
 
 ### Features and enhancements [elasticsearch-9.5.5-features-enhancements]
 
@@ -241,6 +142,112 @@ Vector Search:
 * Auto calibration error model should honour precondition [#158569](https://github.com/elastic/elasticsearch/pull/158569)
 * Use effective manifold dimensionality for error std in auto calibration [#158158](https://github.com/elastic/elasticsearch/pull/158158)
 
+
+## 9.4.8 [elasticsearch-9.4.8-release-notes]
+
+### Highlights [elasticsearch-9.4.8-highlights]
+
+::::{dropdown} Security advisory
+The 9.4.8 release contains fixes for potential security vulnerabilities. Please see our [security advisory](https://discuss.elastic.co/c/announcements/security-announcements/31) for more details.
+::::
+
+### Features and enhancements [elasticsearch-9.4.8-features-enhancements]
+
+Aggregations:
+* Cap `multi_terms` aggregation at 128 fields [#157906](https://github.com/elastic/elasticsearch/pull/157906)
+
+Authorization:
+* [XM Cyber] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system` [#160185](https://github.com/elastic/elasticsearch/pull/160185)
+
+ES|QL:
+* Bump Parquet Hadoop Bundle [#158981](https://github.com/elastic/elasticsearch/pull/158981)
+* Bump `OpenTelemetry` to 1.62.0 in GCS modules [#152499](https://github.com/elastic/elasticsearch/pull/152499)
+* Bump zstd-jni to 1.5.7-16 [#159621](https://github.com/elastic/elasticsearch/pull/159621)
+
+Inference:
+* [Inference API] Pass reasoning effort through to OpenAI chat completion [#156505](https://github.com/elastic/elasticsearch/pull/156505)
+
+Infra/Core:
+* Upgrade Jackson to 2.21.7 [#160501](https://github.com/elastic/elasticsearch/pull/160501)
+
+Machine Learning:
+* Add EuroBERT and Jina v5 ops to graph validation allowlist [#3015](https://github.com/elastic/ml-cpp/pull/3015)
+* Better error handling regarding quantiles state documents [#2894](https://github.com/elastic/ml-cpp/pull/2894)
+* Better handling of invalid JSON state documents [#2895](https://github.com/elastic/ml-cpp/pull/2895)
+* Better messaging regarding OOM process termination [#2841](https://github.com/elastic/ml-cpp/pull/2841)
+* Downgrade log severity for a batch of recoverable errors [#2889](https://github.com/elastic/ml-cpp/pull/2889)
+* Harden pytorch_inference with TorchScript model graph validation [#3008](https://github.com/elastic/ml-cpp/pull/3008) (issue: [#2890](https://github.com/elastic/ml-cpp/issues/2890))
+* Improve adherence to memory limits for the bucket gatherer [#2848](https://github.com/elastic/ml-cpp/pull/2848)
+* Report the actual memory usage of the autodetect process [#2846](https://github.com/elastic/ml-cpp/pull/2846)
+* Restrict file system access for pytorch models [#2851](https://github.com/elastic/ml-cpp/pull/2851)
+* Update the PyTorch library to version 2.7.1 [#2863](https://github.com/elastic/ml-cpp/pull/2863)
+
+Network:
+* Netty upgrade 4.1.138.Final [#159561](https://github.com/elastic/elasticsearch/pull/159561)
+
+
+### Fixes [elasticsearch-9.4.8-fixes]
+
+CRUD:
+* Fix replica divergence on sequence numbers disabled indices [#158870](https://github.com/elastic/elasticsearch/pull/158870) (issue: [#150408](https://github.com/elastic/elasticsearch/issues/150408))
+
+Distributed:
+* Allocation explain no longer starts gateway shard data fetches [#157766](https://github.com/elastic/elasticsearch/pull/157766) (issue: [#155449](https://github.com/elastic/elasticsearch/issues/155449))
+
+ES|QL:
+* Circuitbreak Base64 and `MvConcat/Zip` [#159659](https://github.com/elastic/elasticsearch/pull/159659)
+* Fix NPE when folding regex [#158768](https://github.com/elastic/elasticsearch/pull/158768) (issue: [#158748](https://github.com/elastic/elasticsearch/issues/158748))
+* Fix analyzer loop on repeated conversions [#159257](https://github.com/elastic/elasticsearch/pull/159257)
+* Fix nested fields conflicting with object fields [#158573](https://github.com/elastic/elasticsearch/pull/158573) (issue: [#154011](https://github.com/elastic/elasticsearch/issues/154011))
+* Reject TRANGE queries with a null start or offset [#159125](https://github.com/elastic/elasticsearch/pull/159125)
+* Warn on GROK typed conversion failure [#160574](https://github.com/elastic/elasticsearch/pull/160574) (issue: [#160564](https://github.com/elastic/elasticsearch/issues/160564))
+
+Engine:
+* Handle refresh exceptions in `ensureShardSearchActive` [#159526](https://github.com/elastic/elasticsearch/pull/159526)
+
+Extract&Transform:
+* Limit the connector description length [#159638](https://github.com/elastic/elasticsearch/pull/159638)
+
+Geo:
+* Bound geometry nesting depth at construction [#160004](https://github.com/elastic/elasticsearch/pull/160004)
+* Fix H3 great-circle latitude correction edge selection [#160228](https://github.com/elastic/elasticsearch/pull/160228) (issue: [#159682](https://github.com/elastic/elasticsearch/issues/159682))
+
+Inference:
+* Convert `RecursiveChunker` to iterative and cap separator list size [#158589](https://github.com/elastic/elasticsearch/pull/158589)
+
+Infra/Core:
+* Skip unrelated files when scanning config dir for log4j2.properties [#150016](https://github.com/elastic/elasticsearch/pull/150016)
+
+Machine Learning:
+* Auto-stop datafeed after consecutive extraction failures [#159554](https://github.com/elastic/elasticsearch/pull/159554) (issue: [#158426](https://github.com/elastic/elasticsearch/issues/158426))
+* Detect level changes which coincide with detecting new seasonality [#3209](https://github.com/elastic/ml-cpp/pull/3209) (issue: [#2730](https://github.com/elastic/ml-cpp/issues/2730))
+* Fail closed on incomplete `TorchScript` pre-load state-hook scan [#3149](https://github.com/elastic/ml-cpp/pull/3149)
+* Fail gracefully when restoring a categorizer with an out-of-range token ID [#3143](https://github.com/elastic/ml-cpp/pull/3143)
+* Fix flaky CIoManagerTest/testFileIoGood test [#3017](https://github.com/elastic/ml-cpp/pull/3017)
+* Fix flaky concurrent LFU cache count invariant under lock timeouts [#3090](https://github.com/elastic/ml-cpp/pull/3090)
+* Mark ML controller non-dumpable before accepting commands [#3081](https://github.com/elastic/ml-cpp/pull/3081)
+* Prevent AD job reopen from exhausting search scroll contexts during mass reassignment [#154925](https://github.com/elastic/elasticsearch/pull/154925) (issue: [#153260](https://github.com/elastic/elasticsearch/issues/153260))
+* Reject TorchScript custom state hooks before load and forbid inductor::_reinterpret_tensor [#3078](https://github.com/elastic/ml-cpp/pull/3078)
+* Reject non-native ABIs in ML seccomp filter (socketcall/getuid collision) [#3080](https://github.com/elastic/ml-cpp/pull/3080)
+* Stabilize uncertain trend forecasts [#3189](https://github.com/elastic/ml-cpp/pull/3189) (issue: [#2772](https://github.com/elastic/ml-cpp/issues/2772))
+
+SQL:
+* Fix NPE/CCE in `ReplaceSumWithStats` on nested SUM [#159256](https://github.com/elastic/elasticsearch/pull/159256) (issue: [#159250](https://github.com/elastic/elasticsearch/issues/159250))
+
+Search:
+* Fix mixed-version CCS PIT bug (IllegalArgumentException unknown transport version) [#159248](https://github.com/elastic/elasticsearch/pull/159248) (issue: [#158991](https://github.com/elastic/elasticsearch/issues/158991))
+* Fix request breaker leak in the rank feature phase [#158951](https://github.com/elastic/elasticsearch/pull/158951)
+* Fix sorted search failures on empty shard results [#160132](https://github.com/elastic/elasticsearch/pull/160132)
+* Improve consistency checks for PIT ids [#160179](https://github.com/elastic/elasticsearch/pull/160179)
+* Release `top_hits` hits when CCS merge reduce fails [#160363](https://github.com/elastic/elasticsearch/pull/160363)
+* Release late shard results after a phase failure [#160439](https://github.com/elastic/elasticsearch/pull/160439) (issue: [#160321](https://github.com/elastic/elasticsearch/issues/160321))
+* Tolerate missing remote indices during the inference rewrite [#160207](https://github.com/elastic/elasticsearch/pull/160207) (issue: [#160203](https://github.com/elastic/elasticsearch/issues/160203))
+
+Security:
+* Consistency improvements for shard-level requests [#159691](https://github.com/elastic/elasticsearch/pull/159691)
+
+TSDB:
+* Reject Prometheus remote write 2.0 requests [#159987](https://github.com/elastic/elasticsearch/pull/159987)
 
 
 ## 9.4.7 [elasticsearch-9.4.7-release-notes]
@@ -846,6 +853,8 @@ protection correctly during repository analysis.
 Searches that target multiple shards on the same data node now batch shards into a single round-trip per data node, with partial reductions performed on the data nodes.
 This reduces transport layer overhead and spreads the load of reductions across multiple nodes.
 The enhancement is controlled by a setting `search.batched_query_phase`, which is enabled by default in 9.5.0.
+
+Read more about these changes in the [{{es-labs}} blog](https://www.elastic.co/search-labs/blog/elasticsearch-batched-query-phase).
 ::::
 
 ::::{dropdown} Improved reindex resilience and new reindex management APIs
@@ -859,8 +868,9 @@ is the preferred approach for deep pagination, and allows reindex to
 benefit from recent improvements to PIT resilience (where available).
 Finally, we are adding dedicated new APIs to monitor and manage
 reindex operations, providing a better user-experience than the older
-tasks APIs. Read more about these changes in the blog at
-https://www.elastic.co/search-labs/blog/elasticsearch-reindex-node-relocation-pit-serverless.
+tasks APIs.
+
+Read more about these changes in the [{{es-labs}} blog](https://www.elastic.co/search-labs/blog/elasticsearch-reindex-node-relocation-pit-serverless).
 ::::
 
 ::::{dropdown} Data stream lifecycle can move data to the frozen tier
@@ -872,6 +882,8 @@ sits alongside `data_retention` and `downsampling` in the lifecycle
 configuration, with no ILM policy required. DLM writes frozen data to a new
 cluster-level default snapshot repository. This capability requires an
 Enterprise license and is not available in Elastic Cloud Serverless.
+
+Read more about these changes in the [{{es-labs}} blog](https://www.elastic.co/search-labs/blog/data-stream-lifecycle-frozen-tier).
 ::::
 
 ::::{dropdown} Support for `flattened` fields in ES|QL
@@ -886,6 +898,8 @@ part of the key, so the same dotted form addresses both originally-flat and orig
 sub-fields. When a sub-field holds multiple values, the result is a multi-valued `keyword`.
 
 Both the `flattened` type support and the `FIELD_EXTRACT` function are in Technical Preview.
+
+Read more about these changes in the [{{es-labs}} blog](https://www.elastic.co/search-labs/blog/schema-on-read-esql-json-keys).
 ::::
 
 ::::{dropdown} `date_range` field type available as tech preview
@@ -904,11 +918,15 @@ and ES|QL `TS` queries will interpret the data automatically, taking the tempora
 query syntax for this functionality. Existing queries will continue to work as expected. The temporality is also respected
 and preserved during downsampling. Metrics ingested using other means can use the new `index.time_series.temporality_field`
 index setting to define the dimension field storing the temporality.
+
+Read more about these changes in the {{es-labs}} [Skip the stateful OTel Collector](https://www.elastic.co/search-labs/blog/otel-metrics-cumulative-delta-elasticsearch) and [Native OTLP metrics ingestion on Elastic Cloud Hosted](https://www.elastic.co/observability-labs/blog/opentelemetry-histograms-elastic-cloud-hosted) blogs.
 ::::
 
 ::::{dropdown} PromQL: Add basic support for native (exponential) histograms
 You can now query exponential_histogram fields with PromQL syntax for native histograms.
 The supported functions are `increase()`, `sum()`, `histogram_quantile()`, `histogram_avg()`, `histogram_count()` and `histogram_sum()`.
+
+Read more about these changes in the [{{es-labs}} blog](https://www.elastic.co/search-labs/blog/promql-elasticsearch-compute-engine).
 ::::
 
 ::::{dropdown} ES|QL Data Federation
@@ -961,6 +979,8 @@ defaults, suitable for general-purpose indices and data streams.
 
 Improved columnar storage: An optimized doc values format is used by default,
 further reducing storage footprint, especially when combined with index sorting.
+
+Read more about these changes in {{es-labs}} blogs: [Why {{es}} is becoming a columnar database](https://www.elastic.co/search-labs/blog/elasticsearch-columnar-storage), [How {{es}} columnar storage drops the inverted index](https://www.elastic.co/search-labs/blog/columnar-storage-elasticsearch-index-modes), and [What columnar mode brings to {{es}}](https://www.elastic.co/search-labs/blog/elasticsearch-doc-values-columnar-database).
 ::::
 
 ::::{dropdown} Create backing indices for backfilling past timestamps in TSDB (opt-in)
@@ -972,6 +992,8 @@ cluster setting is enabled (defaults to `false`), Elasticsearch now creates the
 necessary backing indices needed to cover it before indexing, instead of rejecting
 the write. Timestamps outside the eligible window, or in the future, are still
 rejected.
+
+Read more about these changes in the [{{es-labs}} blog](https://www.elastic.co/search-labs/blog/time-series-data-backfill).
 ::::
 
 ::::{dropdown} ES95 is the default TSDB doc values codec
@@ -980,6 +1002,8 @@ metrics data it reduces total doc values storage by about 30% versus ES819,
 driven by `@timestamp` (up to 90% smaller) and floating-point gauges and counters
 via adaptive floating-point encoding, at no indexing or query cost. Existing
 indices keep their codec; opt out with `index.time_series.es95_codec.enabled: false`.
+
+Read more about these changes in the [{{es-labs}} blog](https://www.elastic.co/search-labs/blog/time-series-database-compression-elasticsearch).
 ::::
 
 ::::{dropdown} Release support for match with non-mapped expressions
@@ -992,6 +1016,8 @@ Elasticsearch mapped field, but has the `text` data type, we evaluate
 the `match` function on-the-fly by analyzing the value of the expression
 for each row and checking whether any of the analyzed tokens match the
 analyzed tokens of the given query string.
+
+Read more about these changes in the [{{es-labs}} blog](https://www.elastic.co/search-labs/blog/full-text-search-unindexed-data).
 ::::
 
 ### Features and enhancements [elasticsearch-9.5.0-features-enhancements]

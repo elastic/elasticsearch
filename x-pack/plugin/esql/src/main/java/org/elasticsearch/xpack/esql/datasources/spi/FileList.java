@@ -140,6 +140,16 @@ public interface FileList {
 
     long lastModifiedMillis(int i);
 
+    /**
+     * Object version of file {@code i} as the listing reported it (ETag, generation or modification time), or
+     * {@code null} when the listing did not report one. Carried to the storage object so its footer is cached under
+     * that version; see {@link StorageObject#version()}.
+     */
+    @Nullable
+    default String version(int i) {
+        return null;
+    }
+
     @Nullable
     String originalPattern();
 
@@ -165,14 +175,31 @@ public interface FileList {
      * listing — partition values, per-file read schemas — moves with the file set when it does
      * ({@code SplitDiscoveryContext#withScanFileSet}).
      * <p>
-     * One invariant is absolute, and nothing downstream catches its breach: a truncated list is never written to the
-     * shared listing cache, where a later query would find it and read a fraction of the dataset while believing
-     * it read all of it. That is {@code ExternalSourceResolver#listingExtentsFor}'s to keep — the cache itself
-     * does not check, the expander honours whatever extents it is handed, and omitting the fingerprint and
-     * refusing to compact do not prevent caching. A new call site asking for a bound must establish it for
-     * itself. A correctness invariant, not an optimisation.
+     * One invariant is absolute, and nothing downstream catches its breach: a truncated list must never be served
+     * to a query that asked to list further, which would read a fraction of the dataset while believing it read all
+     * of it. The shared listing cache keeps it by address rather than by abstention — the extent asked for is part
+     * of the cache key ({@code GlobExpander#listingCacheDiscriminator}), so a prefix and the whole pattern are two
+     * entries and a query can only be served the answer to its own question. What is left for the cache to refuse
+     * is a listing that truncated with no bound asked for. No path produces one: that needs Integer.MAX_VALUE keys,
+     * and the object-count cap throws instead. A guard for a future caller. A new call site asking for a bound
+     * inherits the key discipline but must still decide for itself whether a prefix answers its question.
+     * A correctness invariant, not an optimisation.
      */
     default boolean isTruncated() {
+        return false;
+    }
+
+    /**
+     * Whether this listing is a one-file schema-inference anchor: partition hints proved no folder matches, but
+     * the resolver still needs a file to infer schema. The leftover file is not the dataset; stats over it are
+     * partial, compaction is refused, and it must not be confused with a genuine one-file glob. Split discovery
+     * still applies the query's partition filter; a certified miss scans nothing.
+     * <p>
+     * Under {@code union_by_name} and {@code strict} the declared columns are this leftover file's, not the
+     * union (or cross-file check) across the glob. Rows are empty either way; {@code LIMIT 0} / {@code columns()}
+     * report the leftover schema. That is the accepted trade-off against re-listing the glob unfiltered.
+     */
+    default boolean isInferenceAnchor() {
         return false;
     }
 

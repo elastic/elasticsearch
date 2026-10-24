@@ -179,7 +179,7 @@ public class RemoteParseContextTests extends ESTestCase {
 
     /** A NoopCircuitBreaker neither trips nor reports usage; accounting becomes effectively free. */
     public void testNoopBreakerHasNoEffect() {
-        CircuitBreaker noop = new NoopCircuitBreaker(CircuitBreaker.REQUEST);
+        CircuitBreaker noop = NoopCircuitBreaker.INSTANCE;
         try (RemoteParseContext ctx = new RemoteParseContext(XContentType.JSON, noop, 1L)) {
             for (int i = 0; i < 100; i++) {
                 ctx.accountHit(10_000);

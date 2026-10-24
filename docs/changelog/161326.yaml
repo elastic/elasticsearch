@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 161326
+summary: Upgrade Bouncy Castle to 1.86
+type: upgrade

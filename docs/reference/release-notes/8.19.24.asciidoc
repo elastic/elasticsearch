@@ -1,0 +1,106 @@
+[[release-notes-8.19.24]]
+== {es} version 8.19.24
+
+coming[8.19.24]
+
+Also see <<breaking-changes-8.19,Breaking changes in 8.19>>.
+
+[[bug-8.19.24]]
+[float]
+=== Bug fixes
+
+Authentication::
+* Fix streamed requests with secondary authentication being dispatched off the network thread {es-pull}162171[#162171]
+
+Authorization::
+* Apply field visibility to `constant_keyword` {es-pull}159351[#159351]
+
+Data streams::
+* Avoid quadratic failed response size when failure store redirects fail {es-pull}162017[#162017] (issue: {es-issue}157859[#157859])
+* Show the effective index mode and settings of the next backing index in `GET _data_stream`, and honor settings that a request explicitly unsets. {es-pull}161250[#161250] (issue: {es-issue}125685[#125685])
+
+Distributed::
+* Handle `IndexShardClosedException` and shutdown in `ReplicationOperation::updateCheckPoints` {es-pull}162378[#162378] (issue: {es-issue}158303[#158303])
+
+Downsampling::
+* Make downsample resume from the last indexed tsid work {es-pull}162669[#162669]
+
+ES|QL::
+* Bind ES|QL lookup requests to their target shard {es-pull}162521[#162521]
+* Cache output {es-pull}161282[#161282]
+* Catch REPLACE regex `StackOverflowError` {es-pull}157957[#157957]
+* Circuit-break before growing the array {es-pull}160592[#160592]
+* Ensure Lucene operator status is immutable {es-pull}161190[#161190] (issue: {es-issue}160823[#160823])
+* Fix IN pushdown on ip, version, unsigned_long, date fields {es-pull}161455[#161455]
+* Fix `CASE` with a single-value list condition, and report multivalued conditions with the standard `single-value function encountered multi-value` warning {es-pull}157956[#157956]
+* Fix case-insensitive empty term query on wildcard fields {es-pull}161726[#161726]
+* Push down SORT `_score` ASC as ascending {es-pull}160651[#160651] (issue: {es-issue}160650[#160650])
+* Release empty percentile digest when the breaker trips {es-pull}162147[#162147]
+
+Highlighting::
+* Fix inference field highlighting when values come from direct assignment and `copy_to` {es-pull}161156[#161156] (issue: {es-issue}159964[#159964])
+
+Inference::
+* [Inference API] Add support for thought signature for Gemini 3.x models {es-pull}160167[#160167] (issue: {es-issue}159760[#159760])
+
+Infra/Core::
+* Validate LZ4 transport block decompression to its declared length {es-pull}161345[#161345]
+
+Mapping::
+* Fix infinite loop in `FallbackSyntheticSourceBlockLoader` {es-pull}161459[#161459]
+
+Reindex::
+* Bound script params in reindex and update-by-query task descriptions {es-pull}162131[#162131]
+
+Search::
+* Deduplicate terms lookup fetches and apply max_terms_count during rewrite {es-pull}159241[#159241]
+* Fork `top_hits` fetch context once per aggregator {es-pull}159231[#159231] (issue: {es-issue}158722[#158722])
+* Improve memory usage in `ConcurrentSegmentSourceProvider` {es-pull}162158[#162158]
+* Improve memory usage in `ConcurrentSegmentSourceProvider` {es-pull}162483[#162483]
+* Skip the index sort range query optimization on indices with nested fields {es-pull}162658[#162658]
+
+Security::
+* Apply fls to `constant_keyword` in new and reindexed percolate queries at runtime {es-pull}162302[#162302] (issue: {es-issue}161396[#161396])
+* Fix deadlock in Microsoft Graph authz realm token acquisition {es-pull}161254[#161254] (issue: {es-issue}161197[#161197])
+* Reject node enrollment unless the HTTP leaf chains to the pinned CA and is within its validity period {es-pull}160525[#160525]
+* Verify API key before decoding cross-cluster info {es-pull}161492[#161492]
+
+TLS::
+* Fix intermittent TLS handshake failures on aarch64 caused by a JDK race (JDK-8393730) {es-pull}161141[#161141] (issue: {es-issue}160280[#160280])
+
+TSDB::
+* Reject rollover migrating a data stream from a non-standard index mode to TSDB {es-pull}161992[#161992] (issue: {es-issue}161905[#161905])
+
+Templates::
+* Respect template shard count when simulating templates {es-pull}160674[#160674]
+
+Transform::
+* Fix continuous transforms not deleting old checkpoints from `.transform-internal-*` (causing the index to grow without bound) while their node's host has been up between about 107 and 214 days, and deleting checkpoints newer than the 10-day retention period at other times {es-pull}162048[#162048] (issue: {es-issue}161960[#161960])
+* Honor `GetCheckpoint` timeout on node transport requests and add `settings.indexer_request_timeout` {es-pull}157746[#157746] (issue: {es-issue}157745[#157745])
+
+[[enhancement-8.19.24]]
+[float]
+=== Enhancements
+
+Mapping::
+* [8.19] Avoid allocations during type checking in put mapping request {es-pull}162337[#162337]
+
+Packaging::
+* Flip cloud-ess-fips default from FIPS 140-2 to FIPS 140-3 {es-pull}140788[#140788]
+
+Snapshot/Restore::
+* Add `legacy_content_md5` S3 client setting {es-pull}162197[#162197]
+* Retry batch-delete items in GCS {es-pull}161414[#161414] (issue: {es-issue}161313[#161313])
+
+[[upgrade-8.19.24]]
+[float]
+=== Upgrades
+
+Security::
+* Bump lz4 to 1.11.4 {es-pull}161406[#161406]
+* Update jsoup to 1.23.2 {es-pull}160619[#160619]
+* Upgrade Bouncy Castle to 1.86 {es-pull}161326[#161326]
+* Upgrade bcutil-fips to 2.0.8 {es-pull}162600[#162600]
+* Upgrade reactor-core to 3.8.7 {es-pull}160494[#160494]
+
+

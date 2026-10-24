@@ -19,6 +19,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -37,14 +38,18 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
     private final Set<String> metadataFields;
 
     public TimeSeriesMetadataFieldBlockLoader(MappedFieldType.BlockLoaderContext context, boolean loadMetrics) {
-        this.metadataFields = lookupTimeSeriesMetadataFieldNames(context, loadMetrics);
+        this(lookupTimeSeriesMetadataFieldNames(context, loadMetrics));
+    }
+
+    private TimeSeriesMetadataFieldBlockLoader(Set<String> metadataFields) {
+        this.metadataFields = metadataFields;
     }
 
     private static Set<String> lookupTimeSeriesMetadataFieldNames(MappedFieldType.BlockLoaderContext context, boolean loadMetrics) {
-        assert context.blockLoaderFunctionConfig() instanceof BlockLoaderFunctionConfig.TimeSeriesMetadata;
-
         if (context.indexSettings().getMode().isTsdb() == false) {
-            throw new IllegalStateException("TimeSeriesMetadataFieldBlockLoader requires index mode: [ " + IndexMode.TIME_SERIES + " ]");
+            throw new IllegalStateException(
+                TimeSeriesMetadataFieldBlockLoader.class.getSimpleName() + " requires index mode: [ " + IndexMode.TIME_SERIES + " ]"
+            );
         }
 
         var config = (BlockLoaderFunctionConfig.TimeSeriesMetadata) context.blockLoaderFunctionConfig();
@@ -55,6 +60,8 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
         for (var m : dimensionMappers.values()) {
             result.add(m.fieldType().name());
         }
+
+        assert config != null;
 
         for (var skip : config.skipFieldNames()) {
             // Resolve field name (e.g. `cpu`) to canonical form (e.g. `attributes.cpu`)
@@ -84,7 +91,11 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
 
     @Override
     public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-        return new TimeSeriesReader(breaker);
+        SourceFilter sourceFilter = null;
+        if (metadataFields.isEmpty() == false) {
+            sourceFilter = new SourceFilter(metadataFields.toArray(String[]::new), null);
+        }
+        return new TimeSeriesReader(breaker, sourceFilter);
     }
 
     @Override
@@ -102,7 +113,7 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
 
     @Override
     public SortedSetDocValues ordinals(LeafReaderContext context) {
-        throw new UnsupportedOperationException("_timeseries metadata does not support ordinals");
+        throw new UnsupportedOperationException(IndexMode.TIME_SERIES + " metadata does not support ordinals");
     }
 
     @Override
@@ -111,8 +122,11 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
     }
 
     private static final class TimeSeriesReader extends BlockStoredFieldsReader {
-        private TimeSeriesReader(CircuitBreaker breaker) {
+        private final SourceFilter sourceFilter;
+
+        private TimeSeriesReader(CircuitBreaker breaker, SourceFilter sourceFilter) {
             super(breaker);
+            this.sourceFilter = sourceFilter;
         }
 
         /**
@@ -146,12 +160,15 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
 
         @Override
         public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            ((BytesRefBuilder) builder).appendBytesReference(toJson(storedFields.source()));
+            // Readers share the union of their requested source fields. Apply this reader's exclusions independently.
+            ((BytesRefBuilder) builder).appendBytesReference(
+                toJson(sourceFilter != null ? storedFields.source().filter(sourceFilter) : Source.empty(XContentType.JSON))
+            );
         }
 
         @Override
         public String toString() {
-            return "BlockStoredFieldsReader.TimeSeries";
+            return BlockStoredFieldsReader.class.getSimpleName() + ".TimeSeries";
         }
     }
 }

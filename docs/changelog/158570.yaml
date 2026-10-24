@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 158570
+summary: Charge regex automaton builds to the circuit breaker
+type: bug

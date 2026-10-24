@@ -38,6 +38,8 @@ import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -167,6 +169,12 @@ public class AllocationService {
 
     public ClusterInfoService getClusterInfoService() {
         return clusterInfoService;
+    }
+
+    /** Returns the latest desired balance, or {@code null} when the desired-balance allocator is not in use. */
+    @Nullable
+    public DesiredBalance getDesiredBalance() {
+        return shardsAllocator instanceof DesiredBalanceShardsAllocator allocator ? allocator.getDesiredBalance() : null;
     }
 
     /**

@@ -25,12 +25,14 @@ import java.util.Objects;
  *                           which runs async to reroute, uses the latest request's data to compute the desired balance.
  * @param assignments a set of the (persistent) node IDs to which each {@link ShardId} should be allocated
  * @param weightsPerNode The node weights calculated based on {@link WeightFunction#calculateNodeWeight}
+ * @param unplaceableSnapshotRestoreShardSizes sizes of snapshot restore shards that could not be placed because of disk capacity
  */
 public record DesiredBalance(
     long lastConvergedIndex,
     Map<ShardId, ShardAssignment> assignments,
     Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats> weightsPerNode,
-    ComputationFinishReason finishReason
+    ComputationFinishReason finishReason,
+    Map<ShardId, Long> unplaceableSnapshotRestoreShardSizes
 ) {
 
     enum ComputationFinishReason {
@@ -43,7 +45,28 @@ public record DesiredBalance(
     }
 
     public DesiredBalance(long lastConvergedIndex, Map<ShardId, ShardAssignment> assignments) {
-        this(lastConvergedIndex, assignments, Map.of(), ComputationFinishReason.CONVERGED);
+        this(lastConvergedIndex, assignments, Map.of(), ComputationFinishReason.CONVERGED, Map.of());
+    }
+
+    public DesiredBalance(
+        long lastConvergedIndex,
+        Map<ShardId, ShardAssignment> assignments,
+        Map<ShardId, Long> unplaceableSnapshotRestoreShardSizes
+    ) {
+        this(lastConvergedIndex, assignments, Map.of(), ComputationFinishReason.CONVERGED, unplaceableSnapshotRestoreShardSizes);
+    }
+
+    public DesiredBalance(
+        long lastConvergedIndex,
+        Map<ShardId, ShardAssignment> assignments,
+        Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats> weightsPerNode,
+        ComputationFinishReason finishReason
+    ) {
+        this(lastConvergedIndex, assignments, weightsPerNode, finishReason, Map.of());
+    }
+
+    public DesiredBalance {
+        unplaceableSnapshotRestoreShardSizes = Map.copyOf(unplaceableSnapshotRestoreShardSizes);
     }
 
     /**

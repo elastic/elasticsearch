@@ -65,6 +65,17 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
 
     private Map<ShardId, Set<String>> ignoredShardToNodes = null;
 
+    private final Map<ShardId, SnapshotRestoreDiskFeasibility> snapshotRestoreDiskFeasibilities = new HashMap<>();
+
+    private sealed interface SnapshotRestoreDiskFeasibility {
+        // A shard may be checked against several nodes. Once one fits, later rejections must not mark it unplaceable.
+        enum Feasible implements SnapshotRestoreDiskFeasibility {
+            INSTANCE
+        }
+
+        record Unplaceable(long shardSize) implements SnapshotRestoreDiskFeasibility {}
+    }
+
     private DebugMode debugDecision = DebugMode.OFF;
 
     private boolean hasPendingAsyncFetch = false;
@@ -409,6 +420,37 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
     public abstract Releasable withReconcilingFlag();
 
     public abstract void setSimulatedClusterInfo(ClusterInfo clusterInfo);
+
+    /** Starts a new allocation walk for snapshot restore disk decisions. */
+    public void beginSnapshotRestoreAllocationWalk() {
+        assert isSimulating() : "snapshot restore allocation results are only collected during simulation";
+        snapshotRestoreDiskFeasibilities.clear();
+    }
+
+    /** Records whether a candidate node has enough disk for an unassigned snapshot restore shard. */
+    public void recordSnapshotRestoreDiskDecision(ShardId shardId, long shardSize, boolean fits) {
+        assert isSimulating() : "snapshot restore allocation results are only collected during simulation";
+        if (fits) {
+            snapshotRestoreDiskFeasibilities.put(shardId, SnapshotRestoreDiskFeasibility.Feasible.INSTANCE);
+        } else {
+            snapshotRestoreDiskFeasibilities.putIfAbsent(shardId, new SnapshotRestoreDiskFeasibility.Unplaceable(shardSize));
+        }
+    }
+
+    /** Returns the unplaceable snapshot restore shard sizes accumulated during this allocation walk. */
+    public Map<ShardId, Long> unplaceableSnapshotRestoreShardSizes(Set<ShardId> unassignedShards) {
+        if (snapshotRestoreDiskFeasibilities.isEmpty()) {
+            return Map.of();
+        }
+        final Map<ShardId, Long> result = new HashMap<>();
+        for (var entry : snapshotRestoreDiskFeasibilities.entrySet()) {
+            if (unassignedShards.contains(entry.getKey())
+                && entry.getValue() instanceof SnapshotRestoreDiskFeasibility.Unplaceable(long shardSize)) {
+                result.put(entry.getKey(), shardSize);
+            }
+        }
+        return Collections.unmodifiableMap(result);
+    }
 
     public RoutingAllocation immutableClone() {
         GlobalRoutingTable routingTable = clusterState.globalRoutingTable();

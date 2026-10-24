@@ -374,6 +374,7 @@ public class DesiredBalanceComputer {
             }
 
             routingAllocation.setSimulatedClusterInfo(clusterInfoSimulator.getClusterInfo());
+            routingAllocation.beginSnapshotRestoreAllocationWalk();
             logger.trace("running delegate allocator");
             delegateAllocator.allocate(routingAllocation);
             assert routingNodes.unassigned().isEmpty(); // any unassigned shards should now be ignored
@@ -545,7 +546,18 @@ public class DesiredBalanceComputer {
         maybeLogAllocationExplainForUnassigned(finishReason, routingNodes, routingAllocation, desiredBalanceInput.index());
 
         long lastConvergedIndex = hasChanges ? previousDesiredBalance.lastConvergedIndex() : desiredBalanceInput.index();
-        return new DesiredBalance(lastConvergedIndex, assignments, routingNodes.getBalanceWeightStatsPerNode(), finishReason);
+        final Set<ShardId> unassignedShardIds = assignments.entrySet()
+            .stream()
+            .filter(entry -> entry.getValue().unassigned() > 0)
+            .map(Map.Entry::getKey)
+            .collect(toUnmodifiableSet());
+        return new DesiredBalance(
+            lastConvergedIndex,
+            assignments,
+            routingNodes.getBalanceWeightStatsPerNode(),
+            finishReason,
+            routingAllocation.unplaceableSnapshotRestoreShardSizes(unassignedShardIds)
+        );
     }
 
     /**

@@ -99,8 +99,15 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         Property.Dynamic,
         Property.NodeScope
     );
-
+    // Operator-only; registered by StatelessPlugin. Temporary until restore no longer needs disk capacity checks.
+    public static final Setting<Boolean> CLUSTER_INFO_UPDATE_DISK_ENABLED = Setting.boolSetting(
+        "cluster.info.update.disk.enabled",
+        false,
+        Property.OperatorDynamic,
+        Property.NodeScope
+    );
     private volatile boolean diskThresholdEnabled;
+    private volatile boolean diskInfoUpdateEnabled;
     private volatile WriteLoadDeciderStatus writeLoadConstraintEnabled;
     private volatile WriteLoadDeciderShardWriteLoadType writeLoadDeciderShardWriteLoadType;
     private volatile TimeValue updateFrequency;
@@ -158,6 +165,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING,
             this::setDiskThresholdEnabled
         );
+        clusterSettings.initializeAndWatchIfRegistered(CLUSTER_INFO_UPDATE_DISK_ENABLED, this::setDiskInfoUpdateEnabled);
         clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_ENABLED_SETTING, this::setWriteLoadConstraintEnabled);
         clusterSettings.initializeAndWatch(
             WRITE_LOAD_DECIDER_SHARD_WRITE_LOAD_TYPE_SETTING,
@@ -168,6 +176,10 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
     private void setDiskThresholdEnabled(boolean diskThresholdEnabled) {
         this.diskThresholdEnabled = diskThresholdEnabled;
+    }
+
+    private void setDiskInfoUpdateEnabled(boolean diskInfoUpdateEnabled) {
+        this.diskInfoUpdateEnabled = diskInfoUpdateEnabled;
     }
 
     private void setWriteLoadConstraintEnabled(WriteLoadDeciderStatus writeLoadConstraintEnabled) {
@@ -229,6 +241,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         private volatile Map<ShardId, Double> shardSearchLaneRequirements = Map.of();
         private volatile IndicesStatsSummary indicesStatsSummary;
 
+        private final boolean collectStoreStats = diskThresholdEnabled || diskInfoUpdateEnabled;
         private final List<ActionListener<ClusterInfo>> thisRefreshListeners;
         private final RefCountingRunnable fetchRefs = new RefCountingRunnable(this::callListeners);
 
@@ -240,8 +253,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             logger.trace("starting async refresh");
 
             try (var ignoredRefs = fetchRefs) {
-                maybeFetchIndicesStats(diskThresholdEnabled || needIndicesStatsForShardWriteLoads() || boostProfileEnabled.isEnabled());
-                fetchNodeStats(diskThresholdEnabled);
+                maybeFetchIndicesStats(collectStoreStats || needIndicesStatsForShardWriteLoads() || boostProfileEnabled.isEnabled());
+                fetchNodeStats(collectStoreStats);
                 fetchEstimatedHeapUsage();
                 maybeFetchNodesUsageStatsForThreadPools(writeLoadConstraintEnabled.atLeastLowThresholdEnabled());
                 fetchCacheUsageAndCommitments();
@@ -379,7 +392,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             final boolean collectSearchLoads = boostProfileEnabled.isEnabled();
             final IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
             indicesStatsRequest.clear();
-            if (diskThresholdEnabled) {
+            if (collectStoreStats) {
                 // This returns the shard sizes on disk
                 indicesStatsRequest.store(true);
             }

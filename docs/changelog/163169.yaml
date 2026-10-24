@@ -1,0 +1,6 @@
+area: ES|QL
+issues: []
+pr: 163169
+summary: "ESQL:DS: Route external splits around a worker behind the coordinators cluster\
+  \ state"
+type: enhancement

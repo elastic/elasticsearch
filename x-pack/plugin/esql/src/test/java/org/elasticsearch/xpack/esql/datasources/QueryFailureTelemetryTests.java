@@ -64,6 +64,23 @@ public class QueryFailureTelemetryTests extends ESTestCase {
         EXPECTED_BY_CONDITION.put(Condition.LISTING_FAILED, "discovery");
         EXPECTED_BY_CONDITION.put(Condition.CLOCK_SKEW, "storage_auth");
         EXPECTED_BY_CONDITION.put(Condition.CLIENT_BUG, "other");
+        EXPECTED_BY_CONDITION.put(Condition.WORKER_NOT_READY, "other");
+    }
+
+    /**
+     * A worker that could not apply the cluster state in time is the node's own lag, not a storage failure: {@code other}, with
+     * the retryable status. Raised without a path, and the condition still crosses the wire.
+     */
+    public void testWorkerNotReadyIsOtherAndRetryable() throws IOException {
+        ExternalUnavailableException notReady = new ExternalUnavailableException(Condition.WORKER_NOT_READY, "waited [10s]", "");
+        assertThat(notReady.objectName(), equalTo(""));
+        assertThat(notReady.getMessage(), equalTo("Node has not yet applied the cluster state this query was planned from (waited [10s])"));
+        Failure expected = new Failure("other", "503");
+        assertThat(QueryFailureTelemetry.classify(notReady), equalTo(expected));
+        Exception received = roundTrip(notReady);
+        assertThat(QueryFailureTelemetry.classify(received), equalTo(expected));
+        assertThat(ExternalException.hasCondition(received, Condition.WORKER_NOT_READY), equalTo(true));
+        assertThat(QueryFailureTelemetry.storeStatus(notReady), nullValue());
     }
 
     public void testEveryConditionHasAnExpectedErrorType() {

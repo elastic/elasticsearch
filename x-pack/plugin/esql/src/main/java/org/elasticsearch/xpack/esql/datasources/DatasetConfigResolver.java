@@ -86,6 +86,11 @@ public final class DatasetConfigResolver {
     /**
      * Returns {@code exec} reading the registered dataset's resource under the registered config, or throws. Idempotent:
      * a rebound exec carries the recomputed version and the registry map, so a second pass changes nothing.
+     * <p>
+     * The refusals are decided against {@code project} as this node has applied it. A caller whose applied cluster state
+     * is older than the one the plan was built from must not surface a binding refusal as the {@code 400}: the dataset may
+     * well be registered in a state this node has not applied yet, and the caller is the one that knows the versions.
+     * See the external-worker readiness handling in {@code DataNodeComputeHandler}.
      */
     public ExternalSourceExec rebind(ExternalSourceExec exec) {
         String name = exec.datasetName();

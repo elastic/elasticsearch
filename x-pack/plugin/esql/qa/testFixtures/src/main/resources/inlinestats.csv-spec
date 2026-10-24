@@ -5093,6 +5093,128 @@ FROM employees
 62060.27272727273 |3              |28941          
 ;
 
+aggFilter_FirstSeenShape_PastInlineJoin
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS first_hired = MIN(hire_date) BY languages
+| WHERE hire_date == first_hired AND first_hired >= "1985-03-01"
+| KEEP emp_no, languages, hire_date, first_hired
+| SORT emp_no
+;
+
+emp_no:integer | languages:integer |       hire_date:date     |    first_hired:date
+10029          |null               |1985-11-20T00:00:00.000Z  |1985-11-20T00:00:00.000Z
+10080          |5                  |1985-11-19T00:00:00.000Z  |1985-11-19T00:00:00.000Z
+10090          |2                  |1986-03-14T00:00:00.000Z  |1986-03-14T00:00:00.000Z
+10098          |4                  |1985-05-13T00:00:00.000Z  |1985-05-13T00:00:00.000Z
+;
+
+aggFilter_FirstSeenShape_TwoKeys_PastInlineJoin
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS first_hired = MIN(hire_date) BY languages, gender
+| WHERE hire_date == first_hired AND first_hired >= "1986-01-01"
+| KEEP emp_no, languages, gender, hire_date, first_hired
+| SORT emp_no
+;
+
+emp_no:integer | languages:integer | gender:keyword |       hire_date:date     |    first_hired:date
+10010          |4                  |null            |1989-08-24T00:00:00.000Z  |1989-08-24T00:00:00.000Z
+10014          |5                  |null            |1987-03-11T00:00:00.000Z  |1987-03-11T00:00:00.000Z
+10018          |2                  |null            |1987-04-03T00:00:00.000Z  |1987-04-03T00:00:00.000Z
+10027          |null               |F               |1989-07-07T00:00:00.000Z  |1989-07-07T00:00:00.000Z
+10079          |2                  |F               |1986-03-27T00:00:00.000Z  |1986-03-27T00:00:00.000Z
+10090          |2                  |M               |1986-03-14T00:00:00.000Z  |1986-03-14T00:00:00.000Z
+10095          |4                  |M               |1986-07-15T00:00:00.000Z  |1986-07-15T00:00:00.000Z
+;
+
+// A multi-valued grouping key joins every group of the row, so first_hired is multi-valued and both comparisons are null for
+// those rows. Filtering the groups before the join would leave some rows with a single value and return 10066 and 10071 too.
+aggFilter_FirstSeenShape_MultiValuedKey_PastInlineJoin
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS first_hired = MIN(hire_date) BY job_positions
+| WHERE hire_date == first_hired AND first_hired >= "1986-01-01"
+| KEEP emp_no, job_positions, hire_date, first_hired
+| SORT emp_no
+;
+warning:Line 3:9: evaluation of [hire_date == first_hired] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 3:38: evaluation of [first_hired >= \"1986-01-01\"] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:38: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | job_positions:keyword |       hire_date:date     |    first_hired:date
+10053          |Support Engineer       |1986-02-04T00:00:00.000Z  |1986-02-04T00:00:00.000Z
+;
+
+// Left rows of a group without a matching right row get a null aggregate, which IS NULL accepts.
+nullAcceptingAggFilter_IsNull_PastInlineJoin
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS max_salary = MAX(salary) WHERE salary > 73000 BY languages
+| WHERE max_salary IS NULL
+| STATS count = COUNT(*) BY languages
+| SORT languages
+;
+
+count:long | languages:integer
+21         |5
+;
+
+nullAcceptingAggFilter_Coalesce_PastInlineJoin
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS max_salary = MAX(salary) WHERE salary > 73000 BY languages
+| WHERE COALESCE(max_salary, 0) < 74000
+| STATS count = COUNT(*) BY languages, max_salary
+| SORT languages
+;
+
+count:long | languages:integer | max_salary:integer
+15         |1                  |73717
+19         |2                  |73578
+21         |5                  |null
+;
+
+aggFilter_NoGrouping_NoMatch_PastInlineJoin
+required_capability: inline_stats
+
+FROM employees
+| INLINE STATS max_salary = MAX(salary)
+| WHERE max_salary > 80000
+| KEEP emp_no, max_salary
+;
+
+emp_no:integer | max_salary:integer
+;
+
+aggFilter_NoGrouping_AllMatch_PastInlineJoin
+required_capability: inline_stats
+
+FROM employees
+| INLINE STATS max_salary = MAX(salary)
+| WHERE max_salary > 70000
+| KEEP emp_no, salary, max_salary
+| SORT salary DESC
+| LIMIT 3
+;
+
+emp_no:integer | salary:integer | max_salary:integer
+10029          |74999           |74999
+10045          |74970           |74999
+10007          |74572           |74999
+;
+
 doubleInlineStatsPrunning_With_MV_Functions
 required_capability: fix_inline_stats_incorrect_prunning
 

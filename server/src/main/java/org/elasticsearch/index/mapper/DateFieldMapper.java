@@ -473,6 +473,26 @@ public final class DateFieldMapper extends FieldMapper {
             return resolution.type();
         }
 
+        /**
+         * Whether an index created at {@code indexCreatedVersion} stores date array offsets natively under
+         * {@code synthetic_source_keep: arrays}, instead of routing the array to {@code _ignored_source}.
+         * <p>
+         * Unlike {@link FieldArrayContext#indexVersionSupportStoringArraysNatively}, this deliberately excludes the 8.x backport
+         * range: no 8.x release ever recorded date offsets, and nodes without the offsets-aware date loader would misread arrays
+         * written natively into such indices during a rolling upgrade.
+         */
+        static boolean storesArrayOffsets(IndexVersion indexCreatedVersion) {
+            return indexCreatedVersion.onOrAfter(IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_DATE)
+                || indexCreatedVersion.between(
+                    IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_DATE_BACKPORT_9_5,
+                    IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG
+                )
+                || indexCreatedVersion.between(
+                    IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_DATE_BACKPORT_9_4,
+                    IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES
+                );
+        }
+
         @Override
         public DateFieldMapper build(MapperBuilderContext context) {
             final String fullFieldName = context.buildFullName(leafName());
@@ -484,8 +504,7 @@ public final class DateFieldMapper extends FieldMapper {
                 docValuesParameters.getValue().enabled(),
                 store.getValue(),
                 this,
-                indexSettings.getIndexVersionCreated(),
-                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_NUMBER,
+                storesArrayOffsets(indexSettings.getIndexVersionCreated()),
                 indexSettings.getMode().isStrictColumnar(),
                 docValuesParameters.getValue().multiValue()
             );
@@ -1244,6 +1263,11 @@ public final class DateFieldMapper extends FieldMapper {
 
     public DocValuesParameter.Values docValuesParameters() {
         return docValuesParameters;
+    }
+
+    @Override
+    public String getOffsetFieldName() {
+        return offsetsFieldName;
     }
 
     @Override

@@ -343,6 +343,35 @@ public class FieldArrayContext {
         boolean isStrictColumnar,
         boolean multiValue
     ) {
+        return getOffsetsFieldName(
+            context,
+            indexSourceKeepMode,
+            hasDocValues,
+            isStored,
+            fieldMapperBuilder,
+            indexVersionSupportStoringArraysNatively(indexCreatedVersion, minSupportedVersionMain),
+            isStrictColumnar,
+            multiValue
+        );
+    }
+
+    /**
+     * Variant of {@link #getOffsetsFieldName(MapperBuilderContext, Mapper.SourceKeepMode, boolean, boolean, FieldMapper.Builder,
+     * IndexVersion, IndexVersion, boolean, boolean)} for field types whose index version gate does not follow the shared
+     * {@link #indexVersionSupportStoringArraysNatively} rule, for example because the field type never recorded offsets in the 8.x
+     * backport range or has its own backport versions. The caller evaluates the gate and passes the result as
+     * {@code indexVersionSupportsNativeArrays}.
+     */
+    public static String getOffsetsFieldName(
+        MapperBuilderContext context,
+        Mapper.SourceKeepMode indexSourceKeepMode,
+        boolean hasDocValues,
+        boolean isStored,
+        FieldMapper.Builder fieldMapperBuilder,
+        boolean indexVersionSupportsNativeArrays,
+        boolean isStrictColumnar,
+        boolean multiValue
+    ) {
         var sourceKeepMode = fieldMapperBuilder.sourceKeepMode.orElse(indexSourceKeepMode);
 
         // source_keep_mode = arrays path
@@ -354,7 +383,7 @@ public class FieldArrayContext {
             // Skip copy_to and multi fields, supporting that requires more work. copy_to usage is rare in metrics and logging use cases.
             && fieldMapperBuilder.copyTo.copyToFields().isEmpty()
             && fieldMapperBuilder.multiFieldsBuilder.hasMultiFields() == false
-            && indexVersionSupportStoringArraysNatively(indexCreatedVersion, minSupportedVersionMain)) {
+            && indexVersionSupportsNativeArrays) {
 
             return context.buildFullName(offsetsFieldName(fieldMapperBuilder.leafName()));
         }

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 162395
+summary: Append `EVAL` fields overwritten by an `IN subquery` at the end of the output
+type: bug

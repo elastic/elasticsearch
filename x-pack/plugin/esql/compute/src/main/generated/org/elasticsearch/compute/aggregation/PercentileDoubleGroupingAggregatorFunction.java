@@ -40,12 +40,15 @@ public final class PercentileDoubleGroupingAggregatorFunction implements Groupin
 
   private final double tDigestStateCompression;
 
+  private final boolean allowNonFinite;
+
   PercentileDoubleGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext,
-      double percentile, double tDigestStateCompression) {
+      double percentile, double tDigestStateCompression, boolean allowNonFinite) {
     this.percentile = percentile;
     this.tDigestStateCompression = tDigestStateCompression;
+    this.allowNonFinite = allowNonFinite;
     this.channels = channels;
-    this.state = PercentileDoubleAggregator.initGrouping(driverContext, percentile, tDigestStateCompression);
+    this.state = PercentileDoubleAggregator.initGrouping(driverContext, percentile, tDigestStateCompression, allowNonFinite);
     this.driverContext = driverContext;
   }
 

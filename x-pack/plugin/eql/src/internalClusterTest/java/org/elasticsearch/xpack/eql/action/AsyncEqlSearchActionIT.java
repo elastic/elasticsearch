@@ -199,7 +199,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
             keepAliveValue = randomTimeValue(1, 5, TimeUnit.DAYS);
             request.keepAlive(keepAliveValue);
         } else {
-            keepAliveValue = EqlSearchRequest.DEFAULT_KEEP_ALIVE;
+            keepAliveValue = EqlSearchRequest.LEGACY_DEFAULT_KEEP_ALIVE;
         }
 
         List<SearchBlockPlugin> plugins = initBlockFactory(true, false);

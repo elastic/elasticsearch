@@ -314,25 +314,38 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     public void testNodeWriteLoadsArePresent() {
         InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) getInstanceFromNode(ClusterInfoService.class);
 
-        // Force a ClusterInfo refresh to run collection of the node thread pool usage stats.
-        ClusterInfoServiceUtils.refresh(clusterInfoService);
-        Map<String, NodeUsageStatsForThreadPools> nodeThreadPoolStats = clusterInfoService.getClusterInfo()
-            .getNodeUsageStatsForThreadPools();
-        assertNotNull(nodeThreadPoolStats);
+        try {
+            // The decider's default is derived from the write_load_decider feature flag, which is off in release builds. Enable it
+            // explicitly so the test does not depend on the build being a snapshot build.
+            setWriteLoadDeciderEnablement(
+                randomBoolean()
+                    ? WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
+                    : WriteLoadConstraintSettings.WriteLoadDeciderStatus.LOW_THRESHOLD_ONLY
+            );
 
-        /** Verify that each node has usage stats reported. */
-        ClusterState state = getInstanceFromNode(ClusterService.class).state();
-        assertEquals(state.nodes().size(), nodeThreadPoolStats.size());
-        for (DiscoveryNode node : state.nodes()) {
-            assertTrue(nodeThreadPoolStats.containsKey(node.getId()));
-            NodeUsageStatsForThreadPools nodeUsageStatsForThreadPools = nodeThreadPoolStats.get(node.getId());
-            assertThat(nodeUsageStatsForThreadPools.nodeId(), equalTo(node.getId()));
-            NodeUsageStatsForThreadPools.ThreadPoolUsageStats writeThreadPoolStats = nodeUsageStatsForThreadPools.threadPoolUsageStatsMap()
-                .get(ThreadPool.Names.WRITE);
-            assertNotNull(writeThreadPoolStats);
-            assertThat(writeThreadPoolStats.totalThreadPoolThreads(), greaterThanOrEqualTo(0));
-            assertThat(writeThreadPoolStats.averageThreadPoolUtilization(), greaterThanOrEqualTo(0.0f));
-            assertThat(writeThreadPoolStats.maxThreadPoolQueueLatencyMillis(), greaterThanOrEqualTo(0L));
+            // Force a ClusterInfo refresh to run collection of the node thread pool usage stats.
+            ClusterInfoServiceUtils.refresh(clusterInfoService);
+            Map<String, NodeUsageStatsForThreadPools> nodeThreadPoolStats = clusterInfoService.getClusterInfo()
+                .getNodeUsageStatsForThreadPools();
+            assertNotNull(nodeThreadPoolStats);
+
+            /** Verify that each node has usage stats reported. */
+            ClusterState state = getInstanceFromNode(ClusterService.class).state();
+            assertEquals(state.nodes().size(), nodeThreadPoolStats.size());
+            for (DiscoveryNode node : state.nodes()) {
+                assertTrue(nodeThreadPoolStats.containsKey(node.getId()));
+                NodeUsageStatsForThreadPools nodeUsageStatsForThreadPools = nodeThreadPoolStats.get(node.getId());
+                assertThat(nodeUsageStatsForThreadPools.nodeId(), equalTo(node.getId()));
+                NodeUsageStatsForThreadPools.ThreadPoolUsageStats writeThreadPoolStats = nodeUsageStatsForThreadPools
+                    .threadPoolUsageStatsMap()
+                    .get(ThreadPool.Names.WRITE);
+                assertNotNull(writeThreadPoolStats);
+                assertThat(writeThreadPoolStats.totalThreadPoolThreads(), greaterThanOrEqualTo(0));
+                assertThat(writeThreadPoolStats.averageThreadPoolUtilization(), greaterThanOrEqualTo(0.0f));
+                assertThat(writeThreadPoolStats.maxThreadPoolQueueLatencyMillis(), greaterThanOrEqualTo(0L));
+            }
+        } finally {
+            clearWriteLoadDeciderEnablementSetting();
         }
     }
 
@@ -392,6 +405,41 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
     private void clearWriteLoadDeciderEnablementSetting() {
         updateClusterSettings(Settings.builder().putNull(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey()).build());
+    }
+
+    public void testShardSearchLoadsArePresent() throws Exception {
+        // Create some indices and some search load
+        final int numIndices = randomIntBetween(1, 5);
+        final String indexPrefix = randomIdentifier();
+        final List<String> indexNames = IntStream.range(0, numIndices).mapToObj(i -> indexPrefix + "_" + i).toList();
+        indexNames.forEach(indexName -> {
+            createIndex(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 3)).build());
+            prepareIndex(indexName).setSource("foo", randomIdentifier()).setRefreshPolicy(IMMEDIATE).get();
+            // Size zero so that every shard runs the query phase and accumulates search load
+            IntStream.range(0, randomIntBetween(1, 10)).forEach(i -> assertNoFailures(client().prepareSearch(indexName).setSize(0)));
+        });
+
+        final InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) getInstanceFromNode(ClusterInfoService.class);
+
+        assertBusy(() -> {
+            // Force a ClusterInfo refresh to run collection of the search-load stats.
+            ClusterInfoServiceUtils.refresh(clusterInfoService);
+            final Map<ShardId, Double> shardSearchLoads = clusterInfoService.getClusterInfo().getShardSearchLoads();
+
+            // Verify that each shard has search-load reported.
+            final ClusterState state = getInstanceFromNode(ClusterService.class).state();
+            assertEquals(state.projectState(ProjectId.DEFAULT).metadata().getTotalNumberOfShards(), shardSearchLoads.size());
+            for (IndexMetadata indexMetadata : state.projectState(ProjectId.DEFAULT).metadata()) {
+                double maximumLoadRecorded = 0;
+                for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
+                    final ShardId shardId = new ShardId(indexMetadata.getIndex(), i);
+                    assertTrue(shardSearchLoads.containsKey(shardId));
+                    maximumLoadRecorded = Math.max(shardSearchLoads.get(shardId), maximumLoadRecorded);
+                }
+                // Each index should have seen some search-load
+                assertThat(maximumLoadRecorded, greaterThan(0.0));
+            }
+        });
     }
 
     public void testMaxHeapPerNodeIsPresent() {
@@ -980,7 +1028,11 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                     .collect(
                         Collectors.toUnmodifiableMap(
                             DiscoveryNode::getId,
-                            node -> new NodeHeapEstimates(totalHeapUsageBytes, randomLongBetween(0, totalHeapUsageBytes))
+                            node -> new NodeHeapEstimates(
+                                totalHeapUsageBytes,
+                                randomLongBetween(0, totalHeapUsageBytes),
+                                randomLongBetween(0, 1_000)
+                            )
                         )
                     );
                 var perShard = state.getRoutingNodes()

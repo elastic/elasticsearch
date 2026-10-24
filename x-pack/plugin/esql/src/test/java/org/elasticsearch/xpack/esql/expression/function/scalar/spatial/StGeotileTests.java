@@ -77,7 +77,7 @@ public class StGeotileTests extends SpatialGridFunctionTestCase {
         if (geometry instanceof Point point) {
             StGeotile.GeoTileBoundedGrid bounds = new StGeotile.GeoTileBoundedGrid.Factory(precision, bbox).get(null);
             long gridId = bounds.calculateGridId(point);
-            return gridId < 0 ? null : gridId;
+            return gridId == -1L ? null : gridId;
         }
         try {
             return SpatialGridFunction.foldMultiValue(StGeotile.computeGeotileCells(wkb, precision, bbox, warnings));

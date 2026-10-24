@@ -61,6 +61,16 @@ public class ModelValidatorBuilder {
                     Objects.requireNonNullElse(validatorFromService, new SimpleEmbeddingServiceIntegrationValidator())
                 );
             }
+            case DECISION -> {
+                return new SimpleModelValidator(
+                    Objects.requireNonNullElse(validatorFromService, new SimpleDecisionServiceIntegrationValidator())
+                );
+            }
+            case DOCUMENT_EXTRACTION -> {
+                return new SimpleModelValidator(
+                    Objects.requireNonNullElse(validatorFromService, new SimpleDocumentExtractionServiceIntegrationValidator())
+                );
+            }
             default -> throw new IllegalArgumentException(Strings.format("Can't validate inference model for task type %s", taskType));
         }
     }

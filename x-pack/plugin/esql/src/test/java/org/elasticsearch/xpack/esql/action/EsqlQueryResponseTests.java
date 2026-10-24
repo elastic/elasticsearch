@@ -61,6 +61,7 @@ import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.InstantiatingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -781,6 +782,46 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
     }
 
     /**
+     * {@code driver_nanos} round-trips on current nodes. Nodes that predate it read 0, while {@code cpu_nanos} still round-trips.
+     */
+    public void testDriverNanosSerialization() throws IOException {
+        try (
+            EsqlQueryResponse response = new EsqlQueryResponse(
+                List.of(new ColumnInfoImpl("foo", "integer", null)),
+                List.of(new Page(blockFactory.newIntArrayVector(new int[] { 40, 80 }, 2).asBlock())),
+                3,
+                100,
+                2222,
+                4444,
+                6666,
+                7777,
+                8888,
+                9999,
+                null,
+                true,
+                null,
+                false,
+                false,
+                ZoneOffset.UTC,
+                0,
+                0,
+                null,
+                null
+            )
+        ) {
+            try (EsqlQueryResponse copy = copyInstance(response, TransportVersion.current())) {
+                assertThat(copy.cpuNanos(), equalTo(8888L));
+                assertThat(copy.driverNanos(), equalTo(9999L));
+            }
+            TransportVersion beforeDriverNanos = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("esql_driver_nanos"));
+            try (EsqlQueryResponse copy = copyInstance(response, beforeDriverNanos)) {
+                assertThat(copy.cpuNanos(), equalTo(8888L));
+                assertThat(copy.driverNanos(), equalTo(0L));
+            }
+        }
+    }
+
+    /**
      * Positive coverage of the four query-wide rollup fields at the response root. The existing
      * XContent tests all assert zero — this one asserts the values appear in the JSON exactly
      * as supplied to the constructor, guarding against a regression that silently zeros them out.
@@ -797,6 +838,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 6666, // read_nanos
                 7777, // read_cpu_nanos
                 8888, // cpu_nanos
+                9999, // driver_nanos
                 null,
                 true,
                 null,
@@ -818,6 +860,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "read_nanos" : 6666,
                   "read_cpu_nanos" : 7777,
                   "cpu_nanos" : 8888,
+                  "driver_nanos" : 9999,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -845,6 +888,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "read_nanos" : 0,
                   "read_cpu_nanos" : 0,
                   "cpu_nanos" : 0,
+                  "driver_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -879,6 +923,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                       "read_nanos" : 0,
                       "read_cpu_nanos" : 0,
                       "cpu_nanos" : 0,
+                      "driver_nanos" : 0,
                       "all_columns" : [
                         {
                           "name" : "foo",
@@ -914,6 +959,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "read_nanos" : 0,
                   "read_cpu_nanos" : 0,
                   "cpu_nanos" : 0,
+                  "driver_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -943,6 +989,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 List.of(new Page(blockFactory.newIntArrayVector(new int[] { 40, 80 }, 2).asBlock())),
                 3,
                 100,
+                0,
                 0,
                 0,
                 0,
@@ -998,6 +1045,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "read_nanos" : 0,
                   "read_cpu_nanos" : 0,
                   "cpu_nanos" : 0,
+                  "driver_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -1033,6 +1081,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "read_nanos" : 0,
                   "read_cpu_nanos" : 0,
                   "cpu_nanos" : 0,
+                  "driver_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -1063,6 +1112,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "read_nanos" : 0,
                   "read_cpu_nanos" : 0,
                   "cpu_nanos" : 0,
+                  "driver_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -1115,6 +1165,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "read_nanos" : 0,
                   "read_cpu_nanos" : 0,
                   "cpu_nanos" : 0,
+                  "driver_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -1168,6 +1219,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "read_nanos" : 0,
                   "read_cpu_nanos" : 0,
                   "cpu_nanos" : 0,
+                  "driver_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -1213,6 +1265,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "read_nanos" : 0,
                   "read_cpu_nanos" : 0,
                   "cpu_nanos" : 0,
+                  "driver_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -1232,6 +1285,114 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     ]
                   ]
                 }"""));
+        }
+    }
+
+    /**
+     * {@code _source} values are copied into a JSON response byte for byte when that is safe, and re-serialised token by token
+     * otherwise. Both paths have to produce the same, valid, document, including the separators between the rows and between
+     * a row's columns, and a {@code _source} stored in another content type has to be converted rather than copied.
+     */
+    public void testSourceXContent() throws IOException {
+        // Compact but otherwise unusual formatting that a token-by-token copy would normalise away, so the two paths are told apart.
+        String firstSource = "{\"title\" : \"first\",\"nested\":{\"a\":[1,2,{\"b\":null}]}}";
+        String secondSource = "{\"title\":\"second\"}";
+        BytesReference cborSource;
+        try (XContentBuilder cbor = XContentBuilder.builder(XContentType.CBOR.xContent())) {
+            cbor.startObject().field("title", "third").endObject();
+            cborSource = BytesReference.bytes(cbor);
+        }
+        try (
+            BytesRefBlock.Builder sources = blockFactory.newBytesRefBlockBuilder(3);
+            IntBlock.Builder ids = blockFactory.newIntBlockBuilder(3)
+        ) {
+            sources.appendBytesRef(new BytesRef(firstSource));
+            sources.appendBytesRef(new BytesRef(secondSource));
+            sources.appendBytesRef(cborSource.toBytesRef());
+            ids.appendInt(1).appendInt(2).appendInt(3);
+            try (
+                EsqlQueryResponse response = new EsqlQueryResponse(
+                    List.of(new ColumnInfoImpl("id", "integer", null), new ColumnInfoImpl("_source", "_source", null)),
+                    List.of(new Page(ids.build(), sources.build())),
+                    0,
+                    0,
+                    null,
+                    false,
+                    null,
+                    false,
+                    false,
+                    randomZone(),
+                    0L,
+                    0L,
+                    null
+                )
+            ) {
+                String compact = Strings.toString(wrapAsToXContent(response), false, false);
+                assertThat(
+                    compact,
+                    equalTo(
+                        "{\"documents_found\":0,\"values_loaded\":0,\"rows_emitted\":0,\"bytes_read\":0,\"read_nanos\":0,"
+                            + "\"read_cpu_nanos\":0,\"cpu_nanos\":0,\"driver_nanos\":0,"
+                            + "\"columns\":[{\"name\":\"id\",\"type\":\"integer\"},{\"name\":\"_source\",\"type\":\"_source\"}],"
+                            + "\"values\":[[1,"
+                            + firstSource
+                            + "],[2,"
+                            + secondSource
+                            + "],[3,{\"title\":\"third\"}]]}"
+                    )
+                );
+                // Pretty printing can't copy the bytes as they are, so this goes through the token-by-token copy.
+                assertThat(Strings.toString(wrapAsToXContent(response), true, false), equalTo("""
+                    {
+                      "documents_found" : 0,
+                      "values_loaded" : 0,
+                      "rows_emitted" : 0,
+                      "bytes_read" : 0,
+                      "read_nanos" : 0,
+                      "read_cpu_nanos" : 0,
+                      "cpu_nanos" : 0,
+                      "driver_nanos" : 0,
+                      "columns" : [
+                        {
+                          "name" : "id",
+                          "type" : "integer"
+                        },
+                        {
+                          "name" : "_source",
+                          "type" : "_source"
+                        }
+                      ],
+                      "values" : [
+                        [
+                          1,
+                          {
+                            "title" : "first",
+                            "nested" : {
+                              "a" : [
+                                1,
+                                2,
+                                {
+                                  "b" : null
+                                }
+                              ]
+                            }
+                          }
+                        ],
+                        [
+                          2,
+                          {
+                            "title" : "second"
+                          }
+                        ],
+                        [
+                          3,
+                          {
+                            "title" : "third"
+                          }
+                        ]
+                      ]
+                    }"""));
+            }
         }
     }
 
@@ -1269,6 +1430,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                       "read_nanos" : 0,
                       "read_cpu_nanos" : 0,
                       "cpu_nanos" : 0,
+                      "driver_nanos" : 0,
                       "all_columns" : [
                         {
                           "name" : "foo",
@@ -1339,6 +1501,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                           "read_nanos" : 0,
                           "read_cpu_nanos" : 0,
                           "cpu_nanos" : 0,
+                          "driver_nanos" : 0,
                           "all_columns" : [
                             {
                               "name" : "foo",
@@ -1408,6 +1571,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                             1723489819929L,
                             20021,
                             20000,
+                            20010,
                             12,
                             List.of(new OperatorStatus("asdf", new AbstractPageMappingOperator.Status(10021, 10, 111, 222))),
                             DriverSleeps.empty()
@@ -1433,6 +1597,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "read_nanos" : 0,
                   "read_cpu_nanos" : 0,
                   "cpu_nanos" : 0,
+                  "driver_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -1457,6 +1622,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         "stop_millis" : 1723489819929,
                         "took_nanos" : 20021,
                         "cpu_nanos" : 20000,
+                        "driver_nanos" : 20010,
                         "documents_found" : 0,
                         "values_loaded" : 0,
                         "rows_emitted" : 222,

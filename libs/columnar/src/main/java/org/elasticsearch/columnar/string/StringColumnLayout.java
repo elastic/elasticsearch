@@ -19,7 +19,7 @@ package org.elasticsearch.columnar.string;
  */
 public enum StringColumnLayout {
 
-    /** The values themselves, in written order, in one {@link ValueStream}. */
+    /** The values themselves, in written order, and a column of their lengths beside them. */
     PLAIN((byte) 0),
 
     /**

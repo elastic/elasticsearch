@@ -76,7 +76,7 @@ public class CsvBoundaryScanBenchmark {
     @Setup(Level.Trial)
     public void setup() {
         BenchmarkLogging.configure();
-        BlockFactory bf = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("bench")).build();
+        BlockFactory bf = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         List<String> exts = List.of(".csv", ".tsv");
 
         // Current TSV reader. Both Layer 1 and Layer 2 applied.

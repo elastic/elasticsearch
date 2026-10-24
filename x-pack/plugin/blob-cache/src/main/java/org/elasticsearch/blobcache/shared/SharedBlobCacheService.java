@@ -1317,6 +1317,11 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             return timestampMillis;
         }
 
+        @Override
+        public long startOffset() {
+            return blobCacheService.getRegionStart(regionKey.region());
+        }
+
         /**
          * Backfills the region timestamp, transitioning it only from {@link #BACKFILL_IN_PROGRESS_TIMESTAMP} to a real
          * (non-sentinel) value.
@@ -1497,10 +1502,22 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             final Executor executor,
             final ActionListener<Integer> listener
         ) {
+            populateAndRead(rangeToWrite, rangeToRead, reader, writer, executor, null, listener);
+        }
+
+        void populateAndRead(
+            final ByteRange rangeToWrite,
+            final ByteRange rangeToRead,
+            final RangeAvailableHandler reader,
+            final RangeMissingHandler writer,
+            final Executor executor,
+            @Nullable final Executor claimExecutor,
+            final ActionListener<Integer> listener
+        ) {
             try {
                 incRefEnsureOpen();
                 try (RefCountingRunnable refs = new RefCountingRunnable(CacheFileRegion.this::decRef)) {
-                    final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
+                    final var gapsOpt = tracker.waitForRange(
                         rangeToWrite,
                         rangeToRead,
                         ActionListener.releaseAfter(listener, refs.acquire()).delegateFailureAndWrap((l, success) -> {
@@ -1516,41 +1533,66 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                                     + '-'
                                     + rangeToRead.start()
                                     + ']';
-                            blobCacheService.blobCacheMetrics.recordRead();
+                            blobCacheService.blobCacheMetrics.recordRead(this.timestampMillis());
                             l.onResponse(read);
                         })
-                    ).map(SparseFileTracker.Gaps::claim).orElse(List.of());
+                    );
+                    if (gapsOpt.isEmpty()) {
+                        return;
+                    }
 
-                    if (gaps.isEmpty() == false) {
-                        final SourceInputStreamFactory streamFactory = writer.sharedInputStreamFactory(gaps);
-                        logger.trace(
-                            () -> Strings.format(
-                                "fill gaps %s %s shared input stream factory",
-                                gaps,
-                                streamFactory == null ? "without" : "with"
-                            )
-                        );
-                        if (streamFactory == null) {
-                            for (SparseFileTracker.Gap gap : gaps) {
-                                executor.execute(fillGapRunnable(gap, writer, null, refs.acquireListener()));
+                    if (claimExecutor == null) {
+                        fillGaps(gapsOpt.get().claim(), writer, executor, refs);
+                    } else {
+                        claimExecutor.execute(new AbstractRunnable() {
+                            private final Releasable dispatchRef = refs.acquire();
+
+                            @Override
+                            protected void doRun() {
+                                fillGaps(gapsOpt.get().claim(), writer, executor, refs);
                             }
-                        } else {
-                            var gapFillingListener = refs.acquireListener();
-                            try (var gfRefs = new RefCountingRunnable(ActionRunnable.run(gapFillingListener, streamFactory::close))) {
-                                final List<Runnable> gapFillingTasks = gaps.stream()
-                                    .map(gap -> fillGapRunnable(gap, writer, streamFactory, gfRefs.acquireListener()))
-                                    .toList();
-                                executor.execute(() -> {
-                                    // Fill the gaps in order. If a gap fails to fill for whatever reason, the task for filling the next
-                                    // gap will still be executed.
-                                    gapFillingTasks.forEach(Runnable::run);
-                                });
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                listener.onFailure(e);
                             }
-                        }
+
+                            @Override
+                            public void onAfter() {
+                                dispatchRef.close();
+                            }
+                        });
                     }
                 }
             } catch (Exception e) {
                 listener.onFailure(e);
+            }
+        }
+
+        private void fillGaps(List<SparseFileTracker.Gap> gaps, RangeMissingHandler writer, Executor executor, RefCountingRunnable refs) {
+            if (gaps.isEmpty()) {
+                return;
+            }
+            final SourceInputStreamFactory streamFactory = writer.sharedInputStreamFactory(gaps);
+            logger.trace(
+                () -> Strings.format("fill gaps %s %s shared input stream factory", gaps, streamFactory == null ? "without" : "with")
+            );
+            if (streamFactory == null) {
+                for (SparseFileTracker.Gap gap : gaps) {
+                    executor.execute(fillGapRunnable(gap, writer, null, refs.acquireListener()));
+                }
+            } else {
+                var gapFillingListener = refs.acquireListener();
+                try (var gfRefs = new RefCountingRunnable(ActionRunnable.run(gapFillingListener, streamFactory::close))) {
+                    final List<Runnable> gapFillingTasks = gaps.stream()
+                        .map(gap -> fillGapRunnable(gap, writer, streamFactory, gfRefs.acquireListener()))
+                        .toList();
+                    executor.execute(() -> {
+                        // Fill the gaps in order. If a gap fails to fill for whatever reason, the task for filling the next
+                        // gap will still be executed.
+                        gapFillingTasks.forEach(Runnable::run);
+                    });
+                }
             }
         }
 
@@ -1626,17 +1668,26 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         private final long length;
         private final CacheMissHandler cacheMissMetricHandler;
         private final long timestampMillis;
+        @Nullable
+        private final Executor claimExecutor;
         private CacheEntry<CacheFileRegion<KeyType>> lastAccessedRegion;
 
-        private CacheFile(KeyType cacheKey, long length, CacheMissHandler cacheMissMetricHandler, long timestampMillis) {
+        private CacheFile(
+            KeyType cacheKey,
+            long length,
+            CacheMissHandler cacheMissMetricHandler,
+            long timestampMillis,
+            @Nullable Executor claimExecutor
+        ) {
             this.cacheKey = cacheKey;
             this.length = length;
             this.cacheMissMetricHandler = cacheMissMetricHandler;
             this.timestampMillis = timestampMillis;
+            this.claimExecutor = claimExecutor;
         }
 
         public CacheFile copy() {
-            return new CacheFile(cacheKey, length, cacheMissMetricHandler.copy(), timestampMillis);
+            return new CacheFile(cacheKey, length, cacheMissMetricHandler.copy(), timestampMillis, claimExecutor);
         }
 
         public long getLength() {
@@ -1705,7 +1756,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             boolean res = region.tryRead(buf, offset, advice);
             lastAccessedRegion = res ? fileRegion : null;
             if (res && incrementReads) {
-                blobCacheMetrics.recordRead();
+                blobCacheMetrics.recordRead(region.timestampMillis());
                 // todo: should we add to readBytes? readBytes.add(end - offset);
             }
             return res;
@@ -1962,8 +2013,12 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 mapSubRangeToRegion(rangeToWrite, region),
                 regionRangeToRead,
                 readerWithOffset(reader, fileRegion, Math.toIntExact(rangeToRead.start() - regionStart)),
-                metricRecordingWriter(writerWithOffset(writer, fileRegion, Math.toIntExact(rangeToWrite.start() - regionStart))),
+                metricRecordingWriter(
+                    writerWithOffset(writer, fileRegion, Math.toIntExact(rangeToWrite.start() - regionStart)),
+                    fileRegion
+                ),
                 ioExecutor,
+                claimExecutor,
                 listener
             );
             return fileRegion.tracker.getAbsentBytesWithin(regionRangeToRead);
@@ -1997,9 +2052,11 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                             subRangeToRead,
                             readerWithOffset(reader, fileRegion, Math.toIntExact(rangeToRead.start() - regionStart)),
                             metricRecordingWriter(
-                                writerWithOffset(writer, fileRegion, Math.toIntExact(rangeToWrite.start() - regionStart))
+                                writerWithOffset(writer, fileRegion, Math.toIntExact(rangeToWrite.start() - regionStart)),
+                                fileRegion
                             ),
                             ioExecutor,
+                            claimExecutor,
                             regionListener
                         );
                     } catch (Exception e) {
@@ -2087,11 +2144,11 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             return adjustedWriter;
         }
 
-        private RangeMissingHandler metricRecordingWriter(RangeMissingHandler writer) {
+        private RangeMissingHandler metricRecordingWriter(RangeMissingHandler writer, CacheFileRegion<KeyType> fileRegion) {
             return new DelegatingRangeMissingHandler(writer) {
                 @Override
                 public SourceInputStreamFactory sharedInputStreamFactory(List<SparseFileTracker.Gap> gaps) {
-                    blobCacheMetrics.recordMiss();
+                    blobCacheMetrics.recordMiss(fileRegion.timestampMillis());
                     return super.sharedInputStreamFactory(gaps);
                 }
             };
@@ -2131,7 +2188,21 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     }
 
     public CacheFile getCacheFile(KeyType cacheKey, long length, CacheMissHandler cacheMissHandler, long timestampMillis) {
-        return new CacheFile(cacheKey, length, cacheMissHandler, timestampMillis);
+        return getCacheFile(cacheKey, length, cacheMissHandler, timestampMillis, null);
+    }
+
+    /**
+     * @param claimExecutor when non-null, cache misses of the returned file claim their gaps in a task on this executor instead of on
+     *                      the reading thread, so that a concurrent warming of the same range can fill it first
+     */
+    public CacheFile getCacheFile(
+        KeyType cacheKey,
+        long length,
+        CacheMissHandler cacheMissHandler,
+        long timestampMillis,
+        @Nullable Executor claimExecutor
+    ) {
+        return new CacheFile(cacheKey, length, cacheMissHandler, timestampMillis, claimExecutor);
     }
 
     protected Predicate<CacheRegion<KeyType>> createEvictionPredicate(
@@ -3010,7 +3081,6 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             public void onRejection(Exception e) {
                 assert false : e;
                 logger.error("unexpected rejection", e);
-                epoch.incrementAndGet();
             }
 
             @Override

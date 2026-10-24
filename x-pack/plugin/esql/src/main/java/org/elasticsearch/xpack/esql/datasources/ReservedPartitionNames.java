@@ -60,14 +60,11 @@ final class ReservedPartitionNames {
             return;
         }
         SkipWarnings warnings = new SkipWarnings(
-            "Partition columns shadowing reserved metadata names were renamed;"
-                + " reference them by the "
-                + RESERVED_RENAME_PREFIX
-                + "* name.",
+            "Partition keys named like a metadata column are renamed to [" + RESERVED_RENAME_PREFIX + "<key>]",
             warningSink
         );
         for (String key : renamed) {
-            warnings.add("partition column [" + key + "] surfaced as [" + RESERVED_RENAME_PREFIX + key + "]");
+            warnings.add("partition key [" + key + "] is named [" + RESERVED_RENAME_PREFIX + key + "]");
         }
     }
 }

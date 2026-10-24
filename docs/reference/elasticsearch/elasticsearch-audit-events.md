@@ -547,7 +547,7 @@ $$$event-put-user-managed-service-account$$$
     "0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.
     action":"put_user_managed_service_account", "request.id":"az9a1Db5QrebDMacQ8yGKc",
     "put":{"user_managed_service_account":{"namespace":"my-app","service":"worker",
-    "roles":["role1","role2"],"enabled":true}}}
+    "roles":["role1","role2"],"enabled":true,"description":"Deploys my-app"}}}
     ```
     % NOTCONSOLE
 
@@ -640,6 +640,75 @@ $$$event-tampered-request$$$
 
     ::::
 
+$$$event-put-data-source$$$
+`put_data_source` {applies_to}`stack: experimental 9.6+`
+:   Logged when the [create or update data source API](../query-languages/esql/esql-data-federation-sources.md#create-or-update-a-data-source) is invoked to create or update a data source at `/_query/data_source/{name}`.
+
+    You must include the `security_config_change` event type to audit the related event action.
+
+    ::::{dropdown} Example
+    ```js
+    {"type":"audit", "timestamp":"2021-04-30T23:17:42,952+0200", "node.id":
+    "0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.
+    action":"put_data_source", "request.id":"az9a1Db5QrebDMacQ8yGKc",
+    "put":{"data_source":{"name":"my_data_source","type":"s3","settings.auth":"anonymous"}}}
+    ```
+    % NOTCONSOLE
+
+    ::::
+
+$$$event-delete-data-source$$$
+`delete_data_source` {applies_to}`stack: experimental 9.6+`
+:   Logged when the [delete data source API](../query-languages/esql/esql-data-federation-sources.md#delete-a-data-source) is invoked to delete a data source at `/_query/data_source/{name}`.
+
+    You must include the `security_config_change` event type to audit the related event action.
+
+    ::::{dropdown} Example
+    ```js
+    {"type":"audit", "timestamp":"2021-04-30T23:17:42,952+0200", "node.id":
+    "0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.
+    action":"delete_data_source", "request.id":"az9a1Db5QrebDMacQ8yGKc",
+    "delete":{"data_source":{"names":["my_data_source"]}}}
+    ```
+    % NOTCONSOLE
+
+    ::::
+
+$$$event-put-dataset$$$
+`put_dataset` {applies_to}`stack: experimental 9.6+`
+:   Logged when the [create or update dataset API](../query-languages/esql/esql-data-federation-manage-datasets.md#create-or-update-a-dataset) is invoked to create or update a dataset at `/_query/dataset/{name}`.
+
+    You must include the `security_config_change` event type to audit the related event action.
+
+    ::::{dropdown} Example
+    ```js
+    {"type":"audit", "timestamp":"2021-04-30T23:17:42,952+0200", "node.id":
+    "0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.
+    action":"put_dataset", "request.id":"az9a1Db5QrebDMacQ8yGKc",
+    "put":{"dataset":{"name":"my_dataset","data_source":"my_data_source",
+    "resource":"s3://example-bucket/cloudtrail/*.parquet","settings.region":"us-east-1"}}}
+    ```
+    % NOTCONSOLE
+
+    ::::
+
+$$$event-delete-dataset$$$
+`delete_dataset` {applies_to}`stack: experimental 9.6+`
+:   Logged when the [delete dataset API](../query-languages/esql/esql-data-federation-manage-datasets.md#delete-a-dataset) is invoked to delete a dataset at `/_query/dataset/{name}`.
+
+    You must include the `security_config_change` event type to audit the related event action.
+
+    ::::{dropdown} Example
+    ```js
+    {"type":"audit", "timestamp":"2021-04-30T23:17:42,952+0200", "node.id":
+    "0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.
+    action":"delete_dataset", "request.id":"az9a1Db5QrebDMacQ8yGKc",
+    "delete":{"dataset":{"names":["my_dataset"]}}}
+    ```
+    % NOTCONSOLE
+
+    ::::
+
 ## Audit event attributes [audit-event-attributes]
 
 The audit events are formatted as JSON documents, and each event is printed on a separate line in the audit log. The entries themselves do not contain an end-of-line delimiter. For more details, see [Log entry format](docs-content://deploy-manage/security/logging-configuration/logfile-audit-output.md#audit-log-entry-format).
@@ -669,11 +738,11 @@ The following list shows attributes that are common to all audit event types:
 `event.action`
 :   The type of event that occurred: `anonymous_access_denied`, `authentication_failed`, `authentication_success`, `realm_authentication_failed`, `access_denied`, `access_granted`, `connection_denied`, `connection_granted`, `tampered_request`, `run_as_denied`, or `run_as_granted`.
 
-    In addition, if `event.type` equals [`security_config_change`](#security-config-change), the `event.action` attribute takes one of the following values: 
-    
+    In addition, if `event.type` equals [`security_config_change`](#security-config-change), the `event.action` attribute takes one of the following values:
+
     * {applies_to}`stack: ga 9.0+` `put_user`, `change_password`, `put_role`, `put_role_mapping`, `change_enable_user`, `change_disable_user`, `put_privileges`, `create_apikey`, `create_service_token`, `delete_user`, `delete_role`, `delete_role_mapping`, `delete_service_token`, `invalidate_apikeys`, `delete_privileges`, `change_apikey`, `change_apikeys`
     * {applies_to}`stack: ga 9.6+` `put_user_managed_service_account`, `delete_user_managed_service_account`
-
+    * {applies_to}`stack: experimental 9.6+` `put_data_source`, `delete_data_source`, `put_dataset`, `delete_dataset`
 
 `request.id`
 :   A synthetic identifier that can be used to correlate the events associated with a particular REST request.
@@ -737,6 +806,9 @@ The events with `event.type` equal to `transport` have one of the following `eve
 `indices`
 :   The indices names array that the request associated with this event pertains to (when applicable).
 
+`data_sources`
+:   The data source names that the request associated with this event pertains to (when applicable).
+
 `request.name`
 :   The name of the request handler that was executed.
 
@@ -756,8 +828,9 @@ The events with `event.type` equal to `ip_filter` have one of the following `eve
 
 The events with the `event.type` attribute equal to `security_config_change` have one of the following `event.action` attribute values:
 
-    * {applies_to}`stack: ga 9.0+` `put_user`, `change_password`, `put_role`, `put_role_mapping`, `change_enable_user`, `change_disable_user`, `put_privileges`, `create_apikey`, `create_service_token`, `delete_user`, `delete_role`, `delete_role_mapping`, `delete_service_token`, `invalidate_apikeys`, `delete_privileges`, `change_apikey`, `change_apikeys`
-    * {applies_to}`stack: ga 9.6+` `put_user_managed_service_account`, `delete_user_managed_service_account`
+   * {applies_to}`stack: ga 9.0+` `put_user`, `change_password`, `put_role`, `put_role_mapping`, `change_enable_user`, `change_disable_user`, `put_privileges`, `create_apikey`, `create_service_token`, `delete_user`, `delete_role`, `delete_role_mapping`, `delete_service_token`, `invalidate_apikeys`, `delete_privileges`, `change_apikey`, `change_apikeys`
+   * {applies_to}`stack: ga 9.6+` `put_user_managed_service_account`, `delete_user_managed_service_account`
+   * {applies_to}`stack: experimental 9.6+` `put_dataset`, `delete_dataset`, `put_data_source`, `delete_data_source`
 
 These events also have **one** of the following extra attributes (in addition to the common ones), which is specific to the `event.type` attribute. The attribute’s value is a nested JSON object:
 
@@ -765,15 +838,19 @@ These events also have **one** of the following extra attributes (in addition to
 :   The object representation of the security config that is being created, or the overwrite of an existing config. It contains the following objects:
     * {applies_to}`stack: ga 9.0+` `user`, `role`, `role_mapping`, or application `privileges`
     * {applies_to}`stack: ga 9.6+` `user_managed_service_account`
+    * {applies_to}`stack: experimental 9.6+` `data_source` or `dataset`
 
 `delete`
-:   The object representation of the security config that is being deleted. It can be the config for a `user`, `role`, `role_mapping`, `user_managed_service_account`, or for application `privileges`.
+:   The object representation of the security config that is being deleted. It contains one of the following:
+    * {applies_to}`stack: ga 9.0+` `user`, `role`, `role_mapping`, or application `privileges`
+    * {applies_to}`stack: ga 9.6+` `user_managed_service_account`
+    * {applies_to}`stack: experimental 9.6+` `data_source` or `dataset`
 
 `change`
 :   The object representation of the security config that is being changed. It can be the `password`, `enable` or `disable`, config object for native or built-in users. If an API key is updated, the config object will be an `apikey`.
 
 `create`
-:   The object representation of the new security config that is being created. This is used for API keys and service account token auditing. If the API key is created using the [create API key API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-api-key) it only contains an `apikey` config object. If the API key is created using the [grant API key API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-grant-api-key) it also contains a `grant` config object. 
+:   The object representation of the new security config that is being created. This is used for API keys and service account token auditing. If the API key is created using the [create API key API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-api-key) it only contains an `apikey` config object. If the API key is created using the [grant API key API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-grant-api-key) it also contains a `grant` config object.
 
     {applies_to}`stack: ga 9.6+` If a service account token is created, it contains a `service_token` config object.
 
@@ -875,8 +952,10 @@ The object for an API key update will differ in that it will not include a `name
 
     ```js
     `{"type": <string>, "user": {"name": <string>, "has_password": <boolean>},
-    "has_access_token": <boolean>}`
+    "has_access_token": <boolean>, "has_service_account_token": <boolean>}` <1>
     ```
+
+    1. {applies_to}`stack: ga 9.6+` `has_service_account_token` is present when the API key is created with the `_user_managed_service_account` grant type.
     % NOTCONSOLE
 
 `apikeys`
@@ -909,7 +988,7 @@ The object for an API key update will differ in that it will not include a `name
     % NOTCONSOLE
 
     On delete, the object contains `namespace`, `service`, and `force` instead of `roles` and `enabled`.
- 
+
 ### Extra audit event attributes for specific events [_extra_audit_event_attributes_for_specific_events]
 
 There are a few events that have some more attributes in addition to those that have been previously described:

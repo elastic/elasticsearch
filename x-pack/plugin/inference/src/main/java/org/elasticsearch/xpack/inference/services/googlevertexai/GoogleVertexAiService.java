@@ -58,6 +58,7 @@ import static org.elasticsearch.xpack.inference.external.action.ActionUtils.cons
 import static org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs.fromRerankRequest;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedReasoningUnifiedCompletionOperation;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.EMBEDDING_MAX_BATCH_SIZE;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.LOCATION;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.PROJECT_ID;
@@ -175,6 +176,14 @@ public class GoogleVertexAiService extends SenderService<GoogleVertexAiModel> im
             inputs.getRequest()
         );
         try {
+            // Reasoning is translated to Gemini's thinkingConfig and thought signatures, which only apply to Google's
+            // own models. The other Model Garden providers have their own request entities and would ignore the reasoning. When we've
+            // implemented the translation for those providers we can remove this check
+            if (updatedChatCompletionModel.getServiceSettings().provider() != GoogleModelGardenProvider.GOOGLE
+                && inputs.getRequest().containsChatCompletionReasoning()) {
+                throwUnsupportedReasoningUnifiedCompletionOperation(name());
+            }
+
             var manager = createRequestManager(updatedChatCompletionModel, inputs.getRequest().excludeReasoning());
             var errorMessage = constructFailedToSendRequestMessage(COMPLETION_ERROR_PREFIX);
             var action = new SenderExecutableAction(getSender(), manager, errorMessage);
@@ -182,6 +191,16 @@ public class GoogleVertexAiService extends SenderService<GoogleVertexAiModel> im
         } catch (ElasticsearchException e) {
             listener.onFailure(e);
         }
+    }
+
+    /**
+     * Gemini exposes reasoning through {@code generationConfig.thinkingConfig} and thought signatures, both of which
+     * this service translates. Model Garden providers other than {@link GoogleModelGardenProvider#GOOGLE} are rejected
+     * in {@link #doUnifiedCompletionInfer} instead, since this hook cannot see the model.
+     */
+    @Override
+    protected boolean supportsChatCompletionReasoning() {
+        return true;
     }
 
     /**

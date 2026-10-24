@@ -1,0 +1,1 @@
+FROM view_datasets | WHERE salary > 1000

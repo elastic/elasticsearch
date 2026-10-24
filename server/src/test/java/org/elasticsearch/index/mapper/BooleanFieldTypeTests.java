@@ -18,6 +18,8 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.core.Strings.MAX_INPUT_LENGTH_IN_ERROR;
+
 public class BooleanFieldTypeTests extends FieldTypeTestCase {
 
     public void testValueFormat() {
@@ -47,6 +49,16 @@ public class BooleanFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType unsearchable = new BooleanFieldMapper.BooleanFieldType("field", IndexType.NONE);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("true", MOCK_CONTEXT));
         assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
+    }
+
+    public void testLongIllegalValueIsTruncatedInError() {
+        MappedFieldType ft = new BooleanFieldMapper.BooleanFieldType("field");
+        String value = "x".repeat(2 * MAX_INPUT_LENGTH_IN_ERROR);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ft.termQuery(value, MOCK_CONTEXT));
+        assertEquals(
+            "Can't parse boolean value [" + value.substring(0, MAX_INPUT_LENGTH_IN_ERROR) + "..." + "], expected [true] or [false]",
+            e.getMessage()
+        );
     }
 
     public void testRangeQuery() {

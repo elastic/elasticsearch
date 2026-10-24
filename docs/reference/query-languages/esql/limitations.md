@@ -447,8 +447,8 @@ Also, [`INLINE STATS`](/reference/query-languages/esql/commands/inlinestats-by.m
 [views](/reference/query-languages/esql/esql-views.md) are closely related,
 since both extend the
 [`FROM`](/reference/query-languages/esql/commands/from.md) command with
-branched query plans. They share the overall branching constraints but each
-has its own additional limitations, described in turn below.
+branched query plans. Their nesting and branching support varies by version,
+and each has additional limitations described in turn below.
 
 ### Subquery limitations [esql-limitations-subquery]
 
@@ -458,10 +458,9 @@ has its own additional limitations, described in turn below.
 ### View limitations [esql-limitations-views]
 
 [Views](/reference/query-languages/esql/esql-views.md) reuse the same
-branching model as subqueries, nested branching is generally not supported, but
-views can work around this limitation via
+branching model as subqueries. The following limitations include the
+version-specific rules for nested branching and
 [query compaction](/reference/query-languages/esql/esql-views.md#query-compaction).
-Beyond that, views have a few additional restrictions of their own, listed next.
 
 :::{include} _snippets/common/view_limitations.md
 :::

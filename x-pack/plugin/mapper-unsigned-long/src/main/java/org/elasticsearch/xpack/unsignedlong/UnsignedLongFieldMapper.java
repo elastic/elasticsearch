@@ -808,6 +808,12 @@ public class UnsignedLongFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean guaranteesSingleValue() {
+        return docValuesParameters.multiValue() == false
+            && docValuesParameters.onFailure() == FieldMapper.DocValuesParameter.Values.OnFailure.FAIL;
+    }
+
+    @Override
     public boolean isNullable() {
         return docValuesParameters.nullability() || nullValue != null;
     }

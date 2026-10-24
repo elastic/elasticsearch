@@ -26,6 +26,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NumberFieldMapperTests;
 import org.elasticsearch.index.mapper.NumberTypeOutOfRangeSpec;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -716,6 +717,32 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
 
         String src = syntheticSource(mapper, b -> b.array("field", v2, v1, v3, v2));
         assertThat(src, containsString("\"field\":[" + v2 + "," + v1 + "," + v3 + "," + v2 + "]"));
+    }
+
+    /**
+     * A {@code scaled_float} with {@code multi_value=false} and {@code on_failure=fail} is statically single-valued, because a second
+     * value rejects the document. A field that allows many values, or that routes a second value elsewhere, is not.
+     */
+    public void testStaticallySingleValued() throws IOException {
+        Settings columnar = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService mapperService = createMapperService(columnar, mapping(b -> {
+            b.startObject("single").field("type", "scaled_float").field("scaling_factor", 10.0).field("multi_value", false).endObject();
+            b.startObject("multi").field("type", "scaled_float").field("scaling_factor", 10.0).endObject();
+            b.startObject("ignore")
+                .field("type", "scaled_float")
+                .field("scaling_factor", 10.0)
+                .field("multi_value", false)
+                .field("on_failure", "ignore")
+                .endObject();
+        }));
+        MappingLookup lookup = mapperService.mappingLookup();
+        assertTrue(lookup.isStaticallySingleValued("single"));
+        assertFalse(lookup.isStaticallySingleValued("multi"));
+        assertFalse(lookup.isStaticallySingleValued("ignore"));
+
+        DocumentMapper documentMapper = mapperService.documentMapper();
+        documentMapper.parse(source(b -> b.field("single", 1.5)));
+        expectThrows(DocumentParsingException.class, () -> documentMapper.parse(source(b -> b.array("single", 1.5, 2.5))));
     }
 
     /**

@@ -252,7 +252,9 @@ class FieldCapabilitiesFetcher {
                     ft.meta(),
                     reported == null ? null : reported.name(),
                     reported == null ? TextFieldMapper.Defaults.POSITION_INCREMENT_GAP : reported.getPositionIncrementGap(ft.name()),
-                    indexLocalAnalyzer
+                    indexLocalAnalyzer,
+                    // An alias has the guarantee of its target, and a runtime field shadowing a mapped field has none.
+                    context.getMappingLookup().isStaticallySingleValued(ft)
                 );
                 responseMap.put(field, fieldCap);
             } else {
@@ -295,6 +297,7 @@ class FieldCapabilitiesFetcher {
                             Map.of(),
                             null,
                             TextFieldMapper.Defaults.POSITION_INCREMENT_GAP,
+                            false,
                             false
                         );
                         responseMap.put(parentField, fieldCap);

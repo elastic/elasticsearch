@@ -62,6 +62,7 @@ public final class MappingLookup {
     private final Set<String> vectorEmbeddingFields;
     private final Map<String, FieldMapper> dimensionFieldMappers;
     private final Map<String, FieldMapper> metricFieldMappers;
+    private final Set<String> copyToTargets;
     private final int runtimeFieldMappersCount;
     private final NestedLookup nestedLookup;
     // [nullability=false] field paths partitioned by their nearest nested parent path ("" = the root document). Each Lucene doc is checked
@@ -198,7 +199,9 @@ public final class MappingLookup {
         final Map<String, FieldMapper> dimensionMappers = new LinkedHashMap<>();
         final Map<String, FieldMapper> metricMappers = new LinkedHashMap<>();
         this.requiredFieldsByNestedParent = new HashMap<>();
+        final Set<String> copyToTargets = new HashSet<>();
         for (FieldMapper mapper : mappers) {
+            copyToTargets.addAll(mapper.copyTo().copyToFields());
             if (objects.containsKey(mapper.fullPath())) {
                 throw new MapperParsingException("Field [" + mapper.fullPath() + "] is defined both as an object and a field");
             }
@@ -275,6 +278,7 @@ public final class MappingLookup {
         this.fieldMappers = Collections.unmodifiableMap(fieldMappers);
         this.dimensionFieldMappers = Collections.unmodifiableMap(dimensionMappers);
         this.metricFieldMappers = Collections.unmodifiableMap(metricMappers);
+        this.copyToTargets = Collections.unmodifiableSet(copyToTargets);
         this.objectMappers = Collections.unmodifiableMap(objects);
         this.runtimeFieldMappersCount = runtimeFields.size();
         this.indexAnalyzers = Collections.unmodifiableMap(indexAnalyzers);
@@ -789,6 +793,35 @@ public final class MappingLookup {
             return properties.passthrough() != null;
         }
         return null;
+    }
+
+    /**
+     * Whether the mapping guarantees that no document holds more than one value for {@code field}. {@code false} means "not
+     * guaranteed", including for unknown fields and fields whose mapper cannot enforce it.
+     * <p>
+     * An alias, explicit or from a passthrough object, has the guarantee of its target.
+     */
+    public boolean isStaticallySingleValued(String field) {
+        MappedFieldType fieldType = fieldTypeLookup.get(field);
+        return fieldType != null && isStaticallySingleValued(fieldType);
+    }
+
+    /**
+     * Whether the mapping guarantees that no document holds more than one value for the field that {@code fieldType} describes. The
+     * field type of an alias is the one of its target, so an alias has the guarantee of its target. A runtime field, for example from
+     * the request, replaces the field type of the mapped field it shadows. Its values do not come from the mapper, so it has no
+     * guarantee: the field type must be the one of the mapper.
+     * <p>
+     * {@code copy_to} targets are never guaranteed. Today {@code multi_value=false} and {@code copy_to} cannot be combined (see
+     * {@code MapperServiceTests#testSingleValueGuaranteeExcludesCopyTo}), but the values a {@code copy_to} adds are not described by the
+     * target's own mapper parameters, so this method does not rely on that.
+     */
+    public boolean isStaticallySingleValued(MappedFieldType fieldType) {
+        String target = fieldType.name();
+        return copyToTargets.contains(target) == false
+            && fieldMappers.get(target) instanceof FieldMapper fieldMapper
+            && fieldMapper.fieldType() == fieldType
+            && fieldMapper.guaranteesSingleValue();
     }
 
     /**

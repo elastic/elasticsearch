@@ -2811,6 +2811,11 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean guaranteesSingleValue() {
+        return isSingleValueEnforced() && onFailureBehavior() == DocValuesParameter.Values.OnFailure.FAIL;
+    }
+
+    @Override
     protected boolean shouldEnforceSingleValue(XContentParser.Token token) {
         return isSingleValueEnforced() && (token != XContentParser.Token.VALUE_NULL || nullValue != null);
     }

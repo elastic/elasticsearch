@@ -95,8 +95,9 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  1152897b - make IndexProperties Writeable: inline VInt(0) per 601 indices (+601 -1 for removed trailing map)
          *  1152898b - added slice selection to EsRelation (1 byte for the absent optional string)
          *  1159898b - added passthrough flag to EsField
+         *  1166898b - added single valued flag to EsField (1 byte per field)
          */
-        testManyTypeConflicts(false, ByteSizeValue.ofBytes(1159898));
+        testManyTypeConflicts(false, ByteSizeValue.ofBytes(1166898));
     }
 
     /**
@@ -123,8 +124,9 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  2304520b - make IndexProperties Writeable: inline VInt(0) per 601 indices (+601 -1 for removed trailing map)
          *  2304521b - added slice selection to EsRelation (1 byte for the absent optional string)
          *  2311521b - added passthrough flag to EsField
+         *  2318521b - added single valued flag to EsField (1 byte per field)
          */
-        testManyTypeConflicts(true, ByteSizeValue.ofBytes(2311521));
+        testManyTypeConflicts(true, ByteSizeValue.ofBytes(2318521));
     }
 
     private void testManyTypeConflicts(boolean withParent, ByteSizeValue expected) throws IOException {
@@ -151,13 +153,14 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  43927172b - added shardCounts to EsRelation (1 byte for empty-map VInt)
          *  43927171b - make IndexProperties Writeable: 0 indices, -1 for removed trailing map header
          *  44189316b - added passthrough flag to EsField
+         *  44451460b - added single valued flag to EsField (1 byte per field)
          */
 
         int depth = 6;
         int childrenPerLevel = 8;
 
         EsIndex index = deeplyNestedIndex(depth, childrenPerLevel);
-        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(44189316L));
+        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(44451460L));
     }
 
     /**
@@ -179,13 +182,14 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  355b - added shardCounts to EsRelation (1 byte for empty-map VInt)
          *  354b - make IndexProperties Writeable: 0 indices, -1 for removed trailing map header
          *  356b - added passthrough flag to EsField
+         *  357b - added single valued flag to EsField (1 byte per field)
          */
 
         int depth = 6;
         int childrenPerLevel = 9;
 
         EsIndex index = deeplyNestedIndex(depth, childrenPerLevel);
-        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(356), false);
+        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(357), false);
     }
 
     /**

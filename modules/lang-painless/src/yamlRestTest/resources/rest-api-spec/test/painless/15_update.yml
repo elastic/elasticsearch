@@ -201,3 +201,62 @@
   - match: { _source.foo: bar-baz }
   - match: { _source.nest.bar: 200 }
   - match: { found: true }
+
+---
+"Update Script with source fields named like update metadata":
+  - requires:
+      cluster_features: ["script.source_fields_named_like_metadata"]
+      reason: "Scripted updates accept source fields named _type, op and _now"
+
+  - do:
+      index:
+        index:  test_1
+        id:     "4"
+        body:
+          _type:  event
+          op:     x
+          _now:   1
+          count:  1
+
+  - do:
+      update:
+        index:  test_1
+        id:     "4"
+        body:
+          script:
+            lang:   painless
+            source: "ctx._source.count = 2; ctx._source.seen_type = ctx._type"
+
+  - match: { _index:   test_1 }
+  - match: { _id:      "4"    }
+  - match: { result:   updated }
+
+  - do:
+      get:
+        index:  test_1
+        id:     "4"
+
+  - match: { _source._type:     event }
+  - match: { _source.op:        x     }
+  - match: { _source._now:      1     }
+  - match: { _source.count:     2     }
+  - match: { _source.seen_type: _doc  }
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"update": {"_index": "test_1", "_id": "4"}}'
+          - '{"script": {"lang": "painless", "source": "ctx._source.count = 3"}}'
+
+  - match: { errors: false }
+  - match: { items.0.update.result: updated }
+
+  - do:
+      get:
+        index:  test_1
+        id:     "4"
+
+  - match: { _source._type:     event }
+  - match: { _source.op:        x     }
+  - match: { _source.count:     3     }

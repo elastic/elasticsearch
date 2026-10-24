@@ -61,6 +61,35 @@ public class CtxMapTests extends ESTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    public void testIndirectSourceKeysMayShareNamesWithMetadata() {
+        map = new CtxMap<>(
+            new HashMap<>(Map.of("_version", "source-version", "foo", "bar")),
+            new Metadata(new HashMap<>(Map.of("_version", 5L)), Map.of(VERSION, LongField.withWritable()))
+        );
+        assertThat(map.get("_version"), equalTo(5L));
+        assertThat(((Map<String, Object>) map.get("_source")).get("_version"), equalTo("source-version"));
+        assertThat(map.getSource().get("_version"), equalTo("source-version"));
+        assertThat(map.getMetadata().getVersion(), equalTo(5L));
+        assertThat(map.size(), equalTo(2));
+    }
+
+    public void testDirectSourceKeysMustNotShareNamesWithMetadata() {
+        IllegalArgumentException err = expectThrows(
+            IllegalArgumentException.class,
+            () -> new CtxMap<>(
+                new HashMap<>(Map.of("_version", "source-version", "foo", "bar")),
+                new Metadata(new HashMap<>(Map.of("_version", 5L)), Map.of(VERSION, LongField.withWritable()))
+            ) {
+                @Override
+                protected boolean directSourceAccess() {
+                    return true;
+                }
+            }
+        );
+        assertThat(err.getMessage(), equalTo("unexpected metadata [_version:source-version] in source"));
+    }
+
     public void testAddingJunkToCtx() {
         IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> map.put("junk", "stuff"));
         assertEquals("Cannot put key [junk] with value [stuff] into ctx", err.getMessage());

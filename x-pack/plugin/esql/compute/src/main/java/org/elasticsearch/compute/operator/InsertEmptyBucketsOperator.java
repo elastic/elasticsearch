@@ -157,6 +157,11 @@ public class InsertEmptyBucketsOperator extends CompleteInputCollectorOperator {
     }
 
     public static final class NumericCursor implements BucketCursor {
+        /**
+         * Largest magnitude a bucket index may have and still be iterated as a {@code long}: {@code 2^63}.
+         */
+        private static final double MAX_BUCKET_INDEX = 0x1p63;
+
         private final double roundTo;
         private final double from;
         private final double to;
@@ -167,7 +172,13 @@ public class InsertEmptyBucketsOperator extends CompleteInputCollectorOperator {
             this.roundTo = roundTo;
             this.from = from;
             this.to = to;
-            this.alwaysExhausted = from >= to || Double.isFinite(roundTo) == false || roundTo <= 0.0;
+            this.alwaysExhausted = from >= to || Double.isFinite(roundTo) == false || roundTo <= 0.0
+            // The bucket index is a long. If a bound divided by the width doesn't fit, reset() would saturate and
+            // advance() would wrap around, never reaching `to`. Such a width is also far below the spacing between
+            // adjacent doubles at that magnitude, so the bucket keys themselves can't tell neighbouring buckets apart
+            // and there are no distinct empty buckets to emit.
+                || Math.abs(from / roundTo) >= MAX_BUCKET_INDEX
+                || Math.abs(to / roundTo) >= MAX_BUCKET_INDEX;
         }
 
         @Override

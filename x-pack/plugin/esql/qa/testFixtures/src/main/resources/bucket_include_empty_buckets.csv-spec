@@ -928,3 +928,19 @@ c:long | b:double
 0      | 70.0
 21     | null
 ;
+
+
+Tight unsigned_long range above 2^63 produces no empty buckets
+required_capability: bucket_include_empty_buckets
+required_capability: fn_bucket_unsigned_long_bounds
+
+// The exact range is 10, so the width is 1.0, but doubles are 2048 apart at this magnitude: the bucket index
+// doesn't fit in a long and adjacent buckets aren't distinguishable in the double result anyway.
+ROW x = 9223372036854776828::unsigned_long
+| STATS c = COUNT(*)
+  BY b = BUCKET(x, 20, 9223372036854776828::unsigned_long, 9223372036854776838::unsigned_long, {"include_empty_buckets": true})
+;
+
+c:long | b:double
+1      | 9.223372036854776E18
+;

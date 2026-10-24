@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.internal;
 
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
@@ -19,12 +20,15 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.RescoreDocIds;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.dfs.AggregatedDfs;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -50,6 +54,9 @@ public class ReaderContext implements Releasable {
     private final AbstractRefCounted refCounted;
 
     private final List<Releasable> onCloses = new CopyOnWriteArrayList<>();
+    // Phases still inside the try-with-resources that owns their SearchContext. Closed only when
+    // those phases return, which does not happen if this reader is freed while they are blocked.
+    private final Set<CancellableTask> inFlightSearches = ConcurrentCollections.newConcurrentSet();
 
     private final long startTimeInNano = System.nanoTime();
 
@@ -104,6 +111,28 @@ public class ReaderContext implements Releasable {
 
     public void addOnClose(Releasable releasable) {
         onCloses.add(releasable);
+    }
+
+    /**
+     * Tracks a search phase that is still using this reader. {@link #cancelInFlightSearches} stops it
+     * when the reader is freed, so the phase can release its {@link SearchContext}.
+     */
+    public void addInFlightSearch(CancellableTask task) {
+        inFlightSearches.add(task);
+    }
+
+    public void removeInFlightSearch(CancellableTask task) {
+        inFlightSearches.remove(task);
+    }
+
+    /**
+     * Cancels phases registered with {@link #addInFlightSearch} through {@link TaskManager}. The reader stays open
+     * until those phases release it, so they must be cancelled before {@link #close()}.
+     */
+    public void cancelInFlightSearches(TaskManager taskManager, String reason) {
+        for (CancellableTask task : inFlightSearches) {
+            taskManager.cancel(task, reason, () -> {});
+        }
     }
 
     public ShardSearchContextId id() {

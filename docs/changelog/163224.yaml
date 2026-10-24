@@ -1,0 +1,6 @@
+area: Aggregations
+issues:
+ - 129989
+pr: 163224
+summary: Return a bad request for `terms` aggs over a field mapped as `ip` and `keyword`
+type: bug

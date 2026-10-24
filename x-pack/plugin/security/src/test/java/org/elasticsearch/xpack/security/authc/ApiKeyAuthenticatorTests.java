@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.AuthenticationService.AuditableRequest;
+import org.elasticsearch.xpack.security.metric.SecurityAuthcFailureReason;
 import org.elasticsearch.xpack.security.metric.SecurityMetricType;
 
 import java.util.Map;
@@ -170,7 +171,13 @@ public class ApiKeyAuthenticatorTests extends AbstractAuthenticatorTests {
             assertSingleFailedAuthMetric(
                 telemetryPlugin,
                 SecurityMetricType.AUTHC_API_KEY,
-                Map.ofEntries(Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value()))
+                Map.ofEntries(
+                    Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value()),
+                    Map.entry(
+                        ApiKeyAuthenticator.ATTRIBUTE_AUTHC_FAILURE_REASON,
+                        exception == null ? "client.invalid_credentials" : SecurityAuthcFailureReason.SERVER_INTERNAL_ERROR.value()
+                    )
+                )
             );
         } else {
             var authResult = future.actionGet();
@@ -178,7 +185,13 @@ public class ApiKeyAuthenticatorTests extends AbstractAuthenticatorTests {
             assertSingleFailedAuthMetric(
                 telemetryPlugin,
                 SecurityMetricType.AUTHC_API_KEY,
-                Map.ofEntries(Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value()))
+                Map.ofEntries(
+                    Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value()),
+                    Map.entry(
+                        ApiKeyAuthenticator.ATTRIBUTE_AUTHC_FAILURE_REASON,
+                        exception == null ? "client.invalid_credentials" : SecurityAuthcFailureReason.SERVER_INTERNAL_ERROR.value()
+                    )
+                )
             );
         }
 
@@ -225,7 +238,10 @@ public class ApiKeyAuthenticatorTests extends AbstractAuthenticatorTests {
         assertSingleFailedAuthMetric(
             telemetryPlugin,
             SecurityMetricType.AUTHC_API_KEY,
-            Map.ofEntries(Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value()))
+            Map.ofEntries(
+                Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value()),
+                Map.entry(ApiKeyAuthenticator.ATTRIBUTE_AUTHC_FAILURE_REASON, SecurityAuthcFailureReason.SERVER_INTERNAL_ERROR.value())
+            )
         );
 
         // verify that there were no successes recorded
@@ -237,6 +253,38 @@ public class ApiKeyAuthenticatorTests extends AbstractAuthenticatorTests {
             SecurityMetricType.AUTHC_API_KEY,
             executionTimeInMillis,
             Map.ofEntries(Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value()))
+        );
+    }
+
+    public void testRecordingFailedAuthenticationMetricsOnExpiredApiKey() {
+        final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
+        final ApiKeyService apiKeyService = mock(ApiKeyService.class);
+        final ApiKeyAuthenticator apiKeyAuthenticator = createApiKeyAuthenticator(
+            apiKeyService,
+            telemetryPlugin,
+            new TestNanoTimeSupplier(0)
+        );
+
+        final ApiKeyCredentials apiKeyCredentials = randomApiKeyCredentials();
+        final Authenticator.Context context = mockApiKeyAuthenticationContext(apiKeyCredentials);
+
+        doAnswer(invocation -> {
+            final ActionListener<AuthenticationResult<User>> listener = invocation.getArgument(2);
+            listener.onResponse(AuthenticationResult.unsuccessful("api key is expired", null));
+            return Void.TYPE;
+        }).when(apiKeyService).tryAuthenticate(any(), same(apiKeyCredentials), anyActionListener());
+
+        final PlainActionFuture<AuthenticationResult<Authentication>> future = new PlainActionFuture<>();
+        apiKeyAuthenticator.authenticate(context, future);
+        assertThat(future.actionGet().isAuthenticated(), equalTo(false));
+
+        assertSingleFailedAuthMetric(
+            telemetryPlugin,
+            SecurityMetricType.AUTHC_API_KEY,
+            Map.ofEntries(
+                Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value()),
+                Map.entry(ApiKeyAuthenticator.ATTRIBUTE_AUTHC_FAILURE_REASON, "client.api_key_expired")
+            )
         );
     }
 

@@ -328,7 +328,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
    *             Properties to expand when copying packaging files             *
    *****************************************************************************/
   configurations {
-    ['libs', 'libsVersionChecker', 'libsCliLauncher', 'libsServerCli', 'libsServerLauncher', 'libsServerLauncherNativeX64', 'libsServerLauncherNativeAarch64', 'libsWindowsServiceCli', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole', 'libsNative', 'libsEntitlementAgent'].each {
+    ['libs', 'libsVersionChecker', 'libsCliLauncher', 'libsServerCli', 'libsServerLauncher', 'libsServerLauncherNativeX64', 'libsServerLauncherNativeAarch64', 'libsWindowsServiceCli', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole', 'libsNative', 'libsEntitlementAgent', 'libsFips'].each {
       create(it) {
         canBeConsumed = false
         canBeResolved = true
@@ -383,6 +383,107 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     libsNative project(path: ':libs:native:native-libraries', configuration: 'nativeLibs')
     libsEntitlementAgent project(':libs:entitlement:agent')
     libsEntitlementBridge project(':libs:entitlement:bridge')
+
+    // The Bouncy Castle FIPS 140-3 provider, shipped dormant in lib/fips by the Linux distributions and activated by the
+    // node setting xpack.security.fips_mode.enabled (see FipsOptions in server-cli). Keep these versions in step with
+    // elasticsearch.fips.gradle (FIPS test clusters) and distribution/docker/build.gradle (the cloud_ess_fips image).
+    libsFips 'org.bouncycastle:bc-fips:2.0.2'
+    libsFips 'org.bouncycastle:bctls-fips:2.0.24'
+    libsFips 'org.bouncycastle:bcutil-fips:2.0.7'
+  }
+
+  /*****************************************************************************
+   *                         FIPS 140 trust store                              *
+   *****************************************************************************/
+
+  // In approved-only mode the JDK's own PKCS#12 CA bundle cannot be opened, so each Linux distribution ships its bundled JDK's
+  // cacerts converted to BCFKS, using the BC FIPS provider that the distribution itself ships. The store password must be at
+  // least 14 characters for the provider to accept it; it protects nothing secret, this is a bundle of public certificates.
+  ['x64', 'aarch64'].each { String architecture ->
+    tasks.register("buildFipsCacerts_${architecture}", Exec) {
+      def jdk = project.jdks."bundled_linux_${architecture}"
+      def output = layout.buildDirectory.file("fips-cacerts/${architecture}/cacerts.bcfks").get().asFile
+      dependsOn jdk
+      inputs.files(configurations.libsFips).withPropertyName('bcFipsJars').withNormalizer(ClasspathNormalizer)
+      inputs.property('jdkVersion', jdk.version)
+      outputs.file(output).withPropertyName('cacerts')
+      executable = "${buildParams.runtimeJavaHome.get()}/bin/keytool"
+      // keytool reports every imported alias on stderr; only surface its output when the conversion fails
+      def keytoolOutput = new ByteArrayOutputStream()
+      standardOutput = keytoolOutput
+      errorOutput = keytoolOutput
+      ignoreExitValue = true
+      doLast {
+        if (executionResult.get().exitValue != 0) {
+          throw new GradleException("keytool failed to convert cacerts to BCFKS:\n${keytoolOutput}")
+        }
+      }
+      doFirst {
+        delete(output)
+        output.parentFile.mkdirs()
+        File jdkHome = new File(jdk.binJavaPath.toString()).parentFile.parentFile
+        File bcFipsJar = configurations.libsFips.files.find { it.name.startsWith('bc-fips-') }
+        args '-importkeystore',
+          '-noprompt',
+          '-srckeystore', new File(jdkHome, 'lib/security/cacerts').path,
+          '-srcstoretype', 'PKCS12',
+          '-srcstorepass', 'changeit', // the JDK's cacerts has no integrity password, but keytool insists on being given one
+          '-destkeystore', output.path,
+          '-deststoretype', 'BCFKS',
+          '-deststorepass', 'passwordcacert',
+          '-providerclass', 'org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider',
+          '-providerpath', bcFipsJar.path,
+          '-destprovidername', 'BCFIPS'
+      }
+    }
+  }
+
+  /*****************************************************************************
+   *                     FIPS 140 java.security replacement                    *
+   *****************************************************************************/
+
+  // Loaded with -Djava.security.properties== so that it replaces the bundled JDK's java.security instead of overlaying it,
+  // which is the only way to drop the JDK's own providers. It is generated from that JDK's file, comments and blank lines
+  // removed and the keys in src/fips/fips_java.security.overrides replaced, so the JDK's algorithm restrictions and other
+  // defaults stay current across JDK bumps instead of freezing at the version a static copy was taken from.
+  ['x64', 'aarch64'].each { String architecture ->
+    tasks.register("buildFipsJavaSecurity_${architecture}") {
+      def jdk = project.jdks."bundled_linux_${architecture}"
+      def overrides = file('../src/fips/fips_java.security.overrides')
+      def output = layout.buildDirectory.file("fips-java-security/${architecture}/fips_java.security")
+      dependsOn jdk
+      inputs.file(overrides).withPropertyName('overrides')
+      inputs.property('jdkVersion', jdk.version)
+      outputs.file(output).withPropertyName('javaSecurity')
+      doLast {
+        File jdkHome = new File(jdk.binJavaPath.toString()).parentFile.parentFile
+        List<String> overrideLines = overrides.readLines().findAll { it.trim() && it.startsWith('#') == false }
+        Set<String> overriddenKeys = overrideLines.collect { it.substring(0, it.indexOf('=')).trim() } as Set
+        List<String> kept = []
+        boolean skipping = false
+        boolean continued = false
+        new File(jdkHome, 'conf/security/java.security').eachLine { String line ->
+          if (continued == false) {
+            String trimmed = line.trim()
+            String key = trimmed.contains('=') ? trimmed.substring(0, trimmed.indexOf('=')).trim() : trimmed
+            skipping = trimmed.isEmpty() || trimmed.startsWith('#') || key.startsWith('security.provider.') || overriddenKeys.contains(key)
+          }
+          if (skipping == false) {
+            kept << line
+          }
+          continued = line.endsWith('\\')
+        }
+        File out = output.get().asFile
+        out.parentFile.mkdirs()
+        List<String> header = [
+          "# Generated by the Elasticsearch build from the bundled JDK's conf/security/java.security (JDK ${jdk.version})",
+          "# with the FIPS 140 overrides from distribution/src/fips/fips_java.security.overrides. Loaded with",
+          "# -Djava.security.properties== so that it replaces the JDK's file and drops the JDK's own providers.",
+          ""
+        ]
+        out.text = (header + kept + [""] + overrideLines).join('\n') + '\n'
+      }
+    }
   }
 
   project.ext {
@@ -448,6 +549,20 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         }
         into('entitlement-bridge') {
           from(configurations.libsEntitlementBridge)
+        }
+        // FIPS 140: the Bouncy Castle FIPS provider, a java.security replacement and the bundled JDK's CA bundle in BCFKS
+        // form, dormant until xpack.security.fips_mode.enabled is set (see FipsOptions in server-cli). A subdirectory of lib
+        // is neither on the server module path nor matched by the CLI class path wildcard, so a node that is not in FIPS
+        // mode never loads it.
+        if (os == 'linux') {
+          into('fips') {
+            from(configurations.libsFips)
+            from(tasks.named("buildFipsJavaSecurity_${architecture}"))
+            from(tasks.named("buildFipsCacerts_${architecture}"))
+            filePermissions {
+              unix 0644
+            }
+          }
         }
       }
     }

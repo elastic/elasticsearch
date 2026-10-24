@@ -10,8 +10,60 @@ CLI_JAVA_OPTS="-Xms4m -Xmx64m -XX:+UseSerialGC ${CLI_JAVA_OPTS}"
 
 LAUNCHER_CLASSPATH=$ES_HOME/lib/*:$ES_HOME/lib/cli-launcher/*
 
+# FIPS 140 mode is the node setting xpack.security.fips_mode.enabled. A tool's
+# JVM has to be on the FIPS provider before the tool can read that setting, so
+# a cheap scan of elasticsearch.yml (uncommented lines only), of this tool's
+# own -E arguments and of the Docker settings environment decides whether to
+# ask the fips-options helper, which resolves the settings the way the tool
+# will. The helper prints the JVM options for the provider shipped in lib/fips,
+# one per line, or nothing; only then does lib/fips join the class path (the
+# tools do not run modular). A false positive here costs one extra JVM start.
+FIPS_JAVA_OPTS=()
+fips_mode_mentioned() {
+  grep -Eqs '^[^#]*fips_mode' "$ES_PATH_CONF/elasticsearch.yml" && return 0
+  case " $* " in *fips_mode*) return 0 ;; esac
+  [ -n "$ES_SETTING_XPACK_SECURITY_FIPS__MODE_ENABLED" ]
+}
+if fips_mode_mentioned "$@"; then
+  # only the -E settings arguments concern the helper; the tool's own options do not
+  FIPS_HELPER_ARGS=()
+  setting_value_next=false
+  for arg in "$@"; do
+    if [ "$setting_value_next" = true ]; then
+      FIPS_HELPER_ARGS+=("$arg")
+      setting_value_next=false
+    elif [ "$arg" = "-E" ]; then
+      FIPS_HELPER_ARGS+=("$arg")
+      setting_value_next=true
+    else
+      case "$arg" in -E*) FIPS_HELPER_ARGS+=("$arg") ;; esac
+    fi
+  done
+  FIPS_HELPER_OUTPUT=$("$JAVA" \
+    -Xms4m -Xmx64m -XX:+UseSerialGC \
+    -Dcli.name=fips-options \
+    -Dcli.script="$0" \
+    -Dcli.libs=lib/tools/server-cli \
+    -Des.path.home="$ES_HOME" \
+    -Des.path.conf="$ES_PATH_CONF" \
+    -Des.distribution.type="$ES_DISTRIBUTION_TYPE" \
+    -cp "$LAUNCHER_CLASSPATH" \
+    org.elasticsearch.launcher.CliToolLauncher \
+    "${FIPS_HELPER_ARGS[@]}")
+  while IFS= read -r fips_java_opt; do
+    if [ -n "$fips_java_opt" ]; then
+      FIPS_JAVA_OPTS+=("$fips_java_opt")
+    fi
+  done <<< "$FIPS_HELPER_OUTPUT"
+  if [ ${#FIPS_JAVA_OPTS[@]} -gt 0 ]; then
+    LAUNCHER_CLASSPATH="$LAUNCHER_CLASSPATH:$ES_HOME/lib/fips/*"
+  fi
+fi
+
+# the FIPS options come first so that a value the caller sets in CLI_JAVA_OPTS takes precedence
 exec \
   "$JAVA" \
+  "${FIPS_JAVA_OPTS[@]}" \
   $CLI_JAVA_OPTS \
   -Dcli.name="$CLI_NAME" \
   -Dcli.script="$0" \

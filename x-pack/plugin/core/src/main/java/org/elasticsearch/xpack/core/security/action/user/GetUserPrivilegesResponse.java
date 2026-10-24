@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDe
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -86,6 +87,14 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
 
     public Set<Indices> getIndexPrivileges() {
         return index;
+    }
+
+    /**
+     * Every index privilege held on at least one index, with composite privileges expanded into the privileges they contain.
+     * See {@link IndexPrivilege#summarizeNamedPrivileges}.
+     */
+    public Set<String> getIndexSummary() {
+        return IndexPrivilege.summarizeNamedPrivileges(index.stream().map(Indices::getPrivileges).toList());
     }
 
     public Set<RemoteIndices> getRemoteIndexPrivileges() {

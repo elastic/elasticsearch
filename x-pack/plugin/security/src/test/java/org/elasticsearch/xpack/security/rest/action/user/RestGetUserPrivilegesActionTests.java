@@ -29,12 +29,15 @@ import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermi
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
@@ -183,6 +186,11 @@ public class RestGetUserPrivilegesActionTests extends ESTestCase {
         listener.buildResponse(response, builder);
 
         String json = Strings.toString(builder);
+        final Set<String> allNamedIndexPrivileges = new TreeSet<>(IndexPrivilege.names());
+        allNamedIndexPrivileges.remove("none");
+        final String expectedIndexSummary = allNamedIndexPrivileges.stream()
+            .map(name -> "\"" + name + "\"")
+            .collect(Collectors.joining(",", "[", "]"));
         String remoteIndicesSection = remoteIndex.isEmpty() ? "" : """
             , "remote_indices": [
                 {
@@ -271,6 +279,7 @@ public class RestGetUserPrivilegesActionTests extends ESTestCase {
                   "allow_restricted_indices": true
                 }
               ],
+              "index_summary": %s,
               "applications": [
                 {
                   "application": "app01",
@@ -289,6 +298,6 @@ public class RestGetUserPrivilegesActionTests extends ESTestCase {
                 }
               ],
               "run_as": [ "app-user-*", "backup-user" ]%s%s
-            }""", remoteIndicesSection, remoteClusterPermissionsSection))));
+            }""", expectedIndexSummary, remoteIndicesSection, remoteClusterPermissionsSection))));
     }
 }

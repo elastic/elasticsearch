@@ -57,6 +57,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.IndexShardCacheWarmer;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccBlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
@@ -520,7 +521,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                     final BatchedCompoundCommit latestBcc = statelessCommitService.getLatestUploadedBcc(shardId);
                     assert latestBcc != null : "no uploaded BCC for shard " + shardId;
                     final long blobLength = latestBcc.calculateBccBlobLength();
-                    final BlobFile latestBccBlob = latestBcc.toBlobFile();
+                    final BccBlobFile latestBccBlob = latestBcc.toBlobFile();
                     final var lastCommitBlobs = latestBcc.lastCompoundCommit().getBlobFiles();
                     final var lastCommitIsHollow = latestBcc.lastCompoundCommit().hollow();
                     // This happens after markRelocating() has triggered the listener. The latest uploaded BCC will be the last. No new

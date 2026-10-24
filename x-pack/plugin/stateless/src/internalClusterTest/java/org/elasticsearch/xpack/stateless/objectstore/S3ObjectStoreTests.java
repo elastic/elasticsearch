@@ -53,7 +53,7 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccBlobFile;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -477,10 +477,7 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
                     // while for multi-part uploads: .../stateless_commit_N?uploadId=UUID&partNumber=N&x-purpose=Indices where the
                     // upload UUID changes with every retry.
                     long gen = Long.parseLong(
-                        request.substring(
-                            request.indexOf(BatchedCompoundCommit.PREFIX) + BatchedCompoundCommit.PREFIX.length(),
-                            request.lastIndexOf('?')
-                        )
+                        request.substring(request.indexOf(BccBlobFile.PREFIX) + BccBlobFile.PREFIX.length(), request.lastIndexOf('?'))
                     );
                     final long part;
                     if (request.contains("partNumber")) {

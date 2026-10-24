@@ -38,7 +38,7 @@ import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.snapshots.AbortedSnapshotException;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BccBlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
@@ -95,7 +95,10 @@ public class StatelessSnapshotShardContextTests extends ESTestCase {
             IndexVersion.current(),
             randomNonNegativeLong(),
             snapshotIndexCommit,
-            Map.of("file", new BlobLocation(new BlobFile(blobName, new PrimaryTermAndGeneration(1L, generation)), fileOffset, fileLength)),
+            Map.of(
+                "file",
+                new BlobLocation(new BccBlobFile(blobName, new PrimaryTermAndGeneration(1L, generation)), fileOffset, fileLength)
+            ),
             (s, g) -> new FilterBlobContainer(blobContainer) {
                 @Override
                 protected BlobContainer wrapChild(BlobContainer child) {
@@ -168,7 +171,7 @@ public class StatelessSnapshotShardContextTests extends ESTestCase {
             IndexVersion.current(),
             randomNonNegativeLong(),
             snapshotIndexCommit,
-            Map.of("file", new BlobLocation(new BlobFile(blobName, new PrimaryTermAndGeneration(1L, generation)), 0, 100)),
+            Map.of("file", new BlobLocation(new BccBlobFile(blobName, new PrimaryTermAndGeneration(1L, generation)), 0, 100)),
             (s, g) -> mock(BlobContainer.class),
             () -> false,
             new PlainActionFuture<>()
@@ -232,9 +235,9 @@ public class StatelessSnapshotShardContextTests extends ESTestCase {
             null,
             Map.of(
                 "file",
-                new BlobLocation(new BlobFile(blobName, new PrimaryTermAndGeneration(1L, generation)), 0, totalLength),
+                new BlobLocation(new BccBlobFile(blobName, new PrimaryTermAndGeneration(1L, generation)), 0, totalLength),
                 "bad_file",
-                new BlobLocation(new BlobFile(badBlobName, new PrimaryTermAndGeneration(1L, badGeneration)), 0, totalLength)
+                new BlobLocation(new BccBlobFile(badBlobName, new PrimaryTermAndGeneration(1L, badGeneration)), 0, totalLength)
             ),
             (s, g) -> blobContainer,
             () -> false,
@@ -407,7 +410,7 @@ public class StatelessSnapshotShardContextTests extends ESTestCase {
             null,
             Map.of(
                 "file",
-                new BlobLocation(new BlobFile(blobName, new PrimaryTermAndGeneration(1L, generation)), blobPadding, totalLength)
+                new BlobLocation(new BccBlobFile(blobName, new PrimaryTermAndGeneration(1L, generation)), blobPadding, totalLength)
             ),
             (s, g) -> new FilterBlobContainer(blobContainer) {
                 @Override

@@ -125,7 +125,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     private final AtomicLong currentOffset = new AtomicLong();
     private final AtomicLong logicalSize = new AtomicLong();
     private final AtomicReference<Thread> appendingCommitThread = new AtomicReference<>();
-    private final BlobFile blobFile;
+    private final BccBlobFile blobFile;
     private final PrimaryTermAndGeneration primaryTermAndGeneration;
     private final long creationTimeInMillis;
     // VBCC can no longer be appended to once it is frozen
@@ -189,7 +189,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         this.uploadedBlobLocationsSupplier = uploadedBlobLocationsSupplier;
         this.pendingCompoundCommits = new ConcurrentSkipListSet<>();
         this.primaryTermAndGeneration = new PrimaryTermAndGeneration(primaryTerm, generation);
-        this.blobFile = new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(generation), primaryTermAndGeneration);
+        this.blobFile = new BccBlobFile(primaryTermAndGeneration);
         this.creationTimeInMillis = timeInMillisSupplier.getAsLong();
         this.notifiedSearchNodeIds = ConcurrentCollections.newConcurrentSet();
         this.cacheRegionSizeInBytes = cacheRegionSize;

@@ -27,8 +27,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher.FileTimestampResolver;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BccBlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
@@ -179,10 +178,10 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
     }
 
     public void testComputeTimestampPerBlobAttributesInternalAndReferencedFiles() {
-        final BlobFile referencedBlobA = blobFile(1);
-        final BlobFile referencedBlobB = blobFile(2);
-        final BlobFile referencedBlobC = blobFile(3);
-        final BlobFile internalBlob = blobFile(4);
+        final BccBlobFile referencedBlobA = blobFile(1);
+        final BccBlobFile referencedBlobB = blobFile(2);
+        final BccBlobFile referencedBlobC = blobFile(3);
+        final BccBlobFile internalBlob = blobFile(4);
 
         final Map<String, BlobLocation> commitFiles = new HashMap<>();
         commitFiles.put("internal_1", new BlobLocation(internalBlob, 0, 10));
@@ -200,7 +199,7 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
         final Map<String, Long> resolvedTimestamps = Map.of("referenced_a", 500L, "referenced_b1", 1500L, "referenced_b2", 2500L);
         final FileTimestampResolver resolver = fileName -> resolvedTimestamps.getOrDefault(fileName, UNKNOWN_TIMESTAMP);
 
-        final Map<BlobFile, Long> timestampPerBlob = SearchCommitPrefetcher.computeTimestampPerBlob(
+        final Map<BccBlobFile, Long> timestampPerBlob = SearchCommitPrefetcher.computeTimestampPerBlob(
             commit,
             Set.of(internalBlob, referencedBlobA, referencedBlobB, referencedBlobC),
             resolver,
@@ -222,7 +221,7 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
     }
 
     public void testComputeTimestampPerBlobBehaviourWhenNotificationTimestampUnknown() {
-        final BlobFile referencedBlob = blobFile(1);
+        final BccBlobFile referencedBlob = blobFile(1);
         final Map<String, BlobLocation> commitFiles = new HashMap<>();
         // No internal files: the whole commit has no timestamp range, and the referenced file is unknown too.
         commitFiles.put("referenced", new BlobLocation(referencedBlob, 0, 10));
@@ -230,7 +229,7 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
         final StatelessCompoundCommit commit = compoundCommit(4, commitFiles, Set.of(), null);
         final FileTimestampResolver resolver = fileName -> UNKNOWN_TIMESTAMP;
 
-        final Map<BlobFile, Long> timestampPerBlob = SearchCommitPrefetcher.computeTimestampPerBlob(
+        final Map<BccBlobFile, Long> timestampPerBlob = SearchCommitPrefetcher.computeTimestampPerBlob(
             commit,
             Set.of(referencedBlob),
             resolver,
@@ -243,7 +242,7 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
         );
 
         final long resolvedTimestamp = randomNonNegativeLong();
-        final Map<BlobFile, Long> resolvedTimestampPerBlob = SearchCommitPrefetcher.computeTimestampPerBlob(
+        final Map<BccBlobFile, Long> resolvedTimestampPerBlob = SearchCommitPrefetcher.computeTimestampPerBlob(
             commit,
             Set.of(referencedBlob),
             resolver,
@@ -258,7 +257,7 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
 
     public void testPrefetchPropagatesPerCcTimestamp() throws Exception {
         long generation = 4L;
-        final BlobFile internalBlob = blobFile(generation);
+        final BccBlobFile internalBlob = blobFile(generation);
         final Map<String, BlobLocation> commitFiles = new HashMap<>();
         commitFiles.put("internal_1", new BlobLocation(internalBlob, 0, 10));
         commitFiles.put("internal_2", new BlobLocation(internalBlob, 10, 10));
@@ -380,7 +379,7 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
         }
     }
 
-    private Map<BlobFile, ByteRange> computeRangesToPrefetch(
+    private Map<BccBlobFile, ByteRange> computeRangesToPrefetch(
         SearchCommitPrefetcher.BCCPreFetchedOffset bccPreFetchedOffset,
         long maxBCCGenerationToPrefetch,
         BlobLocation... blobLocations
@@ -414,8 +413,8 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
         return new BlobLocation(blobFile(generation), offset, length);
     }
 
-    private BlobFile blobFile(long generation) {
-        return new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(generation), termAndGen(1, generation));
+    private BccBlobFile blobFile(long generation) {
+        return new BccBlobFile(termAndGen(1, generation));
     }
 
     private static PrimaryTermAndGeneration termAndGen(long term, long generation) {

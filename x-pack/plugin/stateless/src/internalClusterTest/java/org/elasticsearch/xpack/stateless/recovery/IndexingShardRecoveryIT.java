@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccBlobFile;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
@@ -90,7 +91,7 @@ import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NOD
 import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit.blobNameFromGeneration;
+import static org.elasticsearch.xpack.stateless.commits.BccBlobFile.blobNameFromGeneration;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -538,7 +539,7 @@ public class IndexingShardRecoveryIT extends AbstractStatelessPluginIntegTestCas
             "All commits uploaded under 1 primary term, except the stale generation",
             blobNamesAndPrimaryTerms.entrySet()
                 .stream()
-                .filter(commit -> commit.getKey().equals(BatchedCompoundCommit.blobNameFromGeneration(generation)) == false)
+                .filter(commit -> commit.getKey().equals(BccBlobFile.blobNameFromGeneration(generation)) == false)
                 .allMatch(commit -> commit.getValue().size() == 1),
             equalTo(true)
         );
@@ -550,13 +551,13 @@ public class IndexingShardRecoveryIT extends AbstractStatelessPluginIntegTestCas
         assertThat(
             "The commit uploaded under more than 1 primary term correspond to the stale commit generation",
             blobNamesAndPrimaryTerms.entrySet().stream().filter(commit -> commit.getValue().size() != 1).map(Map.Entry::getKey).toList(),
-            hasItem(equalTo(BatchedCompoundCommit.blobNameFromGeneration(staleCommitGeneration)))
+            hasItem(equalTo(BccBlobFile.blobNameFromGeneration(staleCommitGeneration)))
         );
         assertThat(
             "The duplicate commits have been uploaded under the expected primary terms",
             blobNamesAndPrimaryTerms.entrySet()
                 .stream()
-                .filter(commit -> commit.getKey().equals(BatchedCompoundCommit.blobNameFromGeneration(staleCommitGeneration)))
+                .filter(commit -> commit.getKey().equals(BccBlobFile.blobNameFromGeneration(staleCommitGeneration)))
                 .map(Map.Entry::getValue)
                 .findFirst()
                 .get(),

@@ -19,6 +19,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.commits.BccBlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
@@ -104,6 +105,7 @@ public class CacheBlobReaderService {
         String fileName,
         boolean speculativeFill
     ) {
+        assert blobFile instanceof BccBlobFile : "only BCC blob files are supported for now, got " + blobFile;
         assert cachePopulationReason != BlobCacheMetrics.CachePopulationReason.CacheMiss || speculativeFill == false
             : "cache-miss reads serve blocked searches and can never be speculative";
         final var locationPrimaryTermAndGeneration = blobFile.termAndGeneration();

@@ -44,6 +44,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeout.TimeoutContext;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
+import org.elasticsearch.xpack.stateless.commits.BccBlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.reshard.SplitTargetService;
@@ -711,7 +712,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 2000);
 
             final Map<BlobFile, WarmTarget> endTargetsToWarm = Map.of(
-                new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)),
+                new BccBlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)),
                 WarmTarget.withUnknownTimestamp(400L, randomLongBetween(400L, 4_000L))
             );
 
@@ -1205,7 +1206,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
 
             // totalBytesToWarm=20 → dataVolume = (20/500.0) × 8000 = 320 < equalShare 4000
             final Map<BlobFile, WarmTarget> endTargetsToWarm = Map.of(
-                new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)),
+                new BccBlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)),
                 WarmTarget.withUnknownTimestamp(20L, randomLongBetween(20L, 2_000L))
             );
 
@@ -1851,7 +1852,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 2000);
 
             final Map<BlobFile, WarmTarget> endTargetsToWarm = Map.of(
-                new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)),
+                new BccBlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)),
                 WarmTarget.withUnknownTimestamp(100L, randomLongBetween(100L, 1_000L))
             );
             final ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID)

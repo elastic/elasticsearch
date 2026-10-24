@@ -87,7 +87,9 @@ import org.elasticsearch.xpack.stateless.action.NewCommitNotificationResponse;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccBlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
+import org.elasticsearch.xpack.stateless.commits.MergeBlobFile;
 import org.elasticsearch.xpack.stateless.commits.StaleCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
@@ -119,8 +121,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.env.Environment.PATH_REPO_SETTING;
+import static org.elasticsearch.xpack.stateless.commits.BlobFileTestUtils.randomMergeDiscriminator;
+import static org.elasticsearch.xpack.stateless.commits.BlobFileTestUtils.randomMergeSegment;
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.BUCKET_SETTING;
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.OBJECT_STORE_FILE_DELETION_DELAY;
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.ObjectStoreType.AZURE;
@@ -133,6 +138,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -363,7 +369,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
 
                     @Override
                     public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
-                        assert BatchedCompoundCommit.startsWithBlobPrefix(blobName) || permittedFiles.contains(blobName)
+                        assert BccBlobFile.startsWithBlobPrefix(blobName) || permittedFiles.contains(blobName)
                             : blobName + " in " + permittedFiles;
                         return super.readBlob(purpose, blobName);
                     }
@@ -433,7 +439,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
                     .listBlobs(randomFrom(OperationPurpose.values()))
                     .keySet()
                     .stream()
-                    .filter(BatchedCompoundCommit::startsWithBlobPrefix)
+                    .filter(BccBlobFile::startsWithBlobPrefix)
                     .count()
             );
 
@@ -589,6 +595,80 @@ public class ObjectStoreServiceTests extends ESTestCase {
                 equalTo(expectedNewestBatchedCompoundCommit.get())
             );
         }
+    }
+
+    /**
+     * Until merge blobs are correctly handled, they must be excluded from object store listings so that they cannot be chosen as the latest
+     * commit to recover from.
+     */
+    public void testMergeBlobsAreExcludedFromListBlobs() throws Exception {
+        final long primaryTerm = randomLongBetween(1, 42);
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm)) {
+            final BlobContainer shardBlobContainer = testHarness.objectStoreService.getProjectBlobContainer(
+                testHarness.shardId,
+                primaryTerm
+            );
+
+            final Set<Long> bccGenerations = new HashSet<>();
+            final int bccCount = between(1, 4);
+            long generation = randomLongBetween(1, 10);
+            for (int i = 0; i < bccCount; i++) {
+                bccGenerations.add(generation);
+                writeBlob(shardBlobContainer, BccBlobFile.blobNameFromGeneration(generation));
+                generation += randomLongBetween(1, 10);
+            }
+            final long latestBccGeneration = Collections.max(bccGenerations);
+
+            final Set<String> mergeBlobNames = new HashSet<>();
+            for (int i = 0, count = between(1, 4); i < count; i++) {
+                // The merge start generation can be lower, equal or greater than the generation of any BCC
+                final long mergeStartGeneration = randomFrom(1L, latestBccGeneration, latestBccGeneration + between(1, 100));
+                final String mergeBlobName = MergeBlobFile.blobName(mergeStartGeneration, randomMergeSegment(), randomMergeDiscriminator());
+                mergeBlobNames.add(mergeBlobName);
+                writeBlob(shardBlobContainer, mergeBlobName);
+            }
+
+            final var listed = ObjectStoreService.listBlobs(primaryTerm, shardBlobContainer);
+            assertThat(
+                listed.keySet(),
+                equalTo(bccGenerations.stream().map(gen -> new PrimaryTermAndGeneration(primaryTerm, gen)).collect(Collectors.toSet()))
+            );
+            for (var blobMetadata : listed.values()) {
+                assertTrue(blobMetadata.name(), BccBlobFile.startsWithBlobPrefix(blobMetadata.name()));
+            }
+
+            final var latestBlob = ObjectStoreService.getLatestBlob(shardBlobContainer);
+            assertNotNull(latestBlob);
+            assertThat(latestBlob.v1(), equalTo(latestBccGeneration));
+            assertThat(latestBlob.v2().name(), equalTo(BccBlobFile.blobNameFromGeneration(latestBccGeneration)));
+
+            // Merge blobs must not be deleted by listing them
+            assertThat(shardBlobContainer.listBlobs(OperationPurpose.INDICES).keySet(), hasItems(mergeBlobNames.toArray(String[]::new)));
+        }
+    }
+
+    /** With merge blobs only, there is no commit to recover from */
+    public void testOnlyMergeBlobsMeansNoBlobToRecoverFrom() throws Exception {
+        final long primaryTerm = randomLongBetween(1, 42);
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm)) {
+            final BlobContainer shardBlobContainer = testHarness.objectStoreService.getProjectBlobContainer(
+                testHarness.shardId,
+                primaryTerm
+            );
+            for (int i = 0, count = between(1, 4); i < count; i++) {
+                writeBlob(
+                    shardBlobContainer,
+                    MergeBlobFile.blobName(randomLongBetween(1, 100), randomMergeSegment(), randomMergeDiscriminator())
+                );
+            }
+            assertThat(ObjectStoreService.listBlobs(primaryTerm, shardBlobContainer), anEmptyMap());
+            assertNull(ObjectStoreService.getLatestBlob(shardBlobContainer));
+        }
+    }
+
+    private static void writeBlob(BlobContainer blobContainer, String blobName) throws IOException {
+        final var bytes = new BytesArray(randomByteArrayOfLength(between(1, 100)));
+        blobContainer.writeBlob(OperationPurpose.INDICES, blobName, bytes, true);
     }
 
     public void testReadLatestBccPopulatesCache() throws Exception {

@@ -31,6 +31,7 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.stateless.commits.BccBlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService.RecoveryInfoFromSource;
@@ -192,10 +193,11 @@ public class TransportStatelessPrimaryRelocationHandoffAction extends TransportA
             retentionLeases = new RetentionLeases(in);
             searchNodesPerCommit = in.readMap(PrimaryTermAndGeneration::new, in0 -> in0.readCollectionAsSet(StreamInput::readString));
             latestBccBlob = in.readOptionalWriteable(BlobFileWithLength::new);
-            otherBlobFiles = in.readCollectionAsSet(BlobFile::new);
+            assert latestBccBlob == null || latestBccBlob.blobFile() instanceof BccBlobFile : latestBccBlob;
+            otherBlobFiles = in.readCollectionAsSet(BlobFile::readFrom);
             hasRecentIdLookup = in.readBoolean();
             lastCommitBlobs = in.getTransportVersion().supports(STATELESS_PRIMARY_HANDOFF_LATEST_BLOBS)
-                ? in.readCollectionAsImmutableSet(BlobFile::new)
+                ? in.readCollectionAsImmutableSet(BlobFile::readFrom)
                 : Set.of();
             lastCommitIsHollow = in.getTransportVersion().supports(STATELESS_PRIMARY_HANDOFF_LATEST_BLOBS) && in.readBoolean();
         }
@@ -259,9 +261,10 @@ public class TransportStatelessPrimaryRelocationHandoffAction extends TransportA
                 return null;
             }
             StatelessCommitService.SourceBlobsInfo sourceBlobsInfo = null;
+            assert latestBccBlob.blobFile() instanceof BccBlobFile : latestBccBlob.blobFile();
             if (latestBccBlob != null) {
                 sourceBlobsInfo = new StatelessCommitService.SourceBlobsInfo(
-                    latestBccBlob.blobFile(),
+                    (BccBlobFile) latestBccBlob.blobFile(),
                     latestBccBlob.length(),
                     otherBlobFiles
                 );

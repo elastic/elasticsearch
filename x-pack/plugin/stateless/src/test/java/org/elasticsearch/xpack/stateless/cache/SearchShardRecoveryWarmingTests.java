@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeout.TimeoutContext;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.SearchRecoveryWaitOutcome;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
+import org.elasticsearch.xpack.stateless.commits.BccBlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
@@ -328,7 +329,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 null,
                 mockDirectory(),
                 mock(WarmingRatioProvider.class),
-                Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), WarmTarget.withUnknownTimestamp(1L, 1L)),
+                Map.of(new BccBlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), WarmTarget.withUnknownTimestamp(1L, 1L)),
                 resume
             );
             // recovery is NOT resumed
@@ -384,7 +385,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 null,
                 null,
                 mock(WarmingRatioProvider.class),
-                Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), WarmTarget.withUnknownTimestamp(1L, 1L)),
+                Map.of(new BccBlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), WarmTarget.withUnknownTimestamp(1L, 1L)),
                 resume
             );
             // recovery resumed (synchronously)
@@ -449,7 +450,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 null,
                 mockDirectory(),
                 mock(WarmingRatioProvider.class),
-                Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), new WarmTarget(1L, 1L, 1L)),
+                Map.of(new BccBlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), new WarmTarget(1L, 1L, 1L)),
                 resume
             );
             // Note: must not assert that `resume` is still incomplete here; the timeout is 1-10ms and races with an assertion.

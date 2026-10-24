@@ -391,7 +391,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
             final var genE = getIndexingShardTermAndGeneration(indexName, 0);
 
             assertBusy(() -> {
-                var blobCommits = listBlobsTermAndGenerations(indexShard.shardId());
+                var blobCommits = listBccBlobsTermAndGenerations(indexShard.shardId());
                 // genA and genB retained due to being referenced by the snapshot. genE retained as latest commit.
                 assertThat(blobCommits, hasItems(genA, genB, genE));
                 // genC and genD have been merged away and not referenced by anything.
@@ -410,7 +410,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
             snapshot.join();
 
             assertBusy(() -> {
-                var blobCommits = listBlobsTermAndGenerations(indexShard.shardId());
+                var blobCommits = listBccBlobsTermAndGenerations(indexShard.shardId());
                 // genE retained as latest commit.
                 assertThat(blobCommits, hasItems(genE));
                 // genB and genC are ultimately deleted after the snapshot has ended.
@@ -931,7 +931,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
                 Sets.intersection(
                     blobsUsedForScroll.stream()
                         .map(name -> name.substring(name.lastIndexOf('/') + 1))
-                        .map(BatchedCompoundCommit::parseGenerationFromBlobName)
+                        .map(BccBlobFile::parseGenerationFromBlobName)
                         .collect(Collectors.toUnmodifiableSet()),
                     termAndGensInUse.get().stream().map(PrimaryTermAndGeneration::generation).collect(Collectors.toUnmodifiableSet())
                 ),
@@ -1738,12 +1738,10 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         if (searchNodeUsesBothBCCs) {
             // If the search node opened a scroll, we should not remove any of the BCCs
             expectedBlobsAfterProcessingNewCommitNotifications = uploadedBCCGenerations.stream()
-                .map(uploadedBCC -> BatchedCompoundCommit.blobNameFromGeneration(uploadedBCC.generation()))
+                .map(uploadedBCC -> BccBlobFile.blobNameFromGeneration(uploadedBCC.generation()))
                 .collect(Collectors.toSet());
         } else {
-            expectedBlobsAfterProcessingNewCommitNotifications = Set.of(
-                BatchedCompoundCommit.blobNameFromGeneration(maxUploadedBCCGeneration)
-            );
+            expectedBlobsAfterProcessingNewCommitNotifications = Set.of(BccBlobFile.blobNameFromGeneration(maxUploadedBCCGeneration));
         }
 
         assertBusy(
@@ -1763,7 +1761,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         assertBusy(
             () -> assertThat(
                 shardCommitsContainer.listBlobs(operationPurpose).keySet(),
-                is(equalTo(Set.of(BatchedCompoundCommit.blobNameFromGeneration(maxUploadedBCCGeneration))))
+                is(equalTo(Set.of(BccBlobFile.blobNameFromGeneration(maxUploadedBCCGeneration))))
             )
         );
 
@@ -1914,7 +1912,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
 
         var latestUploadedBcc = commitService.getLatestUploadedBcc(shardId);
         assertThat(latestUploadedBcc, is(notNullValue()));
-        var latestUploadedBlob = BatchedCompoundCommit.blobNameFromGeneration(latestUploadedBcc.primaryTermAndGeneration().generation());
+        var latestUploadedBlob = BccBlobFile.blobNameFromGeneration(latestUploadedBcc.primaryTermAndGeneration().generation());
 
         PITRetentionTestScenarios testScenario = randomFrom(PITRetentionTestScenarios.values());
         logger.info("Using PITRetentionTestScenario: " + testScenario);

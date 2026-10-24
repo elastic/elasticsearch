@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheFileReader;
 import org.elasticsearch.xpack.stateless.cache.reader.ObjectStoreCacheBlobReader;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccBlobFile;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -47,6 +47,7 @@ import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnap
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomIOContext;
 import static org.elasticsearch.xpack.stateless.TestUtils.newCacheService;
 import static org.elasticsearch.xpack.stateless.commits.BlobLocationTestUtils.createBlobFileRanges;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommitTestUtils.randomNonZeroPositiveLong;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -147,8 +148,8 @@ public class BlobCacheIndexInputStressTests extends ESIndexInputTestCase {
             checksumAndLengthList.add(new ChecksumAndLength(checksumBytes.v1(), checksumBytes.v2().length));
         }
 
-        final long primaryTerm = randomNonNegativeLong();
-        final String compoundFileName = BatchedCompoundCommit.blobNameFromGeneration(primaryTerm);
+        final long primaryTerm = randomNonZeroPositiveLong();
+        final String compoundFileName = BccBlobFile.blobNameFromGeneration(primaryTerm);
         long offset = 0;
         final Map<BlobCacheIndexInput, String> blobCacheIndexInputs = new HashMap<>();
         for (ChecksumAndLength checksumAndLength : checksumAndLengthList) {

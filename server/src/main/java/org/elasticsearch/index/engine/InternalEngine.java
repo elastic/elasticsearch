@@ -1417,15 +1417,21 @@ public class InternalEngine extends Engine {
                 }
                 if (plan.indexIntoLucene && indexResult.getResultType() == Result.Type.SUCCESS) {
                     final Translog.Location translogLocation = trackTranslogLocation.get() ? indexResult.getTranslogLocation() : null;
-                    versionMap.maybePutIndexUnderLock(
-                        index.uid(),
-                        new IndexVersionValue(
-                            translogLocation == null ? null : new Translog.OperationLocation(translogLocation),
-                            plan.versionForIndexing,
-                            index.seqNo(),
-                            index.primaryTerm()
-                        )
+                    final IndexVersionValue version = new IndexVersionValue(
+                        translogLocation == null ? null : new Translog.OperationLocation(translogLocation),
+                        plan.versionForIndexing,
+                        index.seqNo(),
+                        index.primaryTerm()
                     );
+                    // Even though we have already called enforceSafeAccess() on the version map, we might still be in the unsafe mode
+                    // if we had a refresh happen since then. See https://github.com/elastic/elasticsearch/issues/149677
+                    // We work around this unexpected behaviour by unconditionally putting the version into the version map when we know we
+                    // called enforceSafeAccess.
+                    if (plan.enforceSafeAccessCalled && liveVersionMapArchive != LiveVersionMapArchive.NOOP_ARCHIVE) {
+                        versionMap.putIndexUnderLock(index.uid(), version);
+                    } else {
+                        versionMap.maybePutIndexUnderLock(index.uid(), version);
+                    }
                 }
                 localCheckpointTracker.markSeqNoAsProcessed(indexResult.getSeqNo());
                 if (indexResult.getTranslogLocation() == null) {
@@ -1833,10 +1839,19 @@ public class InternalEngine extends Engine {
                     final Translog.OperationLocation operationLocation = (trackTranslogLocation.get() && batchLocation != null)
                         ? new Translog.OperationLocation(batchLocation, i)
                         : null;
-                    versionMap.maybePutIndexUnderLock(
-                        subBatch.uid(i),
-                        new IndexVersionValue(operationLocation, plan.versionForIndexing, assignedSeqNos[i], primaryTerm)
+                    final IndexVersionValue version = new IndexVersionValue(
+                        operationLocation,
+                        plan.versionForIndexing,
+                        assignedSeqNos[i],
+                        primaryTerm
                     );
+                    // Even though we have already called enforceSafeAccess() on the version map, we might still be in the unsafe mode
+                    // if we had a refresh happen since then. See https://github.com/elastic/elasticsearch/issues/149677
+                    if (plan.enforceSafeAccessCalled && liveVersionMapArchive != LiveVersionMapArchive.NOOP_ARCHIVE) {
+                        versionMap.putIndexUnderLock(subBatch.uid(i), version);
+                    } else {
+                        versionMap.maybePutIndexUnderLock(subBatch.uid(i), version);
+                    }
                 }
                 // TODO: Batch Optimize the processed seqNo
                 localCheckpointTracker.markSeqNoAsProcessed(result.getSeqNo());
@@ -1868,6 +1883,7 @@ public class InternalEngine extends Engine {
         final boolean[] needsLucene = new boolean[count];
         boolean anyNeedsVersionLookup = false;
         boolean anyNeedsLucene = false;
+        boolean enforceSafeAccessCalled = false;
 
         // Phase 1: per-op fast-path check and versionMap lookups
         for (int i = 0; i < count; i++) {
@@ -1902,6 +1918,7 @@ public class InternalEngine extends Engine {
 
         if (anyNeedsVersionLookup) {
             versionMap.enforceSafeAccess();
+            enforceSafeAccessCalled = true;
         }
 
         // Phase 2: single Lucene reader acquisition for all versionMap misses.
@@ -1955,7 +1972,13 @@ public class InternalEngine extends Engine {
         // Phase 3: build a strategy per op using pre-resolved versions
         final IndexingStrategy[] plans = new IndexingStrategy[count];
         for (int i = 0; i < count; i++) {
-            plans[i] = planIndexingAsPrimaryWithVersion(subBatch.toIndexOp(i), resolvedVersions[i], optimizeAppendOnly[i], 1);
+            plans[i] = planIndexingAsPrimaryWithVersion(
+                subBatch.toIndexOp(i),
+                resolvedVersions[i],
+                optimizeAppendOnly[i],
+                1,
+                enforceSafeAccessCalled
+            );
         }
         return plans;
     }
@@ -1973,14 +1996,22 @@ public class InternalEngine extends Engine {
         assert index.origin() == Operation.Origin.PRIMARY : "planing as primary but origin isn't. got " + index.origin();
         final boolean optimizeAppendOnly = canOptimizeAddDocument(index) && mayHaveBeenIndexedBefore(index) == false;
         VersionValue versionValue = null;
+        boolean enforceSafeAccessCalled = false;
         if (optimizeAppendOnly == false
             && (sequenceNumbersAreDisabled() == false
                 || index.getIfSeqNo() == UNASSIGNED_SEQ_NO
                 || index.getIfPrimaryTerm() == UNASSIGNED_PRIMARY_TERM)) {
             versionMap.enforceSafeAccess();
+            enforceSafeAccessCalled = true;
             versionValue = resolveDocVersion(index, index.getIfSeqNo() != UNASSIGNED_SEQ_NO);
         }
-        return planIndexingAsPrimaryWithVersion(index, versionValue, optimizeAppendOnly, index.parsedDoc().docs().size());
+        return planIndexingAsPrimaryWithVersion(
+            index,
+            versionValue,
+            optimizeAppendOnly,
+            index.parsedDoc().docs().size(),
+            enforceSafeAccessCalled
+        );
     }
 
     /**
@@ -1997,7 +2028,8 @@ public class InternalEngine extends Engine {
         final Index index,
         final VersionValue versionValue,
         final boolean optimizeAppendOnly,
-        final int reservingDocs
+        final int reservingDocs,
+        final boolean enforceSafeAccessCalled
     ) {
         assert index.origin() == Operation.Origin.PRIMARY : "planning as primary but origin is: " + index.origin();
         if (optimizeAppendOnly) {
@@ -2059,7 +2091,8 @@ public class InternalEngine extends Engine {
             return IndexingStrategy.processNormally(
                 currentNotFoundOrDeleted,
                 canOptimizeAddDocument(index) ? 1L : index.versionType().updateVersion(currentVersion, index.version()),
-                reservingDocs
+                reservingDocs,
+                enforceSafeAccessCalled
             );
         }
     }
@@ -2094,7 +2127,10 @@ public class InternalEngine extends Engine {
             if (opVsLucene == OpVsLuceneDocStatus.OP_STALE_OR_EQUAL) {
                 plan = IndexingStrategy.processAsStaleOp(index.version(), 0);
             } else {
-                plan = IndexingStrategy.processNormally(opVsLucene == OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND, index.version(), 0);
+                // enforceSafeAccess() was called above, so record the version even if the map has turned unsafe since then.
+                // In stateless, translog replay advances maxSeqNoOfUpdatesOrDeletes for every op, so replayed ops always take
+                // this branch rather than the optimized append-only one above.
+                plan = IndexingStrategy.processNormally(opVsLucene == OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND, index.version(), 0, true);
             }
         }
         return plan;
@@ -2214,6 +2250,7 @@ public class InternalEngine extends Engine {
         final long versionForIndexing;
         final boolean indexIntoLucene;
         final boolean addStaleOpToLucene;
+        final boolean enforceSafeAccessCalled;
         final int reservedDocs;
         final Optional<IndexResult> earlyResultOnPreflightError;
 
@@ -2222,6 +2259,7 @@ public class InternalEngine extends Engine {
             boolean useLuceneUpdateDocument,
             boolean indexIntoLucene,
             boolean addStaleOpToLucene,
+            boolean enforceSafeAccessCalled,
             long versionForIndexing,
             int reservedDocs,
             IndexResult earlyResultOnPreflightError
@@ -2241,6 +2279,7 @@ public class InternalEngine extends Engine {
             this.versionForIndexing = versionForIndexing;
             this.indexIntoLucene = indexIntoLucene;
             this.addStaleOpToLucene = addStaleOpToLucene;
+            this.enforceSafeAccessCalled = enforceSafeAccessCalled;
             this.reservedDocs = reservedDocs;
             this.earlyResultOnPreflightError = earlyResultOnPreflightError == null
                 ? Optional.empty()
@@ -2248,7 +2287,7 @@ public class InternalEngine extends Engine {
         }
 
         static IndexingStrategy optimizedAppendOnly(long versionForIndexing, int reservedDocs) {
-            return new IndexingStrategy(true, false, true, false, versionForIndexing, reservedDocs, null);
+            return new IndexingStrategy(true, false, true, false, false, versionForIndexing, reservedDocs, null);
         }
 
         public static IndexingStrategy skipDueToVersionConflict(
@@ -2258,15 +2297,21 @@ public class InternalEngine extends Engine {
             String id
         ) {
             final IndexResult result = new IndexResult(e, currentVersion, id);
-            return new IndexingStrategy(currentNotFoundOrDeleted, false, false, false, Versions.NOT_FOUND, 0, result);
+            return new IndexingStrategy(currentNotFoundOrDeleted, false, false, false, false, Versions.NOT_FOUND, 0, result);
         }
 
-        static IndexingStrategy processNormally(boolean currentNotFoundOrDeleted, long versionForIndexing, int reservedDocs) {
+        static IndexingStrategy processNormally(
+            boolean currentNotFoundOrDeleted,
+            long versionForIndexing,
+            int reservedDocs,
+            boolean enforceSafeAccessCalled
+        ) {
             return new IndexingStrategy(
                 currentNotFoundOrDeleted,
                 currentNotFoundOrDeleted == false,
                 true,
                 false,
+                enforceSafeAccessCalled,
                 versionForIndexing,
                 reservedDocs,
                 null
@@ -2274,21 +2319,21 @@ public class InternalEngine extends Engine {
         }
 
         public static IndexingStrategy processButSkipLucene(boolean currentNotFoundOrDeleted, long versionForIndexing) {
-            return new IndexingStrategy(currentNotFoundOrDeleted, false, false, false, versionForIndexing, 0, null);
+            return new IndexingStrategy(currentNotFoundOrDeleted, false, false, false, false, versionForIndexing, 0, null);
         }
 
         static IndexingStrategy processAsStaleOp(long versionForIndexing, int reservedDocs) {
-            return new IndexingStrategy(false, false, false, true, versionForIndexing, reservedDocs, null);
+            return new IndexingStrategy(false, false, false, true, false, versionForIndexing, reservedDocs, null);
         }
 
         static IndexingStrategy failAsTooManyDocs(Exception e, String id) {
             final IndexResult result = new IndexResult(e, Versions.NOT_FOUND, id);
-            return new IndexingStrategy(false, false, false, false, Versions.NOT_FOUND, 0, result);
+            return new IndexingStrategy(false, false, false, false, false, Versions.NOT_FOUND, 0, result);
         }
 
         static IndexingStrategy optimisticConcurrencyControlNotSupported(String id, ShardId shardId) {
             final IndexResult result = new IndexResult(new OCCNotSupportedException(shardId), Versions.NOT_FOUND, id);
-            return new IndexingStrategy(false, false, false, false, Versions.NOT_FOUND, 0, result);
+            return new IndexingStrategy(false, false, false, false, false, Versions.NOT_FOUND, 0, result);
         }
     }
 

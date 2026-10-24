@@ -13,6 +13,12 @@ base {
   archivesName = 'elasticsearch-security-cli'
 }
 
+configurations {
+  // The Bouncy Castle FIPS provider jar that FIPS deployments add to lib/, which ShadedBouncyCastleTests puts on the parent class
+  // loader of the tool. Not part of any compile or runtime class path. Same version as in elasticsearch.fips.gradle.
+  bcFipsJar
+}
+
 dependencies {
   compileOnly project(":server")
   compileOnly project(path: xpackModule('core'))
@@ -28,6 +34,8 @@ dependencies {
   testImplementation "org.bouncycastle:bcpkix-jdk18on:${versions.bouncycastle}"
   testImplementation "org.bouncycastle:bcprov-jdk18on:${versions.bouncycastle}"
   testImplementation "org.bouncycastle:bcutil-jdk18on:${versions.bouncycastle}"
+
+  bcFipsJar 'org.bouncycastle:bc-fips:2.0.2'
 }
 
 tasks.named("forbiddenPatterns").configure {
@@ -37,6 +45,8 @@ tasks.named("forbiddenPatterns").configure {
 
 tasks.named("test").configure {
   environment 'HOSTNAME', 'dummy.test.hostname' // some tests rely on this being set, which it always is for the code running in main
+  inputs.files(configurations.bcFipsJar).withNormalizer(ClasspathNormalizer)
+  nonInputProperties.systemProperty 'tests.bcfips.jar', "${-> configurations.bcFipsJar.singleFile}"
 }
 
 if (buildParams.inFipsJvm) {

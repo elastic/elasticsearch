@@ -149,6 +149,7 @@ final class PlainValues {
         private boolean previousNull;
         /** Whether values come through {@link #transfer}, which keeps no {@link #previous}; a column takes one or the other. */
         private Boolean transferred;
+        private int ownerChunk;
 
         /**
          * @param constantLength the length every value has, which the caller knows before writing any of them,
@@ -193,6 +194,7 @@ final class PlainValues {
             }
             final boolean repeat = count > 0 && previousNull == false && previous.get().bytesEquals(value);
             startSlot();
+            ownerChunk = chunks.chunkBeingFilled();
             if (lengths != null && repeat && count % lengthBlockSize != 0) {
                 lengths.add(REPEAT);
             } else {
@@ -224,6 +226,7 @@ final class PlainValues {
             }
             assert repeat == false || (count > 0 && previousNull == false) : "only a value can be repeated";
             startSlot();
+            ownerChunk = chunks.chunkBeingFilled();
             if (lengths != null && repeat && count % lengthBlockSize != 0) {
                 lengths.add(REPEAT);
             } else {
@@ -254,12 +257,18 @@ final class PlainValues {
                 throw new IllegalStateException("a null in a column counted as holding none");
             }
             startSlot();
+            ownerChunk = chunks.chunkBeingFilled();
             lengths.add(NULL_CODE);
             if (count == 0 || previousNull == false) {
                 runs++;
             }
             previousNull = true;
             count++;
+        }
+
+        /** The chunk that owns the slot just written: the one holding its first byte, or the one being filled if it has none. */
+        int ownerChunk() {
+            return ownerChunk;
         }
 
         private void startSlot() throws IOException {

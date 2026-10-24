@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.MapperTestUtils;
@@ -714,6 +715,44 @@ public class PerFieldMapperCodecTests extends ESTestCase {
             assertFalse("mode=" + mode, supplier.resolveStringColumnOptions("category", ColumnarFieldType.STRING).singleValued());
             assertTrue("mode=" + mode, supplier.resolveStringColumnOptions("host", ColumnarFieldType.STRING).singleValued());
             assertFalse("mode=" + mode, supplier.resolveStringColumnOptions("body", ColumnarFieldType.STRING).singleValued());
+        }
+    }
+
+    public void testOnlyThePrimaryIndexSortFieldBoundsItsPlainColumn() throws IOException {
+        final String mapping = """
+            {
+                "properties": {
+                    "host": { "type": "keyword" },
+                    "category": { "type": "keyword" },
+                    "region": { "type": "keyword" },
+                    "body": { "type": "text" }
+                }
+            }
+            """;
+        for (boolean sorted : new boolean[] { true, false }) {
+            final Settings.Builder settings = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, randomColumnarEligibleIndexVersion());
+            if (sorted) {
+                settings.putList(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host", "category");
+            }
+            final MapperService mapperService = MapperTestUtils.newMapperService(
+                xContentRegistry(),
+                createTempDir(),
+                settings.build(),
+                "test"
+            );
+            mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+            final PerFieldFormatSupplier supplier = new PerFieldFormatSupplier(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
+            assertEquals(sorted, supplier.resolveStringColumnOptions("host", ColumnarFieldType.STRING).enablePlainSkipIndex());
+            for (String field : List.of("category", "region", "body")) {
+                assertFalse(field, supplier.resolveStringColumnOptions(field, ColumnarFieldType.STRING).enablePlainSkipIndex());
+            }
+            for (String field : List.of("host", "category", "region")) {
+                final StringColumnOptions options = supplier.resolveStringColumnOptions(field, ColumnarFieldType.STRING);
+                assertEquals(field, StringColumnOptions.DEFAULT_DICTIONARY, options.dictionary());
+                assertTrue(field, options.enableSkipIndex());
+            }
         }
     }
 

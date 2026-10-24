@@ -14,20 +14,22 @@ import org.openjdk.jmh.annotations.Param;
 import java.io.IOException;
 
 /**
- * Range query over the plain layout of a ColumNAR string column, isolating the per-interval byte
- * skip index. Unlike {@link ColumnarStringRangeSlicingBenchmark}, this class fixes the format to
- * {@code COLUMNAR_PLAIN} so the skip-index cost is always in the plain code path, and uses data
- * shapes that span the spectrum from maximally skip-friendly to skip-hostile:
+ * Range query over the plain layout of a ColumNAR string column, with the plain skip index off
+ * ({@code COLUMNAR_PLAIN}) and on ({@code COLUMNAR_PLAIN_BOUNDED}). Unlike
+ * {@link ColumnarStringRangeSlicingBenchmark}, this class keeps the layout plain so the skip-index cost is
+ * always in the plain code path, and uses data shapes that span the spectrum from maximally skip-friendly to
+ * skip-hostile:
  *
  * <ul>
- * <li>{@code SORTED_POD_NAME}: values arrive in term order, each term in one run. The interval
- *     {@code [minTerm, maxTerm]} covers a narrow portion of the vocabulary, so nearly every
- *     interval outside the query range is pruned. This is the best case for the byte skip index.</li>
+ * <li>{@code SORTED_POD_NAME}: values arrive in term order, so the reader bisects and does not use the skip
+ *     index, which is still written. It is the control: both formats must measure the same.</li>
+ * <li>{@code DESCENDING_POD_NAME}: values arrive in reverse term order. The reader cannot bisect, and each
+ *     chunk covers a narrow portion of the vocabulary, so nearly every chunk outside the query range is
+ *     pruned. This is the best case for the skip index.</li>
  * <li>{@code SHUFFLED_POD_NAME}: the same multiset in uniformly random document order. Every
- *     interval spans roughly the full vocabulary, so no interval can be pruned. This is the
- *     worst case, and the direct complement to {@code SORTED_POD_NAME}.</li>
- * <li>{@code TRACE_ID}: all values are distinct hex strings. Intervals cover a modest portion of
- *     the lexicographic space, so some pruning is possible at low selectivities.</li>
+ *     chunk spans roughly the full vocabulary, so no chunk can be pruned. This is the worst case.</li>
+ * <li>{@code TRACE_ID}: all values are distinct hex strings. Chunks cover almost the whole
+ *     lexicographic space, so little pruning is possible.</li>
  * </ul>
  *
  * <p>Run commands (from the repository root):
@@ -35,13 +37,16 @@ import java.io.IOException;
  * # Smoke test: one fork, no warmup, one iteration (finishes in under a minute).
  * ./gradlew :benchmarks:run --args="ColumnarPlainStringRangeSlicingBenchmark -f 1 -wi 0 -i 1 -p numDocs=100000 -rf json -rff columnar-plain-range.json"
  *
- * # Full run: all three data shapes across four selectivity values and two doc counts.
+ * # Full run: all four data shapes across four selectivity values, two doc counts and both formats.
  * ./gradlew :benchmarks:run --args="ColumnarPlainStringRangeSlicingBenchmark -rf json -rff columnar-plain-range.json"
  * </pre>
  */
 public class ColumnarPlainStringRangeSlicingBenchmark extends AbstractStringRangeSlicingBenchmark {
 
-    @Param({ "SORTED_POD_NAME", "SHUFFLED_POD_NAME", "TRACE_ID" })
+    @Param({ "COLUMNAR_PLAIN", "COLUMNAR_PLAIN_BOUNDED" })
+    private StringFormat format;
+
+    @Param({ "SORTED_POD_NAME", "DESCENDING_POD_NAME", "SHUFFLED_POD_NAME", "TRACE_ID" })
     private StringData data;
 
     @Param({ "0.0", "0.001", "0.01", "0.1" })
@@ -64,13 +69,11 @@ public class ColumnarPlainStringRangeSlicingBenchmark extends AbstractStringRang
 
     @Override
     StringFormat format() {
-        return StringFormat.COLUMNAR_PLAIN;
+        return format;
     }
 
     @Override
     void validateLayout(StringFormat.Column column) throws IOException {
-        if (column.shape().startsWith("plain") == false) {
-            throw new IllegalStateException("COLUMNAR_PLAIN produced a non-plain layout: " + column.shape());
-        }
+        format.requirePlainLayout(column, numDocs);
     }
 }

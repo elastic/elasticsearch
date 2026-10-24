@@ -418,7 +418,8 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
             ChunkCodec.ZSTD,
             StringColumnOptions.DEFAULT_SIZES,
             StringColumnOptions.DEFAULT_SINGLE_VALUED,
-            StringColumnOptions.DEFAULT_ENABLE_SKIP_INDEX
+            StringColumnOptions.DEFAULT_ENABLE_SKIP_INDEX,
+            StringColumnOptions.DEFAULT_ENABLE_PLAIN_SKIP_INDEX
         );
         withColumn(singleValued(docValues), options, (metadata, reader) -> {
             assertEquals("layout", StringColumnLayout.DICTIONARY, metadata.layout());
@@ -847,7 +848,8 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
                 ColumNARDocValuesFormat.MAX_BLOCK_SIZE
             ),
             StringColumnOptions.DEFAULT_SINGLE_VALUED,
-            StringColumnOptions.DEFAULT_ENABLE_SKIP_INDEX
+            StringColumnOptions.DEFAULT_ENABLE_SKIP_INDEX,
+            StringColumnOptions.DEFAULT_ENABLE_PLAIN_SKIP_INDEX
         );
     }
 
@@ -903,7 +905,8 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
                             ColumNARDocValuesFormat.MAX_BLOCK_SIZE
                         ),
                         StringColumnOptions.DEFAULT_SINGLE_VALUED,
-                        StringColumnOptions.DEFAULT_ENABLE_SKIP_INDEX
+                        StringColumnOptions.DEFAULT_ENABLE_SKIP_INDEX,
+                        StringColumnOptions.DEFAULT_ENABLE_PLAIN_SKIP_INDEX
                     ),
                     known,
                     dir,

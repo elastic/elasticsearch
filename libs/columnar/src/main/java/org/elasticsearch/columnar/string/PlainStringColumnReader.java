@@ -11,6 +11,7 @@ package org.elasticsearch.columnar.string;
 
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.TwoPhaseIterator;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.columnar.substrate.BytesSink;
@@ -38,11 +39,48 @@ public final class PlainStringColumnReader extends StringColumnReader {
 
     private final boolean hasNullSlots;
 
-    PlainStringColumnReader(StringColumnMetadata.Plain column, ColumnInputs inputs) throws IOException {
+    private final StringColumnMetadata.Plain.Skipper skipper;
+
+    private final IndexInput skipIndex;
+
+    private final long numValues;
+
+    PlainStringColumnReader(StringColumnMetadata.Plain column, ColumnInputs inputs, IndexInput skipIndex) throws IOException {
         super(column, inputs, column.values() == null ? StringColumnOptions.DEFAULT_VALUES_PER_BLOCK : column.values().valuesPerBlock());
         this.valuesWorthNaming = column.valuesWorthNaming();
         this.values = column.numDocsWithField() == 0 ? null : column.values().open(inputs);
         this.hasNullSlots = column.hasNullSlots();
+        this.skipper = column.skipper();
+        this.skipIndex = skipIndex;
+        this.numValues = column.values() == null ? 0 : column.values().numValues();
+    }
+
+    private ColumnIterator presenceWithin(PlainSkipBounds.Query query) throws IOException {
+        final ColumnIterator presence = iterator();
+        if (skipper == null) {
+            return presence;
+        }
+        return new PlainRangePresence(
+            presence,
+            new PlainSkipBounds.Reader(skipper, numValues, skipIndex),
+            query,
+            new PlainRangePresence.Slots() {
+                @Override
+                public long firstAddress(int rank) throws IOException {
+                    return firstValueAddress(rank);
+                }
+
+                @Override
+                public long count(int rank) throws IOException {
+                    return valueCount(rank);
+                }
+
+                @Override
+                public boolean oneSlotADocument() {
+                    return hasValueAddresses() == false;
+                }
+            }
+        );
     }
 
     @Override
@@ -143,7 +181,9 @@ public final class PlainStringColumnReader extends StringColumnReader {
     protected DocIdSetIterator unorderedMatches(BytesRef prefix, BytesRef exact) throws IOException {
         final BytesRef target = exact != null ? exact : prefix;
         final SlotWindow window = lengthWindow(target.length, exact != null ? target.length : Integer.MAX_VALUE);
-        final Slots candidates = slotsHeld(window);
+        final Slots candidates = exact != null
+            ? slotsHeld(window, presenceWithin(PlainSkipBounds.Query.range(exact, true, exact, true)))
+            : slotsHeld(window, presenceWithin(PlainSkipBounds.Query.prefix(prefix)));
         final boolean settled = target.length == 0;
         final LastSeen lastSeen = new LastSeen();
         return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(candidates) {
@@ -231,7 +271,7 @@ public final class PlainStringColumnReader extends StringColumnReader {
     @Override
     protected DocIdSetIterator unorderedRangeMatches(BytesRef lower, boolean includeLower, BytesRef upper, boolean includeUpper)
         throws IOException {
-        final ColumnIterator presence = iterator();
+        final ColumnIterator presence = presenceWithin(PlainSkipBounds.Query.range(lower, includeLower, upper, includeUpper));
         final LastSeen lastSeen = new LastSeen();
         return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(presence) {
             @Override

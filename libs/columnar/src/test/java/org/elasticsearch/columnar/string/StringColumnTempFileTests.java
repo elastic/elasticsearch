@@ -59,7 +59,8 @@ public class StringColumnTempFileTests extends ColumnarStringTestCase {
                         ColumNARDocValuesFormat.MAX_BLOCK_SIZE
                     ),
                     StringColumnOptions.DEFAULT_SINGLE_VALUED,
-                    StringColumnOptions.DEFAULT_ENABLE_SKIP_INDEX
+                    StringColumnOptions.DEFAULT_ENABLE_SKIP_INDEX,
+                    StringColumnOptions.DEFAULT_ENABLE_PLAIN_SKIP_INDEX
                 ),
                 null,
                 dir,

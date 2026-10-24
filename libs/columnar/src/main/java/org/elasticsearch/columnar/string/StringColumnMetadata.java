@@ -9,6 +9,7 @@
 
 package org.elasticsearch.columnar.string;
 
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.elasticsearch.columnar.ColumnMetadata;
@@ -165,6 +166,8 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
      *                          it: values that did not cover enough of the column to earn one do not repeat
      *                          enough for a page to earn one either. A column written under no dictionary
      *                          policy was never surveyed, and leaves the page to decide as it always has
+     * @param skipper      where the bounds on the values each chunk owns are in the skip-index file;
+     *                     null for a column that wrote none
      */
     record Plain(
         ColumnIteratorMetadata iterator,
@@ -178,8 +181,53 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         PlainValues.Metadata values,
         boolean valuesSorted,
         boolean valuesWorthNaming,
+        Skipper skipper,
         Summary summary
     ) implements StringColumnMetadata {
+
+        /** The skip-index region of the column's chunk bounds: {@code entryCount} directory entries, then {@code payloadLength} bytes. */
+        record Skipper(long dataOffset, int entryCount, long payloadLength) {
+
+            void writeTo(DataOutput out) throws IOException {
+                out.writeVLong(dataOffset);
+                out.writeVInt(entryCount);
+                out.writeVLong(payloadLength);
+            }
+
+            static Skipper readOptionally(DataInput in, long numValues) throws IOException {
+                final byte present = in.readByte();
+                if (present != 0 && present != 1) {
+                    throw new CorruptIndexException("invalid plain skipper presence [" + present + "]", in);
+                }
+                return present == 0 ? null : readFrom(in, numValues);
+            }
+
+            static Skipper readFrom(DataInput in, long numValues) throws IOException {
+                final Skipper skipper = new Skipper(in.readVLong(), in.readVInt(), in.readVLong());
+                if (skipper.dataOffset < 0 || skipper.payloadLength < 0 || skipper.entryCount < 1 || skipper.entryCount > numValues) {
+                    throw new CorruptIndexException("invalid plain skipper " + skipper + " for [" + numValues + "] values", in);
+                }
+                return skipper;
+            }
+        }
+
+        public Plain withSkipper(Skipper skipper) {
+            return new Plain(
+                iterator,
+                numDocsWithField,
+                numValues,
+                numNullSlots,
+                valueBytes,
+                minLength,
+                maxLength,
+                addressing,
+                values,
+                valuesSorted,
+                valuesWorthNaming,
+                skipper,
+                summary
+            );
+        }
 
         @Override
         public StringColumnLayout layout() {
@@ -200,6 +248,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
                 values,
                 valuesSorted,
                 valuesWorthNaming,
+                skipper,
                 summary
             );
         }
@@ -208,6 +257,10 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         public void writeBody(DataOutput out) throws IOException {
             values.writeTo(out);
             out.writeByte((byte) (valuesWorthNaming ? 1 : 0));
+            out.writeByte((byte) (skipper == null ? 0 : 1));
+            if (skipper != null) {
+                skipper.writeTo(out);
+            }
         }
     }
 
@@ -333,6 +386,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
             values,
             valuesSorted,
             valuesWorthNaming,
+            null,
             null
         );
     }
@@ -444,6 +498,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
             case PLAIN -> {
                 final PlainValues.Metadata values = PlainValues.Metadata.readFrom(in);
                 final boolean valuesWorthNaming = in.readByte() != 0;
+                final Plain.Skipper skipper = Plain.Skipper.readOptionally(in, values.numValues());
                 yield plain(
                     iterator,
                     numDocsWithField,
@@ -456,7 +511,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
                     values,
                     valuesSorted,
                     valuesWorthNaming
-                );
+                ).withSkipper(skipper);
             }
             case DICTIONARY -> {
                 final int dictionarySize = in.readVInt();

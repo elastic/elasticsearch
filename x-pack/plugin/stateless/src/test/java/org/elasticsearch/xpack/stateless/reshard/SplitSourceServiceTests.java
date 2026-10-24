@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -61,6 +62,62 @@ public class SplitSourceServiceTests extends ESTestCase {
             );
 
             expectThrows(IndexNotFoundException.class, handoff::actionGet);
+        }
+        assertEquals(1, permitsClosed.get());
+    }
+
+    /// A restore over an index that is being resharded replaces its metadata, dropping the resharding metadata and, if the snapshot has
+    /// fewer shards than the split target index has, the target shard itself. The handoff observer of the source shard then sees a
+    /// state without the target shard. It must abandon the handoff and release the permits, not throw from the cluster state listener
+    /// (which would leave the observer registered and the permits held).
+    public void testHandoffIsAbandonedWhenRestoreRemovedTheTargetShard() throws Exception {
+        assertHandoffIsAbandonedByRestore(2, 3);
+    }
+
+    /// As above, but the restored index has as many shards as the split was going to create, so the target shard still exists. The
+    /// primary terms are no higher than the ones the handoff was started with, so without checking the resharding metadata the
+    /// observer would keep waiting, holding the permits.
+    public void testHandoffIsAbandonedWhenRestoreDiscardedTheReshardingMetadata() throws Exception {
+        assertHandoffIsAbandonedByRestore(4, 3);
+    }
+
+    private void assertHandoffIsAbandonedByRestore(int restoredShardCount, int targetShardId) throws Exception {
+        final var permitsClosed = new AtomicInteger();
+        try (ClusterService clusterService = ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool())) {
+            final var splitSourceService = new SplitSourceService(null, clusterService, null, null, null, null, null, Settings.EMPTY);
+            final var index = new Index("restored", "restored-uuid");
+            // The state after the restore: no resharding metadata, and the shard count of the snapshot
+            ClusterServiceUtils.setState(
+                clusterService,
+                ClusterState.builder(clusterService.state())
+                    .putProjectMetadata(
+                        ProjectMetadata.builder(ProjectId.DEFAULT)
+                            .put(
+                                IndexMetadata.builder(index.getName())
+                                    .settings(
+                                        indexSettings(IndexVersion.current(), restoredShardCount, 0).put(
+                                            IndexMetadata.SETTING_INDEX_UUID,
+                                            index.getUUID()
+                                        )
+                                    )
+                            )
+                    )
+                    .build()
+            );
+            final var handoff = new PlainActionFuture<ActionResponse>();
+
+            splitSourceService.waitForHandoffSuccessOrFailure(
+                new ShardId(index, targetShardId),
+                new ShardId(index, targetShardId / 2),
+                1L,
+                1L,
+                new AtomicBoolean(true),
+                permitsClosed::incrementAndGet,
+                handoff
+            );
+
+            assertTrue("the handoff should have been abandoned", handoff.isDone());
+            expectThrows(StaleSplitRequestException.class, handoff::actionGet);
         }
         assertEquals(1, permitsClosed.get());
     }

@@ -215,6 +215,11 @@ tests:
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/delete_expired_data/Test delete expired data with path parameters}
   issue: https://github.com/elastic/elasticsearch/issues/162947
+- class: org.elasticsearch.xpack.downsample.DownsampleActionSingleNodeTests
+  tasks:
+  - :x-pack:plugin:downsample:test
+  method: testDownsampleResumesAfterPersistentTaskRemoved
+  issue: https://github.com/elastic/elasticsearch/issues/162858
 
 # Examples:
 #

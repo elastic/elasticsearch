@@ -19,6 +19,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.FilterScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -84,6 +85,27 @@ public class RestoringShardPainlessExecuteIT extends AbstractSnapshotIntegTestCa
             var request = new PainlessExecuteAction.Request(new Script("true"), FilterScript.CONTEXT.name, contextSetup);
             Exception e = expectThrows(Exception.class, () -> client().execute(PainlessExecuteAction.INSTANCE, request).actionGet());
             assertThat(ExceptionsHelper.status(ExceptionsHelper.unwrapCause(e)), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+        } finally {
+            unblockAndDeleteRestoringIndex(REPO, INDEX);
+        }
+    }
+
+    /**
+     * With a restore that asks for its shards to be reported, the same request fails with a 403 that says which restore it is waiting
+     * for, instead of the 503.
+     */
+    public void testPainlessExecuteWithIndexContextWhileRestoringReportingShardRestoringReturnsForbidden() throws Exception {
+        final String restoreUuid = blockAndStartRestoreReportingShardRestoring(REPO, SNAPSHOT, INDEX);
+        try {
+            BytesReference doc = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject());
+            var contextSetup = new PainlessExecuteAction.Request.ContextSetup(INDEX, doc, new MatchAllQueryBuilder());
+            contextSetup.setXContentType(XContentType.JSON);
+            var request = new PainlessExecuteAction.Request(new Script("true"), FilterScript.CONTEXT.name, contextSetup);
+            Exception e = expectThrows(Exception.class, () -> client().execute(PainlessExecuteAction.INSTANCE, request).actionGet());
+            final var restoring = ExceptionsHelper.unwrapCausesAndSuppressed(e, t -> t instanceof ShardRestoringException);
+            assertTrue("no ShardRestoringException in the causes of " + e, restoring.isPresent());
+            assertReportsShardRestoring((ShardRestoringException) restoring.get(), INDEX, restoreUuid);
+            assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.FORBIDDEN));
         } finally {
             unblockAndDeleteRestoringIndex(REPO, INDEX);
         }

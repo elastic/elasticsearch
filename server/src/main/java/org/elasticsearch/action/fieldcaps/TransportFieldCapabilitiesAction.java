@@ -30,8 +30,10 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -58,6 +60,8 @@ import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -391,6 +395,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     resolvedIndexExpressions,
                     resolvedRemotely,
                     minTransportVersion,
+                    projectState,
                     listener.map(linkedRequestExecutor::wrapPrimary)
                 );
             }
@@ -604,6 +609,38 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         }
     }
 
+    /**
+     * Replaces the failure of each local index whose shards are unavailable because a restore that reports its shards is restoring them
+     * with a {@link ShardRestoringException}. Every other failure is returned untouched. Package-private for tests.
+     */
+    static List<FieldCapabilitiesFailure> withShardRestoringFailures(List<FieldCapabilitiesFailure> failures, ProjectState projectState) {
+        final List<FieldCapabilitiesFailure> result = new ArrayList<>(failures.size());
+        for (FieldCapabilitiesFailure failure : failures) {
+            if (TransportActions.isShardNotAvailableException(failure.getException()) == false) {
+                result.add(failure);
+                continue;
+            }
+            final List<String> unchanged = new ArrayList<>();
+            for (String index : failure.getIndices()) {
+                final IndexMetadata indexMetadata = projectState.metadata().index(index);
+                final ShardRestoringException restoring = indexMetadata == null
+                    ? null
+                    : RestoreService.reportableRestoreException(projectState.projectId(), indexMetadata.getIndex(), projectState.cluster());
+                if (restoring != null) {
+                    result.add(new FieldCapabilitiesFailure(new String[] { index }, restoring));
+                } else {
+                    unchanged.add(index);
+                }
+            }
+            if (unchanged.size() == failure.getIndices().length) {
+                result.add(failure);
+            } else if (unchanged.isEmpty() == false) {
+                result.add(new FieldCapabilitiesFailure(unchanged.toArray(String[]::new), failure.getException()));
+            }
+        }
+        return result;
+    }
+
     private static void mergeIndexResponses(
         FieldCapabilitiesRequest request,
         CancellableTask task,
@@ -612,9 +649,14 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         ResolvedIndexExpressions resolvedLocally,
         Map<String, ResolvedIndexExpressions> resolvedRemotely,
         AtomicReference<TransportVersion> minTransportVersion,
+        ProjectState projectState,
         ActionListener<FieldCapabilitiesResponse> listener
     ) {
-        List<FieldCapabilitiesFailure> failures = indexFailures.build(indexResponses.keySet());
+        final List<FieldCapabilitiesFailure> builtFailures = indexFailures.build(indexResponses.keySet());
+        // Only when some indices answered: if none did, the first failure is thrown below exactly as it always was
+        final List<FieldCapabilitiesFailure> failures = indexResponses.isEmpty() == false
+            ? withShardRestoringFailures(builtFailures, projectState)
+            : builtFailures;
         if (indexResponses.isEmpty() == false) {
             if (request.isMergeResults()) {
                 ActionListener.completeWith(

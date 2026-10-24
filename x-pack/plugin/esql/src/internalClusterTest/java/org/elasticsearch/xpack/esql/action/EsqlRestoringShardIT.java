@@ -12,6 +12,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -103,6 +104,71 @@ public class EsqlRestoringShardIT extends AbstractSnapshotIntegTestCase {
             assertThat(ExceptionsHelper.status(ExceptionsHelper.unwrapCause(e)), equalTo(RestStatus.NOT_FOUND));
         } finally {
             unblockAndDeleteRestoringIndex(REPO, INDEX);
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Restores that ask for ShardRestoringException (reportShardRestoring = true).
+    // Over only the restoring index no index answers field caps, so field caps fails with its first failure as it always did and the
+    // flag makes no difference. Over a healthy index as well, the restoring index's failure is reported.
+    // -------------------------------------------------------------------------
+
+    public void testAsyncEsqlQueryWhileRestoringReportingShardRestoringFailsFastWithNotFound() throws Exception {
+        blockAndStartRestoreReportingShardRestoring(REPO, SNAPSHOT, INDEX);
+        try {
+            EsqlQueryRequest request = asyncEsqlQueryRequest("FROM " + INDEX + " | LIMIT 1");
+            request.waitForCompletionTimeout(TimeValue.timeValueSeconds(10));
+            Exception e = expectThrows(
+                Exception.class,
+                () -> client().execute(EsqlQueryAction.INSTANCE, request).actionGet(TimeValue.timeValueSeconds(30))
+            );
+            assertThat(ExceptionsHelper.status(ExceptionsHelper.unwrapCause(e)), equalTo(RestStatus.NOT_FOUND));
+        } finally {
+            unblockAndDeleteRestoringIndex(REPO, INDEX);
+        }
+    }
+
+    public void testEsqlQueryWhileRestoringReportingShardRestoringFailsFastWithNotFound() throws Exception {
+        blockAndStartRestoreReportingShardRestoring(REPO, SNAPSHOT, INDEX);
+        try {
+            EsqlQueryRequest request = syncEsqlQueryRequest("FROM " + INDEX + " | LIMIT 1");
+            Exception e = expectThrows(
+                Exception.class,
+                () -> client().execute(EsqlQueryAction.INSTANCE, request).actionGet(TimeValue.timeValueSeconds(30))
+            );
+            assertThat(ExceptionsHelper.status(ExceptionsHelper.unwrapCause(e)), equalTo(RestStatus.NOT_FOUND));
+        } finally {
+            unblockAndDeleteRestoringIndex(REPO, INDEX);
+        }
+    }
+
+    /**
+     * Over a healthy index as well, field caps answers for the healthy one and reports the restoring one as a
+     * {@link ShardRestoringException}. Without partial results ES|QL fails the query with that failure, so the caller gets the 403 that
+     * says which restore it is waiting for.
+     */
+    public void testEsqlQueryOverSeveralIndicesWhileRestoringReportingShardRestoringFailsWithForbidden() throws Exception {
+        final String healthyIndex = "test-healthy-index";
+        createIndexWithContent(healthyIndex);
+        try {
+            final String restoreUuid = blockAndStartRestoreReportingShardRestoring(REPO, SNAPSHOT, INDEX);
+            try {
+                EsqlQueryRequest request = syncEsqlQueryRequest("FROM " + INDEX + "," + healthyIndex + " | LIMIT 1").allowPartialResults(
+                    false
+                );
+                Exception e = expectThrows(
+                    Exception.class,
+                    () -> client().execute(EsqlQueryAction.INSTANCE, request).actionGet(TimeValue.timeValueSeconds(30))
+                );
+                final var restoring = ExceptionsHelper.unwrapCausesAndSuppressed(e, t -> t instanceof ShardRestoringException);
+                assertTrue("no ShardRestoringException in the causes of " + e, restoring.isPresent());
+                assertReportsShardRestoring((ShardRestoringException) restoring.get(), INDEX, restoreUuid);
+                assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.FORBIDDEN));
+            } finally {
+                unblockAndDeleteRestoringIndex(REPO, INDEX);
+            }
+        } finally {
+            assertAcked(indicesAdmin().prepareDelete(healthyIndex));
         }
     }
 }

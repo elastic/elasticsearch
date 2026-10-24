@@ -7,7 +7,9 @@
 package org.elasticsearch.xpack.core.security.support;
 
 import org.apache.lucene.search.WildcardQuery;
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
@@ -20,7 +22,6 @@ import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
 
@@ -363,6 +364,14 @@ public final class Automatons {
         return MinimizationOperations.minimize(automaton, maxDeterminizedStates);
     }
 
+    /**
+     * A predicate over strings compiled from an automaton. It is {@link Accountable} so that holders can measure it with
+     * {@link RamUsageEstimator#sizeOfObject}: the size covers the {@link CharacterRunAutomaton} that evaluates the predicate, whose
+     * transition table typically dominates the footprint of a compiled pattern, including the deterministic automaton it was built
+     * from. The predicates for {@link #MATCH_ALL} and {@link #EMPTY} are shared constants and report no retained heap.
+     */
+    private interface AutomatonPredicate extends Predicate<String>, Accountable {}
+
     public static Predicate<String> predicate(String... patterns) {
         return predicate(Arrays.asList(patterns));
     }
@@ -395,25 +404,73 @@ public final class Automatons {
         return maxDeterminizedStates;
     }
 
-    private static Predicate<String> predicate(Automaton automaton, final String toString) {
+    private static AutomatonPredicate predicate(Automaton automaton, final String toString) {
         if (automaton == MATCH_ALL) {
-            return Predicates.always();
+            return ConstantPredicate.MATCH_ALL;
         } else if (automaton == EMPTY) {
-            return Predicates.never();
+            return ConstantPredicate.MATCH_NONE;
         }
         automaton = Operations.determinize(automaton, maxDeterminizedStates);
-        CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton);
-        return new Predicate<String>() {
-            @Override
-            public boolean test(String s) {
-                return runAutomaton.run(s);
-            }
+        return new RunAutomatonPredicate(new CharacterRunAutomaton(automaton), toString);
+    }
 
-            @Override
-            public String toString() {
-                return toString;
-            }
-        };
+    /**
+     * The predicates for the {@link #MATCH_ALL} and {@link #EMPTY} automata, which need no run automaton to be evaluated. Being shared
+     * constants (as are the automata themselves), they retain no heap on behalf of whoever holds them.
+     */
+    private enum ConstantPredicate implements AutomatonPredicate {
+
+        MATCH_ALL(true),
+
+        MATCH_NONE(false);
+
+        private final boolean result;
+
+        ConstantPredicate(boolean result) {
+            this.result = result;
+        }
+
+        @Override
+        public boolean test(String s) {
+            return result;
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return 0;
+        }
+
+        @Override
+        public String toString() {
+            return "Predicate[" + name() + "]";
+        }
+    }
+
+    private static final class RunAutomatonPredicate implements AutomatonPredicate {
+
+        private final CharacterRunAutomaton runAutomaton;
+        private final String toString;
+
+        private RunAutomatonPredicate(CharacterRunAutomaton runAutomaton, String toString) {
+            this.runAutomaton = runAutomaton;
+            this.toString = toString;
+        }
+
+        @Override
+        public boolean test(String s) {
+            return runAutomaton.run(s);
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            // includes the automaton the run automaton was built from
+            return runAutomaton.ramBytesUsed();
+        }
+
+        @Override
+        public String toString() {
+            return toString;
+        }
     }
 
     public static void addSettings(List<Setting<?>> settingsList) {

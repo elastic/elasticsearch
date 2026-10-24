@@ -63,6 +63,7 @@ If you need to update the `8.x` docs, you'll have to use the old `asciidoc` syst
 
 > [!IMPORTANT]
 > Snippet testing has been temporarily disabled for Elasticsearch docs. This is a WIP and should be re-enabled soon for the new Markdown docs.
+The snippet-testing instructions below describe the legacy AsciiDoc workflow used for 8.x docs; they do not currently apply to the new Markdown docs.
 
 Snippets in `console` syntax are automatically tested by the command `./gradlew -pdocs check`. To test just the docs from a single page, use e.g. `./gradlew -pdocs yamlRestTest --tests "*rollover*"`.
 

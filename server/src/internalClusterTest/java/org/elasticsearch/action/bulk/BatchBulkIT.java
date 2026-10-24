@@ -43,6 +43,7 @@ import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.BatchMappingContext;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -74,6 +75,7 @@ import org.junit.runners.model.Statement;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -348,6 +350,213 @@ public class BatchBulkIT extends ESIntegTestCase {
             assertTrue(getResponse.isExists());
             assertThat(getResponse.getSourceAsMap(), equalTo(Map.of("host", "host-" + (i % 5), "service", "svc-" + (i % 3), "count", i)));
         }
+    }
+
+    /**
+     * {@code columnar_stored} source written straight from the mapped keyword and long columns, the way a mapping of only those field
+     * types lets the batch path do it, and then once more through the synthetic source loader with the direct path switched off by
+     * {@link BatchIndexingEnabled#DIRECT_COLUMNAR_SOURCE}. The documents mix scalars, arrays with duplicates, empty arrays, nulls, an
+     * over-long keyword that lands in the {@code ignore_above} fallback, a single-valued keyword with a fallback of its own, booleans,
+     * dates, ip addresses alone and in arrays, and absent fields; what comes back from get and search,
+     * with and without a source filter, must be the source each document was indexed with however the blob was produced.
+     */
+    public void testColumnarStoredSourceDirectAndLoaderPaths() throws IOException {
+        String index = "test-columnar-stored-source-direct";
+
+        XContentBuilder mapping = JsonXContent.contentBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.field("dynamic", "strict");
+                mapping.startObject("properties");
+                {
+                    mapping.startObject("host").field("type", "keyword").endObject();
+                    mapping.startObject("tags").field("type", "keyword").field("ignore_above", 8).endObject();
+                    mapping.startObject("count").field("type", "long").endObject();
+                    mapping.startObject("values").field("type", "long").endObject();
+                    mapping.startObject("flag").field("type", "boolean").endObject();
+                    mapping.startObject("seen").field("type", "date").endObject();
+                    mapping.startObject("addrs").field("type", "ip").endObject();
+                    mapping.startObject("owner").field("type", "keyword").field("multi_value", false).field("ignore_above", 8).endObject();
+                    mapping.startObject("attrs").field("type", "flattened").endObject();
+                }
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 2)
+                        .put("index.number_of_replicas", 0)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                        .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+                )
+                .setMapping(mapping)
+        );
+        ensureGreen(index);
+
+        String coordinatingNode = findCoordinatingNode();
+        int numDocs = randomIntBetween(20, 60);
+        // The expected source of every document, as a map the way get and search return it. Numbers come back as Integer, so the
+        // expected values are built that way too.
+        Map<String, Map<String, Object>> expectedSources = new LinkedHashMap<>();
+
+        final Logger contextLogger = LogManager.getLogger(BatchMappingContext.class);
+        final Level origLevel = contextLogger.getLevel();
+        Loggers.setLevel(contextLogger, Level.DEBUG);
+        try {
+            // First bulk: the direct path, which must not report a fallback.
+            try (var mockLog = MockLog.capture(BatchMappingContext.class)) {
+                mockLog.addExpectation(
+                    new MockLog.UnseenEventExpectation(
+                        "direct path taken",
+                        BatchMappingContext.class.getName(),
+                        Level.DEBUG,
+                        "columnar_stored source of batch takes the loader path*"
+                    )
+                );
+                indexColumnarStoredDocs(coordinatingNode, index, 0, numDocs, expectedSources);
+                mockLog.assertAllExpectationsMatched();
+            }
+
+            // Second bulk: the same shapes through the loader, with the direct path switched off.
+            updateClusterSettings(Settings.builder().put(BatchIndexingEnabled.DIRECT_COLUMNAR_SOURCE.getKey(), false));
+            try (var mockLog = MockLog.capture(BatchMappingContext.class)) {
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "loader path forced",
+                        BatchMappingContext.class.getName(),
+                        Level.DEBUG,
+                        "columnar_stored source of batch takes the loader path: disabled by setting"
+                    )
+                );
+                indexColumnarStoredDocs(coordinatingNode, index, numDocs, 2 * numDocs, expectedSources);
+                mockLog.assertAllExpectationsMatched();
+            } finally {
+                updateClusterSettings(Settings.builder().putNull(BatchIndexingEnabled.DIRECT_COLUMNAR_SOURCE.getKey()));
+            }
+        } finally {
+            Loggers.setLevel(contextLogger, origLevel);
+        }
+
+        refresh(index);
+
+        for (var expected : expectedSources.entrySet()) {
+            var getResponse = client().get(new GetRequest(index).id(expected.getKey()).realtime(false)).actionGet();
+            assertTrue(expected.getKey(), getResponse.isExists());
+            assertThat(expected.getKey(), getResponse.getSourceAsMap(), equalTo(expected.getValue()));
+        }
+        assertResponse(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).setSize(2 * numDocs), searchResponse -> {
+            assertThat(searchResponse.getHits().getHits().length, equalTo(2 * numDocs));
+            for (SearchHit hit : searchResponse.getHits().getHits()) {
+                assertThat(hit.getId(), hit.getSourceAsMap(), equalTo(expectedSources.get(hit.getId())));
+            }
+        });
+        assertResponse(
+            prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).setSize(2 * numDocs).setFetchSource("tags", null),
+            searchResponse -> {
+                for (SearchHit hit : searchResponse.getHits().getHits()) {
+                    Map<String, Object> expected = expectedSources.get(hit.getId());
+                    Map<String, Object> expectedTags = expected.containsKey("tags") ? Map.of("tags", expected.get("tags")) : Map.of();
+                    assertThat(hit.getId(), hit.getSourceAsMap(), equalTo(expectedTags));
+                }
+            }
+        );
+    }
+
+    /**
+     * Indexes documents {@code [from, to)} of {@link #testColumnarStoredSourceDirectAndLoaderPaths} in one bulk and records the source
+     * each one must read back as. {@code count} stays a scalar and {@code values} stays an array in every document, as the number
+     * mapper refuses a column that mixes the two shapes, and {@code flag} and {@code seen} stay scalars for the same reason; the
+     * keyword and ip fields take every shape, and {@code attrs} holds nested keys, arrays and a null.
+     */
+    private void indexColumnarStoredDocs(
+        String coordinatingNode,
+        String index,
+        int from,
+        int to,
+        Map<String, Map<String, Object>> expectedSources
+    ) throws IOException {
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = from; i < to; i++) {
+            XContentBuilder source = JsonXContent.contentBuilder().startObject();
+            Map<String, Object> expected = new LinkedHashMap<>();
+            switch (i % 6) {
+                case 0 -> {
+                    source.field("host", "host-" + i).field("count", i).array("values", i, i + 1).field("flag", true);
+                    source.field("seen", "2026-10-17T12:00:00.000Z").field("addrs", "10.0.0.1");
+                    source.startObject("attrs").field("region", "eu").startObject("k8s").field("pod", "p-" + i).endObject().endObject();
+                    expected.put("host", "host-" + i);
+                    expected.put("attrs", Map.of("region", "eu", "k8s", Map.of("pod", "p-" + i)));
+                    expected.put("count", i);
+                    expected.put("values", List.of(i, i + 1));
+                    expected.put("flag", true);
+                    expected.put("seen", "2026-10-17T12:00:00.000Z");
+                    expected.put("addrs", "10.0.0.1");
+                }
+                case 1 -> {
+                    source.array("tags", "dup", "a", "dup").array("values", i, i, i).field("owner", "alice");
+                    // Slots of one key keep their order and duplicates; a null slot stays a null.
+                    source.startObject("attrs").array("roles", "b", "a", "b").field("note").nullValue().endObject();
+                    expected.put("tags", List.of("dup", "a", "dup"));
+                    Map<String, Object> attrs = new LinkedHashMap<>();
+                    attrs.put("note", null);
+                    attrs.put("roles", List.of("b", "a", "b"));
+                    expected.put("attrs", attrs);
+                    expected.put("values", List.of(i, i, i));
+                    expected.put("owner", "alice");
+                }
+                case 2 -> {
+                    source.array("tags", "short", "waytoolongforthelimit").field("count", -i).startArray("values").endArray();
+                    source.field("owner", "waytoolongforthelimit");
+                    expected.put("tags", List.of("short", "waytoolongforthelimit"));
+                    expected.put("count", -i);
+                    expected.put("owner", "waytoolongforthelimit");
+                }
+                case 3 -> {
+                    source.startArray("tags").value("x").nullValue().endArray().array("values", 7).field("flag", false);
+                    source.startArray("addrs").value("2001:db8::2").nullValue().value("2001:db8::1").endArray();
+                    List<Object> tags = new ArrayList<>();
+                    tags.add("x");
+                    tags.add(null);
+                    expected.put("tags", tags);
+                    expected.put("values", 7);
+                    expected.put("flag", false);
+                    List<Object> addrs = new ArrayList<>();
+                    addrs.add("2001:db8::2");
+                    addrs.add(null);
+                    addrs.add("2001:db8::1");
+                    expected.put("addrs", addrs);
+                }
+                case 4 -> {
+                    // Source order, not sorted order, is what must come back for both fields.
+                    source.field("host", "waytoolongbutnotcapped").array("tags", "b", "a").array("values", 3, 1, 2).array("owner", "bob");
+                    expected.put("host", "waytoolongbutnotcapped");
+                    expected.put("owner", "bob");
+                    expected.put("tags", List.of("b", "a"));
+                    expected.put("values", List.of(3, 1, 2));
+                }
+                case 5 -> {
+                    // The batch path records no doc values for an empty ip array, so neither source path writes it back.
+                    source.array("values", 1, 1).field("seen", "2026-01-01T00:00:00.000Z").startArray("addrs").endArray();
+                    expected.put("values", List.of(1, 1));
+                    expected.put("seen", "2026-01-01T00:00:00.000Z");
+                }
+                default -> throw new AssertionError(i % 6);
+            }
+            source.endObject();
+            String id = "doc-" + i;
+            bulkRequest.add(new IndexRequest(index).id(id).source(source).opType(DocWriteRequest.OpType.CREATE));
+            expectedSources.put(id, expected);
+        }
+        BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
+        assertNoFailures(bulkResponse);
+        assertThat(bulkResponse.getItems().length, equalTo(to - from));
     }
 
     public void testKeywordWithMultiField() throws IOException {

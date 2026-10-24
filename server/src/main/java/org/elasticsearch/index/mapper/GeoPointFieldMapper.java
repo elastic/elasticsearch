@@ -28,6 +28,7 @@ import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -39,6 +40,7 @@ import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.escf.EscfColumn;
+import org.elasticsearch.escf.EscfColumnData;
 import org.elasticsearch.escf.EscfColumnKind;
 import org.elasticsearch.escf.LuceneLongColumn;
 import org.elasticsearch.escf.PresentDocIterator;
@@ -413,7 +415,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
     }
 
     @Override
-    public void mapColumnGroupBatch(BatchMappingContext ctx, EscfColumn[] columns, String[] relativeKeys) {
+    protected void doMapColumnGroupBatch(BatchMappingContext ctx, EscfColumn[] columns, String[] relativeKeys) {
         assert columns.length == relativeKeys.length : columns.length + " columns vs " + relativeKeys.length + " keys";
 
         int latIdx = -1;
@@ -507,25 +509,50 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             }
         }
 
-        LuceneLongColumn col;
-        if (validity == null) {
-            col = LuceneLongColumn.longColumn(
-                new BytesRef(values),
-                fullPath(),
-                GEO_POINT_DOC_VALUES_FIELD_TYPE,
-                LongColumn.NumericKind.LONG
-            );
-        } else {
-            col = LuceneLongColumn.sparseLongColumn(
-                values,
-                validity,
-                docCount,
-                fullPath(),
-                GEO_POINT_DOC_VALUES_FIELD_TYPE,
-                LongColumn.NumericKind.LONG
+        // One packed point per document, dense when every document has one. The array is not recycler-backed, so the column owns
+        // nothing to release and the batch need not track it.
+        final EscfColumnData packedPoints = new EscfColumnData(
+            EscfColumnKind.LONG,
+            docCount,
+            validity,
+            null,
+            null,
+            null,
+            new BytesArray(values),
+            null
+        );
+        ctx.addColumn(LuceneLongColumn.of(packedPoints, fullPath(), GEO_POINT_DOC_VALUES_FIELD_TYPE, LongColumn.NumericKind.LONG));
+        if (ctx.writesSourceColumn()) {
+            // This field's part of the columnar_stored blob, decoded from the packed points the way the loader layer decodes the doc
+            // values: one point per document, which the layer renders as a scalar. The ignore_malformed fallback layer has no
+            // counterpart here, as the batch path refuses the coordinates that would fill its column.
+            assert supportsDirectColumnarSource();
+            final GeoPoint point = new GeoPoint();
+            ctx.addSourceColumn(
+                new SourceColumn(
+                    fullPath(),
+                    leafName(),
+                    SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer.sourceLayer(
+                        packedPoints,
+                        false,
+                        (b, value) -> writePoint(point, b, value)
+                    )
+                )
             );
         }
-        ctx.addColumn(col);
+    }
+
+    @Override
+    protected boolean supportsDirectColumnarSource() {
+        // Every configuration that reaches doMapColumnGroupBatch has doc values and no null_value, so its loader is the sorted-numeric
+        // layer over the packed points plus the fallback layer the batch path leaves empty.
+        return true;
+    }
+
+    /** Writes the packed point {@code value} as the loader does, through {@code scratch} so that no point is allocated per document. */
+    private static void writePoint(GeoPoint scratch, XContentBuilder b, long value) throws IOException {
+        scratch.reset(GeoEncodingUtils.decodeLatitude((int) (value >>> 32)), GeoEncodingUtils.decodeLongitude((int) value));
+        scratch.toXContent(b, ToXContent.EMPTY_PARAMS);
     }
 
     @Override
@@ -897,10 +924,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             return new SyntheticSourceSupport.Native(() -> {
                 final GeoPoint point = new GeoPoint();
                 var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
-                layers.add(new SortedNumericDocValuesSyntheticFieldLoaderLayer(fullPath(), (b, value) -> {
-                    point.reset(GeoEncodingUtils.decodeLatitude((int) (value >>> 32)), GeoEncodingUtils.decodeLongitude((int) value));
-                    point.toXContent(b, ToXContent.EMPTY_PARAMS);
-                }));
+                layers.add(new SortedNumericDocValuesSyntheticFieldLoaderLayer(fullPath(), (b, value) -> writePoint(point, b, value)));
                 if (ignoreMalformed()) {
                     layers.add(CompositeSyntheticFieldLoader.malformedFallbackLayer(this, indexSettings));
                 }

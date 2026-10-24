@@ -285,6 +285,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         IncrementalBulkService.INCREMENTAL_BULK,
         IncrementalBulkService.REQUEST_TIMEOUT,
         BatchIndexingEnabled.BATCH_INDEXING,
+        BatchIndexingEnabled.DIRECT_COLUMNAR_SOURCE,
         PreResolvedUpdates.PRE_RESOLVE_BULK_UPDATES,
         RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING,
         RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING,

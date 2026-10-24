@@ -62,7 +62,7 @@ public final class ColumnarOffsetsBuilder {
      * <p>An {@code ARRAY} column represents an absent row as a zero-width offset range, so this one check
      * also excludes absent rows and empty arrays.
      */
-    static final int MIN_RECORDED_SLOTS = 2;
+    public static final int MIN_RECORDED_SLOTS = 2;
 
     private ColumnarOffsetsBuilder() {}
 

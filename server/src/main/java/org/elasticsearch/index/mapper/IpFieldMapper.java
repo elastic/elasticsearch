@@ -70,7 +70,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentString;
 
@@ -1017,13 +1016,23 @@ public class IpFieldMapper extends FieldMapper {
             // Attach output columns. Binary-dv blob and counts are each emitted independently.
             // All-null docs emit counts but no binary blob, so binaryDvs and dvCounts are decoupled.
             // Both builders allocate from ctx.recycler() — register their output for release.
+            EscfColumnData binaryDvData = null;
+            EscfColumnData dvCountData = null;
             if (binaryDvs.isEmpty() == false) {
-                EscfColumnData binaryDvData = binaryDvs.finish(docCount);
+                binaryDvData = binaryDvs.finish(docCount);
                 ctx.addColumn(LuceneBinaryColumn.of(binaryDvData, fieldType().name(), CustomDocValuesField.TYPE), binaryDvData);
             }
             if (dvCounts.isEmpty() == false) {
-                EscfColumnData dvCountData = dvCounts.finish(docCount);
+                dvCountData = dvCounts.finish(docCount);
                 ctx.addColumn(LuceneLongColumn.counts(dvCountData, fieldType().name()), dvCountData);
+            }
+            if (ctx.writesSourceColumn()) {
+                // This field's part of the columnar_stored blob, decoded from the blobs and counts just attached by the layer that reads
+                // them back from doc values. The fallback layers have no counterpart: the batch path refuses malformed addresses.
+                assert supportsDirectColumnarSource();
+                ctx.addSourceColumn(
+                    new SourceColumn(fullPath(), leafName(), arrayOrderLoaderLayer().sourceLayer(binaryDvData, dvCountData))
+                );
             }
         }
     }
@@ -1096,11 +1105,40 @@ public class IpFieldMapper extends FieldMapper {
             // BinaryDocValuesField.TYPE. No .counts sidecar is emitted for either case from this path; the
             // array-order path (mapColumnBatchOrdered) handles that for ArrayOrderInlineNull fields.
             // values allocates from ctx.recycler() — register its output for release.
+            EscfColumnData valuesData = null;
             if (values.isEmpty() == false) {
-                EscfColumnData valuesData = values.finish(docCount);
+                valuesData = values.finish(docCount);
                 ctx.addColumn(LuceneBinaryColumn.of(valuesData, fieldType().name(), dvFieldType), valuesData);
             }
+            if (ctx.writesSourceColumn() && supportsDirectColumnarSource()) {
+                // The single-valued binary layout: every document holds at most one raw 16-byte value, which is what the single-value
+                // layer reads. SORTED_SET doc values register nothing and send the batch down the loader path.
+                final SourceColumn.Layer[] layers = valuesData != null
+                    ? new SourceColumn.Layer[] { singleValueLoaderLayer().singleValueSourceLayer(valuesData) }
+                    : new SourceColumn.Layer[0];
+                ctx.addSourceColumn(new SourceColumn(fullPath(), leafName(), layers));
+            }
         }
+    }
+
+    @Override
+    protected boolean supportsDirectColumnarSource() {
+        // The two binary doc-values layouts the batch path writes in a strict-columnar index: array-order blobs, which keep every
+        // slot, and single-valued raw values. SORTED_SET doc values only occur in TSDB, where columnar_stored does not apply, and
+        // their loader layers have no direct counterpart.
+        return fieldType().hasDocValues()
+            && (fieldType().usesArrayOrderBinaryDocValues()
+                || (fieldType().usesBinaryDocValues() && docValuesParameters.multiValue() == false));
+    }
+
+    /** The loader layer for the array-order binary layout; also the factory of its direct counterpart. */
+    private ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer arrayOrderLoaderLayer() {
+        return new ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer(fullPath(), IpFieldMapper::convert);
+    }
+
+    /** The loader layer for the single-valued binary layout; also the factory of its direct counterpart. */
+    private BinaryDocValuesSyntheticFieldLoaderLayer singleValueLoaderLayer() {
+        return new BinaryDocValuesSyntheticFieldLoaderLayer(fullPath(), indexSettings.getIndexVersionCreated(), IpFieldMapper::convert);
     }
 
     @Override
@@ -1238,15 +1276,9 @@ public class IpFieldMapper extends FieldMapper {
                     }
                 } else {
                     if (fieldType().usesArrayOrderBinaryDocValues()) {
-                        layers.add(new ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer(fullPath(), IpFieldMapper::convert));
+                        layers.add(arrayOrderLoaderLayer());
                     } else {
-                        layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fullPath(), indexSettings.getIndexVersionCreated()) {
-                            @Override
-                            protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {
-                                BytesRef converted = IpFieldMapper.convert(value);
-                                b.utf8Value(converted.bytes, converted.offset, converted.length);
-                            }
-                        });
+                        layers.add(singleValueLoaderLayer());
                     }
                 }
 

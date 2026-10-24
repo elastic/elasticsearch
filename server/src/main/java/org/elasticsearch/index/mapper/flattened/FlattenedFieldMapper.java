@@ -92,6 +92,7 @@ import org.elasticsearch.index.mapper.MappingParser;
 import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.PassThroughFieldSource;
+import org.elasticsearch.index.mapper.SourceColumn;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
@@ -1899,7 +1900,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
      *         which writes the {@code <root>._keyed._ignored} channel this path does not yet produce
      */
     @Override
-    public void mapColumnGroupBatch(BatchMappingContext ctx, EscfColumn[] columns, String[] relativeKeys) {
+    protected void doMapColumnGroupBatch(BatchMappingContext ctx, EscfColumn[] columns, String[] relativeKeys) {
         assert columns.length == relativeKeys.length : columns.length + " columns vs " + relativeKeys.length + " keys";
         final int docCount = ctx.docCount();
         final int columnCount = columns.length;
@@ -2018,6 +2019,33 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             final EscfColumnData countsData = counts.finish(docCount);
             ctx.addColumn(LuceneLongColumn.counts(countsData, keyedFieldName), countsData);
         }
+
+        if (ctx.writesSourceColumn()) {
+            assert supportsDirectColumnarSource();
+            // The input columns outlive the batch, so the layer reads them again rather than decoding the blob just written.
+            ctx.addSourceColumn(
+                new SourceColumn(fullPath(), leafName(), new FlattenedArrayOrderSourceLayer(columns, relativeKeys, builder.nullValue.get()))
+            );
+        }
+    }
+
+    /**
+     * The array-order layout is the only one {@link #doMapColumnGroupBatch} writes, and {@link FlattenedArrayOrderSourceLayer} renders
+     * it without the {@code _offsets} sidecar or the mapped sub-fields the other layouts need, so those stay on the loader path.
+     */
+    @Override
+    protected boolean supportsDirectColumnarSource() {
+        return fieldType().hasDocValues() && fieldType().usesArrayOrderBinaryDocValues() && mappedSubFields.isEmpty();
+    }
+
+    /**
+     * The flattened loader is not a {@code CompositeSyntheticFieldLoader}, so the shared layer check cannot vouch for it; the loader
+     * says itself whether it renders only the array-order slots the direct writer reproduces.
+     */
+    @Override
+    protected boolean directSourceWriterKnowsLoader(SourceLoader.SyntheticFieldLoader loader) {
+        return loader.getClass() == FlattenedDocValuesSyntheticFieldLoader.class
+            && ((FlattenedDocValuesSyntheticFieldLoader) loader).rendersArrayOrderSlotsOnly();
     }
 
     private static EscfColumnBuilder mergeStringColumn(Recycler<BytesRef> recycler) {

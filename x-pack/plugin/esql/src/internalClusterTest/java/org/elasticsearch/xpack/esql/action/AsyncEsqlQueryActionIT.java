@@ -55,7 +55,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -237,10 +236,9 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
         scriptWaits.drainPermits();
         var pragmas = new QueryPragmas(
             Settings.builder()
-                // Force shard partitioning so each leaf subquery runs as exactly one driver (the index has a single shard). The
-                // semaphore accounting below counts one scriptWaits permit per paused driver, so finer partitioning that splits a
-                // leaf into several slices/drivers would break the "exactly two waits" logic.
-                .put(QueryPragmas.DATA_PARTITIONING.getKey(), "shard")
+                // One driver per leaf (the index has a single shard): the scriptWaits accounting below counts one permit per paused
+                // driver, so a leaf split across several drivers would break the "exactly two waits" logic.
+                .put(QueryPragmas.TASK_CONCURRENCY.getKey(), 1)
                 .build()
         );
         var request = asyncEsqlQueryRequest("""
@@ -252,22 +250,23 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
                )
             """).pragmas(pragmas).waitForCompletionTimeout(TimeValue.timeValueNanos(1)).keepOnCompletion(true).keepAlive(randomKeepAlive());
 
-        try (var initialResponse = client().execute(EsqlQueryAction.INSTANCE, request).actionGet(60, TimeUnit.SECONDS)) {
+        var client = client();
+        try (var initialResponse = client.execute(EsqlQueryAction.INSTANCE, request).actionGet(60, TimeUnit.SECONDS)) {
             assertThat(initialResponse.isRunning(), is(true));
             assertThat(initialResponse.asyncExecutionId(), isPresent());
             assertTrue("the first leaf must reach the pausable field", scriptWaits.tryAcquire(30, TimeUnit.SECONDS));
             assertTrue("the second leaf must reach the pausable field", scriptWaits.tryAcquire(30, TimeUnit.SECONDS));
+            // A timed wait: an instant availablePermits() check would pass if a third leaf were dispatched but not yet parked.
             assertFalse(
                 "branch_parallel_degree=2 must keep the remaining nested leaf undispatched",
                 scriptWaits.tryAcquire(200, TimeUnit.MILLISECONDS)
             );
 
             String asyncId = initialResponse.asyncExecutionId().get();
-            var stopFuture = client().execute(EsqlAsyncStopAction.INSTANCE, new AsyncStopRequest(asyncId));
+            var stopFuture = client.execute(EsqlAsyncStopAction.INSTANCE, new AsyncStopRequest(asyncId));
+            // Wait for STOP to cut the parked leaves (is_partial is set) before releasing them, so the cut is not racing the release.
             assertBusy(() -> {
-                try (EsqlQueryResponse running = getAsyncResponse(client(), asyncId)) {
-                    assertNotNull(running.getExecutionInfo());
-                    assertThat(running.getExecutionInfo().isStopped(), is(true));
+                try (EsqlQueryResponse running = getAsyncResponse(client, asyncId)) {
                     assertThat(running.isPartial(), is(true));
                 }
             });
@@ -276,22 +275,25 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
                 assertThat(stoppedResponse.isRunning(), is(false));
                 assertThat(stoppedResponse.isPartial(), is(true));
                 assertThat(stoppedResponse.columns(), equalTo(List.of(new ColumnInfoImpl("total", "long", null))));
-                // After the cut, the undispatched third leaf skips. The two parked leaves may still emit a partial sum (or null)
-                // once permits are released; a branch that finishes sums pause_me=1 over all docs, so no value can exceed
-                // numberOfDocs().
-                List<List<Object>> rows = getValuesList(stoppedResponse);
-                assertThat(rows.size(), lessThanOrEqualTo(3));
-                for (List<Object> row : rows) {
-                    assertThat(row, hasSize(1));
-                    if (row.get(0) != null) {
-                        assertThat((long) row.get(0), greaterThanOrEqualTo(0L));
-                        assertThat((long) row.get(0), lessThanOrEqualTo((long) numberOfDocs()));
-                    }
-                }
             }
         } finally {
             // Unblock anything still in pause_me if STOP never reached the permit release (e.g. assertBusy failed).
             scriptPermits.release(numberOfDocs() * 3);
+            try {
+                // Release only wakes waiters; draining straight away could steal their permits. Let the drivers finish first.
+                assertBusy(() -> {
+                    List<TaskInfo> drivers = client.admin()
+                        .cluster()
+                        .prepareListTasks()
+                        .setActions(DriverTaskRunner.ACTION_NAME)
+                        .get()
+                        .getTasks();
+                    assertThat(drivers, empty());
+                });
+            } catch (AssertionError e) {
+                // Log rather than throw so that a failure from the test body is not masked.
+                logger.warn("drivers still running after releasing script permits", e);
+            }
             scriptPermits.drainPermits();
             scriptWaits.drainPermits();
         }

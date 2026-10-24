@@ -40,29 +40,65 @@ A data source's credentials are masked when its definition is read back, and at 
 
 ## Privileges
 
-Dataset operations are authorized by the standard {{es}} [index privileges](../../elasticsearch/security-privileges.md#privileges-list-indices), so a role that already administers or reads the matching index names covers datasets with no additional grant.
-
 These privileges control what users can do in {{es}}. What a data source can read in external storage is controlled by your cloud provider. Refer to [grant read access to your data](esql-data-federation-sources.md#grant-read-access).
 
-| Operation | Privilege | Type |
-|---|---|---|
-| Query a dataset | `read` | Index, on the dataset name |
-| Create, read, or delete a dataset | `manage` or `all` | Index, on the dataset name |
-| Dataset administration granted on its own | `create_dataset`, `read_dataset_metadata`, `delete_dataset`, `manage_dataset` | Index, on the dataset name |
-| Create or replace a data source | `global.data_source` `create` / `cluster.manage` | Global (fine-grained) / Cluster |
-| Read a data source definition | `global.data_source` `read_metadata` / `cluster.manage` | Global (fine-grained) / Cluster |
-| Delete a data source | `global.data_source` `delete` / `cluster.manage` | Global (fine-grained) / Cluster |
-| Reference a data source from a dataset | `global.data_source` `read` / `cluster.manage` | Global (fine-grained) / Cluster |
-| Test a data source connection | `cluster.manage` | Cluster |
-| All data source operations | `global.data_source` `manage` / `cluster.manage` | Global (fine-grained) / Cluster |
+`superuser` has full access to data sources and datasets.
 
-Creating a dataset that references a data source also requires the `read` data source privilege for that data source. The two are authorized independently.
+### Dataset privileges [dataset-privileges]
+
+Dataset operations are authorized by the standard {{es}} [index privileges](../../elasticsearch/security-privileges.md#privileges-list-indices), so a role that already administers or reads the matching index names covers datasets with no additional grant. Grant these index privileges on the dataset name:
+
+| Operation | Privilege |
+|---|---|
+| Query a dataset | `read` |
+| Create, read, or delete a dataset | `manage` or `all` |
+| Dataset administration granted on its own | `create_dataset`, `read_dataset_metadata`, `delete_dataset`, `manage_dataset` |
 
 The `read` privilege granted on a dataset name must not carry document-level or field-level security. `FROM <dataset>` is rejected if it does. The same restriction applies to [{{esql}} views](esql-views.md#esql-views-privileges).
 
-`superuser` has full access to data sources and datasets. Data source management is reached through the cluster `manage` (or `all`) privilege, or through a role explicitly granted `global.data_source` for fine-grained control.
+Creating a dataset that references a data source also requires the `read` [data source privilege](#data-source-privileges) for that data source. The two are authorized independently.
 
-A role configures these privileges as follows. The example grants querying `sales` and `clicks`, dataset administration over `acme_*`, and management of the `acme_*` data sources:
+### Data source privileges [data-source-privileges]
+
+Data source operations require either the cluster `manage` (or `all`) privilege, which covers every data source, or fine-grained `global.data_source` privileges on specific data sources. Data source names in `global.data_source` accept wildcard patterns, such as `acme_*`, the same as index names in a role.
+
+Each `global.data_source` privilege allows one operation, and `manage` allows all of them:
+
+| Operation | `global.data_source` privilege |
+|---|---|
+| Create or replace a data source | `create` |
+| Read a data source definition | `read_metadata` |
+| Delete a data source | `delete` |
+| Reference a data source from a dataset | `read` |
+| All of the above | `manage` |
+| Test a data source connection | None. Requires the cluster `manage` privilege. |
+
+:::{note}
+The {{esql}} Data Federation UI in {{kib}} requires the cluster `manage` privilege. A role with only `global.data_source` privileges can manage data sources with the API, but not in the UI.
+:::
+
+#### Grant data source privileges in {{kib}} [grant-data-source-privileges-in-kibana]
+```{applies_to}
+stack: experimental 9.6+
+```
+
+You can grant `global.data_source` privileges from the {{kib}} role editor:
+
+1. Find **Roles** in the navigation menu or use the global search field, then create or edit a role.
+2. Under **Data source privileges**, click **Add data source privilege**.
+3. In **Data sources**, enter the data source names or patterns, such as `acme_*`.
+4. In **Privileges**, select the privileges to grant.
+
+The **Data source privileges** section appears with the other {{es}} privileges:
+
+:::{image} images/data-federation/role-editor-data-source-privileges.png
+:alt: The Data source privileges section of the Kibana role editor, with fields for data source patterns and privileges
+:width: 800px
+:::
+
+### Example role [example-role]
+
+The following role grants querying `sales` and `clicks`, dataset administration over `acme_*`, and management of the `acme_*` data sources:
 
 ```json
 {

@@ -1872,6 +1872,35 @@ public class IngestDocumentTests extends ESTestCase {
         assertThat(actualMillis, lessThanOrEqualTo(after));
     }
 
+    @SuppressWarnings("unchecked")
+    public void testScriptCtxMapExposesIngestMetadataWithoutChangingSource() {
+        Map<String, Object> source = new HashMap<>();
+        source.put("field", "value");
+        IngestDocument ingestDocument = new IngestDocument("_index", "_id", 1, null, null, source);
+        ingestDocument.getIngestMetadata().put("_value", "ingest-value");
+
+        assertThat(ingestDocument.getScriptCtxMap(), sameInstance(ingestDocument.getScriptCtxMap())); // it's memoized
+
+        Map<String, Object> scriptIngest = (Map<String, Object>) ingestDocument.getScriptCtxMap().get("_ingest");
+        assertThat(scriptIngest.get("_value"), equalTo("ingest-value"));
+
+        scriptIngest.put("_value", "changed");
+        assertThat(ingestDocument.getIngestMetadata().get("_value"), equalTo("changed"));
+        ingestDocument.getIngestMetadata().put("_value", "changed-again");
+        assertThat(((Map<String, Object>) ingestDocument.getScriptCtxMap().get("_ingest")).get("_value"), equalTo("changed-again"));
+
+        assertThat(ingestDocument.getSource().containsKey("_ingest"), equalTo(false));
+        assertThat(ingestDocument.getCtxMap().containsKey("_ingest"), equalTo(false));
+
+        IngestDocument copy = new IngestDocument(ingestDocument);
+        assertThat(copy.getSource().containsKey("_ingest"), equalTo(false));
+        assertThat(((Map<String, Object>) copy.getScriptCtxMap().get("_ingest")).get("_value"), equalTo("changed-again"));
+
+        // a source field named _ingest takes precedence, also in the already memoized view
+        ingestDocument.setFieldValue("_ingest", Map.of("source", true));
+        assertThat(ingestDocument.getScriptCtxMap().get("_ingest"), equalTo(Map.of("source", true)));
+    }
+
     public void testCopyConstructor() {
         {
             // generic test with a random document and copy
@@ -2207,7 +2236,7 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testGetUnmodifiableCtxMap() {
+    public void testGetUnmodifiableScriptCtxMap() {
         assertMutatingThrows(ctx -> ctx.remove("foo"));
         assertMutatingThrows(ctx -> ctx.put("foo", "bar"));
         assertMutatingThrows(ctx -> ((List<Object>) ctx.get("listField")).add("bar"));
@@ -2216,6 +2245,8 @@ public class IngestDocumentTests extends ESTestCase {
         assertMutatingThrows(ctx -> ((Set<Object>) ctx.get("setField")).remove("bar"));
         assertMutatingThrows(ctx -> ((Map<String, Object>) ctx.get("mapField")).put("bar", "baz"));
         assertMutatingThrows(ctx -> ((Map<?, ?>) ctx.get("mapField")).remove("bar"));
+        assertMutatingThrows(ctx -> ((Map<String, Object>) ctx.get("_ingest")).put("_value", "changed"));
+        assertMutatingThrows(ctx -> ((Map<?, ?>) ctx.get("_ingest")).remove("_value"));
         assertMutatingThrows(ctx -> ((List<Object>) ((Set<Object>) ctx.get("setField")).iterator().next()).add("bar"));
         assertMutatingThrows(
             ctx -> ((List<Object>) ((List<Object>) ((Set<Object>) ctx.get("setField")).iterator().next()).iterator().next()).add("bar")
@@ -2228,7 +2259,7 @@ public class IngestDocumentTests extends ESTestCase {
         Map<String, Object> document = new HashMap<>();
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         ingestDocument.setFieldValue("byteArrayField", randomByteArrayOfLength(10));
-        Map<String, Object> unmodifiableDocument = ingestDocument.getUnmodifiableCtxMap();
+        Map<String, Object> unmodifiableDocument = ingestDocument.getUnmodifiableScriptCtxMap();
         byte originalByteValue = ((byte[]) unmodifiableDocument.get("byteArrayField"))[0];
         ((byte[]) unmodifiableDocument.get("byteArrayField"))[0] = (byte) (originalByteValue + 1);
         assertThat(((byte[]) unmodifiableDocument.get("byteArrayField"))[0], equalTo(originalByteValue));
@@ -2241,11 +2272,12 @@ public class IngestDocumentTests extends ESTestCase {
         ingestDocument.setFieldValue("listField", new ArrayList<>());
         ingestDocument.setFieldValue("mapField", new HashMap<>());
         ingestDocument.setFieldValue("setField", new HashSet<>());
+        ingestDocument.getIngestMetadata().put("_value", "value");
         List<Object> listWithinSet = new ArrayList<>();
         listWithinSet.add(new ArrayList<>());
         ingestDocument.getFieldValue("setField", Set.class).add(listWithinSet);
-        Map<String, Object> unmodifiableDocument = ingestDocument.getUnmodifiableCtxMap();
+        Map<String, Object> unmodifiableDocument = ingestDocument.getUnmodifiableScriptCtxMap();
         assertThrows(UnsupportedOperationException.class, () -> mutation.accept(unmodifiableDocument));
-        mutation.accept(ingestDocument.getCtxMap()); // no exception expected
+        mutation.accept(ingestDocument.getScriptCtxMap()); // no exception expected
     }
 }

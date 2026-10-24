@@ -18,6 +18,8 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryProfile;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.PreparedEsqlQueryRequest;
+import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
+import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 
 import java.util.Arrays;
 import java.util.List;
@@ -93,6 +95,16 @@ public class EsqlLogContext extends QueryLoggerContext {
         return Math.clamp(response.getRowCount(), 0, Integer.MAX_VALUE);
     }
 
+    /** The settings the query resolved to, if it got far enough to resolve them. */
+    Optional<ResolvedSettings> getResolvedSettings() {
+        return Optional.ofNullable(request.resolvedSettings());
+    }
+
+    /** The settings each resolved view's definition applies, by view name; empty if the query resolved no views. */
+    Map<String, ViewQuerySettings> getViewSettings() {
+        return request.viewSettings();
+    }
+
     Optional<EsqlQueryProfile> getQueryProfile() {
         return Optional.ofNullable(response).map(it -> it.getExecutionInfo().queryProfile());
     }
@@ -115,7 +127,8 @@ public class EsqlLogContext extends QueryLoggerContext {
                 response.bytesRead(),
                 response.readNanos(),
                 response.readCpuNanos(),
-                response.cpuNanos()
+                response.cpuNanos(),
+                response.driverNanos()
             )
         );
     }
@@ -128,7 +141,8 @@ public class EsqlLogContext extends QueryLoggerContext {
         long bytesRead,
         long readNanos,
         long readCpuNanos,
-        long cpuNanos
+        long cpuNanos,
+        long driverNanos
     ) {}
 
     @Override

@@ -592,13 +592,11 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 recordRequestCountMetrics(inferenceProvider.model(), requests.size(), null);
             }, exc -> onInferenceServiceFailure(inferenceProvider, requests, exc)), onBatchFinish);
 
-            final List<InferenceStringGroup> inputs = requests.stream().map(r -> new InferenceStringGroup(r.input())).toList();
-            var embeddingRequest = new EmbeddingRequest(inputs, InputType.INTERNAL_INGEST, Map.of());
-            ActionListener.run(
-                batchListener,
-                listener -> inferenceProvider.service()
-                    .embeddingInfer(inferenceProvider.model(), embeddingRequest, TimeValue.MAX_VALUE, listener)
-            );
+            ActionListener.run(batchListener, listener -> {
+                final List<InferenceStringGroup> inputs = requests.stream().map(r -> new InferenceStringGroup(r.input())).toList();
+                var embeddingRequest = new EmbeddingRequest(inputs, InputType.INTERNAL_INGEST, Map.of());
+                inferenceProvider.service().embeddingInfer(inferenceProvider.model(), embeddingRequest, TimeValue.MAX_VALUE, listener);
+            });
         }
 
         private void addEmbeddingInferenceResponse(
@@ -944,6 +942,21 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             int order,
             int sourceFieldInputIndex
         ) {
+            if (InferenceStringGroup.SUPPORTED_EMBEDDING_DATA_TYPES.contains(input.dataType()) == false) {
+                setInferenceResponseFailure(
+                    itemIndex,
+                    new ElasticsearchStatusException(
+                        "Input for field [{}] from source field [{}] has unsupported [{}] value [{}]. Supported values are {}.",
+                        RestStatus.BAD_REQUEST,
+                        field,
+                        sourceField,
+                        InferenceString.TYPE_FIELD,
+                        input.dataType(),
+                        InferenceStringGroup.SUPPORTED_EMBEDDING_DATA_TYPES
+                    )
+                );
+                return -1;
+            }
             if (input.dataFormat() == DataFormat.BASE64) {
                 long decodedSize = base64BinarySize(input.value());
                 if (decodedSize == 0) {

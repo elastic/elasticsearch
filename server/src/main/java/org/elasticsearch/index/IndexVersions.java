@@ -279,6 +279,7 @@ public class IndexVersions {
         9_111_0_01,
         Version.LUCENE_10_5_1
     );
+    public static final IndexVersion UPGRADE_TO_LUCENE_10_5_2_BACKPORT_9_5 = def(9_111_0_02, Version.LUCENE_10_5_2);
     public static final IndexVersion COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG = def(9_112_0_00, Version.LUCENE_10_5_1);
     // Deliberately unreferenced: defining it raises IndexVersion.current(), which is what keeps segments written by the
     // Elasticsearch96 codec off nodes that cannot resolve that name (see IndexVersionAllocationDecider).
@@ -293,6 +294,12 @@ public class IndexVersions {
     public static final IndexVersion TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES = def(9_119_0_00, Version.LUCENE_10_5_1);
     public static final IndexVersion TEXT_INDEX_OPTIONS_DOCS_BY_DEFAULT_IN_COLUMNAR = def(9_120_0_00, Version.LUCENE_10_5_1);
     public static final IndexVersion DISK_BBQ_AUTO_CALIBRATE_DEFAULT_ISO_SIZING = def(9_121_0_00, Version.LUCENE_10_5_1);
+    public static final IndexVersion TRACKS_UNMAPPED_FIELD_RETENTION = def(9_122_0_00, Version.LUCENE_10_5_1);
+    public static final IndexVersion TIME_SERIES_COMBINE_DYNAMIC_UPDATES_DEFAULT = def(9_123_0_00, Version.LUCENE_10_5_1);
+    public static final IndexVersion UPGRADE_TO_LUCENE_10_5_2 = def(9_124_0_00, Version.LUCENE_10_5_2);
+    public static final IndexVersion DISK_BBQ_AUTO_CALIBRATE_ENABLE_BY_DEFAULT = def(9_125_0_00, Version.LUCENE_10_5_2);
+    public static final IndexVersion DOC_VALUES_TOP_LEVEL_ATTRIBUTES = def(9_126_0_00, Version.LUCENE_10_5_2);
+    public static final IndexVersion COLUMNAR_CODEC_NO_FEATURE_FLAG = def(9_127_0_00, Version.LUCENE_10_5_2);
 
     /*
      * STOP! READ THIS FIRST! No, really,

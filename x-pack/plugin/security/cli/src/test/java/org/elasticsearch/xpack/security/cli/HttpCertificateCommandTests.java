@@ -41,6 +41,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.security.cli.HttpCertificateCommand.FileType;
+import org.elasticsearch.xpack.security.cli.bc.CertGenUtils;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.BeforeClass;

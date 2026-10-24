@@ -77,11 +77,11 @@ class VersionEncoder {
                 // we are sure to remove when decoding
                 versionString = ENCODED_EMPTY_STRING;
             }
-            return new EncodedVersion(new BytesRef(versionString), false, true, null, null, null);
+            return new EncodedVersion(new BytesRef(versionString), false, true);
         }
 
         BytesRefBuilder encodedBytes = new BytesRefBuilder();
-        Integer[] mainVersionParts = prefixDigitGroupsWithLength(versionParts.mainVersion, encodedBytes);
+        prefixDigitGroupsWithLength(versionParts.mainVersion, encodedBytes);
 
         if (versionParts.preRelease != null) {
             encodedBytes.append(PRERELEASE_SEPARATOR_BYTE);  // versions with pre-release part sort before ones without
@@ -107,20 +107,11 @@ class VersionEncoder {
         if (versionParts.buildSuffix != null) {
             encodedBytes.append(new BytesRef(versionParts.buildSuffix));
         }
-        return new EncodedVersion(
-            encodedBytes.toBytesRef(),
-            true,
-            versionParts.preRelease != null,
-            mainVersionParts[0],
-            mainVersionParts[1],
-            mainVersionParts[2]
-        );
+        return new EncodedVersion(encodedBytes.toBytesRef(), true, versionParts.preRelease != null);
     }
 
-    private static Integer[] prefixDigitGroupsWithLength(String input, BytesRefBuilder result) {
+    private static void prefixDigitGroupsWithLength(String input, BytesRefBuilder result) {
         int pos = 0;
-        int mainVersionCounter = 0;
-        Integer[] mainVersionComponents = new Integer[3];
         while (pos < input.length()) {
             if (Character.isDigit(input.charAt(pos))) {
                 // found beginning of number block, so get its length
@@ -137,18 +128,11 @@ class VersionEncoder {
                 result.append(NUMERIC_MARKER_BYTE); // ensure length byte does cause higher sort order comparing to other byte[]
                 result.append((byte) (length | 0x80)); // add upper bit to mark as length
                 result.append(number);
-
-                // if present, parse out three leftmost version parts
-                if (mainVersionCounter < 3) {
-                    mainVersionComponents[mainVersionCounter] = Integer.valueOf(number.toBytesRef().utf8ToString());
-                    mainVersionCounter++;
-                }
             } else {
                 result.append((byte) input.charAt(pos));
                 pos++;
             }
         }
-        return mainVersionComponents;
     }
 
     public static BytesRef decodeVersion(BytesRef version) {
@@ -243,18 +227,12 @@ class VersionEncoder {
         public final boolean isLegal;
         public final boolean isPreRelease;
         public final BytesRef bytesRef;
-        public final Integer major;
-        public final Integer minor;
-        public final Integer patch;
 
-        private EncodedVersion(BytesRef bytesRef, boolean isLegal, boolean isPreRelease, Integer major, Integer minor, Integer patch) {
+        private EncodedVersion(BytesRef bytesRef, boolean isLegal, boolean isPreRelease) {
             super();
             this.bytesRef = bytesRef;
             this.isLegal = isLegal;
             this.isPreRelease = isPreRelease;
-            this.major = major;
-            this.minor = minor;
-            this.patch = patch;
         }
     }
 

@@ -9,7 +9,12 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.node.VersionInformation;
@@ -17,6 +22,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DummyQueryBuilder;
 import org.elasticsearch.search.SearchService;
@@ -30,6 +38,7 @@ import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.EmptyRequest;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportResponse;
@@ -39,10 +48,14 @@ import org.junit.After;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class TransportFieldCapabilitiesActionTests extends ESTestCase {
@@ -186,5 +199,143 @@ public class TransportFieldCapabilitiesActionTests extends ESTestCase {
 
         nodeHandler.messageReceived(request, channel, cancelledTask);
         assertThat("pre-cancelled task must not fetch any shard data", channelError.get(), instanceOf(TaskCancelledException.class));
+    }
+
+    /**
+     * Saturates the {@code search_coordination} pool (one thread, queue of one) and sends a request to the local node whose response
+     * handler forks onto the per-request single-threaded executor. The response handler is force-executed, so it is queued beyond the
+     * limit and completes on a {@code search_coordination} thread once the pool frees up.
+     */
+    public void testResponseHandlerCompletesWhenSearchCoordinationQueueIsFull() throws Exception {
+        final ThreadPool saturatedThreadPool = createSaturatableThreadPool();
+        final CountDownLatch blocker = new CountDownLatch(1);
+        try (
+            MockTransportService transportService = MockTransportService.createNewService(
+                Settings.EMPTY,
+                VersionInformation.CURRENT,
+                TransportVersion.current(),
+                saturatedThreadPool
+            )
+        ) {
+            transportService.start();
+            transportService.acceptIncomingRequests();
+            final boolean respondWithFailure = randomBoolean();
+            final String action = "internal:test/field_caps/saturated_search_coordination";
+            transportService.registerRequestHandler(
+                action,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                EmptyRequest::new,
+                (request, channel, task) -> {
+                    if (respondWithFailure) {
+                        channel.sendResponse(new ElasticsearchException("simulated"));
+                    } else {
+                        channel.sendResponse(ActionResponse.Empty.INSTANCE);
+                    }
+                }
+            );
+
+            final Executor searchCoordinationExecutor = saturatedThreadPool.executor(ThreadPool.Names.SEARCH_COORDINATION);
+            blockAndFillQueue(searchCoordinationExecutor, blocker);
+
+            final CountDownLatch completed = new CountDownLatch(1);
+            final AtomicReference<String> completingThread = new AtomicReference<>();
+            final AtomicReference<ActionResponse.Empty> response = new AtomicReference<>();
+            final AtomicReference<Exception> failure = new AtomicReference<>();
+            transportService.sendRequest(
+                transportService.getLocalNode(),
+                action,
+                new EmptyRequest(),
+                new ActionListenerResponseHandler<>(ActionListener.<ActionResponse.Empty>wrap(r -> {
+                    response.set(r);
+                    completingThread.set(Thread.currentThread().getName());
+                    completed.countDown();
+                }, e -> {
+                    failure.set(e);
+                    completingThread.set(Thread.currentThread().getName());
+                    completed.countDown();
+                }),
+                    in -> ActionResponse.Empty.INSTANCE,
+                    TransportFieldCapabilitiesAction.buildSingleThreadedExecutor(searchCoordinationExecutor)
+                )
+            );
+
+            assertThat("handler must wait for the search_coordination pool", completed.getCount(), equalTo(1L));
+            blocker.countDown();
+            safeAwait(completed);
+            assertThat(completingThread.get(), containsString(ThreadPool.Names.SEARCH_COORDINATION));
+            if (respondWithFailure) {
+                assertNull(response.get());
+                assertThat(ExceptionsHelper.unwrapCause(failure.get()).getMessage(), equalTo("simulated"));
+            } else {
+                assertNull(failure.get());
+                assertSame(ActionResponse.Empty.INSTANCE, response.get());
+            }
+        } finally {
+            blocker.countDown();
+            ThreadPool.terminate(saturatedThreadPool, 10, TimeUnit.SECONDS);
+        }
+    }
+
+    /**
+     * Tasks submitted to the per-request single-threaded executor that are not force-executed respect the queue limit of the
+     * {@code search_coordination} pool and are notified via {@link AbstractRunnable#onRejection} when it is full.
+     */
+    public void testNonForcedTaskIsRejectedWhenSearchCoordinationQueueIsFull() {
+        final ThreadPool saturatedThreadPool = createSaturatableThreadPool();
+        final CountDownLatch blocker = new CountDownLatch(1);
+        try {
+            final Executor searchCoordinationExecutor = saturatedThreadPool.executor(ThreadPool.Names.SEARCH_COORDINATION);
+            blockAndFillQueue(searchCoordinationExecutor, blocker);
+
+            final AtomicReference<Exception> rejection = new AtomicReference<>();
+            final AtomicReference<Exception> failure = new AtomicReference<>();
+            final AtomicBoolean ran = new AtomicBoolean();
+            TransportFieldCapabilitiesAction.buildSingleThreadedExecutor(searchCoordinationExecutor).execute(new AbstractRunnable() {
+                @Override
+                public void onRejection(Exception e) {
+                    rejection.set(e);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    failure.set(e);
+                }
+
+                @Override
+                protected void doRun() {
+                    ran.set(true);
+                }
+            });
+
+            assertThat(rejection.get(), instanceOf(EsRejectedExecutionException.class));
+            assertNull(failure.get());
+            assertFalse(ran.get());
+        } finally {
+            blocker.countDown();
+            ThreadPool.terminate(saturatedThreadPool, 10, TimeUnit.SECONDS);
+        }
+    }
+
+    private ThreadPool createSaturatableThreadPool() {
+        return new TestThreadPool(
+            getTestName(),
+            Settings.builder()
+                .put("thread_pool." + ThreadPool.Names.SEARCH_COORDINATION + ".size", 1)
+                .put("thread_pool." + ThreadPool.Names.SEARCH_COORDINATION + ".queue_size", 1)
+                .build()
+        );
+    }
+
+    /**
+     * Occupies the single thread of the given executor until {@code blocker} is released and fills its queue of one.
+     */
+    private static void blockAndFillQueue(Executor executor, CountDownLatch blocker) {
+        final CountDownLatch blockerStarted = new CountDownLatch(1);
+        executor.execute(() -> {
+            blockerStarted.countDown();
+            safeAwait(blocker);
+        });
+        safeAwait(blockerStarted);
+        executor.execute(() -> {});
     }
 }

@@ -23,8 +23,10 @@ import org.junit.BeforeClass;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.security.KeyPair;
+import java.security.KeyPairGenerator;
 import java.security.KeyStore;
 import java.security.cert.X509Certificate;
+import java.security.spec.ECGenParameterSpec;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -221,6 +223,57 @@ public class CertGenUtilsTests extends ESTestCase {
             assertExpectedKeyUsage(endEntityCert, endEntityKeyUsage);
         }
 
+    }
+
+    /**
+     * The signature algorithm is chosen from the CA key type, and the signer comes from the JVM's configured providers rather than from
+     * the Bouncy Castle provider shaded into the bc module, so each supported key type is checked against the JDK providers.
+     */
+    public void testSignedCertificateForEachCaKeyType() throws Exception {
+        final KeyPairGenerator rsa = KeyPairGenerator.getInstance("RSA");
+        rsa.initialize(2048);
+        final KeyPairGenerator ec = KeyPairGenerator.getInstance("EC");
+        ec.initialize(new ECGenParameterSpec("secp256r1"));
+        final KeyPairGenerator dsa = KeyPairGenerator.getInstance("DSA");
+        dsa.initialize(2048);
+        final Map<String, KeyPair> caKeyPairs = Map.of(
+            "SHA256withRSA",
+            rsa.generateKeyPair(),
+            "SHA256withECDSA",
+            ec.generateKeyPair(),
+            "SHA256withDSA",
+            dsa.generateKeyPair()
+        );
+        final KeyPair keyPair = CertGenUtils.generateKeyPair(2048);
+        for (Map.Entry<String, KeyPair> entry : caKeyPairs.entrySet()) {
+            final String expectedSignatureAlgorithm = entry.getKey();
+            final KeyPair caKeyPair = entry.getValue();
+            final X509Certificate caCert = CertGenUtils.generateSignedCertificate(
+                new X500Principal("CN=" + caKeyPair.getPrivate().getAlgorithm() + " CA"),
+                null,
+                caKeyPair,
+                null,
+                null,
+                true,
+                30,
+                null,
+                List.of("keyCertSign"),
+                Set.of()
+            );
+            final X509Certificate cert = CertGenUtils.generateSignedCertificate(
+                new X500Principal("CN=node"),
+                null,
+                keyPair,
+                caCert,
+                caKeyPair.getPrivate(),
+                30
+            );
+            assertThat(caCert.getSigAlgName(), equalTo(expectedSignatureAlgorithm));
+            assertThat(cert.getSigAlgName(), equalTo(expectedSignatureAlgorithm));
+            caCert.verify(caCert.getPublicKey());
+            cert.verify(caCert.getPublicKey());
+            assertThat(cert.getIssuerX500Principal(), equalTo(caCert.getSubjectX500Principal()));
+        }
     }
 
     public void testBuildKeyUsage() throws Exception {

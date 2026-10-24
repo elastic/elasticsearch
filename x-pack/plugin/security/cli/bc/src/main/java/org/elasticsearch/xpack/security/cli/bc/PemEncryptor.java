@@ -29,9 +29,12 @@ import javax.crypto.spec.SecretKeySpec;
  * password and the first 8 bytes of the IV with OpenSSL's {@code EVP_BytesToKey} (MD5, one iteration) and the key material is encrypted
  * in CBC mode with PKCS#5 padding. This is the same derivation that {@code org.elasticsearch.common.ssl.PemUtils} uses to read such keys.
  * <p>
- * All cryptographic primitives ({@link MessageDigest}, {@link Cipher}, {@link SecureRandom}) are obtained from the JVM's default
- * JCA/JCE providers, never from the Bouncy Castle provider that is shaded into this module's jar. In a FIPS JVM that is the FIPS
- * provider, and because MD5 is not available in approved mode, writing a password protected PEM key fails there by design.
+ * All cryptographic primitives ({@link MessageDigest}, {@link Cipher}, {@link SecureRandom}) are resolved through the JVM's configured
+ * JCA/JCE providers and are never bound to the Bouncy Castle provider that is shaded into this module's jar. Whether an algorithm is
+ * available, and whether it is rejected, is therefore decided by that provider configuration and not by this class. With the FIPS
+ * configuration used by Elasticsearch (BCFIPS in approved-only mode with the SUN provider still installed) {@code AES-128-CBC} works,
+ * because SUN supplies MD5 and BCFIPS supplies AES, whereas {@code DES-EDE3-CBC} is rejected by BCFIPS because Triple-DES encryption
+ * is not approved. Refusing legacy PEM encryption in FIPS mode altogether would need an explicit check in the commands.
  * </p>
  * <p>
  * This is an opaque handle for a Bouncy Castle {@code PEMEncryptor} so that callers outside this module do not depend on

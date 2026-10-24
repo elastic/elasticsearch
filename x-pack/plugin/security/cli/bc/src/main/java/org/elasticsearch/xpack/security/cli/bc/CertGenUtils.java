@@ -75,8 +75,9 @@ import javax.security.auth.x500.X500Principal;
  * </p>
  * <p>
  * Bouncy Castle is only used for ASN.1, X.509, PKCS#10 and PEM encoding. All cryptographic primitives (key generation, signing,
- * digests, ciphers, randomness) are obtained from the JVM's default JCA/JCE providers rather than from the shaded Bouncy Castle
- * provider, so that in a FIPS JVM they come from the FIPS provider and anything that is not approved there fails as intended.
+ * digests, ciphers, randomness) are resolved through the JVM's configured JCA/JCE providers and are never bound to the Bouncy Castle
+ * provider that is shaded into this module's jar. Which algorithms are available or rejected is therefore determined by that provider
+ * configuration, for example by the FIPS provider in approved-only mode, and not by this module.
  * </p>
  */
 public class CertGenUtils {
@@ -311,8 +312,8 @@ public class CertGenUtils {
     }
 
     /**
-     * Builds the signer for the given algorithm and key. The {@link java.security.Signature} comes from the JVM's default JCA providers,
-     * see the class documentation. The Bouncy Castle {@link OperatorCreationException} is translated into a
+     * Builds the signer for the given algorithm and key. The {@link java.security.Signature} is resolved through the JVM's configured
+     * JCA providers, see the class documentation. The Bouncy Castle {@link OperatorCreationException} is translated into a
      * {@link GeneralSecurityException} so that it does not surface in the API of this module.
      */
     private static ContentSigner buildContentSigner(String signatureAlgorithm, PrivateKey signingKey) throws GeneralSecurityException {

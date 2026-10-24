@@ -77,6 +77,7 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.StringFieldScript;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
@@ -143,6 +144,7 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -1457,6 +1459,96 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             assertEquals("1000.0", buckets.get(3).getKeyAsString());
             assertEquals(expected, buckets.get(3).getDocCount());
         }
+    }
+
+    /**
+     * A field mapped as {@code ip} in one index and {@code keyword} in another produces {@link StringTerms} with different key
+     * formats. Reducing results that both have buckets fails with the type mismatch error, whichever result comes first.
+     */
+    public void testMixIpAndKeyword() throws Exception {
+        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").executionHint(randomHint()).field("field");
+        List<InternalAggregation> aggs = new ArrayList<>();
+        aggs.add(buildStringTermsResult(aggregationBuilder, true, false));
+        aggs.add(buildStringTermsResult(aggregationBuilder, false, false));
+        Collections.shuffle(aggs, random());
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> InternalAggregationTestCase.reduce(aggs, finalReduceContext(aggregationBuilder))
+        );
+        assertThat(e.getMessage(), containsString("existed as two different types in two different indices"));
+    }
+
+    /**
+     * Results without buckets do not take part in the key format check, and the merged result uses the key format of the
+     * results that have buckets, also when a result without buckets leads the reduction.
+     */
+    public void testMixIpAndKeywordWithEmptyResult() throws Exception {
+        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").executionHint(randomHint()).field("field");
+        boolean emptyIsIp = randomBoolean();
+        List<InternalAggregation> nonEmpty = new ArrayList<>();
+        int numNonEmpty = randomIntBetween(1, 3);
+        for (int i = 0; i < numNonEmpty; i++) {
+            nonEmpty.add(buildStringTermsResult(aggregationBuilder, emptyIsIp == false, false));
+        }
+        int numTrailingEmpty = randomIntBetween(0, 2);
+        for (int i = 0; i < numTrailingEmpty; i++) {
+            nonEmpty.add(buildStringTermsResult(aggregationBuilder, emptyIsIp, true));
+        }
+        Collections.shuffle(nonEmpty, random());
+        List<InternalAggregation> aggs = new ArrayList<>();
+        // the leading result has no buckets and the other key format
+        aggs.add(buildStringTermsResult(aggregationBuilder, emptyIsIp, true));
+        aggs.addAll(nonEmpty);
+
+        InternalAggregation reduced = InternalAggregationTestCase.reduce(aggs, finalReduceContext(aggregationBuilder));
+        assertThat(reduced, instanceOf(StringTerms.class));
+        StringTerms terms = (StringTerms) reduced;
+        assertThat(terms.format, equalTo(emptyIsIp ? DocValueFormat.RAW : DocValueFormat.IP));
+        assertThat(terms.getBuckets(), hasSize(1));
+        assertThat(terms.getBuckets().get(0).getKeyAsString(), equalTo(emptyIsIp ? "foo" : "192.168.0.1"));
+        assertThat(terms.getBuckets().get(0).getDocCount(), equalTo((long) numNonEmpty));
+    }
+
+    /**
+     * Builds the {@link StringTerms} result of a terms aggregation on {@code field} over an index where {@code field} is mapped
+     * as {@code ip} or {@code keyword}, holding one document unless {@code empty}.
+     */
+    private InternalAggregation buildStringTermsResult(TermsAggregationBuilder builder, boolean ip, boolean empty) throws IOException {
+        MappedFieldType fieldType = ip ? new IpFieldMapper.IpFieldType("field") : new KeywordFieldType("field");
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                if (empty == false) {
+                    Document document = new Document();
+                    if (ip) {
+                        InetAddress address = InetAddresses.forString("192.168.0.1");
+                        document.add(new SortedSetDocValuesField("field", new BytesRef(InetAddressPoint.encode(address))));
+                        document.add(new InetAddressPoint("field", address));
+                    } else {
+                        document.add(new SortedSetDocValuesField("field", new BytesRef("foo")));
+                        document.add(new StringField("field", new BytesRef("foo"), Field.Store.NO));
+                    }
+                    indexWriter.addDocument(document);
+                }
+            }
+            try (IndexReader reader = DirectoryReader.open(directory)) {
+                InternalAggregation result = buildInternalAggregation(builder, fieldType, reader);
+                assertThat(result, instanceOf(StringTerms.class));
+                assertThat(((StringTerms) result).getBuckets(), hasSize(empty ? 0 : 1));
+                return result;
+            }
+        }
+    }
+
+    private static AggregationReduceContext finalReduceContext(TermsAggregationBuilder aggregationBuilder) {
+        return new AggregationReduceContext.ForFinal(
+            new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()),
+            null,
+            () -> false,
+            aggregationBuilder,
+            b -> {},
+            PipelineTree.EMPTY,
+            null
+        );
     }
 
     public void testWithNestedAggregations() throws IOException {

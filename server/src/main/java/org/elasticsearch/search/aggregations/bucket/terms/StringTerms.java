@@ -11,17 +11,22 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Result of the {@link TermsAggregator} when the field is a String.
@@ -150,9 +155,68 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
         super(in, Bucket::new);
     }
 
+    /**
+     * Reduces with the key format of the first result that has buckets, so that results without buckets (for example from an
+     * empty index) do not decide how the merged keys are rendered. {@code keyword} and {@code ip} fields both produce
+     * {@link StringTerms} and only differ by their {@link DocValueFormat}, so results with buckets and different formats come
+     * from a field mapped with incompatible types in different indices and fail the reduction.
+     */
     @Override
     protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
-        return termsAggregationReducer(reduceContext, size);
+        return new AggregatorReducer() {
+            /** Results accepted while no result with buckets has been seen yet. */
+            private final List<InternalAggregation> pending = new ArrayList<>();
+            /** Reduces with the format of the first result that has buckets; {@code null} until that result arrives. */
+            private AggregatorReducer delegate = null;
+            private DocValueFormat keyFormat = null;
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                if (aggregation instanceof StringTerms terms && terms.getBuckets().isEmpty() == false) {
+                    if (delegate == null) {
+                        keyFormat = terms.format;
+                        delegate = startDelegate(terms);
+                    } else if (haveSameFormat(keyFormat, terms.format) == false) {
+                        throw AggregationErrors.reduceTypeMismatch(name, Optional.empty());
+                    }
+                }
+                if (delegate == null) {
+                    pending.add(aggregation);
+                } else {
+                    delegate.accept(aggregation);
+                }
+            }
+
+            @Override
+            public InternalAggregation get() {
+                if (delegate == null) {
+                    delegate = startDelegate(StringTerms.this);
+                }
+                return delegate.get();
+            }
+
+            private AggregatorReducer startDelegate(StringTerms formatSource) {
+                AggregatorReducer reducer = formatSource.termsAggregationReducer(reduceContext, size);
+                for (InternalAggregation aggregation : pending) {
+                    reducer.accept(aggregation);
+                }
+                pending.clear();
+                return reducer;
+            }
+
+            @Override
+            public void close() {
+                Releasables.close(delegate);
+            }
+        };
+    }
+
+    /**
+     * Each shard result carries its own deserialized format instance, so formats are compared by name. The formats a field can
+     * give {@link StringTerms} keys ({@code raw}, {@code ip}, {@code binary}, {@code version}, ...) are identified by their name.
+     */
+    private static boolean haveSameFormat(DocValueFormat a, DocValueFormat b) {
+        return a.getWriteableName().equals(b.getWriteableName());
     }
 
     @Override

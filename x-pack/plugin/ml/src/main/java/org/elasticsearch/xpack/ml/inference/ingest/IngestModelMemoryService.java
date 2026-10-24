@@ -247,15 +247,15 @@ public class IngestModelMemoryService implements ClusterStateListener, IngestMod
                     GetTrainedModelsAction.Includes.empty(),
                     null,
                     ActionListener.wrap(config -> {
-                        fetchScheduledModelIds.remove(modelId);
                         propagateModelSize(modelId, storedSizeForConfig(config));
-                    }, e -> {
                         fetchScheduledModelIds.remove(modelId);
+                    }, e -> {
                         if (revalidate) {
                             handleRevalidationFetchFailure(modelId, e);
                         } else {
                             handleInitialFetchFailure(modelId, e);
                         }
+                        fetchScheduledModelIds.remove(modelId);
                     })
                 )
             );

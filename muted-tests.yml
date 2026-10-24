@@ -442,3 +442,7 @@ tests:
   - :integTest
   method: falls back to local build when mode=auto and DRA manifest commit does not match remote tracking ref
   issue: https://github.com/elastic/elasticsearch/issues/163172
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  tasks:
+  - :qa:mixed-cluster:v9.2.8#mixedClusterTest
+  issue: https://github.com/elastic/elasticsearch/issues/163053

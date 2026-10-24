@@ -44,6 +44,9 @@ public class ChunkedDataExtractor implements DataExtractor {
     /** Let us set a minimum chunk span of 1 minute */
     private static final long MIN_CHUNK_SPAN = 60000L;
 
+    /** Target rows per initial ES|QL chunk; kept small to leave headroom for bursty data. */
+    private static final long DEFAULT_ESQL_CHUNK_DOCS = 500L;
+
     private final DataExtractorFactory dataExtractorFactory;
     private final ChunkedDataExtractorContext context;
     private long currentStart;
@@ -104,7 +107,10 @@ public class ChunkedDataExtractor implements DataExtractor {
             throw e;
         }
         if (dataSummary.hasData()) {
-            currentStart = context.timeAligner().alignToFloor(dataSummary.earliestTime());
+            long earliestTime = context.timeAligner().alignToFloor(dataSummary.earliestTime());
+            // ES|QL summary MIN may precede the queried window (e.g. DATE_TRUNC); never rewind. Jump forward so an
+            // unbounded range skips empty chunks.
+            currentStart = context.hasEsqlQuery() ? Math.max(currentStart, earliestTime) : earliestTime;
             currentEnd = currentStart;
 
             if (context.chunkSpan() != null) {
@@ -112,6 +118,14 @@ public class ChunkedDataExtractor implements DataExtractor {
             } else if (context.hasAggregations()) {
                 // This heuristic is a direct copy of the manual chunking config auto-creation done in {@link DatafeedConfig}
                 chunkSpan = DatafeedConfig.DEFAULT_AGGREGATION_CHUNKING_BUCKETS * context.histogramInterval();
+            } else if (context.hasEsqlQuery()) {
+                long timeSpread = dataSummary.latestTime() - dataSummary.earliestTime();
+                if (timeSpread <= 0) {
+                    chunkSpan = context.end() - currentEnd;
+                } else {
+                    // Assumes uniform distribution.
+                    chunkSpan = Math.max(MIN_CHUNK_SPAN, DEFAULT_ESQL_CHUNK_DOCS * timeSpread / dataSummary.totalHits());
+                }
             } else {
                 long timeSpread = dataSummary.latestTime() - dataSummary.earliestTime();
                 if (timeSpread <= 0) {

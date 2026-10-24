@@ -41,17 +41,25 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
     @Override
     public DataExtractor newExtractor(long start, long end) {
         ChunkedDataExtractorContext.TimeAligner timeAligner = newTimeAligner();
+        // End rounds down so the still-open bucket at the window edge is never extracted (real-time relies on this).
+        long alignedEnd = timeAligner.alignToFloor(end);
         ChunkedDataExtractorContext dataExtractorContext = new ChunkedDataExtractorContext(
             job.getId(),
             datafeedConfig.getScrollSize(),
-            timeAligner.alignToCeil(start),
-            timeAligner.alignToFloor(end),
+            alignStart(timeAligner, start),
+            alignedEnd,
             datafeedConfig.getChunkingConfig().getTimeSpan(),
             timeAligner,
             datafeedConfig.hasAggregations(),
-            datafeedConfig.hasAggregations() ? datafeedConfig.getHistogramIntervalMillis(xContentRegistry) : null
+            datafeedConfig.hasAggregations() ? datafeedConfig.getHistogramIntervalMillis(xContentRegistry) : null,
+            datafeedConfig.getEsqlQuery() != null
         );
         return new ChunkedDataExtractor(dataExtractorFactory, dataExtractorContext);
+    }
+
+    /** ES|QL start rounds down so the bucket containing it is kept; DSL aggregations round up to skip a partial first bucket. */
+    private long alignStart(ChunkedDataExtractorContext.TimeAligner timeAligner, long start) {
+        return datafeedConfig.getEsqlQuery() != null ? timeAligner.alignToFloor(start) : timeAligner.alignToCeil(start);
     }
 
     @Override
@@ -72,6 +80,9 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
             // This allows us to steer away from partial buckets, and thus avoid the problem of
             // dropping or duplicating data.
             return newIntervalTimeAligner(datafeedConfig.getHistogramIntervalMillis(xContentRegistry));
+        }
+        if (datafeedConfig.getEsqlQuery() != null) {
+            return newIntervalTimeAligner(datafeedConfig.getGroupingInterval().millis());
         }
         return newIdentityTimeAligner();
     }

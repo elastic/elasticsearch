@@ -13,11 +13,13 @@ import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.DefaultShardContext;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 
 import java.util.Objects;
+import java.util.function.BooleanSupplier;
 
 /**
  * Search and shard context used as entries in {@link org.elasticsearch.compute.lucene.IndexedByShardId}. These are shared by both the data
@@ -70,6 +72,22 @@ class ComputeSearchContext implements Releasable {
     public SearchContext searchContext() {
         ensureNotTombstone();
         return searchContext;
+    }
+
+    /**
+     * Whether a slice of the shard is not read yet by this compute.
+     */
+    BooleanSupplier hasUnfinishedSlices() {
+        ShardContext context = shardContext.get();
+        return context == null ? () -> false : context.hasUnfinishedSlices();
+    }
+
+    /**
+     * The shard this context searches, or {@code null} if this context was already closed.
+     */
+    @Nullable
+    IndexShard indexShard() {
+        return searchContext == null ? null : searchContext.indexShard();
     }
 
     private ShardContext createShardContext(QueryWarnings queryWarnings) {

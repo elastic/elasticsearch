@@ -59,10 +59,12 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
     );
 
     private static final TransportVersion SINGLE_NODE_OPTIMIZATION = TransportVersion.fromName("esql_single_node_optimization");
+    private static final TransportVersion QUERY_ID_IN_DATA_NODE_REQUEST = TransportVersion.fromName("search_query_waiting");
 
     private static final Logger logger = LogManager.getLogger(DataNodeRequest.class);
 
     private final String sessionId;
+    private final TaskId queryId;
     private final Configuration configuration;
     private final String clusterAlias;
     private final Map<Index, AliasFilter> aliasFilters;
@@ -80,6 +82,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
      */
     DataNodeRequest(
         String sessionId,
+        TaskId queryId,
         Configuration configuration,
         String clusterAlias,
         List<Shard> shards,
@@ -93,6 +96,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         List<ExternalSplit> externalSplits
     ) {
         this.sessionId = sessionId;
+        this.queryId = queryId;
         this.configuration = configuration;
         this.clusterAlias = clusterAlias;
         this.shards = shards;
@@ -111,6 +115,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
      */
     DataNodeRequest(
         String sessionId,
+        TaskId queryId,
         Configuration configuration,
         String clusterAlias,
         List<Shard> shards,
@@ -124,6 +129,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
     ) {
         this(
             sessionId,
+            queryId,
             configuration,
             clusterAlias,
             shards,
@@ -186,6 +192,11 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         } else {
             this.externalSplits = List.of();
         }
+        if (in.getTransportVersion().supports(QUERY_ID_IN_DATA_NODE_REQUEST)) {
+            this.queryId = TaskId.readFromStream(in);
+        } else {
+            this.queryId = TaskId.EMPTY_TASK_ID;
+        }
     }
 
     @Override
@@ -215,6 +226,9 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         }
         if (out.getTransportVersion().supports(EXTERNAL_SPLITS_IN_DATA_NODE_REQUEST)) {
             out.writeNamedWriteableCollection(externalSplits);
+        }
+        if (out.getTransportVersion().supports(QUERY_ID_IN_DATA_NODE_REQUEST)) {
+            queryId.writeTo(out);
         }
     }
 
@@ -259,6 +273,13 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
 
     String sessionId() {
         return sessionId;
+    }
+
+    /**
+     * The task of the query's coordinator in this cluster, or {@link TaskId#EMPTY_TASK_ID} if the sender does not send it.
+     */
+    TaskId queryId() {
+        return queryId;
     }
 
     Configuration configuration() {
@@ -327,6 +348,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         if (o == null || getClass() != o.getClass()) return false;
         DataNodeRequest request = (DataNodeRequest) o;
         return sessionId.equals(request.sessionId)
+            && queryId.equals(request.queryId)
             && configuration.equals(request.configuration)
             && clusterAlias.equals(request.clusterAlias)
             && shards.equals(request.shards)
@@ -345,6 +367,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
     public int hashCode() {
         return Objects.hash(
             sessionId,
+            queryId,
             configuration,
             clusterAlias,
             shards,
@@ -362,6 +385,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
     public DataNodeRequest withPlan(ExchangeSinkExec newPlan) {
         return new DataNodeRequest(
             sessionId,
+            queryId,
             configuration,
             clusterAlias,
             shards,

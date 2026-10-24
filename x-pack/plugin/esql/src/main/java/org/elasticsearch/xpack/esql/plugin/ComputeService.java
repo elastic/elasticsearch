@@ -32,6 +32,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
+import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
@@ -51,11 +52,13 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.scheduling.QueryScheduler;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -1409,6 +1412,7 @@ public class ComputeService {
             }
             var computeContext = new ComputeContext(
                 newChildSession(sessionId),
+                queryId(rootTask),
                 profileDescription(profileQualifier, "single"),
                 LOCAL_CLUSTER,
                 flags,
@@ -1518,6 +1522,7 @@ public class ComputeService {
                         rootTask,
                         new ComputeContext(
                             sessionId,
+                            queryId(rootTask),
                             profileDescription(profileQualifier, "final"),
                             LOCAL_CLUSTER,
                             flags,
@@ -1664,6 +1669,7 @@ public class ComputeService {
                 rootTask,
                 new ComputeContext(
                     sessionId,
+                    queryId(rootTask),
                     profileDescription(profileQualifier, "final"),
                     LOCAL_CLUSTER,
                     flags,
@@ -2125,19 +2131,28 @@ public class ComputeService {
                 planningBytesRead,
                 approximationApplied
             );
-            driverRunner.executeDrivers(
-                task,
-                drivers,
-                transportService.getThreadPool().executor(EsqlPlugin.computePool()),
-                ActionListener.releaseAfter(driverListener, () -> {
+            QueryScheduler.QueryExecutor driverExecutor = searchService.queryScheduler()
+                .executor(
+                    context.queryId(),
+                    transportService.getThreadPool().executor(EsqlPlugin.computePool()),
+                    // only data drivers read the slices of the shards; the node reduce shares the search contexts
+                    context.description().equals(DATA_DESCRIPTION) ? searchedShards(context.searchContexts()) : List.of()
+                );
+            try {
+                driverRunner.executeDrivers(task, drivers, driverExecutor, ActionListener.releaseAfter(driverListener, () -> {
                     if (hookExecInfo != null) {
                         for (BooleanSupplier hook : registeredStopHooks) {
                             hookExecInfo.removeStopHook(hook);
                         }
                     }
-                    Releasables.close(drivers);
-                })
-            );
+                    try (driverExecutor) {
+                        Releasables.close(drivers);
+                    }
+                }));
+            } catch (Exception e) {
+                driverExecutor.close();
+                throw e;
+            }
         } catch (Exception e) {
             if (context.description().equals(DATA_DESCRIPTION)) {
                 Releasables.close(context.searchContexts().iterable());
@@ -2290,6 +2305,27 @@ public class ComputeService {
 
     String newChildSession(String session) {
         return session + "/" + childSessionIdGenerator.incrementAndGet();
+    }
+
+    /**
+     * The id of the query a coordinator task runs.
+     */
+    TaskId queryId(Task coordinatorTask) {
+        return new TaskId(transportService.getLocalNode().getId(), coordinatorTask.getId());
+    }
+
+    /**
+     * The shards the drivers search, skipping contexts already closed.
+     */
+    static List<QueryScheduler.SearchedShard> searchedShards(IndexedByShardId<ComputeSearchContext> searchContexts) {
+        List<QueryScheduler.SearchedShard> shards = new ArrayList<>();
+        for (ComputeSearchContext context : searchContexts.iterable()) {
+            IndexShard shard = context.indexShard();
+            if (shard != null) {
+                shards.add(new QueryScheduler.SearchedShard(shard, context.hasUnfinishedSlices()));
+            }
+        }
+        return shards;
     }
 
     String profileDescription(String qualifier, String label) {

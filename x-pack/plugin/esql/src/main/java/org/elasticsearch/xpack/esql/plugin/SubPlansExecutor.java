@@ -319,6 +319,7 @@ final class SubPlansExecutor {
                     rootTask,
                     new ComputeContext(
                         childSessionId,
+                        computeService.queryId(rootTask),
                         description,
                         LOCAL_CLUSTER,
                         flags,

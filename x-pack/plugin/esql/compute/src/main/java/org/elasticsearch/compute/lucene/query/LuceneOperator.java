@@ -150,6 +150,7 @@ public abstract class LuceneOperator extends SourceOperator {
         this.blockFactory = driverContext.blockFactory();
         this.maxPageSize = maxPageSize;
         this.sliceQueue = sliceQueue;
+        sliceQueue.addReader();
         this.singleValueQueryWarnings = singleValueQueryWarnings;
 
         this.shardProcessNanos = new long[sliceQueue.maxShardIndex() + 1];
@@ -276,6 +277,11 @@ public abstract class LuceneOperator extends SourceOperator {
 
     @Override
     public final void close() {
+        if (currentSlice != null) {
+            sliceQueue.finished(currentSlice);
+            currentSlice = null;
+        }
+        sliceQueue.removeReader();
         releaseCurrentScorer();
         refCounteds.iterable().forEach(RefCounted::decRef);
         additionalClose();

@@ -1521,6 +1521,50 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         return c;
     }
 
+    public void testByteMatrixMultiply() {
+        try (ExecutorService executor = randomBoolean() ? Executors.newCachedThreadPool() : null) {
+            TaskExecutor tasks = executor == null ? null : new TaskExecutor(executor);
+            int m = randomIntBetween(2, 1024);
+            int k = randomIntBetween(2, 2500);
+            int n = randomIntBetween(2, 1024);
+
+            byte[] a = new byte[m * k];
+            byte[] b = new byte[k * n];
+            random().nextBytes(a);
+            random().nextBytes(b);
+
+            int[] expected = basicMatrixMultiply(a, b, m, k, n);
+
+            // pre-filled, as the implementations must overwrite the result rather than accumulate into it
+            int[] scalar = new int[m * n];
+            Arrays.fill(scalar, randomInt());
+            defaultedProvider.getVectorUtilSupport().matrixMultiply(a, b, m, k, n, scalar, tasks);
+            assertThat(scalar, equalTo(expected));
+
+            int[] panama = new int[m * n];
+            Arrays.fill(panama, randomInt());
+            panamaProvider.getVectorUtilSupport().matrixMultiply(a, b, m, k, n, panama, tasks);
+            assertThat(panama, equalTo(expected));
+
+            int[] nativeResult = new int[m * n];
+            Arrays.fill(nativeResult, randomInt());
+            nativeProvider.getVectorUtilSupport().matrixMultiply(a, b, m, k, n, nativeResult, tasks);
+            assertThat(nativeResult, equalTo(expected));
+        }
+    }
+
+    private static int[] basicMatrixMultiply(byte[] a, byte[] b, int m, int k, int n) {
+        int[] c = new int[m * n];
+        for (int i = 0; i < m; i++) {
+            for (int l = 0; l < k; l++) {
+                for (int d = 0; d < n; d++) {
+                    c[i * n + d] += a[i * k + l] * b[l * n + d];
+                }
+            }
+        }
+        return c;
+    }
+
     public void testMatrixVectorMultiply() {
         int rows = randomIntBetween(2, 1024);
         int cols = randomIntBetween(2, 1024);

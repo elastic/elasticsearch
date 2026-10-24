@@ -522,6 +522,57 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         }
     }
 
+    public void testInt8BlockEncoderMatchesFloatBlockEncoder() throws IOException {
+        int dim = randomIntBetween(128, 512);
+        int bitsPerDim = randomIntBetween(1, 4);
+        int nVectors = 100;
+        // does not divide nVectors, so the last block is a partial one
+        int maxBlockSize = 32;
+
+        AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
+            randomFrom(0.5f, 1.0f),
+            bitsPerDim,
+            AsymmetricHashingQuantizer.Method.RANDOM,
+            0,
+            1,
+            42L,
+            executor()
+        );
+        var w = train(quantizer, new float[][] { new float[dim] }, i -> new float[dim]);
+        float[] centroid = AshUtils.randomGaussians(random(), dim);
+        var precomputed = AsymmetricHashingQuantizer.precomputeCentroid(centroid, w.wT());
+
+        double cosineSum = 0;
+        var floatEncoder = quantizer.newBlockEncoder(w.w(), dim, maxBlockSize, false);
+        var int8Encoder = quantizer.newBlockEncoder(w.w(), dim, maxBlockSize, true);
+        for (int start = 0; start < nVectors; start += maxBlockSize) {
+            int blockSize = Math.min(maxBlockSize, nVectors - start);
+            floatEncoder.reset();
+            int8Encoder.reset();
+            for (int j = 0; j < blockSize; j++) {
+                float[] vector = AshUtils.randomGaussians(random(), dim);
+                floatEncoder.add(vector, centroid);
+                int8Encoder.add(vector, centroid);
+            }
+            floatEncoder.encode(precomputed);
+            int8Encoder.encode(precomputed);
+
+            for (int j = 0; j < blockSize; j++) {
+                float[] floatCode = floatEncoder.code(j);
+                float[] int8Code = int8Encoder.code(j);
+                double cosine = ESVectorUtil.dotProduct(floatCode, int8Code) / Math.sqrt(
+                    (double) ESVectorUtil.dotProduct(floatCode, floatCode) * ESVectorUtil.dotProduct(int8Code, int8Code)
+                );
+                cosineSum += cosine;
+                assertThat(int8Encoder.vecCentroidDot(j), equalTo(floatEncoder.vecCentroidDot(j)));
+                assertThat(int8Encoder.scale(j), greaterThan(0f));
+                assertTrue(Float.isFinite(int8Encoder.offset(j)));
+            }
+        }
+        // a single vector can differ by a few levels, so the check is on the mean
+        assertThat(cosineSum / nVectors, greaterThan(0.98));
+    }
+
     private static AsymmetricHashingQuantizer.TrainedProjection train(
         AsymmetricHashingQuantizer quantizer,
         float[][] vectors,

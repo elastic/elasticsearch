@@ -56,6 +56,7 @@ public final class AsymmetricHashingQuantizer {
 
     private final float projectedDimsFraction;
     private final Method method;
+    private final int bitsPerDim;
     private final int nTrainingIterations;
     private final int trainingFactor;
     private final long seed;
@@ -74,6 +75,12 @@ public final class AsymmetricHashingQuantizer {
      * and 8192 samples may be a thin margin; scaling this cap with nDims is a tracked follow-up (see #160522).
      */
     static final int MAX_TRAINING_SAMPLES = 8192;
+
+    /**
+     * Largest bit width for which blocks are projected with int8 arithmetic. At 8 bits the int8 rounding
+     * error is as large as the quantization step, and doubles the dot product reconstruction error.
+     */
+    static final int MAX_INT8_PROJECTION_BITS = 4;
 
     /**
      * Creates an ASH quantizer with the given configuration.
@@ -103,6 +110,7 @@ public final class AsymmetricHashingQuantizer {
         IvfSegmentConfig.AshConfig.validateBitsPerDim(bitsPerDim);
         this.projectedDimsFraction = projectedDimsFraction;
         this.method = method;
+        this.bitsPerDim = bitsPerDim;
         this.nTrainingIterations = nTrainingIterations;
         this.trainingFactor = trainingFactor;
         this.seed = seed;
@@ -262,20 +270,6 @@ public final class AsymmetricHashingQuantizer {
     public record VectorAndNorm(float[] vector, float normSq) {}
 
     /**
-     * Centers {@code vector} by {@code centroid} into {@code out[outOffset..]} and L2-normalizes it in
-     * place
-     *
-     * @return the squared norm of {@code vector - centroid}
-     */
-    private static float centralize(float[] vector, float[] centroid, float[] out, int outOffset) {
-        int originalDim = vector.length;
-        for (int d = 0; d < originalDim; d++) {
-            out[outOffset + d] = vector[d] - centroid[d];
-        }
-        return ESVectorUtil.l2Normalize(out, outOffset, originalDim);
-    }
-
-    /**
      * Additive correction for dot product reconstruction, per ASH paper Equation 19:
      * {@code ⟨x, μ⟩ - scale * ⟨centroid@W, code⟩ - ‖μ‖²}.
      * <p>
@@ -316,29 +310,30 @@ public final class AsymmetricHashingQuantizer {
      * @param maxBlockSize the largest block the caller gathers before encoding
      */
     public BlockEncoder newBlockEncoder(float[] w, int originalDim, int maxBlockSize) {
-        return new BlockEncoder(w, originalDim, maxBlockSize);
+        return newBlockEncoder(w, originalDim, maxBlockSize, bitsPerDim <= MAX_INT8_PROJECTION_BITS);
+    }
+
+    BlockEncoder newBlockEncoder(float[] w, int originalDim, int maxBlockSize, boolean int8) {
+        return int8 ? new Int8BlockEncoder(w, originalDim, maxBlockSize) : new FloatBlockEncoder(w, originalDim, maxBlockSize);
     }
 
     /**
-     * Encodes vectors a block at a time using matrix multiplication
+     * Encodes vectors a block at a time using matrix multiplication. Subclasses differ only in how a block is
+     * projected into latent space; quantization and the scale and offset derivation are shared.
      */
-    public final class BlockEncoder {
+    public abstract sealed class BlockEncoder permits FloatBlockEncoder, Int8BlockEncoder {
 
-        private final int originalDim;
-        private final int nDims;
-        private final int maxBlockSize;
-        /** W as (originalDim x nDims), the right-operand shape the block multiply needs. */
-        private final float[] w;
-        /** The gathered vectors, centered and L2-normalized, row-major (maxBlockSize x originalDim). */
-        private final float[] centered;
-        /** The block projected into latent space, row-major (maxBlockSize x nDims). */
-        private final float[] latent;
+        protected final int originalDim;
+        protected final int nDims;
+        protected final int maxBlockSize;
+        /** The block projected into latent space, row-major (maxBlockSize x nDims). Rows are only proportional to centered @ W. */
+        protected final float[] latent;
         private final float[][] codes;
         private final float[] normSqs;
         private final float[] vecCentroidDots;
         private final float[] scales;
         private final float[] offsets;
-        private int size;
+        protected int size;
 
         private BlockEncoder(float[] w, int originalDim, int maxBlockSize) {
             assert w.length == originalDim * nDims(originalDim)
@@ -346,8 +341,6 @@ public final class AsymmetricHashingQuantizer {
             this.originalDim = originalDim;
             this.nDims = w.length / originalDim;
             this.maxBlockSize = maxBlockSize;
-            this.w = w;
-            this.centered = new float[maxBlockSize * originalDim];
             this.latent = new float[maxBlockSize * nDims];
             this.codes = new float[maxBlockSize][nDims];
             this.normSqs = new float[maxBlockSize];
@@ -356,20 +349,33 @@ public final class AsymmetricHashingQuantizer {
             this.offsets = new float[maxBlockSize];
         }
 
+        /**
+         * Stores {@code vector - centroid} as row {@code row} of the block, in whatever form {@link #project} needs.
+         *
+         * @return ‖vector - centroid‖²
+         */
+        protected abstract float addRow(float[] vector, float[] centroid, int row);
+
+        /**
+         * Fills the first {@code size} rows of {@link #latent} with the projection of the gathered rows.
+         * Only the direction of each row matters, as quantization is invariant to a positive scale on a row.
+         */
+        protected abstract void project();
+
         /** Discards the gathered block, ready for {@link #add}. */
         public void reset() {
             size = 0;
         }
 
         /**
-         * Centers and normalizes {@code vector} into the next row of the block, and records the two
+         * Centers {@code vector} into the next row of the block, and records the two
          * quantities that need the original vector: ‖vector - centroid‖² and ⟨vector, centroid⟩. The
          * caller may overwrite or reuse {@code vector} as soon as this returns, so a provider handing
          * out a shared buffer stays safe across a whole block.
          */
-        public void add(float[] vector, float[] centroid) {
+        public final void add(float[] vector, float[] centroid) {
             assert size < maxBlockSize : "block is full";
-            normSqs[size] = centralize(vector, centroid, centered, size * originalDim);
+            normSqs[size] = addRow(vector, centroid, size);
             vecCentroidDots[size] = ESVectorUtil.dotProduct(vector, centroid);
             size++;
         }
@@ -381,11 +387,8 @@ public final class AsymmetricHashingQuantizer {
          * @param precomputed the projected centroid and its squared norm for the posting list these
          *        vectors belong to, from {@link AsymmetricHashingQuantizer#precomputeCentroid}
          */
-        public void encode(VectorAndNorm precomputed) {
-            // The multiply doesn't have offsets, so the full matrix is calculated
-            // Although this means that partial blocks multiply whatever is left in 'centered' after the tail,
-            // only 'count' rows are read back
-            ESVectorUtil.matrixMultiply(centered, w, maxBlockSize, originalDim, nDims, latent, executor);
+        public final void encode(VectorAndNorm precomputed) {
+            project();
 
             for (int i = 0; i < size; i++) {
                 float[] code = codes[i];
@@ -418,6 +421,125 @@ public final class AsymmetricHashingQuantizer {
         public float vecCentroidDot(int i) {
             assert i < size;
             return vecCentroidDots[i];
+        }
+    }
+
+    /** Projects with a float matrix multiply. Used where int8 rounding error is comparable to the quantization step. */
+    private final class FloatBlockEncoder extends BlockEncoder {
+        /** W as (originalDim x nDims), the right-operand shape the block multiply needs. */
+        private final float[] w;
+        /** The gathered vectors, centered and L2-normalized, row-major (maxBlockSize x originalDim). */
+        private final float[] centered;
+
+        private FloatBlockEncoder(float[] w, int originalDim, int maxBlockSize) {
+            super(w, originalDim, maxBlockSize);
+            this.w = w;
+            this.centered = new float[maxBlockSize * originalDim];
+        }
+
+        @Override
+        protected float addRow(float[] vector, float[] centroid, int row) {
+            int originalDim = vector.length;
+            int outOffset = row * originalDim;
+            for (int d = 0; d < originalDim; d++) {
+                centered[outOffset + d] = vector[d] - centroid[d];
+            }
+            return ESVectorUtil.l2Normalize(centered, outOffset, originalDim);
+        }
+
+        @Override
+        protected void project() {
+            // The multiply doesn't have offsets, so the full matrix is calculated
+            // Although this means that partial blocks multiply whatever is left in 'centered' after the tail,
+            // only 'size' rows are read back
+            ESVectorUtil.matrixMultiply(centered, w, maxBlockSize, originalDim, nDims, latent, executor);
+        }
+    }
+
+    /**
+     * Projects with an int8 matrix multiply, which is exact in int32 and faster than the float multiply.
+     * W is scaled per column and each gathered row by its own maximum. A per-row scale does not change
+     * the quantized code, so rows are not normalized and the row scale is not kept. The per-column scale
+     * does change the row's shape, so it is applied when converting the integer products to floats.
+     */
+    private final class Int8BlockEncoder extends BlockEncoder {
+
+        private static final float INT8_MAX = Byte.MAX_VALUE;
+
+        private static byte toInt8(float value, float inverseScale) {
+            // use [-MAX, MAX] so it's symmetric
+            return (byte) Math.clamp(Math.round(value * inverseScale), -INT8_MAX, INT8_MAX);
+        }
+
+        // quantized version of W
+        private final byte[] wq;
+        // dequantization scale of each column of W, 0 for an all-zero column. */
+        private final float[] wScales;
+        // gathered vectors, centered and quantized to int8, row-major (maxBlockSize x originalDim). */
+        private final byte[] centeredQ;
+        // scratch array for storing element distances in addRow */
+        private final float[] diff;
+        // result array of the int matrix multiply
+        private final int[] product;
+
+        private Int8BlockEncoder(float[] w, int originalDim, int maxBlockSize) {
+            super(w, originalDim, maxBlockSize);
+
+            // record the scale for each column of W
+            this.wScales = new float[nDims];
+            for (int l = 0; l < originalDim; l++) {
+                for (int j = 0; j < nDims; j++) {
+                    wScales[j] = Math.max(wScales[j], Math.abs(w[l * nDims + j]));
+                }
+            }
+            for (int j = 0; j < nDims; j++) {
+                wScales[j] /= INT8_MAX;
+            }
+
+            // byte version of W, scaled per-column
+            this.wq = new byte[w.length];
+            for (int l = 0; l < originalDim; l++) {
+                for (int j = 0; j < nDims; j++) {
+                    wq[l * nDims + j] = toInt8(w[l * nDims + j], wScales[j] == 0 ? 0 : 1 / wScales[j]);
+                }
+            }
+            this.centeredQ = new byte[maxBlockSize * originalDim];
+            this.diff = new float[originalDim];
+            this.product = new int[maxBlockSize * nDims];
+        }
+
+        @Override
+        protected float addRow(float[] vector, float[] centroid, int row) {
+            float max = 0;
+            float dot = 0;
+            for (int d = 0; d < originalDim; d++) {
+                float v = vector[d] - centroid[d];
+                diff[d] = v;
+                dot = Math.fma(v, v, dot);
+                max = Math.max(max, Math.abs(v));
+            }
+            float inverseScale = max == 0 ? 0 : INT8_MAX / max;
+
+            int base = row * originalDim;
+            for (int d = 0; d < originalDim; d++) {
+                centeredQ[base + d] = toInt8(diff[d], inverseScale);
+            }
+
+            return dot;
+        }
+
+        @Override
+        protected void project() {
+            // As in FloatBlockEncoder, rows past 'size' hold stale data and are never read back
+            ESVectorUtil.matrixMultiply(centeredQ, wq, maxBlockSize, originalDim, nDims, product, executor);
+
+            // scale the multiply results back to floats
+            for (int i = 0; i < size; i++) {
+                int base = i * nDims;
+                for (int j = 0; j < nDims; j++) {
+                    latent[base + j] = product[base + j] * wScales[j];
+                }
+            }
         }
     }
 

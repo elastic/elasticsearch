@@ -16,6 +16,11 @@ A dataset is a read source for the standard {{esql}} pipeline. You query it with
 FROM my_dataset
 ```
 
+:::{tip}
+:applies_to: stack: experimental 9.6+
+To query a dataset from the {{kib}} UI, click **Open in Discover** ({icon}`product_discover`) in the dataset's row on the [**Datasets** tab](esql-data-federation-manage-datasets-ui.md#view-datasets). **Discover** opens with a `FROM <dataset>` query.
+:::
+
 For a hands-on example, refer to [get started with {{esql}} Data Federation](esql-data-federation-quickstart.md).
 
 ## How external data is read

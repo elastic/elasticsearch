@@ -20,8 +20,7 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
  * ISO-8601 strings rather than raw epoch longs, and UNSIGNED_LONG decodes the sign-flipped long into its numeric value.
  * <p>
  * The single source of truth for this type&rarr;value mapping. {@code _source} synthesis
- * ({@link SynthesizeExternalSource}) uses the native form directly for JSON; {@code _id} composition
- * ({@link VirtualColumnIterator}) wraps it in {@link String#valueOf} for its KEYWORD form. Types no external reader can
+ * ({@link SynthesizeExternalSource}) uses the native form directly for JSON. Types no external reader can
  * emit as a scalar fail loud, so a future type is handled intentionally rather than discovered as a corrupt value.
  */
 final class ExternalScalarRenderer {

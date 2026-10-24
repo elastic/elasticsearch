@@ -40,7 +40,6 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.StandardTokenizerFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -108,7 +107,6 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
 
         checker.registerConflictCheck("position_increment_gap", b -> b.field("position_increment_gap", 10));
 
-        // norms can be set from true to false, but not vice versa
         checker.registerConflictCheck("norms", fieldMapping(b -> {
             b.field("type", "annotated_text");
             b.field("norms", false);
@@ -116,13 +114,13 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
             b.field("type", "annotated_text");
             b.field("norms", true);
         }));
-        checker.registerUpdateCheck("norms", b -> {
+        checker.registerConflictCheck("norms", fieldMapping(b -> {
             b.field("type", "annotated_text");
             b.field("norms", true);
-        }, b -> {
+        }), fieldMapping(b -> {
             b.field("type", "annotated_text");
             b.field("norms", false);
-        }, m -> assertFalse(m.fieldType().getTextSearchInfo().hasNorms()));
+        }));
     }
 
     @Override
@@ -734,7 +732,6 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
      * its own fallback field via a single loader layer, producing stable round-trips.
      */
     public void testSyntheticSourceStableWithSingleValuedKeywordDelegateAndIgnoreAbove() throws IOException {
-        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
         int ignoreAbove = between(10, 20);
         // At least one short value (fits ignore_above) and one long value (exceeds it) are required to trigger both storage paths.
         List<String> shortValues = randomList(1, 3, () -> randomAlphaOfLength(between(1, ignoreAbove)));
@@ -752,12 +749,8 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
                     {
                         b.field("type", "keyword");
                         b.field("ignore_above", ignoreAbove);
-                        b.startObject("doc_values");
-                        {
-                            b.field("multi_value", false);
-                            b.field("on_failure", "ignore");
-                        }
-                        b.endObject();
+                        b.field("multi_value", false);
+                        b.field("on_failure", "ignore");
                     }
                     b.endObject();
                 }

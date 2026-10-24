@@ -12,7 +12,7 @@ import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 
 @Aggregator({ @IntermediateState(name = "max", type = "INT"), @IntermediateState(name = "seen", type = "BOOLEAN") })
-@GroupingAggregator
+@GroupingAggregator(supportsPartitioning = true)
 class MaxIntAggregator {
 
     public static int init() {
@@ -21,5 +21,9 @@ class MaxIntAggregator {
 
     public static int combine(int current, int v) {
         return Math.max(current, v);
+    }
+
+    public static void combine(IntArrayState state, int groupId, int v) {
+        state.max(groupId, v);
     }
 }

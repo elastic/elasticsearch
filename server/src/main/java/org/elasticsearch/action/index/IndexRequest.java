@@ -985,8 +985,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         this.rawTimestamp = rawTimestamp;
     }
 
-    public void setTimeSeriesTimestamp(Instant tsTimestamp) {
+    public IndexRequest setTimeSeriesTimestamp(Instant tsTimestamp) {
         this.timeSeriesTimestamp = tsTimestamp;
+        return this;
     }
 
     /**

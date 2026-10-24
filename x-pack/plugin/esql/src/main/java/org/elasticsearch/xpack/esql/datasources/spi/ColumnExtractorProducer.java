@@ -44,7 +44,9 @@ import java.util.function.Consumer;
  * Implementations should construct the extractor lazily — typically on the first call to
  * {@link #createColumnExtractor(Consumer)} and may return the same instance on subsequent calls.
  * Lifetime is owned by the caller via {@code SourceExtractors} (the registry calls
- * {@link ColumnExtractor#close()} when the driver finishes).
+ * {@link ColumnExtractor#close()} when the driver finishes). If the registry is already closed when the
+ * extractor is about to be registered (the driver finished while the source was opening this unit), the
+ * caller closes the extractor without ever registering it, so {@code close()} must not depend on registration.
  */
 public interface ColumnExtractorProducer {
 
@@ -56,12 +58,13 @@ public interface ColumnExtractorProducer {
      * range-restricted footer) at construction time.
      *
      * @param driverThreadWarningSink where the extractor relays per-value declared-coercion warnings
-     *                                (see {@link SkipWarnings}). The extractor runs on the driver
-     *                                thread, so this sink emits directly to the response headers; it
-     *                                is budget-gated so the whole source stays within one cap. May be
-     *                                {@code null}, in which case the extractor falls back to emitting
-     *                                warnings directly (per-instance cap only): the on-driver-thread
-     *                                default used by tests and benchmarks.
+     *                                (see {@link SkipWarnings}). The extractor invokes this sink on the driver
+     *                                thread; production binds it to {@code DriverContext#addWarning} so
+     *                                {@code DriverCompletionInfo} can carry warnings back from a remote scan. It is
+     *                                budget-gated so the whole source stays within one cap. May be {@code null}, in
+     *                                which case the extractor falls back to direct response-header emission
+     *                                (per-instance cap only). That fallback is for tests and benchmarks only because
+     *                                it is not transport-safe when the driver runs away from the coordinator.
      */
     ColumnExtractor createColumnExtractor(@Nullable Consumer<String> driverThreadWarningSink) throws IOException;
 

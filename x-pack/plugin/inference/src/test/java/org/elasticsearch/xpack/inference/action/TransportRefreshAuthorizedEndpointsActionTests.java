@@ -83,6 +83,7 @@ public class TransportRefreshAuthorizedEndpointsActionTests extends ESTestCase {
         inferenceFeatureServiceMock = mock(InferenceFeatureService.class);
         when(inferenceFeatureServiceMock.hasFeature(InferenceFeatures.ENDPOINT_METADATA_FIELD)).thenReturn(true);
         when(inferenceFeatureServiceMock.hasFeature(InferenceFeatures.INTERNAL_DELETE_INFERENCE_ENDPOINTS_ACTION)).thenReturn(true);
+        when(inferenceFeatureServiceMock.hasFeature(InferenceFeatures.DOCUMENT_EXTRACTION_TASK_TYPE)).thenReturn(true);
         mockRegistry = mock(ModelRegistry.class);
         mockAuthHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
         mockClient = mock(Client.class);
@@ -117,6 +118,18 @@ public class TransportRefreshAuthorizedEndpointsActionTests extends ESTestCase {
     public void testDoesNotSendAuthorizationRequest_WhenClusterMissingInternalDeleteEndpointsFeature() {
         when(mockRegistry.isReady()).thenReturn(true);
         when(inferenceFeatureServiceMock.hasFeature(InferenceFeatures.INTERNAL_DELETE_INFERENCE_ENDPOINTS_ACTION)).thenReturn(false);
+        var action = createAction();
+
+        var future = new TestPlainActionFuture<ActionResponse.Empty>();
+        action.doExecute(null, new RefreshAuthorizedEndpointsAction.Request(), future);
+
+        assertThat(future.actionGet(), is(ActionResponse.Empty.INSTANCE));
+        verify(mockAuthHandler, never()).getAuthorization(any(), any());
+    }
+
+    public void testDoesNotSendAuthorizationRequest_WhenClusterMissingDocumentExtractionTaskTypeFeature() {
+        when(mockRegistry.isReady()).thenReturn(true);
+        when(inferenceFeatureServiceMock.hasFeature(InferenceFeatures.DOCUMENT_EXTRACTION_TASK_TYPE)).thenReturn(false);
         var action = createAction();
 
         var future = new TestPlainActionFuture<ActionResponse.Empty>();
@@ -293,6 +306,43 @@ public class TransportRefreshAuthorizedEndpointsActionTests extends ESTestCase {
         verify(mockClient, never()).execute(eq(StoreInferenceEndpointsAction.INSTANCE), any(), any());
     }
 
+    public void testDoesNotStoreDecisionEndpoints_WhenClusterMissingDecisionTaskTypeFeature() {
+        var url = "eis-url";
+        var decisionEndpoint = createAuthorizedEndpoint(TaskType.DECISION, () -> "fingerprint");
+
+        when(mockRegistry.isReady()).thenReturn(true);
+        when(inferenceFeatureServiceMock.hasFeature(InferenceFeatures.DECISION_TASK_TYPE)).thenReturn(false);
+
+        givenAuthHandlerReturnsEndpointsForUrl(url, List.of(decisionEndpoint));
+
+        var action = createAction();
+
+        action.doExecute(null, new RefreshAuthorizedEndpointsAction.Request(), new TestPlainActionFuture<>());
+        verify(mockClient, never()).execute(eq(StoreInferenceEndpointsAction.INSTANCE), any(), any());
+    }
+
+    public void testStoresDecisionEndpoints_WhenClusterHasDecisionTaskTypeFeature() {
+        var url = "eis-url";
+        var decisionEndpoint = createAuthorizedEndpoint(TaskType.DECISION, () -> "fingerprint");
+
+        when(mockRegistry.isReady()).thenReturn(true);
+        when(mockRegistry.getEndpointClusterState(Set.of(decisionEndpoint.id()), false)).thenReturn(Map.of());
+        when(inferenceFeatureServiceMock.hasFeature(InferenceFeatures.DECISION_TASK_TYPE)).thenReturn(true);
+
+        givenAuthHandlerReturnsEndpointsForUrl(url, List.of(decisionEndpoint));
+
+        var action = createAction();
+
+        var requestArgCaptor = ArgumentCaptor.forClass(StoreInferenceEndpointsAction.Request.class);
+        action.doExecute(null, new RefreshAuthorizedEndpointsAction.Request(), new TestPlainActionFuture<>());
+        verify(mockClient).execute(eq(StoreInferenceEndpointsAction.INSTANCE), requestArgCaptor.capture(), any());
+
+        var storedModels = requestArgCaptor.getValue().getModels();
+        assertThat(storedModels.size(), is(1));
+        assertThat(storedModels.getFirst().getInferenceEntityId(), is(decisionEndpoint.id()));
+        assertThat(storedModels.getFirst().getTaskType(), is(TaskType.DECISION));
+    }
+
     public void testSendsAuthorizationRequest_ShouldDeleteRemovedEndpoints() {
         Set<String> endpointsToDelete = Set.of("id-1", "id-2");
 
@@ -420,6 +470,7 @@ public class TransportRefreshAuthorizedEndpointsActionTests extends ESTestCase {
                     endpoint.modelName(),
                     url,
                     new EndpointMetadata(
+                        EndpointMetadata.ModelIdentity.EMPTY_INSTANCE,
                         new EndpointMetadata.Heuristics(
                             List.of(),
                             StatusHeuristic.fromString(endpoint.status()),

@@ -1,0 +1,269 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.simdjson;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+/**
+ * Shared JSON inputs for {@link SimdJsonDirectWalkerTests} and
+ * {@link SimdJsonJacksonComparisonTests}. Inputs are chosen for semantic coverage
+ * (types, nesting, escapes, field-name shapes) rather than buffer layout.
+ */
+public final class SimdJsonTestDocuments {
+
+    private SimdJsonTestDocuments() {}
+
+    /**
+     * Documents exercised with {@code buffer.length == document.length} (no trailing padding).
+     */
+    public static List<String> exactBufferLengthDocuments() {
+        List<String> docs = new ArrayList<>();
+        // tag::noformat
+        Collections.addAll(
+            docs,
+            """
+                {}""","""
+                { }""","""
+                {"a":1}""", """
+                {"s":"hello"}""", """
+                {"b":true}""", """
+                {"b":false}""", """
+                {"n":null}""", """
+                {"d":3.14}""", """
+                {"sci":1.5e10}""",  """
+                {"neg":-42}""", """
+                {"arr":[1,"s",true,null,3.14]}""", """
+                {"a":[]}""", """
+                {"a":{}}""", """
+                {"a":[ ]}""", """
+                {"a":[[]]}""", """
+                {"a":[{}]}""", """
+                {"a":[[],{},[1],{"b":[]}],"c":{}}""", """
+                {"o":{"inner":"val"}}""", """
+                {"esc":"line1\\nline2"}""", """
+                {"q":"say \\"hi\\""}""", """
+                {"u":"\\u0041"}""",  """
+                {"long":9999999999}""", """
+                {"last_esc":"a\\nb"}""",
+                // Exact 16 / 32 / 64 UTF-8 byte document lengths (whole-document SIMD lane boundaries).
+                // Unpadded: natural JSON content sized to the boundary.
+                """
+                {"a":"12345678"}""", """
+                {"name":"012345678901234567890"}""", """
+                {"payload":"01234567890123456789012345678901234567890123456789"}""",
+                // Padded: insignificant whitespace before '}' (JSON-equivalent, different byte layout).
+                """
+                {"a":"b"       }""", """
+                {"abcd":"efghijklmnopqr"       }""", """
+                {"abcdefghijk":"lmnopqrstuvwxyz0123456789ABCDEFGHIJKLMN"       }""",
+                // Escaped field names
+               """
+                {"a\\nb":1}""", """
+                {"x\\"y":1}""", """
+                {"\\u0041":1}""",
+               // Multiple fields; last field name varies in length
+                """
+                {"first":1,"x":2}""", """
+                {"first":1,"ab":2}""", """
+                {"first":1,"abcdefg":2}""", """
+                {"first":1,"abcdefgh":2}""", """
+                {"first":1,"abcdefghi":2}""",
+                // Integer digit-count boundaries (1, 2, and 3+ digits; positive, negative, and
+                // zero; short mantissa immediately followed by '.'/'e'), and the same values as
+                // array elements.
+                """
+                {"n":0}""", """
+                {"n":9}""", """
+                {"n":-5}""", """
+                {"n":-0}""", """
+                {"n":0.5}""", """
+                {"n":0e5}""", """
+                {"n":0E056}""", """
+                {"n":10}""", """
+                {"n":99}""", """
+                {"n":-99}""", """
+                {"n":100}""", """
+                {"n":1234567890}""", """
+                {"n":9876543210}""", """
+                {"n":1.5}""", """
+                {"n":1e2}""", """
+                {"n":12.5}""", """
+                {"n":1.5e-5}""", """
+                {"a":[0,9,10,99,100,1234567890,-5,-99]}""", """
+                {"a":[1.5,12.5,2e5]}""",
+                // Valid shapes near the strict-number checks: signed exponents, zero fractions,
+                // and whitespace after a fraction/exponent, as field values and array elements.
+                """
+                {"n":1e+5}""", """
+                {"n":1E-5}""", """
+                {"n":-1.5e+3}""", """
+                {"n":-0.0}""", """
+                {"n":1.0e0}""", """
+                {"n":1.5 ,"m":2 }""", """
+                {"n":1e5\t,"m":2\n}""", """
+                {"a":[1e+5,1E-5,-0.0]}""", """
+                {"a":[1.5 ,2e5\t,3\n]}""", """
+                {"a":[[1],[2.5],[3e0]]}""",
+                // Integer digit-count boundary at 19 (long vs. BigInteger fallback): exactly 19
+                // digits fitting a signed long (both sign boundaries), 19 digits overflowing it
+                // (both sign boundaries), and 20+ digits (always BigInteger), and the same
+                // values as array elements.
+                """
+                {"n":9223372036854775807}""", """
+                {"n":-9223372036854775808}""", """
+                {"n":9223372036854775808}""", """
+                {"n":-9223372036854775809}""", """
+                {"n":99999999999999999999}""", """
+                {"a":[9223372036854775807,-9223372036854775808,9223372036854775808,-9223372036854775809,99999999999999999999]}""",
+                // DoubleParser code paths (see that class's own comments): fast path,
+                // Eisel-Lemire (main, round-to-even, underflow, overflow, subnormal), and the
+                // slow path (>19 significant digits). Explicit exponents of 20+ digits (past 2^64) must
+                // saturate to infinity or zero like Jackson, not wrap.
+                """
+                {"d":1e22}""", """
+                {"d":1e23}""", """
+                {"d":9007199254740993e0}""", """
+                {"d":1e-400}""", """
+                {"d":-1e400}""", """
+                {"d":1e18446744073709551616}""", """
+                {"d":1e18446744073709551617}""", """
+                {"d":-1E+18446744073709551626}""", """
+                {"d":1e-18446744073709551617}""", """
+                {"d":1e99999999999999999999}""", """
+                {"d":0e99999999999999999999}""", """
+                {"a":[1e18446744073709551617,1e-18446744073709551617,0e99999999999999999999]}""", """
+                {"d":5e-324}""", """
+                {"d":2.2250738585072013e-308}""", """
+                {"d":100000000000000000000.000000}""",
+                // String shapes: every standard single-char escape, \\u-escaped and raw
+                // (unescaped) multi-byte UTF-8, empty strings, an escape that isn't the last
+                // thing in the buffer, and string elements in arrays / objects nested in arrays.
+                """
+                {"tab":"a\\tb"}""", """
+                {"cr":"a\\rb"}""", """
+                {"bs":"a\\bb"}""", """
+                {"ff":"a\\fb"}""", """
+                {"fslash":"a\\/b"}""", """
+                {"bslash":"a\\\\b"}""", """
+                {"u2byte":"\\u00E9"}""", """
+                {"u3byte":"\\u4E16"}""", """
+                {"surrogate":"\\uD83D\\uDE00"}""", """
+                {"raw2byte":"café"}""", """
+                {"raw3byte":"世界"}""", """
+                {"rawEmoji":"😀"}""", """
+                {"empty":""}""", """
+                {"first":"x\\ny","second":2}""", """
+                {"strs":["a","bb","ccc"]}""", """
+                {"strsEsc":["a\\nb","c\\td","plain"]}""", """
+                {"objInArr":[{"a":"x\\ny","b":"z"}]}""", """
+                {"objInArrEscName":[{"x\\"y":"a\\nb"}]}"""
+        );
+        // end::noformat
+        for (int nameLen = 1; nameLen <= 20; nameLen++) {
+            docs.add("{\"" + "x".repeat(nameLen) + "\":1}");
+        }
+
+        // Long strings (200+ bytes) for real vectorization coverage.
+        docs.add("{\"pre\":1,\"long\":\"" + "a".repeat(200) + "\",\"post\":2}");
+        docs.add("{\"longEsc\":\"" + "a".repeat(150) + "\\n" + "a".repeat(50) + "\"}");
+        docs.add("{\"longRaw\":\"" + "a".repeat(150) + "café" + "a".repeat(50) + "\"}");
+        docs.add("{\"arrLong\":[\"" + "a".repeat(200) + "\",\"" + "b".repeat(100) + "\\t" + "c".repeat(80) + "\"]}");
+        docs.add("{\"objArrLong\":[{\"a\":\"" + "a".repeat(200) + "\",\"b\":\"" + "b".repeat(120) + "\\n" + "b".repeat(60) + "\"}]}");
+        return List.copyOf(docs);
+    }
+
+    /**
+     * Malformed documents that both simdjson and Jackson/XContent are expected to reject.
+     * Grouped by RFC 8259 rule violated.
+     */
+    public static List<String> invalidDocumentsRejectedByBothParsers() {
+        List<String> docs = new ArrayList<>();
+        // tag::noformat
+        Collections.addAll(
+            docs,
+            // Unescaped control characters (RFC 8259: U+0000-U+001F must be escaped), in a
+            // string value and in a field name.
+            "{\"a\":\"x" + '\n' + "y\"}",
+            "{\"a\":\"x" + '\t' + "y\"}",
+            "{\"a\":\"x" + (char) 1 + "y\"}",
+            "{\"a" + (char) 1 + "b\":1}",
+            // Unrecognized or incomplete escapes.
+            """
+                {"a":"x\\qy"}""", """
+                {"a":"x\\u12"}""",
+            // Grammar errors: missing/extra/misplaced structural characters.
+            """
+                {"a" 1}""", """
+                {"a":1 "b":2}""", """
+                {"a":[1 2]}""", """
+                {"a":[,1]}""", """
+                {'a':1}""", """
+                {a:1}""", """
+                {"a":1,,"b":2}""", """
+                {"a":1:"b":2}""", """
+                {"a":[1,2}""",
+            // Trailing commas: a comma must be followed by another member or element.
+            """
+                {"a":1,}""", """
+                {"a":[1,]}""", """
+                {"a":{"b":1,}}""", """
+                {"a":[{"b":1,}]}""", """
+                {"a":[{"b":1},]}""", """
+                {"a":[[1,2,]]}""", """
+                {"a":[1,],"b":2}""", """
+                {"a":1,"b":2,}""", """
+                {"a":["x",]}""", """
+                {"a":[{},]}""", """
+                {"a":[[],]}""",
+            // Non-standard number tokens (JsonReadFeature-gated in Jackson; simdjson has no
+            // equivalent opt-in).
+            """
+                {"a":NaN}""", """
+                {"a":Infinity}""", """
+                {"a":+1}""", """
+                {"a":0x1A}""",
+            // ':' to '?' have a zero high nibble after subtracting 0x30, so the SWAR check must
+            // test every byte against 0..9: after 1, 7 and 8 digits (word edges), and in arrays.
+            """
+                {"n":1;}""", """
+                {"n":1;,"m":2}""", """
+                {"n":12<}""", """
+                {"n":1234567;}""", """
+                {"n":1234567=,"m":2}""", """
+                {"n":12345678>}""", """
+                {"n":-1234567?}""", """
+                {"n":1234567:}""", """
+                {"a":[1234567;]}""", """
+                {"a":[1,12345678<]}""",
+            // Truncated documents: input ends where the grammar still requires more tokens. These
+            // leave the structural index window exhausted mid-walk (see BitIndexes#getAndAdvance).
+            "{",
+            "{\"a\"",
+            "{\"a\":",
+            "{\"a\":1",
+            "{\"a\":1,",
+            "{\"a\":\"x",
+            "{\"a\":[",
+            "{\"a\":[1",
+            "{\"a\":[1,",
+            "{\"a\":{",
+            "{\"a\":{\"b\":1}",
+            "{\"a\":[{\"b\":1}",
+            "{\"a\":[{\"b\":1},",
+            // Truncated after a string containing structural characters, so the document's own
+            // structural indexes are not a prefix of what a shorter document would produce.
+            "{\"s\":\"}}}}}}}}}}\",\"y\":"
+        );
+        // end::noformat
+        return List.copyOf(docs);
+    }
+}

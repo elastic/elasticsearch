@@ -12,15 +12,20 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.escf.EscfColumnData;
 import org.elasticsearch.escf.EscfLongColumn;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.sourcebatch.LuceneColumn;
 import org.elasticsearch.sourcebatch.MappedColumns;
+import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
 
 /**
  * The single per-batch context metadata mappers read and write during columnar batch mapping (see
@@ -36,13 +41,14 @@ import java.util.List;
  * state (the assembled {@link LuceneColumn} list and the {@code _field_names} entries) that belongs
  * to the mapping phase rather than the operation record.
  */
-public final class BatchMappingContext {
+public final class BatchMappingContext implements Releasable {
 
     private final IndexOperationBatch batch;
     private final MappingLookup mappingLookup;
     private final IndexSettings indexSettings;
     private final Recycler<BytesRef> recycler;
     private final List<LuceneColumn> columns = new ArrayList<>();
+    private final List<Releasable> resources = new ArrayList<>();
     private final FieldNamesFieldMapper fieldNamesFieldMapper;
 
     private boolean frozen;
@@ -114,15 +120,69 @@ public final class BatchMappingContext {
         return timestamps;
     }
 
-    // TODO: nothing allocates through this yet — the columns it would produce have no owner to release them.
     public Recycler<BytesRef> recycler() {
         return recycler;
     }
 
-    /** Attaches a fully-assembled {@link LuceneColumn} covering all {@code docCount} rows. */
+    /**
+     * Attaches a fully-assembled {@link LuceneColumn} covering all {@code docCount} rows.
+     *
+     * <p>Use this overload only when the column's backing data is owned by something other than this
+     * context — for example, a zero-copy alias into the source batch, or data already registered via
+     * {@link #addResource}. When the column owns freshly-allocated recycler buffers, use
+     * {@link #addColumn(LuceneColumn, EscfColumnData)} instead so the buffers are released when this
+     * context closes.
+     */
     public void addColumn(LuceneColumn column) {
         assert frozen == false;
         columns.add(column);
+    }
+
+    /**
+     * Attaches a {@link LuceneColumn} and registers {@code owned} as a managed resource to be
+     * released when this context is {@link #close() closed}.
+     */
+    public void addColumn(LuceneColumn column, EscfColumnData owned) {
+        assert frozen == false;
+        columns.add(column);
+        resources.add(owned);
+    }
+
+    /**
+     * Registers a {@link Releasable} resource to be released when this context is
+     * {@link #close() closed}, without attaching a Lucene column.
+     */
+    public void addResource(Releasable resource) {
+        assert frozen == false;
+        resources.add(resource);
+    }
+
+    /**
+     * Returns a cursor that reassembles, one document at a time, the Lucene fields of every column attached so far — the row-oriented
+     * view of the batch, for mappers that must read back what the other mappers produced (e.g. {@code columnar_stored} rebuilding
+     * {@code _source}). Unlike {@link #columns()} this does not {@link #frozen freeze} the context, so the caller may still
+     * attach or {@link #removeColumnsIf remove} columns afterwards; columns attached later are not seen by the returned cursor.
+     *
+     * @param include selects the columns that the cursor reads. The fields of the columns that it rejects are left out of the
+     *                assembled rows, and these columns are not read at all, which saves the cost to build their fields.
+     */
+    public MappedColumns.RowCursor rowCursor(Predicate<? super LuceneColumn> include) {
+        return mappedColumns().rowCursor(include);
+    }
+
+    /**
+     * Detaches every column whose Lucene field name matches {@code nameFilter}. The backing data of a detached column stays registered
+     * with this context and is released on {@link #close()}.
+     */
+    public void removeColumnsIf(Predicate<String> nameFilter) {
+        assert frozen == false;
+        columns.removeIf(column -> nameFilter.test(column.toLuceneColumn().name()));
+    }
+
+    @Override
+    public void close() {
+        Releasables.close(resources);
+        resources.clear();
     }
 
     /**
@@ -178,6 +238,22 @@ public final class BatchMappingContext {
      */
     public BytesReference[] sources() {
         return batch.sources();
+    }
+
+    /**
+     * Returns the size in bytes of document {@code doc}'s source, for accounting rather than storage.
+     *
+     * <p>A document that arrives as a row of a pre-built {@link SourceBatch} carries no source bytes on its request, so
+     * {@link #sources()} cannot size it; its size is estimated from the batch row instead, which is what the row-major path does
+     * for row-backed sources (see {@code DocumentSource#estimatedSizeInBytes}). A document with neither has size {@code 0}.
+     */
+    public int sourceSizeInBytes(int doc) {
+        final BytesReference source = batch.sources()[doc];
+        if (source != null && source.length() > 0) {
+            return source.length();
+        }
+        final SourceBatch sourceBatch = batch.sourceBatch();
+        return sourceBatch != null ? sourceBatch.row(doc).sizeInBytes() : 0;
     }
 
     /**
@@ -300,6 +376,10 @@ public final class BatchMappingContext {
      */
     public MappedColumns columns() {
         frozen = true;
+        return mappedColumns();
+    }
+
+    private MappedColumns mappedColumns() {
         return new MappedColumns(0, batch.docCount(), batch.seqNoBytes(), batch.primaryTermBytes(), batch.versionBytes(), columns);
     }
 }

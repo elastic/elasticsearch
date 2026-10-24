@@ -22,6 +22,7 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.IndexShardCacheWarmer;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
+import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.utils.StatelessCommitServiceProvider;
 import org.elasticsearch.xpack.stateless.utils.StatelessPrimaryRelocationMetricsCollectorProvider;
@@ -30,8 +31,7 @@ import java.util.HashMap;
 import java.util.Set;
 
 import static org.elasticsearch.common.Strings.format;
-import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PrewarmRelocationRequest;
-import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PrimaryContextHandoffRequest;
+import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.ID_LOOKUP_PREWARM_MAX_SEGMENTS_SETTING;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.SLOW_RELOCATION_THRESHOLD_SETTING;
 
 /// Target-side stateless primary relocation: prewarm and primary-context handoff.
@@ -47,6 +47,7 @@ public class StatelessPrimaryRelocationTargetService {
     private final ThreadPool threadPool;
 
     private volatile TimeValue slowRelocationWarningThreshold;
+    private volatile int idLookupPrewarmMaxSegments;
 
     public StatelessPrimaryRelocationTargetService(
         ClusterService clusterService,
@@ -65,9 +66,11 @@ public class StatelessPrimaryRelocationTargetService {
 
         clusterService.getClusterSettings()
             .initializeAndWatch(SLOW_RELOCATION_THRESHOLD_SETTING, value -> this.slowRelocationWarningThreshold = value);
+        clusterService.getClusterSettings()
+            .initializeAndWatch(ID_LOOKUP_PREWARM_MAX_SEGMENTS_SETTING, value -> this.idLookupPrewarmMaxSegments = value);
     }
 
-    void handlePrewarmRelocation(PrewarmRelocationRequest request, ActionListener<Void> listener) {
+    void handlePrewarmRelocation(TransportStatelessPrimaryRelocationPrewarmAction.Request request, ActionListener<Void> listener) {
         ActionListener.completeWith(listener, () -> {
             logger.trace("{} prewarming due to primary relocation", request.shardId());
 
@@ -91,7 +94,7 @@ public class StatelessPrimaryRelocationTargetService {
         });
     }
 
-    void handlePrimaryContextHandoff(PrimaryContextHandoffRequest request, ActionListener<Void> listener) {
+    void handlePrimaryContextHandoff(TransportStatelessPrimaryRelocationHandoffAction.Request request, ActionListener<Void> listener) {
         logger.debug("[{}] received primary context handoff request", request.shardId());
         final var statelessCommitService = statelessCommitServiceProvider.get();
         final var indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
@@ -137,6 +140,23 @@ public class StatelessPrimaryRelocationTargetService {
                 recoveryState.setStage(RecoveryState.Stage.VERIFY_INDEX);
                 recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
                 indexShard.openEngineAndSkipTranslogRecovery();
+
+                // Synthetic id's do not use inverted indices and prewarming them is not necessary
+                final int maxPrewarmedSegments = idLookupPrewarmMaxSegments;
+                if (maxPrewarmedSegments > 0
+                    && request.hasRecentIdLookup()
+                    && indexShard.indexSettings().useTimeSeriesSyntheticId() == false) {
+                    try {
+                        indexShard.withEngine(engine -> {
+                            if (engine instanceof IndexEngine indexEngine) {
+                                indexEngine.prewarmIdLookups(maxPrewarmedSegments);
+                            }
+                            return null;
+                        });
+                    } catch (Exception e) {
+                        logger.debug("id lookup prewarm for shard " + indexShard.shardId() + " failed", e);
+                    }
+                }
 
                 // Should not actually have recovered anything from the translog, so the MSN and LCP should remain equal and unchanged
                 // from the ones we received in the primary context handoff.

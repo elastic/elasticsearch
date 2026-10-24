@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.integration;
 
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.Strings;
@@ -47,6 +48,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
@@ -133,6 +135,8 @@ abstract class AbstractInferenceFieldEmbeddingsFieldIT extends ESIntegTestCase {
 
     abstract Set<TaskType> supportedTaskTypes();
 
+    abstract String fieldTypeName();
+
     abstract XContentBuilder generateMapping(Map<String, String> fieldNameToInferenceIdMap) throws IOException;
 
     public void testFetchEmbeddingsFields() throws Exception {
@@ -160,11 +164,13 @@ abstract class AbstractInferenceFieldEmbeddingsFieldIT extends ESIntegTestCase {
                 Map.of(fieldName, expectedVectorType),
                 List.of(Map.of(fieldName, expectedVectorType))
             );
-            assertEmbeddingsFields(
+
+            assertIncompatibleEmbeddingsFields(
                 message,
                 indexName,
-                Map.of(fieldName, randomValueOtherThan(expectedVectorType, () -> randomFrom(VectorType.values()))),
-                List.of(Map.of())
+                fieldName,
+                randomValueOtherThan(expectedVectorType, () -> randomFrom(VectorType.values())),
+                expectedVectorType
             );
         }
 
@@ -191,6 +197,8 @@ abstract class AbstractInferenceFieldEmbeddingsFieldIT extends ESIntegTestCase {
 
             assertEmbeddingsFields(message, indexName, singletonMap(fieldName, null), List.of());
             assertEmbeddingsFields(message, indexName, Map.of(fieldName, expectedVectorType), List.of());
+            // On an empty index the field has no model_settings yet, so no vector-type check is performed and the
+            // mismatched request succeeds with zero hits rather than being rejected.
             assertEmbeddingsFields(
                 message,
                 indexName,
@@ -262,6 +270,39 @@ abstract class AbstractInferenceFieldEmbeddingsFieldIT extends ESIntegTestCase {
                     }
                 }
             }
+        );
+    }
+
+    void assertIncompatibleEmbeddingsFields(
+        String message,
+        String index,
+        String fieldName,
+        VectorType requestedType,
+        VectorType producedType
+    ) {
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        source.fetchEmbeddingsField(fieldName, requestedType);
+
+        SearchPhaseExecutionException e = expectThrows(
+            SearchPhaseExecutionException.class,
+            internalCluster().coordOnlyNodeClient().search(new SearchRequest(new String[] { index }, source))
+        );
+        assertThat(e.shardFailures().length, greaterThan(0));
+        assertThat(e.shardFailures()[0].getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(
+            message,
+            e.shardFailures()[0].getCause().getMessage(),
+            equalTo(
+                "Field ["
+                    + fieldName
+                    + "] of type ["
+                    + fieldTypeName()
+                    + "] produces incompatible embeddings (requested: ["
+                    + requestedType
+                    + "], produced: ["
+                    + producedType
+                    + "])"
+            )
         );
     }
 

@@ -13,7 +13,9 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.PluginTestUtil;
@@ -24,9 +26,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
+import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.action.MlInfoAction;
 import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
@@ -231,6 +235,7 @@ public class MachineLearningTests extends ESTestCase {
             assertThat(actions, not(hasItem(GetTrainedModelsAction.INSTANCE)));
             assertThat(actions, not(hasItem(GetDataFrameAnalyticsAction.INSTANCE)));
             assertThat(actions, not(hasItem(StartTrainedModelDeploymentAction.INSTANCE)));
+            assertThat(actions, hasItem(CoordinatedInferenceAction.INSTANCE));
         }
     }
 
@@ -255,6 +260,7 @@ public class MachineLearningTests extends ESTestCase {
             assertThat(actions, hasItem(GetTrainedModelsAction.INSTANCE));
             assertThat(actions, hasItem(GetDataFrameAnalyticsAction.INSTANCE));
             assertThat(actions, not(hasItem(StartTrainedModelDeploymentAction.INSTANCE)));
+            assertThat(actions, hasItem(CoordinatedInferenceAction.INSTANCE));
         }
     }
 
@@ -279,6 +285,31 @@ public class MachineLearningTests extends ESTestCase {
             assertThat(actions, hasItem(GetTrainedModelsAction.INSTANCE));
             assertThat(actions, not(hasItem(GetDataFrameAnalyticsAction.INSTANCE)));
             assertThat(actions, hasItem(StartTrainedModelDeploymentAction.INSTANCE));
+            assertThat(actions, hasItem(CoordinatedInferenceAction.INSTANCE));
+        }
+    }
+
+    /**
+     * With all ML features disabled (as on VectorDB projects) the coordinated inference action must still be
+     * registered, so that search-time inference against inference endpoints (e.g. the text_embedding query vector
+     * builder) keeps working without ML nodes.
+     */
+    public void testAllFeaturesDisabled() throws IOException {
+        Settings settings = Settings.builder()
+            .put("path.home", createTempDir())
+            .put(MachineLearning.ANOMALY_DETECTION_ENABLED.getKey(), false)
+            .put(MachineLearning.DATA_FRAME_ANALYTICS_ENABLED.getKey(), false)
+            .put(XPackSettings.NLP_ENABLED.getKey(), false)
+            .build();
+        MlTestExtensionLoader loader = new MlTestExtensionLoader(new MlTestExtension(false));
+        try (MachineLearning machineLearning = createTrialLicensedMachineLearning(settings, loader)) {
+            List<Object> actions = machineLearning.getActions().stream().map(h -> (Object) h.getAction()).toList();
+            assertThat(actions, hasItem(MlInfoAction.INSTANCE));
+            assertThat(actions, not(hasItem(GetJobsAction.INSTANCE)));
+            assertThat(actions, not(hasItem(GetTrainedModelsAction.INSTANCE)));
+            assertThat(actions, not(hasItem(InferModelAction.INSTANCE)));
+            assertThat(actions, not(hasItem(StartTrainedModelDeploymentAction.INSTANCE)));
+            assertThat(actions, hasItem(CoordinatedInferenceAction.INSTANCE));
         }
     }
 
@@ -327,9 +358,89 @@ public class MachineLearningTests extends ESTestCase {
         }
     }
 
-    public static class TrialLicensedMachineLearning extends MachineLearning {
+    public void testGetSettingsShouldRegisterCapacityRetryBackoffSettings() throws Exception {
+        try (MachineLearning ml = createTrialLicensedMachineLearning(Settings.EMPTY)) {
+            List<Setting<?>> settings = ml.getSettings();
+            assertThat(settings, hasItem(MachineLearning.JOB_OPEN_CAPACITY_RETRY_INITIAL_DELAY));
+            assertThat(settings, hasItem(MachineLearning.JOB_OPEN_CAPACITY_RETRY_MAX_DELAY));
+        }
+    }
 
-        // A license state constructed like this is considered a trial license
+    public void testCapacityRetryDefaultsShouldBeValid() {
+        assertThat(MachineLearning.JOB_OPEN_CAPACITY_RETRY_INITIAL_DELAY.get(Settings.EMPTY), equalTo(TimeValue.timeValueSeconds(30)));
+        assertThat(MachineLearning.JOB_OPEN_CAPACITY_RETRY_MAX_DELAY.get(Settings.EMPTY), equalTo(TimeValue.timeValueMinutes(10)));
+    }
+
+    public void testCapacityRetryEqualInitialAndMaxDelayShouldBeValid() {
+        Settings settings = Settings.builder()
+            .put(MachineLearning.JOB_OPEN_CAPACITY_RETRY_INITIAL_DELAY.getKey(), "10m")
+            .put(MachineLearning.JOB_OPEN_CAPACITY_RETRY_MAX_DELAY.getKey(), "10m")
+            .build();
+        assertThat(MachineLearning.JOB_OPEN_CAPACITY_RETRY_INITIAL_DELAY.get(settings), equalTo(TimeValue.timeValueMinutes(10)));
+        assertThat(MachineLearning.JOB_OPEN_CAPACITY_RETRY_MAX_DELAY.get(settings), equalTo(TimeValue.timeValueMinutes(10)));
+    }
+
+    public void testCapacityRetryInitialDelayBelowNormalMinimumShouldBeRejected() {
+        Settings settings = Settings.builder().put(MachineLearning.JOB_OPEN_CAPACITY_RETRY_INITIAL_DELAY.getKey(), "4s").build();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MachineLearning.JOB_OPEN_CAPACITY_RETRY_INITIAL_DELAY.get(settings)
+        );
+        assertThat(e.getMessage(), containsString("must be >= [5s]"));
+    }
+
+    public void testCapacityRetryMaxDelayBelowNormalCeilingShouldBeRejected() {
+        Settings settings = Settings.builder().put(MachineLearning.JOB_OPEN_CAPACITY_RETRY_MAX_DELAY.getKey(), "4m").build();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MachineLearning.JOB_OPEN_CAPACITY_RETRY_MAX_DELAY.get(settings)
+        );
+        assertThat(e.getMessage(), containsString("must be >= [5m]"));
+    }
+
+    public void testCapacityRetryInitialDelayGreaterThanMaxDelayShouldBeRejected() {
+        Settings settings = Settings.builder()
+            .put(MachineLearning.JOB_OPEN_CAPACITY_RETRY_INITIAL_DELAY.getKey(), "10m")
+            .put(MachineLearning.JOB_OPEN_CAPACITY_RETRY_MAX_DELAY.getKey(), "5m")
+            .build();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MachineLearning.JOB_OPEN_CAPACITY_RETRY_INITIAL_DELAY.get(settings)
+        );
+        assertThat(e.getMessage(), containsString(MachineLearning.JOB_OPEN_CAPACITY_RETRY_INITIAL_DELAY.getKey()));
+        assertThat(e.getMessage(), containsString(MachineLearning.JOB_OPEN_CAPACITY_RETRY_MAX_DELAY.getKey()));
+    }
+
+    public void testCapacityRetryMaxDelayLessThanInitialDelayShouldBeRejected() {
+        Settings settings = Settings.builder()
+            .put(MachineLearning.JOB_OPEN_CAPACITY_RETRY_INITIAL_DELAY.getKey(), "10m")
+            .put(MachineLearning.JOB_OPEN_CAPACITY_RETRY_MAX_DELAY.getKey(), "5m")
+            .build();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MachineLearning.JOB_OPEN_CAPACITY_RETRY_MAX_DELAY.get(settings)
+        );
+        assertThat(e.getMessage(), containsString(MachineLearning.JOB_OPEN_CAPACITY_RETRY_MAX_DELAY.getKey()));
+        assertThat(e.getMessage(), containsString(MachineLearning.JOB_OPEN_CAPACITY_RETRY_INITIAL_DELAY.getKey()));
+    }
+
+    public void testCapacityRetrySettingsAboveJitterSafeMaximumShouldBeRejected() {
+        Settings initialTooLarge = Settings.builder().put(MachineLearning.JOB_OPEN_CAPACITY_RETRY_INITIAL_DELAY.getKey(), "50d").build();
+        IllegalArgumentException initialException = expectThrows(
+            IllegalArgumentException.class,
+            () -> MachineLearning.JOB_OPEN_CAPACITY_RETRY_INITIAL_DELAY.get(initialTooLarge)
+        );
+        assertThat(initialException.getMessage(), containsString("must be <="));
+
+        Settings maxTooLarge = Settings.builder().put(MachineLearning.JOB_OPEN_CAPACITY_RETRY_MAX_DELAY.getKey(), "50d").build();
+        IllegalArgumentException maxException = expectThrows(
+            IllegalArgumentException.class,
+            () -> MachineLearning.JOB_OPEN_CAPACITY_RETRY_MAX_DELAY.get(maxTooLarge)
+        );
+        assertThat(maxException.getMessage(), containsString("must be <="));
+    }
+
+    public static class TrialLicensedMachineLearning extends MachineLearning {
         XPackLicenseState licenseState = new XPackLicenseState(() -> 0L);
 
         public TrialLicensedMachineLearning(Settings settings) {

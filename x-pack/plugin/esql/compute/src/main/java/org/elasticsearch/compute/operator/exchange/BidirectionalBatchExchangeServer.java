@@ -336,7 +336,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
                 BatchExchangeStatusResponse response;
                 if (failure == null) {
                     DriverCompletionInfo completionInfo = batchDriver != null
-                        ? DriverCompletionInfo.excludingProfiles(List.of(batchDriver), 0L)
+                        ? DriverCompletionInfo.excludingProfiles(List.of(batchDriver), 0L, false)
                         : DriverCompletionInfo.EMPTY;
                     response = new BatchExchangeStatusResponse(completionInfo.bytesRead(), completionInfo.warnings());
                 } else {
@@ -406,7 +406,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
             }
             sendBatchExchangeStatusResponse(e);
         }))) {
-            // Sink ref: collects the original error (e.g. TransportSerializationException wrapping
+            // Sink ref: collects the original error (e.g. RemoteTransportException wrapping
             // CircuitBreakingException) when the remote sink fetch fails during page deserialization.
             // The FailureCollector unwraps TransportException to get the real cause.
             ActionListener<Void> sinkRef = responseCoordinator.acquire();

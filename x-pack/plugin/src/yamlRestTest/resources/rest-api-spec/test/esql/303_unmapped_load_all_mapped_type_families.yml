@@ -1,0 +1,301 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_load_all_single_source_column, optional_fields_load_all_column_from_shard, optional_fields_load_all_v2 ]
+      reason: >
+        Whether a mapped type takes part in LOAD_ALL is decided by the FAMILY type field_caps reports, not by
+        the mapper's own type name. wildcard and constant_keyword override familyTypeName() to keyword and
+        match_only_text overrides it to text, so ES|QL resolves all three to ordinary supported columns. The types
+        with no family alias - binary, the integer/long/ip/float range family (only date_range and double_range are in
+        DataType.ES_TO_TYPE), join, sparse_vector, rank_feature(s), percolator, token_count - resolve to
+        UNSUPPORTED instead. nested is a third, different case: IndexResolver sends request.filters("-nested")
+        unconditionally, so a nested field and its leaves never reach field_caps at all - they are absent
+        rather than unsupported.
+
+  # One index mapping each name; the family-aliased types and the unsupported ones side by side.
+  - do:
+      indices.create:
+        index: la_family_mapped
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+              wc:
+                type: wildcard
+              ck:
+                type: constant_keyword
+                value: "fixed"
+              mot:
+                type: match_only_text
+              bin:
+                type: binary
+                doc_values: true
+              rng:
+                type: integer_range
+              nst:
+                type: nested
+                properties:
+                  leaf:
+                    type: keyword
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "la_family_mapped", "_id": "1" } }
+          - {
+              "id": "mapped",
+              "wc": "wild-value",
+              "ck": "fixed",
+              "mot": "some words",
+              "bin": "U29tZSBiaW5hcnk=",
+              "rng": { "gte": 1, "lt": 9 },
+              "nst": [ { "leaf": "n1" } ]
+            }
+
+  # The same field names and the same _source, none of it mapped.
+  - do:
+      indices.create:
+        index: la_family_unmapped
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "la_family_unmapped", "_id": "1" } }
+          - {
+              "id": "unmapped",
+              "wc": "wild-value",
+              "ck": "fixed",
+              "mot": "some words",
+              "bin": "U29tZSBiaW5hcnk=",
+              "rng": { "gte": 1, "lt": 9 },
+              "nst": [ { "leaf": "n1" } ]
+            }
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: la_family_mapped,la_family_unmapped,la_nested,la_plain
+        ignore_unavailable: true
+
+---
+'control: with nothing mapped, every one of these names is discovered from _source':
+  # Establishes that the values are all present and discoverable, so the suppression the later tests show is
+  # a property of the mapping and not of the data. The object-shaped ones flatten as in 302.
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_family_unmapped | LIMIT 5'
+  - length: { columns: 2 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { columns.1.type: _source }
+  - match:
+      values.0:
+        - "unmapped"
+        - bin: "U29tZSBiaW5hcnk="
+          ck: "fixed"
+          mot: "some words"
+          nst.leaf: "n1"
+          rng.gte: 1
+          rng.lt: 9
+          wc: "wild-value"
+
+---
+'family-aliased types resolve to their family, not to unsupported':
+  # wildcard and constant_keyword report keyword to field_caps and match_only_text reports text, so all three
+  # are ordinary columns with their values. bin and rng have no family alias
+  # and are unsupported, so they read null even though _source holds both.
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM la_family_mapped | KEEP id, wc, ck, mot, bin, rng | LIMIT 5'
+  - length: { columns: 6 }
+  - match: { columns.1.name: wc }
+  - match: { columns.1.type: keyword }
+  - match: { columns.2.name: ck }
+  - match: { columns.2.type: keyword }
+  - match: { columns.3.name: mot }
+  - match: { columns.3.type: text }
+  - match: { columns.4.name: bin }
+  - match: { columns.4.type: unsupported }
+  - match: { columns.5.name: rng }
+  - match: { columns.5.type: unsupported }
+  - match: { values.0: [ "mapped", "wild-value", "fixed", "some words", null, null ] }
+
+---
+'the keyword family survives partial mapping but the text family does not':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ optional_fields_warn_non_loadable_punk_combined ]
+      reason: "single, shorter warning for non-loadable partially unmapped fields"
+  - do:
+      allowed_warnings:
+        - "Field [mot] is unmapped in some indices and has no implicit conversion from KEYWORD; it is null in those indices"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM la_family_mapped, la_family_unmapped | KEEP id, wc, ck, mot | SORT id | LIMIT 5'
+  - length: { columns: 4 }
+  - match: { columns.1.name: wc }
+  - match: { columns.1.type: keyword }
+  - match: { columns.2.name: ck }
+  - match: { columns.2.type: keyword }
+  - match: { columns.3.name: mot }
+  - match: { columns.3.type: text }
+  - match: { values.0: [ "mapped", "wild-value", "fixed", "some words" ] }
+  - match: { values.1: [ "unmapped", "wild-value", "fixed", null ] }
+
+---
+'one index mapping a name as an unsupported type silences it for the whole pattern':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM la_family_mapped, la_family_unmapped | KEEP id, bin | SORT id | LIMIT 5'
+  - length: { columns: 2 }
+  - match: { columns.1.name: bin }
+  - match: { columns.1.type: unsupported }
+  - match: { values.0: [ "mapped", null ] }
+  - match: { values.1: [ "unmapped", null ] }
+
+---
+'the keys below an object-shaped field are fields only where it is not mapped':
+  # The unmapped index discovers rng.gte and rng.lt from _source. Where rng is mapped, they are part of its value and not
+  # fields of their own, so that index returns null.
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ method, path, parameters, capabilities ]
+          capabilities: [ optional_fields_load_all_skips_below_mapped_fields ]
+      reason: "LOAD_ALL does not discover what sits below a mapped field"
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_family_mapped, la_family_unmapped | KEEP id, rng.* | SORT id | LIMIT 5'
+  - length: { columns: 2 }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { columns.1.type: _source }
+  - match: { values.0: [ "mapped", null ] }
+  - match: { values.1: [ "unmapped", { rng.gte: 1, rng.lt: 9 } ] }
+
+---
+'a mapped nested leaf stays null under LOAD_ALL':
+  # The unmapped index discovers nst.leaf from _source. The nested index contributes nothing, so its row is null.
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ method, path, parameters, capabilities ]
+          capabilities: [ fix_nested_subfield_extraction ]
+      reason: "A leaf declared under a nested parent stays null under LOAD_ALL"
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_family_mapped, la_family_unmapped | KEEP id, nst.* | SORT id | LIMIT 5'
+  - length: { columns: 2 }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { columns.1.type: _source }
+  - match: { values.0: [ "mapped", null ] }
+  - match: { values.1: [ "unmapped", { nst.leaf: n1 } ] }
+
+---
+'a key below an object-shaped field is null by name where the field is mapped':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ method, path, parameters, capabilities ]
+          capabilities: [ optional_fields_nothing_below_mapped_fields ]
+      reason: "A key of the value of a mapped field is null by name"
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD"; FROM la_family_mapped, la_family_unmapped | KEEP id, rng.gte | SORT id | LIMIT 5'
+  - match: { columns.1.name: rng.gte }
+  - match: { columns.1.type: keyword }
+  - match: { values.0: [ "mapped", null ] }
+  - match: { values.1: [ "unmapped", "1" ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD"; FROM la_family_mapped, la_family_unmapped | WHERE rng.gte == "1" | KEEP id | LIMIT 5'
+  - match: { values: [ [ "unmapped" ] ] }
+
+---
+'a field a nested object does not declare is read like any unmapped field':
+  # la_nested maps nst as nested and declares nothing below it; la_plain does not map nst at all. Each index decides for
+  # itself, and both read nst.extra from the root document, named or discovered.
+  - do:
+      indices.create:
+        index: la_nested
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+              nst:
+                type: nested
+                dynamic: false
+  - do:
+      indices.create:
+        index: la_plain
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "la_nested", "_id": "1" } }
+          - { "id": "nested", "nst": [ { "extra": "n1" }, { "extra": "n2" } ] }
+          - { "index": { "_index": "la_nested", "_id": "2" } }
+          - { "id": "dotted", "nst.extra": "n3" }
+          - { "index": { "_index": "la_plain", "_id": "1" } }
+          - { "id": "plain", "nst": [ { "extra": "p1" }, { "extra": "p2" } ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD"; FROM la_nested, la_plain | KEEP id, nst.extra | SORT id | LIMIT 5'
+  - match: { columns.1.name: nst.extra }
+  - match: { columns.1.type: keyword }
+  - match: { values.0: [ "dotted", "n3" ] }
+  - match: { values.1: [ "nested", [ "n1", "n2" ] ] }
+  - match: { values.2: [ "plain", [ "p1", "p2" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_nested, la_plain | KEEP id, nst.* | SORT id | LIMIT 5'
+  - length: { columns: 2 }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { columns.1.type: _source }
+  - match: { values.0: [ "dotted", { nst.extra: n3 } ] }
+  - match: { values.1: [ "nested", { nst.extra: [ n1, n2 ] } ] }
+  - match: { values.2: [ "plain", { nst.extra: [ p1, p2 ] } ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_nested | KEEP id, nst.* | SORT id | LIMIT 5'
+  - length: { columns: 2 }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { values.0: [ "dotted", { nst.extra: n3 } ] }
+  - match: { values.1: [ "nested", { nst.extra: [ n1, n2 ] } ] }

@@ -30,6 +30,7 @@ public final class CsvSpecReader {
         ctx.addOptionParser(new WarningRegex(ctx));
         ctx.addOptionParser(new IgnoreOrder(ctx));
         ctx.addOptionParser(new DocumentsFound(ctx));
+        ctx.addOptionParser(new ApproximationApplied(ctx));
         ctx.addOptionParser(new SkipFlattenedRewrite(ctx));
         ctx.addOptionParser(new SkipColumnar(ctx));
         return ctx;
@@ -429,6 +430,18 @@ public final class CsvSpecReader {
         }
     }
 
+    record ApproximationApplied(ParserContext state) implements SpecReader.Parser {
+        @Override
+        public Object parse(String line) {
+            String lower = line.toLowerCase(Locale.ROOT);
+            if (lower.startsWith("approximation_applied:")) {
+                state.testCase.expectedApproximationApplied = line.substring("approximation_applied:".length()).trim();
+                return Boolean.TRUE;
+            }
+            return null;
+        }
+    }
+
     record Pragma(ParserContext state) implements SpecReader.Parser {
         @Override
         public Object parse(String line) {
@@ -497,6 +510,7 @@ public final class CsvSpecReader {
         public String query;
         public String expectedResults;
         public String expectedDocumentsFound;
+        public String expectedApproximationApplied;
         public boolean ignoreOrder;
         /**
          * How to change the test when requesting all values be loaded from stored fields.
@@ -586,8 +600,8 @@ public final class CsvSpecReader {
         /**
          * Makes expected warnings optional: they may or may not appear in the response.
          * Any actual warning must still match one of the expected patterns.
-         * Used in mixed/multi-cluster tests where older nodes (pre-9.6) may not propagate
-         * warnings correctly due to a threading bug fixed in 9.6.
+         * Used in mixed/multi-cluster tests where older nodes may not propagate
+         * warnings correctly due to a threading bug.
          */
         public void makeWarningsOptional() {
             if (expectedWarnings.isEmpty() == false) {

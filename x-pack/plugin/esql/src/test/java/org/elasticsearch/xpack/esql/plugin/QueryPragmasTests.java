@@ -37,6 +37,31 @@ public class QueryPragmasTests extends ESTestCase {
         assertThat(pragmas.timeSeriesTargetChunkRows(clusterDefault), equalTo(clusterDefault));
     }
 
+    public void testMaxBranchCountPerMergeIsValidPragmaName() {
+        assertThat(QueryPragmas.VALID_PRAGMA_NAMES, hasItem(QueryPragmas.MAX_BRANCH_COUNT_PER_MERGE.getKey()));
+    }
+
+    public void testMaxBranchCountPerMergePragmaOverridesDefault() {
+        int clusterDefault = 8;
+        int override = 3;
+        QueryPragmas pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT_PER_MERGE.getKey(), override).build());
+        assertThat(pragmas.maxBranchCountPerMerge(clusterDefault), equalTo(override));
+        assertThat(
+            pragmas.maxBranchCountPerMergeLimitSource("esql.query.max_branch_count_per_merge"),
+            equalTo("[max_branch_count_per_merge] query pragma")
+        );
+    }
+
+    public void testMaxBranchCountPerMergeFallsBackToClusterDefault() {
+        QueryPragmas pragmas = new QueryPragmas(Settings.EMPTY);
+        int clusterDefault = between(1, 50);
+        assertThat(pragmas.maxBranchCountPerMerge(clusterDefault), equalTo(clusterDefault));
+        assertThat(
+            pragmas.maxBranchCountPerMergeLimitSource("esql.query.max_branch_count_per_merge"),
+            equalTo("[esql.query.max_branch_count_per_merge] cluster setting")
+        );
+    }
+
     public void testTimeSeriesPragmaIsDecoupledFromRegularAggregationPragmas() {
         // Only the regular pragma is set: it reaches the regular accessor and leaves the time-series one at its default.
         QueryPragmas regularOnly = new QueryPragmas(

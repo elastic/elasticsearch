@@ -32,15 +32,14 @@ import org.elasticsearch.test.fixture.HttpHeaderParser;
 import org.elasticsearch.test.fixture.RequestEntry;
 
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -49,6 +48,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -58,7 +58,6 @@ import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.test.fixture.HttpHeaderParser.parseRangeHeader;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -134,13 +133,16 @@ public class S3HttpHandler implements HttpHandler {
         }
 
         try (exchange) {
-            if (request.isHeadObjectRequest()) {
+            if (request.isHeadBucketRequest()) {
+                exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
+            } else if (request.isHeadObjectRequest()) {
                 final BlobEntry blobEntry = blobs.get(request.path());
                 if (blobEntry == null) {
                     exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                 } else {
                     // HEAD response must include Content-Length header for S3 clients (AWS SDK) that read file size
                     exchange.getResponseHeaders().add("Content-Length", String.valueOf(blobEntry.contents().length()));
+                    exchange.getResponseHeaders().add("ETag", getEtagFromContents(blobEntry.contents()));
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                     exchange.getResponseHeaders()
                         .add(
@@ -353,7 +355,8 @@ public class S3HttpHandler implements HttpHandler {
                 if (prefix != null) {
                     list.append("<Prefix>").append(prefix).append("</Prefix>");
                 }
-                final Set<String> commonPrefixes = new HashSet<>();
+                // Real S3 LIST returns keys (and common prefixes) in lexicographic order.
+                final Set<String> commonPrefixes = new TreeSet<>();
                 final String delimiter = request.getOptionalQueryParam("delimiter").orElse(null);
                 if (delimiter != null) {
                     list.append("<Delimiter>").append(delimiter).append("</Delimiter>");
@@ -361,6 +364,7 @@ public class S3HttpHandler implements HttpHandler {
                 // Would be good to test pagination here (the only real difference between ListObjects and ListObjectsV2) but for now
                 // we return all the results at once.
                 list.append("<IsTruncated>false</IsTruncated>");
+                final List<Map.Entry<String, BlobEntry>> contents = new ArrayList<>();
                 for (Map.Entry<String, BlobEntry> blob : blobs.entrySet()) {
                     if (prefix != null && blob.getKey().startsWith("/" + bucket + "/" + prefix) == false) {
                         continue;
@@ -374,9 +378,15 @@ public class S3HttpHandler implements HttpHandler {
                             continue;
                         }
                     }
+                    contents.add(blob);
+                }
+                contents.sort(Map.Entry.comparingByKey());
+                for (Map.Entry<String, BlobEntry> blob : contents) {
+                    String blobPath = blob.getKey().replace("/" + bucket + "/", "");
                     list.append("<Contents>");
                     list.append("<Key>").append(blobPath).append("</Key>");
                     list.append("<LastModified>").append(ISO_MILLIS_UTC.format(blob.getValue().lastModified())).append("</LastModified>");
+                    list.append("<ETag>").append(getEtagFromContents(blob.getValue().contents())).append("</ETag>");
                     list.append("<Size>").append(blob.getValue().contents().length()).append("</Size>");
                     list.append("<StorageClass>").append(blob.getValue().storageClass()).append("</StorageClass>");
                     list.append("</Contents>");
@@ -474,7 +484,9 @@ public class S3HttpHandler implements HttpHandler {
                 exchange.sendResponseHeaders((deletions > 0 ? RestStatus.OK : RestStatus.NO_CONTENT).getStatus(), -1);
 
             } else if (request.isMultiObjectDeleteRequest()) {
-                final String requestBody = Streams.copyToString(new InputStreamReader(exchange.getRequestBody(), UTF_8));
+                final BytesReference requestBodyBytes = Streams.readFully(exchange.getRequestBody());
+                verifyContentMd5Header(exchange, requestBodyBytes);
+                final String requestBody = requestBodyBytes.utf8ToString();
 
                 final StringBuilder deletes = new StringBuilder();
                 deletes.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
@@ -812,6 +824,14 @@ public class S3HttpHandler implements HttpHandler {
         }
     }
 
+    private static void verifyContentMd5Header(final HttpExchange exchange, BytesReference body) {
+        final var contentMd5Header = exchange.getRequestHeaders().getFirst("Content-MD5");
+        if (contentMd5Header != null) {
+            // This header is optional but if present it must be the base64-encoded MD5 digest of the request's contents.
+            assertEquals(contentMd5Header, Base64.getEncoder().encodeToString(MessageDigests.digest(body, MessageDigests.md5())));
+        }
+    }
+
     public S3Request parseRequest(HttpExchange exchange) {
         final String queryString = exchange.getRequestURI().getQuery();
         final Map<String, List<String>> queryParameters;
@@ -906,6 +926,10 @@ public class S3HttpHandler implements HttpHandler {
 
         private boolean isUnderBucketRootAndBasePath() {
             return path.startsWith("/" + bucketAndBasePath + "/");
+        }
+
+        public boolean isHeadBucketRequest() {
+            return "HEAD".equals(method) && isBucketRootPath();
         }
 
         public boolean isHeadObjectRequest() {

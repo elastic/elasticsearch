@@ -2,7 +2,7 @@
 navigation_title: "Quickstart"
 description: "Step-by-step tutorial for setting up ES|QL Data Federation with a public S3 bucket, creating a dataset, and running your first federated query."
 applies_to:
-  stack: experimental =9.5
+  stack: experimental 9.5+
   serverless: unavailable
 products:
   - id: elasticsearch
@@ -37,7 +37,7 @@ These steps walk you through registering a data source, creating a dataset, and 
 :::::::{stepper}
 
 ::::::{step} Register a data source
-A data source defines the connection to an external storage system, including its type, region, and credentials. Once registered, any number of datasets can reference it.
+A data source defines the connection to an external storage system, including its type, endpoint, and credentials. Once registered, any number of datasets can reference it.
 
 This example registers a data source that points at a public S3 bucket with anonymous access.
 
@@ -51,7 +51,6 @@ PUT /_query/data_source/ookla_speedtest
 {
   "type": "s3",
   "settings": {
-    "region": "us-east-1",
     "auth": "anonymous" <1>
   }
 }
@@ -70,7 +69,6 @@ curl -X PUT "${ELASTICSEARCH_URL}/_query/data_source/ookla_speedtest" \
   -d '{
   "type": "s3",
   "settings": {
-    "region": "us-east-1",
     "auth": "anonymous"
   }
 }'
@@ -85,9 +83,8 @@ A successful request returns `{"acknowledged": true}`.
 2. On the **Data sources** tab, click **Connect data source**.
 3. Set **Data source type** to **Amazon S3**.
 4. Enter `ookla_speedtest` as the **Name**.
-5. Set **Region** to `us-east-1`.
-6. Under **Authentication**, from the **Preferred method** menu, select **Anonymous**.
-7. Click **Connect**.
+5. Under **Authentication**, from the **Preferred method** menu, select **Anonymous**.
+6. Click **Connect**.
 :::
 
 ::::
@@ -114,7 +111,7 @@ curl -X GET "${ELASTICSEARCH_URL}/_query/data_source/ookla_speedtest" \
 
 :::{tab-item} UI
 :sync: ui
-The new data source appears on the **Data sources** tab, showing its type and region:
+The new data source appears on the **Data sources** tab:
 
 :::{image} images/data-federation/data-sources-list.png
 :alt: The Data sources tab listing the ookla_speedtest data source
@@ -140,10 +137,10 @@ This example creates a dataset over one quarter of Ookla's fixed-broadband perfo
 
 For the full column reference, refer to the [Ookla Open Data tile attributes](https://github.com/teamookla/ookla-open-data#tile-attributes).
 
-::::{tab-set}
+:::::{tab-set}
 :group: surface
 
-:::{tab-item} Console
+::::{tab-item} Console
 :sync: console
 ```console
 PUT /_query/dataset/speedtest_fixed
@@ -156,9 +153,9 @@ PUT /_query/dataset/speedtest_fixed
 2. A glob pattern matching all Parquet files for Q1 2024 fixed-broadband tests. The `*` wildcard matches any filename in that directory.
 
 A successful request returns `{"acknowledged": true}`.
-:::
+::::
 
-:::{tab-item} curl
+::::{tab-item} curl
 :sync: curl
 ```bash
 curl -X PUT "${ELASTICSEARCH_URL}/_query/dataset/speedtest_fixed" \
@@ -171,30 +168,40 @@ curl -X PUT "${ELASTICSEARCH_URL}/_query/dataset/speedtest_fixed" \
 ```
 
 A successful request returns `{"acknowledged": true}`.
-:::
+::::
 
-:::{tab-item} UI
+::::{tab-item} UI
 :sync: ui
+{applies_to}`stack: experimental 9.6+` **Add dataset** opens a four-step wizard:
+
 1. Select the **Datasets** tab, then click **Add dataset**.
 2. Select `ookla_speedtest` as the **Data source**.
-3. Enter `speedtest_fixed` as the **Name**.
+3. Enter `speedtest_fixed` as the **Dataset name**.
 4. In **Resource**, enter the resource path that selects the files to read:
 
    ```text
    s3://ookla-open-data/parquet/performance/type=fixed/year=2024/quarter=1/*.parquet
    ```
+
+   **Format** is detected as **Parquet** from the file extension.
+5. Click **Next**, then click **Next** again to keep the default **Optional settings**.
+6. On the **Schema mappings** step, turn off **Enable time-based filtering**, then click **Next**. The Ookla files have no date column to map to `@timestamp`, so you can't move to the next step while this setting is on. With the setting off, the step leaves **Infer unmapped fields** selected, so {{es}} infers every column from the Parquet files:
+
+   ![The Schema mappings step with Enable time-based filtering turned off and Infer unmapped fields selected](images/data-federation/add-dataset-schema-mappings-time-filter-off.png)
+7. On the **Review** step, you can select the **Request** tab to view the equivalent API request. Then click **Add dataset**.
+
+:::{dropdown} Add a dataset with the flyout
+:applies_to: stack: experimental =9.5
+1. Select the **Datasets** tab, then click **Add dataset**.
+2. Select `ookla_speedtest` as the **Data source**.
+3. Enter `speedtest_fixed` as the **Name**.
+4. In **Resource**, enter the resource path shown earlier in this tab.
 5. Set **Format** to **Parquet**.
 6. Click **Add**.
-
-:::{dropdown} Show the completed Add dataset flyout
-:::{image} images/data-federation/add-dataset.png
-:alt: Add dataset flyout configured for the Ookla Q1 2024 fixed-broadband Parquet files
-:width: 450px
 :::
-:::
-:::
-
 ::::
+
+:::::
 
 Confirm the dataset was created:
 
@@ -292,7 +299,7 @@ The `type`, `year`, and `quarter` columns come from Hive-style partition paths i
 :::
 
 :::{tip}
-If a column has an unexpected type, you can override it with a [dataset mapping](esql-data-federation-datasets.md#declare-a-dataset-mapping).
+If a column has an unexpected type, you can [declare its type explicitly](esql-data-federation-schema.md#declare-a-schema-explicitly).
 :::
 ::::::
 
@@ -340,6 +347,11 @@ FROM speedtest_fixed
 ::::
 
 If the query returns results, your data source is working. You can now use the full range of {{esql}} processing commands on this dataset.
+
+:::{tip}
+:applies_to: stack: experimental 9.6+
+In {{kib}}, you can also query a dataset from the **Datasets** tab. In the dataset's row, click the **Open in Discover** icon ({icon}`product_discover`) to open **Discover** with a `FROM speedtest_fixed` query.
+:::
 ::::::
 
 ::::::{step} Explore the data
@@ -595,7 +607,10 @@ curl -X POST "${ELASTICSEARCH_URL}/_bulk" \
 
 ::::
 
-Now query both sources together. `FROM` resolves each name independently, whether it is an index, data stream, alias, [{{esql}} view](esql-views.md), or dataset. Use `METADATA _index` to see where each row came from:
+Now query both sources together. `FROM` resolves each name independently, whether it is an index, data stream, alias, [{{esql}} view](esql-views.md), or dataset. To see where each row came from, request a metadata column:
+
+- {applies_to}`stack: experimental 9.6+` Use `METADATA _name`, which returns the dataset name for dataset rows and the index name for index rows.
+- {applies_to}`stack: experimental =9.5` Use `METADATA _index`, which returns the dataset name for dataset rows.
 
 ::::{tab-set}
 :group: surface
@@ -606,9 +621,9 @@ Now query both sources together. `FROM` resolves each name independently, whethe
 POST /_query
 {
   "query": """
-    FROM speedtest_fixed, network_incidents METADATA _index
-    | KEEP _index, category, severity, duration_min, avg_d_kbps, avg_lat_ms
-    | SORT _index ASC, duration_min DESC NULLS LAST
+    FROM speedtest_fixed, network_incidents METADATA _name
+    | KEEP _name, category, severity, duration_min, avg_d_kbps, avg_lat_ms
+    | SORT _name ASC, duration_min DESC NULLS LAST
     | LIMIT 5
   """
 }
@@ -622,7 +637,7 @@ curl -X POST "${ELASTICSEARCH_URL}/_query" \
   -H "Authorization: ApiKey ${API_KEY}" \
   -H "Content-Type: application/json" \
   -d '{
-  "query": "FROM speedtest_fixed, network_incidents METADATA _index | KEEP _index, category, severity, duration_min, avg_d_kbps, avg_lat_ms | SORT _index ASC, duration_min DESC NULLS LAST | LIMIT 5"
+  "query": "FROM speedtest_fixed, network_incidents METADATA _name | KEEP _name, category, severity, duration_min, avg_d_kbps, avg_lat_ms | SORT _name ASC, duration_min DESC NULLS LAST | LIMIT 5"
 }'
 ```
 :::
@@ -630,21 +645,21 @@ curl -X POST "${ELASTICSEARCH_URL}/_query" \
 :::{tab-item} {{esql}}
 :sync: esql
 ```esql
-FROM speedtest_fixed, network_incidents METADATA _index
-| KEEP _index, category, severity, duration_min, avg_d_kbps, avg_lat_ms
-| SORT _index ASC, duration_min DESC NULLS LAST
+FROM speedtest_fixed, network_incidents METADATA _name
+| KEEP _name, category, severity, duration_min, avg_d_kbps, avg_lat_ms
+| SORT _name ASC, duration_min DESC NULLS LAST
 | LIMIT 5
 ```
 :::
 
 ::::
 
-The `_index` column shows where each row came from. Columns that do not exist in a given source return `null`. The speedtest values in your results will differ. Execution metadata is omitted here:
+The `_name` column shows where each row came from. Columns that do not exist in a given source return `null`. The speedtest values in your results will differ. Execution metadata is omitted here:
 
 ```json
 {
   "columns": [
-    { "name": "_index", "type": "keyword" },
+    { "name": "_name", "type": "keyword" },
     { "name": "category", "type": "keyword" },
     { "name": "severity", "type": "keyword" },
     { "name": "duration_min", "type": "integer" },
@@ -674,7 +689,6 @@ PUT /_query/data_source/my_s3_logs
   "type": "s3",
   "description": "Production logs bucket",
   "settings": {
-    "region": "us-east-1",
     "auth": "static_credentials",
     "access_key": "<AWS_ACCESS_KEY_ID>",
     "secret_key": "<AWS_SECRET_ACCESS_KEY>"
@@ -727,5 +741,5 @@ Now that you have a working data source and dataset, you can:
 - **Learn about querying external datasets.** To learn how the query engine reads external data, refer to [query external datasets](esql-data-federation-querying.md).
   - For general {{esql}} query tuning, refer to [optimize {{esql}} query performance](esql-query-performance.md).
 - **Connect your own bucket.** To connect a private bucket with credentials or federated identity, refer to [connect external data sources](esql-data-federation-sources.md).
-- **Tune dataset settings.** To override file formats, customize schema inference, or declare explicit column mappings, refer to [select external datasets](esql-data-federation-datasets.md).
+- **Tune dataset behavior.** To configure parsing and file discovery, refer to [dataset settings](esql-data-federation-dataset-settings.md). To control inferred schemas or declare column mappings, refer to [schema inference](esql-data-federation-schema.md).
 - **Query your dataset in {{kib}}.** Datasets work like indices in **Discover**, **Dashboards**, and other apps that use the {{esql}} editor. To find your datasets while writing a query, refer to [browse indices and fields from the editor](docs-content://explore-analyze/discover/try-esql.md#discover-esql-resource-browsers).

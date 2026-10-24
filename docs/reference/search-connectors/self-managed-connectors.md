@@ -18,8 +18,7 @@ Self-managed [Elastic connectors](/reference/search-connectors/index.md) are run
 ## Availability and Elastic prerequisites [es-build-connector-prerequisites]
 
 ::::{note}
-Self-managed connectors currently don’t support Windows. Use this [compatibility matrix](https://www.elastic.co/support/matrix#matrix_os) to check which operating systems are supported by self-managed connectors.
-% Find this information under **self-managed connectors** on that page.
+Self-managed connectors currently don’t support Windows. Supported operating systems are listed in the [Elastic Connectors section of the support matrix](https://www.elastic.co/support/matrix#elastic-connectors).
 
 ::::
 
@@ -33,10 +32,10 @@ A new {{ech}} deployment or {{es-serverless}} project includes these services by
 
 To run self-managed connectors, your self-deployed connector service version must match your Elasticsearch version. For example, if you’re running Elasticsearch 8.10.1, your connector service should be version 8.10.1.x. Elastic does not support deployments running mismatched versions (except during upgrades).
 
-::::{note}
-As of 8.10.0 *new* self-managed connectors no longer require the Enterprise Search service. However, if you are upgrading connectors from versions earlier than 8.9, you’ll need to run Enterprise Search once to migrate your connectors to the new format. In future releases, you may still need to run Enterprise Search for the purpose of migrations or upgrades.
+For which version combinations are allowed (including patch or minor skew), connector build numbers, and startup behavior, see the [version compatibility table](https://github.com/elastic/connectors#version-compatibility-with-elasticsearch) in the `elastic/connectors` repository.
 
-Please note that Enterprise Search is not available in versions 9.0+.
+::::{note}
+This version-matching requirement does not apply to {{es-serverless}} projects.
 ::::
 
 

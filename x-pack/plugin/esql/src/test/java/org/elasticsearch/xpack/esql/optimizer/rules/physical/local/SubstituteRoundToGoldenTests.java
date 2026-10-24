@@ -24,6 +24,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 
 public class SubstituteRoundToGoldenTests extends GoldenTestCase {
+    private static final String TOPN_PREFILTER_LONG = "topn_prefilter_long";
 
     @ParametersFactory(argumentFormatting = "%1$s")
     public static Iterable<Object[]> parameters() {
@@ -123,7 +124,11 @@ public class SubstituteRoundToGoldenTests extends GoldenTestCase {
                 from all_types
                 | stats count(*) by x = {}, long
                 """, queryAndName.query());
-            runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION), STATS, queryAndName.name());
+            builder(query).stages(EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION))
+                .searchStats(STATS)
+                .nestedPath(queryAndName.name())
+                .expectationChangesAt(TOPN_PREFILTER_LONG)
+                .run();
         }
     }
 

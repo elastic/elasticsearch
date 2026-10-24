@@ -564,6 +564,70 @@ public class AmazonBedrockConverseUtilsTests extends ESTestCase {
         assertThat(secondMessage.content().get(1).toolUse().toolUseId(), is(TOOL_CALL_ID));
     }
 
+    public void testConvertChatCompletionMessages_AssistantMessageWithNullContentAndToolCalls() {
+        var toolCall = new ToolCall(TOOL_CALL_ID, new ToolCall.FunctionField("{\"key\":\"value\"}", FUNCTION_NAME), "function");
+        var assistantMessage = new org.elasticsearch.inference.completion.Message(
+            null,
+            ChatCompletionRole.ASSISTANT.toString(),
+            null,
+            List.of(toolCall)
+        );
+
+        var result = convertChatCompletionMessagesToConverse(List.of(assistantMessage), true);
+
+        // The default user message should get added
+        assertThat(result.messages().size(), is(2));
+        assertThat(result.messages().get(0), is(DEFAULT_USER_MESSAGE));
+
+        var secondMessage = result.messages().get(1);
+        assertThat(secondMessage.role(), is(ConversationRole.ASSISTANT));
+        assertThat(secondMessage.content().size(), is(1));
+        assertThat(secondMessage.content().get(0).toolUse().name(), is(FUNCTION_NAME));
+        assertThat(secondMessage.content().get(0).toolUse().toolUseId(), is(TOOL_CALL_ID));
+    }
+
+    public void testConvertChatCompletionMessages_AssistantMessageWithNullContentAndNoToolCalls() {
+        var assistantMessage = new org.elasticsearch.inference.completion.Message(
+            null,
+            ChatCompletionRole.ASSISTANT.toString(),
+            null,
+            null
+        );
+
+        var result = convertChatCompletionMessagesToConverse(List.of(assistantMessage), true);
+
+        assertThat(result.messages(), empty());
+        assertThat(result.systemContent(), empty());
+    }
+
+    public void testConvertChatCompletionMessages_UserMessageWithNullContent() {
+        var userMessage = new org.elasticsearch.inference.completion.Message(null, ChatCompletionRole.USER.toString(), null, null);
+
+        var result = convertChatCompletionMessagesToConverse(List.of(userMessage), false);
+
+        assertThat(result.messages(), empty());
+        assertThat(result.systemContent(), empty());
+    }
+
+    public void testConvertChatCompletionMessages_SystemMessageWithNullContent() {
+        var systemMessage = new org.elasticsearch.inference.completion.Message(null, ChatCompletionRole.SYSTEM.toString(), null, null);
+
+        var result = convertChatCompletionMessagesToConverse(List.of(systemMessage), false);
+
+        assertThat(result.messages(), empty());
+        assertThat(result.systemContent(), empty());
+    }
+
+    public void testConvertChatCompletionMessages_ToolMessageWithNullContent() {
+        var toolMessage = new org.elasticsearch.inference.completion.Message(null, ChatCompletionRole.TOOL.toString(), TOOL_CALL_ID, null);
+
+        var exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> convertChatCompletionMessagesToConverse(List.of(toolMessage), true)
+        );
+        assertThat(exception.getMessage(), is("Tool message must have non-empty contents"));
+    }
+
     public void testToDocument_Null() {
         var doc = AmazonBedrockConverseUtils.toDocument(null);
         assertThat(doc, is(Document.fromNull()));

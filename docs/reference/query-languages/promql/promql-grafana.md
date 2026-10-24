@@ -40,7 +40,7 @@ In **Control security privileges**, use a role descriptor such as:
   "query": {
     "indices": [
       {
-        "names": ["metrics-*.prometheus-*"],
+        "names": ["metrics-*.prometheus-*", "exemplars-*.prometheus-*"],
         "privileges": ["read", "view_index_metadata"],
         "query": {
           "terms": { "_tier": ["data_hot", "data_warm"] }
@@ -51,7 +51,7 @@ In **Control security privileges**, use a role descriptor such as:
 }
 ```
 
-The `metrics-*.prometheus-*` pattern scopes the key to metrics ingested through [Prometheus remote write](docs-content://manage-data/data-store/data-streams/tsds-ingest-prometheus-remote-write.md), which is what this guide focuses on.
+The `metrics-*.prometheus-*` and `exemplars-*.prometheus-*` patterns scope the key to metrics ingested through [Prometheus remote write](docs-content://manage-data/data-store/data-streams/tsds-ingest-prometheus-remote-write.md), which is what this guide focuses on.
 Because the key can read only those data streams, Grafana queries stay limited to that Prometheus data even when they use the default `/_prometheus/` endpoint.
 
 When the key is created, copy the **Encoded** value (select the **Encoded** format if Kibana offers a format dropdown). This is the value you pass directly as `ApiKey <encoded>`; you cannot retrieve it again after closing the dialog.
@@ -179,7 +179,7 @@ For metric discovery, autocompletion, or template-variable problems, check the r
   Before assuming an {{es}} problem, rule out a genuinely invalid query, which would fail against upstream Prometheus too.
   Confirm the expression is valid PromQL, for example with [PromLens](https://demo.promlens.com/).
   Then check whether the behavior is an expected difference:
-    - The expression might use a [construct that {{es}} does not evaluate yet](promql-limitations.md#promql-limitations-unsupported-constructs), such as set operators or group modifiers. These return a `4xx` with `errorType: bad_data`.
+    - The expression might use a [construct that {{es}} does not evaluate yet](promql-limitations.md#promql-limitations-unsupported-constructs). These return a `4xx` with `errorType: bad_data`.
     - The request might include a [query parameter {{es}} does not support yet](promql-limitations.md#promql-limitations-unsupported-query-params), which also fails with `4xx`.
     - [Instant queries](promql-limitations.md#promql-limitations-instant-query) and [staleness handling](promql-limitations.md#promql-limitations-staleness) differ from upstream Prometheus.
 
@@ -190,7 +190,7 @@ For metric discovery, autocompletion, or template-variable problems, check the r
 | Symptom | Likely cause | What to check                                                                                                                                                                                    |
 | --- | --- |--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `406 Not Acceptable` on every query | Form-encoded `POST` is not accepted by this deployment | Upgrade to the latest deployment version; ensure TLS terminates at {{es}}. See [Form-encoded POST requests](promql-limitations.md#promql-limitations-form-post) |
-| `401`/`403` errors | API key missing, invalid, or lacking privileges | Verify the `Authorization: ApiKey <key>` header and that the key grants `read` and `view_index_metadata` on `metrics-*.prometheus-*`                                                             |
+| `401`/`403` errors | API key missing, invalid, or lacking privileges | Verify the `Authorization: ApiKey <key>` header and that the key grants `read` and `view_index_metadata` on `metrics-*.prometheus-*` and `exemplars-*.prometheus-*`                              |
 | Empty results, no error | No matching data in the time range or index scope | Confirm metrics exist in the queried [index scope](promql-http-api.md#promql-http-api-index-scope) and time window by reproducing the request directly                                           |
 | `bad_data` error on a specific expression | Unsupported PromQL construct | Compare the expression against [unsupported constructs](promql-limitations.md#promql-limitations-unsupported-constructs)                                                                         |
 | Recurring errors related to exemplar queries | `/api/v1/query_exemplars` is not implemented | In Grafana, go to **Data sources → Elasticsearch → Exemplars** and disable all configured exemplar links                                                                                         |

@@ -9,20 +9,21 @@
 
 package org.elasticsearch.index.mapper.flattened;
 
-import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
-import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.IndexMode;
@@ -33,8 +34,11 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.KeyedFlattenedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.queries.KeyedArrayOrderInlineNullAutomatonQuery;
 import org.elasticsearch.lucene.queries.KeyedArrayOrderInlineNullTermQuery;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesAutomatonQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
+import org.elasticsearch.lucene.queries.XSortedSetDocValuesRangeQuery;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xcontent.XContentType;
@@ -47,6 +51,8 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE;
+import static org.elasticsearch.index.mapper.BinaryDocValuesFormat.SEPARATE_COUNT;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -92,8 +98,11 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
         Query expected = new TermQuery(new Term(ft.name(), "key\0value"));
         assertEquals(expected, ft.termQuery("value", null));
 
-        expected = AutomatonQueries.caseInsensitiveTermQuery(new Term(ft.name(), "key\0value"));
-        assertEquals(expected, ft.termQueryCaseInsensitive("value", null));
+        // case-insensitive on the value only
+        Query caseInsensitive = ft.termQueryCaseInsensitive("value", null);
+        assertTrue(accepts(caseInsensitive, "key\0VaLuE"));
+        assertFalse(accepts(caseInsensitive, "KEY\0value"));
+        assertFalse(accepts(caseInsensitive, "key\0values"));
 
         KeyedFlattenedFieldType unsearchable = new KeyedFlattenedFieldType(
             "field",
@@ -144,8 +153,11 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
             false
         );
 
-        Query expected = new ScanningBinaryDocValuesTermQuery(ft.name(), new BytesRef("key\0value"), false);
+        Query expected = new ScanningBinaryDocValuesTermQuery(ft.name(), new BytesRef("key\0value"), SEPARATE_COUNT);
         assertEquals(expected, ft.termQuery("value", null));
+
+        assertThat(ft.termQueryCaseInsensitive("value", null), instanceOf(ScanningBinaryDocValuesAutomatonQuery.class));
+        assertThat(ft.prefixQuery("val", null, randomBoolean(), MOCK_CONTEXT), instanceOf(ScanningBinaryDocValuesAutomatonQuery.class));
     }
 
     public void testTermQueryWithArrayOrderBinaryDocValues() {
@@ -168,8 +180,11 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
         Query query = ft.termQuery("value", null);
         // The array-order path uses KeyedArrayOrderInlineNullTermQuery, a distinct class from
         // ScanningBinaryDocValuesTermQuery, giving each path a distinct query-cache identity.
-        assertNotEquals(new ScanningBinaryDocValuesTermQuery(ft.name(), new BytesRef("key\0value"), false), query);
+        assertNotEquals(new ScanningBinaryDocValuesTermQuery(ft.name(), new BytesRef("key\0value"), SEPARATE_COUNT), query);
         assertTrue(query instanceof KeyedArrayOrderInlineNullTermQuery);
+
+        assertThat(ft.termQueryCaseInsensitive("value", null), instanceOf(KeyedArrayOrderInlineNullAutomatonQuery.class));
+        assertThat(ft.prefixQuery("val", null, randomBoolean(), MOCK_CONTEXT), instanceOf(KeyedArrayOrderInlineNullAutomatonQuery.class));
     }
 
     public void testTermQueryWithSortedSetDocValuesOnly() {
@@ -189,8 +204,24 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
             false
         );
 
-        Query expected = SortedSetDocValuesField.newSlowExactQuery(ft.name(), new BytesRef("key\0value"));
+        Query expected = XSortedSetDocValuesRangeQuery.newSlowExactQuery(ft.name(), new BytesRef("key\0value"));
         assertEquals(expected, ft.termQuery("value", null));
+
+        // without terms, the case-insensitive query reads the doc values
+        AutomatonQuery caseInsensitive = (AutomatonQuery) ft.termQueryCaseInsensitive("value", null);
+        assertSame(MultiTermQuery.DOC_VALUES_REWRITE, caseInsensitive.getRewriteMethod());
+        assertTrue(accepts(caseInsensitive, "key\0VALUE"));
+        assertFalse(accepts(caseInsensitive, "KEY\0value"));
+
+        // so does a prefix query, case-sensitive or not
+        AutomatonQuery prefix = (AutomatonQuery) ft.prefixQuery("val", null, false, MOCK_CONTEXT);
+        assertSame(MultiTermQuery.DOC_VALUES_REWRITE, prefix.getRewriteMethod());
+        assertTrue(accepts(prefix, "key\0value"));
+        assertFalse(accepts(prefix, "key\0VALUE"));
+        assertFalse(accepts(prefix, "other\0value"));
+        AutomatonQuery caseInsensitivePrefix = (AutomatonQuery) ft.prefixQuery("vAL", null, true, MOCK_CONTEXT);
+        assertTrue(accepts(caseInsensitivePrefix, "key\0value"));
+        assertFalse(accepts(caseInsensitivePrefix, "KEY\0value"));
     }
 
     public void testTermsQueryWithBinaryDocValuesOnly() {
@@ -211,7 +242,10 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
         );
 
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
-        builder.add(new ScanningBinaryDocValuesTermQuery(ft.name(), new BytesRef("key\0value"), false), BooleanClause.Occur.SHOULD);
+        builder.add(
+            new ScanningBinaryDocValuesTermQuery(ft.name(), new BytesRef("key\0value"), SEPARATE_COUNT),
+            BooleanClause.Occur.SHOULD
+        );
         Query expected = new ConstantScoreQuery(builder.build());
         assertEquals(expected, ft.termsQuery(List.of("value"), null));
     }
@@ -245,8 +279,14 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
         // plain ScanningBinaryDocValuesTermQuery. The resulting query must not equal the non-array-order
         // equivalent so the two paths get separate query-cache entries.
         BooleanQuery.Builder nonArrayBuilder = new BooleanQuery.Builder();
-        nonArrayBuilder.add(new ScanningBinaryDocValuesTermQuery(ft.name(), new BytesRef("key\0v1"), false), BooleanClause.Occur.SHOULD);
-        nonArrayBuilder.add(new ScanningBinaryDocValuesTermQuery(ft.name(), new BytesRef("key\0v2"), false), BooleanClause.Occur.SHOULD);
+        nonArrayBuilder.add(
+            new ScanningBinaryDocValuesTermQuery(ft.name(), new BytesRef("key\0v1"), SEPARATE_COUNT),
+            BooleanClause.Occur.SHOULD
+        );
+        nonArrayBuilder.add(
+            new ScanningBinaryDocValuesTermQuery(ft.name(), new BytesRef("key\0v2"), SEPARATE_COUNT),
+            BooleanClause.Occur.SHOULD
+        );
         assertNotEquals(new ConstantScoreQuery(nonArrayBuilder.build()), result);
     }
 
@@ -268,7 +308,7 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
         );
 
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
-        builder.add(SortedSetDocValuesField.newSlowExactQuery(ft.name(), new BytesRef("key\0value")), BooleanClause.Occur.SHOULD);
+        builder.add(XSortedSetDocValuesRangeQuery.newSlowExactQuery(ft.name(), new BytesRef("key\0value")), BooleanClause.Occur.SHOULD);
         Query expected = new ConstantScoreQuery(builder.build());
         assertEquals(expected, ft.termsQuery(List.of("value"), null));
     }
@@ -286,8 +326,11 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
         Query expected = new PrefixQuery(new Term(ft.name(), "key\0val"));
         assertEquals(expected, ft.prefixQuery("val", randomBoolean() ? null : CONSTANT_SCORE_BLENDED_REWRITE, false, MOCK_CONTEXT));
 
-        expected = AutomatonQueries.caseInsensitivePrefixQuery(new Term(ft.name(), "key\0vAl"));
-        assertEquals(expected, ft.prefixQuery("vAl", randomBoolean() ? null : CONSTANT_SCORE_BLENDED_REWRITE, true, MOCK_CONTEXT));
+        // case-insensitive on the value only
+        Query caseInsensitive = ft.prefixQuery("vAl", randomBoolean() ? null : CONSTANT_SCORE_BLENDED_REWRITE, true, MOCK_CONTEXT);
+        assertTrue(accepts(caseInsensitive, "key\0VALUE"));
+        assertFalse(accepts(caseInsensitive, "KEY\0value"));
+        assertFalse(accepts(caseInsensitive, "other\0value"));
 
         ElasticsearchException ee = expectThrows(
             ElasticsearchException.class,
@@ -444,6 +487,11 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
             () -> ft.wildcardQuery("valu*", null, false, randomMockContext())
         );
         assertEquals("[wildcard] queries are not currently supported on keyed [flattened] fields.", e.getMessage());
+    }
+
+    /** Whether the automaton of {@code query} accepts the term {@code term}. */
+    private static boolean accepts(Query query, String term) {
+        return Operations.run(((AutomatonQuery) query).getAutomaton(), term);
     }
 
     public void testFetchIsEmpty() throws IOException {

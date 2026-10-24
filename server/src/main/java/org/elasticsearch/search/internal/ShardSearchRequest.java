@@ -27,7 +27,6 @@ import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -120,18 +119,6 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         "shard_results_skip_shard_search_request"
     );
 
-    /**
-     * Feature flag controlling whether the coordinator omits the {@link ShardSearchRequest} from
-     * shard-level results ({@link org.elasticsearch.search.query.QuerySearchResult},
-     * {@link org.elasticsearch.search.dfs.DfsSearchResult},
-     * {@link org.elasticsearch.search.rank.feature.RankFeatureResult}).
-     * Enabled by default in snapshot builds; requires
-     * {@code -Des.shard_results_skip_shard_search_request_feature_flag_enabled=true} in release builds.
-     */
-    public static final FeatureFlag SHARD_RESULTS_SKIP_SHARD_SEARCH_REQUEST_FEATURE_FLAG = new FeatureFlag(
-        "shard_results_skip_shard_search_request"
-    );
-
     // Test only constructor.
     public ShardSearchRequest(
         OriginalIndices originalIndices,
@@ -219,10 +206,9 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         return waitForCheckpoint;
     }
 
-    // Used by ValidateQueryAction, FieldCaps, TermsEnumAction
+    // Used by tests
     public ShardSearchRequest(ShardId shardId, long nowInMillis, AliasFilter aliasFilter) {
-        // TODO fix SplitShardCountSummary
-        this(shardId, nowInMillis, aliasFilter, null, SplitShardCountSummary.UNSET);
+        this(shardId, nowInMillis, aliasFilter, null, SplitShardCountSummary.IRRELEVANT);
     }
 
     // Used by ESQL, field_caps API, TransportExplainAction

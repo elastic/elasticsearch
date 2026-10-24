@@ -1,0 +1,109 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+package org.elasticsearch.gradle.internal.nativelibs;
+
+import org.gradle.api.GradleException;
+import org.gradle.api.Transformer;
+import org.gradle.api.file.Directory;
+import org.gradle.api.file.DirectoryProperty;
+import org.gradle.api.provider.ListProperty;
+import org.gradle.api.provider.MapProperty;
+import org.gradle.api.provider.Property;
+import org.gradle.api.provider.SetProperty;
+
+import java.util.List;
+
+/** Describes how a project's native library is built. */
+public abstract class NativeLibraryBuildExtension {
+
+    private Transformer<List<String>, Directory> hostCommand;
+
+    /**
+     * Directory the build command runs in: the working directory on the host, the directory mounted
+     * into the container, and the base for resolving {@link #getCollect()}.
+     */
+    public abstract DirectoryProperty getWorkingDir();
+
+    /**
+     * Ant-style patterns, relative to the project directory, selecting every file that determines
+     * which artifact a build produces. Their digest is the version the artifact is published under.
+     */
+    public abstract ListProperty<String> getSources();
+
+    /**
+     * Container image used to build every platform. The {@value NativeLibraryBuildPlugin#TOOLCHAIN_IMAGE_OVERRIDE}
+     * environment variable, when set, takes precedence.
+     */
+    public abstract Property<String> getToolchainImage();
+
+    /**
+     * The {@code <os>-<arch>} platforms this library is built for, and therefore the platforms a
+     * complete artifact contains. Hosts outside this set never load the library: they consume the
+     * artifact like everyone else and simply find nothing for their own platform in it.
+     */
+    public abstract SetProperty<String> getSupportedPlatforms();
+
+    /**
+     * Repository holding published artifacts, addressed by the hash of the sources they were built
+     * from. When unset the build always compiles from source.
+     */
+    public abstract Property<String> getArtifactRepositoryUrl();
+
+    /** Artifact name in that repository. */
+    public abstract Property<String> getArtifactName();
+
+    /**
+     * Environment variable holding the credential that permits publishing.
+     * If omitted, a build can fetch and compile but will not publish.
+     */
+    public abstract Property<String> getPublishCredentialEnvironmentVariable();
+
+    /** Command run inside the container, building all platforms. */
+    public abstract ListProperty<String> getDockerCommand();
+
+    /**
+     * Artifacts to gather after a container build: paths relative to {@link #getWorkingDir()} mapped
+     * to their destination in the {@code <os>-<arch>/} layout. A build that already writes to the
+     * destination declares nothing.
+     */
+    public abstract MapProperty<String, String> getCollect();
+
+    /**
+     * Debug information to publish next to the artifact after a build. Paths are relative to
+     * {@link #getWorkingDir()} (files or directories) and are mapped to their destination in the debuginfo
+     * archive. It is not part of the artifact's identity, as it does not change the library itself.
+     */
+    public abstract MapProperty<String, String> getDebugInfoCollect();
+
+    /** Environment variables forwarded to the build command when they are set. */
+    public abstract ListProperty<String> getForwardedEnvironment();
+
+    /**
+     * Environment variable selecting how the library is built when no artifact is published for the
+     * current {@link #getSources()}: {@code docker} for every platform, {@code host} for the current
+     * one. Anything else, or unset, builds nothing and fails instead.
+     */
+    public abstract Property<String> getModeEnvironmentVariable();
+
+    /**
+     * Declares the command that builds the current platform directly on the host, given the directory
+     * it must write to.
+     */
+    public void hostCommand(Transformer<List<String>, Directory> command) {
+        this.hostCommand = command;
+    }
+
+    /** The host command for {@code outputDir}, as declared by {@link #hostCommand}. */
+    List<String> hostCommandFor(Directory outputDir) {
+        if (hostCommand == null) {
+            throw new GradleException("No hostCommand declared: a host build cannot be run without one.");
+        }
+        return hostCommand.transform(outputDir);
+    }
+}

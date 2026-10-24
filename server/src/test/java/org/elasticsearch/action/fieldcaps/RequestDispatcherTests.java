@@ -103,6 +103,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -148,11 +149,12 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                 transportService.threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
                 responseCollector::addIndexResponse,
                 responseCollector::addIndexFailure,
-                responseCollector::onComplete
+                responseCollector::onComplete,
+                null
             );
             final RequestTracker requestTracker = new RequestTracker(dispatcher, clusterState.routingTable(), withFilter);
             transportService.requestTracker.set(requestTracker);
-            dispatcher.execute();
+            dispatcher.start();
             responseCollector.awaitCompletion();
             assertThat(responseCollector.responses.keySet(), equalTo(Sets.newHashSet(indices)));
             assertThat(responseCollector.failures, anEmptyMap());
@@ -220,7 +222,8 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                 transportService.threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
                 responseCollector::addIndexResponse,
                 responseCollector::addIndexFailure,
-                responseCollector::onComplete
+                responseCollector::onComplete,
+                null
             );
             final RequestTracker requestTracker = new RequestTracker(dispatcher, clusterState.routingTable(), withFilter);
             transportService.requestTracker.set(requestTracker);
@@ -265,7 +268,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                 }
             });
 
-            dispatcher.execute();
+            dispatcher.start();
             responseCollector.awaitCompletion();
             assertThat(responseCollector.responses.keySet(), equalTo(Sets.newHashSet(indices)));
             assertThat(responseCollector.failures, anEmptyMap());
@@ -343,7 +346,8 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                 transportService.threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
                 responseCollector::addIndexResponse,
                 responseCollector::addIndexFailure,
-                responseCollector::onComplete
+                responseCollector::onComplete,
+                null
             );
             final RequestTracker requestTracker = new RequestTracker(dispatcher, clusterState.routingTable(), withFilter);
             transportService.requestTracker.set(requestTracker);
@@ -381,7 +385,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                 }
             });
 
-            dispatcher.execute();
+            dispatcher.start();
             responseCollector.awaitCompletion();
             assertThat(failedTimes.get(), greaterThan(0));
             assertThat(
@@ -468,7 +472,8 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                 transportService.threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
                 responseCollector::addIndexResponse,
                 responseCollector::addIndexFailure,
-                responseCollector::onComplete
+                responseCollector::onComplete,
+                null
             );
             final RequestTracker requestTracker = new RequestTracker(dispatcher, clusterState.routingTable(), withFilter);
             transportService.requestTracker.set(requestTracker);
@@ -506,7 +511,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                     );
                 }
             });
-            dispatcher.execute();
+            dispatcher.start();
             responseCollector.awaitCompletion();
             assertThat(responseCollector.responses.keySet(), equalTo(Sets.newHashSet(indices)));
             assertThat(responseCollector.failures, anEmptyMap());
@@ -567,7 +572,8 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                 transportService.threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
                 responseCollector::addIndexResponse,
                 responseCollector::addIndexFailure,
-                responseCollector::onComplete
+                responseCollector::onComplete,
+                null
             );
             final RequestTracker requestTracker = new RequestTracker(dispatcher, clusterState.routingTable(), withFilter);
             transportService.requestTracker.set(requestTracker);
@@ -597,7 +603,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                     );
                 }
             });
-            dispatcher.execute();
+            dispatcher.start();
             responseCollector.awaitCompletion();
             assertThat(
                 responseCollector.responses.keySet(),
@@ -660,7 +666,8 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                 transportService.threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
                 responseCollector::addIndexResponse,
                 responseCollector::addIndexFailure,
-                responseCollector::onComplete
+                responseCollector::onComplete,
+                null
             );
             final RequestTracker requestTracker = new RequestTracker(dispatcher, clusterState.routingTable(), withFilter);
             transportService.requestTracker.set(requestTracker);
@@ -679,7 +686,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                     handler.executor().execute(() -> handler.handleException(new TransportException(failure)));
                 }
             });
-            dispatcher.execute();
+            dispatcher.start();
             responseCollector.awaitCompletion();
             assertThat(responseCollector.failures.keySet(), equalTo(Sets.newHashSet(targetIndices)));
         }
@@ -722,7 +729,8 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                 transportService.threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
                 responseCollector::addIndexResponse,
                 responseCollector::addIndexFailure,
-                responseCollector::onComplete
+                responseCollector::onComplete,
+                null
             );
             final RequestTracker requestTracker = new RequestTracker(dispatcher, clusterState.routingTable(), withFilter);
             transportService.requestTracker.set(requestTracker);
@@ -749,7 +757,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                 }
             });
 
-            dispatcher.execute();
+            dispatcher.start();
             assertTrue("round-0 node request should be dispatched", round0RequestReceived.await(30, TimeUnit.SECONDS));
             TaskCancelHelper.cancel(parentTask, "simulated mid-flight cancel");
             heldResponder.get().run();
@@ -807,17 +815,82 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                 transportService.threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
                 responseCollector::addIndexResponse,
                 responseCollector::addIndexFailure,
-                responseCollector::onComplete
+                responseCollector::onComplete,
+                null
             );
             final RequestTracker requestTracker = new RequestTracker(dispatcher, clusterState.routingTable(), withFilter);
             transportService.requestTracker.set(requestTracker);
-            dispatcher.execute();
+            dispatcher.start();
             responseCollector.awaitCompletion();
             assertThat("no node requests should be dispatched for a cancelled task", requestTracker.sentNodeRequests, hasSize(0));
             assertThat("no rounds should be executed for a cancelled task", dispatcher.executionRound(), equalTo(0));
             assertThat(responseCollector.responses, anEmptyMap());
             assertThat(responseCollector.failures, anEmptyMap());
         }
+    }
+
+    public void testCache() throws Exception {
+        String index = "index";
+        ProjectId projectId = randomProjectIdOrDefault();
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId)
+            .put(
+                IndexMetadata.builder(index)
+                    .settings(indexSettings(IndexVersions.MINIMUM_COMPATIBLE, 1, 0))
+                    .settingsVersion(2)
+                    .mappingVersion(3)
+            )
+            .build();
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .add(newNode("node", VersionUtils.randomVersion(), IndexVersionUtils.randomVersion()))
+            .build();
+        ClusterState clusterState = newClusterState(Metadata.builder().put(projectMetadata).build(), nodes);
+        IndexMetadata indexMetadata = projectMetadata.index(index);
+        FieldCapabilitiesRequest request = new FieldCapabilitiesRequest().fields("_index").filters("-nested").includeUnmapped(true);
+        FieldCapabilitiesIndexResponse response = new FieldCapabilitiesIndexResponse(
+            index,
+            null,
+            Map.of(),
+            true,
+            IndexMode.STANDARD,
+            1,
+            indexMetadata.getSettingsVersion(),
+            indexMetadata.getMappingVersion()
+        );
+        FieldCapsCache cache = new FieldCapsCache();
+        cache.put(
+            new FieldCapsCache.Key(
+                indexMetadata.getIndexUUID(),
+                indexMetadata.getSettingsVersion(),
+                indexMetadata.getMappingVersion(),
+                request.fields(),
+                request.filters()
+            ),
+            response
+        );
+
+        ResponseCollector responseCollector = new ResponseCollector();
+        TransportService transportService = mock(TransportService.class);
+        var dispatcher = new RequestDispatcher(
+            mockClusterService(clusterState),
+            transportService,
+            TestProjectResolvers.singleProject(projectId),
+            coordinatorRewriteContextProvider(),
+            newRandomParentTask(),
+            request,
+            OriginalIndices.NONE,
+            randomNonNegativeLong(),
+            new String[] { index },
+            r -> fail("cache hit must not use the executor"),
+            responseCollector::addIndexResponse,
+            responseCollector::addIndexFailure,
+            responseCollector::onComplete,
+            cache
+        );
+        dispatcher.start();
+        responseCollector.awaitCompletion();
+        assertSame(response, responseCollector.responses.get(index));
+        assertThat(responseCollector.failures, anEmptyMap());
+        verifyNoInteractions(transportService);
     }
 
     private static class NodeRequest {
@@ -1058,7 +1131,10 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                         null,
                         FieldCapabilitiesIndexResponseTests.randomFieldCaps(),
                         true,
-                        randomFrom(IndexMode.availableModes())
+                        randomFrom(IndexMode.availableModes()),
+                        0,
+                        0,
+                        0
                     )
                 );
             }

@@ -15,6 +15,7 @@
 
 #include "vec.h"
 #include "vec_common.h"
+#include "vec_bf16_1.h"
 #include "amd64/amd64_vec_common.h"
 
 static inline __m512 bf16_to_f32(__m256i bf16) {
@@ -209,14 +210,15 @@ static inline f32_t sqrDbf16Qbf16_inner_avx512(const bf16_t* a, const bf16_t* b,
     }
 
     // |a - b|^2 = a*a - 2*a*b + b*b
-    f32_t result = _mm512_reduce_add_ps(total_self) - 2.0f * _mm512_reduce_add_ps(total_cross);
+    const f32_t self = _mm512_reduce_add_ps(total_self);
+    f32_t result = self - 2.0f * _mm512_reduce_add_ps(total_cross);
 
     // Scalar tail for odd remaining element
     if ((maskRem & 1) != 0) {
         result += sqr_scalar(a[elementCount - 1], b[elementCount - 1]);
     }
 
-    return result;
+    return sqr_bf16_recompute_if_needed(self, result, a, b, elementCount);
 }
 
 EXPORT f32_t vec_sqrDbf16Qbf16_3(const bf16_t* a, const bf16_t* b, const int32_t elementCount) {
@@ -248,7 +250,7 @@ EXPORT f32_t vec_sqrDbf16Qbf16_3(const bf16_t* a, const bf16_t* b, const int32_t
  *   vectors map to four distinct set groups (offsets 0, 24, 48, 8) and there is
  *   no aliasing.
  *
- * Random-offset access (bulk_offsets, bulk_sparse) scatters the streams unconditionally,
+ * Random-offset access (bulk_sparse) scatters the streams unconditionally,
  * so the pathology never arises -- those paths keep batches=4. Sequential callers
  * use batches=1 and instead extract more accumulators along the dim axis (see the
  * comment block above dotDbf16Qbf16_bulk_avx512 below).
@@ -258,7 +260,8 @@ template <
     const bf16_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t),
     __m512(*vector_op)(const __m512, const __m512, const __m512),
     f32_t(*bulk_tail)(const bf16_t*, const f32_t*, const int32_t),
-    int batches = 4
+    int batches = 4,
+    int32_t(*out_mapper)(const int32_t*, const int32_t) = compact_output
 >
 static inline void bf16Qf32_bulk_avx512(
     const TData* a,
@@ -317,7 +320,7 @@ static inline void bf16Qf32_bulk_avx512(
         }
 
         apply_indexed<batches>([&](auto I) {
-            results[c + I] = _mm512_reduce_add_ps(sums[I]);
+            results[out_mapper(offsets, c + I)] = _mm512_reduce_add_ps(sums[I]);
         });
 
         if (has_next) {
@@ -328,7 +331,7 @@ static inline void bf16Qf32_bulk_avx512(
     // Remaining vectors that don't fill a full batch
     for (; c < count; c++) {
         const bf16_t* a0 = mapper(a, c, offsets, pitch);
-        results[c] = bulk_tail(a0, b, dims);
+        results[out_mapper(offsets, c)] = bulk_tail(a0, b, dims);
     }
 }
 
@@ -357,7 +360,8 @@ template <
     typename TData,
     const bf16_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t),
     int batches = 4,
-    int unroll_dim = 1
+    int unroll_dim = 1,
+    int32_t(*out_mapper)(const int32_t*, const int32_t) = compact_output
 >
 static inline void dotDbf16Qbf16_bulk_avx512(
     const TData* a,
@@ -456,7 +460,7 @@ static inline void dotDbf16Qbf16_bulk_avx512(
             if ((rem & 1) != 0) {
                 result += dot_scalar(current_vecs[I][dims - 1], b[dims - 1]);
             }
-            results[c + I] = result;
+            results[out_mapper(offsets, c + I)] = result;
         });
 
         if (has_next) {
@@ -466,7 +470,7 @@ static inline void dotDbf16Qbf16_bulk_avx512(
 
     for (; c < count; c++) {
         const bf16_t* a0 = mapper(a, c, offsets, pitch);
-        results[c] = vec_dotDbf16Qbf16_3(a0, b, dims);
+        results[out_mapper(offsets, c)] = vec_dotDbf16Qbf16_3(a0, b, dims);
     }
 }
 
@@ -482,7 +486,8 @@ template <
     typename TData,
     const bf16_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t),
     int batches = 4,
-    int unroll_dim = 1
+    int unroll_dim = 1,
+    int32_t(*out_mapper)(const int32_t*, const int32_t) = compact_output
 >
 static inline void sqrDbf16Qbf16_bulk_avx512(
     const TData* a,
@@ -599,13 +604,13 @@ static inline void sqrDbf16Qbf16_bulk_avx512(
                 f32_t ab = _mm512_reduce_add_ps(sum_ab[I]);
                 aa += dot_scalar(current_vecs[I][dims - 1], current_vecs[I][dims - 1]);
                 ab += dot_scalar(current_vecs[I][dims - 1], b[dims - 1]);
-                results[c + I] = aa + bb - 2.0f * ab;
+                results[out_mapper(offsets, c + I)] = sqr_bf16_recompute_if_needed(aa + bb, aa + bb - 2.0f * ab, current_vecs[I], b, dims);
             });
         } else {
             apply_indexed<batches>([&](auto I) {
                 f32_t aa = _mm512_reduce_add_ps(sum_aa[I]);
                 f32_t ab = _mm512_reduce_add_ps(sum_ab[I]);
-                results[c + I] = aa + bb - 2.0f * ab;
+                results[out_mapper(offsets, c + I)] = sqr_bf16_recompute_if_needed(aa + bb, aa + bb - 2.0f * ab, current_vecs[I], b, dims);
             });
         }
 
@@ -616,7 +621,7 @@ static inline void sqrDbf16Qbf16_bulk_avx512(
 
     for (; c < count; c++) {
         const bf16_t* a0 = mapper(a, c, offsets, pitch);
-        results[c] = vec_sqrDbf16Qbf16_3(a0, b, dims);
+        results[out_mapper(offsets, c)] = vec_sqrDbf16Qbf16_3(a0, b, dims);
     }
 }
 
@@ -705,54 +710,4 @@ EXPORT void vec_sqrDbf16Qbf16_bulk_sparse_3(
 ) {
     sqrDbf16Qbf16_bulk_avx512<const bf16_t*, sparse_mapper, 4, 1>(
         (const bf16_t* const*)addresses, query, length, 0, NULL, count, results);
-}
-
-EXPORT void vec_dotDbf16Qf32_bulk_offsets_3(
-    const bf16_t* a,
-    const f32_t* b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results
-) {
-    bf16Qf32_bulk_avx512<bf16_t, offsets_mapper, _mm512_fmadd_ps, vec_dotDbf16Qf32_3>(
-        a, b, dims, pitch / sizeof(bf16_t), offsets, count, results);
-}
-
-EXPORT void vec_dotDbf16Qbf16_bulk_offsets_3(
-    const bf16_t* a,
-    const bf16_t* b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results
-) {
-    dotDbf16Qbf16_bulk_avx512<bf16_t, offsets_mapper, 4, 1>(a, b, dims, pitch / sizeof(bf16_t), offsets, count, results);
-}
-
-EXPORT void vec_sqrDbf16Qf32_bulk_offsets_3(
-    const bf16_t* a,
-    const f32_t* b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results
-) {
-    bf16Qf32_bulk_avx512<bf16_t, offsets_mapper, sqrf32_vector, vec_sqrDbf16Qf32_3>(
-        a, b, dims, pitch / sizeof(bf16_t), offsets, count, results);
-}
-
-EXPORT void vec_sqrDbf16Qbf16_bulk_offsets_3(
-    const bf16_t* a,
-    const bf16_t* b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results
-) {
-    sqrDbf16Qbf16_bulk_avx512<bf16_t, offsets_mapper, 4, 1>(a, b, dims, pitch / sizeof(bf16_t), offsets, count, results);
 }

@@ -82,7 +82,7 @@ public record JinaAIEmbeddingsRequestEntity(List<InferenceStringGroup> input, @N
     private static final String SEPARATION = "separation";
     private static final String CLASSIFICATION = "classification";
     private static final String INPUT_CONTENT_FIELD = "content";
-    private static final String INPUT_IMAGE_FIELD = "image";
+    public static final String INPUT_IMAGE_FIELD = "image";
     private static final String INPUT_AUDIO_FIELD = "audio";
     private static final String INPUT_VIDEO_FIELD = "video";
     private static final String INPUT_PDF_FIELD = "pdf";
@@ -219,6 +219,7 @@ public record JinaAIEmbeddingsRequestEntity(List<InferenceStringGroup> input, @N
             case AUDIO -> INPUT_AUDIO_FIELD;
             case VIDEO -> INPUT_VIDEO_FIELD;
             case PDF -> INPUT_PDF_FIELD;
+            case HTML -> throw new AssertionError("Unsupported data type [" + inferenceString.dataType() + "] for embedding request");
         };
         builder.startObject();
         builder.field(fieldName, inferenceString.value());

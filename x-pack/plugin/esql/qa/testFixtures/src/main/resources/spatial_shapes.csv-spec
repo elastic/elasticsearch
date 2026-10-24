@@ -63,6 +63,7 @@ ISL|Iceland|BBOX(-24.538400, -13.499446, 66.536100, 63.390000)
 
 simpleLoadPointsAsShapes
 required_capability: spatial_shapes
+skip_columnar: columnar rebuilds point coordinates from quantized doc values, so rendered coordinates differ from the _source values in the last decimals
 
 FROM airports
 | WHERE abbrev == "CPH" OR abbrev == "VLC"
@@ -93,6 +94,7 @@ CPH             |  Københavns Kommune  |  POINT(12.5683 55.6761)  |  Copenhagen
 
 pointIntersectsLiteralPolygon
 required_capability: st_intersects
+skip_columnar: columnar rebuilds point coordinates from quantized doc values, so rendered coordinates differ from the _source values in the last decimals
 
 FROM airports
 | EVAL location = TO_GEOSHAPE(location)
@@ -119,6 +121,7 @@ SYX            | Sanya Phoenix Int'l  | 天涯区       | Sanya        | POINT(1
 
 pointIntersectsLiteralPolygonReversed
 required_capability: st_intersects
+skip_columnar: columnar rebuilds point coordinates from quantized doc values, so rendered coordinates differ from the _source values in the last decimals
 
 FROM airports
 | EVAL location = TO_GEOSHAPE(location)
@@ -706,6 +709,7 @@ ISL|Iceland|BBOX(-2731602.192501422, -1502751.454502109, 1.0025136653899286E7, 9
 
 simpleLoadCartesianPointsAsShapes
 required_capability: spatial_shapes
+skip_columnar: columnar rebuilds point coordinates from quantized doc values, so rendered coordinates differ from the _source values in the last decimals
 
 FROM airports_web
 | WHERE abbrev == "CPH" OR abbrev == "VLC"
@@ -723,6 +727,7 @@ abbrev:keyword | name:text    | scalerank:integer | type:keyword | location:cart
 
 cartesianPointIntersectsPolygon
 required_capability: st_intersects
+skip_columnar: columnar rebuilds point coordinates from quantized doc values, so rendered coordinates differ from the _source values in the last decimals
 
 FROM airports_web
 | EVAL location = TO_CARTESIANSHAPE(location)

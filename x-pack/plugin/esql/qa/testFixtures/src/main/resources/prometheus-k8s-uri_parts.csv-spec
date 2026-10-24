@@ -1,0 +1,23 @@
+// The PromQL tests of `uri_parts.csv-spec` over `index=k8s`, run on `prometheus-k8s`: the same samples in the Prometheus
+// remote-write layout (one document per sample, `labels.*` dimensions including `__name__`, one
+// `metrics.<name>` field per metric). Queries are identical up to the index name; `_timeseries` carries
+// the labels under `labels`, with `__name__` where Prometheus keeps the metric name. Keep in sync with the
+// source file.
+
+promqlSource
+required_capability: uri_parts_command
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+
+PROMQL index=prometheus-k8s step=1m increase_cost=(sum(increase(network.total_cost[1m])))
+| LIMIT 2
+| EVAL uri = "https://www.elastic.co:443/downloads/elasticsearch"
+| URI_PARTS parts = uri
+| KEEP parts.domain, parts.port, parts.scheme
+;
+
+parts.domain:keyword | parts.port:integer | parts.scheme:keyword
+www.elastic.co       | 443                | https
+www.elastic.co       | 443                | https
+;

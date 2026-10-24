@@ -30,6 +30,7 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.TransportActions;
+import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
@@ -47,7 +48,6 @@ import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
@@ -73,6 +73,8 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -273,7 +275,7 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
                     threadPool::absoluteTimeInMillis,
                     // Exclude inference fields to ensure embeddings are recomputed.
                     FetchSourceContext.FETCH_ALL_SOURCE_EXCLUDE_INFERENCE_FIELDS,
-                    SplitShardCountSummary.UNSET
+                    request.getSplitShardCountSummary()
                 ),
                 indexService.getMetadata(),
                 mappingLookup
@@ -549,6 +551,7 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
         private final ActionListener<UpdateResponse> listener;
         private final UpdateRequest request;
         private volatile ProjectStateObserver observer;
+        private volatile ProjectId projectId;
         private ShardIterator shardIt;
 
         AsyncSingleAction(UpdateRequest request, ActionListener<UpdateResponse> listener) {
@@ -558,6 +561,7 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
 
         public void start() {
             final ProjectState state = getProjectState();
+            this.projectId = state.projectId();
             this.observer = new ProjectStateObserver(state, clusterService, request.timeout(), logger, threadPool.getThreadContext());
             doStart(state);
         }
@@ -616,6 +620,7 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
             }
 
             request.shardId = shardIt.shardId();
+            request.setSplitShardCountSummary(projectState.metadata(), request.concreteIndex());
             DiscoveryNode node = projectState.cluster().nodes().get(shard.currentNodeId());
             transportService.sendRequest(
                 node,
@@ -631,6 +636,10 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
                             || cause instanceof NodeClosedException
                             || TransportActions.isShardNotAvailableException(exp)) {
                             retry((Exception) cause);
+                        } else if (cause instanceof StaleRequestException) {
+                            // concurrent resharding has caused the document to move shards, so discard cached route and retry
+                            request.shardId = null;
+                            retry((Exception) cause);
                         } else {
                             listener.onFailure(exp);
                         }
@@ -642,28 +651,7 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
         void retry(@Nullable final Exception failure) {
             if (observer.isTimedOut()) {
                 // we running as a last attempt after a timeout has happened. don't retry
-                Exception listenFailure = failure;
-                if (listenFailure == null) {
-                    if (shardIt == null) {
-                        listenFailure = new UnavailableShardsException(
-                            request.concreteIndex(),
-                            -1,
-                            "Timeout waiting for [{}], request: {}",
-                            request.timeout(),
-                            actionName
-                        );
-                    } else {
-                        listenFailure = new UnavailableShardsException(
-                            shardIt.shardId(),
-                            "[{}] shardIt, [{}] active : Timeout waiting for [{}], request: {}",
-                            shardIt.size(),
-                            shardIt.sizeActive(),
-                            request.timeout(),
-                            actionName
-                        );
-                    }
-                }
-                listener.onFailure(listenFailure);
+                listener.onFailure(failureOnTimeout(failure));
                 return;
             }
 
@@ -699,6 +687,41 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
                     observer.observeLastAppliedState(this);
                 }
             }, request.timeout());
+        }
+
+        /**
+         * The failure to report once the request has timed out: the last failure if there was one, a {@link ShardRestoringException} if the
+         * shard is being restored by a restore that reports it, and otherwise an {@link UnavailableShardsException}.
+         */
+        private Exception failureOnTimeout(@Nullable Exception failure) {
+            if (failure != null) {
+                return failure;
+            }
+            if (shardIt == null) {
+                return new UnavailableShardsException(
+                    request.concreteIndex(),
+                    -1,
+                    "Timeout waiting for [{}], request: {}",
+                    request.timeout(),
+                    actionName
+                );
+            }
+            final ShardRestoringException restoringException = RestoreService.reportableRestoreException(
+                projectId,
+                shardIt.shardId(),
+                clusterService.state()
+            );
+            if (restoringException != null) {
+                return restoringException;
+            }
+            return new UnavailableShardsException(
+                shardIt.shardId(),
+                "[{}] shardIt, [{}] active : Timeout waiting for [{}], request: {}",
+                shardIt.size(),
+                shardIt.sizeActive(),
+                request.timeout(),
+                actionName
+            );
         }
     }
 }

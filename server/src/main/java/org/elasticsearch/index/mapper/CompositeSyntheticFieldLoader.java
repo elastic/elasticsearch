@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -219,6 +220,49 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
         protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {
             XContentDataHelper.decodeAndWrite(b, value);
         }
+    }
+
+    /**
+     * Appends the appropriate fallback layers to {@code layers} for a field that supports {@code ignore_malformed} and/or
+     * {@code doc_values.on_failure=ignore}.
+     *
+     * <p>In strict-columnar index modes created on or after {@link IndexVersions#MALFORMED_VALUES_IN_ON_FAILURE_COLUMN},
+     * {@link FallbackPostMapper#route} sends {@link FallbackPostMapper.Reason#MALFORMED} values to the shared per-field
+     * {@code ._on_failure} sidecar column, so only the on-failure layer is added — adding both would double-emit every value
+     * when both constraints are active on the same field. Older strict-columnar indices (created before the version gate) keep
+     * using {@code ._ignore_malformed}; the version check here must match the write-path check in
+     * {@link FallbackPostMapper#malformedUsesOnFailureColumn}. Outside strict-columnar, the two columns are always independent.
+     *
+     * <p>The on-failure layer is always appended <em>last</em> so encounter order is preserved.
+     *
+     * @param layers         the list to append to
+     * @param mapper         the field mapper owning this synthetic-source loader
+     * @param indexSettings  index settings used to derive the index version and whether the index is strict-columnar
+     */
+    public static void addFallbackLayers(List<Layer> layers, FieldMapper mapper, IndexSettings indexSettings) {
+        IndexVersion indexVersion = indexSettings.getIndexVersionCreated();
+        boolean ignoreMalformed = mapper.ignoreMalformed();
+        boolean malformedInOnFailure = FallbackPostMapper.malformedUsesOnFailureColumn(indexSettings);
+        if (ignoreMalformed && malformedInOnFailure == false) {
+            layers.add(malformedValuesLayer(mapper.fullPath(), indexVersion));
+        }
+        if (mapper.onFailureColumnEnabled() || (ignoreMalformed && malformedInOnFailure)) {
+            layers.add(onFailureValuesLayer(mapper.fullPath(), indexVersion));
+        }
+    }
+
+    /**
+     * Returns the synthetic-source layer that reconstructs {@code ignore_malformed} values: the {@code ._on_failure} sidecar
+     * column when {@link FallbackPostMapper#malformedUsesOnFailureColumn} applies (strict-columnar index created on or after
+     * {@link IndexVersions#MALFORMED_VALUES_IN_ON_FAILURE_COLUMN}), otherwise the {@code ._ignore_malformed} column.
+     *
+     * @param mapper         the field mapper owning this synthetic-source layer
+     * @param indexSettings  index settings used to derive the index version and whether the index is strict-columnar
+     */
+    public static Layer malformedFallbackLayer(FieldMapper mapper, IndexSettings indexSettings) {
+        return FallbackPostMapper.malformedUsesOnFailureColumn(indexSettings)
+            ? onFailureValuesLayer(mapper.fullPath(), indexSettings.getIndexVersionCreated())
+            : malformedValuesLayer(mapper.fullPath(), indexSettings.getIndexVersionCreated());
     }
 
     /**

@@ -16,6 +16,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 public class LocalFileAccessTests extends ESTestCase {
 
@@ -75,7 +76,8 @@ public class LocalFileAccessTests extends ESTestCase {
             () -> access.check(StoragePath.of("file://" + outsideFile.toAbsolutePath()))
         );
         assertThat(e.getMessage(), containsString("esql.external.local_allowed_paths"));
-        assertThat(e.getMessage(), containsString(outsideFile.toAbsolutePath().toString()));
+        assertThat(e.getMessage(), containsString("secret.csv"));
+        assertThat("the rejected location's directories are not quoted back", e.getMessage(), not(containsString(outside.toString())));
     }
 
     public void testDotDotTraversalEscapeRejected() throws IOException {
@@ -155,6 +157,77 @@ public class LocalFileAccessTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> access.check(StoragePath.of("file:///some/dir/*.parquet"))
+        );
+        assertThat(e.getMessage(), containsString("esql.external.local_allowed_paths"));
+    }
+
+    // --- Comma-separated multi-file listings ---
+
+    public void testCommaListingAllSegmentsUnderAllowedRootSucceeds() throws IOException {
+        Path allowed = createTempDir();
+        Settings settings = Settings.builder().putList("esql.external.local_allowed_paths", allowed.toString()).build();
+        LocalFileAccess access = LocalFileAccess.create(settings);
+
+        Path a = allowed.resolve("a.csv");
+        Path b = allowed.resolve("b.csv");
+        Files.createFile(a);
+        Files.createFile(b);
+        // A comma listing must be gated per segment, not parsed as a single filesystem path — the latter throws
+        // InvalidPathException on Windows on the second segment's drive-letter/scheme ':'. Both segments are allowed.
+        String listing = "file://" + a.toAbsolutePath() + ",file://" + b.toAbsolutePath();
+        access.check(StoragePath.of(listing));
+        access.check(listing);
+    }
+
+    public void testDuplicateListingUnderAllowedRootSucceeds() throws IOException {
+        Path allowed = createTempDir();
+        Settings settings = Settings.builder().putList("esql.external.local_allowed_paths", allowed.toString()).build();
+        LocalFileAccess access = LocalFileAccess.create(settings);
+
+        Path file = allowed.resolve("dupes.csv");
+        Files.createFile(file);
+        // The same file listed twice (mirrors the *ExternalReadConfigParityIT duplicate-listing tests): each identical
+        // segment is a valid single location, so the whole listing must pass.
+        String uri = "file://" + file.toAbsolutePath();
+        access.check(StoragePath.of(uri + "," + uri));
+    }
+
+    public void testCommaListingWithOneSegmentOutsideRootRejected() throws IOException {
+        Path allowed = createTempDir();
+        Path outside = createTempDir();
+        Settings settings = Settings.builder().putList("esql.external.local_allowed_paths", allowed.toString()).build();
+        LocalFileAccess access = LocalFileAccess.create(settings);
+
+        Path allowedFile = allowed.resolve("a.csv");
+        Path outsideFile = outside.resolve("secret.csv");
+        Files.createFile(allowedFile);
+        Files.createFile(outsideFile);
+        // Every listed file must be gated: a listing may not smuggle a file outside the allowlist alongside an allowed
+        // one. Validating only the whole (or first) string left this gap.
+        String listing = "file://" + allowedFile.toAbsolutePath() + ",file://" + outsideFile.toAbsolutePath();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> access.check(StoragePath.of(listing)));
+        assertThat(e.getMessage(), containsString("esql.external.local_allowed_paths"));
+        assertThat(e.getMessage(), containsString("secret.csv"));
+        assertThat("the rejected location's directories are not quoted back", e.getMessage(), not(containsString(outside.toString())));
+    }
+
+    public void testCommaListingMixingLiteralAndGlobUnderRootSucceeds() throws IOException {
+        Path allowed = createTempDir();
+        Settings settings = Settings.builder().putList("esql.external.local_allowed_paths", allowed.toString()).build();
+        LocalFileAccess access = LocalFileAccess.create(settings);
+
+        Path literal = allowed.resolve("a.csv");
+        Files.createFile(literal);
+        // A glob segment is gated on its non-glob prefix (as for a lone glob), and a literal segment on itself.
+        String listing = "file://" + literal.toAbsolutePath() + ",file://" + allowed.toAbsolutePath() + "/data-*.csv";
+        access.check(StoragePath.of(listing));
+    }
+
+    public void testCommaListingRejectedWhenDisabled() {
+        LocalFileAccess access = LocalFileAccess.create(Settings.EMPTY);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> access.check(StoragePath.of("file:///some/a.csv,file:///some/b.csv"))
         );
         assertThat(e.getMessage(), containsString("esql.external.local_allowed_paths"));
     }

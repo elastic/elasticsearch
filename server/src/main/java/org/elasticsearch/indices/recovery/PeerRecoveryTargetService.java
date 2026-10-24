@@ -70,8 +70,8 @@ import java.util.function.Consumer;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
-import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.FAIL_SEND;
-import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.FAIL_SILENT;
+import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SEND;
+import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT;
 
 /**
  * The recovery target handles recoveries of peer shards of the shard+node to recover to.

@@ -137,7 +137,9 @@ public class SparseVectorFieldMapper extends FieldMapper {
                 builderIndexOptions = SparseVectorIndexOptions.getDefaultIndexOptions(indexVersionCreated);
             }
 
-            final boolean isExcludeSourceVectorsFinal = isExcludeSourceVectors && context.isSourceSynthetic() == false && stored.get();
+            final boolean isExcludeSourceVectorsFinal = isExcludeSourceVectors
+                && (context.isSourceStored() || context.isSourceColumnarStored())
+                && stored.get();
             return new SparseVectorFieldMapper(
                 leafName(),
                 new SparseVectorFieldType(
@@ -252,7 +254,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
         @Override
         public FieldAndFormat embeddingsFieldAndFormat(@Nullable VectorType vectorType) {
             if (vectorType != null && vectorType != VectorType.SPARSE_VECTOR) {
-                return null;
+                throw unsupportedEmbeddings(vectorType);
             }
             return new FieldAndFormat(name(), null);
         }

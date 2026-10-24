@@ -95,12 +95,13 @@ public class ES93BinaryQuantizedVectorsFormat extends AbstractFlatVectorsFormat 
     private final ES93GenericFlatVectorsFormat rawFormat;
 
     public ES93BinaryQuantizedVectorsFormat() {
-        this(DenseVectorFieldMapper.ElementType.FLOAT, false);
+        this(DenseVectorFieldMapper.ElementType.FLOAT, false, false);
     }
 
-    public ES93BinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType elementType, boolean useDirectIO) {
+    /** @param onDiskMerge whether merges use direct I/O for the raw vectors (the field's {@code on_disk_merge} option) */
+    public ES93BinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType elementType, boolean useDirectIO, boolean onDiskMerge) {
         super(NAME);
-        rawFormat = new ES93GenericFlatVectorsFormat(elementType, useDirectIO);
+        rawFormat = new ES93GenericFlatVectorsFormat(elementType, useDirectIO, onDiskMerge);
     }
 
     @Override

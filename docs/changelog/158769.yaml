@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 158668
+pr: 158769
+summary: Fix rounding in ES|QL variance state merging
+type: bug

@@ -80,8 +80,11 @@ COPY --chmod=664 config/elasticsearch.yml config/log4j2.properties config/
 
 FROM ${base_image}
 
-RUN microdnf install --setopt=tsflags=nodocs -y \\
-    nc shadow-utils zip unzip findutils procps-ng && \\
+# Upgrade the base image's packages first, so that the image gets fixes such as an updated set of trusted CA
+# certificates as soon as Red Hat publishes them, rather than only when the base image is next rebuilt.
+RUN microdnf upgrade --setopt=tsflags=nodocs -y && \\
+    microdnf install --setopt=tsflags=nodocs -y \\
+    nc shadow-utils tar zip unzip findutils procps-ng && \\
     microdnf clean all
 
 RUN groupadd -g 1000 elasticsearch && \\

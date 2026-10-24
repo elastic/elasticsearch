@@ -1,0 +1,5 @@
+area: PromQL
+issues: []
+pr: 161103
+summary: Support timeout in Prometheus query endpoints
+type: enhancement

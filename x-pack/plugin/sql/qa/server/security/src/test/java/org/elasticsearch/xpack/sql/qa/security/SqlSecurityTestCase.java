@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.LogType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
@@ -30,24 +31,16 @@ import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
-import java.util.zip.GZIPInputStream;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonMap;
@@ -121,29 +114,9 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
     abstract Actions actions();
 
     /**
-     * How many audit log lines were written before the test started.
-     * After a midnight rollover this count refers to the archived file, not the new active file.
+     * How many audit log lines, counting the files the log was rolled into, were written before the test started.
      */
     private int auditLogLinesBeforeTestStart;
-
-    /**
-     * Identity of the active audit file at test start. {@code null} when that file did not exist yet,
-     * or when the filesystem does not provide a file key. A different key later means the active path
-     * was renamed out from under us.
-     */
-    private Object auditLogFileKey;
-
-    /**
-     * Rolled audit file names already present when the test started. A name that appears afterwards is
-     * the file this test's pre-rollover lines were renamed to.
-     */
-    private Set<String> auditArchiveNamesBeforeTest = Set.of();
-
-    /**
-     * {@code javaRestTest_audit-2026-10-13-1.json} or the same name with a {@code .gz} suffix.
-     * The date and index are the rollover pattern in {@code log4j2.properties}.
-     */
-    private static final Pattern ROLLED_AUDIT_LOG = Pattern.compile(".*_audit-\\d{4}-\\d{2}-\\d{2}-\\d+\\.json(\\.gz)?");
 
     /**
      * All tests run as a an administrative user but use
@@ -187,154 +160,28 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
 
     @Before
     public void setInitialAuditLogOffset() throws Exception {
-        // The audit appender writes synchronously, so the line count here is a stable start-of-test
-        // watermark. Rollover is handled when the window is read: the triggering policy renames this
-        // file and continues in a new one, which would make a bare line count skip every new line.
-        Path active = findActiveAuditLog();
-        if (active == null) {
+        // The audit appender writes synchronously, so the line count here is a stable start-of-test watermark.
+        try {
+            auditLogLinesBeforeTestStart = readAuditLog().size();
+        } catch (IllegalArgumentException e) {
+            // No audit event has been logged yet.
             auditLogLinesBeforeTestStart = 0;
-            auditLogFileKey = null;
-            auditArchiveNamesBeforeTest = Set.of();
-            return;
         }
-        auditLogLinesBeforeTestStart = readLogLines(active).size();
-        auditLogFileKey = Files.readAttributes(active, BasicFileAttributes.class).fileKey();
-        auditArchiveNamesBeforeTest = rolledAuditLogNames();
     }
 
     /**
-     * Lines written since {@link #setInitialAuditLogOffset()}.
-     * <p>
-     * The active audit log rolls at local midnight (and at 1GB). Log4j renames {@code *_audit.json}
-     * to {@code *_audit-yyyy-MM-dd-N.json} and compresses that file on another thread. A line count
-     * taken against the old file is past the end of the new one, so reading only the active file
-     * drops this test's events. When that happens the window is the archived tail plus the new file.
+     * Lines written since {@link #setInitialAuditLogOffset()}. {@code getNodeLog} includes the files the audit log was
+     * rolled into, and log4j never deletes rolled audit files, so the start-of-test line count stays a valid offset.
      */
     private List<String> readAuditLinesSinceTestStart() throws IOException {
-        Path active = findActiveAuditLog();
-        if (active == null) {
-            throw new IOException("active audit log does not exist yet");
-        }
-        List<String> activeLines = readLogLines(active);
-        Object currentKey = Files.readAttributes(active, BasicFileAttributes.class).fileKey();
-        boolean keyChanged = auditLogFileKey != null && currentKey != null && auditLogFileKey.equals(currentKey) == false;
-        List<Path> newArchives = newRolledAuditLogs();
-        boolean rolled = keyChanged || newArchives.isEmpty() == false || activeLines.size() < auditLogLinesBeforeTestStart;
-        if (rolled == false) {
-            return activeLines.subList(Math.min(auditLogLinesBeforeTestStart, activeLines.size()), activeLines.size());
-        }
-        if (newArchives.isEmpty()) {
-            throw new IOException("audit log rolled but the archived file is not visible yet");
-        }
-        List<String> window = new ArrayList<>();
-        for (int i = 0; i < newArchives.size(); i++) {
-            List<String> archived = readLogLines(newArchives.get(i));
-            // Only the file that was active at test start contains lines from before the watermark.
-            int from = i == 0 ? auditLogLinesBeforeTestStart : 0;
-            if (archived.size() < from) {
-                throw new IOException("rolled audit log is shorter than the test start offset");
-            }
-            window.addAll(archived.subList(from, archived.size()));
-        }
-        window.addAll(activeLines);
-        return window;
+        List<String> lines = readAuditLog();
+        return lines.subList(Math.min(auditLogLinesBeforeTestStart, lines.size()), lines.size());
     }
 
-    /**
-     * Logs directory next to the node's config directory. This suite does not set a custom config dir,
-     * so {@code config} and {@code logs} are siblings under the node working directory.
-     */
-    private Path auditLogsDirectory() {
-        return getCluster().getNodeConfigPath(0).resolveSibling("logs");
-    }
-
-    /**
-     * The live audit file. Its name uses the cluster name ({@code javaRestTest_audit.json}), not the
-     * node name returned by {@code getName(0)}. {@code null} when the file has not been created yet
-     * or has just been renamed and the replacement is not there yet.
-     */
-    private Path findActiveAuditLog() throws IOException {
-        Path logsDir = auditLogsDirectory();
-        if (Files.isDirectory(logsDir) == false) {
-            return null;
+    private List<String> readAuditLog() throws IOException {
+        try (InputStream auditLog = getCluster().getNodeLog(0, LogType.AUDIT)) {
+            return Streams.readAllLines(auditLog);
         }
-        Path active = null;
-        try (Stream<Path> files = Files.list(logsDir)) {
-            for (Path file : files.toList()) {
-                if (file.getFileName().toString().endsWith("_audit.json")) {
-                    if (active != null) {
-                        throw new IOException("more than one active audit log in [" + logsDir + "]");
-                    }
-                    active = file;
-                }
-            }
-        }
-        return active;
-    }
-
-    private Set<String> rolledAuditLogNames() throws IOException {
-        Set<String> names = new HashSet<>();
-        Path logsDir = auditLogsDirectory();
-        if (Files.isDirectory(logsDir) == false) {
-            return Set.of();
-        }
-        try (Stream<Path> files = Files.list(logsDir)) {
-            for (Path file : files.toList()) {
-                String name = file.getFileName().toString();
-                if (ROLLED_AUDIT_LOG.matcher(name).matches()) {
-                    names.add(name);
-                }
-            }
-        }
-        return Set.copyOf(names);
-    }
-
-    /**
-     * Rolled files created after the test started, oldest first. While log4j still has the
-     * uncompressed rename, that file is preferred over the {@code .gz} being written beside it.
-     */
-    private List<Path> newRolledAuditLogs() throws IOException {
-        Path logsDir = auditLogsDirectory();
-        if (Files.isDirectory(logsDir) == false) {
-            return List.of();
-        }
-        Map<String, Path> byStem = new TreeMap<>();
-        try (Stream<Path> files = Files.list(logsDir)) {
-            for (Path file : files.toList()) {
-                String name = file.getFileName().toString();
-                if (ROLLED_AUDIT_LOG.matcher(name).matches() == false) {
-                    continue;
-                }
-                String stem = name.endsWith(".gz") ? name.substring(0, name.length() - ".gz".length()) : name;
-                if (auditArchiveNamesBeforeTest.contains(stem) || auditArchiveNamesBeforeTest.contains(stem + ".gz")) {
-                    continue;
-                }
-                Path existing = byStem.get(stem);
-                boolean uncompressed = name.endsWith(".gz") == false;
-                if (existing == null || (uncompressed && existing.getFileName().toString().endsWith(".gz"))) {
-                    byStem.put(stem, file);
-                }
-            }
-        }
-        // TreeMap iterates stems in name order, which is chronological for the yyyy-MM-dd index pattern.
-        return new ArrayList<>(byStem.values());
-    }
-
-    private static List<String> readLogLines(Path path) throws IOException {
-        InputStream file = Files.newInputStream(path);
-        final InputStream in;
-        try {
-            in = path.getFileName().toString().endsWith(".gz") ? new GZIPInputStream(file) : file;
-        } catch (IOException e) {
-            try {
-                file.close();
-            } catch (IOException suppressed) {
-                e.addSuppressed(suppressed);
-            }
-            throw e;
-        }
-        // Streams.readAllLines closes the stream, and a gzip stream closes the file underneath it.
-        return Streams.readAllLines(in);
     }
 
     @AfterClass
@@ -683,8 +530,6 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
                 auditFailure
             );
             try {
-                // The watermark is taken before the test runs. Poll so a midnight rollover can finish
-                // renaming and compressing the previous file before we decide the events are missing.
                 assertBusy(() -> {
                     final List<String> testLines;
                     try {

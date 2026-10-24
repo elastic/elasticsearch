@@ -17,6 +17,11 @@
           settings:
             index.mode: columnar
             number_of_shards: 1
+            # the _doc order assertions below rely on every searchable copy being a single merged segment, so all copies
+            # must be started before the force merge (see the green health check below). A replica that is still
+            # recovering when the force merge runs is skipped by it and can keep the unmerged segments. Auto-expanding
+            # keeps green reachable on a single node, while stateless always keeps one replica for searches.
+            auto_expand_replicas: 0-1
             refresh_interval: -1
             index.sort.field: rank
             # ensure no relocation as tests rely on segments.
@@ -30,6 +35,7 @@
       cluster.health:
         index: test
         # ensure that all shards are ready before indexing/refresh as tests rely on segments.
+        wait_for_status: green
         wait_for_events: languid
         wait_for_no_initializing_shards: true
 
@@ -159,6 +165,11 @@
           settings:
             index.mode: columnar
             number_of_shards: 1
+            # the _doc order assertions below rely on every searchable copy being a single merged segment, so all copies
+            # must be started before the force merge (see the green health check below). A replica that is still
+            # recovering when the force merge runs is skipped by it and can keep the unmerged segments. Auto-expanding
+            # keeps green reachable on a single node, while stateless always keeps one replica for searches.
+            auto_expand_replicas: 0-1
             refresh_interval: -1
             index.sort.field: tag
             routing.rebalance.enable: "none"
@@ -171,6 +182,7 @@
   - do:
       cluster.health:
         index: test_kw
+        wait_for_status: green
         wait_for_events: languid
         wait_for_no_initializing_shards: true
 
@@ -293,6 +305,11 @@
           settings:
             index.mode: columnar
             number_of_shards: 1
+            # the _doc order assertions below rely on every searchable copy being a single merged segment, so all copies
+            # must be started before the force merge (see the green health check below). A replica that is still
+            # recovering when the force merge runs is skipped by it and can keep the unmerged segments. Auto-expanding
+            # keeps green reachable on a single node, while stateless always keeps one replica for searches.
+            auto_expand_replicas: 0-1
             refresh_interval: -1
             index.sort.field: ["category", "rank"]
             index.sort.order: ["asc", "asc"]
@@ -308,6 +325,7 @@
   - do:
       cluster.health:
         index: test_secondary
+        wait_for_status: green
         wait_for_events: languid
         wait_for_no_initializing_shards: true
 
@@ -425,6 +443,11 @@
             index.mode: columnar
             index.mapping.doc_values.multi_value: false
             number_of_shards: 1
+            # the _doc order assertions below rely on every searchable copy being a single merged segment, so all copies
+            # must be started before the force merge (see the green health check below). A replica that is still
+            # recovering when the force merge runs is skipped by it and can keep the unmerged segments. Auto-expanding
+            # keeps green reachable on a single node, while stateless always keeps one replica for searches.
+            auto_expand_replicas: 0-1
             refresh_interval: -1
             index.sort.field: tag
             index.sort.order: desc
@@ -438,6 +461,7 @@
   - do:
       cluster.health:
         index: test_index_level
+        wait_for_status: green
         wait_for_events: languid
         wait_for_no_initializing_shards: true
 

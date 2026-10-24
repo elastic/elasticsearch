@@ -273,6 +273,8 @@ public class LocalExecutionPlanner {
      */
     public static final int DEFAULT_EXTERNAL_SOURCE_PAGE_SIZE_ROWS = ExternalLimitSplits.DEFAULT_PAGE_SIZE_ROWS;
 
+    private static final int MV_EXPAND_BLOCK_SIZE = 5000;
+
     /**
      * Minimum pages of work each pushed-LIMIT driver must have. One page per driver
      * guarantees idle drivers under first-byte latency skew: the shared limiter admits
@@ -1731,7 +1733,10 @@ public class LocalExecutionPlanner {
         }
 
         // Load the "positions" of each match
-        source = source.with(new RowInTableLookupOperator.Factory(keys, blockMapping), layout);
+        source = source.with(new RowInTableLookupOperator.Factory(keys, blockMapping, join.repeatedKeys(), join.source()), layout);
+        if (join.repeatedKeys()) {
+            source = source.with(new MvExpandOperator.Factory(positionsChannel, MV_EXPAND_BLOCK_SIZE), layout);
+        }
 
         // Load the "values" from each match
         int loadedFields = 0;
@@ -2718,7 +2723,7 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planMvExpand(MvExpandExec mvExpandExec, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(mvExpandExec.child(), context);
-        int blockSize = 5000;// TODO estimate row size and use context.pageSize()
+        int blockSize = MV_EXPAND_BLOCK_SIZE;// TODO estimate row size and use context.pageSize()
         Layout.Builder layout = source.layout.builder();
         layout.replace(mvExpandExec.target().id(), mvExpandExec.expanded().id());
         return source.with(

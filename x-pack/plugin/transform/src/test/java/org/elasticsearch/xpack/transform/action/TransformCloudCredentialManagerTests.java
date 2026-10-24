@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
@@ -310,9 +311,7 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
         // Compute a minTransportVersion older than the authentication's subject version so that
         // supports() returns false and the maybeRewriteForOlderVersion branch is exercised.
         var subjectVersion = grantedAuthentication.getEffectiveSubject().getTransportVersion();
-        // One ID lower than the subject version — the smallest version for which supports() returns
-        // false, ensuring maybeRewriteForOlderVersion is exercised rather than the no-rewrite path.
-        var olderMinVersion = TransportVersion.fromId(subjectVersion.id() - 1);
+        var olderMinVersion = TransportVersionUtils.getPreviousVersion(subjectVersion);
         assertFalse("test pre-condition: olderMinVersion must not support subjectVersion", olderMinVersion.supports(subjectVersion));
 
         var capturedConfig = new AtomicReference<TransformConfig>();

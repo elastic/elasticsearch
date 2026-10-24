@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -15,8 +16,10 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -78,6 +81,33 @@ public class SessionUtilsTests extends ESTestCase {
         try (PagesRec pagesRec = generatePageSet(BLOCK_FACTORY_1GB)) {
             BlockFactory convertBlockFactory = blockFactory(pagesRec.dataLen - 1);
             assertThrows(CircuitBreakingException.class, () -> fromPages(List.of(KEYWORD_ATTRIBUTE), pagesRec.pages, convertBlockFactory));
+        }
+    }
+
+    public void testFromPagesBoundsExpansionOfConstantBlocks() {
+        ByteSizeValue maxSize = ByteSizeValue.ofKb(128);
+        Page compactPage = new Page(BlockUtils.constantBlock(TestBlockFactory.getNonBreakingInstance(), "x".repeat(2048), 256));
+        assertTrue(compactPage.ramBytesUsedByBlocks() < maxSize.getBytes());
+
+        CircuitBreakerService limitedBreakerService = newLimitedBreakerService(ByteSizeValue.ofKb(450));
+        BlockFactory limitedBlockFactory = BlockFactory.builder(
+            new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, limitedBreakerService)
+        ).build();
+        try {
+            IllegalArgumentException error = expectThrows(
+                IllegalArgumentException.class,
+                () -> fromPages(
+                    List.of(KEYWORD_ATTRIBUTE),
+                    List.of(compactPage),
+                    limitedBlockFactory,
+                    maxSize,
+                    actual -> "materialized data too large: " + actual
+                )
+            );
+            assertThat(error.getMessage(), containsString("materialized data too large:"));
+            assertThat(limitedBreakerService.getBreaker(CircuitBreaker.REQUEST).getUsed(), is(0L));
+        } finally {
+            compactPage.releaseBlocks();
         }
     }
 

@@ -12,7 +12,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -64,13 +67,21 @@ import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryResultContext;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -90,6 +101,66 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class EsqlSessionTests extends ESTestCase {
+
+    public void testFindFirstSubPlanJoinUsesSharedInterface() {
+        ReferenceAttribute leftKey = new ReferenceAttribute(EMPTY, "left_k", DataType.LONG);
+        ReferenceAttribute rightKey = new ReferenceAttribute(EMPTY, "right_k", DataType.LONG);
+        LocalRelation left = localRelation(List.of(leftKey));
+        LocalRelation right = localRelation(List.of(rightKey));
+        InnerJoin innerJoin = new InnerJoin(EMPTY, left, right, List.of(leftKey), List.of(rightKey), List.of(), true);
+        Set<LocalRelation> processed = Collections.newSetFromMap(new IdentityHashMap<>());
+
+        assertSame(innerJoin, EsqlSession.findFirstSubPlanJoin(innerJoin, processed));
+
+        processed.add(right);
+        assertNull(EsqlSession.findFirstSubPlanJoin(innerJoin, processed));
+
+        SemiJoin semiJoin = new SemiJoin(EMPTY, left, right, List.of(leftKey), List.of(rightKey));
+        processed.clear();
+        assertSame(semiJoin, EsqlSession.findFirstSubPlanJoin(semiJoin, processed));
+    }
+
+    public void testReplaceSubPlanResultMemoizesSharedJoinNode() {
+        ReferenceAttribute leftKey = new ReferenceAttribute(EMPTY, "left_k", DataType.LONG);
+        ReferenceAttribute rightKey = new ReferenceAttribute(EMPTY, "right_k", DataType.LONG);
+        LocalRelation left = localRelation(List.of(leftKey));
+        LocalRelation subPlan = localRelation(List.of(rightKey));
+        LocalRelation result = localRelation(List.of(rightKey));
+        AtomicInteger inliningCalls = new AtomicInteger();
+        InnerJoin join = new CountingInnerJoin(left, subPlan, leftKey, rightKey, inliningCalls);
+        UnionAll plan = new UnionAll(EMPTY, List.of(join, join), join.output());
+
+        LogicalPlan inlined = EsqlSession.replaceSubPlanResult(
+            plan,
+            subPlan,
+            result,
+            new SubqueryResultContext(0, ByteSizeValue.ofMb(100), TestBlockFactory.getNonBreakingInstance(), null)
+        );
+
+        UnionAll union = (UnionAll) inlined;
+        assertEquals(1, inliningCalls.get());
+        assertSame(union.children().get(0), union.children().get(1));
+        assertSame(result, ((InnerJoin) union.children().get(0)).right());
+    }
+
+    private static LocalRelation localRelation(List<Attribute> output) {
+        return new LocalRelation(EMPTY, output, LocalSupplier.of(new Page(0)));
+    }
+
+    private static class CountingInnerJoin extends InnerJoin {
+        private final AtomicInteger inliningCalls;
+
+        private CountingInnerJoin(LogicalPlan left, LogicalPlan right, Attribute leftKey, Attribute rightKey, AtomicInteger inliningCalls) {
+            super(EMPTY, left, right, List.of(leftKey), List.of(rightKey), List.of(), true);
+            this.inliningCalls = inliningCalls;
+        }
+
+        @Override
+        public LogicalPlan inlineSubqueryResult(LocalRelation result, SubqueryResultContext context) {
+            inliningCalls.incrementAndGet();
+            return super.inlineSubqueryResult(result, context);
+        }
+    }
 
     public void testUnknownFirstFileWinsRenamePreservesNativeCacheStats() throws Exception {
         assertPinnedRenamePreservesNativeCacheStats(false, false);

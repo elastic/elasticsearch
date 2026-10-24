@@ -25,6 +25,7 @@ import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.crossproject.NoMatchingProjectException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
@@ -569,7 +570,7 @@ public class CredentialTransitionsTests extends ESTestCase {
         PersistedCloudCredential persisted = new PersistedCloudCredential("minted-id", randomCloudCredentialEncryptedData());
         Authentication mintedAuth = AuthenticationTestHelper.builder().build();
         TransportVersion subjectVersion = mintedAuth.getEffectiveSubject().getTransportVersion();
-        TransportVersion olderMinVersion = TransportVersion.fromId(subjectVersion.id() - 1);
+        TransportVersion olderMinVersion = TransportVersionUtils.getPreviousVersion(subjectVersion);
         assertFalse("test pre-condition: olderMinVersion must not support subjectVersion", olderMinVersion.supports(subjectVersion));
 
         doAnswer(invocation -> {

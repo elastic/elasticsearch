@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.ElementType;
@@ -60,12 +61,17 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize, Data
 
         @Override
         public List<ElementType> tagTypes() {
-            return List.of(switch (queryBuilderAndTags.getFirst().tags().getFirst()) {
+            // The null bucket's tag says nothing about the type, so take it from the first bucket that has a value.
+            Object tag = queryBuilderAndTags.stream()
+                .map(qbt -> qbt.tags().getFirst())
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("ByStat has no non-null tag: " + queryBuilderAndTags));
+            return List.of(switch (tag) {
                 case Integer i -> ElementType.INT;
                 case Long l -> ElementType.LONG;
-                default -> throw new IllegalStateException(
-                    "Unsupported tag type in ByStat: " + queryBuilderAndTags.getFirst().tags().getFirst()
-                );
+                case BytesRef b -> ElementType.BYTES_REF;
+                default -> throw new IllegalStateException("Unsupported tag type in ByStat: " + tag);
             });
         }
 

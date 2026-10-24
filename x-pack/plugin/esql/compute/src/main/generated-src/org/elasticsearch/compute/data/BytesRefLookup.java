@@ -29,6 +29,12 @@ public final class BytesRefLookup implements ReleasableIterator<BytesRefBlock> {
 
     private BytesRef first;
     private int valuesInPosition;
+    /**
+     * Bytes of values copied into the block being built. Tracked separately from
+     * {@link Block.Builder#estimatedBytes} because the builder is presized for all
+     * remaining positions, so its estimate reflects capacity, not content.
+     */
+    private long outputBytes;
 
     public BytesRefLookup(BytesRefBlock values, IntBlock positions, ByteSizeValue targetBlockSize) {
         values.incRef();
@@ -47,6 +53,7 @@ public final class BytesRefLookup implements ReleasableIterator<BytesRefBlock> {
     public BytesRefBlock next() {
         try (BytesRefBlock.Builder builder = positions.blockFactory().newBytesRefBlockBuilder(positions.getTotalValueCount())) {
             int count = 0;
+            outputBytes = 0;
             while (position < positions.getPositionCount()) {
                 int start = positions.getFirstValueIndex(position);
                 int end = start + positions.getValueCount(position);
@@ -61,7 +68,7 @@ public final class BytesRefLookup implements ReleasableIterator<BytesRefBlock> {
                 }
                 position++;
                 // TOOD what if the estimate is super huge? should we break even with less than MIN_TARGET?
-                if (++count > Operator.MIN_TARGET_PAGE_SIZE && builder.estimatedBytes() < targetByteSize) {
+                if (++count > Operator.MIN_TARGET_PAGE_SIZE && outputBytes >= targetByteSize) {
                     break;
                 }
             }
@@ -78,6 +85,7 @@ public final class BytesRefLookup implements ReleasableIterator<BytesRefBlock> {
         for (int i = start; i < end; i++) {
             if (valuesInPosition == 0) {
                 first = values.getBytesRef(i, firstScratch);
+                outputBytes += first.length;
                 valuesInPosition++;
                 continue;
             }
@@ -89,7 +97,9 @@ public final class BytesRefLookup implements ReleasableIterator<BytesRefBlock> {
                 // TODO replace this with a warning and break
                 throw new IllegalArgumentException("Found a single entry with " + valuesInPosition + " entries");
             }
-            builder.appendBytesRef(values.getBytesRef(i, valueScratch));
+            BytesRef value = values.getBytesRef(i, valueScratch);
+            outputBytes += value.length;
+            builder.appendBytesRef(value);
             valuesInPosition++;
         }
     }

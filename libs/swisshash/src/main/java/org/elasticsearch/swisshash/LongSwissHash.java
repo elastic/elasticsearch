@@ -252,9 +252,9 @@ public final class LongSwissHash extends SwissHash implements LongHashTable, Par
 
     /**
      * Returns the partition index using a 64-bit mix of the key, which is independent of the 32-bit hash
-     * used for the control byte and slot index.
+     * used for the control byte and slot index. {@link #splitPartition} puts each key in this partition.
      */
-    private static int partition(long key) {
+    public static int partition(long key) {
         return (int) (BitMixer.mix64(key) & PARTITION_MASK);
     }
 

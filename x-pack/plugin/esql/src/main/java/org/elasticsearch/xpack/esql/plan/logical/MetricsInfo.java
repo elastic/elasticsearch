@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 
 import java.io.IOException;
@@ -129,7 +130,7 @@ public class MetricsInfo extends UnaryPlan implements TelemetryAware, PostAnalys
 
     @Override
     public void postAnalysisVerification(Failures failures) {
-        child().forEachDown(p -> {
+        IndependentSubqueryJoin.forEachInMainScope(child(), p -> {
             if (p instanceof PipelineBreaker) {
                 failures.add(fail(this, "METRICS_INFO cannot be used after {} command", pipelineBreakerCommandName(p)));
             }
@@ -137,7 +138,10 @@ public class MetricsInfo extends UnaryPlan implements TelemetryAware, PostAnalys
         if (failures.hasFailures()) {
             return;
         }
-        boolean hasTsSource = child().anyMatch(p -> p instanceof EsRelation er && er.indexMode().isTsdb());
+        boolean hasTsSource = IndependentSubqueryJoin.anyMatchInMainScope(
+            child(),
+            p -> p instanceof EsRelation er && er.indexMode().isTsdb()
+        );
         if (hasTsSource == false) {
             failures.add(fail(this, "METRICS_INFO can only be used with TS source command"));
         }

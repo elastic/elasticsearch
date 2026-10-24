@@ -104,6 +104,18 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
         as(aggregate.child(), Eval.class);
     }
 
+    public void testDoesNotPruneGroupingFromLookupSubqueryEval() {
+        LogicalPlan analyzed = subqueryAnalyzer().query("""
+            FROM test
+            | LEFT OUTER JOIN (FROM test | EVAL flag = true | KEEP languages, flag) ON languages
+            | STATS c = COUNT(*) BY flag
+            """);
+
+        LogicalPlan result = new PruneRedundantAggregateGroupings().apply(analyzed);
+
+        assertThat(Expressions.names(singleAggregate(result).groupings()), contains("flag"));
+    }
+
     public void testDoesNotPruneOnlyDirectLiteralGrouping() {
         var plan = plan("""
             FROM test

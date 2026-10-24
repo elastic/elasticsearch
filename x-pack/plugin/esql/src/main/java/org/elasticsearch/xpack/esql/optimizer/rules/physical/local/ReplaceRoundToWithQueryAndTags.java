@@ -536,7 +536,7 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
         return buildCombinedQueryAndTags(queryExec, pushdownPredicates, isNotNull, clause, List.of(tag));
     }
 
-    private static EsQueryExec.QueryBuilderAndTags nullBucket(
+    static EsQueryExec.QueryBuilderAndTags nullBucket(
         Source source,
         Expression field,
         EsQueryExec queryExec,
@@ -584,7 +584,7 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
      * If the query level pragmas is set to -1(default), the cluster level flags will be used.
      * If the query level pragmas is set to greater than or equals to 0, the query level pragmas will be used.
      */
-    private static int roundingPointsThreshold(LocalPhysicalOptimizerContext ctx) {
+    static int roundingPointsThreshold(LocalPhysicalOptimizerContext ctx) {
         int queryLevelRoundingPointsThreshold = ctx.configuration().pragmas().roundToPushDownThreshold();
         int clusterLevelRoundingPointsThreshold = ctx.flags().roundToPushdownThreshold();
         int roundingPointsThreshold;

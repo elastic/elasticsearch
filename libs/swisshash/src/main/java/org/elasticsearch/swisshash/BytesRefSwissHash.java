@@ -198,6 +198,17 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
     }
 
     /**
+     * Finds an {@code id} by a {@code key} whose {@link #hash64} the caller already computed.
+     */
+    public long find(BytesRef key, long hash64) {
+        if (smallCore != null) {
+            return smallCore.find(key, hash64);
+        } else {
+            return bigCore.find(key, hash64);
+        }
+    }
+
+    /**
      * Whether the hash table is large enough for prefetch to be useful
      */
     public boolean shouldPrefetch() {
@@ -295,8 +306,9 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
 
     /**
      * Returns the partition index using bits that do not overlap with the lower 32 hash-slot bits or the top 7 control bits.
+     * {@link #splitPartition} puts each key in the partition of its {@link #hash64}.
      */
-    private static int partition(long hash64) {
+    public static int partition(long hash64) {
         return (int) (hash64 >>> Integer.SIZE) & PARTITION_MASK;
     }
 

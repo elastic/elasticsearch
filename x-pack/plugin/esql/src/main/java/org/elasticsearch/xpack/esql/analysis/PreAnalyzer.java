@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -99,8 +100,8 @@ public class PreAnalyzer {
                 } else {
                     IndexMode m1 = p.indexMode();
                     IndexMode m2 = indexes.get(p.indexPattern());
-                    throw new IllegalStateException(
-                        "index pattern '" + p.indexPattern() + "' found with different index mode: " + m2 + " != " + m1
+                    throw new EsqlIllegalArgumentException(
+                        "Index pattern [" + p.indexPattern() + "] is referenced with multiple index modes [" + m2 + "] and [" + m1 + "]"
                     );
                 }
             }

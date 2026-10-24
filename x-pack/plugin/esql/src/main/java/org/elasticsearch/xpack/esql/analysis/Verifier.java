@@ -82,7 +82,9 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoin;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.FieldNameUtils;
@@ -146,6 +148,14 @@ public class Verifier {
         Failures failures = new Failures();
         boolean unmappedTimestampHandled = unmappedResolution != UnmappedResolution.DEFAULT
             && isTimestampUnmappedInAllIndices(plan, failures);
+
+        if (unmappedResolution != UnmappedResolution.DEFAULT && plan.anyMatch(SubqueryJoin.class::isInstance)) {
+            plan.forEachDown(
+                SubqueryJoin.class,
+                join -> failures.add(fail(join, "JOIN subquery is only supported with [unmapped_fields=default]"))
+            );
+            return failures.failures();
+        }
 
         // quick verification for unresolved attributes
         checkUnresolvedAttributes(plan, failures, unmappedTimestampHandled);
@@ -598,14 +608,14 @@ public class Verifier {
 
     /**
      * Pre-order search for the first {@link Limit}/{@link LimitBy} below {@code plan}, skipping the right branch of any
-     * {@link AbstractSubqueryJoin}: a LIMIT inside an IN subquery only bounds the independently executed subquery result, not the main
+     * {@link IndependentSubqueryJoin}: a LIMIT inside a subquery only bounds the independently executed result, not the main
      * stream feeding INLINE STATS. Returns {@code null} when no LIMIT is found.
      */
     private static LogicalPlan findLimitSkippingSubqueryJoins(LogicalPlan plan) {
         if (plan instanceof Limit || plan instanceof LimitBy) {
             return plan;
         }
-        List<LogicalPlan> children = plan instanceof AbstractSubqueryJoin subqueryJoin ? List.of(subqueryJoin.left()) : plan.children();
+        List<LogicalPlan> children = IndependentSubqueryJoin.mainScopeChildren(plan);
         for (LogicalPlan child : children) {
             LogicalPlan limit = findLimitSkippingSubqueryJoins(child);
             if (limit != null) {

@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
@@ -250,7 +251,7 @@ public class ToText extends AbstractConvertFunction
         }
         Holder<Attribute> current = new Holder<>((Attribute) input);
         Holder<Boolean> mapped = new Holder<>(false);
-        plan.forEachDownMayReturnEarly((p, breakEarly) -> {
+        IndependentSubqueryJoin.forEachInMainScopeUntil(plan, p -> {
             List<? extends NamedExpression> aliases;
             if (p instanceof Project project) {
                 aliases = project.projections();
@@ -260,21 +261,22 @@ public class ToText extends AbstractConvertFunction
                 // Only Project and Eval rebind an attribute id onto a new child expression. Every other node that
                 // introduces attributes - FORK, MV_EXPAND, STATS, joins, ... - materializes a runtime column that
                 // cannot be pushed down to Lucene, so skipping them leaves `mapped` false.
-                return;
+                return false;
             }
             for (NamedExpression ne : aliases) {
                 if (ne instanceof Alias alias && alias.toAttribute().id().equals(current.get().id())) {
                     if (alias.child() instanceof FieldAttribute fa) {
                         mapped.set(isMapped(fa));
-                        breakEarly.set(true);
+                        return true;
                     } else if (alias.child() instanceof Attribute next) {
                         current.set(next);
                     } else {
-                        breakEarly.set(true);
+                        return true;
                     }
-                    return;
+                    return false;
                 }
             }
+            return false;
         });
         return mapped.get();
     }

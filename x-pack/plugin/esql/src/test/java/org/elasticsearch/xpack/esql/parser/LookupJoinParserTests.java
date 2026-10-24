@@ -80,6 +80,13 @@ public class LookupJoinParserTests extends AbstractStatementParserTests {
         assertThat(join.config().type().joinName(), equalTo("LEFT OUTER"));
     }
 
+    public void testLookupJoinIndexNamedOuter() {
+        assumeTrue("LOOKUP JOIN requires the corresponding capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+
+        var join = as(query("FROM main | LOOKUP JOIN outer ON key"), LookupJoin.class);
+        assertThat(as(join.right(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo("outer"));
+    }
+
     /**
      * Verify that both in snapshot and in release build the feature is enabled and the parsing works
      * without checking for the capability
@@ -384,6 +391,7 @@ public class LookupJoinParserTests extends AbstractStatementParserTests {
                 expectError("FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + onClause, "no viable alternative at input");
             }
         }
+
     }
 
     public void testLookupJoinOnExpressionWithNamedQueryParameters() {

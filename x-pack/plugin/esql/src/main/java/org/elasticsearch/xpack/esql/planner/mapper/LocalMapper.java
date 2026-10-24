@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.join.MaterializedSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -150,7 +151,8 @@ public class LocalMapper {
         // special handling for inlinejoin - join + subquery which has to be executed first (async) and replaced by its result
         if (binary instanceof Join join) {
             JoinConfig config = join.config();
-            if (config.type() != JoinTypes.LEFT) {
+            boolean materializedSubqueryInnerJoin = join instanceof MaterializedSubqueryJoin && config.type() == JoinTypes.INNER;
+            if (config.type() != JoinTypes.LEFT && materializedSubqueryInnerJoin == false) {
                 throw new EsqlIllegalArgumentException("unsupported join type [" + config.type() + "]");
             }
 
@@ -159,13 +161,17 @@ public class LocalMapper {
             if (binary.right() instanceof LocalRelation) {
                 PhysicalPlan right = map(binary.right());
                 if (right instanceof LocalSourceExec localData) {
+                    if (join instanceof MaterializedSubqueryJoin) {
+                        return Mapper.mapMaterializedSubqueryJoin(join, left, localData);
+                    }
                     return new HashJoinExec(
                         join.source(),
                         left,
                         localData,
                         config.leftFields(),
                         config.rightFields(),
-                        join.rightOutputFields()
+                        join.rightOutputFields(),
+                        false
                     );
                 } else {
                     throw new EsqlIllegalArgumentException("Unsupported right plan for join [" + binary.right().nodeName() + "]");

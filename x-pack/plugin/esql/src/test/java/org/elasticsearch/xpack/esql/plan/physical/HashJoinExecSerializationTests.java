@@ -7,11 +7,17 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.io.IOException;
 import java.util.List;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class HashJoinExecSerializationTests extends AbstractPhysicalPlanSerializationTests<HashJoinExec> {
     public static HashJoinExec randomHashJoinExec(int depth) {
@@ -21,7 +27,7 @@ public class HashJoinExecSerializationTests extends AbstractPhysicalPlanSerializ
         List<Attribute> leftFields = randomFields();
         List<Attribute> rightFields = randomFields();
         List<Attribute> output = randomFields();
-        return new HashJoinExec(source, child, joinData, leftFields, rightFields, output);
+        return new HashJoinExec(source, child, joinData, leftFields, rightFields, output, randomBoolean());
     }
 
     private static List<Attribute> randomFields() {
@@ -40,15 +46,50 @@ public class HashJoinExecSerializationTests extends AbstractPhysicalPlanSerializ
         List<Attribute> leftFields = randomFieldAttributes(1, 5, false);
         List<Attribute> rightFields = randomFieldAttributes(1, 5, false);
         List<Attribute> output = randomFieldAttributes(1, 5, false);
-        switch (between(0, 4)) {
+        boolean repeatedKeys = instance.repeatedKeys();
+        switch (between(0, 5)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> joinData = randomValueOtherThan(joinData, LocalSourceExecSerializationTests::randomLocalSourceExec);
             case 2 -> leftFields = randomValueOtherThan(leftFields, HashJoinExecSerializationTests::randomFields);
             case 3 -> rightFields = randomValueOtherThan(rightFields, HashJoinExecSerializationTests::randomFields);
             case 4 -> output = randomValueOtherThan(output, HashJoinExecSerializationTests::randomFields);
+            case 5 -> repeatedKeys = repeatedKeys == false;
             default -> throw new UnsupportedOperationException();
         }
-        return new HashJoinExec(instance.source(), child, joinData, leftFields, rightFields, output);
+        return new HashJoinExec(instance.source(), child, joinData, leftFields, rightFields, output, repeatedKeys);
+    }
+
+    public void testRepeatedKeyModeRoundTripsAndSurvivesChildReplacement() throws IOException {
+        HashJoinExec randomJoin = randomHashJoinExec(0);
+        HashJoinExec join = new HashJoinExec(
+            randomJoin.source(),
+            randomJoin.left(),
+            randomJoin.right(),
+            randomJoin.leftFields(),
+            randomJoin.rightFields(),
+            List.copyOf(randomJoin.addedFields()),
+            true
+        );
+        assertTrue(copyInstance(join, TransportVersion.current()).repeatedKeys());
+        assertTrue(join.replaceChildren(join.left(), join.right()).repeatedKeys());
+    }
+
+    public void testRepeatedKeyModeCannotBeSerializedToUnsupportedVersion() throws IOException {
+        HashJoinExec randomJoin = randomHashJoinExec(0);
+        HashJoinExec join = new HashJoinExec(
+            randomJoin.source(),
+            randomJoin.left(),
+            randomJoin.right(),
+            randomJoin.leftFields(),
+            randomJoin.rightFields(),
+            List.copyOf(randomJoin.addedFields()),
+            true
+        );
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(TransportVersionUtils.getPreviousVersion(Analyzer.ESQL_JOIN_SUBQUERY));
+            IllegalStateException error = expectThrows(IllegalStateException.class, () -> join.writeTo(out));
+            assertThat(error.getMessage(), containsString("without subquery join support"));
+        }
     }
 
     @Override

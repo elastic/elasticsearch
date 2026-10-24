@@ -745,6 +745,14 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             """));
     }
 
+    public void testLoadModeRejectsLookupJoinSubqueryBeforeUnresolvedAttributes() {
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
+        test().statementError(
+            setUnmappedLoad("ROW key = 1 | LEFT OUTER JOIN (ROW key = 1, value = 2) ON missing_key"),
+            allOf(containsString("JOIN subquery is only supported with [unmapped_fields=default]"), not(containsString("Unknown column")))
+        );
+    }
+
     public void testLoadModeAllowsSingleSubqueryPlusFork() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         // A single subquery without a main index is merged into the main query during analysis, so there is no

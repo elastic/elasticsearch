@@ -129,11 +129,17 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable, P
      */
     @Override
     public long find(final long key1, final long key2) {
-        final long hash = hash(key1, key2);
+        return find(key1, key2, hash64(key1, key2));
+    }
+
+    /**
+     * Finds an {@code id} by a {@code key1} and a {@code key2} whose {@link #hash64} the caller already computed.
+     */
+    public long find(final long key1, final long key2, final long hash64) {
         if (smallCore != null) {
-            return smallCore.find(key1, key2, hash);
+            return smallCore.find(key1, key2, hash64);
         } else {
-            return bigCore.find(key1, key2, hash, control(hash));
+            return bigCore.find(key1, key2, hash64, control(hash64));
         }
     }
 
@@ -144,7 +150,7 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable, P
      */
     @Override
     public long add(final long key1, final long key2) {
-        final long hash = hash(key1, key2);
+        final long hash = hash64(key1, key2);
         if (smallCore != null) {
             if (size < nextGrowSize) {
                 return smallCore.add(key1, key2, hash);
@@ -207,8 +213,9 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable, P
 
     /**
      * Returns the partition index using bits that do not overlap with the lower 32 hash-slot bits or the top 7 control bits.
+     * {@link #splitPartition} puts each key in the partition of its {@link #hash64}.
      */
-    private static int partition(long hash64) {
+    public static int partition(long hash64) {
         return (int) (hash64 >>> Integer.SIZE) & PARTITION_MASK;
     }
 
@@ -309,7 +316,7 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable, P
             for (int i = 0; i < len; i++) {
                 long k1 = keys[i * 2];
                 long k2 = keys[i * 2 + 1];
-                long hash = hash(k1, k2);
+                long hash = hash64(k1, k2);
                 int id = add(k1, k2, hash);
                 ids[i] = id >= 0 ? id : -1 - id;
             }
@@ -362,7 +369,7 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable, P
         private void rehash() {
             for (int i = 0; i < size; i++) {
                 final int keyOffset = keyOffset(i);
-                final long hash64 = hash(key1(keyOffset), key2(keyOffset));
+                final long hash64 = hash64(key1(keyOffset), key2(keyOffset));
                 bigCore.insert((int) hash64, control(hash64), i);
             }
         }
@@ -504,7 +511,7 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable, P
                 // compute hashes and fetch id page refs
                 for (int i = 0; i < chunkSize; i++) {
                     final int absIdx = offset + i;
-                    final long hash = hash(key1s[absIdx], key2s[absIdx]);
+                    final long hash = hash64(key1s[absIdx], key2s[absIdx]);
                     batchHashes[i] = hash;
                     batchPagesRefs[i] = idPages[((int) hash & mask) >> ID_PAGE_SHIFT];
                 }
@@ -652,7 +659,7 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable, P
             for (int id = 0; id < len; id++) {
                 long key1 = keys[id * 2];
                 long key2 = keys[id * 2 + 1];
-                long hash = hash(key1, key2);
+                long hash = hash64(key1, key2);
                 insert((int) hash, control(hash), id);
                 if (indexInPage == PageCacheRecycler.PAGE_SIZE_IN_BYTES) {
                     keyPage = keyPages[++pageIndex];
@@ -683,7 +690,7 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable, P
             for (int i = 0; i < len; i++) {
                 long k1 = keys[i * 2];
                 long k2 = keys[i * 2 + 1];
-                long hash = hash(k1, k2);
+                long hash = hash64(k1, k2);
                 int id = addImpl(k1, k2, hash);
                 ids[i] = id >= 0 ? id : -1 - id;
             }
@@ -756,7 +763,10 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable, P
         return (long) id * KEY_SIZE;
     }
 
-    private static long hash(long key1, long key2) {
+    /**
+     * The 64-bit hash of a key, which picks its slot, control byte and {@link #partition}.
+     */
+    public static long hash64(long key1, long key2) {
         long h = key1 * 0x9E3779B97F4A7C15L ^ key2;
         h = (h ^ (h >>> 32)) * 0x4cd6944c5cc20b6dL;
         h = (h ^ (h >>> 29)) * 0xfc12c5b19d3259e9L;
@@ -869,7 +879,7 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable, P
                 final long key1 = (long) LONG_HANDLE.get(keyPage, indexInPage);
                 final long key2 = (long) LONG_HANDLE.get(keyPage, indexInPage + Long.BYTES);
                 indexInPage += KEY_SIZE;
-                final long hash64 = hash(key1, key2);
+                final long hash64 = hash64(key1, key2);
                 final int p = partition(hash64);
                 if (batchPartitionCounts[p] == PARTITION_WRITE_BATCH) {
                     partitionedKeys.splitKeys(breaker, keyPages, batchStart, shiftedIds, batchPartitionCounts);

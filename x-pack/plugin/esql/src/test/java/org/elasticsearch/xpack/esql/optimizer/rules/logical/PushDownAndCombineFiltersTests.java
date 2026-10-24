@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 
@@ -432,6 +433,49 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         assertEquals(left, optimizedJoin.left());
         Filter rightFilter = as(optimizedJoin.right(), Filter.class);
         assertEquals(pushableCondition, rightFilter.condition());
+    }
+
+    public void testNullRejectingFilterTurnsLeftSubqueryJoinIntoInner() {
+        FieldAttribute leftKey = getFieldAttribute("left_key");
+        FieldAttribute rightKey = getFieldAttribute("right_key");
+        FieldAttribute rightValue = getFieldAttribute("right_value");
+        EsRelation left = relation(List.of(leftKey));
+        EsRelation right = relation(List.of(rightKey, rightValue));
+        JoinConfig config = new JoinConfig(JoinTypes.LEFT, List.of(leftKey), List.of(rightKey), null);
+        SubqueryJoin join = new SubqueryJoin(EMPTY, left, right, config, ExecuteLocation.ANY);
+        ReferenceAttribute joinedRightValue = joinedAttribute(join, "right_value");
+
+        Filter filter = new Filter(EMPTY, join, greaterThanOf(joinedRightValue, ONE));
+        LogicalPlan optimized = new PushDownAndCombineFilters().apply(filter, optimizerContext);
+
+        SubqueryJoin optimizedJoin = as(optimized, SubqueryJoin.class);
+        assertEquals(JoinTypes.INNER, optimizedJoin.config().type());
+        assertEquals(left, optimizedJoin.left());
+        Filter rightFilter = as(optimizedJoin.right(), Filter.class);
+        assertEquals(greaterThanOf(rightValue, ONE), rightFilter.condition());
+        assertThat(rightFilter.condition().references().iterator().next(), instanceOf(FieldAttribute.class));
+        assertEquals(optimized, new PushDownAndCombineFilters().apply(optimized, optimizerContext));
+    }
+
+    public void testNullAcceptingFilterKeepsLeftSubqueryJoin() {
+        FieldAttribute leftKey = getFieldAttribute("left_key");
+        FieldAttribute rightKey = getFieldAttribute("right_key");
+        FieldAttribute rightValue = getFieldAttribute("right_value");
+        SubqueryJoin join = new SubqueryJoin(
+            EMPTY,
+            relation(List.of(leftKey)),
+            relation(List.of(rightKey, rightValue)),
+            new JoinConfig(JoinTypes.LEFT, List.of(leftKey), List.of(rightKey), null),
+            ExecuteLocation.ANY
+        );
+
+        Filter filter = new Filter(EMPTY, join, new IsNull(EMPTY, joinedAttribute(join, "right_value")));
+
+        assertEquals(filter, new PushDownAndCombineFilters().apply(filter, optimizerContext));
+    }
+
+    private static ReferenceAttribute joinedAttribute(SubqueryJoin join, String name) {
+        return (ReferenceAttribute) join.output().stream().filter(attribute -> attribute.name().equals(name)).findFirst().orElseThrow();
     }
 
     public void testPushDownFilterPastLeftJoinWithExistingFilter() {

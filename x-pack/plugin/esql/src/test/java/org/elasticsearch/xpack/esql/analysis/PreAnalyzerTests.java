@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
@@ -26,6 +27,15 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PreAnalyzerTests extends ESTestCase {
+
+    public void testMixedIndexModesReturnClientError() {
+        assumeTrue("TS command required", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
+
+        var plan = TEST_PARSER.parseQuery("TS idx | LEFT OUTER JOIN (FROM idx) ON host");
+        EsqlIllegalArgumentException exception = expectThrows(EsqlIllegalArgumentException.class, () -> new PreAnalyzer().preAnalyze(plan));
+        assertThat(exception.getMessage(), containsString("Index pattern [idx] is referenced with multiple index modes"));
+    }
 
     public void testCollectInferenceIds() {
         PreAnalyzer preAnalyzer = new PreAnalyzer();
@@ -209,8 +219,8 @@ public class PreAnalyzerTests extends ESTestCase {
     public void testSameIndexPatternWithDifferentIndexModesFails() {
         assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
         expectThrows(
-            IllegalStateException.class,
-            containsString("index pattern 'p' found with different index mode"),
+            EsqlIllegalArgumentException.class,
+            containsString("Index pattern [p] is referenced with multiple index modes"),
             () -> new PreAnalyzer().preAnalyze(TEST_PARSER.parseQuery(randomFrom("FROM (FROM p), (TS p)", "FROM (TS p), (FROM p)")))
         );
     }

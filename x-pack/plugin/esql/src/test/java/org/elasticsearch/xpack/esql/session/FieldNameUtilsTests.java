@@ -3843,6 +3843,35 @@ public class FieldNameUtilsTests extends ESTestCase {
         assertFieldNames("FROM idx | HIGHLIGHT MATCH(title, \"foo\") AND NOT MATCH(body, \"bar\") | KEEP highlight_title", ALL_FIELDS);
     }
 
+    // JOIN subquery tests
+
+    public void testLookupJoinSubqueryCollectsRightKeysAndPayload() {
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
+        assertFieldNames("""
+            FROM employees
+            | LEFT OUTER JOIN (FROM languages | KEEP language_name) ON language_id
+            | KEEP emp_no, language_name
+            """, Set.of("_index", "emp_no", "emp_no.*", "language_id", "language_id.*", "language_name", "language_name.*"));
+    }
+
+    public void testLookupJoinSubqueryWithoutReducerRequestsAllFields() {
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
+        assertFieldNames("""
+            FROM employees
+            | KEEP emp_no
+            | LEFT OUTER JOIN (FROM languages) ON language_id
+            | KEEP emp_no, language_name
+            """, ALL_FIELDS);
+    }
+
+    public void testLookupJoinSubqueryReducerDoesNotConstrainMainQueryFields() {
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
+        assertFieldNames("""
+            FROM employees
+            | LEFT OUTER JOIN (FROM languages | STATS c = COUNT(*) BY language_id) ON language_id
+            """, ALL_FIELDS);
+    }
+
     // IN subquery tests
 
     public void testInSubquery() {

@@ -1594,3 +1594,93 @@ warning:line 2:1: approximation not supported: query with [FROM employees_no_mv]
 avg_emp_no:double
 10050.5
 ;
+
+leftOuterJoinIndexToDatasetSubquery
+required_capability: dataset_in_from_command
+required_capability: join_on_subquery
+dataset: lookup_employees: "{{employees_no_mv}}"
+
+FROM languages
+| LEFT OUTER JOIN (
+    FROM lookup_employees
+    | WHERE emp_no == 10001
+    | EVAL language_code = languages
+    | KEEP language_code, first_name
+  ) ON language_code
+| KEEP language_code, language_name, first_name
+| SORT language_code
+;
+
+language_code:integer | language_name:keyword | first_name:keyword
+1                  | English                  | null
+2                  | French                   | Georgi
+3                  | Spanish                  | null
+4                  | German                   | null
+;
+
+innerJoinIndexToDatasetSubquery
+required_capability: dataset_in_from_command
+required_capability: join_on_subquery
+dataset: lookup_employees: "{{employees_no_mv}}"
+
+FROM languages
+| INNER JOIN (
+    FROM lookup_employees
+    | WHERE emp_no == 10001
+    | EVAL language_code = languages
+    | KEEP language_code, first_name
+  ) ON language_code
+| KEEP language_code, language_name, first_name
+| SORT language_code
+;
+
+language_code:integer | language_name:keyword | first_name:keyword
+2                  | French                   | Georgi
+;
+
+leftOuterJoinDatasetToDatasetSubqueries
+required_capability: dataset_in_from_command
+required_capability: join_on_subquery
+dataset: lookup_employees_left: "{{employees_no_mv}}"
+dataset: lookup_employees_right: "{{employees_no_mv}}"
+
+FROM lookup_employees_left
+| WHERE emp_no == 10001 OR emp_no == 10002
+| KEEP emp_no, first_name
+| LEFT OUTER JOIN (
+    FROM lookup_employees_right
+    | WHERE emp_no == 10001
+    | EVAL right_first_name = first_name
+    | KEEP emp_no, right_first_name
+  ) ON emp_no
+| KEEP emp_no, first_name, right_first_name
+| SORT emp_no
+;
+
+emp_no:integer | first_name:keyword | right_first_name:keyword
+10001          | Georgi             | Georgi
+10002          | Bezalel            | null
+;
+
+innerJoinDatasetToDatasetSubqueries
+required_capability: dataset_in_from_command
+required_capability: join_on_subquery
+dataset: lookup_employees_left: "{{employees_no_mv}}"
+dataset: lookup_employees_right: "{{employees_no_mv}}"
+
+FROM lookup_employees_left
+| WHERE emp_no == 10001 OR emp_no == 10002
+| KEEP emp_no, first_name
+| INNER JOIN (
+    FROM lookup_employees_right
+    | WHERE emp_no == 10001
+    | EVAL right_first_name = first_name
+    | KEEP emp_no, right_first_name
+  ) ON emp_no
+| KEEP emp_no, first_name, right_first_name
+| SORT emp_no
+;
+
+emp_no:integer | first_name:keyword | right_first_name:keyword
+10001          | Georgi             | Georgi
+;

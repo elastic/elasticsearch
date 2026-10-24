@@ -42,6 +42,55 @@ public class SessionUtils {
         return blocks;
     }
 
+    /**
+     * Materializes pages while bounding the expanded builder size. Compact input blocks can grow substantially when copied into a local
+     * relation.
+     */
+    public static Block[] fromPages(
+        List<Attribute> schema,
+        List<Page> pages,
+        BlockFactory blockFactory,
+        ByteSizeValue maxSize,
+        LongFunction<String> exceptionMessage
+    ) {
+        long maxBytes = maxSize.getBytes();
+        Block.Builder[] builders = new Block.Builder[schema.size()];
+        Block[] blocks;
+        try {
+            for (int b = 0; b < builders.length; b++) {
+                builders[b] = PlannerUtils.toElementType(schema.get(b).dataType()).newBlockBuilder(0, blockFactory);
+            }
+            checkBuildersBelowSize(builders, maxBytes, exceptionMessage);
+            for (Page page : pages) {
+                for (int position = 0; position < page.getPositionCount(); position++) {
+                    for (int b = 0; b < builders.length; b++) {
+                        builders[b].copyFrom(page.getBlock(b), position, position + 1);
+                    }
+                    checkBuildersBelowSize(builders, maxBytes, exceptionMessage);
+                }
+            }
+            blocks = Block.Builder.buildAll(builders);
+        } finally {
+            Releasables.closeExpectNoException(builders);
+        }
+        return blocks;
+    }
+
+    private static void checkBuildersBelowSize(Block.Builder[] builders, long maxBytes, LongFunction<String> exceptionMessage) {
+        long currentSize = 0;
+        for (Block.Builder builder : builders) {
+            long builderSize = builder.estimatedBytes();
+            if (builderSize > Long.MAX_VALUE - currentSize) {
+                currentSize = Long.MAX_VALUE;
+                break;
+            }
+            currentSize += builderSize;
+        }
+        if (currentSize > maxBytes) {
+            throw new IllegalArgumentException(exceptionMessage.apply(currentSize));
+        }
+    }
+
     public static long checkPagesBelowSize(List<Page> pages, ByteSizeValue maxSize, LongFunction<String> exceptionMessage) {
         long currentSize = pages.stream().mapToLong(Page::ramBytesUsedByBlocks).sum();
         if (currentSize > maxSize.getBytes()) {

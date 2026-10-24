@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 
 /**
  * Follows {@code EVAL} and {@code RENAME} copies of a column back to the expression that produced it.
@@ -24,12 +25,12 @@ public final class AliasBindings {
      * {@code resolve(column, column)} on the result to follow {@code column} back to what produced it.
      * <p>
      * {@code FORK} copies the commands above it into every branch, and each copy binds the same ids again. A map built
-     * over the whole plan can therefore follow a column into a different branch. To follow a branch's own copy, build
-     * the map over that branch.
+     * over the whole plan can therefore follow a column into a different branch. Independent subquery right sides are
+     * also excluded because their aliases belong to a separate query scope.
      */
     public static AttributeMap<Expression> of(LogicalPlan plan) {
         AttributeMap.Builder<Expression> bindings = AttributeMap.builder();
-        plan.forEachDown(p -> {
+        IndependentSubqueryJoin.forEachInMainScope(plan, p -> {
             if (p instanceof Eval eval) {
                 eval.fields().forEach(alias -> bindings.put(alias.toAttribute(), alias.child()));
             } else if (p instanceof Project project) {

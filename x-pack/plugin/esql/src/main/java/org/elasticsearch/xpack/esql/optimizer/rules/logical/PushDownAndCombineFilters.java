@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
@@ -33,13 +34,17 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
@@ -178,9 +183,10 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
 
     private static LogicalPlan pushDownPastJoin(Filter filter, Join join, FoldContext foldCtx) {
         LogicalPlan plan = filter;
-        // pushdown only through LEFT joins
+        // pushdown only through LEFT joins and INNER subquery joins
         // TODO: generalize this for other join types
-        if (join.config().type() == JoinTypes.LEFT) {
+        boolean innerSubqueryJoin = join instanceof IndependentSubqueryJoin && join.config().type() == JoinTypes.INNER;
+        if (join.config().type() == JoinTypes.LEFT || innerSubqueryJoin) {
             LogicalPlan left = join.left();
             LogicalPlan right = join.right();
             var conjunctions = Predicates.splitAnd(filter.condition());
@@ -220,51 +226,74 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
             // motivation does not apply. The duplicate filter above the join already enforces the
             // predicate. The only producer today is AbstractSubqueryJoin.inlineAsHashJoin's sentinel filter
             // (which is a no-op against the constant-TRUE sentinel column anyway).
-            if (scoped.rightFilters.isEmpty() == false && join instanceof InlineJoin == false && right instanceof LocalRelation == false) {
-                List<Expression> rightPushableFilters = buildRightPushableFilters(scoped.rightFilters, foldCtx);
-                if (rightPushableFilters.isEmpty() == false) {
-                    if (join.right() instanceof Filter existingRightFilter) {
-                        // merge the unique AND filter components from rightPushableFilters and existingRightFilter.condition()
+            // A subquery join is turned into an INNER join when a filter above it rejects unmatched rows, i.e., when it evaluates to
+            // false or null once the right-side columns are null. Every row of an INNER join carries the values of its matched right
+            // row, so all right-only filters then move into the subquery and are not reapplied above the join. Leaving them above a
+            // LEFT join is not an option either: the subquery output is rebound below its own projections, so a right side that
+            // already carries the pushed filter would not be recognized and the same filter would be pushed again and again.
+            if (join instanceof IndependentSubqueryJoin
+                && scoped.rightFilters.isEmpty() == false
+                && right instanceof LocalRelation == false
+                && (innerSubqueryJoin || buildRightPushableFilters(scoped.rightFilters, foldCtx).isEmpty() == false)) {
+                right = new Filter(
+                    right.source(),
+                    right,
+                    Predicates.combineAnd(rebindRightAttributes(scoped.rightFilters, right.output()))
+                );
+                JoinConfig config = join.config();
+                join = join.withConfig(
+                    new JoinConfig(JoinTypes.INNER, config.leftFields(), config.rightFields(), config.joinOnConditions())
+                ).replaceChildren(left, right);
+                scoped = new ScopedFilter(scoped.commonFilters, List.of(), List.of());
+                optimizationApplied = true;
+            } else if (scoped.rightFilters.isEmpty() == false
+                && join instanceof InlineJoin == false
+                && join instanceof IndependentSubqueryJoin == false
+                && right instanceof LocalRelation == false) {
+                    List<Expression> rightPushableFilters = buildRightPushableFilters(scoped.rightFilters, foldCtx);
+                    if (rightPushableFilters.isEmpty() == false) {
+                        if (join.right() instanceof Filter existingRightFilter) {
+                            // merge the unique AND filter components from rightPushableFilters and existingRightFilter.condition()
 
-                        List<Expression> existingFilters = new ArrayList<>(Predicates.splitAnd(existingRightFilter.condition()));
-                        int sizeBefore = existingFilters.size();
-                        rightPushableFilters.stream()
-                            .filter(e -> existingFilters.stream().anyMatch(x -> x.semanticEquals(e)) == false)
-                            .forEach(existingFilters::add);
-                        if (sizeBefore != existingFilters.size()) {
-                            right = existingRightFilter.with(Predicates.combineAnd(existingFilters));
+                            List<Expression> existingFilters = new ArrayList<>(Predicates.splitAnd(existingRightFilter.condition()));
+                            int sizeBefore = existingFilters.size();
+                            rightPushableFilters.stream()
+                                .filter(e -> existingFilters.stream().anyMatch(x -> x.semanticEquals(e)) == false)
+                                .forEach(existingFilters::add);
+                            if (sizeBefore != existingFilters.size()) {
+                                right = existingRightFilter.with(Predicates.combineAnd(existingFilters));
+                                join = (Join) join.replaceRight(right);
+                                optimizationApplied = true;
+                            } // else nothing needs to be updated
+                        } else {
+                            // create a new filter on top of the right child
+                            right = new Filter(right.source(), right, Predicates.combineAnd(rightPushableFilters));
+                            // update the join with the new right child
                             join = (Join) join.replaceRight(right);
                             optimizationApplied = true;
-                        } // else nothing needs to be updated
-                    } else {
-                        // create a new filter on top of the right child
-                        right = new Filter(right.source(), right, Predicates.combineAnd(rightPushableFilters));
-                        // update the join with the new right child
-                        join = (Join) join.replaceRight(right);
-                        optimizationApplied = true;
+                        }
                     }
-                }
-                /*
-                We still want to reapply the filters that we just applied to the right child,
-                so we do NOT update scoped, and we do NOT mark optimizationApplied as true.
-                This is because by pushing them on the right side, we filter what rows we get from the right side
-                But we do not limit the output rows of the join as the rows are kept as not matched on the left side
-                So we end up applying the right filters twice, once on the right side and once on top of the join
-                This will result in major performance optimization when the lookup join is expanding
-                and applying the right filters reduces the expansion significantly.
-                For example, consider an expanding lookup join of 100,000 rows table with 10,000 lookup table
-                with filter of selectivity 0.1% on the right side(keeps 10 out of 10,000 rows of the lookup table).
-                In the non-optimized version the filter is not pushed to the right, and we get an explosion of records.
-                We have 100,000x10,000 = 1,000,000,000 rows after the join without the optimization.
-                Then we filter then out to only 1,000,000 rows.
-                With the optimization we apply the filter early so after the expanding join we only have 1,000,000 rows.
-                This reduced max number of rows used by a factor of 1,000
+                    /*
+                    We still want to reapply the filters that we just applied to the right child,
+                    so we do NOT update scoped, and we do NOT mark optimizationApplied as true.
+                    This is because by pushing them on the right side, we filter what rows we get from the right side
+                    But we do not limit the output rows of the join as the rows are kept as not matched on the left side
+                    So we end up applying the right filters twice, once on the right side and once on top of the join
+                    This will result in major performance optimization when the lookup join is expanding
+                    and applying the right filters reduces the expansion significantly.
+                    For example, consider an expanding lookup join of 100,000 rows table with 10,000 lookup table
+                    with filter of selectivity 0.1% on the right side(keeps 10 out of 10,000 rows of the lookup table).
+                    In the non-optimized version the filter is not pushed to the right, and we get an explosion of records.
+                    We have 100,000x10,000 = 1,000,000,000 rows after the join without the optimization.
+                    Then we filter then out to only 1,000,000 rows.
+                    With the optimization we apply the filter early so after the expanding join we only have 1,000,000 rows.
+                    This reduced max number of rows used by a factor of 1,000
 
-                In the future, once we have inner join support, it is usually possible to convert the lookup join into an inner join
-                This would allow us to not reapply the filters pushed to the right side again above the join,
-                as the inner join would only return rows that match on both sides.
-                */
-            }
+                    In the future, once we have inner join support, it is usually possible to convert the lookup join into an inner join
+                    This would allow us to not reapply the filters pushed to the right side again above the join,
+                    as the inner join would only return rows that match on both sides.
+                    */
+                }
             if (optimizationApplied) {
                 // if we pushed down some filters, we need to update the filters to reapply above the join
                 Expression remainingFilter = Predicates.combineAnd(CollectionUtils.combine(scoped.commonFilters(), scoped.rightFilters));
@@ -280,6 +309,14 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
      */
     private static List<Expression> buildRightPushableFilters(List<Expression> expressions, FoldContext foldCtx) {
         return expressions.stream().filter(x -> isRightPushableFilter(x, foldCtx)).toList();
+    }
+
+    private static List<Expression> rebindRightAttributes(List<Expression> expressions, List<Attribute> rightOutput) {
+        Map<NameId, Attribute> attributesById = new HashMap<>();
+        rightOutput.forEach(attribute -> attributesById.put(attribute.id(), attribute));
+        return expressions.stream()
+            .map(expression -> expression.transformUp(Attribute.class, attribute -> attributesById.getOrDefault(attribute.id(), attribute)))
+            .toList();
     }
 
     /**

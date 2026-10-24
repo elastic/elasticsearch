@@ -501,6 +501,51 @@ $if(partitioned)$
         hash.clear();
     }
 
+    @Override
+    protected ReleasableIterator<IntBlock> lookupInPartitions(
+        Page page,
+        ByteSizeValue targetBlockSize,
+        PartitionedBlockHash[] partitions,
+        int[] groupBase
+    ) {
+        var block = page.getBlock(channel);
+        int positions = block.getPositionCount();
+        if (block.areAllValuesNull()) {
+            return ReleasableIterator.single((IntBlock) blockFactory.newConstantNullBlock(positions));
+        }
+        $Type$Block castBlock = ($Type$Block) block;
+$if(BytesRef)$
+        BytesRef scratch = new BytesRef();
+$endif$
+        // TODO honor targetBlockSize and chunk the pages if requested.
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                switch (castBlock.getValueCount(i)) {
+                    case 0 -> builder.appendNull();
+                    case 1 -> {
+$if(BytesRef)$
+                        BytesRef v = castBlock.getBytesRef(castBlock.getFirstValueIndex(i), scratch);
+                        long hash64 = BytesRefSwissHash.hash64(v);
+                        int p = BytesRefSwissHash.partition(hash64);
+                        long found = ((BytesRefSwissHash) (($Type$BlockHash) partitions[p]).hash).find(v, hash64);
+$else$
+                        long v = castBlock.get$Type$(castBlock.getFirstValueIndex(i));
+                        int p = LongSwissHash.partition(v);
+                        long found = (($Type$BlockHash) partitions[p]).hash.find(v);
+$endif$
+                        if (found < 0) {
+                            builder.appendNull();
+                        } else {
+                            builder.appendInt(groupBase[p] + Math.toIntExact(hashOrdToGroupNullReserved(found)));
+                        }
+                    }
+                    default -> throw new IllegalArgumentException("partitioned lookups require single-valued keys");
+                }
+            }
+            return ReleasableIterator.single(builder.build());
+        }
+    }
+
 $endif$
     @Override
     public void close() {

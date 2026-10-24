@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 
@@ -22,7 +23,7 @@ import org.elasticsearch.core.ReleasableIterator;
  * offsets of each row in the table.
  */
 public abstract sealed class RowInTableLookup implements Releasable permits EmptyRowInTableLookup, AscendingSequenceRowInTableLookup,
-    BlockHashRowInTableLookup {
+    BlockHashRowInTableLookup, RepeatedKeyBlockHashRowInTableLookup {
     /**
      * Lookup the values in the {@link Page} and, for each row, return the offset in the
      * table that was provided when building the lookup.
@@ -30,13 +31,33 @@ public abstract sealed class RowInTableLookup implements Releasable permits Empt
      *     The returned {@link ReleasableIterator} may retain a reference to {@link Block}s
      *     inside the {@link Page}. Close it to release those references.
      * </p>
+     * <p>
+     *     Lookups don't modify the table and build their results with the factory the table was
+     *     built with, so a table built with a thread-safe factory may be probed by several threads
+     *     at once.
+     * </p>
      */
     public abstract ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize);
+
+    /**
+     * Like {@link #lookup(Page, ByteSizeValue)}, but reports problems with the probed keys to {@code warnings}.
+     * Warnings are passed per call rather than held by the table because they are not thread-safe.
+     */
+    public ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize, Warnings warnings) {
+        return lookup(page, targetBlockSize);
+    }
 
     @Override
     public abstract String toString();
 
     public static RowInTableLookup build(BlockFactory blockFactory, Block[] keys) {
+        return build(blockFactory, keys, false);
+    }
+
+    /**
+     * Builds a lookup which can return every row sharing a key when {@code repeatedKeys} is true.
+     */
+    public static RowInTableLookup build(BlockFactory blockFactory, Block[] keys, boolean repeatedKeys) {
         if (keys.length < 1) {
             throw new IllegalArgumentException("expected [keys] to be non-empty");
         }
@@ -54,6 +75,9 @@ public abstract sealed class RowInTableLookup implements Releasable permits Empt
         }
         if (positions == 0) {
             return new EmptyRowInTableLookup(blockFactory);
+        }
+        if (repeatedKeys) {
+            return new RepeatedKeyBlockHashRowInTableLookup(blockFactory, keys);
         }
         if (keys.length == 1) {
             RowInTableLookup lookup = single(blockFactory, keys[0]);

@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
@@ -108,7 +109,11 @@ public final class PruneRedundantAggregateGroupings extends OptimizerRules.Optim
 
     private static AttributeMap<Expression> evalAliases(LogicalPlan plan) {
         AttributeMap.Builder<Expression> aliases = AttributeMap.builder();
-        plan.forEachDown(Eval.class, eval -> eval.fields().forEach(alias -> aliases.put(alias.toAttribute(), alias.child())));
+        IndependentSubqueryJoin.forEachInMainScope(plan, node -> {
+            if (node instanceof Eval eval) {
+                eval.fields().forEach(alias -> aliases.put(alias.toAttribute(), alias.child()));
+            }
+        });
         return aliases.build();
     }
 

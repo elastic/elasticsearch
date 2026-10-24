@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sparkline;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
-import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 
 import java.io.IOException;
@@ -309,7 +309,7 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
 
     /**
      * Pre-order walk applying the restrictions on commands between the time-series source and the first aggregation, skipping the
-     * right branch of any {@link AbstractSubqueryJoin}: a SORT/LIMIT/etc. inside an IN subquery only shapes the independently executed
+     * right branch of any {@link IndependentSubqueryJoin}: a SORT/LIMIT/etc. inside a subquery only shapes the independently executed
      * subquery result, not the time-series source feeding this aggregation.
      */
     private void checkCommandsBeforeAggregation(LogicalPlan p, Failures failures) {
@@ -380,7 +380,7 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
                 )
             );
         }
-        List<LogicalPlan> children = p instanceof AbstractSubqueryJoin subqueryJoin ? List.of(subqueryJoin.left()) : p.children();
+        List<LogicalPlan> children = IndependentSubqueryJoin.mainScopeChildren(p);
         for (LogicalPlan child : children) {
             checkCommandsBeforeAggregation(child, failures);
         }

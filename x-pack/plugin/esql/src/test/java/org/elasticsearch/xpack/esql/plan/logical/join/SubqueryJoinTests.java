@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plan.logical.join;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -45,7 +46,6 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -934,78 +934,24 @@ public class SubqueryJoinTests extends ESTestCase {
         assertThat(caseExpr.children().get(1), equalTo(Literal.TRUE));
     }
 
-    // -- subplan discovery tests --
-
-    public void testFirstSubPlanFindsSemiJoin() {
+    public void testInlineSubqueryResultProducesFilterWithIn() {
         FieldAttribute leftField = getFieldAttribute("emp_no", DataType.INTEGER);
         FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
-        LogicalPlan rightPlan = emptyLocalRelation(List.of(rightField));
-
         SemiJoin semiJoin = new SemiJoin(
             Source.EMPTY,
             emptyLocalRelation(List.of(leftField)),
-            rightPlan,
+            emptyLocalRelation(List.of(rightField)),
             List.of(leftField),
             List.of(rightField)
         );
-
-        var subPlan = AbstractSubqueryJoin.firstSubPlan(semiJoin, new HashSet<>());
-        assertThat(subPlan, notNullValue());
-    }
-
-    public void testFirstSubPlanReturnsNullWithNoSemiJoin() {
-        LogicalPlan plan = emptyLocalRelation(List.of(getFieldAttribute("x", DataType.INTEGER)));
-        var subPlan = AbstractSubqueryJoin.firstSubPlan(plan, new HashSet<>());
-        assertThat(subPlan, nullValue());
-    }
-
-    public void testFirstSubPlanSkipsAlreadyProcessedResults() {
-        FieldAttribute leftField = getFieldAttribute("emp_no", DataType.INTEGER);
-        FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
-
-        LocalRelation alreadyProcessed = new LocalRelation(
-            Source.EMPTY,
-            List.of(rightField),
-            LocalSupplier.of(new Page(BlockUtils.constantBlock(TestBlockFactory.getNonBreakingInstance(), 1, 1)))
-        );
-
-        SemiJoin semiJoin = new SemiJoin(
-            Source.EMPTY,
-            emptyLocalRelation(List.of(leftField)),
-            alreadyProcessed,
-            List.of(leftField),
-            List.of(rightField)
-        );
-
-        Set<LocalRelation> subPlansResults = new HashSet<>();
-        subPlansResults.add(alreadyProcessed);
-
-        var subPlan = AbstractSubqueryJoin.firstSubPlan(semiJoin, subPlansResults);
-        assertThat(subPlan, nullValue());
-    }
-
-    // -- newMainPlan tests --
-
-    public void testNewMainPlanReplacesSemiJoinWithFilter() {
-        FieldAttribute leftField = getFieldAttribute("emp_no", DataType.INTEGER);
-        FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
-        LogicalPlan rightPlan = emptyLocalRelation(List.of(rightField));
-
-        SemiJoin semiJoin = new SemiJoin(
-            Source.EMPTY,
-            emptyLocalRelation(List.of(leftField)),
-            rightPlan,
-            List.of(leftField),
-            List.of(rightField)
-        );
-
-        var subPlan = AbstractSubqueryJoin.firstSubPlan(semiJoin, new HashSet<>());
-        assertThat(subPlan, notNullValue());
 
         Block[] blocks = new Block[] { BlockUtils.constantBlock(TestBlockFactory.getNonBreakingInstance(), 42, 1) };
         LocalRelation result = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(blocks)));
 
-        LogicalPlan newPlan = AbstractSubqueryJoin.newMainPlan(semiJoin, subPlan, result, HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null);
+        LogicalPlan newPlan = semiJoin.inlineSubqueryResult(
+            result,
+            new SubqueryResultContext(HASH_JOIN_THRESHOLD, ByteSizeValue.ofMb(100), BLOCK_FACTORY, null)
+        );
         var filter = as(newPlan, Filter.class);
         assertThat(filter.condition(), instanceOf(In.class));
     }

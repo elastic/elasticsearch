@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.aggregation.blockhash;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -563,6 +564,61 @@ public final class LongBytesRefBlockHash extends PartitionedBlockHash {
         PartitionedHashKeysWithSeenNull withSeenNull = (PartitionedHashKeysWithSeenNull) keys;
         seenNulls |= withSeenNull.seenNull;
         return packedKeysHash.combinePartition(withSeenNull.delegate, partitionIndex, resultIds);
+    }
+
+    @Override
+    protected ReleasableIterator<IntBlock> lookupInPartitions(
+        Page page,
+        ByteSizeValue targetBlockSize,
+        PartitionedBlockHash[] partitions,
+        int[] groupBase
+    ) {
+        LongBlock longBlock = page.getBlock(longChannel);
+        BytesRefBlock bytesBlock = page.getBlock(bytesChannel);
+        int positions = page.getPositionCount();
+        byte[] prefix = new byte[PACKED_PREFIX_LENGTH];
+        BytesRefBuilder packed = new BytesRefBuilder();
+        BytesRef scratch = new BytesRef();
+        // TODO honor targetBlockSize and chunk the pages if requested.
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                int longCount = longBlock.getValueCount(i);
+                int bytesCount = bytesBlock.getValueCount(i);
+                if (longCount > 1 || bytesCount > 1) {
+                    throw new IllegalArgumentException("partitioned lookups require single-valued keys");
+                }
+                // Packs the key like packKeysWithNulls, which packs keys without nulls the same way.
+                byte flags = 0;
+                long longValue = 0;
+                if (longCount == 0) {
+                    flags |= LONG_NULL;
+                } else {
+                    longValue = longBlock.getLong(longBlock.getFirstValueIndex(i));
+                }
+                if (bytesCount == 0) {
+                    flags |= BYTES_NULL;
+                }
+                prefix[0] = flags;
+                LONG_HANDLE.set(prefix, 1, longValue);
+                packed.clear();
+                packed.append(prefix, 0, PACKED_PREFIX_LENGTH);
+                if (bytesCount == 1) {
+                    packed.append(bytesBlock.getBytesRef(bytesBlock.getFirstValueIndex(i), scratch));
+                }
+                BytesRef key = packed.get();
+                long hash64 = BytesRefSwissHash.hash64(key);
+                int p = BytesRefSwissHash.partition(hash64);
+                // A partition without keys was never combined, so it never switched to packed keys.
+                BytesRefSwissHash partition = ((LongBytesRefBlockHash) partitions[p]).packedKeysHash;
+                long found = partition == null ? -1 : partition.find(key, hash64);
+                if (found < 0) {
+                    builder.appendNull();
+                } else {
+                    builder.appendInt(groupBase[p] + Math.toIntExact(found));
+                }
+            }
+            return ReleasableIterator.single(builder.build());
+        }
     }
 
     private static final VarHandle LONG_HANDLE = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.nativeOrder());

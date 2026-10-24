@@ -132,11 +132,14 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
-import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
-import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubPlanJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoinInliner;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryResultContext;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
@@ -167,8 +170,10 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -223,6 +228,27 @@ public class EsqlSession {
             PlanTimeProfile planTimeProfile,
             ActionListener<Result> listener
         );
+
+        /**
+         * Like {@link #run(Role, PhysicalPlan, Configuration, FoldContext, PlanTimeProfile, ActionListener)}, but the run
+         * should fail as soon as the result pages it collects exceed {@code maxCollectedBytes}. Used for sub-plans whose
+         * result is materialized into a local relation, so an oversized result fails without reading the whole input.
+         * Runners that cannot enforce the limit while executing may ignore it; the session still checks the complete
+         * result afterwards.
+         *
+         * @param maxCollectedBytes limit on the collected result pages, or {@code null} for no limit
+         */
+        default void run(
+            Role role,
+            PhysicalPlan plan,
+            Configuration configuration,
+            FoldContext foldContext,
+            PlanTimeProfile planTimeProfile,
+            ByteSizeValue maxCollectedBytes,
+            ActionListener<Result> listener
+        ) {
+            run(role, plan, configuration, foldContext, planTimeProfile, listener);
+        }
 
         default void columnMetadata(Map<NameId, Map<String, Object>> columnMetadata) {}
     }
@@ -812,9 +838,32 @@ public class EsqlSession {
             ? createExplainListener(listener, optimizedPlan, planTimeProfile, configuration, planRunner)
             : listener;
 
-        PlanRunner executionRunner = explainContext != null
-            ? (role, plan, cfg, foldCtx, profile, l) -> planRunner.run(PlanRunner.Role.INTERMEDIATE, plan, cfg, foldCtx, profile, l)
-            : planRunner;
+        PlanRunner executionRunner = explainContext != null ? new PlanRunner() {
+            @Override
+            public void run(
+                Role role,
+                PhysicalPlan plan,
+                Configuration cfg,
+                FoldContext foldCtx,
+                PlanTimeProfile profile,
+                ActionListener<Result> l
+            ) {
+                planRunner.run(Role.INTERMEDIATE, plan, cfg, foldCtx, profile, l);
+            }
+
+            @Override
+            public void run(
+                Role role,
+                PhysicalPlan plan,
+                Configuration cfg,
+                FoldContext foldCtx,
+                PlanTimeProfile profile,
+                ByteSizeValue maxCollectedBytes,
+                ActionListener<Result> l
+            ) {
+                planRunner.run(Role.INTERMEDIATE, plan, cfg, foldCtx, profile, maxCollectedBytes, l);
+            }
+        } : planRunner;
 
         // Always use the same execution path - executeSubPlans handles both simple queries and those with subplans
         executeSubPlans(
@@ -1044,7 +1093,7 @@ public class EsqlSession {
         PlanTimeProfile planTimeProfile,
         ActionListener<Result> listener
     ) {
-        var subPlansResults = new HashSet<LocalRelation>();
+        Set<LocalRelation> subPlansResults = Collections.newSetFromMap(new IdentityHashMap<>());
         var subPlan = firstSubPlan(optimizedPlan, configuration, approximation, subPlansResults);
 
         // TODO: merge into one method
@@ -1260,13 +1309,15 @@ public class EsqlSession {
      * @param subPlan     first subplan that needs to be executed
      * @param newMainPlan callback to build the new main plan based on the subplan results
      * @param cleanup     callback to release any resources hold by the subplan results
+     * @param maxCollectedBytes limit enforced while the subplan runs, or {@code null} to only check the complete result
      */
     private record SubPlanAndCallback(
         LogicalPlan subPlan,
         java.util.function.Function<Result, LogicalPlan> newMainPlan,
         Runnable cleanup,
         boolean isSubqueryJoinSubPlan,
-        boolean isApproximationCalibration
+        boolean isApproximationCalibration,
+        ByteSizeValue maxCollectedBytes
     ) {};
 
     private SubPlanAndCallback firstSubPlan(
@@ -1277,43 +1328,36 @@ public class EsqlSession {
     ) {
         SubPlanAndCallback subPlanAndCallback = null;
 
-        // Find the first (bottom-up) SemiJoin/InnerJoin/InlineJoin that needs subplan execution.
+        // Find the first (bottom-up) sub-plan join or InlineJoin that needs sub-plan execution.
         // Processing bottom-up ensures inner subplans (e.g. INLINE STATS inside IN subquery)
         // are resolved before outer ones that depend on them.
         LogicalPlan firstJoin = findFirstSubPlanJoin(mainPlan, subPlansResults);
 
-        if (firstJoin instanceof AbstractSubqueryJoin) {
-            AbstractSubqueryJoin.LogicalPlanTuple semiJoinTuple = AbstractSubqueryJoin.firstSubPlan(mainPlan, subPlansResults);
-            if (semiJoinTuple != null) {
-                AtomicReference<Page> localRelationPage = new AtomicReference<>();
-                subPlanAndCallback = new SubPlanAndCallback(semiJoinTuple.subPlan(), result -> {
-                    LocalRelation resultWrapper = resultToPlan(semiJoinTuple.subPlan().source(), result);
-                    // AbstractSubqueryJoin.inlineData may release this page eagerly (filter / empty paths) or swap
-                    // it for a smaller, breaker-tracked dedup page (hash-join path) so the cleanup
-                    // below releases the right one at end of main plan execution.
-                    localRelationPage.set(resultWrapper.supplier().get());
-                    subPlansResults.add(resultWrapper);
-                    return AbstractSubqueryJoin.newMainPlan(
-                        mainPlan,
-                        semiJoinTuple,
-                        resultWrapper,
-                        resolveInSubqueryHashJoinThreshold(configuration),
-                        blockFactory,
-                        localRelationPage
-                    );
-                }, () -> releaseLocalRelationBlocks(localRelationPage), true, false);
-            }
-        } else if (firstJoin instanceof InnerJoin) {
-            InnerJoin.LogicalPlanTuple subPlans = InnerJoin.firstSubPlan(mainPlan, subPlansResults);
-            if (subPlans != null) {
-                AtomicReference<Page> localRelationPage = new AtomicReference<>();
-                subPlanAndCallback = new SubPlanAndCallback(subPlans.subPlan(), result -> {
-                    LocalRelation resultWrapper = resultToPlan(subPlans.subPlan().source(), result);
-                    localRelationPage.set(resultWrapper.supplier().get());
-                    subPlansResults.add(resultWrapper);
-                    return InnerJoin.newMainPlan(mainPlan, subPlans, resultWrapper);
-                }, () -> releaseLocalRelationBlocks(localRelationPage), true, false);
-            }
+        if (firstJoin instanceof SubPlanJoin subPlanJoin) {
+            LogicalPlan subPlan = subPlanJoin.right();
+            subPlan.setOptimized();
+            AtomicReference<Page> localRelationPage = new AtomicReference<>();
+            subPlanAndCallback = new SubPlanAndCallback(subPlan, result -> {
+                BlockFactory relationBlockFactory = subPlanJoin instanceof SubqueryJoin
+                    ? SubqueryJoinInliner.blockFactory(blockFactory)
+                    : blockFactory;
+                LocalRelation resultWrapper = resultToPlan(subPlan.source(), result, relationBlockFactory);
+                localRelationPage.set(resultWrapper.supplier().get());
+                subPlansResults.add(resultWrapper);
+                SubqueryResultContext context = new SubqueryResultContext(
+                    resolveInSubqueryHashJoinThreshold(configuration),
+                    plannerSettings.intermediateLocalRelationMaxSize(),
+                    relationBlockFactory,
+                    localRelationPage
+                );
+                return replaceSubPlanResult(mainPlan, subPlan, resultWrapper, context);
+            },
+                () -> releaseLocalRelationBlocks(localRelationPage),
+                true,
+                false,
+                // A JOIN subquery materializes raw rows, so fail as soon as they exceed the local relation limit.
+                subPlanJoin instanceof SubqueryJoin ? plannerSettings.intermediateLocalRelationMaxSize() : null
+            );
         } else if (firstJoin instanceof InlineJoin) {
             InlineJoin.LogicalPlanTuple subPlans = InlineJoin.firstSubPlan(mainPlan, subPlansResults);
             if (subPlans != null) {
@@ -1323,7 +1367,7 @@ public class EsqlSession {
                     localRelationPage.set(resultWrapper.supplier().get());
                     subPlansResults.add(resultWrapper);
                     return InlineJoin.newMainPlan(mainPlan, subPlans, resultWrapper);
-                }, () -> releaseLocalRelationBlocks(localRelationPage), false, false);
+                }, () -> releaseLocalRelationBlocks(localRelationPage), false, false, null);
             }
         }
 
@@ -1339,7 +1383,8 @@ public class EsqlSession {
                     result -> approximation.get().newMainPlan(mainPlan, result),
                     () -> {},
                     false,
-                    true
+                    true,
+                    null
                 );
             }
         }
@@ -1348,30 +1393,23 @@ public class EsqlSession {
     }
 
     /**
-     * Finds the first (bottom-up) SemiJoin, InnerJoin or InlineJoin in the plan that has an unresolved subplan.
+     * Finds the first (bottom-up) sub-plan join or InlineJoin that has an unresolved subplan.
      * Returns the join node itself, or null if none found.
      */
-    private static LogicalPlan findFirstSubPlanJoin(LogicalPlan plan, Set<LocalRelation> subPlansResults) {
+    static LogicalPlan findFirstSubPlanJoin(LogicalPlan plan, Set<LocalRelation> subPlansResults) {
         Holder<LogicalPlan> result = new Holder<>();
-        // Evaluate the right hand side of a SemiJoin/InnerJoin/InlineJoin, unless it is a LocalRelation and registered in subPlansResults
+        // Evaluate the right hand side of a SubPlanJoin or InlineJoin, unless it is a LocalRelation registered in subPlansResults
         // already
         plan.forEachUp(p -> {
             if (result.get() != null) {
                 return;
             }
-            // Whether checking the subquery join, InnerJoin or InlineJoin first does not matter, the plan is processed bottom up, looking
-            // for
-            // joins whose right child haven't been evaluated yet
-            if (p instanceof AbstractSubqueryJoin sj) {
-                if (sj.right() instanceof LocalRelation lr && subPlansResults.contains(lr)) {
+            // The plan is processed bottom up, so inner sub-plans are selected before their parents.
+            if (p instanceof SubPlanJoin subPlanJoin) {
+                if (subPlanJoin.right() instanceof LocalRelation lr && subPlansResults.contains(lr)) {
                     return; // already processed
                 }
-                result.set(sj);
-            } else if (p instanceof InnerJoin ej) {
-                if (ej.right() instanceof LocalRelation lr && subPlansResults.contains(lr)) {
-                    return; // already processed
-                }
-                result.set(ej);
+                result.set(p);
             } else if (p instanceof InlineJoin ij) {
                 if (ij.right().anyMatch(r -> r instanceof StubRelation)) {
                     result.set(ij);
@@ -1383,6 +1421,23 @@ public class EsqlSession {
             }
         });
         return result.get();
+    }
+
+    static LogicalPlan replaceSubPlanResult(
+        LogicalPlan mainPlan,
+        LogicalPlan subPlan,
+        LocalRelation result,
+        SubqueryResultContext context
+    ) {
+        var replacements = new IdentityHashMap<SubPlanJoin, LogicalPlan>();
+        LogicalPlan newPlan = mainPlan.transformUp(LogicalPlan.class, plan -> {
+            if (plan instanceof SubPlanJoin subPlanJoin && subPlanJoin.right() == subPlan) {
+                return replacements.computeIfAbsent(subPlanJoin, join -> join.inlineSubqueryResult(result, context));
+            }
+            return plan;
+        });
+        newPlan.setOptimized();
+        return newPlan;
     }
 
     private void executeSubPlan(
@@ -1422,6 +1477,7 @@ public class EsqlSession {
             configuration,
             foldContext,
             planTimeProfile,
+            subPlan.maxCollectedBytes(),
             listener.delegateFailureAndWrap((next, result) -> {
                 // Approximation subplans (to get the sample probability) may approximate internally to estimate
                 // the result count. This does not affect whether the final result is approximate or not.
@@ -1499,18 +1555,26 @@ public class EsqlSession {
     }
 
     private LocalRelation resultToPlan(Source planSource, Result result) {
+        return resultToPlan(planSource, result, blockFactory);
+    }
+
+    private LocalRelation resultToPlan(Source planSource, Result result, BlockFactory relationBlockFactory) {
         List<Page> pages = result.pages();
+        ByteSizeValue maxSize = plannerSettings.intermediateLocalRelationMaxSize();
         checkPagesBelowSize(
             pages,
-            plannerSettings.intermediateLocalRelationMaxSize(),
-            actual -> "sub-plan execution results too large ["
-                + ByteSizeValue.ofBytes(actual)
-                + "] > "
-                + plannerSettings.intermediateLocalRelationMaxSize()
+            maxSize,
+            actual -> "sub-plan execution results too large [" + ByteSizeValue.ofBytes(actual) + "] > " + maxSize
         );
         List<Attribute> schema = result.schema();
 
-        Block[] blocks = SessionUtils.fromPages(schema, pages, blockFactory);
+        Block[] blocks = SessionUtils.fromPages(
+            schema,
+            pages,
+            relationBlockFactory,
+            maxSize,
+            actual -> "sub-plan execution results too large [" + ByteSizeValue.ofBytes(actual) + "] > " + maxSize
+        );
         return new LocalRelation(planSource, schema, LocalSupplier.of(blocks.length == 0 ? new Page(0) : new Page(blocks)));
     }
 
@@ -2190,7 +2254,7 @@ public class EsqlSession {
      * Collects the clusters that feed rows into a plan node (a LOOKUP JOIN's left subtree, or an ENRICH's child) by walking
      * only the data-bearing spine of that subtree.
      * <p>
-     * For any {@link AbstractSubqueryJoin} (SEMI/ANTI/MARK) that {@code InSubqueryResolver} produces for {@code field IN (subquery)}, only
+     * For any {@link IndependentSubqueryJoin}, only
      * the left child carries rows into the subsequent plan; the right child does not contribute source clusters to this join.
      * So {@code ... | WHERE x IN (FROM remote:idx) | LOOKUP JOIN ...} scopes the lookup to the outer source only, not to {@code remote}.
      * A {@code FROM a, b} union ({@code Fork}/{@code UnionAll}) instead reads from every branch, so all of its children are followed.
@@ -2210,7 +2274,7 @@ public class EsqlSession {
                 }
             }
             case Row row -> scope.add(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-            case AbstractSubqueryJoin subqueryJoin -> collectSourceClusterScope(subqueryJoin.left(), scope, indexResolution);
+            case IndependentSubqueryJoin subqueryJoin -> collectSourceClusterScope(subqueryJoin.left(), scope, indexResolution);
             default -> {
                 for (LogicalPlan child : plan.children()) {
                     collectSourceClusterScope(child, scope, indexResolution);

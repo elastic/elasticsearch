@@ -519,7 +519,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
             @Override
             public void installUploadBoundListener(
                 Runnable originalRunnable,
-                ShardId shardId,
+                IndexShard shard,
                 SubscribableListener<Long> uploadBoundListener
             ) {
                 if (installUploadBoundAttempts.incrementAndGet() == 1) {
@@ -528,7 +528,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
                     retriedOnSameShard.onResponse(indexShard.state() != IndexShardState.CLOSED);
                     assertFalse(
                         "the failed upload bound listener must be cleared before the retry",
-                        commitService.relocationUploadBoundIsInstalled(shardId)
+                        commitService.relocationUploadBoundIsInstalled(shard.shardId())
                     );
                 }
                 originalRunnable.run();

@@ -345,7 +345,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                 threadDumpListener.onResponse(null);
                 // Install the upload bound listener before the final flush, so that a registering search shard cannot pick up a
                 // commit above the upload bound that markRelocating pins after it.
-                statelessCommitServiceProvider.get().installUploadBoundListener(indexShard.shardId(), uploadBoundListener);
+                statelessCommitServiceProvider.get().installUploadBoundListener(indexShard, uploadBoundListener);
                 Engine engine = ensureIndexTierAllowedEngine(indexShard.getEngineOrNull(), indexShard.state(), indexShard.routingEntry());
                 logShardStats("obtained primary context", indexShard, engine);
                 logger.debug("[{}] obtained primary context: [{}]", request.shardId(), primaryContext);

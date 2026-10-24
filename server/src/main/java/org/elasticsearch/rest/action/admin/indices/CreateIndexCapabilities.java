@@ -9,8 +9,8 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.SliceIndexing;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -67,6 +67,12 @@ public class CreateIndexCapabilities {
      */
     private static final String DOC_VALUES_ON_FAILURE_CAPABILITY = "doc_values_on_failure";
 
+    /**
+     * Support for the implicit {@code _unmapped} flattened sink ({@code index.mapping.flattened_unmapped_fields.enabled}). Advertised only
+     * when the feature flag is on, so yaml tests can gate on it and skip on builds where the sink is unavailable.
+     */
+    private static final String FLATTENED_UNMAPPED_FIELDS_CAPABILITY = "flattened_unmapped_fields";
+
     public static final Set<String> CAPABILITIES;
 
     static {
@@ -84,11 +90,12 @@ public class CreateIndexCapabilities {
         caps.add(COLUMNAR_INDEX_MODES_CAPABILITY);
         caps.add(VECTORDB_DOCUMENT_INDEX_MODE_CAPABILITY);
         caps.add(DOC_VALUES_ON_FAILURE_CAPABILITY);
-        if (IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled()) {
-            caps.add(VECTORDB_COLUMNAR_INDEX_MODE_CAPABILITY);
-        }
+        caps.add(VECTORDB_COLUMNAR_INDEX_MODE_CAPABILITY);
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
             caps.add(SLICE_INDEXING_CAPABILITY);
+        }
+        if (FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled()) {
+            caps.add(FLATTENED_UNMAPPED_FIELDS_CAPABILITY);
         }
         CAPABILITIES = Set.copyOf(caps);
     }

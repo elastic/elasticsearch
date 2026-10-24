@@ -9,9 +9,13 @@
 
 package org.elasticsearch.index.fielddata;
 
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 
 import java.io.IOException;
 
@@ -34,6 +38,35 @@ public abstract class SortableBinaryDocValues {
      */
     public SortableBinaryDocValues(@Nullable DocIdSetIterator docIdSetIterator) {
         this.docIdIterator = docIdSetIterator;
+    }
+
+    /**
+     * Reads a field's binary doc values with the decoder its framing requires.
+     *
+     * <p>The framing is not discoverable from the segment: every one of these layouts is
+     * {@link org.apache.lucene.index.DocValuesType#BINARY} on the way out, and decoding one as another returns wrong
+     * values rather than failing. So it is taken from the mapping that decided how the values were written, and every
+     * reader of them routes through here.
+     *
+     * <p>{@code indexVersion} settles {@link BinaryDocValuesFormat#SEPARATE_COUNT} alone: indices created before
+     * {@link IndexVersions#DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES} may hold the deprecated integrated-count
+     * layout instead, which {@link MultiValuedSortableBinaryDocValues#fromMultiValued} falls back to when the
+     * {@code .counts} companion field is absent.
+     */
+    public static SortableBinaryDocValues forFormat(
+        LeafReader leafReader,
+        String fieldName,
+        IndexVersion indexVersion,
+        BinaryDocValuesFormat binaryFormat
+    ) throws IOException {
+        return switch (binaryFormat) {
+            case COLUMNAR_PAYLOAD -> ColumnarPayloadSortableBinaryDocValues.from(leafReader, fieldName);
+            case ARRAY_ORDER_INLINE_NULL -> SortingArrayOrderBinaryDocValues.from(leafReader, fieldName);
+            case SEPARATE_COUNT -> indexVersion.onOrAfter(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES)
+                ? MultiValuedSortableBinaryDocValues.from(leafReader, fieldName)
+                : MultiValuedSortableBinaryDocValues.fromMultiValued(leafReader, fieldName);
+            case PLAIN -> MultiValuedSortableBinaryDocValues.fromPlain(leafReader, fieldName);
+        };
     }
 
     /**
@@ -64,6 +97,19 @@ public abstract class SortableBinaryDocValues {
      * Note that the returned {@link BytesRef} might be reused across invocations.
      */
     public abstract BytesRef nextValue() throws IOException;
+
+    /**
+     * The most heap, in bytes, that one decode of the underlying doc values can allocate (for example a binary block
+     * decompression buffer), or {@code -1} when no estimate is available. See
+     * {@link org.elasticsearch.index.mapper.BlockLoader.OptionalDecodeMemoryUsageEstimator}.
+     *
+     * <p>Each live instance owns its own decoder state, so a caller that holds many of these at once — one per field a
+     * script reads, per leaf, per clause — can use this to account for the retained buffers in a circuit breaker. The
+     * default returns {@code -1}; subclasses backed by a buffering binary doc-values reader override it.
+     */
+    public long maxDecodeBytes() {
+        return -1L;
+    }
 
     /**
      * Indicates the sparsity of the values for this field.

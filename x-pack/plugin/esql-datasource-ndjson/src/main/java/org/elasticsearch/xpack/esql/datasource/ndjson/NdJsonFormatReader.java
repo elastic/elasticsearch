@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -23,9 +24,11 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.TextFormatStats;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadCounters;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
@@ -34,6 +37,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.WidenedColumn;
+import org.elasticsearch.xpack.esql.datasources.spi.WithinFileWideningWarnings;
 
 import java.io.BufferedInputStream;
 import java.io.Closeable;
@@ -42,12 +47,14 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.PushbackInputStream;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * FormatReader implementation for NDJSON files.
@@ -66,12 +73,14 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     /**
      * Node-level setting for the parallel-parsing segment size. Larger segments amortise the fixed
      * Java/Jackson per-segment setup cost; smaller segments enable parallelism on smaller files.
-     * Also overridable per dataset via the {@code segment_size} setting.
+     * Also overridable per dataset via the {@code segment_size} setting. The effective segment is a few bytes under
+     * the configured value, see {@link #effectiveSegmentSize(long)}.
      */
     public static final String SEGMENT_SIZE_SETTING = "esql.external.ndjson.segment_size";
 
     /**
-     * 4 MiB, larger than the SPI's 1 MiB. Each NDJSON segment pays a fixed Java/Jackson setup cost
+     * 4 MiB, larger than the SPI's 1 MiB; the effective segment is a few bytes under it, like any configured value
+     * (see {@link #effectiveSegmentSize(long)}). Each NDJSON segment pays a fixed Java/Jackson setup cost
      * (schema lookup, {@link FormatReadContext} creation, {@link NdJsonPageIterator} +
      * {@link NdJsonPageDecoder} construction, range-stream wrapping, queue coordination), so cutting
      * the segment count by 4x cuts that overhead by ~4x. ClickHouse's 1 MiB sweet spot does not
@@ -194,6 +203,30 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         );
     }
 
+    /**
+     * A declared schema names the columns it reads, so the file's own width is not the field cap's concern: the cap
+     * bounds what inference materialises when nothing declares the schema. Inference over a declared dataset (the
+     * COUNT(*) and chunk-0 binds) is bounded by the circuit breaker the inferrer charges field by field instead.
+     */
+    @Override
+    public NdJsonFormatReader withDeclaredProvenanceBinding(boolean declaredProvenanceBinding) {
+        if (declaredProvenanceBinding == false || schemaMaxFields == Integer.MAX_VALUE) {
+            return this;
+        }
+        return new NdJsonFormatReader(
+            settings,
+            blockFactory,
+            resolvedSchema,
+            schemaSampleSize,
+            Integer.MAX_VALUE,
+            segmentSizeBytes,
+            datetimeFormatter,
+            canonicalConfig,
+            declaredDateFormats,
+            readConfig
+        );
+    }
+
     @Override
     public NdJsonFormatReader withReadConfig(String newReadConfig) {
         if (newReadConfig == null || newReadConfig.equals(readConfig)) {
@@ -211,6 +244,32 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             declaredDateFormats,
             newReadConfig
         );
+    }
+
+    @Override
+    public NdJsonFormatReader withSchemaSampleShare(int files) {
+        int shared = FormatReader.sharedSchemaSampleSize(schemaSampleSize, files);
+        if (shared == schemaSampleSize) {
+            return this;
+        }
+        // canonicalConfig is kept: it is the harvest fingerprint, and the data node reads with the unshared sample.
+        return new NdJsonFormatReader(
+            settings,
+            blockFactory,
+            resolvedSchema,
+            shared,
+            schemaMaxFields,
+            segmentSizeBytes,
+            datetimeFormatter,
+            canonicalConfig,
+            declaredDateFormats,
+            readConfig
+        );
+    }
+
+    @Override
+    public int schemaSampleSize() {
+        return schemaSampleSize;
     }
 
     @Override
@@ -267,8 +326,12 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         return Configured.fromKnownSubsetWithIdentity(result, config, RECOGNIZED_KEYS, canon);
     }
 
-    private List<Attribute> inferSchemaIfNeeded(List<Attribute> attributes, StorageObject object, boolean skipFirstLine)
-        throws IOException {
+    private List<Attribute> inferSchemaIfNeeded(
+        List<Attribute> attributes,
+        StorageObject object,
+        boolean skipFirstLine,
+        Consumer<String> warningSink
+    ) throws IOException {
         if (attributes != null) {
             // Empty schema means the optimizer pruned every column (COUNT(*) etc.); skip inference
             // entirely. The decoder treats an empty projection list as "structure-only", so there
@@ -277,7 +340,21 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         }
 
         try (var stream = openForSchemaInference(object, skipFirstLine)) {
-            return NdJsonSchemaInferrer.inferSchema(stream, schemaSampleSize, schemaMaxFields, datetimeFormatter, blockFactory.breaker());
+            List<NdJsonSchemaInferrer.Widening> widenings = new ArrayList<>();
+            List<Attribute> schema = NdJsonSchemaInferrer.inferSchema(
+                stream,
+                schemaSampleSize,
+                schemaMaxFields,
+                datetimeFormatter,
+                blockFactory.breaker(),
+                widenings
+            );
+            // No SourceMetadata reaches a reconciliation step from this read-time inference path (unlike
+            // metadata(), which the coordinator consults during planning), so there is no widenedColumns()
+            // for schema_resolution: strict to read here — only the warning, so a user reading through
+            // this path is told the same thing a cold metadata() resolve would have told them.
+            reportWidenings(widenings, ExternalFailures.redactHttpUrl(object.path().toString()), warningSink);
+            return schema;
         }
     }
 
@@ -374,7 +451,17 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         ByteSizeValue value = resolved.getAsBytesSize(SEGMENT_SIZE_SETTING, DEFAULT_SEGMENT_SIZE);
         long bytes = value.getBytes();
         Check.clientError(bytes >= MIN_SEGMENT_SIZE.getBytes(), "{} must be >= {}, got: {}", SEGMENT_SIZE_SETTING, MIN_SEGMENT_SIZE, value);
-        return bytes;
+        return effectiveSegmentSize(bytes);
+    }
+
+    /**
+     * The streaming coordinator allocates one {@code byte[]} of the segment size per in-flight chunk. A configured size
+     * is trimmed by the array header so the array, header included, fits in the configured bytes: a {@code 4mb}
+     * segment then occupies 4 MiB of heap instead of the 8 MiB an exact 4 MiB array takes at 4 MiB G1 regions. See
+     * {@link HeapFootprint#lengthFittingIn(long)}.
+     */
+    static long effectiveSegmentSize(long configuredBytes) {
+        return HeapFootprint.lengthFittingIn(configuredBytes);
     }
 
     private static int parseInt(Object value, int defaultValue) {
@@ -399,7 +486,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         ByteSizeValue parsed = ByteSizeValue.parseBytesSizeValue(value.toString(), CONFIG_SEGMENT_SIZE);
         long bytes = parsed.getBytes();
         Check.clientError(bytes >= MIN_SEGMENT_SIZE.getBytes(), CONFIG_SEGMENT_SIZE + " must be >= {}, got: {}", MIN_SEGMENT_SIZE, parsed);
-        return bytes;
+        return effectiveSegmentSize(bytes);
     }
 
     private static DateFormatter parseDatetimeFormat(Object value, DateFormatter baseline) {
@@ -445,24 +532,31 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         // exception on the primary failure rather than replacing it.
         try (Closeable abortOnExit = () -> object.abortStream(stream)) {
             CountingInputStream counted = new CountingInputStream(stream);
+            List<NdJsonSchemaInferrer.Widening> widenings = new ArrayList<>();
             NdJsonSchemaInferrer.SampledSchema sampled = NdJsonSchemaInferrer.inferSampledSchema(
                 counted,
                 schemaSampleSize,
                 schemaMaxFields,
                 datetimeFormatter,
-                blockFactory.breaker()
+                blockFactory.breaker(),
+                widenings
             );
             List<Attribute> schema = sampled.schema();
             String location = object.path().toString();
+            String sourceLocation = ExternalFailures.redactHttpUrl(location);
+            List<String> warnings = new ArrayList<>();
+            List<WidenedColumn> widenedColumns = reportWidenings(widenings, sourceLocation, warnings::add);
             long mtimeMillis;
             try {
                 Instant mtime = object.lastModified();
                 if (mtime == null) {
-                    return sampledMetadata(schema, location, null, counted.count(), sampled.sampleRows());
+                    return sampledMetadata(schema, location, null, counted.count(), sampled.sampleRows()).withWarnings(warnings)
+                        .withWidenedColumns(widenedColumns);
                 }
                 mtimeMillis = mtime.toEpochMilli();
             } catch (IOException e) {
-                return sampledMetadata(schema, location, null, counted.count(), sampled.sampleRows());
+                return sampledMetadata(schema, location, null, counted.count(), sampled.sampleRows()).withWarnings(warnings)
+                    .withWidenedColumns(widenedColumns);
             }
             OptionalLong cachedSize;
             try {
@@ -481,8 +575,40 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
                 configFingerprint
             );
             Map<String, Object> sourceMetadata = SourceStatisticsSerializer.embedStatistics(baseSourceMetadata, stats);
-            return sampledMetadata(schema, location, stats, counted.count(), sampled.sampleRows(), sourceMetadata);
+            return sampledMetadata(schema, location, stats, counted.count(), sampled.sampleRows(), sourceMetadata).withWarnings(warnings)
+                .withWidenedColumns(widenedColumns);
         }
+    }
+
+    /**
+     * Resolves raw {@link NdJsonSchemaInferrer.Widening}s into {@link WidenedColumn}s and emits a
+     * user-facing warning for each into {@code warningSink} — never directly through
+     * {@link org.elasticsearch.common.logging.HeaderWarning}, because schema resolution runs on the
+     * resolver's executor, not the request thread (see {@link SourceMetadata#warnings()}). Reuses the
+     * vocabulary {@code SchemaReconciliation}'s cross-file emitters use for the same shape of retype
+     * ({@code emitKeywordFallbackWarnings} / {@code emitPrecisionLossWarnings}), so a within-file and a
+     * cross-file widen read alike. Mirrors {@code CsvFormatReader.reportWidenings}. Returns the resolved
+     * list so it can also be attached to {@link SourceMetadata#widenedColumns()}, which is what lets
+     * {@code schema_resolution: strict} refuse a widen even on a single-file dataset.
+     */
+    private static List<WidenedColumn> reportWidenings(
+        List<NdJsonSchemaInferrer.Widening> widenings,
+        String sourceLocation,
+        Consumer<String> warningSink
+    ) {
+        if (widenings.isEmpty()) {
+            return List.of();
+        }
+        List<WidenedColumn> resolved = new ArrayList<>(widenings.size());
+        for (NdJsonSchemaInferrer.Widening widening : widenings) {
+            // Cap before either consumer: value is unbounded user data, and both the warning text and
+            // the WidenedColumn (cached, and replayed into a schema_resolution: strict exception) must
+            // not carry it through verbatim. See WidenedColumn.MAX_VALUE_LENGTH.
+            String value = Strings.cleanTruncate(widening.value(), WidenedColumn.MAX_VALUE_LENGTH);
+            resolved.add(new WidenedColumn(widening.columnName(), widening.fromType(), widening.toType(), value, widening.row()));
+        }
+        WithinFileWideningWarnings.report(resolved, sourceLocation, "field", "record", warningSink);
+        return resolved;
     }
 
     /**
@@ -541,7 +667,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         // that contract and re-reads the file on every chunk. Whoever owns the file's leading bytes resolves
         // any facts the projection does not carry before the read starts.
         List<Attribute> effectiveSchema = context.readSchema() == null
-            ? inferSchemaIfNeeded(resolvedSchema, object, skipFirstLine)
+            ? inferSchemaIfNeeded(resolvedSchema, object, skipFirstLine, context.informationalWarningSink())
             : mergeBoundWithProjection(context.readSchema(), resolvedSchema);
         // Whole-file read: first + last split, no parallel slicing. See CsvFormatReader.read for the
         // rationale. mtime is pinned here at open-time so a mid-scan file replacement cannot pair a
@@ -616,7 +742,8 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
 
     /**
      * Resolved per-reader from {@link #SEGMENT_SIZE_SETTING} (node-level) or the {@code segment_size}
-     * key in the per-query {@code WITH {...}} config. Defaults to {@link #DEFAULT_SEGMENT_SIZE}.
+     * key in the per-query {@code WITH {...}} config, defaulting to {@link #DEFAULT_SEGMENT_SIZE}, then trimmed by
+     * {@link #effectiveSegmentSize(long)}.
      */
     @Override
     public long minimumSegmentSize() {

@@ -12,6 +12,7 @@ import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -72,6 +73,50 @@ public class ExternalFailuresTests extends ESTestCase {
         var cancelled = new TaskCancelledException("cancelled");
         assertSame(cancelled, ExternalFailures.classify(cancelled));
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(cancelled)));
+    }
+
+    /**
+     * Real breaker messages end with a reference-docs link ({@code https://www.elastic.co/docs/...}). That link must not
+     * be mistaken for a leaked storage URI: the leak assertion in {@code classify} is fatal to the node under {@code -ea}.
+     */
+    public void testCircuitBreakingWithReferenceDocsLinkIsNotALeak() {
+        var breaking = new CircuitBreakingException(
+            "[request] Data too large, data for [<esql_block_factory>] would be [181195099/172.8mb], which is larger than "
+                + "the limit of [181193932/172.7mb]; for more information, see "
+                + ReferenceDocs.CIRCUIT_BREAKER_ERRORS,
+            181195099,
+            181193932,
+            CircuitBreaker.Durability.TRANSIENT
+        );
+        assertSame(breaking, ExternalFailures.classify(breaking));
+        assertSame(breaking, ExternalFailures.classifySuppressed(breaking));
+    }
+
+    /**
+     * A breaker that carries a cause goes through the detached-copy path of {@code classify}: the copy keeps the message
+     * (with its docs link), drops the cause, and must not trip the leak assertion either.
+     */
+    public void testCircuitBreakingWithCauseAndReferenceDocsLinkIsDetachedNotALeak() {
+        var breaking = new CircuitBreakingException(
+            "[request] Data too large; for more information, see " + ReferenceDocs.CIRCUIT_BREAKER_ERRORS,
+            10,
+            5,
+            CircuitBreaker.Durability.TRANSIENT
+        );
+        breaking.initCause(new IOException("failed reading s3://secret-bucket/k"));
+        RuntimeException classified = ExternalFailures.classify(breaking);
+        assertThat(classified, instanceOf(CircuitBreakingException.class));
+        assertNull(classified.getCause());
+        assertEquals(breaking.getMessage(), classified.getMessage());
+    }
+
+    /**
+     * The exemption is limited to core exceptions that are not raised at the storage boundary: any other
+     * {@link ElasticsearchException} that embeds a location still trips the assertion.
+     */
+    public void testGenericElasticsearchExceptionStillAssertsOnALeakedPath() {
+        var leaking = new ElasticsearchException("failed reading s3://secret-bucket/k");
+        expectThrows(AssertionError.class, () -> ExternalFailures.classify(leaking));
     }
 
     public void testRejectedExecutionIsBackpressureNotServerError() {

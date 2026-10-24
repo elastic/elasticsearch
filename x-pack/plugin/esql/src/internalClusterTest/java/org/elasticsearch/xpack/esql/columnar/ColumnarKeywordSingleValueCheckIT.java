@@ -94,7 +94,6 @@ public class ColumnarKeywordSingleValueCheckIT extends AbstractEsqlIntegTestCase
                 Settings.builder()
                     .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
                     .put(FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.getKey(), multiValue)
-                    .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), true)
                     .put("index.number_of_shards", 1)
                     .put("index.number_of_replicas", 0)
             ).setMapping("kw", "type=keyword", "other", "type=long")

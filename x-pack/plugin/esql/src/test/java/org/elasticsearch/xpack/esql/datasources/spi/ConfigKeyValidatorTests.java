@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.DefinitionVersion;
-import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
+import org.elasticsearch.xpack.esql.datasources.cache.DatasetIdentity;
 
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -93,7 +93,7 @@ public class ConfigKeyValidatorTests extends ESTestCase {
     /**
      * A user-typed {@code _definition_version} must not survive into a relation's config. The check deliberately
      * skips framework keys, so nothing else rejects one a user supplied, and the value is read straight out of the
-     * map by {@link SchemaCacheKey#definitionVersionOf} — so a forged value equal to a registered dataset's version
+     * map by {@link DatasetIdentity#definitionVersionOf} — so a forged value equal to a registered dataset's version
      * would address that dataset's entries.
      * <p>
      * Both halves are asserted against the production reader rather than against the map, so this fails if the strip
@@ -107,9 +107,9 @@ public class ConfigKeyValidatorTests extends ESTestCase {
         assertEquals(
             "the reader honours whatever is in the map, which is why the map must be stripped",
             "deadbeefdeadbeefdeadbeefdeadbeef",
-            SchemaCacheKey.definitionVersionOf(typed)
+            DatasetIdentity.definitionVersionOf(typed)
         );
-        assertEquals("", SchemaCacheKey.definitionVersionOf(ConfigKeyValidator.withoutFrameworkKeys(typed)));
+        assertEquals("", DatasetIdentity.definitionVersionOf(ConfigKeyValidator.withoutFrameworkKeys(typed)));
     }
 
     /** Stripping is by the prefix, not by a list of names, and it leaves the user's own settings alone. */

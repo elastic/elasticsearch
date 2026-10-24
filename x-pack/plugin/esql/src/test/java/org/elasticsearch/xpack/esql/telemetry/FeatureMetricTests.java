@@ -8,11 +8,19 @@ package org.elasticsearch.xpack.esql.telemetry;
 
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.util.BitSet;
 import java.util.List;
@@ -52,5 +60,19 @@ public class FeatureMetricTests extends ESTestCase {
         BitSet bitset = new BitSet();
         FeatureMetric.set(external, bitset);
         assertTrue("excluded plans must not set any telemetry bit", bitset.isEmpty());
+    }
+
+    /** Internal inline aggregation must not count as a user-written INLINE STATS or LOOKUP JOIN command. */
+    public void testInlineAggregationImplementationIsExcluded() {
+        var key = new ReferenceAttribute(Source.EMPTY, "key", DataType.TSID_DATA_TYPE);
+        var priority = new ReferenceAttribute(Source.EMPTY, "priority", DataType.INTEGER);
+        var source = new LocalRelation(Source.EMPTY, List.of(key, priority), EmptyLocalSupplier.EMPTY);
+        var minimum = new Alias(Source.EMPTY, "minimum", new Min(Source.EMPTY, priority));
+        var aggregate = new Aggregate(Source.EMPTY, source, List.of(key), List.of(minimum, key));
+        var plan = new InlineStats(Source.EMPTY, aggregate).surrogate();
+
+        BitSet bitset = new BitSet();
+        plan.forEachDown(node -> FeatureMetric.set(node, bitset));
+        assertTrue("internal inline aggregation must not set any telemetry bit", bitset.isEmpty());
     }
 }

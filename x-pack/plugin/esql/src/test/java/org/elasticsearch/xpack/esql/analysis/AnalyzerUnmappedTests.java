@@ -1521,6 +1521,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             DataType.UNSUPPORTED,       // not a real mapped field type
             DataType.DOC_DATA_TYPE,     // internal _doc type
             DataType.TSID_DATA_TYPE,    // internal _tsid type
+            DataType.TIMESERIES_DATA_TYPE, // internal _timeseries type
             DataType.SOURCE,            // internal _source type
             DataType.DATE_PERIOD,       // ESQL-internal, not an ES mapping type
             DataType.TIME_DURATION,     // ESQL-internal, not an ES mapping type

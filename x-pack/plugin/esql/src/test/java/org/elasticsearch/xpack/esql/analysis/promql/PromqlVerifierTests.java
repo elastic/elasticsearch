@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis.promql;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
@@ -57,6 +58,55 @@ public class PromqlVerifierTests extends ESTestCase {
     private final TestAnalyzer tsdb = analyzer().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
         .stripErrorPrefix(true)
         .unmappedResolution(UnmappedResolution.NULLIFY);
+
+    /** Capture the full nested-WITHOUT restriction before replacing the legacy aggregation translation. */
+    public void testNestedWithoutRequiresPrototypeFlag() {
+        tsdb.flags(EsqlFlags.DEFAULTS.withPromqlFunctionalTimeSeries(false)).minimumTransportVersion(TransportVersion.current());
+        for (String expression : nestedWithoutAggregations()) {
+            tsdb.error(
+                "PROMQL index=test step=5m result=(" + expression + ")",
+                containsString("The experimental PromQL aggregation path is disabled")
+            );
+        }
+    }
+
+    /** The same shapes are legal aggregation trees on the current metadata prototype. */
+    public void testNestedWithoutAggregationsWithTypedMetadata() {
+        tsdb.flags(EsqlFlags.DEFAULTS.withPromqlFunctionalTimeSeries(true)).minimumTransportVersion(TransportVersion.current());
+        for (String expression : nestedWithoutAggregations()) {
+            assertTrue(expression, tsdb.query("PROMQL index=test step=5m result=(" + expression + ")").resolved());
+        }
+    }
+
+    /** Label representation changes must not remove the independent restriction on the command's step column. */
+    public void testAggregationStepLabelCollision() {
+        tsdb.flags(EsqlFlags.DEFAULTS.withPromqlFunctionalTimeSeries(true)).minimumTransportVersion(TransportVersion.current());
+        for (String expression : List.of(
+            "sum by(step)(network.bytes_in)",
+            "sum without(step)(network.bytes_in)",
+            "sum by(cluster)(max without(step)(network.bytes_in))"
+        )) {
+            tsdb.error(
+                "PROMQL index=test step=5m result=(" + expression + ")",
+                containsString("label [step] collides with the built-in [step] output column")
+            );
+        }
+    }
+
+    private static List<String> nestedWithoutAggregations() {
+        return List.of(
+            "sum without(cluster)(max without(pod)(network.bytes_in))",
+            "avg without(pod)(sum without(pod)(network.bytes_in))",
+            "avg without(cluster, region)(sum without(pod, region)(network.bytes_in))",
+            "max without()(sum without(pod)(network.bytes_in))",
+            "avg without(pod)(sum without()(network.bytes_in))",
+            "count without(cluster)(max without(region)(sum without(pod)(network.bytes_in)))",
+            "max without(region)(avg by(cluster, region)(sum without(pod)(network.bytes_in)))",
+            "count without(cluster)(sum(sum without(pod)(network.bytes_in)))",
+            "avg without(missing_outer)(sum without(missing_inner)(network.bytes_in))",
+            "avg without(cluster)(sum without(pod)(rate(network.bytes_in[5m])))"
+        );
+    }
 
     public void testPromqlRangeVector() {
         tsdb.error(

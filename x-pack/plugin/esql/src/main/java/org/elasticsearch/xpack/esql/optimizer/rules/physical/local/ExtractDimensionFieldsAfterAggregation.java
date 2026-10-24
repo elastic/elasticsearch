@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.compute.aggregation.AggregatorMode;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -20,8 +18,6 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FirstDocId;
@@ -40,7 +36,6 @@ import org.elasticsearch.xpack.esql.planner.AggregateMapper;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -198,22 +193,7 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
 
     static Attribute readDimAttribute(Attribute dim) {
         if (dim instanceof TimeSeriesMetadataAttribute timeSeriesMetadataAttribute) {
-            var withoutFields = timeSeriesMetadataAttribute.excludedFields();
-            return new TimeSeriesMetadataAttribute(
-                dim.source(),
-                null,
-                dim.qualifier(),
-                dim.name(),
-                new FunctionEsField(
-                    new EsField(SourceFieldMapper.NAME, DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.DIMENSION),
-                    DataType.KEYWORD,
-                    new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, withoutFields)
-                ),
-                dim.nullable(),
-                null,
-                true,
-                withoutFields
-            );
+            return timeSeriesMetadataAttribute.forSourceRead();
         }
         return dim;
     }

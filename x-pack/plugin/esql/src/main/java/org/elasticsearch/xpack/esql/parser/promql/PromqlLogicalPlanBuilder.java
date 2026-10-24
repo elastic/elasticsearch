@@ -11,7 +11,10 @@ import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
+import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
+import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -60,6 +63,8 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -133,7 +138,8 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         return Duration.ofMillis(Math.max(1L, nextRoundedValue - roundedStart));
     }
 
-    public static LogicalPlan tryFoldRelation(PromqlCommand command, LogicalPlan plan) {
+    /** Empty sources can use the requested finite clock, charged to the command's shared planning budget. */
+    public static LogicalPlan tryFoldRelation(PromqlCommand command, LogicalPlan plan, FoldContext foldContext) {
         if (!(plan instanceof EsRelation esRelation) || esRelation.concreteQualifiedIndices().isEmpty() == false) {
             return null;
         }
@@ -144,10 +150,11 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
                 EmptyLocalSupplier.EMPTY
             );
         }
-        return buildLocalRelation(command);
+        return buildLocalRelation(command, foldContext);
     }
 
-    public static LogicalPlan buildLocalRelation(PromqlCommand command) {
+    /** Materialize only representable evaluation grids that fit the command's remaining planning-memory budget. */
+    public static LogicalPlan buildLocalRelation(PromqlCommand command, FoldContext foldContext) {
         Source source = command.source();
 
         long start = ((Number) command.start().value()).longValue();
@@ -168,13 +175,20 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
             first = start;
         }
 
-        int capacity = (int) Math.min(Integer.MAX_VALUE, (end - first) / step + 1);
+        int capacity = evaluationStepCount(first, end, step);
+        // Reserve before creating the list. Include the later local-block conversion's primitive buffers and
+        // hash-table scratch (BlockUtils.fromListRow), which can coexist with these boxed timestamps.
+        long fixedBytes = RamUsageEstimator.shallowSizeOfInstance(ArrayList.class) + RamUsageEstimator.shallowSizeOfInstance(HashMap.class)
+            + RamUsageEstimator.shallowSizeOfInstance(HashSet.class) + 4L * RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
+        long bytesPerStep = RamUsageEstimator.shallowSizeOfInstance(Long.class) + 2L * RamUsageEstimator.NUM_BYTES_OBJECT_REF + 3L
+            * Long.BYTES + 2L * RamUsageEstimator.HASHTABLE_RAM_BYTES_PER_ENTRY;
+        foldContext.trackAllocation(source, fixedBytes + capacity * bytesPerStep);
         var steps = new ArrayList<Long>(capacity);
-        for (long ts = first; ts <= end; ts += step) {
+        long ts = first;
+        for (int i = 0; i < capacity; i++) {
             steps.add(ts);
-
-            if (Long.MAX_VALUE - ts < step) {
-                break;
+            if (i + 1 < capacity) {
+                ts = Math.addExact(ts, step);
             }
         }
 
@@ -184,6 +198,24 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         var expanded = new ReferenceAttribute(source, command.stepColumnName(), DataType.DATETIME);
 
         return new MvExpand(source, new Row(source, List.of(stepAlias)), stepAlias, expanded);
+    }
+
+    static int evaluationStepCount(long start, long end, long step) {
+        if (step <= 0) {
+            throw new QlIllegalArgumentException("step must be positive");
+        }
+        if (end < start) {
+            throw new QlIllegalArgumentException("evaluation range end must be greater than or equal to its start");
+        }
+        // The nonnegative distance can exceed Long.MAX_VALUE; unsigned division preserves it without overflowing.
+        long intervals = Long.divideUnsigned(end - start, step);
+        if (Long.compareUnsigned(intervals, ArrayUtil.MAX_ARRAY_LENGTH) >= 0) {
+            throw new QlIllegalArgumentException(
+                "evaluation range exceeds the maximum number of materialized steps [{}]",
+                ArrayUtil.MAX_ARRAY_LENGTH
+            );
+        }
+        return (int) intervals + 1;
     }
 
     protected LogicalPlan plan(ParseTree ctx) {

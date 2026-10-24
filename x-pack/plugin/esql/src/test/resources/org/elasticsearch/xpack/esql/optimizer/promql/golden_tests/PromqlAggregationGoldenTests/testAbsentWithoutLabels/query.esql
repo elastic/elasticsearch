@@ -1,0 +1,1 @@
+PROMQL index=k8s step=1h result=(avg without(missing_outer)(sum without(missing_inner)(network.cost)))

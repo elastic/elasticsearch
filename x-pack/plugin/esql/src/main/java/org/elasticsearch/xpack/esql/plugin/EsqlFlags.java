@@ -120,6 +120,14 @@ public class EsqlFlags {
         Setting.Property.OperatorDynamic
     );
 
+    /** Opt-in typed metadata path; keep disabled by default until compatibility and query coverage are complete. */
+    public static final Setting<Boolean> ESQL_PROMQL_FUNCTIONAL_TIMESERIES = Setting.boolSetting(
+        "esql.query.promql.functional_timeseries",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     // this is only used for testing purposes right now
     public static List<Setting<?>> ALL_ESQL_FLAGS_SETTINGS = List.of(
         ESQL_STRING_LIKE_ON_INDEX,
@@ -128,7 +136,8 @@ public class EsqlFlags {
         ESQL_MAX_COMMAND_COUNT,
         ESQL_MAX_BRANCH_LEVEL,
         ESQL_MAX_BRANCH_COUNT_PER_MERGE,
-        ESQL_MAX_FILLNULL_FIELDS
+        ESQL_MAX_FILLNULL_FIELDS,
+        ESQL_PROMQL_FUNCTIONAL_TIMESERIES
     );
 
     /**
@@ -158,6 +167,8 @@ public class EsqlFlags {
     private final int maxFillNullFields;
 
     private final int maxCommandCount;
+
+    private final boolean promqlFunctionalTimeSeries;
 
     /**
      * Constructor for tests.
@@ -275,6 +286,28 @@ public class EsqlFlags {
         int maxFillNullFields,
         int maxCommandCount
     ) {
+        this(
+            stringLikeOnIndex,
+            roundToPushdownThreshold,
+            maxBranchCount,
+            maxBranchLevel,
+            maxBranchCountPerMerge,
+            maxFillNullFields,
+            maxCommandCount,
+            ESQL_PROMQL_FUNCTIONAL_TIMESERIES.getDefault(Settings.EMPTY)
+        );
+    }
+
+    private EsqlFlags(
+        boolean stringLikeOnIndex,
+        int roundToPushdownThreshold,
+        int maxBranchCount,
+        int maxBranchLevel,
+        int maxBranchCountPerMerge,
+        int maxFillNullFields,
+        int maxCommandCount,
+        boolean promqlFunctionalTimeSeries
+    ) {
         this.stringLikeOnIndex = stringLikeOnIndex;
         this.roundToPushdownThreshold = roundToPushdownThreshold;
         this.maxBranchCount = maxBranchCount;
@@ -282,6 +315,7 @@ public class EsqlFlags {
         this.maxBranchCountPerMerge = maxBranchCountPerMerge;
         this.maxFillNullFields = maxFillNullFields;
         this.maxCommandCount = maxCommandCount;
+        this.promqlFunctionalTimeSeries = promqlFunctionalTimeSeries;
     }
 
     public EsqlFlags(ClusterSettings settings) {
@@ -292,7 +326,8 @@ public class EsqlFlags {
             settings.get(ESQL_MAX_BRANCH_LEVEL),
             settings.get(ESQL_MAX_BRANCH_COUNT_PER_MERGE),
             settings.get(ESQL_MAX_FILLNULL_FIELDS),
-            settings.get(ESQL_MAX_COMMAND_COUNT)
+            settings.get(ESQL_MAX_COMMAND_COUNT),
+            settings.get(ESQL_PROMQL_FUNCTIONAL_TIMESERIES)
         );
     }
 
@@ -329,6 +364,24 @@ public class EsqlFlags {
         return maxCommandCount;
     }
 
+    public boolean promqlFunctionalTimeSeries() {
+        return promqlFunctionalTimeSeries;
+    }
+
+    /** Select the experimental translator in planning tests without changing other flags. */
+    public EsqlFlags withPromqlFunctionalTimeSeries(boolean enabled) {
+        return new EsqlFlags(
+            stringLikeOnIndex,
+            roundToPushdownThreshold,
+            maxBranchCount,
+            maxBranchLevel,
+            maxBranchCountPerMerge,
+            maxFillNullFields,
+            maxCommandCount,
+            enabled
+        );
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -340,7 +393,8 @@ public class EsqlFlags {
             && maxBranchLevel == that.maxBranchLevel
             && maxBranchCountPerMerge == that.maxBranchCountPerMerge
             && maxFillNullFields == that.maxFillNullFields
-            && maxCommandCount == that.maxCommandCount;
+            && maxCommandCount == that.maxCommandCount
+            && promqlFunctionalTimeSeries == that.promqlFunctionalTimeSeries;
     }
 
     @Override
@@ -352,7 +406,8 @@ public class EsqlFlags {
             maxBranchLevel,
             maxBranchCountPerMerge,
             maxFillNullFields,
-            maxCommandCount
+            maxCommandCount,
+            promqlFunctionalTimeSeries
         );
     }
 
@@ -372,6 +427,8 @@ public class EsqlFlags {
             + maxFillNullFields
             + ", maxCommandCount="
             + maxCommandCount
+            + ", promqlFunctionalTimeSeries="
+            + promqlFunctionalTimeSeries
             + ']';
     }
 }

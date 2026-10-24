@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -220,6 +221,12 @@ public class InlineJoin extends Join implements SortPreserving {
 
     public InlineJoin(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config) {
         super(source, left, right, config, ExecuteLocation.ANY);
+    }
+
+    @Override
+    protected boolean supportsKeyType(DataType type) {
+        // The materialized aggregate is joined by raw bytes, without a lookup-index query.
+        return type == DataType.TSID_DATA_TYPE || super.supportsKeyType(type);
     }
 
     public InlineJoin(

@@ -257,6 +257,10 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.TopSnippets;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Trim;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesGet;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesHash;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesSet;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesUnset;
 import org.elasticsearch.xpack.esql.expression.function.scalar.util.Delay;
 import org.elasticsearch.xpack.esql.expression.function.vector.CosineSimilarity;
 import org.elasticsearch.xpack.esql.expression.function.vector.DotProduct;
@@ -414,6 +418,12 @@ public class EsqlFunctionRegistry {
 
     private static FunctionDefinition[][] functions() {
         return new FunctionDefinition[][] {
+            // Functional time-series metadata; verification gates this prototype on its disabled feature flag.
+            new FunctionDefinition[] {
+                TimeSeriesGet.DEFINITION,
+                TimeSeriesSet.DEFINITION,
+                TimeSeriesUnset.DEFINITION,
+                TimeSeriesHash.DEFINITION },
             // grouping functions
             new FunctionDefinition[] { Bucket.DEFINITION, Categorize.DEFINITION, TBucket.DEFINITION, TimeSeriesWithout.DEFINITION },
             // aggregate functions

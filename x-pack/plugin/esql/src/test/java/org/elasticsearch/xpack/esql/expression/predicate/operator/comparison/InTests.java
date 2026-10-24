@@ -128,6 +128,21 @@ public class InTests extends AbstractFunctionTestCase {
     }
 
     private static void bytesRefs(List<TestCaseSupplier> suppliers, int items) {
+        suppliers.add(new TestCaseSupplier("tsid", typesList(DataType.TSID_DATA_TYPE, DataType.TSID_DATA_TYPE, items), () -> {
+            List<BytesRef> inlist = randomList(items, items, () -> new BytesRef(randomByteArrayOfLength(16)));
+            BytesRef field = randomBoolean() ? BytesRef.deepCopyOf(randomFrom(inlist)) : new BytesRef(randomByteArrayOfLength(16));
+            List<TestCaseSupplier.TypedData> args = new ArrayList<>(inlist.size() + 1);
+            for (int i = 0; i < inlist.size(); i++) {
+                args.add(new TestCaseSupplier.TypedData(inlist.get(i), DataType.TSID_DATA_TYPE, "inlist" + i));
+            }
+            args.add(new TestCaseSupplier.TypedData(field, DataType.TSID_DATA_TYPE, "field"));
+            return new TestCaseSupplier.TestCase(
+                args,
+                matchesPattern("InBytesRefEvaluator.*"),
+                DataType.BOOLEAN,
+                equalTo(inlist.contains(field))
+            );
+        }));
         for (DataType type1 : DataType.stringTypes()) {
             for (DataType type2 : DataType.stringTypes()) {
                 String name = type1 == type2 ? type1.toString() : type1 + " " + type2;

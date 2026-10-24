@@ -87,6 +87,7 @@ public abstract class PositionToXContent {
 
     public static PositionToXContent positionToXContent(ColumnInfoImpl columnInfo, Block block, ZoneId zoneId, BytesRef scratch) {
         return switch (columnInfo.type()) {
+            case TIMESERIES_DATA_TYPE -> throw new UnsupportedOperationException("time-series metadata must be rendered with TO_STRING");
             case LONG, COUNTER_LONG -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)

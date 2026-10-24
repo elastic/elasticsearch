@@ -230,7 +230,7 @@ public class InSubqueryTypesIT extends ESIntegTestCase {
      * type that has a regular REST mapping:
      * <ul>
      *     <li>{@code UNSUPPORTED}, {@code NULL}, {@code OBJECT}, {@code SOURCE}, {@code PARTIAL_AGG}, {@code DOC_DATA_TYPE},
-     *     {@code TSID_DATA_TYPE}: internal types with no public ES field mapping.</li>
+     *     {@code TSID_DATA_TYPE}, {@code TIMESERIES_DATA_TYPE}: internal types with no public ES field mapping.</li>
      *     <li>{@code DATE_PERIOD}, {@code TIME_DURATION}: ES|QL-only types (no {@code esType}).</li>
      *     <li>{@code GEOHASH}, {@code GEOTILE}, {@code GEOHEX}: aggregation result types, not directly mappable as fields.</li>
      * </ul>
@@ -243,6 +243,7 @@ public class InSubqueryTypesIT extends ESIntegTestCase {
         DataType.PARTIAL_AGG,
         DataType.DOC_DATA_TYPE,
         DataType.TSID_DATA_TYPE,
+        DataType.TIMESERIES_DATA_TYPE,
         DataType.DATE_PERIOD,
         DataType.TIME_DURATION,
         DataType.GEOHASH,

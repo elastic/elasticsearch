@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
@@ -45,9 +46,11 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.TRange;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
@@ -82,6 +85,9 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -166,7 +172,15 @@ public class Verifier {
         }
 
         checkTStepIncompatibleWithTRange(plan, failures);
+        plan.forEachExpressionDown(TimeSeriesFunction.class, function -> {
+            if (context.flags().promqlFunctionalTimeSeries() == false) {
+                failures.add(fail(function, "Time-series metadata functions are experimental and disabled"));
+            } else if (TimeSeriesMetadataAttribute.supportTimeSeriesMetadataType(context.minimumVersion()) == false) {
+                failures.add(fail(function, "Time-series metadata functions require support on every participating node"));
+            }
+        });
         checkTimeSeriesCollapseSupported(plan, failures, context.minimumVersion());
+        checkTsidComparisonsSupported(plan, failures, context.minimumVersion());
         checkHighlightSupported(plan, failures, context.minimumVersion());
         checkHighlightAnalyzersAgree(plan, failures, context.minimumVersion());
         checkDenseVectorSupported(plan, failures, context.minimumVersion());
@@ -202,6 +216,7 @@ public class Verifier {
         });
 
         if (failures.hasFailures() == false) {
+            checkTimeSeriesMetadataOutput(plan, failures);
             licenseCheck(plan, failures);
         }
 
@@ -211,6 +226,22 @@ public class Verifier {
         }
 
         return failures.failures();
+    }
+
+    /** Metadata is an internal value; require explicit rendering before any response formatter sees it. */
+    private static void checkTimeSeriesMetadataOutput(LogicalPlan plan, Failures failures) {
+        for (Attribute attribute : plan.output()) {
+            if (attribute.dataType() == DataType.TIMESERIES_DATA_TYPE) {
+                failures.add(
+                    fail(
+                        attribute,
+                        "Column [{}] contains time-series metadata; use TO_STRING({}) to include it in the results",
+                        attribute.name(),
+                        attribute.name()
+                    )
+                );
+            }
+        }
     }
 
     /**
@@ -259,6 +290,29 @@ public class Verifier {
                 overflowing.setIfAbsent(fillNull);
             }
         }
+    }
+
+    /** Existing TSID values predate byte-comparison evaluators, so gate these operands as well as the new TS_HASH function. */
+    private static void checkTsidComparisonsSupported(LogicalPlan plan, Failures failures, TransportVersion minimumVersion) {
+        if (TimeSeriesMetadataAttribute.supportTimeSeriesMetadataType(minimumVersion)) {
+            return;
+        }
+        plan.forEachExpressionDown(Expression.class, expression -> {
+            if ((expression instanceof Equals || expression instanceof NotEquals || expression instanceof In)
+                && expression.childrenResolved()
+                && expression.children().stream().anyMatch(child -> child.dataType() == DataType.TSID_DATA_TYPE)) {
+                failures.add(fail(expression, "Comparisons of [_tsid] values require support on every participating node"));
+            }
+        });
+        plan.forEachDown(Join.class, join -> {
+            if ((join instanceof AbstractSubqueryJoin || join instanceof InnerJoin || join instanceof InlineJoin)
+                && join.config()
+                    .rightFields()
+                    .stream()
+                    .anyMatch(field -> field.resolved() && field.dataType() == DataType.TSID_DATA_TYPE)) {
+                failures.add(fail(join, "Comparisons of [_tsid] values require support on every participating node"));
+            }
+        });
     }
 
     /** Fails fast with a 4xx so older recipients never see the node and 5xx on deserialization. */

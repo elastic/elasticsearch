@@ -330,6 +330,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         boolean isUnsupported = attr.dataType() == DataType.UNSUPPORTED;
         UnionTypeEsField unionTypes = findUnionTypes(attr);
         if (unionTypes == null) {
+            if (attr instanceof TimeSeriesMetadataAttribute metadata && attr.dataType() == DataType.TIMESERIES_DATA_TYPE) {
+                return ValuesSourceReaderOperator.load(TimeSeriesMetadataBlockLoader.create(shardContext.ctx, metadata.excludedFields()));
+            }
             BlockLoader blockLoader = shardContext.blockLoader(
                 fieldName,
                 isUnsupported,

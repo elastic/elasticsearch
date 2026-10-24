@@ -1,8 +1,17 @@
 % Included in both the PromQL limitations page and the ES|QL PROMQL command page. The command page
 % is copied verbatim into the context of agents: Kibana's ES|QL generation docs (esql_docs/esql-promql.txt)
 % and the elasticsearch-esql agent skill (references/promql-command.md).
+% Keep released-version limitations separate from the aggregation-only prototype under development.
 
-The majority of PromQL expressions run unchanged.
+:::{note}
+The aggregation prototype requires `esql.query.promql.functional_timeseries=true`.
+It supports metric selectors, per-series range functions, and nested aggregations with `by(...)`, `without(...)`, or no grouping clause.
+Expressions containing other operators or function families return a client error (4xx).
+The result column name must differ from `step` and any other output column, including `_timeseries` when present.
+The prototype is disabled by default and has no legacy translation fallback.
+:::
+
+In released versions, the majority of PromQL expressions run unchanged.
 The following constructs are not evaluated yet, so they return a client error (4xx):
 
 - Binary set operators: `and` and `unless`.

@@ -96,6 +96,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
@@ -109,7 +110,6 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.rewriteDatasetsUnsecured;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
@@ -221,6 +221,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         private String[] nestedPath;
         private TransportVersion transportVersion;
         private boolean explicitTransportVersion;
+        private EsqlFlags flags;
         private TransportVersion since;
         private String sinceName;
         private final List<Label> labels = new ArrayList<>();
@@ -249,6 +250,12 @@ public abstract class GoldenTestCase extends ESTestCase {
 
         TestBuilder(String esqlQuery) {
             this(esqlQuery, EnumSet.allOf(Stage.class), EsqlTestUtils.TEST_SEARCH_STATS, new String[0], null, null);
+        }
+
+        /** Overrides cluster feature flags consistently across analysis and planning for this test. */
+        public TestBuilder flags(EsqlFlags flags) {
+            this.flags = Objects.requireNonNull(flags);
+            return this;
         }
 
         public TestBuilder optimizer(Function<LogicalOptimizerContext, LogicalPlanOptimizer> factory) {
@@ -587,6 +594,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                 stages,
                 searchStats,
                 version,
+                flags,
                 writeReference,
                 optimizerFactory,
                 aliasFilter,
@@ -735,6 +743,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         EnumSet<Stage> stages,
         SearchStats searchStats,
         TransportVersion transportVersion,
+        EsqlFlags flags,
         boolean writeReference,
         Function<LogicalOptimizerContext, LogicalPlanOptimizer> optimizerFactory,
         AliasFilter aliasFilter,
@@ -743,6 +752,10 @@ public abstract class GoldenTestCase extends ESTestCase {
         QueryBuilder requestFilter,
         Map<String, String> views
     ) {
+
+        private EsqlFlags configuredFlags(EsqlFlags defaults) {
+            return flags == null ? defaults : flags;
+        }
 
         private List<Tuple<Stage, TestResult>> doTests() throws IOException {
             EsqlStatement statement = TEST_PARSER.createStatement(esqlQuery);
@@ -763,7 +776,8 @@ public abstract class GoldenTestCase extends ESTestCase {
             } else {
                 // The unmapped_fields and wildcards_match_datasets settings decide how much view structure resolution keeps, as in
                 // EsqlSession.
-                TestAnalyzer viewAnalyzer = analyzer().unmappedResolution(statement.setting(UNMAPPED_FIELDS))
+                TestAnalyzer viewAnalyzer = analyzer().flags(configuredFlags(EsqlFlags.DEFAULTS))
+                    .unmappedResolution(statement.setting(UNMAPPED_FIELDS))
                     .wildcardsMatchDatasets(statement.setting(WILDCARDS_MATCH_DATASETS));
                 views.forEach(viewAnalyzer::addView);
                 parsedPlan = viewAnalyzer.resolveViewsAndInSubqueries(planAfterLet);
@@ -797,7 +811,8 @@ public abstract class GoldenTestCase extends ESTestCase {
                 Files.createDirectories(queryPath.getParent().resolve(rangeDir));
             }
             UnmappedResolution unmappedResolution = statement.setting(UNMAPPED_FIELDS);
-            TestAnalyzer testAnalyzer = analyzer().addLanguagesLookup()
+            TestAnalyzer testAnalyzer = analyzer().flags(configuredFlags(EsqlFlags.DEFAULTS))
+                .addLanguagesLookup()
                 .addTestLookup()
                 .addMultiColumnJoinableLookup()
                 .addAnalysisTestsEnrichResolution()
@@ -825,7 +840,12 @@ public abstract class GoldenTestCase extends ESTestCase {
             if (stages.equals(EnumSet.of(Stage.ANALYSIS))) {
                 return result;
             }
-            var optimizerContext = logicalOptimizerContext(configuration, FoldContext.small(), transportVersion);
+            var optimizerContext = new LogicalOptimizerContext(
+                configuration,
+                FoldContext.small(),
+                transportVersion,
+                configuredFlags(EsqlFlags.DEFAULTS)
+            );
             var optimizer = optimizerFactory != null
                 ? optimizerFactory.apply(optimizerContext)
                 : new LogicalPlanOptimizer(optimizerContext);
@@ -895,7 +915,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                         var sink = new ExchangeSinkExec(exec.source(), exec.output(), false, exec.child());
                         var reductionPlan = ComputeService.reductionPlan(
                             PlannerSettings.DEFAULTS,
-                            new EsqlFlags(false),
+                            configuredFlags(new EsqlFlags(false)),
                             configuration,
                             configuration.newFoldContext(),
                             sink,
@@ -996,7 +1016,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         private PhysicalPlan localOptimize(PhysicalPlan plan, Configuration conf) {
             return PlannerUtils.localPlan(
                 PlannerSettings.DEFAULTS,
-                new EsqlFlags(false),
+                configuredFlags(new EsqlFlags(false)),
                 conf,
                 conf.newFoldContext(),
                 plan,
@@ -1036,7 +1056,7 @@ public abstract class GoldenTestCase extends ESTestCase {
             return new LookupLogicalOptimizer(new LocalLogicalOptimizerContext(conf, foldCtx, stats)).localOptimize(logicalPlan);
         }
 
-        private static PhysicalPlan optimizeLookupPhysicalPlan(
+        private PhysicalPlan optimizeLookupPhysicalPlan(
             LogicalPlan logicalPlan,
             Configuration conf,
             SearchStats stats,
@@ -1046,7 +1066,7 @@ public abstract class GoldenTestCase extends ESTestCase {
             PhysicalPlan physicalPlan = LocalMapper.INSTANCE.map(logicalPlan);
             var context = new LookupPhysicalOptimizerContext(
                 PlannerSettings.DEFAULTS,
-                new EsqlFlags(true),
+                configuredFlags(new EsqlFlags(true)),
                 conf,
                 foldCtx,
                 stats,

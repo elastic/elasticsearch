@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -79,6 +80,9 @@ public class MvMax extends AbstractMultivalueFunction implements BlockLoaderExpr
 
     @Override
     protected TypeResolution resolveFieldType() {
+        if (field().dataType() == DataType.TIMESERIES_DATA_TYPE) {
+            return new TypeResolution("[MV_MAX] does not support ordering [_timeseries] values");
+        }
         return isRepresentableExceptCountersSpatialDenseVectorAggregateMetricDoubleAndHistogram(field(), sourceText(), DEFAULT);
     }
 

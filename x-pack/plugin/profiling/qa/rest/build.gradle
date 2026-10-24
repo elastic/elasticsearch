@@ -1,0 +1,23 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+
+restResources {
+  restApi {
+    include '_common', 'bulk', 'cluster', 'indices', 'search', 'profiling'
+  }
+  restTests {
+    // The profiling/*.yml sources live in the aggregate :x-pack:plugin module; pull them in
+    // here so they run in this dedicated suite instead of the monolithic XPackRestIT.
+    includeXpack 'profiling'
+  }
+}
+
+tasks.named('yamlRestTest') {
+  usesDefaultDistribution("profiling yaml rest tests require the default distribution")
+}

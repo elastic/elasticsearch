@@ -30,6 +30,7 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.CandidateValues;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TokenStreamMatching;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -52,7 +53,8 @@ import static org.elasticsearch.index.query.MatchQueryBuilder.ANALYZER_FIELD;
  * The block-level walking (multivalue any-value semantics, null handling, per-thread scratch) is shared here through
  * a single {@code Text} evaluator. How one value's tokens are matched is Elasticsearch's to say, and comes from
  * {@link TokenStreamMatching}: {@link TokenStreamMatching.AnyTerm} for {@code match},
- * {@link TokenStreamMatching.Phrase} for {@code match_phrase}.
+ * {@link TokenStreamMatching.Phrase} for {@code match_phrase}. Each value's bytes are read for those terms before
+ * it is analyzed, which {@link CandidateValues} answers for.
  */
 public final class RuntimeSearch {
 
@@ -81,11 +83,18 @@ public final class RuntimeSearch {
         return fieldBlock.hasValue(position, queryStringBytesRef, scratch);
     }
 
+    /**
+     * One row's values matched by analyzing them, with {@code candidates} read from each value's bytes first: a
+     * value spelling none of the query's terms is never analyzed, and one holding a term where the bytes around it
+     * say it stands as a token answers without being analyzed either. The bytes are whatever the block holds, so
+     * this reads a runtime column, a {@code TO_TEXT} expression and an external dataset alike.
+     */
     @Evaluator(extraName = "Text", warnExceptions = { IOException.class }, allNullsIsNull = false)
     static boolean processText(
         @Position int position,
         BytesRefBlock fieldBlock,
         @Fixed TokenStreamMatching.Matcher matcher,
+        @Fixed CandidateValues candidates,
         @Fixed Analyzer analyzer,
         @Fixed(includeInToString = false, scope = THREAD_LOCAL) BytesRef scratch
     ) throws IOException {
@@ -99,6 +108,14 @@ public final class RuntimeSearch {
         for (int valueIndex = startIndex; valueIndex < startIndex + valueCount; valueIndex++) {
             boolean foundMatch;
             scratch = fieldBlock.getBytesRef(valueIndex, scratch);
+            final CandidateValues.Answer held = candidates.held(scratch);
+            if (held == CandidateValues.Answer.NO) {
+                continue;
+            }
+            if (held == CandidateValues.Answer.YES) {
+                // The value holds a term this matcher matches on, as a token, which is what analyzing it would say.
+                return true;
+            }
             // The analyzed token stream is matched directly; queries with options (or phrase queries under a
             // non-standard analyzer, where position gaps matter) take the Lucene MemoryIndex path instead.
             try (TokenStream stream = analyzer.tokenStream(CONTENT_FIELD, scratch.utf8ToString())) {
@@ -136,11 +153,17 @@ public final class RuntimeSearch {
         if (luceneQuery instanceof MatchNoDocsQuery) {
             return ConstantEvaluators.CONSTANT_FALSE_FACTORY;
         }
+        final NamedAnalyzer values = valuesAnalyzer == null ? Lucene.STANDARD_ANALYZER : valuesAnalyzer;
+        // The gap the values are analyzed with sits between them and leaves each one's tokens spelled as they are,
+        // so what the values can be read for is decided before it is applied.
         return new RuntimeSearchTextWithLuceneQueryEvaluator.Factory(
             source,
             fieldEvaluator,
-            withPositionIncrementGap(valuesAnalyzer == null ? Lucene.STANDARD_ANALYZER : valuesAnalyzer),
+            withPositionIncrementGap(values),
             luceneQuery,
+            CandidateValues.valuesSpellTheirTokens(values)
+                ? CandidateValues.of(luceneQuery, CONTENT_FIELD).readingTokensOf(values)
+                : CandidateValues.ANY,
             context -> new MemoryIndex(),
             context -> new BytesRef()
         );
@@ -231,6 +254,7 @@ public final class RuntimeSearch {
         BytesRefBlock fieldBlock,
         @Fixed Analyzer analyzer,
         @Fixed Query query,
+        @Fixed CandidateValues candidates,
         @Fixed(includeInToString = false, scope = THREAD_LOCAL) MemoryIndex memoryIndex,
         @Fixed(includeInToString = false, scope = THREAD_LOCAL) BytesRef scratch
     ) throws IOException {
@@ -241,6 +265,20 @@ public final class RuntimeSearch {
         final var startIndex = fieldBlock.getFirstValueIndex(position);
         if (valueCount == 0) {
             return false;
+        }
+        // The values are read for the query's terms before any of them is indexed, over the row as a whole, since
+        // that is the document the query is run against.
+        final BytesRef read = scratch;
+        switch (candidates.held(valueCount, index -> fieldBlock.getBytesRef(startIndex + index, read))) {
+            case NO -> {
+                return false;
+            }
+            case YES -> {
+                // The values hold what the query asks, as tokens, so indexing them would answer the same.
+                return true;
+            }
+            case MAYBE -> {
+            }
         }
 
         // All values of the position form one document, like an indexed multivalued text field: query terms may

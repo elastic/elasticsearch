@@ -1,0 +1,5 @@
+area: Mapping
+issues: []
+pr: 162005
+summary: Analyze only the values that could hold the terms
+type: enhancement

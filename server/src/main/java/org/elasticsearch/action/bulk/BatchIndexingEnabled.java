@@ -37,14 +37,38 @@ public final class BatchIndexingEnabled {
         }
     }, Setting.Property.Dynamic, Setting.Property.NodeScope);
 
+    /**
+     * Whether the {@code columnar_stored} {@code _source} blob of a batch is written straight from the mapped columns
+     * ({@code SourceColumn}) when every field in the batch supports it. {@code false} forces the synthetic source loader path for
+     * every batch; it is the escape hatch should the direct path ever disagree with the loader, and only the blob's producer changes,
+     * never its bytes.
+     */
+    public static final Setting<Boolean> DIRECT_COLUMNAR_SOURCE = boolSetting(
+        "indices.batch_indexing.direct_columnar_source",
+        true,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     private volatile boolean enabled;
+    private volatile boolean directColumnarSourceEnabled;
 
     public BatchIndexingEnabled(ClusterSettings clusterSettings) {
         clusterSettings.initializeAndWatch(BATCH_INDEXING, this::setEnabled);
+        clusterSettings.initializeAndWatch(DIRECT_COLUMNAR_SOURCE, this::setDirectColumnarSourceEnabled);
     }
 
     private void setEnabled(boolean enabled) {
         this.enabled = enabled;
+    }
+
+    private void setDirectColumnarSourceEnabled(boolean enabled) {
+        this.directColumnarSourceEnabled = enabled;
+    }
+
+    /** The current value of {@link #DIRECT_COLUMNAR_SOURCE}. */
+    public boolean isDirectColumnarSourceEnabled() {
+        return directColumnarSourceEnabled;
     }
 
     /**

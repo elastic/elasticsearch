@@ -99,6 +99,7 @@ import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.ReanalyzingIntervalsSource;
 import org.elasticsearch.index.mapper.ReanalyzingTextQuery;
 import org.elasticsearch.index.mapper.SortedSetDocValuesSyntheticFieldLoaderLayer;
+import org.elasticsearch.index.mapper.SourceColumn;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextFamilyFieldType;
@@ -1351,8 +1352,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 final EscfColumnData termsData = terms.finish(docCount);
                 ctx.addColumn(LuceneBinaryColumn.of(termsData, fieldType().name(), fieldType), termsData);
             }
+            EscfColumnData binaryDvData = null;
             if (binaryDvs != null && binaryDvs.isEmpty() == false) {
-                final EscfColumnData binaryDvData = binaryDvs.finish(docCount);
+                binaryDvData = binaryDvs.finish(docCount);
                 ctx.addColumn(
                     valuelessDocs == null
                         ? LuceneBinaryColumn.of(binaryDvData, fieldType().name(), CustomDocValuesField.TYPE)
@@ -1366,9 +1368,29 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                     binaryDvData
                 );
             }
+            EscfColumnData dvCountData = null;
             if (dvCounts != null && dvCounts.isEmpty() == false) {
-                final EscfColumnData dvCountData = dvCounts.finish(docCount);
+                dvCountData = dvCounts.finish(docCount);
                 ctx.addColumn(LuceneLongColumn.counts(dvCountData, fieldType().name()), dvCountData);
+            }
+            if (ctx.writesSourceColumn()) {
+                // This field's part of the columnar_stored blob, read from the doc values columns just attached the way
+                // syntheticFieldLoaderFromDocValues reads them back: a payload per document, or an ArrayOrderInlineNull blob next to
+                // its counts. A column that no document needed is left out; the loader would find no values in it either.
+                assert supportsDirectColumnarSource();
+                final SourceColumn.Layer valuesLayer = columnar
+                    ? (binaryDvData == null
+                        ? null
+                        : new ColumnarPayloadBinaryDocValuesSyntheticFieldLoaderLayer(fieldType().name()).sourceLayer(binaryDvData))
+                    : (dvCountData == null
+                        ? null
+                        : new ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer(fieldType().name()).sourceLayer(
+                            binaryDvData,
+                            dvCountData
+                        ));
+                ctx.addSourceColumn(
+                    valuesLayer == null ? new SourceColumn(fullPath(), leafName()) : new SourceColumn(fullPath(), leafName(), valuesLayer)
+                );
             }
         }
     }
@@ -1423,9 +1445,27 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 }
                 if (emitDvs) {
                     ctx.addColumn(LuceneBinaryColumn.of(data, fieldType().name(), BinaryDocValuesField.TYPE));
+                    if (ctx.writesSourceColumn()) {
+                        // The one raw value per document, read back the way the single-valued loader layer reads the doc values.
+                        assert supportsDirectColumnarSource();
+                        ctx.addSourceColumn(
+                            new SourceColumn(
+                                fullPath(),
+                                leafName(),
+                                new BinaryDocValuesSyntheticFieldLoaderLayer(fullPath(), indexCreatedVersion).singleValueSourceLayer(data)
+                            )
+                        );
+                    }
                 }
             }
         }
+    }
+
+    @Override
+    protected boolean supportsDirectColumnarSource() {
+        // The batch path only takes a match_only_text field with binary doc values, whose loader (syntheticFieldLoaderFromDocValues) is
+        // one of the three binary layers the direct writer reproduces, plus the on_failure layer the batch path leaves empty.
+        return docValuesParameters.enabled() && fieldType().usesBinaryDocValues();
     }
 
     @Override

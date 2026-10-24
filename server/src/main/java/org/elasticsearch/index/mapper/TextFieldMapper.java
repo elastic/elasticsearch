@@ -2201,8 +2201,9 @@ public final class TextFieldMapper extends FieldMapper {
                 final EscfColumnData termsData = terms.finish(docCount);
                 ctx.addColumn(LuceneBinaryColumn.of(termsData, fieldType().name(), fieldType), termsData);
             }
+            EscfColumnData binaryDvsData = null;
             if (binaryDvs != null && binaryDvs.isEmpty() == false) {
-                final EscfColumnData binaryDvsData = binaryDvs.finish(docCount);
+                binaryDvsData = binaryDvs.finish(docCount);
                 ctx.addColumn(
                     valuelessDocs == null
                         ? LuceneBinaryColumn.of(binaryDvsData, fieldType().name(), CustomDocValuesField.TYPE)
@@ -2216,9 +2217,29 @@ public final class TextFieldMapper extends FieldMapper {
                     binaryDvsData
                 );
             }
+            EscfColumnData dvCountsData = null;
             if (dvCounts != null && dvCounts.isEmpty() == false) {
-                final EscfColumnData dvCountsData = dvCounts.finish(docCount);
+                dvCountsData = dvCounts.finish(docCount);
                 ctx.addColumn(LuceneLongColumn.counts(dvCountsData, fieldType().name()), dvCountsData);
+            }
+            if (ctx.writesSourceColumn()) {
+                // This field's part of the columnar_stored blob, read from the doc values columns just attached the way
+                // syntheticFieldLoaderFromDocValues reads them back: a payload per document, or an ArrayOrderInlineNull blob next to
+                // its counts. A column that no document needed is left out; the loader would find no values in it either.
+                assert supportsDirectColumnarSource();
+                final SourceColumn.Layer valuesLayer = columnar
+                    ? (binaryDvsData == null
+                        ? null
+                        : new ColumnarPayloadBinaryDocValuesSyntheticFieldLoaderLayer(fieldType().name()).sourceLayer(binaryDvsData))
+                    : (dvCountsData == null
+                        ? null
+                        : new ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer(fieldType().name()).sourceLayer(
+                            binaryDvsData,
+                            dvCountsData
+                        ));
+                ctx.addSourceColumn(
+                    valuesLayer == null ? new SourceColumn(fullPath(), leafName()) : new SourceColumn(fullPath(), leafName(), valuesLayer)
+                );
             }
         }
     }
@@ -2277,9 +2298,29 @@ public final class TextFieldMapper extends FieldMapper {
                 }
                 if (emitDvs) {
                     ctx.addColumn(LuceneBinaryColumn.of(data, fieldType().name(), BinaryDocValuesField.TYPE));
+                    if (ctx.writesSourceColumn()) {
+                        // The one raw value per document, read back the way the single-valued loader layer reads the doc values.
+                        assert supportsDirectColumnarSource();
+                        ctx.addSourceColumn(
+                            new SourceColumn(
+                                fullPath(),
+                                leafName(),
+                                new BinaryDocValuesSyntheticFieldLoaderLayer(fullPath(), indexSettings.getIndexVersionCreated())
+                                    .singleValueSourceLayer(data)
+                            )
+                        );
+                    }
                 }
             }
         }
+    }
+
+    @Override
+    protected boolean supportsDirectColumnarSource() {
+        // The batch path only takes a text field with binary doc values, whose loader (syntheticFieldLoaderFromDocValues) is one of the
+        // three binary layers the direct writer reproduces, plus the on_failure layer the batch path leaves empty. A stored text field is
+        // loaded from its stored field instead.
+        return store == false && docValuesParameters.enabled() && fieldType().usesBinaryDocValues();
     }
 
     @Override

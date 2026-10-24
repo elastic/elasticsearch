@@ -386,15 +386,66 @@ public abstract class FieldMapper extends Mapper {
             );
         }
         doMapColumnBatch(ctx, source);
-        for (FieldMapper subMapper : builderParams.multiFields) {
-            subMapper.mapColumnBatch(ctx, source);
+        if (ctx.writesSourceColumn()) {
+            checkDirectColumnarSource(ctx);
         }
+        // A multi-field does not appear in _source under its own name: its values are the parent's, so it neither registers a
+        // SourceColumn nor counts against the batch when it has none. The context knows, so the sub-mappers need not.
+        ctx.enterMultiFields();
+        try {
+            for (FieldMapper subMapper : builderParams.multiFields) {
+                subMapper.mapColumnBatch(ctx, source);
+            }
+        } finally {
+            ctx.exitMultiFields();
+        }
+    }
+
+    /**
+     * Default-deny for the direct {@code columnar_stored} blob: a field whose mapper does not claim {@link #supportsDirectColumnarSource}
+     * support, or whose synthetic source loader is made of layers the direct path does not know, sends the whole batch down the loader
+     * path. A mapper added later is therefore correct without any change here, only slower.
+     */
+    private void checkDirectColumnarSource(BatchMappingContext ctx) {
+        if (supportsDirectColumnarSource() == false) {
+            ctx.markDirectSourceUnavailable("field [" + fullPath() + "] of type [" + typeName() + "] has no direct source writer");
+        } else if (directSourceWriterKnowsLoader(syntheticFieldLoader()) == false) {
+            ctx.markDirectSourceUnavailable(
+                "field ["
+                    + fullPath()
+                    + "] of type ["
+                    + typeName()
+                    + "] has a synthetic source layer the direct source writer does not know"
+            );
+        }
+    }
+
+    /**
+     * Whether the {@link SourceColumn} this mapper registers reproduces what {@code loader}, its synthetic source loader as currently
+     * configured, would write. This is the check behind {@link #supportsDirectColumnarSource}: the claim is made against the loader
+     * the mapper uses today, so a loader or layer added later takes the batch down the loader path until the direct writer learns it.
+     * The default accepts a {@link CompositeSyntheticFieldLoader} made only of layers the batch path knows
+     * ({@link SourceColumn#hasOnlyKnownLayers}); a mapper with a loader of its own overrides this to recognise that loader.
+     */
+    protected boolean directSourceWriterKnowsLoader(SourceLoader.SyntheticFieldLoader loader) {
+        return SourceColumn.hasOnlyKnownLayers(loader);
     }
 
     protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         throw new UnsupportedOperationException(
             "mapColumnBatch not implemented for mapper [" + typeName() + "] on field [" + fullPath() + "]"
         );
+    }
+
+    /**
+     * Whether {@link #doMapColumnBatch} registers a {@link SourceColumn} ({@link BatchMappingContext#addSourceColumn}) for this field as
+     * it is configured whenever {@link BatchMappingContext#writesSourceColumn()} asks for one, so that the {@code columnar_stored}
+     * blob can be written from the mapper's output instead of through the synthetic source loader. The answer must hold for the
+     * field's configuration, not just its type: a mapper that handles one doc-values layout returns {@code false} when configured
+     * with another. Defaults to {@code false}; a batch with any field that answers {@code false} takes the loader path for the blob.
+     */
+    protected boolean supportsDirectColumnarSource() {
+        return false;
     }
 
     /**
@@ -413,14 +464,27 @@ public abstract class FieldMapper extends Mapper {
     /**
      * Maps all documents in a batch for a mapper that {@link #resolvesColumnGroup() resolves a column group}. Called once per field per
      * batch in place of {@link #mapColumnBatch}, covering every schema leaf rooted below this field's path. Output columns are attached
-     * to {@code ctx} via {@link BatchMappingContext#addColumn}, exactly as for {@link #mapColumnBatch}.
+     * to {@code ctx} via {@link BatchMappingContext#addColumn}, exactly as for {@link #mapColumnBatch}. Like {@link #mapColumnBatch},
+     * this is the entry point every caller uses, so that the {@code columnar_stored} bookkeeping cannot be skipped: a group mapper
+     * registers its {@link SourceColumn} under the same default-deny rule as a leaf mapper. Group mappers take no multi-fields on the
+     * batch path, so there is no sub-mapper loop here.
      *
      * @param ctx          the batch mapping context; receives output columns via {@code addColumn}
      * @param columns      the ESCF source columns owned by this mapper, in schema-leaf order
      * @param relativeKeys {@code relativeKeys[i]} is {@code columns[i]}'s schema path with this field's path and the separating dot
      *                     stripped — for {@code flattened} that is exactly the flattened key
      */
-    public void mapColumnGroupBatch(BatchMappingContext ctx, EscfColumn[] columns, String[] relativeKeys) {
+    public final void mapColumnGroupBatch(BatchMappingContext ctx, EscfColumn[] columns, String[] relativeKeys) {
+        doMapColumnGroupBatch(ctx, columns, relativeKeys);
+        if (ctx.writesSourceColumn()) {
+            checkDirectColumnarSource(ctx);
+        }
+    }
+
+    /**
+     * The group mapper's implementation of {@link #mapColumnGroupBatch}; see there for the contract.
+     */
+    protected void doMapColumnGroupBatch(BatchMappingContext ctx, EscfColumn[] columns, String[] relativeKeys) {
         throw new UnsupportedOperationException(
             "mapColumnGroupBatch not implemented for mapper [" + typeName() + "] on field [" + fullPath() + "]"
         );

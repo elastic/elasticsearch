@@ -446,4 +446,42 @@ public class FlattenedFieldMapperColumnarCompatibilityTests extends AbstractColu
         assertThat(e.getMessage(), containsString("whose keyed encoding is longer than the allowed max length"));
         assertThat(e.getMessage(), containsString("allowed max length of 65536 bytes"));
     }
+
+    /**
+     * The array-order layout is the one the batch path writes, and it has a direct {@code columnar_stored} writer that renders the
+     * object from the group's input columns: dotted and nested spellings of one key, a scalar and an object under one prefix, nulls
+     * alone and inside arrays, {@code null_value}, empty arrays, and documents without the field. The blob must come out of the
+     * direct writer, never the loader, for each of them. Note that every document lists its keys in the order the batch first saw
+     * them, as the {@code _keyed} blob follows that order on the batch path (see {@link FlattenedFieldMapper#mapColumnGroupBatch}) and
+     * the harness compares the blobs of both paths as well.
+     */
+    public void testColumnarStoredSourceIsWrittenDirectly() throws IOException {
+        assertColumnarStoredSourceWrittenDirectly(
+            mapping(b -> b.startObject(FIELD).field("type", "flattened").endObject()),
+            columnarSettings(),
+            batch(
+                "every shape",
+                1L,
+                doc("d1", 1L, "{\"flat\":{\"z\":\"last\",\"a\":{\"b\":[\"two\",\"one\",\"two\"]},\"n\":1.5,\"t\":true}}"),
+                doc("d2", 2L, "{}"),
+                doc("d3", 3L, "{\"flat\":{\"a\":{\"b\":\"nested\"},\"a.b\":\"dotted\",\"c\":[null]}}"),
+                doc("d4", 4L, "{\"flat\":null}"),
+                doc("d5", 5L, "{\"flat\":{}}"),
+                doc("d6", 6L, "{\"flat\":{\"k1\":null,\"k2\":null}}"),
+                doc("d7", 7L, "{\"flat\":{\"a.b\":\"under the scalar\",\"a\":\"scalar\",\"k\":[]}}"),
+                doc("d8", 8L, "{\"flat\":{\"ключ\":\"значение\",\"a\":{\"b\":{\"c\":\"\"}}}}")
+            )
+        );
+        assertColumnarStoredSourceWrittenDirectly(
+            mapping(b -> b.startObject(FIELD).field("type", "flattened").field("null_value", "NULL").endObject()),
+            columnarSettings(),
+            batch(
+                "null_value",
+                1L,
+                doc("d1", 1L, "{\"flat\":{\"k\":null}}"),
+                doc("d2", 2L, "{\"flat\":{\"k\":[null,\"x\",null]}}"),
+                doc("d3", 3L, "{\"flat\":{\"k\":\"real\"}}")
+            )
+        );
+    }
 }

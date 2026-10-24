@@ -128,7 +128,8 @@ public final class ShardBatchIndexer {
                     chunkEnd,
                     resolution,
                     Engine.Operation.Origin.PRIMARY,
-                    recycler
+                    recycler,
+                    batchIndexingEnabled.isDirectColumnarSourceEnabled()
                 )
             ) {
                 if (engineBatch == null) {
@@ -198,7 +199,8 @@ public final class ShardBatchIndexer {
                         validEnd,
                         resolution,
                         Engine.Operation.Origin.REPLICA,
-                        recycler
+                        recycler,
+                        batchIndexingEnabled.isDirectColumnarSourceEnabled()
                     )
                 ) {
                     if (engineBatch == null) {

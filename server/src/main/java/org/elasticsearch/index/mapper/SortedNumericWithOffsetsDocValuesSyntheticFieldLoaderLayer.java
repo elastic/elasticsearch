@@ -14,6 +14,11 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.escf.ColumnarOffsetsBuilder;
+import org.elasticsearch.escf.EscfColumn;
+import org.elasticsearch.escf.EscfColumnData;
+import org.elasticsearch.escf.EscfColumnKind;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -71,6 +76,79 @@ public class SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer implemen
     @Override
     public String fieldName() {
         return fullPath;
+    }
+
+    /**
+     * The direct counterpart of the numeric loader layers on the columnar batch path. It reads {@code values}, the sortable-long
+     * column the number mapper has just built, which still holds every document's values in source order with duplicates, so there is
+     * no offsets sidecar to undo a sort with. What it has to reproduce is the shape rule: the row path records offsets only for arrays
+     * of at least {@link ColumnarOffsetsBuilder#MIN_RECORDED_SLOTS} slots ({@code FieldArrayContext#addToLuceneDocument}), and a
+     * recorded array renders as an array even when its values collapse to one ({@link NumericDocValuesWithOffsetsLoader#count}), so
+     * a document with that many slots reports one value more than it has. A single value, or a single-element array, is a scalar;
+     * an empty array is absent. Without offsets ({@link SortedNumericDocValuesSyntheticFieldLoaderLayer}) the batch path only lets a
+     * document through with at most one value, so the same reading holds.
+     *
+     * @param values          a {@code LONG} column, or an {@code ARRAY} column of {@code LONG} elements, in sortable-long encoding
+     * @param offsetsRecorded whether the mapper records the offsets sidecar for this field, which is what makes a short array render
+     *                        as an array
+     * @param valueWriter     formats a sortable long as the field's value, the same writer the loader layer uses
+     */
+    public static SourceColumn.Layer sourceLayer(EscfColumnData values, boolean offsetsRecorded, NumericValueWriter valueWriter) {
+        return new SourceLayer(values, offsetsRecorded, valueWriter);
+    }
+
+    private static final class SourceLayer implements SourceColumn.Layer {
+        private final EscfColumn column;
+        /** Element column of an {@code ARRAY}, or {@code column} itself for a scalar {@code LONG} column. */
+        private final EscfColumn elements;
+        /** Per-document element ranges of an {@code ARRAY} column; {@code null} for a scalar column. */
+        @Nullable
+        private final int[] rowOffsets;
+        private final boolean offsetsRecorded;
+        private final NumericValueWriter valueWriter;
+
+        private int from;
+        private int to;
+
+        SourceLayer(EscfColumnData values, boolean offsetsRecorded, NumericValueWriter valueWriter) {
+            this.column = EscfColumn.from(values);
+            if (values.kind() == EscfColumnKind.ARRAY) {
+                assert values.child().kind() == EscfColumnKind.LONG : EscfColumnKind.name(values.child().kind());
+                this.elements = EscfColumn.from(values.child());
+                this.rowOffsets = values.offsets();
+            } else {
+                assert values.kind() == EscfColumnKind.LONG : EscfColumnKind.name(values.kind());
+                this.elements = column;
+                this.rowOffsets = null;
+            }
+            this.offsetsRecorded = offsetsRecorded;
+            this.valueWriter = valueWriter;
+        }
+
+        @Override
+        public void advance(int doc) {
+            if (rowOffsets == null) {
+                from = doc;
+                to = column.isPresent(doc) ? doc + 1 : doc;
+            } else {
+                // Absent documents and empty arrays are both zero-width ranges, and both render as nothing.
+                from = rowOffsets[doc];
+                to = rowOffsets[doc + 1];
+            }
+        }
+
+        @Override
+        public long valueCount() {
+            final int slots = to - from;
+            return offsetsRecorded && slots >= ColumnarOffsetsBuilder.MIN_RECORDED_SLOTS ? slots + 1 : slots;
+        }
+
+        @Override
+        public void write(XContentBuilder b) throws IOException {
+            for (int i = from; i < to; i++) {
+                valueWriter.writeLongValue(b, elements.getLongValue(i));
+            }
+        }
     }
 
     private static final class NumericDocValuesWithOffsetsLoader implements DocValuesLoader {

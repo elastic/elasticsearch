@@ -97,7 +97,21 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
         for (Layer part : parts) {
             totalCount += part.valueCount();
         }
+        writeField(b, leafFieldName, totalCount, parts);
+        if (totalCount > 1) {
+            softReset();
+        }
+    }
 
+    /**
+     * Writes a field's values under {@code leafFieldName}: nothing when there are none, a scalar when {@code totalCount} is one, and
+     * an array otherwise, with every part writing its values in turn. This is the one place that decides the shape of a field in
+     * synthetic and {@code columnar_stored} source; {@link SourceColumn} writes the {@code columnar_stored} blob through it on the batch
+     * indexing path, so the two cannot disagree on what renders as an array.
+     *
+     * @param totalCount the sum of the parts' value counts, which a part may inflate to force an array (see {@link Layer#valueCount()})
+     */
+    static void writeField(XContentBuilder b, String leafFieldName, long totalCount, ValuesWriter[] parts) throws IOException {
         if (totalCount == 0) {
             return;
         }
@@ -115,7 +129,19 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
             part.write(b);
         }
         b.endArray();
-        softReset();
+    }
+
+    /** The layers in the order they write, for checks that need to know what this loader is made of. */
+    Layer[] layers() {
+        return parts;
+    }
+
+    /**
+     * Writes the values of one part of a field, without the field name or the enclosing array; the contract that
+     * {@link Layer#write(XContentBuilder)} and {@link SourceColumn.Layer#write(XContentBuilder)} share.
+     */
+    public interface ValuesWriter {
+        void write(XContentBuilder b) throws IOException;
     }
 
     private void softReset() {
@@ -156,7 +182,7 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
      * Note that the contract of {@link SourceLoader.SyntheticFieldLoader#write(XContentBuilder)}
      * is slightly different here since it only needs to write field values without encompassing object or array.
      */
-    public interface Layer extends SourceLoader.SyntheticFieldLoader {
+    public interface Layer extends SourceLoader.SyntheticFieldLoader, ValuesWriter {
         /**
          * Number of values that this loader will write for a given document.
          * @return
@@ -271,6 +297,16 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
      */
     public static Layer onFailureValuesLayer(String fieldName, IndexVersion indexVersion) {
         return new OnFailureValuesBinaryDocValuesLayer(fieldName, indexVersion);
+    }
+
+    /**
+     * Whether {@code layer} reads one of the per-field failure columns ({@code ._ignore_malformed}, {@code ._on_failure}) from binary
+     * doc values. The columnar batch path writes neither: it refuses every document that would need one, so on that path these layers
+     * never hold a value, and {@link SourceColumn} can leave them out of the direct {@code columnar_stored} blob — provided no such
+     * column was written, which {@code SourceFieldMapper#postColumnarParse} checks before it trusts the direct path.
+     */
+    static boolean isBinaryFailureValuesLayer(Layer layer) {
+        return layer instanceof MalformedValuesBinaryDocValuesLayer || layer instanceof OnFailureValuesBinaryDocValuesLayer;
     }
 
     /**

@@ -9,6 +9,9 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.column.BinaryColumn;
 import org.apache.lucene.document.column.BytesRefValuesCursor;
@@ -26,6 +29,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.Nullable;
@@ -39,11 +43,13 @@ import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.sourcebatch.SourceSchema;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -161,6 +167,50 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
             for (Batch scenario : scenarios) {
                 assertScenario(columnarStoredService, scenario, SourceEncoder.SIMD);
             }
+        }
+    }
+
+    /**
+     * {@link #assertColumnarMatchesXContent(XContentBuilder, Settings, Batch...)} plus the assertion that the {@code columnar_stored}
+     * run wrote its blob directly from the {@link SourceColumn}s the mappers registered, and never fell back to the synthetic source
+     * loader. The parity check alone cannot tell the two apart, as both produce the same bytes, so a mapper whose direct writer is
+     * meant to cover the configuration under test calls this to catch a silent fallback. The batch reports a fallback once, at DEBUG,
+     * through {@link BatchMappingContext}; the level is raised here for the duration of the check.
+     */
+    protected final void assertColumnarStoredSourceWrittenDirectly(XContentBuilder mapping, Settings indexSettings, Batch... scenarios)
+        throws IOException {
+        assertColumnarStoredSourceWrittenDirectly(IndexVersion.current(), mapping, indexSettings, scenarios);
+    }
+
+    /** {@link #assertColumnarStoredSourceWrittenDirectly(XContentBuilder, Settings, Batch...)} on an index of the given version. */
+    protected final void assertColumnarStoredSourceWrittenDirectly(
+        IndexVersion indexVersion,
+        XContentBuilder mapping,
+        Settings indexSettings,
+        Batch... scenarios
+    ) throws IOException {
+        assert withColumnarStoredSource(indexSettings) != null : "the scenarios do not run with columnar_stored source";
+        final Logger logger = LogManager.getLogger(BatchMappingContext.class);
+        final Level previous = logger.getLevel();
+        Loggers.setLevel(logger, Level.DEBUG);
+        try {
+            MockLog.assertThatLogger(() -> {
+                try {
+                    assertColumnarMatchesXContent(indexVersion, mapping, indexSettings, scenarios);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            },
+                BatchMappingContext.class,
+                new MockLog.UnseenEventExpectation(
+                    "columnar_stored blob written directly",
+                    BatchMappingContext.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "*columnar_stored source of batch takes the loader path*"
+                )
+            );
+        } finally {
+            Loggers.setLevel(logger, previous);
         }
     }
 

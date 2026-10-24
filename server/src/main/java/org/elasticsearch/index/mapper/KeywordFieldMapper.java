@@ -2042,8 +2042,10 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (terms != null && terms.isEmpty() == false) {
                 addOwnedBinaryColumn(ctx, terms, docCount, fieldType().name(), fieldType);
             }
+            EscfColumnData binaryDvData = null;
+            EscfColumnData fallbackData = null;
             if (binaryDvs != null && binaryDvs.isEmpty() == false) {
-                final EscfColumnData binaryDvData = binaryDvs.finish(docCount);
+                binaryDvData = binaryDvs.finish(docCount);
                 ctx.addColumn(
                     valuelessDocs == null
                         ? LuceneBinaryColumn.of(binaryDvData, fieldType().name(), CustomDocValuesField.TYPE)
@@ -2058,17 +2060,80 @@ public final class KeywordFieldMapper extends FieldMapper {
                 );
             }
             // A columnar field's payload carries its own count, so it emits no companion column at all.
+            EscfColumnData dvCountData = null;
             if (columnar == false && dvCounts != null && dvCounts.isEmpty() == false) {
-                final EscfColumnData dvCountData = dvCounts.finish(docCount);
+                dvCountData = dvCounts.finish(docCount);
                 ctx.addColumn(LuceneLongColumn.counts(dvCountData, fieldType().name()), dvCountData);
             }
             if (emitFallback && fallback != null && fallback.isEmpty() == false) {
                 final String fallbackFieldName = fieldType().syntheticSourceFallbackFieldName();
-                addOwnedBinaryColumn(ctx, fallback, docCount, fallbackFieldName, CustomDocValuesField.TYPE);
+                fallbackData = fallback.finish(docCount);
+                ctx.addColumn(LuceneBinaryColumn.of(fallbackData, fallbackFieldName, CustomDocValuesField.TYPE), fallbackData);
                 final EscfColumnData fallbackCountData = fallbackCounts.finish(docCount);
                 ctx.addColumn(LuceneLongColumn.counts(fallbackCountData, fallbackFieldName), fallbackCountData);
             }
+            if (ctx.writesSourceColumn()) {
+                // The doc values layer reads the layout this path wrote: one payload per document for a columnar field, otherwise an
+                // ArrayOrderInlineNull blob next to a counts column.
+                final SourceColumn.Layer valuesLayer = columnar
+                    ? (binaryDvData == null
+                        ? null
+                        : new ColumnarPayloadBinaryDocValuesSyntheticFieldLoaderLayer(fieldType().name()).sourceLayer(binaryDvData))
+                    : (dvCountData == null
+                        ? null
+                        : new ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer(fieldType().name()).sourceLayer(
+                            binaryDvData,
+                            dvCountData
+                        ));
+                addSourceColumn(ctx, valuesLayer, fallbackData);
+            }
         }
+    }
+
+    /**
+     * Registers this field's part of the {@code columnar_stored} blob, read from the columns {@link #mapColumnBatchOrdered} or
+     * {@link #mapColumnBatchUnordered} has just attached: the doc values layer first, then the {@code ignore_above} fallback column,
+     * in the order {@link #syntheticFieldLoaderLayers()} lists their loader layers. A column that no document needed is simply left
+     * out; the loader would find no values in it either. The fallback holds at most one value per document on the batch path, which
+     * refuses a second one, so the single-value reading of the fallback layer is exact whether or not a counts column goes with it.
+     *
+     * @param valuesLayer  the layer over the doc values column, or {@code null} when no document in the batch had a value
+     * @param fallbackData the {@code ignore_above} fallback column, or {@code null} when no document needed it
+     */
+    private void addSourceColumn(BatchMappingContext ctx, @Nullable SourceColumn.Layer valuesLayer, @Nullable EscfColumnData fallbackData) {
+        assert supportsDirectColumnarSource();
+        final List<SourceColumn.Layer> layers = new ArrayList<>(2);
+        if (valuesLayer != null) {
+            layers.add(valuesLayer);
+        }
+        if (fallbackData != null) {
+            layers.add(
+                new BinaryDocValuesSyntheticFieldLoaderLayer(fieldType().syntheticSourceFallbackFieldName(), indexCreatedVersion)
+                    .singleValueSourceLayer(fallbackData)
+            );
+        }
+        ctx.addSourceColumn(new SourceColumn(fullPath(), leafName(), layers.toArray(SourceColumn.Layer[]::new)));
+    }
+
+    @Override
+    protected boolean supportsDirectColumnarSource() {
+        // Every binary doc values layout the batch path writes has a source layer that reads the columns back the way its loader
+        // layer does: the payload and array-order layouts carry their slots per document, and the single-valued layouts store the one
+        // value raw, which is also how the batch path writes a SeparateCount field, as it only accepts it with multi_value=false. The
+        // ignore_above fallback joins when it lives in binary doc values. A stored keyword is loaded from its stored field, and
+        // SORTED_SET doc values come back sorted and deduplicated, which no source layer reproduces yet. The on_failure layer needs no
+        // counterpart: the batch path refuses the documents that would fill its column.
+        if (fieldType().hasDocValues() == false || fieldType.stored()) {
+            return false;
+        }
+        if (fieldType().ignoreAbove().valuesPotentiallyIgnored() && storeIgnoredFieldsInBinaryDocValues == false) {
+            return false;
+        }
+        return switch (fieldType().diskFormat()) {
+            case BINARY_COLUMNAR_PAYLOAD, BINARY_ARRAY_ORDER_INLINE_NULL, BINARY_COLUMNAR_SINGLE_VALUE -> true;
+            case BINARY_SEPARATE_COUNT -> docValuesParameters().multiValue() == false;
+            case NONE, SORTED_SET -> false;
+        };
     }
 
     /**
@@ -2222,6 +2287,8 @@ public final class KeywordFieldMapper extends FieldMapper {
             // skip-index type, so one LuceneBinaryColumn carries all features. Emitting a second column with
             // BinaryDocValuesField.TYPE would trip Lucene's ColumnValidation#featureMask overlap check.
             // For binary doc values the terms and dv columns may share one serialization (emitSharedColumn).
+            // The source layer reads the doc values this path writes: the raw value of a single-valued binary field, or the payload.
+            SourceColumn.Layer valuesLayer = null;
             if (valuesProduced) {
                 if (emitSharedColumn) {
                     final EscfColumnData data = values != null ? values.finish(docCount) : source.columnData();
@@ -2235,28 +2302,42 @@ public final class KeywordFieldMapper extends FieldMapper {
                     }
                     if (emitDvs && columnarPayload == false && sortedSetDvs == false) {
                         ctx.addColumn(LuceneBinaryColumn.of(data, fieldType().name(), BinaryDocValuesField.TYPE));
+                        if (ctx.writesSourceColumn()) {
+                            valuesLayer = new BinaryDocValuesSyntheticFieldLoaderLayer(fieldType().name(), indexCreatedVersion)
+                                .singleValueSourceLayer(data);
+                        }
                     }
                 }
                 // A columnar field's doc values are framed, so they are a column of their own rather than a second wrapper
                 // over the terms serialization. The type is the one ColumnarBinaryDocValuesField carries on the row path.
                 if (payloadDvs != null) {
-                    addOwnedBinaryColumn(ctx, payloadDvs, docCount, fieldType().name(), CustomDocValuesField.TYPE);
+                    final EscfColumnData payloadData = payloadDvs.finish(docCount);
+                    ctx.addColumn(LuceneBinaryColumn.of(payloadData, fieldType().name(), CustomDocValuesField.TYPE), payloadData);
+                    if (ctx.writesSourceColumn()) {
+                        valuesLayer = new ColumnarPayloadBinaryDocValuesSyntheticFieldLoaderLayer(fieldType().name()).sourceLayer(
+                            payloadData
+                        );
+                    }
                 }
             }
             // Synthetic-source fallback for ignore_above values. For multi_value=false the row path writes a
             // single BinaryDocValuesField (no counts). For multi_value=true the row path uses SeparateCount
             // framing, so we emit a CustomDocValuesField blob plus a LuceneLongColumn.counts sidecar.
+            EscfColumnData fallbackData = null;
             if (fallback != null && fallback.isEmpty() == false) {
                 final String fallbackFieldName = fieldType().syntheticSourceFallbackFieldName();
+                fallbackData = fallback.finish(docCount);
                 if (multiValue) {
-                    addOwnedBinaryColumn(ctx, fallback, docCount, fallbackFieldName, CustomDocValuesField.TYPE);
+                    ctx.addColumn(LuceneBinaryColumn.of(fallbackData, fallbackFieldName, CustomDocValuesField.TYPE), fallbackData);
                     assert fallbackCounts != null && fallbackCounts.isEmpty() == false;
                     final EscfColumnData fallbackCountData = fallbackCounts.finish(docCount);
                     ctx.addColumn(LuceneLongColumn.counts(fallbackCountData, fallbackFieldName), fallbackCountData);
                 } else {
-                    final EscfColumnData fallbackData = fallback.finish(docCount);
                     ctx.addColumn(LuceneBinaryColumn.of(fallbackData, fallbackFieldName, BinaryDocValuesField.TYPE), fallbackData);
                 }
+            }
+            if (ctx.writesSourceColumn()) {
+                addSourceColumn(ctx, valuesLayer, fallbackData);
             }
         }
     }

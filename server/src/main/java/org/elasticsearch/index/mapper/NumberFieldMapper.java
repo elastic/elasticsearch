@@ -2964,6 +2964,26 @@ public class NumberFieldMapper extends FieldMapper {
                 ctx.addColumn(offsets);
             }
         }
+        if (ctx.writesSourceColumn()) {
+            // This field's part of the columnar_stored blob, read from outData: the values in source order, before Lucene sorts them.
+            // The loader's fallback layers (ignore_malformed, on_failure) have no counterpart here because the batch path refuses the
+            // documents that would fill their columns; SourceFieldMapper#postColumnarParse checks that none were written.
+            assert supportsDirectColumnarSource();
+            ctx.addSourceColumn(
+                new SourceColumn(
+                    fullPath(),
+                    leafName(),
+                    SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer.sourceLayer(outData, recordsOffsets, type::writeValue)
+                )
+            );
+        }
+    }
+
+    @Override
+    protected boolean supportsDirectColumnarSource() {
+        // Every configuration that reaches doMapColumnBatch has doc values, and its loader is one of the two sorted-numeric layers
+        // (with or without offsets) plus the fallback layers, which the batch path leaves empty.
+        return true;
     }
 
     private static IndexableFieldType storedOnlyFieldType(NumberType type) {

@@ -12,9 +12,12 @@ package org.elasticsearch.index.mapper.extras;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.AbstractColumnarMapperCompatibilityTestCase;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.index.IndexVersionUtils;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -277,6 +280,46 @@ public class MatchOnlyTextFieldMapperColumnarCompatibilityTests extends Abstract
                 doc("d1", 1L, "{\"f\":\"a\"}"),
                 doc("d2", 2L, "{\"f\":\"b\"}"),
                 doc("d3", 3L, "{\"f\":\"c\"}")
+            )
+        );
+    }
+
+    /**
+     * Every doc values layout the batch path writes for this field type has a direct {@code columnar_stored} writer: the payload of the
+     * ColumNAR codec, the raw value of a {@code multi_value: false} field, and the array-order blob of an index created before the codec.
+     * The blob must come out of the direct writer, never the loader, for each of them.
+     */
+    public void testColumnarStoredSourceIsWrittenDirectly() throws IOException {
+        final Batch shapes = batch(
+            "every shape",
+            1L,
+            doc("d1", 1L, "{\"f\":\"a few words\"}"),
+            doc("d2", 2L, "{}"),
+            doc("d3", 3L, "{\"f\":[\"b\",null,\"c\",\"b\"]}"),
+            doc("d4", 4L, "{\"f\":null}"),
+            doc("d5", 5L, "{\"f\":[]}"),
+            doc("d6", 6L, "{\"f\":[null]}"),
+            doc("d7", 7L, "{\"f\":[\"solo\"]}")
+        );
+        final XContentBuilder multiValued = mapping(b -> b.startObject(FIELD).field("type", "match_only_text").endObject());
+        assertColumnarStoredSourceWrittenDirectly(multiValued, columnarCodecSettings(), shapes);
+        assertColumnarStoredSourceWrittenDirectly(
+            IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG),
+            multiValued,
+            columnarCodecSettings(),
+            shapes
+        );
+        assertColumnarStoredSourceWrittenDirectly(
+            mapping(b -> b.startObject(FIELD).field("type", "match_only_text").field("multi_value", false).endObject()),
+            columnarCodecSettings(),
+            batch(
+                "single values",
+                1L,
+                doc("d1", 1L, "{\"f\":\"a few words\"}"),
+                doc("d2", 2L, "{}"),
+                doc("d3", 3L, "{\"f\":[\"b\"]}"),
+                doc("d4", 4L, "{\"f\":null}"),
+                doc("d5", 5L, "{\"f\":[]}")
             )
         );
     }

@@ -110,6 +110,7 @@ import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.index.SettingsIndexingMemoryLimits;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.mapper.MapperMetrics;
@@ -714,6 +715,7 @@ public class SnapshotResiliencyTestHelper {
                 );
 
                 indicesService = new IndicesServiceBuilder().settings(settings)
+                    .indexingMemoryLimits(new SettingsIndexingMemoryLimits(settings))
                     .pluginsService(pluginsService)
                     .nodeEnvironment(nodeEnv)
                     .xContentRegistry(namedXContentRegistry)

@@ -132,14 +132,18 @@ public class IndexingPressure implements IndexingPressureMonitor {
     private final List<IndexingPressureListener> listeners = new CopyOnWriteArrayList<>();
 
     public IndexingPressure(Settings settings) {
-        this.lowWatermark = SPLIT_BULK_LOW_WATERMARK.get(settings).getBytes();
+        this(settings, new SettingsIndexingMemoryLimits(settings));
+    }
+
+    public IndexingPressure(Settings settings, IndexingMemoryLimits limits) {
+        this.lowWatermark = limits.splitBulkLowWatermark().getBytes();
         this.lowWatermarkSize = SPLIT_BULK_LOW_WATERMARK_SIZE.get(settings).getBytes();
-        this.highWatermark = SPLIT_BULK_HIGH_WATERMARK.get(settings).getBytes();
+        this.highWatermark = limits.splitBulkHighWatermark().getBytes();
         this.highWatermarkSize = SPLIT_BULK_HIGH_WATERMARK_SIZE.get(settings).getBytes();
-        this.coordinatingLimit = MAX_COORDINATING_BYTES.get(settings).getBytes();
-        this.primaryLimit = MAX_PRIMARY_BYTES.get(settings).getBytes();
-        this.replicaLimit = MAX_REPLICA_BYTES.get(settings).getBytes();
-        this.operationLimit = MAX_OPERATION_SIZE.get(settings).getBytes();
+        this.coordinatingLimit = limits.coordinatingLimit().getBytes();
+        this.primaryLimit = limits.primaryLimit().getBytes();
+        this.replicaLimit = limits.replicaLimit().getBytes();
+        this.operationLimit = limits.maxOperationSize().getBytes();
     }
 
     private static Releasable wrapReleasable(Releasable releasable) {

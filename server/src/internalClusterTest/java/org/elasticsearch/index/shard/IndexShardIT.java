@@ -58,6 +58,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SettingsIndexingMemoryLimits;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
@@ -852,7 +853,8 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             MapperMetrics.NOOP,
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
-            MergeMetrics.NOOP
+            MergeMetrics.NOOP,
+            new SettingsIndexingMemoryLimits(Settings.EMPTY)
         );
     }
 

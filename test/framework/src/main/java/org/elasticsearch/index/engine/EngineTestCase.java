@@ -80,6 +80,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.MapperTestUtils;
+import org.elasticsearch.index.SettingsIndexingMemoryLimits;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
@@ -893,6 +894,7 @@ public abstract class EngineTestCase extends ESTestCase {
             .mapperService(mapperService)
             .engineResetLock(new EngineResetLock())
             .mergeMetrics(mergeMetrics)
+            .indexingMemoryLimits(new SettingsIndexingMemoryLimits(Settings.EMPTY))
             .indexDeletionPolicyWrapper(indexDeletionPolicyWrapper == null ? Function.identity() : indexDeletionPolicyWrapper)
             .build();
     }

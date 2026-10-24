@@ -558,6 +558,24 @@ public class ColumnarKeywordPushdownGuardTests extends ESTestCase {
         }
 
         @Override
+        public int denseTermOrdinal() throws IOException {
+            readsAValue();
+            return column.denseTermOrdinal();
+        }
+
+        @Override
+        public BytesRef termAt(int denseOrdinal, BytesRef dst) throws IOException {
+            readsAValue();
+            return column.termAt(denseOrdinal, dst);
+        }
+
+        @Override
+        public BytesRef escapedValue(BytesRef dst) throws IOException {
+            readsAValue();
+            return column.escapedValue(dst);
+        }
+
+        @Override
         public BytesRef extreme(boolean max, BytesRef dst) throws IOException {
             readsAValue();
             return column.extreme(max, dst);

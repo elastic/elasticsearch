@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.esql.EsqlStreamTestUtils.StreamOutcome;
 import org.elasticsearch.xpack.esql.EsqlStreamTestUtils.Terminal;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction;
 import org.junit.After;
 import org.junit.Before;
@@ -81,6 +82,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -653,6 +655,38 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
         assertServerFullyCleanedUp();
         assertStreamInvariants(outcome, false, 1000);
         assertThat("delayed (not partitioned) stream must still produce a footer", outcome.terminal(), equalTo(Terminal.FOOTER));
+    }
+
+    /**
+     * A client that stops reading mid-stream never requests the next batch. With a short consumer deadline the
+     * stream must be failed with an error footer, and the coordinator must release all of its compute and buffers
+     * rather than staying parked until the client goes away.
+     */
+    public void testStalledConsumerTimesOut() throws Exception {
+        updateClusterSettings(Settings.builder().put(EsqlPlugin.STREAMING_CONSUMER_TIMEOUT.getKey(), "1s"));
+        try {
+            // ~16MB or more of padding so the response cannot be absorbed by socket buffers while the client is suspended.
+            StreamOutcome outcome = streamPausingAt(
+                1,
+                streamBody("FROM " + STREAM_INDEX + " | EVAL pad = REPEAT(\"x\", 32768) | LIMIT " + streamDocCount),
+                true,
+                () -> Thread.sleep(5000),
+                "batch_size=1"
+            );
+
+            assertServerFullyCleanedUp();
+            assertStreamInvariants(outcome, false, streamDocCount);
+            assertThat("HTTP status must be 200 because it was already flushed", outcome.httpStatus(), equalTo(200));
+            assertThat("a stalled consumer must end with an error line", outcome.terminal(), equalTo(Terminal.ERROR));
+            assertThat(
+                "in-body status must be the timeout status",
+                ((Number) outcome.terminalLine().get("status")).intValue(),
+                equalTo(429)
+            );
+            assertThat("the stream must have been cut short", outcome.rowCount(), lessThan((long) streamDocCount));
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(EsqlPlugin.STREAMING_CONSUMER_TIMEOUT.getKey()));
+        }
     }
 
     public void testRandomDisruptionDuringStream() throws Exception {

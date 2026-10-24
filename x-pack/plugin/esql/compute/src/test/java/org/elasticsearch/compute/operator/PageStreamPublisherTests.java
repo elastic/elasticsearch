@@ -7,10 +7,12 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockFactoryBuilder;
@@ -18,6 +20,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.MockBlockFactory;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.junit.After;
 
@@ -929,5 +932,100 @@ public class PageStreamPublisherTests extends ComputeTestCase {
         publisher.failStream(new RuntimeException("terminal"));
         assertFalse("addPage must return false after terminal state", producer.addPage(makePageWithValues(4, 6)));
         assertThat("rejected page rows must not be counted", publisher.rowsPublished(), equalTo(4L));
+    }
+
+    private static PageStreamPublisher publisherWithConsumerTimeout(int pageSize, TimeValue timeout, DeterministicTaskQueue taskQueue) {
+        return new PageStreamPublisher(pageSize, timeout, taskQueue.getThreadPool(), taskQueue.getThreadPool().generic());
+    }
+
+    public void testConsumerTimeoutFailsStalledStream() {
+        DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        PageStreamPublisher publisher = publisherWithConsumerTimeout(3, TimeValue.timeValueSeconds(30), taskQueue);
+        PageStreamPublisher.Producer producer = publisher.registerProducer();
+        TestSubscriber subscriber = subscribe(publisher);
+        producer.addPage(makePageWithValues(0, 3));
+        assertDriverBlocked(publisher);
+
+        taskQueue.runAllTasksInTimeOrder();
+
+        assertThat(subscriber.error, instanceOf(ElasticsearchTimeoutException.class));
+        assertThat(subscriber.errorCount, equalTo(1));
+        assertThat(publisher.failure(), sameInstance(subscriber.error));
+        assertThat(publisher.footer().error(), sameInstance(subscriber.error));
+        assertDriverUnblocked(publisher);
+        assertFalse("addPage must be rejected once the stream timed out", producer.addPage(makePageWithValues(3, 1)));
+    }
+
+    public void testRequestResetsConsumerDeadline() {
+        DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        PageStreamPublisher publisher = publisherWithConsumerTimeout(3, TimeValue.timeValueSeconds(30), taskQueue);
+        PageStreamPublisher.Producer producer = publisher.registerProducer();
+        TestSubscriber subscriber = subscribe(publisher);
+        producer.addPage(makePageWithValues(0, 3));
+
+        taskQueue.runTasksUpToTimeInOrder(20_000);
+        assertThat(subscriber.error, nullValue());
+        subscriber.requestOne();
+        expectPage(subscriber, rows(0, 3));
+
+        taskQueue.runTasksUpToTimeInOrder(40_000);
+        assertThat(subscriber.error, nullValue());
+
+        taskQueue.runTasksUpToTimeInOrder(60_000);
+        assertThat(subscriber.error, instanceOf(ElasticsearchTimeoutException.class));
+        producer.finish();
+    }
+
+    public void testConsumerTimeoutDisabled() {
+        DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        PageStreamPublisher publisher = publisherWithConsumerTimeout(3, TimeValue.MINUS_ONE, taskQueue);
+        PageStreamPublisher.Producer producer = publisher.registerProducer();
+        TestSubscriber subscriber = subscribe(publisher);
+        producer.addPage(makePageWithValues(0, 3));
+
+        assertFalse("no timer may be scheduled when the deadline is disabled", taskQueue.hasDeferredTasks());
+        assertThat(subscriber.error, nullValue());
+        publisher.failStream(new RuntimeException("cleanup"));
+    }
+
+    public void testConsumerTimeoutDoesNotFireAfterCancelOrCompletion() {
+        DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        {
+            PageStreamPublisher publisher = publisherWithConsumerTimeout(3, TimeValue.timeValueSeconds(30), taskQueue);
+            publisher.registerProducer();
+            TestSubscriber subscriber = subscribe(publisher);
+            subscriber.subscription.cancel();
+            taskQueue.runAllTasksInTimeOrder();
+            assertThat(subscriber.error, nullValue());
+            assertThat(subscriber.errorCount, equalTo(0));
+        }
+        {
+            PageStreamPublisher publisher = publisherWithConsumerTimeout(3, TimeValue.timeValueSeconds(30), taskQueue);
+            PageStreamPublisher.Producer producer = publisher.registerProducer();
+            TestSubscriber subscriber = subscribeWithDemand(publisher);
+            finishStream(producer, publisher);
+            assertTrue(subscriber.completed);
+            taskQueue.runAllTasksInTimeOrder();
+            assertThat(subscriber.error, nullValue());
+            assertThat(subscriber.errorCount, equalTo(0));
+        }
+    }
+
+    public void testConsumerTimeoutAfterComputeFinishedReplacesSuccessFooter() {
+        DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        PageStreamPublisher publisher = publisherWithConsumerTimeout(10, TimeValue.timeValueSeconds(30), taskQueue);
+        PageStreamPublisher.Producer producer = publisher.registerProducer();
+        TestSubscriber subscriber = subscribe(publisher);
+        producer.addPage(makePageWithValues(0, 4));
+        finishStream(producer, publisher);
+        assertThat("success footer is recorded before the consumer ever asks for rows", publisher.footer().error(), nullValue());
+
+        taskQueue.runAllTasksInTimeOrder();
+
+        assertThat(subscriber.error, instanceOf(ElasticsearchTimeoutException.class));
+        assertFalse("a stream with dropped rows must not complete", subscriber.completed);
+        assertThat("the footer must carry the timeout, not the success footer", publisher.footer().error(), sameInstance(subscriber.error));
+        publisher.completeWithFooter(0, List.of(), false);
+        assertThat("a late success footer must not replace the error footer", publisher.footer().error(), sameInstance(subscriber.error));
     }
 }

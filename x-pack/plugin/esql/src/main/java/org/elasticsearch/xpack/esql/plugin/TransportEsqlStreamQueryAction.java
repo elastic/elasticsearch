@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -41,6 +42,7 @@ import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlStreamQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlStreamQueryRequest;
+import org.elasticsearch.xpack.esql.action.RestEsqlQueryAction;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -144,6 +146,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
     private final ActivityLogger<EsqlLogContext> activityLogger;
     private final TransportEsqlQueryAction transportEsqlQueryAction;
     private volatile boolean defaultAllowPartialResults;
+    private volatile TimeValue streamingConsumerTimeout;
     private volatile int resultTruncationMaxSize;
     private volatile int resultTruncationDefaultSize;
     private volatile int timeseriesResultTruncationMaxSize;
@@ -182,6 +185,11 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         defaultAllowPartialResults = EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS, v -> defaultAllowPartialResults = v);
+        streamingConsumerTimeout = EsqlPlugin.STREAMING_CONSUMER_TIMEOUT.get(clusterService.getSettings());
+        if (RestEsqlQueryAction.STREAMING_ENABLED) {
+            clusterService.getClusterSettings()
+                .addSettingsUpdateConsumer(EsqlPlugin.STREAMING_CONSUMER_TIMEOUT, v -> streamingConsumerTimeout = v);
+        }
         resultTruncationMaxSize = AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE.get(clusterService.getSettings());
         resultTruncationDefaultSize = AnalyzerSettings.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.get(clusterService.getSettings());
         timeseriesResultTruncationMaxSize = AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE.get(clusterService.getSettings());
@@ -213,7 +221,12 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
             request.allowPartialResults(defaultAllowPartialResults);
         }
         EsqlExecutionInfo executionInfo = transportEsqlQueryAction.createEsqlExecutionInfo(request);
-        PageStreamPublisher publisher = new PageStreamPublisher(request.batchSize());
+        PageStreamPublisher publisher = new PageStreamPublisher(
+            request.batchSize(),
+            streamingConsumerTimeout,
+            threadPool,
+            threadPool.generic()
+        );
         AtomicReference<Result> resultRef = new AtomicReference<>();
         activityLogger.wrapAndRun(
             listener,

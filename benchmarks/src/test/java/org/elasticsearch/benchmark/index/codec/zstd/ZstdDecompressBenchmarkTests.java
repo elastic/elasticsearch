@@ -11,11 +11,8 @@ package org.elasticsearch.benchmark.index.codec.zstd;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.codecs.compressing.Decompressor;
-import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.benchmark.store.DirectoryType;
-import org.elasticsearch.index.codec.zstd.ZstdCompressionMode;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -40,22 +37,22 @@ public class ZstdDecompressBenchmarkTests extends ESTestCase {
         bench.directoryType = directoryType;
         bench.blockSize = 4096;
         bench.decompressMode = decompressMode;
+        bench.hitsPerBlock = randomFrom(1, 2, 3, 32);
         bench.setup();
         try {
-            Decompressor decompressor = new ZstdCompressionMode(1).newDecompressor();
-            BytesRef bytes = new BytesRef();
-            IndexInput in = bench.input;
+            final int numBlocks = bench.blockOffsets.length;
+            final int hitsPerBlock = bench.hitsPerBlock;
+            // go around the file more than once so that the benchmark's decompressor is reused across all blocks
+            for (int doc = 0; doc < 2 * numBlocks * hitsPerBlock + randomIntBetween(0, hitsPerBlock); doc++) {
+                int block = doc / hitsPerBlock % numBlocks;
+                int len = decompressMode.equals("FULL") ? 4096 : 4096 / 2 / hitsPerBlock;
+                int off = decompressMode.equals("FULL") ? 0 : 4096 / 4 + doc % hitsPerBlock * len;
 
-            int off = decompressMode.equals("FULL") ? 0 : 4096 / 4;
-            int len = decompressMode.equals("FULL") ? 4096 : 4096 / 2;
+                BytesRef bytes = bench.readNextDocument();
 
-            for (int i = 0; i < bench.blockOffsets.length; i++) {
-                in.seek(bench.blockOffsets[i]);
-                decompressor.decompress(in, 4096, off, len, bytes);
-
-                byte[] expected = Arrays.copyOfRange(bench.originalBlocks[i], off, off + len);
+                byte[] expected = Arrays.copyOfRange(bench.originalBlocks[block], off, off + len);
                 byte[] actual = Arrays.copyOfRange(bytes.bytes, bytes.offset, bytes.offset + bytes.length);
-                assertArrayEquals("block " + i + " mismatch", expected, actual);
+                assertArrayEquals("doc " + doc + " (block " + block + ") mismatch", expected, actual);
             }
         } finally {
             bench.tearDown();

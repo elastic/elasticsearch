@@ -141,6 +141,13 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature MULTI_VALUED_BINARY_INDEX_SORT_SPARSE_FIX = new NodeFeature(
         "mapper.multi_valued_binary_index_sort_sparse_fix"
     );
+    /**
+     * Arrays whose encoded offsets exceed the sorted doc values limit are stored in {@code _ignored_source} instead of failing
+     * the document.
+     */
+    public static final NodeFeature OVERSIZED_ARRAY_OFFSETS_IGNORED_SOURCE_FALLBACK = new NodeFeature(
+        "mapper.oversized_array_offsets_ignored_source_fallback"
+    );
 
     @Override
     public Set<NodeFeature> getFeatures() {
@@ -239,7 +246,8 @@ public class MapperFeatures implements FeatureSpecification {
             DOC_VALUES_EXTENDED_FORM_ONLY_IN_COLUMNAR,
             DOC_VALUES_NULLABILITY,
             PUT_MAPPING_NO_TYPES_CHECK,
-            MULTI_VALUED_BINARY_INDEX_SORT_SPARSE_FIX
+            MULTI_VALUED_BINARY_INDEX_SORT_SPARSE_FIX,
+            OVERSIZED_ARRAY_OFFSETS_IGNORED_SOURCE_FALLBACK
         );
     }
 }

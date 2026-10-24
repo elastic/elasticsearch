@@ -14,6 +14,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -61,6 +62,48 @@ public abstract class IgnoreMalformedStoredValues {
             saveToBinaryDocValues(context, fieldPath, encoded);
         } else {
             context.doc().add(storedField(fieldPath, builder));
+        }
+    }
+
+    /**
+     * Stores the current parser token as a value that failed to parse with {@code ignore_malformed: true}, like
+     * {@link #storeMalformedValueForSyntheticSource(DocumentParserContext, String, XContentParser)}. When the field records array
+     * offsets for the array being parsed (see {@link FieldArrayContext#shouldRecordOffsets}), the malformed value is also recorded
+     * with those offsets, so that it travels along if the array is moved to {@code _ignored_source} because its encoded offsets are
+     * too large to store; see {@link FieldArrayContext#recordIgnored}.
+     *
+     * @param offsetsFieldName the field's offsets field, or {@code null} when the field records no offsets
+     * @param multiValue       the field's {@code multi_value} doc values parameter
+     */
+    public static void captureMalformed(
+        DocumentParserContext context,
+        String fieldPath,
+        @Nullable String offsetsFieldName,
+        boolean multiValue
+    ) throws IOException {
+        // The fallback needs _ignored_source, so there is no point in recording the value where that is unavailable.
+        if (context.canAddIgnoredField() == false
+            || FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, multiValue) == false) {
+            storeMalformedValueForSyntheticSource(context, fieldPath, context.parser());
+            return;
+        }
+        // Encode once: for objects and arrays, encoding consumes the parser token.
+        BytesRef encoded = XContentDataHelper.encodeToken(context.parser());
+        context.getOffSetContext().recordIgnored(offsetsFieldName, encoded);
+        storeMalformedValueForSyntheticSource(context, fieldPath, encoded);
+    }
+
+    /**
+     * Stores a malformed value that was already encoded with {@link XContentDataHelper#encodeToken(XContentParser)}, in binary doc
+     * values (new indices) or in stored fields (old indices) in order to support synthetic source.
+     */
+    static void storeMalformedValueForSyntheticSource(DocumentParserContext context, String fieldPath, BytesRef encoded) {
+        IndexVersion indexVersion = context.indexSettings().getIndexVersionCreated();
+        if (indexVersion.onOrAfter(IndexVersions.STORE_IGNORED_MALFORMED_IN_BINARY_DOC_VALUES)) {
+            saveToBinaryDocValues(context, fieldPath, encoded);
+        } else {
+            // Stored as encoded bytes rather than with a native stored field type; the loader decodes both (see Stored#write).
+            context.doc().add(new StoredField(name(fieldPath), encoded));
         }
     }
 

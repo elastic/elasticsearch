@@ -68,6 +68,7 @@ import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.features.NodeFeature;
@@ -84,6 +85,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IntOrLongMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -98,11 +100,19 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
+import org.junit.Rule;
+import org.junit.internal.AssumptionViolatedException;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
+import org.junit.runners.model.Statement;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -272,11 +282,102 @@ public abstract class ESRestTestCase extends ESTestCase {
      * A client for the running Elasticsearch cluster configured to take test administrative actions like remove all indexes after the test
      * completes
      */
-    private static RestClient adminClient;
+    static RestClient adminClient;
     /**
      * A client for the running Elasticsearch cluster configured to clean up the cluster after tests
      */
     private static RestClient cleanupClient;
+
+    /**
+     * Set once a test failure indicates the cluster is unreachable, so that remaining tests in the
+     * suite are skipped instead of producing redundant failures. Reset after each suite.
+     */
+    static boolean clusterUnavailable;
+
+    /**
+     * The clusters this suite runs against, gathered from its {@code @ClassRule} fields before any test runs. Used by
+     * {@link #clusterDeadRule} to check whether a node has died after a test failure.
+     */
+    static List<ElasticsearchCluster> testClusters = List.of();
+
+    /**
+     * Gathers the suite's {@link ElasticsearchCluster} instances so {@link #clusterDeadRule} can check them for dead nodes.
+     */
+    @ClassRule
+    public static final TestRule gatherClustersRule = (base, description) -> new Statement() {
+        @Override
+        public void evaluate() throws Throwable {
+            testClusters = gatherClusters(description.getTestClass());
+            try {
+                base.evaluate();
+            } finally {
+                testClusters = List.of();
+            }
+        }
+    };
+
+    /**
+     * Collects the clusters a suite runs against from its {@code @ClassRule} fields, looking inside any {@link RuleChain} those
+     * fields hold.
+     */
+    private static List<ElasticsearchCluster> gatherClusters(Class<?> testClass) {
+        List<ElasticsearchCluster> clusters = new ArrayList<>();
+        // stop at ESRestTestCase, since everything above it is test framework infrastructure that never declares clusters
+        for (Class<?> cls = testClass; ESRestTestCase.class.isAssignableFrom(cls); cls = cls.getSuperclass()) {
+            for (Object rule : classRules(cls)) {
+                collectClusters(rule, clusters);
+            }
+        }
+        return clusters;
+    }
+
+    private static void collectClusters(Object rule, List<ElasticsearchCluster> clusters) {
+        if (rule instanceof ElasticsearchCluster cluster) {
+            clusters.add(cluster);
+        } else if (rule instanceof RuleChain chain) {
+            for (Object chained : chainedRules(chain)) {
+                collectClusters(chained, clusters);
+            }
+        }
+    }
+
+    /**
+     * Returns the values of the {@code @ClassRule} fields {@code cls} declares. Those fields have to be opened up first: a rule
+     * field is usually public, but some suites declare one in a package private class, which puts it out of reach from this package.
+     * JUnit opens up rule fields the same way when it collects them. Tests do not run on the module path, so there is no module
+     * boundary to open here.
+     */
+    @SuppressForbidden(reason = "a @ClassRule field can be declared in a package private class, hiding it from this package")
+    private static List<Object> classRules(Class<?> cls) {
+        List<Object> rules = new ArrayList<>();
+        for (Field field : cls.getDeclaredFields()) {
+            if (field.isAnnotationPresent(ClassRule.class) == false || Modifier.isStatic(field.getModifiers()) == false) {
+                continue;
+            }
+            field.setAccessible(true);
+            try {
+                rules.add(field.get(null));
+            } catch (IllegalAccessException e) {
+                throw new AssertionError("could not read @ClassRule [" + cls.getName() + "#" + field.getName() + "]", e);
+            }
+        }
+        return rules;
+    }
+
+    /**
+     * Returns the rules a {@link RuleChain} holds, which it keeps in a private field with no accessor. Without this, a cluster that
+     * a suite chains together with other rules would be left out of the dead node check.
+     */
+    @SuppressForbidden(reason = "RuleChain exposes no accessor for the rules it holds")
+    private static List<?> chainedRules(RuleChain chain) {
+        try {
+            Field rules = RuleChain.class.getDeclaredField("rulesStartingWithInnerMost");
+            rules.setAccessible(true);
+            return (List<?>) rules.get(chain);
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            throw new AssertionError("could not read the rules of a " + RuleChain.class.getName(), e);
+        }
+    }
 
     private static boolean multiProjectEnabled;
     private static String activeProject;
@@ -387,6 +488,56 @@ public abstract class ESRestTestCase extends ESTestCase {
         activeProject = "active00" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
         extraProjects = randomSet(1, 3, () -> randomAlphaOfLength(12).toLowerCase(Locale.ROOT));
         multiProjectEnabled = Booleans.parseBoolean(System.getProperty("tests.multi_project.enabled", "false"));
+    }
+
+    /**
+     * Wraps each test with logic that skips the test if the cluster was previously found to be
+     * unavailable, and on any (non-assumption) test failure pings the cluster to check whether it
+     * is still usable. If the ping fails for any reason (unreachable or error response), the
+     * remaining tests in the suite are skipped and the original failure is replaced with a clearer
+     * error, avoiding a cascade of redundant, confusing failures.
+     */
+    @Rule
+    public final TestRule clusterDeadRule = (base, description) -> new Statement() {
+        @Override
+        public void evaluate() throws Throwable {
+            assumeFalse("cluster unavailable", clusterUnavailable);
+            try {
+                base.evaluate();
+            } catch (AssumptionViolatedException e) {
+                throw e;
+            } catch (Throwable originalFailure) {
+                // check the node processes first, since a dead node gives a far more precise diagnosis than a failed request
+                for (ElasticsearchCluster cluster : testClusters) {
+                    try {
+                        cluster.checkHealth();
+                    } catch (IOException e) {
+                        throw markClusterUnavailable(e, originalFailure);
+                    }
+                }
+                RestClient c = adminClient();
+                if (c == null) {
+                    throw markClusterUnavailable(new AssertionError("Test cluster client initialization failed"), originalFailure);
+                }
+                try {
+                    c.performRequest(new Request("HEAD", "/"));
+                } catch (Exception e) {
+                    throw markClusterUnavailable(e, originalFailure);
+                }
+                throw originalFailure;
+            }
+        }
+    };
+
+    /**
+     * Records that the cluster is unavailable so the remaining tests in the suite are skipped, and attaches the reason to the
+     * failure that exposed it. The original failure is returned unchanged so that it stays the reported failure, with the cluster
+     * diagnosis available alongside it rather than in place of it.
+     */
+    private static Throwable markClusterUnavailable(Throwable reason, Throwable originalFailure) {
+        clusterUnavailable = true;
+        originalFailure.addSuppressed(reason);
+        return originalFailure;
     }
 
     @Before
@@ -640,6 +791,11 @@ public abstract class ESRestTestCase extends ESTestCase {
         return new HttpHost(host, port, getProtocol());
     }
 
+    @Override
+    protected boolean previousFailureSkipsRemaining() {
+        return clusterUnavailable || super.previousFailureSkipsRemaining();
+    }
+
     /**
      * Clean up after the test case.
      */
@@ -655,6 +811,11 @@ public abstract class ESRestTestCase extends ESTestCase {
                 logIfThereAreRunningTasks();
             }
         }
+    }
+
+    @AfterClass
+    public static void resetClusterUnavailable() {
+        clusterUnavailable = false;
     }
 
     @AfterClass

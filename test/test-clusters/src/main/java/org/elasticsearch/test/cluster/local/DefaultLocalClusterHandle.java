@@ -232,6 +232,14 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
         execute(() -> nodes.parallelStream().forEach(Node::updateStoredSecureSettings));
     }
 
+    @Override
+    public void checkHealth() throws IOException {
+        List<String> deadNodes = nodes.stream().filter(n -> n.isAlive() == false).map(Node::getName).toList();
+        if (deadNodes.isEmpty() == false) {
+            throw new IOException("Node(s) " + deadNodes + " in cluster [" + name + "] have died, see their logs above");
+        }
+    }
+
     protected void waitUntilReady() {
         writeUnicastHostsFile();
         try {

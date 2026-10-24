@@ -1621,6 +1621,15 @@ public class EsqlCapabilities {
         WHERE_IN_SUBQUERY_FORK_UNKNOWN_COLUMN_FIX,
 
         /**
+         * FORK / UnionAll no longer treat IN-subquery MarkJoin marks ({@code $$in_subquery_mark$…})
+         * as user-visible merge columns. Union-type cast synthetics ({@code $$<field>$converted_to$<type>})
+         * stay in the merge output so a conversion above the merge can still reference them.
+         * Without this, {@code INLINE STATS} or {@code EVAL} of an unmapped field under
+         * {@code unmapped_fields="nullify"} / {@code "load"} leaked the mark into the result schema.
+         */
+        WHERE_IN_SUBQUERY_FORK_MARK_NOT_IN_OUTPUT,
+
+        /**
          * Support IN subquery inside {@code CASE}, {@code COALESCE}, and {@code IS [NOT] NULL} expressions in the {@code WHERE} command.
          */
         WHERE_IN_SUBQUERY_WITH_CASE_COALESCE_IS_NULL,

@@ -2207,7 +2207,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         attrType = attrType.noCounter();
                     }
                     // use the current union branch's source as the source of the alias, instead of the original FieldAttribute's source.
-                    aliases.add(new Alias(source, attr.name(), new Literal(source, null, attrType)));
+                    // Preserve synthetic so a sibling null-fill of a synthetic merge column (e.g. a union-type
+                    // $$field$converted_to$type cast) stays invisible to planWithoutSyntheticAttributes. IN-subquery
+                    // marks are not merge columns (MergePlan.outputUnion skips them) and do not reach this path.
+                    aliases.add(new Alias(source, attr.name(), new Literal(source, null, attrType), null, attr.synthetic()));
                 }
 
                 // materialize the unmapped fields in this branch's own source relation so they surface in its output

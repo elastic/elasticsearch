@@ -15,6 +15,10 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
@@ -71,6 +75,30 @@ public class InSubqueryResolverTests extends ESTestCase {
 
     private static void requireLambda() {
         assumeTrue("Requires Lambda syntax support", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
+    }
+
+    public void testIsInSubquerySynthetic() {
+        assertTrue(InSubqueryResolver.isInSubquerySynthetic(syntheticAttr("$$in_subquery_mark$-1$2$0")));
+        assertTrue(InSubqueryResolver.isInSubquerySynthetic(syntheticAttr("$$in_subquery_const$-1$2$0")));
+        assertFalse(InSubqueryResolver.isInSubquerySynthetic(nonSyntheticAttr("$$in_subquery_mark$-1$2$0")));
+        assertFalse(InSubqueryResolver.isInSubquerySynthetic(nonSyntheticAttr("$$in_subquery_const$-1$2$0")));
+        // Union-type casts of a field named in_subquery_mark / in_subquery_const share the prefix but contain converted_to.
+        assertFalse(InSubqueryResolver.isInSubquerySynthetic(syntheticAttr("$$in_subquery_mark$converted_to$ip")));
+        assertFalse(InSubqueryResolver.isInSubquerySynthetic(syntheticAttr("$$in_subquery_const$converted_to$keyword")));
+        assertFalse(InSubqueryResolver.isInSubquerySynthetic(syntheticAttr("$$emp_no$converted_to$long")));
+        assertFalse(InSubqueryResolver.isInSubquerySynthetic(syntheticAttr("$$in_subquery_mark$1$converted_to$ip")));
+    }
+
+    private static Attribute syntheticAttr(String name) {
+        return namedAttr(name, true);
+    }
+
+    private static Attribute nonSyntheticAttr(String name) {
+        return namedAttr(name, false);
+    }
+
+    private static Attribute namedAttr(String name, boolean synthetic) {
+        return new ReferenceAttribute(Source.EMPTY, null, name, DataType.BOOLEAN, Nullability.TRUE, new NameId(), synthetic);
     }
 
     // ---- positive: WHERE IN subquery → SemiJoin ----

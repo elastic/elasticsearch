@@ -1502,4 +1502,55 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
             | INLINE STATS c = COUNT(*) WHERE (emp_no IN (ROW a = 1 | KEEP a)) IS NOT NULL
             """, STAGES);
     }
+
+    public void testForkMarkJoinUnmappedEvalNullifyDoesNotLeakMark() {
+        runGoldenTest("""
+            SET unmapped_fields="nullify";
+            FROM employees
+            | FORK
+                (WHERE emp_no IN (FROM employees | KEEP emp_no) OR false)
+                (WHERE first_name IN (FROM employees | KEEP first_name) OR false)
+            | EVAL y = does_not_exist_field
+            """, STAGES);
+    }
+
+    public void testForkMarkJoinUnmappedEvalLoadDoesNotLeakMark() {
+        runGoldenTest("""
+            SET unmapped_fields="load";
+            FROM employees
+            | FORK
+                (WHERE emp_no IN (FROM employees | KEEP emp_no) OR false)
+                (WHERE first_name IN (FROM employees | KEEP first_name) OR false)
+            | EVAL y = does_not_exist_field
+            """, STAGES);
+    }
+
+    public void testUnionAllMarkJoinUnmappedEvalNullifyDoesNotLeakMark() {
+        runGoldenTest("""
+            SET unmapped_fields="nullify";
+            FROM (FROM employees | WHERE emp_no IN (FROM employees | KEEP emp_no) OR false),
+                 (FROM employees | WHERE first_name IN (FROM employees | KEEP first_name) OR false)
+            | EVAL y = does_not_exist_field
+            """, STAGES);
+    }
+
+    public void testUnionAllMarkJoinUnmappedEvalLoadDoesNotLeakMark() {
+        runGoldenTest("""
+            SET unmapped_fields="load";
+            FROM (FROM employees | WHERE emp_no IN (FROM employees | KEEP emp_no) OR false),
+                 (FROM employees | WHERE first_name IN (FROM employees | KEEP first_name) OR false)
+            | EVAL y = does_not_exist_field
+            """, STAGES);
+    }
+
+    public void testForkFoldableLhsUnmappedEvalNullifyDoesNotLeakConst() {
+        runGoldenTest("""
+            SET unmapped_fields="nullify";
+            FROM employees
+            | FORK
+                (WHERE 10001 IN (ROW x = 10001) OR false)
+                (WHERE "Georgi" IN (ROW x = "Georgi") OR false)
+            | EVAL y = does_not_exist_field
+            """, STAGES);
+    }
 }

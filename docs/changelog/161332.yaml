@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 156607
+pr: 161332
+summary: Cache `index.frozen` flag in `IndexMetadata` to speed up search coordination
+type: bug

@@ -357,6 +357,13 @@ public abstract class DocumentParserContext {
     }
 
     /**
+     * Returns {@code true} if {@code field} has been added to the ignored-fields set.
+     */
+    public final boolean isFieldIgnored(String field) {
+        return ignoredFields.contains(field);
+    }
+
+    /**
      * Return the collection of fields that have been ignored so far.
      */
     public final Collection<String> getIgnoredFields() {

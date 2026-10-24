@@ -21,6 +21,7 @@ import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -47,6 +48,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
@@ -256,6 +258,12 @@ public class IpFieldMapper extends FieldMapper {
     public static final TypeParser PARSER = createTypeParserWithLegacySupport(
         (n, c) -> new Builder(n, c.scriptCompiler(), c.getIndexSettings())
     );
+
+    // The recorded value is the encoded (sortable) address; format it like the offsets-aware loader does.
+    private static final CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> OFFSETS_FALLBACK = (b, v) -> {
+        BytesRef formatted = convert((BytesRef) v);
+        b.utf8Value(formatted.bytes, formatted.offset, formatted.length);
+    };
 
     public static final class IpFieldType extends SimpleMappedFieldType {
 
@@ -680,7 +688,7 @@ public class IpFieldMapper extends FieldMapper {
                 context.addIgnoredField(fieldType().name());
                 if (storeIgnored) {
                     // Save a copy of the field so synthetic source can load it
-                    IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), context.parser());
+                    IgnoreMalformedStoredValues.captureMalformed(context, fullPath(), offsetsFieldName);
                 }
                 return;
             } else {
@@ -693,9 +701,9 @@ public class IpFieldMapper extends FieldMapper {
         if (offsetsFieldName != null && context.isImmediateParentAnArray() && context.canAddIgnoredField()) {
             if (address != null) {
                 BytesRef sortableValue = address.binaryValue();
-                context.getOffSetContext().recordOffset(offsetsFieldName, sortableValue);
+                context.getOffSetContext().recordOffset(offsetsFieldName, sortableValue, OFFSETS_FALLBACK);
             } else {
-                context.getOffSetContext().recordNull(offsetsFieldName);
+                context.getOffSetContext().recordNull(offsetsFieldName, OFFSETS_FALLBACK);
             }
         }
     }

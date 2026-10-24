@@ -16,13 +16,17 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToChildBlockJoinQuery;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.index.query.InnerHitsRewriteContext;
 import org.elasticsearch.index.query.NestedQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -38,7 +42,8 @@ public class NestedHelperJoinToNestedLevelTests extends MapperServiceTestCase {
 
     @Before
     public void initContext() throws Exception {
-        context = createSearchExecutionContext(createMapperService("""
+        String vectorIndexType = randomFrom("flat", "hnsw");
+        context = createSearchExecutionContext(createMapperService(Strings.format("""
             { "_doc": {
               "runtime": { "nested1.rt": { "type": "keyword" } },
               "properties": {
@@ -47,6 +52,7 @@ public class NestedHelperJoinToNestedLevelTests extends MapperServiceTestCase {
                 "nested1": { "type": "nested", "properties": {
                   "foo": { "type": "keyword" },
                   "text": { "type": "text", "norms": false },
+                  "vector": { "type": "dense_vector", "dims": 2, "similarity": "l2_norm", "index_options": { "type": "%s" } },
                   "deep": { "type": "nested", "properties": { "foo": { "type": "keyword" } } }
                 } },
                 "nested2": { "type": "nested", "include_in_parent": true, "properties": { "foo": { "type": "keyword" } } },
@@ -54,7 +60,7 @@ public class NestedHelperJoinToNestedLevelTests extends MapperServiceTestCase {
                 "other": { "type": "nested", "properties": { "foo": { "type": "keyword" } } }
               }
             } }
-            """));
+            """, vectorIndexType)));
     }
 
     public void testLevels() {
@@ -75,6 +81,20 @@ public class NestedHelperJoinToNestedLevelTests extends MapperServiceTestCase {
         assertEquals(Set.of(), NestedHelper.nestedLevels(Queries.ALL_DOCS_INSTANCE, context));
         // block joins that are not nested queries are leaves without fields
         assertEquals(Set.of(), NestedHelper.nestedLevels(joinFrom(term("foo"), null), context));
+    }
+
+    public void testVectorQueryLevels() throws Exception {
+        Float similarity = randomBoolean() ? null : 10f;
+        KnnVectorQueryBuilder knn = new KnnVectorQueryBuilder("nested1.vector", new float[] { 1, 1 }, 10, 10, null, null, similarity);
+        context.nestedScope().nextLevel(context.nestedLookup().getNestedMappers().get("nested1"));
+        try {
+            assertEquals(Set.of("nested1"), NestedHelper.nestedLevels(knn.toQuery(context), context));
+            // inner hits rewrite knn queries to exact ones
+            QueryBuilder exact = knn.rewrite(new InnerHitsRewriteContext(context.getParserConfig(), System::currentTimeMillis));
+            assertEquals(Set.of("nested1"), NestedHelper.nestedLevels(exact.toQuery(context), context));
+        } finally {
+            context.nestedScope().previousLevel();
+        }
     }
 
     public void testNestedQueryLevelIsTheLevelItJoinsTo() throws Exception {

@@ -53,30 +53,39 @@ import java.util.stream.Collectors;
  * every query type and any mix of levels, by comparing the documents the knn query returns with a model of the corpus.
  * <p>
  * Books have chapters, which have paragraphs. Books also have authors, a nested object that is not on the path to any
- * vector. One vector is on paragraphs, two levels deep, and one on chapters, one level deep.
+ * vector. One vector is on paragraphs, two levels deep, one on chapters, one level deep, and one on books, which knn
+ * filters can search.
  */
 public class KnnNestedFilterLevelTests extends MapperServiceTestCase {
 
-    private static final String MAPPING = """
-        { "_doc": { "properties": {
-          "genre": { "type": "keyword" },
-          "year": { "type": "long" },
-          "authors": { "type": "nested", "properties": { "name": { "type": "keyword" } } },
-          "chapters": { "type": "nested", "properties": {
-            "cid": { "type": "keyword" },
-            "language": { "type": "keyword" },
-            "title": { "type": "keyword" },
-            "num": { "type": "long" },
-            "vector": { "type": "dense_vector", "dims": 2, "similarity": "l2_norm", "index_options": { "type": "flat" } },
-            "paragraphs": { "type": "nested", "properties": {
-              "pid": { "type": "keyword" },
-              "text": { "type": "keyword" },
-              "body": { "type": "text" },
-              "vector": { "type": "dense_vector", "dims": 2, "similarity": "l2_norm", "index_options": { "type": "flat" } }
-            } }
-          } }
-        } } }
-        """;
+    private static String mapping() {
+        return Strings.format("""
+            { "_doc": { "properties": {
+              "genre": { "type": "keyword" },
+              "year": { "type": "long" },
+              "vector": { "type": "dense_vector", "dims": 2, "similarity": "l2_norm", "index_options": { "type": "%s" } },
+              "authors": { "type": "nested", "properties": { "name": { "type": "keyword" } } },
+              "chapters": { "type": "nested", "properties": {
+                "cid": { "type": "keyword" },
+                "language": { "type": "keyword" },
+                "title": { "type": "keyword" },
+                "num": { "type": "long" },
+                "vector": { "type": "dense_vector", "dims": 2, "similarity": "l2_norm", "index_options": { "type": "%s" } },
+                "paragraphs": { "type": "nested", "properties": {
+                  "pid": { "type": "keyword" },
+                  "text": { "type": "keyword" },
+                  "body": { "type": "text" },
+                  "vector": { "type": "dense_vector", "dims": 2, "similarity": "l2_norm", "index_options": { "type": "%s" } }
+                } }
+              } }
+            } } }
+            """, randomIndexType(), randomIndexType(), randomIndexType());
+    }
+
+    /** Knn queries on exact and approximate vectors build different Lucene queries. */
+    private static String randomIndexType() {
+        return randomFrom("flat", "int8_flat", "hnsw", "int8_hnsw");
+    }
 
     private static final String[] GENRES = { "nature", "novel", "history" };
     private static final String[] AUTHORS = { "ann", "bob", "cid" };
@@ -281,7 +290,7 @@ public class KnnNestedFilterLevelTests extends MapperServiceTestCase {
             enterScope(context, target.depth);
             innerHits = knn;
         }
-        innerHits = innerHits.rewrite(new InnerHitsRewriteContext(context.getParserConfig(), System::currentTimeMillis));
+        innerHits = Rewriteable.rewrite(innerHits, new InnerHitsRewriteContext(context.getParserConfig(), System::currentTimeMillis), true);
         assertEquals("inner hits " + message, expected, search(searcher, innerHits.toQuery(context), target));
     }
 
@@ -360,7 +369,7 @@ public class KnnNestedFilterLevelTests extends MapperServiceTestCase {
         String genre = randomFrom(GENRES);
         String author = randomFrom(AUTHORS);
         long year = randomLongBetween(1990, 2000);
-        return switch (randomIntBetween(0, 11)) {
+        return switch (randomIntBetween(0, 12)) {
             case 0 -> books("term genre", QueryBuilders.termQuery("genre", genre), b -> genre.equals(b.genre()));
             case 1 -> books("terms genre", QueryBuilders.termsQuery("genre", genre, "none"), b -> genre.equals(b.genre()));
             case 2 -> books("range year", QueryBuilders.rangeQuery("year").gte(year), b -> b.year() >= year);
@@ -398,6 +407,24 @@ public class KnnNestedFilterLevelTests extends MapperServiceTestCase {
                 b -> genre.equals(b.book().genre()),
                 Set.of(0, 1)
             );
+            case 12 -> {
+                // every book has a vector and the similarity keeps them all, so the knn query matches the books its filter matches
+                Float similarity = randomBoolean() ? null : 10f;
+                KnnVectorQueryBuilder knn = new KnnVectorQueryBuilder(
+                    "vector",
+                    new float[] { 1, 1 },
+                    10_000,
+                    10_000,
+                    null,
+                    null,
+                    similarity
+                );
+                if (randomBoolean()) {
+                    yield books("knn vector", knn, b -> true);
+                }
+                knn.addFilterQuery(QueryBuilders.termQuery("genre", genre));
+                yield books("knn vector filtered on genre", knn, b -> genre.equals(b.genre()));
+            }
             default -> throw new AssertionError();
         };
     }
@@ -573,6 +600,7 @@ public class KnnNestedFilterLevelTests extends MapperServiceTestCase {
             builder.field("genre", book.genre());
         }
         builder.field("year", book.year());
+        builder.array("vector", randomFloat(), randomFloat());
         builder.startArray("authors");
         for (String author : book.authors()) {
             builder.startObject().field("name", author).endObject();
@@ -607,7 +635,7 @@ public class KnnNestedFilterLevelTests extends MapperServiceTestCase {
     }
 
     private void withIndex(List<Book> books, IndexTest test) throws IOException {
-        MapperService mapperService = createMapperService(MAPPING);
+        MapperService mapperService = createMapperService(mapping());
         withLuceneIndex(mapperService, iw -> {
             for (Book book : books) {
                 iw.addDocuments(mapperService.documentMapper().parse(source(Strings.toString(toSource(book)))).docs());

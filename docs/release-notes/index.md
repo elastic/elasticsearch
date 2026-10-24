@@ -21,9 +21,6 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % *
 
 ## 9.5.5 [elasticsearch-9.5.5-release-notes]
-```{applies_to}
-stack: ga 9.5.5
-```
 
 ### Highlights [elasticsearch-9.5.5-highlights]
 
@@ -146,7 +143,6 @@ Vector Search:
 * Use effective manifold dimensionality for error std in auto calibration [#158158](https://github.com/elastic/elasticsearch/pull/158158)
 
 
-
 ## 9.4.8 [elasticsearch-9.4.8-release-notes]
 
 ### Highlights [elasticsearch-9.4.8-highlights]
@@ -252,7 +248,6 @@ Security:
 
 TSDB:
 * Reject Prometheus remote write 2.0 requests [#159987](https://github.com/elastic/elasticsearch/pull/159987)
-
 
 
 ## 9.4.7 [elasticsearch-9.4.7-release-notes]

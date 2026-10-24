@@ -188,6 +188,7 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
@@ -408,6 +409,26 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                 service.getActiveContexts()
             )
         );
+    }
+
+    /** A two shard search runs a query task on each shard and a fetch task on at least one, and each records its queue wait. */
+    public void testQueueTimeRecordedForQueryAndFetchPhases() {
+        createIndex("index", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2).build());
+        prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        IndexService indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex("index"));
+        assertEquals(0.0, totalQueuedTasks(indexService), 0.0);
+
+        assertHitCount(client().prepareSearch("index"), 1);
+
+        assertThat(totalQueuedTasks(indexService), greaterThanOrEqualTo(3.0));
+    }
+
+    private static double totalQueuedTasks(IndexService indexService) {
+        double count = 0;
+        for (IndexShard shard : indexService) {
+            count += shard.shardSearchStats().totalQueuedTasks();
+        }
+        return count;
     }
 
     public void testSearchWhileIndexDeleted() throws InterruptedException {

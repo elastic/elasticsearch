@@ -10,11 +10,13 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.QueueTimeAware;
 
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.LongConsumer;
 
 /**
  * A Driver be put to sleep while its sink is full or its source is empty or be rescheduled after running several iterations.
@@ -37,11 +39,23 @@ final class DriverScheduler {
         }
     }
 
-    void scheduleOrRunTask(Executor executor, AbstractRunnable task) {
+    /**
+     * Runs {@code task} on {@code executor}, or on the calling thread once the driver is completing.
+     * @param queueTimeListener told how long the submitted runnable waited in the queue, unless {@link #runPendingTasks()} already
+     *                          ran or replaced the task in the meantime
+     */
+    void scheduleOrRunTask(Executor executor, AbstractRunnable task, LongConsumer queueTimeListener) {
         final AbstractRunnable existing = scheduledTask.getAndSet(task);
         assert existing == null : existing;
         final Executor executorToUse = completing.get() ? EsExecutors.DIRECT_EXECUTOR_SERVICE : executor;
-        executorToUse.execute(new AbstractRunnable() {
+        class QueueTimeReportingRunnable extends AbstractRunnable implements QueueTimeAware {
+            @Override
+            public void onQueueTime(long queueTimeMicros) {
+                if (scheduledTask.get() == task) {
+                    queueTimeListener.accept(queueTimeMicros);
+                }
+            }
+
             @Override
             public void onFailure(Exception e) {
                 assert e instanceof EsRejectedExecutionException : new AssertionError(e);
@@ -57,7 +71,8 @@ final class DriverScheduler {
                     task.run();
                 }
             }
-        });
+        }
+        executorToUse.execute(new QueueTimeReportingRunnable());
     }
 
     void runPendingTasks() {

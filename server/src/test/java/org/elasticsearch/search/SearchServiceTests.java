@@ -33,6 +33,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -83,6 +84,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -98,9 +100,11 @@ import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.DIRECT_EXECUTOR_SERVICE;
 import static org.elasticsearch.search.SearchService.isExecutorQueuedBeyondPrewarmingFactor;
 import static org.elasticsearch.search.SearchService.isTransientRejection;
+import static org.elasticsearch.search.SearchService.runAsync;
 import static org.elasticsearch.search.SearchService.wrapFailureListener;
 import static org.elasticsearch.search.SearchService.wrapListenerForErrorHandling;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -626,6 +630,37 @@ public class SearchServiceTests extends IndexShardTestCase {
                     context.releaseQueryConstructionMemory();
                 }
             }
+        } finally {
+            closeShards(indexShard);
+        }
+    }
+
+    public void testRunAsyncCallsOnFailureOnceWhenListenerThrows() throws IOException {
+        IndexShard indexShard = newShard(true);
+        try {
+            var searchFailure = new ElasticsearchException("search failed");
+            var listenerFailure = new IllegalStateException("listener failed");
+            List<Exception> failures = new ArrayList<>();
+            ActionListener<RefCounted> listener = new ActionListener<>() {
+                @Override
+                public void onResponse(RefCounted response) {
+                    fail("unexpected response");
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    failures.add(e);
+                    throw listenerFailure;
+                }
+            };
+
+            var thrown = expectThrows(
+                IllegalStateException.class,
+                () -> runAsync(indexShard, DIRECT_EXECUTOR_SERVICE, () -> { throw searchFailure; }, listener)
+            );
+
+            assertSame(listenerFailure, thrown);
+            assertThat(failures, contains(searchFailure));
         } finally {
             closeShards(indexShard);
         }

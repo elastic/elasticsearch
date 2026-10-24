@@ -10,6 +10,7 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.metrics.ExponentialBucketHistogram;
 import org.elasticsearch.common.metrics.ExponentiallyWeightedMovingRate;
 import org.elasticsearch.common.util.ThreadUtilizationTracker;
@@ -17,6 +18,8 @@ import org.elasticsearch.common.util.concurrent.EsExecutors.HotThreadsOnLargeQue
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.telemetry.metric.Instrument;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -42,6 +45,8 @@ import static org.elasticsearch.threadpool.ThreadPool.THREAD_POOL_METRIC_NAME_UT
  * An extension to thread pool executor, which tracks statistics for the task execution time.
  */
 public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThreadPoolExecutor {
+    private static final Logger logger = LogManager.getLogger(TaskExecutionTimeTrackingEsThreadPoolExecutor.class);
+
     // 20 buckets means the upper bound on the largest bound bucket will be 2^18 ms (~= 4 minutes 20 seconds)
     public static final int QUEUE_LATENCY_HISTOGRAM_BUCKETS = 20;
     private static final int[] LATENCY_PERCENTILES_TO_REPORT = { 50, 90, 99 };
@@ -279,6 +284,15 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
 
         if (trackMaxQueueLatency) {
             maxQueueLatencyMillisSinceLastPoll.accumulate(queueLatencyMillis);
+        }
+
+        if (timedRunnable.unwrap() instanceof QueueTimeAware queueTimeAware) {
+            // an Exception escaping beforeExecute would drop the task and leak its ongoingTasks entry; Errors still propagate
+            try {
+                queueTimeAware.onQueueTime(TimeUnit.NANOSECONDS.toMicros(taskQueueLatency));
+            } catch (Exception e) {
+                logger.warn(() -> Strings.format("queue time listener failed for [%s]", queueTimeAware), e);
+            }
         }
     }
 

@@ -20,7 +20,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.search.CanMatchNodeRequest;
 import org.elasticsearch.action.search.CanMatchNodeResponse;
@@ -55,6 +54,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.QueueTimeAware;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -78,6 +78,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.shard.GlobalCheckpointListeners;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -963,7 +964,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final Executor executor = getExecutor(shard);
         try {
             if (waitForCheckpoint <= UNASSIGNED_SEQ_NO) {
-                runAsync(executor, executable, listener);
+                runAsync(shard, executor, executable, listener);
                 // we successfully submitted the async task to the search pool so let's prewarm the shard
                 if (isExecutorQueuedBeyondPrewarmingFactor(executor, prewarmingMaxPoolFactorThreshold) == false) {
                     onlinePrewarmingService.prewarm(shard);
@@ -1043,7 +1044,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         if (timeoutTask != null) {
                             timeoutTask.cancel();
                         }
-                        runAsync(executor, executable, listener);
+                        runAsync(shard, executor, executable, listener);
                         // we successfully submitted the async task to the search pool so let's prewarm the shard
                         if (isExecutorQueuedBeyondPrewarmingFactor(executor, prewarmingMaxPoolFactorThreshold) == false) {
                             onlinePrewarmingService.prewarm(shard);
@@ -1089,12 +1090,46 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
     }
 
-    private static <T extends RefCounted> void runAsync(
+    static <T extends RefCounted> void runAsync(
+        IndexShard shard,
         Executor executor,
         CheckedSupplier<T, Exception> executable,
         ActionListener<T> listener
     ) {
-        executor.execute(ActionRunnable.supplyAndDecRef(listener, executable));
+        executor.execute(new ShardQueueTimeAwareRunnable(shard.shardSearchStats()) {
+            @Override
+            protected void doRun() throws Exception {
+                ActionListener.respondAndRelease(listener, executable.get());
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+
+            @Override
+            public String toString() {
+                return executable.toString();
+            }
+        });
+    }
+
+    /**
+     * A shard's search task that records its wait in the thread pool queue in the shard's stats. Used for the dfs, query, fetch, scroll and
+     * rank feature tasks. Not recorded: opening a reader context, the data node rewrite, the slices of intra-shard parallel collection,
+     * the keep alive reaper, and any search on a system index pool, because those pools do not track execution time.
+     */
+    private abstract static class ShardQueueTimeAwareRunnable extends AbstractRunnable implements QueueTimeAware {
+        private final ShardSearchStats shardSearchStats;
+
+        ShardQueueTimeAwareRunnable(ShardSearchStats shardSearchStats) {
+            this.shardSearchStats = shardSearchStats;
+        }
+
+        @Override
+        public final void onQueueTime(long queueTimeMicros) {
+            shardSearchStats.onQueueTime(queueTimeMicros);
+        }
     }
 
     /**
@@ -1198,7 +1233,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             lifecycle
         );
         final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
-        runAsync(getExecutor(readerContext.indexShard()), () -> {
+        runAsync(readerContext.indexShard(), getExecutor(readerContext.indexShard()), () -> {
             final Supplier<DirectoryMetrics> metricsDelta = directoryMetricsDelta();
             try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.RANK_FEATURE, false)) {
                 int[] docIds = request.getDocIds();
@@ -1305,7 +1340,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ActionListener<FetchSearchResult> listener
     ) {
         final Executor searchExecutor = getExecutor(readerContext.indexShard());
-        searchExecutor.execute(new AbstractRunnable() {
+        searchExecutor.execute(new ShardQueueTimeAwareRunnable(readerContext.indexShard().shardSearchStats()) {
             private volatile SearchContext searchContext;
 
             private final Releasable closeOnce = Releasables.releaseOnce(Releasables.wrap(() -> {
@@ -1419,7 +1454,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             throw e;
         }
         Executor executor = getExecutor(readerContext.indexShard());
-        runAsync(executor, () -> {
+        runAsync(readerContext.indexShard(), executor, () -> {
             final Supplier<DirectoryMetrics> metricsDelta = directoryMetricsDelta();
             final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(null);
             try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.QUERY, false);) {
@@ -1485,7 +1520,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         rewriteAndFetchShardRequest(readerContext.indexShard(), shardSearchRequest, task, listener.delegateFailure((l, rewritten) -> {
             // fork the execution in the search thread pool
             Executor executor = getExecutor(readerContext.indexShard());
-            runAsync(executor, () -> {
+            runAsync(readerContext.indexShard(), executor, () -> {
                 final Supplier<DirectoryMetrics> metricsDelta = directoryMetricsDelta();
                 readerContext.setAggregatedDfs(request.dfs());
                 try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.QUERY, true);) {
@@ -1558,7 +1593,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             throw e;
         }
 
-        runAsync(getExecutor(readerContext.indexShard()), () -> {
+        runAsync(readerContext.indexShard(), getExecutor(readerContext.indexShard()), () -> {
             final Supplier<DirectoryMetrics> metricsDelta = directoryMetricsDelta();
             final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(null);
             try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.FETCH, false);) {

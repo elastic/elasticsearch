@@ -22,6 +22,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -41,6 +42,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -101,6 +103,8 @@ import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.lucene.queries.BinaryDocValuesQueries;
+import org.elasticsearch.lucene.queries.KeyedArrayOrderInlineNullAutomatonQuery;
 import org.elasticsearch.lucene.queries.KeyedArrayOrderInlineNullPrefixQuery;
 import org.elasticsearch.lucene.queries.KeyedArrayOrderInlineNullTermQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesPrefixQuery;
@@ -880,8 +884,55 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         }
 
         @Override
+        public Query prefixQuery(
+            String value,
+            MultiTermQuery.RewriteMethod method,
+            boolean caseInsensitive,
+            SearchExecutionContext context
+        ) {
+            if (caseInsensitive == false && indexType.hasOnlyDocValues() == false) {
+                return super.prefixQuery(value, method, false, context);
+            }
+            if (context.allowExpensiveQueries() == false) {
+                throw new ElasticsearchException(
+                    "[prefix] queries cannot be executed when '"
+                        + ALLOW_EXPENSIVE_QUERIES.getKey()
+                        + "' is set to false. For optimised prefix queries on text "
+                        + "fields please enable [index_prefixes]."
+                );
+            }
+            failIfNotIndexedNorDocValuesFallback(context);
+            Automaton prefix = caseInsensitive
+                ? AutomatonQueries.caseInsensitivePrefix(value)
+                : Operations.concatenate(List.of(Automata.makeString(value), Automata.makeAnyString()));
+            return keyedQuery(value + "*", prefix, method);
+        }
+
+        @Override
         public Query termQueryCaseInsensitive(Object value, SearchExecutionContext context) {
-            return AutomatonQueries.caseInsensitiveTermQuery(new Term(name(), indexedValueForSearch(value)));
+            String text = BytesRefs.toString(value);
+            Automaton automaton = Operations.concatenate(text.codePoints().mapToObj(Automata::makeCaseInsensitiveChar).toList());
+            return keyedQuery(text, automaton, null);
+        }
+
+        /**
+         * A query for the values of this key that {@code value} accepts. Only the value is matched by {@code value}: the key
+         * matches exactly, so a case-insensitive query does not match the other keys of the field.
+         */
+        private Query keyedQuery(String pattern, Automaton value, @Nullable MultiTermQuery.RewriteMethod method) {
+            Automaton keyed = Operations.concatenate(List.of(Automata.makeString(FlattenedFieldParser.createKeyedValue(key, "")), value));
+            Automaton automaton = Operations.determinize(keyed, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+            Term term = new Term(name(), FlattenedFieldParser.createKeyedValue(key, pattern));
+            if (indexType.hasOnlyDocValues() == false) {
+                return method == null ? new AutomatonQuery(term, automaton) : new AutomatonQuery(term, automaton, false, method);
+            }
+            if (usesArrayOrderBinaryDocValues) {
+                return new KeyedArrayOrderInlineNullAutomatonQuery(name(), automaton, term.text());
+            }
+            if (usesBinaryDocValues) {
+                return BinaryDocValuesQueries.forFormat(BinaryDocValuesFormat.SEPARATE_COUNT).automaton(name(), automaton, term.text());
+            }
+            return new AutomatonQuery(term, automaton, false, MultiTermQuery.DOC_VALUES_REWRITE);
         }
 
         @Override

@@ -1,0 +1,20 @@
+{
+  "properties": {
+    "@timestamp": {
+      "type": "date"
+    },
+    "host": {
+      "type": "keyword",
+      "time_series_dimension": true
+    },
+    "vector": {
+      "type": "dense_vector",
+      "similarity": "l2_norm",
+      "index_options": {
+        "type": "hnsw",
+        "m": 16,
+        "ef_construction": 100
+      }
+    }
+  }
+}

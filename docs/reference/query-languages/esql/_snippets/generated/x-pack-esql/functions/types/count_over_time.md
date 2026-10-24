@@ -10,6 +10,7 @@
 | cartesian_shape | time_duration {applies_to}`stack: preview 9.3.0` | long |
 | date | time_duration {applies_to}`stack: preview 9.3.0` | long |
 | date_nanos | time_duration {applies_to}`stack: preview 9.3.0` | long |
+| dense_vector {applies_to}`stack: ga 9.7.0` | time_duration {applies_to}`stack: preview 9.3.0` | long |
 | double | time_duration {applies_to}`stack: preview 9.3.0` | long |
 | geo_point | time_duration {applies_to}`stack: preview 9.3.0` | long |
 | geo_shape | time_duration {applies_to}`stack: preview 9.3.0` | long |

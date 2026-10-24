@@ -116,4 +116,9 @@ abstract class AbstractBigByteArray extends AbstractBigArray {
             remainedBytes -= len;
         }
     }
+
+    @Override
+    protected final void clearPages() {
+        pages = null;
+    }
 }

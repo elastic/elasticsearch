@@ -50,6 +50,11 @@ public abstract class ElasticsearchCodec extends FilterCodec {
         public DocValuesFormat getDocValuesFormatForField(String field) {
             return ElasticsearchCodec.this.getDocValuesFormatForField(field);
         }
+
+        @Override
+        public SegmentStatsCollectors getSegmentStatsCollectors() {
+            return ElasticsearchCodec.this.getSegmentStatsCollectors();
+        }
     };
 
     private final KnnVectorsFormat knnVectorsFormat = new PerFieldKnnVectorsFormat() {
@@ -146,6 +151,11 @@ public abstract class ElasticsearchCodec extends FilterCodec {
     /** Doc values format for writing new segments of {@code field}; subclasses dispatch per field. */
     public DocValuesFormat getDocValuesFormatForField(String field) {
         return delegateDocValuesFormat.getDocValuesFormatForField(field);
+    }
+
+    /** Collectors observing doc values as new segments are written; subclasses resolve them for their index. */
+    public SegmentStatsCollectors getSegmentStatsCollectors() {
+        return SegmentStatsCollectors.NONE;
     }
 
     /** Vectors format for writing new segments of {@code field}; subclasses dispatch per field. */

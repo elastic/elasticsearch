@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.logsdb.qa;
 
+import org.apache.http.client.config.RequestConfig;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.CheckedSupplier;
@@ -16,6 +19,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -35,6 +39,7 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
 
     private static final String USER = "test_admin";
     private static final String PASS = "x-pack-test-password";
+    private static final int DIAGNOSTICS_TIMEOUT_MILLIS = 10_000; // 10 seconds
 
     private final String baselineDataStreamName;
     private final String contenderDataStreamName;
@@ -255,7 +260,7 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
     private Response query(final SearchSourceBuilder search, final Supplier<String> dataStreamNameSupplier) throws IOException {
         final Request request = new Request("GET", "/" + dataStreamNameSupplier.get() + "/_search");
         request.setJsonEntity(Strings.toString(search));
-        return client.performRequest(request);
+        return performRequestLogged(request, "search [" + dataStreamNameSupplier.get() + "]");
     }
 
     public Response esqlBaseline(final String query) throws IOException {
@@ -268,8 +273,9 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
 
     private Response esql(final String query, final Supplier<String> dataStreamNameSupplier) throws IOException {
         final Request request = new Request("POST", "/_query");
-        request.setJsonEntity("{\"query\": \"" + query.replace("$index", dataStreamNameSupplier.get()) + "\"}");
-        return client.performRequest(request);
+        final String resolvedQuery = query.replace("$index", dataStreamNameSupplier.get());
+        request.setJsonEntity("{\"query\": \"" + resolvedQuery + "\"}");
+        return performRequestLogged(request, "esql [" + resolvedQuery + "]");
     }
 
     public Response fieldCapsBaseline() throws IOException {
@@ -282,7 +288,66 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
 
     private Response fieldCaps(final Supplier<String> dataStreamNameSupplier) throws IOException {
         final Request request = new Request("GET", "/" + dataStreamNameSupplier.get() + "/_field_caps?fields=*");
-        return client.performRequest(request);
+        return performRequestLogged(request, "field_caps [" + dataStreamNameSupplier.get() + "]");
+    }
+
+    /**
+     * Performs a request and logs how long it took. These tests fail in CI with socket timeouts, and the stack trace alone cannot
+     * tell us whether the cluster slowed down gradually over the preceding requests or stalled on a single one. Every request that
+     * carries test traffic (indexing, searching, field caps) should go through here so that the timeline is visible in the test output.
+     */
+    protected Response performRequestLogged(final Request request, final String description) throws IOException {
+        final long startNanos = System.nanoTime();
+        logger.info("--> {} [{} {}]", description, request.getMethod(), request.getEndpoint());
+        try {
+            final Response response = client.performRequest(request);
+            logger.info("<-- {} took [{}]", description, TimeValue.timeValueNanos(System.nanoTime() - startNanos));
+            return response;
+        } catch (IOException e) {
+            logger.error(
+                () -> Strings.format("<-- %s failed after [%s]", description, TimeValue.timeValueNanos(System.nanoTime() - startNanos)),
+                e
+            );
+            logClusterDiagnostics();
+            throw e;
+        }
+    }
+
+    /**
+     * Best-effort snapshot of what the cluster is doing at the moment a request fails. A socket timeout on the client says nothing
+     * about the server, so we ask the node which threads are busy, which bulk and refresh tasks are in flight, and whether the
+     * relevant thread pools are queueing or rejecting work. Failures here are logged rather than thrown so that the original
+     * exception remains the one reported by the test.
+     */
+    private void logClusterDiagnostics() {
+        logDiagnostic(
+            "---> thread pools",
+            new Request("GET", "/_cat/thread_pool/write,refresh,search,management?v&h=node_name,name,active,queue,rejected,completed")
+        );
+        logDiagnostic(
+            "---> in-flight bulk and refresh tasks",
+            new Request("GET", "/_tasks?detailed&actions=indices:data/write/bulk*,indices:admin/refresh*")
+        );
+        logDiagnostic("---> hot threads", new Request("GET", "/_nodes/hot_threads?threads=9999&ignore_idle_threads=false"));
+    }
+
+    private void logDiagnostic(final String name, final Request request) {
+        request.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .setRequestConfig(
+                    RequestConfig.custom()
+                        .setConnectTimeout(DIAGNOSTICS_TIMEOUT_MILLIS)
+                        .setConnectionRequestTimeout(DIAGNOSTICS_TIMEOUT_MILLIS)
+                        .setSocketTimeout(DIAGNOSTICS_TIMEOUT_MILLIS)
+                        .build()
+                )
+        );
+        try {
+            final Response response = client.performRequest(request);
+            logger.warn("{}:\n{}", name, EntityUtils.toString(response.getEntity()));
+        } catch (IOException e) {
+            logger.warn(() -> Strings.format("failed to retrieve %s", name), e);
+        }
     }
 
     public String getBaselineDataStreamName() {

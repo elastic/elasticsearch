@@ -54,7 +54,7 @@ public abstract class ReindexChallengeRestIT extends StandardVersusLogsIndexMode
                 }
             }
             """, getBaselineDataStreamName(), getContenderDataStreamName()));
-        var response = client.performRequest(reindexRequest);
+        var response = performRequestLogged(reindexRequest, "reindex baseline into contender");
         assertOK(response);
 
         var body = entityAsMap(response);

@@ -11,6 +11,7 @@ package org.elasticsearch.simdjson;
 
 import org.elasticsearch.simdjson.internal.fieldnames.FieldNameHash;
 import org.elasticsearch.simdjson.internal.fieldnames.FieldNameLookup;
+import org.elasticsearch.simdjson.internal.fieldnames.FieldNamePredictor;
 import org.elasticsearch.simdjson.internal.parsers.BitIndexes;
 import org.elasticsearch.simdjson.internal.parsers.DoubleParser;
 import org.elasticsearch.simdjson.internal.parsers.StringParser;
@@ -60,6 +61,7 @@ public final class SimdJsonDirectWalker {
     private static final int DEFAULT_MAX_DEPTH = 64;
 
     private final FieldNameLookup nameCache;
+    private final FieldNamePredictor namePredictor = new FieldNamePredictor();
     private final StringParser stringParser = new StringParser();
     /**
      * Once the explicit exponent has this many or more accumulated, further digits are ignored: any exponent of
@@ -73,6 +75,8 @@ public final class SimdJsonDirectWalker {
     private byte[] stringBuf = new byte[4096];
     private int currentDepth;
     private int docCount;
+    /** Number of field names resolved so far in the current document; the key into {@link #namePredictor}. */
+    private int fieldPosition;
     private int docStart;
 
     public SimdJsonDirectWalker(FieldNameLookup nameCache) {
@@ -126,6 +130,8 @@ public final class SimdJsonDirectWalker {
     }
 
     private void walkDocumentBody(byte[] buffer, BitIndexes bitIndexes, JsonDocumentHandler handler) {
+        fieldPosition = 0;
+        namePredictor.beginDocument();
         if (bitIndexes.isEnd()) {
             throw new JsonParsingException("No structural element found.");
         }
@@ -169,6 +175,10 @@ public final class SimdJsonDirectWalker {
      */
     public void releaseNames() {
         nameCache.release();
+        // The table may have just adopted a different shared snapshot, so names remembered by
+        // position could no longer be the table's canonical instances; relearning one document's
+        // worth per batch is cheap.
+        namePredictor.clear();
     }
 
     private void walkObject(byte[] buffer, BitIndexes bi, JsonDocumentHandler handler) {
@@ -974,7 +984,23 @@ public final class SimdJsonDirectWalker {
     private static final long HI_BITS = 0x8080808080808080L;
     private static final VarHandle LONG_LE = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.LITTLE_ENDIAN);
 
+    /**
+     * Resolves the object key whose opening quote is at {@code quoteIdx}. Documents that repeat the
+     * same shape resolve every key from {@link #namePredictor} with a single byte comparison; anything
+     * the predictor does not anticipate takes the scan, hash and table lookup below.
+     */
     private String resolveFieldName(byte[] buffer, int quoteIdx) {
+        int position = fieldPosition++;
+        String predicted = namePredictor.predict(buffer, quoteIdx + 1, position);
+        if (predicted != null) {
+            return predicted;
+        }
+        String name = resolveFieldNameUncached(buffer, quoteIdx);
+        namePredictor.learn(position, name, buffer, quoteIdx + 1);
+        return name;
+    }
+
+    private String resolveFieldNameUncached(byte[] buffer, int quoteIdx) {
         int start = quoteIdx + 1;
         int pos = start;
         int loopBound = buffer.length - 8;

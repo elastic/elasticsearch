@@ -150,11 +150,70 @@ public class SimdJsonParserBenchmark {
 
     private static final Recycler<BytesRef> RECYCLER = new BytesRefRecycler(new PageCacheRecycler(Settings.EMPTY));
 
+    /**
+     * LOCAL ONLY. Newline-delimited JSON file used when {@code shape=clickbench_file}, e.g. real
+     * ClickBench {@code hits} documents. Each invocation encodes the next {@code docCount} lines,
+     * wrapping around, and each thread starts at a different offset, so the documents (and their
+     * value distributions) change from bulk to bulk as they do in a real run.
+     */
+    @Param({ "" })
+    private String dataFile;
+
+    /** LOCAL ONLY. Maximum number of lines read from {@code dataFile}. */
+    @Param({ "100000" })
+    private int fileDocs;
+
+    /**
+     * LOCAL ONLY. If non-empty, each benchmark thread first parses a one-field document whose field name is this value. The thread's
+     * parser freezes its field name table after the first document it ever parses, so this models
+     * a server thread whose first document was unrelated to the workload.
+     */
+    @Param({ "" })
+    private String primeDoc;
+
+    private static final java.util.concurrent.atomic.AtomicInteger FILE_THREADS = new java.util.concurrent.atomic.AtomicInteger();
+    private static byte[][] fileLines;
+
     private BytesReference[] docs;
+    private int fileCursor;
+
+    private static synchronized byte[][] loadFile(String path, int limit) throws IOException {
+        if (fileLines == null) {
+            java.util.List<byte[]> lines = new java.util.ArrayList<>();
+            try (java.io.BufferedReader reader = java.nio.file.Files.newBufferedReader(java.nio.file.Path.of(path), UTF_8)) {
+                String line;
+                while (lines.size() < limit && (line = reader.readLine()) != null) {
+                    if (line.isBlank() == false) {
+                        lines.add(line.getBytes(UTF_8));
+                    }
+                }
+            }
+            fileLines = lines.toArray(new byte[0][]);
+        }
+        return fileLines;
+    }
 
     @Setup
-    public void setUp() {
+    public void setUp() throws IOException {
         BenchmarkLogging.configure();
+        if (primeDoc.isEmpty() == false) {
+            try (EscfEncoder primer = new EscfEncoder(RECYCLER, true)) {
+                primer.parseToScratch(new BytesArray(("{\"" + primeDoc + "\":1}").getBytes(UTF_8)), XContentType.JSON, LeafSink.NO_OP);
+            }
+        }
+        if ("clickbench_file".equals(shape)) {
+            if (mappingCount != 1) {
+                throw new IllegalArgumentException("shape=clickbench_file requires mappingCount=1");
+            }
+            byte[][] lines = loadFile(dataFile, fileDocs);
+            fileCursor = (int) (((long) FILE_THREADS.getAndIncrement() * docCount * 7) % lines.length);
+            long total = 0;
+            for (byte[] l : lines) {
+                total += l.length;
+            }
+            printSetupSummary(0, total / lines.length, 0);
+            return;
+        }
         long threadSeed = seed + Thread.currentThread().threadId();
         Random random = new Random(threadSeed);
         docs = new BytesReference[docCount];
@@ -202,6 +261,13 @@ public class SimdJsonParserBenchmark {
         return encodeBulk(true);
     }
 
+    private BytesReference source(int i) {
+        if (docs != null) {
+            return docs[i];
+        }
+        return new BytesArray(fileLines[(fileCursor + i) % fileLines.length]);
+    }
+
     /**
      * Encodes one bulk, mirroring {@code BulkBatchEncoders}: one encoder per concrete index, rows
      * routed to that index's shard partitions, then every partition built during
@@ -214,9 +280,9 @@ public class SimdJsonParserBenchmark {
                 encoders[m] = new EscfEncoder(RECYCLER, allowSimd);
             }
 
-            for (int i = 0; i < docs.length; i++) {
+            for (int i = 0; i < docCount; i++) {
                 EscfEncoder encoder = encoders[i % mappingCount];
-                encoder.parseToScratch(docs[i], XContentType.JSON, LeafSink.NO_OP);
+                encoder.parseToScratch(source(i), XContentType.JSON, LeafSink.NO_OP);
                 encoder.commitScratchTo(i % shardCount);
             }
 
@@ -234,6 +300,9 @@ public class SimdJsonParserBenchmark {
             }
             return leafCount;
         } finally {
+            if (docs == null) {
+                fileCursor = (fileCursor + docCount) % fileLines.length;
+            }
             for (EscfEncoder encoder : encoders) {
                 if (encoder != null) {
                     encoder.close();

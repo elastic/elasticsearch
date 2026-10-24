@@ -204,6 +204,118 @@ public class EscfBatchBuilderTests extends ESTestCase {
         }
     }
 
+    /**
+     * {@link EscfRowBuffer} remembers which column each leaf resolved to by its position in the row. Rows that
+     * repeat a shape, reorder it, add or drop fields, reuse a name under a different parent, or present an
+     * equal-but-not-identical name must all land in the right columns.
+     */
+    public void testLeafColumnsStayCorrectWhenRowShapesVary() throws IOException {
+        String a = "a";
+        String b = "b";
+        String c = "c";
+        try (EscfBatchBuilder builder = newBuilder()) {
+            int[] shapes = new int[] { 0, 0, 1, 0, 2, 0, 3, 4, 0, 4 };
+            String[] expected = new String[] {
+                "{\"a\":1,\"b\":2,\"c\":3}",
+                "{\"a\":1,\"b\":2,\"c\":3}",
+                "{\"c\":3,\"b\":2,\"a\":1}",
+                "{\"a\":1,\"b\":2,\"c\":3}",
+                "{\"a\":1,\"c\":3}",
+                "{\"a\":1,\"b\":2,\"c\":3}",
+                "{\"a\":1,\"o\":{\"b\":2},\"c\":3}",
+                "{\"a\":1,\"b\":2,\"c\":3}",
+                "{\"a\":1,\"b\":2,\"c\":3}",
+                "{\"a\":1,\"b\":2,\"c\":3}" };
+            for (int shape : shapes) {
+                EscfRowBuffer row = builder.beginRow();
+                switch (shape) {
+                    case 0 -> {
+                        row.longField(a, 1);
+                        row.longField(b, 2);
+                        row.longField(c, 3);
+                    }
+                    case 1 -> {
+                        row.longField(c, 3);
+                        row.longField(b, 2);
+                        row.longField(a, 1);
+                    }
+                    case 2 -> {
+                        row.longField(a, 1);
+                        row.longField(c, 3);
+                    }
+                    case 3 -> {
+                        row.longField(a, 1);
+                        row.startObject("o");
+                        row.longField(b, 2);
+                        row.endObject();
+                        row.longField(c, 3);
+                    }
+                    case 4 -> {
+                        // Equal content, different String instances: must resolve to the same columns.
+                        row.longField(new String("a"), 1);
+                        row.longField(new String("b"), 2);
+                        row.longField(new String("c"), 3);
+                    }
+                    default -> throw new AssertionError(shape);
+                }
+                row.finishRow();
+                builder.commit(0);
+            }
+            try (EscfBatch batch = builder.buildPartition(0)) {
+                assertEquals(shapes.length, batch.docCount());
+                for (int i = 0; i < shapes.length; i++) {
+                    assertEquals("row " + i, asMap(expected[i]), reconstruct(batch, i));
+                }
+            }
+        }
+    }
+
+    /** A duplicate field is still rejected when its column is found through the position memo. */
+    public void testDuplicateLeafRejectedWithMemoWarm() throws IOException {
+        String a = "a";
+        String b = "b";
+        try (EscfBatchBuilder builder = newBuilder()) {
+            EscfRowBuffer row = builder.beginRow();
+            row.longField(a, 1);
+            row.longField(b, 2);
+            row.finishRow();
+            builder.commit(0);
+
+            EscfRowBuffer second = builder.beginRow();
+            second.longField(a, 1);
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> second.longField(a, 2));
+            assertEquals("Duplicate field [a]", e.getMessage());
+        }
+    }
+
+    /** Rows with more leaves than the position memo holds still resolve every leaf correctly. */
+    public void testRowsWithMoreLeavesThanTheMemoHolds() throws IOException {
+        int leaves = 5000;
+        String[] names = new String[leaves];
+        for (int i = 0; i < leaves; i++) {
+            names[i] = "f" + i;
+        }
+        try (EscfBatchBuilder builder = newBuilder()) {
+            for (int r = 0; r < 3; r++) {
+                EscfRowBuffer row = builder.beginRow();
+                for (int i = 0; i < leaves; i++) {
+                    row.longField(names[i], i + r);
+                }
+                row.finishRow();
+                builder.commit(0);
+            }
+            try (EscfBatch batch = builder.buildPartition(0)) {
+                for (int r = 0; r < 3; r++) {
+                    Map<String, Object> got = reconstruct(batch, r);
+                    assertEquals(leaves, got.size());
+                    for (int i = 0; i < leaves; i += 499) {
+                        assertEquals(i + r, ((Number) got.get(names[i])).intValue());
+                    }
+                }
+            }
+        }
+    }
+
     private static EscfBatchBuilder newBuilder() {
         Recycler<BytesRef> recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
         return new EscfBatchBuilder(recycler);

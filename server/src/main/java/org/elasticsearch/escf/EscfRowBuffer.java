@@ -32,6 +32,8 @@ public final class EscfRowBuffer {
 
     private static final int INITIAL_CAPACITY = 16;
     private static final int INITIAL_PARENT_STACK_DEPTH = 8;
+    /** Bounds the memo for documents with very many leaves; later leaves always use the schema lookup. */
+    private static final int MAX_MEMO_POSITIONS = 4096;
 
     private final SourceSchema schema;
 
@@ -42,6 +44,20 @@ public final class EscfRowBuffer {
 
     private int[] parentStack;
     private int parentDepth;
+
+    /**
+     * Remembers, for each leaf in the order a row adds them, the {@code (name, parent)} it resolved to and the
+     * column it got. Rows of one shape add the same leaves in the same order, so the next row can confirm a
+     * leaf with a name identity check and an int comparison instead of hashing a schema key and probing the
+     * schema's lookup map. Names are compared by identity: the walker hands out canonical {@link String}
+     * instances, and a different instance with equal content simply takes the schema lookup, so the memo
+     * can only ever skip work, never change which column a field maps to (the schema is append-only).
+     */
+    private String[] memoName = new String[INITIAL_CAPACITY];
+    private int[] memoParent = new int[INITIAL_CAPACITY];
+    private int[] memoColumn = new int[INITIAL_CAPACITY];
+    /** Leaves added to the current row so far; the key into the memo arrays. */
+    private int leafPosition;
 
     /**
      * Whether {@link #finishRow()} has been called but {@link EscfBatchBuilder#commit} has not.
@@ -66,6 +82,7 @@ public final class EscfRowBuffer {
         Arrays.fill(scratchVar, 0, Math.min(columnCountBefore, scratchVar.length), null);
         columnsSet.clear();
         parentDepth = 0;
+        leafPosition = 0;
         rowStarted = false;
     }
 
@@ -172,12 +189,35 @@ public final class EscfRowBuffer {
     }
 
     private int addLeaf(String name) {
-        int colIdx = schema.appendLeaf(name, parentStack[parentDepth]);
+        int parent = parentStack[parentDepth];
+        int position = leafPosition++;
+        int colIdx;
+        if (position < memoName.length && memoName[position] == name && memoParent[position] == parent) {
+            colIdx = memoColumn[position];
+        } else {
+            colIdx = schema.appendLeaf(name, parent);
+            remember(position, name, parent, colIdx);
+        }
         ensureScratchCapacity(colIdx + 1);
         if (columnsSet.getAndSet(colIdx)) {
             throw new IllegalArgumentException("Duplicate field [" + name + "]");
         }
         return colIdx;
+    }
+
+    private void remember(int position, String name, int parent, int colIdx) {
+        if (position >= MAX_MEMO_POSITIONS) {
+            return;
+        }
+        if (position >= memoName.length) {
+            int cap = ArrayUtil.oversize(position + 1, Integer.BYTES);
+            memoName = Arrays.copyOf(memoName, cap);
+            memoParent = Arrays.copyOf(memoParent, cap);
+            memoColumn = Arrays.copyOf(memoColumn, cap);
+        }
+        memoName[position] = name;
+        memoParent[position] = parent;
+        memoColumn[position] = colIdx;
     }
 
     private void ensureScratchCapacity(int size) {

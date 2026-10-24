@@ -22,6 +22,7 @@
 package org.elasticsearch.simdjson.internal.parsers;
 
 import jdk.incubator.vector.ByteVector;
+import jdk.incubator.vector.VectorMask;
 import jdk.incubator.vector.VectorSpecies;
 
 import org.elasticsearch.simdjson.JsonParsingException;
@@ -129,9 +130,9 @@ public final class StringParser {
         int loopBound = buffer.length - BYTES_PROCESSED;
         while (src <= loopBound) {
             ByteVector srcVec = ByteVector.fromArray(BYTE_SPECIES, buffer, src);
-            long specialBits = srcVec.eq(BACKSLASH).or(srcVec.eq(QUOTE)).toLong();
+            VectorMask<Byte> special = srcVec.eq(BACKSLASH).or(srcVec.eq(QUOTE));
 
-            if (specialBits == 0) {
+            if (special.anyTrue() == false) {
                 // Full vector chunk has no quote or escape — bulk-copy literal UTF-8 bytes.
                 srcVec.intoArray(stringBuffer, dst);
                 src += BYTES_PROCESSED;
@@ -139,14 +140,16 @@ public final class StringParser {
                 continue;
             }
 
-            int dist = Long.numberOfTrailingZeros(specialBits);
+            int dist = special.firstTrue();
+            // Store the whole chunk and keep only the dist bytes before the special character. The prefix is
+            // usually a handful of bytes, where a vector store beats a System.arraycopy call. Bytes past
+            // dist are overwritten later or lie in the destination padding.
+            srcVec.intoArray(stringBuffer, dst);
             if (buffer[src + dist] == QUOTE) {
-                System.arraycopy(buffer, src, stringBuffer, dst, dist);
                 return dst + dist;
             }
 
             int backslashDist = dist;
-            System.arraycopy(buffer, src, stringBuffer, dst, backslashDist);
             byte escapeChar = buffer[src + backslashDist + 1];
             if (escapeChar == 'u') {
                 src += backslashDist;

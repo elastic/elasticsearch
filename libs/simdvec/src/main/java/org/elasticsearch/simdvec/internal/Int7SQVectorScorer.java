@@ -117,7 +117,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
             long byteOffset = (long) node * vectorPitch;
             input.seek(byteOffset);
             return IndexInputUtils.withFloatSlice(input, vectorPitch, scratch, seg -> {
-                int dotProduct = DISTANCE_FUNCS.dotProductI7u(query, seg.asSlice(0, vectorByteSize), vectorByteSize);
+                int dotProduct = DISTANCE_FUNCS.dotProductI7u(seg.asSlice(0, vectorByteSize), query, vectorByteSize);
                 assert dotProduct >= 0;
                 float nodeCorrection = Float.intBitsToFloat(seg.get(ValueLayout.JAVA_INT_UNALIGNED, vectorByteSize));
                 float adjustedDistance = dotProduct * scoreCorrectionConstant + queryCorrection + nodeCorrection;
@@ -163,7 +163,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
                 input,
                 vectorPitch,
                 scratch,
-                seg -> DISTANCE_FUNCS.squareDistanceI7u(query, seg.asSlice(0, vectorByteSize), vectorByteSize)
+                seg -> DISTANCE_FUNCS.squareDistanceI7u(seg.asSlice(0, vectorByteSize), query, vectorByteSize)
             );
             float adjustedDistance = sqDist * scoreCorrectionConstant;
             return VectorUtil.normalizeDistanceToUnitInterval(adjustedDistance);
@@ -205,7 +205,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
             long byteOffset = (long) node * vectorPitch;
             input.seek(byteOffset);
             return IndexInputUtils.withFloatSlice(input, vectorPitch, scratch, seg -> {
-                int dotProduct = DISTANCE_FUNCS.dotProductI7u(query, seg.asSlice(0, vectorByteSize), vectorByteSize);
+                int dotProduct = DISTANCE_FUNCS.dotProductI7u(seg.asSlice(0, vectorByteSize), query, vectorByteSize);
                 assert dotProduct >= 0;
                 float nodeCorrection = Float.intBitsToFloat(seg.get(ValueLayout.JAVA_INT_UNALIGNED, vectorByteSize));
                 float adjustedDistance = dotProduct * scoreCorrectionConstant + queryCorrection + nodeCorrection;

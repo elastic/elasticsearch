@@ -18,6 +18,7 @@ import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes
 import org.elasticsearch.gradle.fixtures.AbstractProjectBuilderPluginSpec
 import org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes
+import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin
 import org.gradle.api.Project
 import org.gradle.api.artifacts.ProjectDependency
 import spock.lang.TempDir
@@ -39,6 +40,8 @@ class InternalDistributionDownloadPluginSpec extends AbstractProjectBuilderPlugi
         writeRepoLayout()
 
         Project rootProject = buildProject("elasticsearch", null, workspace)
+        // mirrors settings.gradle, which applies elasticsearch.global-build-info to the root project of the build
+        rootProject.pluginManager.apply(GlobalBuildInfoPlugin)
         Project distributionProject = buildProject("distribution", rootProject)
         Project archivesProject = buildProject("archives", distributionProject)
         Project packagesProject = buildProject("packages", distributionProject)

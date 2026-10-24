@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
+import org.apache.lucene.util.RamUsageEstimator;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.delete.TransportDeleteAction;
@@ -14,26 +18,40 @@ import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.cache.Cache;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.iterable.Iterables;
+import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.esql.EsqlDatasetActionNames;
 import org.elasticsearch.xpack.core.esql.EsqlViewActionNames;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege.findPrivilegesThatGrant;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class IndexPrivilegeTests extends ESTestCase {
 
@@ -205,6 +223,54 @@ public class IndexPrivilegeTests extends ESTestCase {
             assertThat(actual.name(), equalTo(Set.of("all", "read", "read_failure_store")));
             assertThat(actual.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.ALL));
             assertThat(Automatons.subsetOf(IndexPrivilege.ALL.automaton, actual.automaton), is(true));
+        }
+    }
+
+    /** Singleton unions rely on built-in privilege automata having already been minimized. */
+    public void testNamedPrivilegeAutomataAreMinimal() {
+        for (IndexPrivilege privilege : IndexPrivilege.values().values()) {
+            final Automaton automaton = privilege.getAutomaton();
+            assertTrue(privilege.name().toString(), automaton.isDeterministic());
+            final Automaton minimized = MinimizationOperations.minimize(automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+            assertEquals(privilege.name().toString(), minimized.getNumStates(), automaton.getNumStates());
+        }
+    }
+
+    /** Each selector partition can reuse its single automaton while retaining a separate privilege wrapper. */
+    public void testReusesNamedAutomataAcrossSelectors() {
+        final Set<IndexPrivilege> resolved = IndexPrivilege.resolveBySelectorAccess(Set.of("read", "read_failure_store", "manage"));
+        assertThat(resolved, containsInAnyOrder(IndexPrivilege.READ, IndexPrivilege.READ_FAILURE_STORE, IndexPrivilege.MANAGE));
+        for (IndexPrivilege privilege : resolved) {
+            final IndexPrivilege named = IndexPrivilege.getNamedOrNull(privilege.name().iterator().next());
+            assertThat(privilege, not(sameInstance(named)));
+            assertThat(privilege.getAutomaton(), sameInstance(named.getAutomaton()));
+            assertThat(privilege.getSelectorPredicate(), equalTo(named.getSelectorPredicate()));
+        }
+    }
+
+    /** Raw actions produce one minimal automaton that can be reused without changing the granted actions. */
+    public void testReusesRawActionAutomata() {
+        Automatons.updateConfiguration(Settings.EMPTY);
+        try {
+            for (Set<String> actions : List.of(
+                Set.of("indices:data/read/search"),
+                Set.of("indices:data/read/search", "indices:data/read/field_caps")
+            )) {
+                final Automaton expected = Automatons.patterns(actions.stream().map(Privilege::actionToPattern).toList());
+                final IndexPrivilege resolved = resolvePrivilegeAndAssertSingleton(actions);
+                assertThat(resolved.name(), equalTo(actions));
+                assertThat(resolved.getAutomaton(), sameInstance(expected));
+                assertThat(resolved.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.DATA));
+                for (String action : actions) {
+                    assertTrue(resolved.predicate().test(action));
+                    assertTrue(resolved.predicate().test(action + "[s]"));
+                }
+                assertFalse(resolved.predicate().test("indices:data/write/index"));
+                assertFalse(resolved.predicate().test("indices:data/read/get"));
+                assertFalse(resolved.predicate().test("cluster:monitor/health"));
+            }
+        } finally {
+            Automatons.updateConfiguration(Settings.EMPTY);
         }
     }
 
@@ -558,6 +624,143 @@ public class IndexPrivilegeTests extends ESTestCase {
             + " actions";
 
         assertEquals(expectedFullErrorMessage, exception.getMessage());
+    }
+
+    /**
+     * The cache is static and shared with other test classes in the same JVM. Start every test with an empty cache of the default size,
+     * and leave one behind for whoever runs next.
+     */
+    @Before
+    @After
+    public void resetIndexPrivilegeCache() {
+        IndexPrivilege.updateConfiguration(Settings.EMPTY);
+    }
+
+    public void testResolvedPrivilegesAreCached() {
+        final Set<String> names = Set.copyOf(randomSubsetOf(randomIntBetween(2, 5), IndexPrivilege.names()));
+
+        final Set<IndexPrivilege> resolved = IndexPrivilege.resolveBySelectorAccess(names);
+        assertThat(IndexPrivilege.resolveBySelectorAccess(names), sameInstance(resolved));
+        // the cache key is the set of names, regardless of the set implementation used by the caller
+        assertThat(IndexPrivilege.resolveBySelectorAccess(new HashSet<>(names)), sameInstance(resolved));
+        assertThat(IndexPrivilege.resolveBySelectorAccess(new TreeSet<>(names)), sameInstance(resolved));
+
+        final Set<String> otherNames = Set.of("read");
+        final Set<IndexPrivilege> otherResolved = IndexPrivilege.resolveBySelectorAccess(otherNames);
+        final Cache<Set<String>, IndexPrivilege.CachedPrivileges> cache = IndexPrivilege.getCache();
+        final long weight = cache.weight();
+        for (int i = 0; i < 3; i++) {
+            // alternate lookups so each entry is promoted in the LRU list
+            assertThat(IndexPrivilege.resolveBySelectorAccess(names), sameInstance(resolved));
+            assertThat(cache.weight(), equalTo(weight));
+            assertThat(IndexPrivilege.resolveBySelectorAccess(otherNames), sameInstance(otherResolved));
+            assertThat(cache.weight(), equalTo(weight));
+        }
+    }
+
+    public void testEmptyNamesBypassCache() {
+        final Cache<Set<String>, IndexPrivilege.CachedPrivileges> cache = IndexPrivilege.getCache();
+        final Set<IndexPrivilege> resolved = IndexPrivilege.resolveBySelectorAccess(Set.of());
+        assertThat(resolved, containsInAnyOrder(sameInstance(IndexPrivilege.NONE)));
+        assertThat(cache.count(), equalTo(0));
+        assertThat(cache.weight(), equalTo(0L));
+
+        IndexPrivilege.resolveBySelectorAccess(Set.of("read", "write"));
+        final long weight = cache.weight();
+        assertThat(IndexPrivilege.resolveBySelectorAccess(new HashSet<>()), sameInstance(resolved));
+        assertThat(cache.count(), equalTo(1));
+        assertThat(cache.weight(), equalTo(weight));
+
+        IndexPrivilege.updateConfiguration(Settings.EMPTY);
+        assertThat(IndexPrivilege.resolveBySelectorAccess(Set.of()), sameInstance(resolved));
+        assertThat(IndexPrivilege.getCache().count(), equalTo(0));
+        assertThat(IndexPrivilege.getCache().weight(), equalTo(0L));
+    }
+
+    public void testCacheWeightExcludesSharedPrivileges() {
+        final Cache<Set<String>, IndexPrivilege.CachedPrivileges> cache = IndexPrivilege.getCache();
+        for (String name : IndexPrivilege.names()) {
+            final IndexPrivilege shared = IndexPrivilege.getNamedOrNull(name);
+            for (String requestedName : List.of(name, name.toUpperCase(Locale.ROOT))) {
+                final Set<String> names = Set.of(requestedName);
+                final long previousWeight = cache.weight();
+                final Set<IndexPrivilege> resolved = IndexPrivilege.resolveBySelectorAccess(names);
+                assertThat(resolved, containsInAnyOrder(sameInstance(shared)));
+                // Only the shared privilege is excluded; the set that holds its reference is still allocated for this entry.
+                // Lucene estimates collection storage as an array of references.
+                final long expectedWeight = RamUsageEstimator.shallowSizeOfInstance(IndexPrivilege.CachedPrivileges.class)
+                    + RamUsageEstimator.sizeOfCollection(names) + RamUsageEstimator.shallowSizeOf(resolved) + RamUsageEstimator
+                        .shallowSizeOf(new Object[resolved.size()]);
+                assertThat(cache.weight() - previousWeight, equalTo(expectedWeight));
+            }
+        }
+    }
+
+    public void testCacheIsBoundedByMemory() {
+        final List<String> allNames = List.copyOf(IndexPrivilege.names());
+        // large enough to hold a few resolved privilege sets, small enough that 100 distinct sets do not fit
+        final ByteSizeValue maxSize = ByteSizeValue.ofKb(randomIntBetween(100, 500));
+        IndexPrivilege.updateConfiguration(Settings.builder().put(IndexPrivilege.CACHE_SIZE_SETTING.getKey(), maxSize).build());
+        final Cache<Set<String>, IndexPrivilege.CachedPrivileges> cache = IndexPrivilege.getCache();
+        assertThat(cache.count(), equalTo(0));
+
+        final Set<Set<String>> distinctNames = new HashSet<>();
+        while (distinctNames.size() < 100) {
+            final Set<String> names = Set.copyOf(randomSubsetOf(randomIntBetween(1, allNames.size()), allNames));
+            if (distinctNames.add(names) == false) {
+                continue;
+            }
+            final Set<IndexPrivilege> resolved = IndexPrivilege.resolveBySelectorAccess(names);
+            assertThat(resolved, not(empty()));
+            assertThat(cache.weight(), lessThanOrEqualTo(maxSize.getBytes()));
+        }
+
+        assertThat(cache.count(), lessThan(distinctNames.size()));
+        assertThat(cache.stats().getEvictions(), greaterThan(0L));
+        assertThat(cache.weight(), lessThanOrEqualTo(maxSize.getBytes()));
+
+        // evicted entries are transparently resolved again
+        for (Set<String> names : randomSubsetOf(10, distinctNames)) {
+            final Set<IndexPrivilege> resolved = IndexPrivilege.resolveBySelectorAccess(names);
+            assertThat(
+                resolved.stream().map(IndexPrivilege::name).flatMap(Set::stream).collect(Collectors.toSet()),
+                equalTo(names.stream().map(n -> n.toLowerCase(Locale.ROOT)).collect(Collectors.toSet()))
+            );
+        }
+    }
+
+    public void testCacheWeightIsEstimatedMemoryOfResolvedPrivileges() {
+        final Cache<Set<String>, IndexPrivilege.CachedPrivileges> cache = IndexPrivilege.getCache();
+        assertThat(cache.count(), equalTo(0));
+
+        for (Set<String> names : List.of(
+            Set.of("read", "write", "manage_failure_store"),
+            Set.of("read", "read_failure_store"),
+            Set.of("read", "READ"),
+            Set.of("indices:data/read/search*")
+        )) {
+            final long previousWeight = cache.weight();
+            final Set<IndexPrivilege> resolved = IndexPrivilege.resolveBySelectorAccess(names);
+            // The key, the cached value wrapper, the value set and all privileges are allocated for this entry.
+            final long expectedWeight = RamUsageEstimator.shallowSizeOfInstance(IndexPrivilege.CachedPrivileges.class) + RamUsageEstimator
+                .sizeOfCollection(names) + RamUsageEstimator.sizeOfCollection(resolved);
+            assertThat(cache.weight() - previousWeight, equalTo(expectedWeight));
+            for (IndexPrivilege privilege : resolved) {
+                if (privilege.name().size() == 1) {
+                    final IndexPrivilege named = IndexPrivilege.getNamedOrNull(privilege.name().iterator().next());
+                    if (named != null) {
+                        // Selector partitioning and case normalization can create privileges equal to, but distinct from, a built-in.
+                        assertThat(privilege, equalTo(named));
+                        assertThat(privilege, not(sameInstance(named)));
+                    }
+                }
+                // The run automaton backing the predicate dominates the footprint and must be accounted for.
+                assertThat(
+                    privilege.ramBytesUsed(),
+                    greaterThanOrEqualTo(new CharacterRunAutomaton(privilege.getAutomaton()).ramBytesUsed())
+                );
+            }
+        }
     }
 
     public static IndexPrivilege resolvePrivilegeAndAssertSingleton(Set<String> names) {

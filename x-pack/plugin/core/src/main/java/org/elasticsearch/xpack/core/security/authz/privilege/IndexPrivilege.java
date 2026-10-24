@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
@@ -34,6 +35,12 @@ import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.search.TransportSearchShardsAction;
 import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.cache.Cache;
+import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
@@ -57,12 +64,13 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Map.entry;
+import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 import static org.elasticsearch.xpack.core.security.support.Automatons.patterns;
 import static org.elasticsearch.xpack.core.security.support.Automatons.unionAndMinimize;
 
@@ -340,7 +348,23 @@ public final class IndexPrivilege extends Privilege {
     public static final Predicate<String> ACTION_MATCHER = ALL.predicate();
     public static final Predicate<String> CREATE_INDEX_MATCHER = CREATE_INDEX.predicate();
 
-    private static final ConcurrentHashMap<Set<String>, Set<IndexPrivilege>> CACHE = new ConcurrentHashMap<>();
+    /**
+     * The maximum estimated heap retained by the cache of resolved index privileges (see {@link #resolveBySelectorAccess}).
+     * <p>
+     * Resolving a set of privilege names compiles and minimizes the union of their automata, which is CPU intensive, so results are
+     * cached. There is one entry per distinct combination of privilege names used by some role or API key, so the number of entries
+     * is unbounded, and entries vary in size from a few KB (a single raw action) to ~100 KB (a union of most named privileges). The
+     * cache is therefore bounded by estimated bytes rather than by entry count.
+     */
+    public static final Setting<ByteSizeValue> CACHE_SIZE_SETTING = Setting.memorySizeSetting(
+        setting("authz.index_privileges.cache.size"),
+        "5%",
+        Setting.Property.NodeScope
+    );
+
+    private static final Set<IndexPrivilege> NONE_SET = Set.of(NONE);
+
+    private static volatile Cache<Set<String>, CachedPrivileges> cache = buildCache(Settings.EMPTY);
 
     private final IndexComponentSelectorPredicate selectorPredicate;
 
@@ -393,15 +417,69 @@ public final class IndexPrivilege extends Privilege {
      * A notable exception is the {@link IndexPrivilege#ALL} privilege. If this privilege is included in the input name set, this method
      * returns a single index privilege that grants access to all selectors.
      * All raw actions are treated as granting access to the {@link IndexComponentSelector#DATA} selector.
+     * An empty input returns a shared set containing {@link #NONE} without using the cache.
      */
     public static Set<IndexPrivilege> resolveBySelectorAccess(Set<String> names) {
-        return CACHE.computeIfAbsent(names, (theName) -> {
-            if (theName.isEmpty()) {
-                return Set.of(NONE);
-            } else {
-                return resolve(theName);
-            }
-        });
+        if (names.isEmpty()) {
+            return NONE_SET;
+        }
+        try {
+            return cache.computeIfAbsent(names, (theName) -> {
+                final Set<IndexPrivilege> privileges = resolve(theName);
+                return new CachedPrivileges(privileges, weigh(theName, privileges));
+            }).privileges();
+        } catch (ExecutionException e) {
+            throw FutureUtils.rethrowExecutionException(e);
+        }
+    }
+
+    /**
+     * Rebuilds the cache of resolved index privileges according to the given node settings, see {@link #CACHE_SIZE_SETTING}.
+     * Any previously cached entries are discarded.
+     */
+    public static void updateConfiguration(Settings settings) {
+        cache = buildCache(settings);
+    }
+
+    private static Cache<Set<String>, CachedPrivileges> buildCache(Settings settings) {
+        return CacheBuilder.<Set<String>, CachedPrivileges>builder()
+            .setMaximumWeight(CACHE_SIZE_SETTING.get(settings).getBytes())
+            .weigher((names, cached) -> cached.weight())
+            .build();
+    }
+
+    /**
+     * Caches the estimated entry weight so LRU updates do not repeat memory accounting.
+     */
+    record CachedPrivileges(Set<IndexPrivilege> privileges, long weight) {
+        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(CachedPrivileges.class);
+    }
+
+    /**
+     * Estimates the heap a cache entry retains: the key with its names, the cached value wrapper, and the value set with its privileges,
+     * which account for their automata through {@link Privilege#ramBytesUsed()}. Shared built-in privilege instances are excluded because
+     * {@link #VALUES} retains them independently of the cache. The value set and its references are still counted.
+     */
+    private static long weigh(Set<String> names, Set<IndexPrivilege> privileges) {
+        final long entrySize = CachedPrivileges.SHALLOW_SIZE + RamUsageEstimator.sizeOfCollection(names);
+        if (isSharedNamedPrivilege(names, privileges)) {
+            // Match sizeOfCollection's estimate of a singleton set and its reference, excluding the shared privilege.
+            final long referenceArraySize = RamUsageEstimator.alignObjectSize(
+                RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF
+            );
+            return entrySize + RamUsageEstimator.shallowSizeOf(privileges) + referenceArraySize;
+        } else {
+            return entrySize + RamUsageEstimator.sizeOfCollection(privileges);
+        }
+    }
+
+    private static boolean isSharedNamedPrivilege(Set<String> names, Set<IndexPrivilege> privileges) {
+        return names.size() == 1 && privileges.size() == 1 && getNamedOrNull(names.iterator().next()) == privileges.iterator().next();
+    }
+
+    // visible for testing
+    static Cache<Set<String>, CachedPrivileges> getCache() {
+        return cache;
     }
 
     @Nullable
@@ -532,7 +610,10 @@ public final class IndexPrivilege extends Privilege {
             names.addAll(actions);
             automata.add(patterns(actions.stream().map(Privilege::actionToPattern).toList()));
         }
-        return new IndexPrivilege(names, unionAndMinimize(automata), selectorPredicate);
+        // Built-in privilege automata and the result of patterns(...) are already minimal.
+        // Combining multiple automata requires minimization, but a single one can be reused.
+        final Automaton automaton = automata.size() == 1 ? automata.iterator().next() : unionAndMinimize(automata);
+        return new IndexPrivilege(names, automaton, selectorPredicate);
     }
 
     static Map<String, IndexPrivilege> values() {
